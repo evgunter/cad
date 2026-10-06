@@ -45,7 +45,7 @@ use crate::m10_8_harness::head;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeVar, Node, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, VarName,
     evaluate,
 };
@@ -154,7 +154,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     );
     let cube = r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::named(VarName::from_static("h"), Dimension::Length),
+        distance: Formula::named(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
@@ -185,7 +185,7 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
         origin: [
             len(0.0),
             len(0.0),
-            Expr::named(VarName::from_static("z0"), Dimension::Length),
+            Formula::named(VarName::from_static("z0"), Dimension::Length),
         ],
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
@@ -225,7 +225,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
             translation: [
                 len(0.0),
                 len(0.0),
-                Expr::named(VarName::from_static("lift"), Dimension::Length),
+                Formula::named(VarName::from_static("lift"), Dimension::Length),
             ],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
             angle: ang(0.0),

@@ -12,7 +12,7 @@ use editor_core::ExtrudeSide;
 use editor_core::expr::DimensionError;
 use editor_core::persist::SnapshotError;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Expr, FreeVar, MetaValue, Node, NodeErrorKind,
+    CancelToken, Dimension, DocEdit, EvalOptions, Formula, FreeVar, MetaValue, Node, NodeErrorKind,
     NodeResult, PersistError, ProfileDoc, RecipeNodeId, VarName, WitnessDatum, apply, evaluate,
     load, save,
 };
@@ -327,7 +327,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
         doc,
         Node::Extrude {
             profile: p,
-            distance: Expr::add(len(1.0), len(1.0)).expect("Length + Length"),
+            distance: Formula::add(len(1.0), len(1.0)).expect("Length + Length"),
             side: ExtrudeSide::Along,
         },
     );
@@ -388,7 +388,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
 fn a_refusal_outside_a_parse_arms_nothing() {
     let bad = r#"{"Add":[{"Literal":{"value":1.0,"dim":"Length","unit":"m"}},"#.to_owned()
         + r#"{"Literal":{"value":1.0,"dim":"Angle","unit":"rad"}}]}"#;
-    let refused: Result<Expr, _> = serde_json::from_str(&bad);
+    let refused: Result<Formula, _> = serde_json::from_str(&bad);
     assert!(refused.is_err(), "the tree is ill-dimensioned");
     // Now a clean load on the same thread. If that refusal had been
     // recorded anywhere a later parse could read, this would answer a
@@ -490,7 +490,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     // a layer earlier, when the frame's slot is authored.
     assert!(
         matches!(
-            Expr::literal(f64::INFINITY, Dimension::Length),
+            Formula::literal(f64::INFINITY, Dimension::Length),
             Err(editor_core::DimensionError::NonFiniteLiteral)
         ),
         "the frame's origin slot refuses a non-finite at its literal door"

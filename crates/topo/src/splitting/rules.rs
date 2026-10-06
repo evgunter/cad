@@ -465,9 +465,10 @@ fn wall_graze<T: Decide>(
 ///   outer boundary at all, so its locus is unbounded and no finite
 ///   arm over-estimates anything. That is refused, not measured.
 ///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
-///   validated operand cannot carry one; the boolean's operand gate
-///   (`gate_operand_pairs`) runs it, but the split's operand gate does
-///   not, which is why the refusal is here rather than assumed.
+///   validated operand cannot carry one. The split's doors run tier 2
+///   on an operand that carries no verdict, but this read does not
+///   assume its caller's gate (a test-support door reaches it past
+///   that gate), which is why the refusal is here rather than assumed.
 ///
 /// The refusal is [`UnboundedFace`], naming the face
 /// and the loop's lone vertex. Every caller resolves `vertex` and
@@ -594,6 +595,7 @@ mod tests {
     fn classify_apex(row: &Row) -> (PlaneSide, PlaneSide, Option<bool>, PlaneSide) {
         let tol = Tol::witness();
         let fx = crate::test_support_fixtures::prism::<f64>(row.profile, 1.0, tol);
+        let operand = crate::test_support::finished("the fixture", fx.body.clone(), tol);
         let plane = crate::test_support_fixtures::split_plane(
             geom_core::Point3::new(0.0, 1.0, 0.0),
             geom_core::Vec3::new(0.0, row.normal, 0.0),
@@ -609,7 +611,7 @@ mod tests {
         };
         let (base, far) = (at(0.0), at(1.0));
         let band = Band::linear(tol).unwrap();
-        let (sides, _) = crate::vertex_sides(&fx.body, &plane, tol).unwrap();
+        let (sides, _) = crate::vertex_sides(&operand, &plane, tol).unwrap();
         let entries =
             super::super::classify_neighborhood(&fx.body, &plane, &sides, base, band).unwrap();
         let n = entries.len();
@@ -662,6 +664,7 @@ mod tests {
         let tol = Tol::witness();
         let body =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let body = crate::test_support::finished("the body", body, tol);
         let band = Band::linear(tol).unwrap();
         let h = core::f64::consts::FRAC_1_SQRT_2;
         let point = |v: VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();

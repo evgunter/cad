@@ -109,9 +109,10 @@ impl Say for ExportError {
                 for (node, group, cause) in parts {
                     write!(
                         f,
-                        " {} (its group, rooted at {}, is unplaced because {cause});",
+                        " {} (its group, rooted at {}, is unplaced because {});",
                         by.node(*node),
-                        by.node(*group)
+                        by.node(*group),
+                        Said(cause, by)
                     )?;
                 }
                 write!(
@@ -121,7 +122,8 @@ impl Say for ExportError {
                 )
             }
             // A group below is spelled in its part's ids, so its row
-            // keeps its own words.
+            // says them as the part holds them, but for its route's
+            // first instance, which is this document's.
             ExportError::UnplacedBelow { groups } => {
                 write!(
                     f,
@@ -129,7 +131,7 @@ impl Say for ExportError {
                      world leaves out:"
                 )?;
                 for group in groups {
-                    write!(f, " {group};")?;
+                    write!(f, " {};", Said(group, by))?;
                 }
                 write!(
                     f,
@@ -144,7 +146,9 @@ impl Say for ExportError {
     }
 }
 
-/// The sentence where no document is at hand: each node by its tag.
+/// The sentence where no document is at hand: this document's nodes
+/// by their tags, and each group below as its own `Display` says it
+/// ([`CarriedUnplaced`]).
 impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.say(f, Speaker::TAG)
@@ -154,7 +158,9 @@ impl core::fmt::Display for ExportError {
 impl ExportError {
     /// **The refusal as the frame holding the evaluated document says
     /// it**: each of its nodes as `doc` holds it now. The door reads an
-    /// evaluation alone, so the refusal holds ids, never a label.
+    /// evaluation alone, so the refusal holds this document's ids,
+    /// never their labels; a group below is said as its part holds it
+    /// ([`CarriedUnplaced::held`]).
     #[must_use]
     pub fn spoken(&self, doc: &ProfileDoc) -> String {
         editor_core::spoken_by(self, doc)

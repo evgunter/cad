@@ -298,7 +298,7 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
         doc,
         Node::Pattern {
             input: sp,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(5.0),

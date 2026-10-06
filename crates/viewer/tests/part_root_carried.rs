@@ -24,8 +24,9 @@ use crate::fixture;
 
 use fixture::resolver::in_part;
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocRef, EvalOptions, Expr, MateFrame, MatePrimitive,
-    Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, content_pin, evaluate,
+    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label,
+    MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, content_pin,
+    evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -43,14 +44,14 @@ fn reference(doc: &ProfileDoc, tol: Tol) -> DocRef {
 }
 
 /// `node`'s failure as `doc`'s own evaluation, over the store in `dir`,
-/// renders it: the line `doc`'s own tree draws for it.
+/// says it from `doc`: the line `doc`'s own tree draws for it.
 fn own_line(doc: &ProfileDoc, node: RecipeNodeId, dir: &Path, tol: Tol) -> String {
     let opts = EvalOptions {
         resolver: Some(Arc::new(Workspace::open(dir).expect("the store opens"))),
         ..EvalOptions::default()
     };
     match evaluate::<f64>(doc, None, &CancelToken::new(), &opts, tol).result(node) {
-        Some(NodeResult::Failed(error)) => error.to_string(),
+        Some(NodeResult::Failed(error)) => error.spoken(doc),
         other => panic!("{node:?} fails in its own document: {other:?}"),
     }
 }
@@ -106,9 +107,14 @@ fn hold_to_the_standard(message: &str, carried: &[CarriedLine]) {
 /// part by file name, its own line names the bracket's failed node and
 /// points, and under it are two levels: the bracket's node, labelled
 /// `bracket.pncad`, and the boss's extrude, labelled `boss.pncad`. Each
-/// level's line is byte for byte what that part's own evaluation
-/// renders for its node, no line quotes the line under it, and every
-/// line is within the budget.
+/// level's line is byte for byte what that part's own tree draws for
+/// its node, labels included, no line quotes the line under it, and
+/// every line is within the budget.
+///
+/// The assembly's first node is the bracket's root again, an instance
+/// of the boss, so it has the same id (both documents mint from the
+/// zero chain) under another label: every line that says the bracket's
+/// node says the bracket's label, and none says the assembly's.
 #[test]
 fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let tol = Tol::witness();
@@ -123,12 +129,13 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         &boss,
         Node::Extrude {
             profile,
-            distance: Expr::div(common::len(0.008), common::scl(0.0))
+            distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },
         tol,
     );
+    let boss = labelled(&boss, boss_root, "boss plate", tol);
     store
         .save_at(&boss, "boss.pncad", tol)
         .expect("the boss stores");
@@ -140,11 +147,22 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         Node::instantiate_part(reference(&boss, tol)),
         tol,
     );
+    let bracket = labelled(&bracket, bracket_root, "bracket seat", tol);
     store
         .save_at(&bracket, "bracket.pncad", tol)
         .expect("the bracket stores");
 
     let mut assembly = Doc::empty_derived("partroot-assembly", tol);
+    let twin = common::insert_into(
+        &mut assembly,
+        Node::instantiate_part(reference(&boss, tol)),
+        tol,
+    );
+    assert_eq!(
+        twin, bracket_root,
+        "both documents mint from the zero chain"
+    );
+    let mut assembly = labelled(&assembly, twin, "host twin", tol);
     let instance = common::insert_into(
         &mut assembly,
         Node::instantiate_part(reference(&bracket, tol)),
@@ -189,23 +207,24 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         "one level per document below the instance, each labelled with its file and drawn \
          byte for byte as its part's own tree draws it"
     );
+    let (bracket_node, boss_node) = (bracket.spoken(bracket_root), boss.spoken(boss_root));
     assert!(
-        message.contains(&format!(
-            "repair node {}",
-            test_utils::refusal::tag(bracket_root.0)
-        )) && carried[0].line.contains(&format!(
-            "repair node {}",
-            test_utils::refusal::tag(boss_root.0)
-        )),
-        "each carrying line points at the node the level under it names: {message} / {}",
+        message.contains(&format!("repair {bracket_node}"))
+            && carried[0].line.contains(&format!("repair {boss_node}")),
+        "each carrying line points at the node the level under it names, by the label its \
+         part holds: {message} / {}",
         carried[0].line
+    );
+    assert!(
+        message.contains(&format!("the part's {bracket_node} failed"))
+            && !message.contains("host twin")
+            && carried.iter().all(|c| !c.line.contains("host twin")),
+        "the bracket's node is said with the bracket's label, never the assembly's for the \
+         same id: {message} / {carried:?}"
     );
     let refusal = carried[1]
         .line
-        .strip_prefix(&format!(
-            "node {} failed: ",
-            test_utils::refusal::tag(boss_root.0)
-        ))
+        .strip_prefix(&format!("{boss_node} failed: "))
         .expect("the boss's line opens with its node");
     for line in [message, &carried[0].line] {
         assert!(
@@ -298,17 +317,16 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
          drawn as its part's own tree draws it"
     );
     for (line, root, failed) in [
-        (message, bracket_root, inner),
-        (&carried[0].line, broken_root, extrude),
+        (message, bracket.spoken(bracket_root), bracket.spoken(inner)),
+        (
+            &carried[0].line,
+            broken.spoken(broken_root),
+            broken.spoken(extrude),
+        ),
     ] {
         assert!(
-            line.contains(&format!(
-                "its root, node {}",
-                test_utils::refusal::tag(root.0)
-            )) && line.contains(&format!(
-                "repair node {}",
-                test_utils::refusal::tag(failed.0)
-            )),
+            line.contains(&format!("its root, {root}"))
+                && line.contains(&format!("repair {failed}")),
             "each carrying line names the root it cost and points at the node that failed: \
              {line}"
         );
@@ -316,6 +334,19 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
     hold_to_the_standard(message, carried);
 
     std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
+}
+
+/// `doc` with `node` labelled `text`.
+fn labelled(doc: &ProfileDoc, node: RecipeNodeId, text: &str, tol: Tol) -> ProfileDoc {
+    common::edited(
+        doc,
+        DocEdit::SetLabel {
+            node,
+            label: Some(Label::new(text).expect("a valid label")),
+        },
+        tol,
+    )
+    .0
 }
 
 /// A small block, as a whole part document, and its body.
@@ -332,7 +363,7 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -364,7 +395,7 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         &sub,
         Node::Pattern {
             input: legs,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -424,10 +455,9 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         "the cap's level is sub.pncad's own line for it"
     );
     assert!(
-        carried[1].line.starts_with(&format!(
-            "node {} failed: ",
-            test_utils::refusal::tag(pattern.0)
-        )),
+        carried[1]
+            .line
+            .starts_with(&format!("{} failed: ", sub.spoken(pattern))),
         "the carried level is the pattern's refusal: {}",
         carried[1].line
     );

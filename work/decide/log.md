@@ -956,3 +956,33 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — Ev's answers: the derived-frame row closes, the two P2s stay open
+
+- `the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
+  (P1) is **closed**. The question put to Ev on 2026-10-02 (re-aim the
+  `none` rung?) had been answered in code by DECIDE-3 (`b07a01b8b6`,
+  2026-09-21); the row asserts what the `none` tier now does.
+- `rule-g-trades-sixteen-…` and `the-exact-quotient-re-keys-…` (P2, H)
+  are not gated; the orchestrator's 2026-10-02 summary called them
+  "gated" in error. Ev (in chat, 2026-10-06): defer them only if DECIDE
+  also has live P0 or P1 rows. It has none: its P1s are the parked
+  declared tangency and the deferred revolve carriers. So they stay
+  `open`, behind DECIDE-9's successor
+  `the-read-at-its-node-relabels-a-cancellation-above-it` (P2), which
+  is the next DECIDE unit.
+
+## 2026-10-06 — DECIDE-10 spec'd: the read behind its parent; single FULL review
+
+DECIDE-9's review showed the class its spec suspected is real in the
+tier: the read answers a `min`/`max`/`Select` node before its parent
+can cancel it against an equal node. No measured document carries it
+today, so this unit restores the read's contract for the class.
+
+**Review tier: single FULL review**, as DECIDE-9's. Candidate 2 (read
+at the decision form only) withdraws what DECIDE-3 ratified, so it is
+measured as a comparison and never shipped from this unit; a Phase 1
+that finds only it working stops and goes to Ev.
+
+Spec `docs/DECIDE-10-SPEC.md`. Branch `decide/10-read-behind-the-parent`
+from `main`.

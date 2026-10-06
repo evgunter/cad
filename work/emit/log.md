@@ -1691,3 +1691,182 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — PR 3839 ([ev]): a part's nodes are said by label, carried on the fault from the seam
+
+Designer pair (fork-log row 71, A = Fable, B = Opus) converged on option
+(d): the fault records the part's nodes while the pinned part is in hand
+and carries them, and the uncalled doors go. Ev approved the mechanism
+but asked for the Band 1 bullet to state the general principle instead
+of a part exception. It now reads "a value the evaluation memo reuses
+holds a label only when its memo key fixes that label", with host and
+part as its two consequences. The row
+`a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` stays open
+for the build, with a Ruled section naming it. Fork-log row renumbered
+from 45 to 71 on merging main (main had taken 45–70).
+
+## 2026-10-06 — PR 3841: a carried row's route says this document's instance by label
+
+`Route::say` reads `route.through` off the speaking document (kind,
+label and tag) when the sentence is made. The `via` hops belong to
+deeper documents and stay said by tag. The same goes for the mate, the
+group and the cause, which are spelled in the part (that is the separate
+part-at-the-seam row). Covered: `AssemblyError::CarriedMintRefusal`,
+`Attribution::Carried`, `ExportError::UnplacedBelow`, and Python
+`CarriedRefusal.__str__`. The viewer badge and Python `export_err`
+already spoke through `spoken(doc)`. The review found nothing blocking.
+Two twin-id tests were folded in, each mutation-checked:
+- a four-document route whose `via` hop shares an id with an outer node
+  labelled "spare seat";
+- an unplaced group whose id the outer document holds as "twin group".
+The two-nouns-per-route reading (kind noun for the first hop,
+"instance" for later ones) stays as `NodeAs` makes it.
+
+## 2026-10-06 — PR 4086: a deleted selection says the last label its node had
+
+The selection keeps its nodes as they were said (`Derived::said`,
+written by `Select`). After every operation, `DocSession::perform`
+re-speaks them from the shown document under the `respoken` keep rule.
+`Speaker::or_held` says a node from the document while the document
+holds it, then from the kept nodes, then by tag. Picks are spoken from
+the shown document first and the landed run's second (`spoken_now`).
+The row asked each door to name its document instead. The review judged
+this better: it picks up a rename made after the landing.
+
+The datum face form keeps its own kept nodes (`Drafts::datum_face_said`),
+so it no longer reads a snapshot that belongs to a later selection. That
+fault was filed and folded in the same PR.
+
+Review folds, each mutation-checked:
+- the per-op re-speak;
+- the shown-first test;
+- the datum face test.
+
+Filed:
+- `a-verdicts-other-nodes-are-said-by-tag-once-deleted`;
+- `the-tools-pick-time-snapshots-never-follow-a-rename`.
+
+## 2026-10-06 — PR 4090: a part's fault and carried levels say the part's labels as its pin fixes them
+
+Built to the Ruled section of #3839. `product_fault` records the part's
+nodes (`held_by` over the fault's sentence and its in-part carried
+levels) while the evaluated pinned part is in hand. The four `PartFault`
+arms that name part nodes keep them as `held: Arc<HeldNodes>`.
+`CarriedIn::Part` carries them too. `PartFault`'s `Display` speaks only
+through its own snapshot, so a host speaker can never lend a twin id its
+label. The viewer tree, `str(err)` and `__cause__` say part labels.
+Deleted: `CarriedLevel::line_in_part`, `PartFault::spoken`,
+`assert_pinned` (no resolver/pin cross-check remains on the speaking
+path; labels come from the evaluated document).
+
+Equality now also compares the labels the pin fixed. Equal ids from
+differently-labelled pins compare unequal, which is deliberate and
+reaches `ReachRefusal` and `FacePoseRefusal`.
+
+Review folds:
+- the `Eq` prose;
+- arms built with their snapshot, with `held_mut` gone;
+- the `spoken.rs` module doc leads with the general rule;
+- a direct match in `line_in`/`line`.
+
+Twin-id tests in editor-core, the viewer and Python, mutation-checked
+before the refactor.
+
+Filed: `carried-rows-say-a-parts-nodes-by-tag`. The success-path rows
+(`Route` via hops, `CarriedRefusal`, `CarriedUnplaced`, carried
+declarations) never pass `product_fault`.
+
+**Main was red.** `review_pick_r2`'s corpus tally moved at the merge of
+#4081 (ae873ecb6b; b804bcc1c9 still at the old pin), from
+`(442782, 141968, 12774, 6870)` to `(442782, 141890, 13932, 7110)`.
+Only the pin moved: no genuine crossing is refused and there are no wide
+winners. #4081's CI passed on a head that predates #4088/#4086, and
+main runs no test job on push. Re-pinned here.
+
+## 2026-10-06 — PR 4093: the open tool's held nodes follow every later document
+
+`Tools::respeak` re-speaks the open tool's held `SpokenNode`s (seats, the
+blend target, the mate's two picks) under the `respoken` keep rule.
+`ViewerApp::respeak_held` is now the single per-op call, beside
+`Drafts::respeak`. So a lost pick or target says the last label its node
+had.
+
+The mate's commit refusals (`NotAnInstancePick`, `SamePick`) prefer the
+kept label over the landed spelling. This covers the window where a
+rename and delete have not landed.
+
+On `Open`/`NewDocument`, `Tools::document_replaced` re-opens the tool
+empty, as drafts drop their held face. Without that, picks would be
+re-spoken from another document's id space; a reopened saved copy keeps
+identical ids, so the pick survived reconcile.
+
+Review folds:
+- C1 (kept-first, over a gated `app` row);
+- C2 (`Driven` rows through `perform_batch` for both respeakers);
+- C4 (replacement);
+- one helper and one shared loop;
+- a stale `app`-gated comment.
+
+All mutation-checked.
+
+## 2026-10-06 — PR 4103: verdict-nodes issue parked on the rewiring op
+
+`a-verdicts-other-nodes-are-said-by-tag-once-deleted` cannot happen
+through the session today. A `Vanished` verdict names only derivation
+nodes and strict ancestors of a live minter. `delete_node` deletes the
+whole cascade cone, and no session op rewires a live node's inputs.
+The row is parked on `no-docedit-splices-a-deleted-node` (#1324). Its
+body records the reachability evidence and the fix for when the case
+becomes reachable: widen `Derived::said` to the nodes a verdict can
+name, merged after each op. A snapshot taken at standing time would be
+too late.
+
+## 2026-10-06 — PR 4107: cluster-act gauges row closed as overtaken
+
+`a-cluster-act-speaks-its-gauges-by-tag` named `ClusterMaintenance`,
+`Maintenance::Cluster` and `mate::solve::gauge_spoken`. #3676
+(`1441b5154d`) deleted all of them with the placement registry, hours
+before the row was filed from a branch that predated it. The one
+placement row an edit reports today, `Maintenance::OffsetCleared`,
+already speaks its instance. A sweep of every `Maintenance` arm and of
+`node {` format strings in `editor-core/src` found nothing new (the
+carried rows are already filed). The PR only removes comments left stale
+by the deletion, and re-points two citations of a renamed test. That
+re-pointing was checked by mutating `Carrier::ALL`: exactly the three
+cited rows fail.
+
+## 2026-10-06 — PR 4114: a part's carried rows say its nodes as the pinned part holds them
+
+The success-path rows a part carries up now say the part's nodes by the
+labels its pin fixes. These are the `Route` deeper hops, `CarriedRefusal`,
+`CarriedUnplaced` (group and cause) and `Attribution::Carried`.
+- `Route::via` is `Vec<SpokenNode>`, each hop spoken from its own
+  document.
+- Each row body keeps `held: Arc<HeldNodes>`, recorded by `held_by` over
+  the body's own sentence (`PartRow::own`).
+- `PartValue` hands up `PartRow`s, built in `evaluate_entered` while the
+  pinned part is in hand.
+- `carry_up` and `Route::through_instance` are deleted.
+- Only `route.through`, the memoizing document's own id, stays bare and
+  is said by the frame.
+
+Memo keys: carried rows are reused only through `PartCache`
+`(DocRef, ε)` and the instance's content key (`feed_doc_ref`: id + pin).
+The pin hashes the canonical bytes, labels included, and fixes every
+deeper reference transitively. So every stored label is fixed by its
+key, under the general rule Ev ratified on #3839, and there is no design
+fork. The review confirmed this, and found `gauge_chain`'s "dead" cycle
+unreachable (every gauge-writing door runs `gauge_ref_fault`).
+
+Review folds:
+- the four stale `Display` docs;
+- a live-twin cause-gauge test (mutation-checked);
+- `RowBody` replaced by `held_by` over `B: Say`;
+- `UnplacedGroup` replaces the tuple;
+- one spelling of `Unplaced` through its `Say`.
+
+The generic carried-row type was skipped: it would rename public fields
+the Python bindings and the census read.
+
+The node-labels unit has no open actionable rows left. The verdict-nodes
+row is parked on #1324.

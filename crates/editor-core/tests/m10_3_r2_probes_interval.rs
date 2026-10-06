@@ -43,8 +43,8 @@ use editor_core::drive::{
     BudgetKind, DriveConfig, ReasonClass, RefusalReason, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node,
-    ProfileDoc, ProfileLift, ProfileProgram, VarName, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
+    Node, ProfileDoc, ProfileLift, ProfileProgram, VarName, evaluate,
 };
 use geom_core::{Interval, Tol};
 
@@ -58,14 +58,14 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
 
 /// A square extruded by `distance`, with one continuous parameter
 /// `depth` carrying `dist`.
-fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
+fn slab_with(nominal: f64, dist: Distribution, distance: Formula) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
@@ -90,8 +90,8 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
     r.doc
 }
 
-fn depth_param() -> Expr {
-    Expr::named(name("depth"), Dimension::Length)
+fn depth_param() -> Formula {
+    Formula::named(name("depth"), Dimension::Length)
 }
 
 /// **A document whose witness chamber is BOUNDED ON BOTH SIDES in the
@@ -103,11 +103,11 @@ fn depth_param() -> Expr {
 /// chamber-containment amendment describes, and the unit's own suite
 /// has no fixture for it.
 fn pinched(nominal: f64, half: f64) -> ProfileDoc {
-    let t = || Expr::named(name("height"), Dimension::Length);
-    let height = Expr::neg(
-        Expr::min(
+    let t = || Formula::named(name("height"), Dimension::Length);
+    let height = Formula::neg(
+        Formula::min(
             t(),
-            Expr::sub(len(2.0 * nominal), t()).expect("length minus length"),
+            Formula::sub(len(2.0 * nominal), t()).expect("length minus length"),
         )
         .expect("min of two lengths is a length"),
     )
@@ -628,14 +628,14 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                     .expect("finite plate corners"),
                 LoopProgram::Circle {
                     centre: [len(1.0), len(1.0)],
-                    radius: Expr::named(name("hole_r"), Dimension::Length),
+                    radius: Formula::named(name("hole_r"), Dimension::Length),
                 },
             ],
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,
-            distance: Expr::named(name("plate_h"), Dimension::Length),
+            distance: Formula::named(name("plate_h"), Dimension::Length),
             side: ExtrudeSide::Along,
         });
         r.doc

@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
@@ -31,8 +32,9 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    CapEnd, Datum, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
+    CapEnd, Datum, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    VarName,
 };
 use geom_core::{Bounds, Interval, Tol, Vec3};
 
@@ -80,7 +82,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     declare_with(r, axis, nominal, half());
 }
 
-fn translated(input: RecipeNodeId, by: [Expr; 3]) -> Node<ProfileProgram> {
+fn translated(input: RecipeNodeId, by: [Formula; 3]) -> AuthoredNode {
     Node::transform(
         input,
         editor_core::Step::Rigid {
@@ -114,8 +116,8 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     })
 }
 
-fn param(n: &'static str) -> Expr {
-    Expr::named(name(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(name(n), Dimension::Length)
 }
 
 /// Two unit blocks whose facing walls stand `gap` apart, the gap a
@@ -128,7 +130,7 @@ fn blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let by = Expr::add(len(1.0), param("gap")).expect("a length");
+    let by = Formula::add(len(1.0), param("gap")).expect("a length");
     let b = r.insert(translated(a, [by, len(0.0), len(0.0)]));
     (r.doc, a, b)
 }
@@ -275,7 +277,7 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
         &[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)],
         1.0,
     );
-    let up = Expr::add(len(1.5), param("lift")).expect("a length");
+    let up = Formula::add(len(1.5), param("lift")).expect("a length");
     let floated = r.insert(translated(block, [len(0.0), len(0.0), up]));
     (r.doc, plate, block, floated)
 }
@@ -520,7 +522,7 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(-0.2), param("place")).expect("a length"),
+            Formula::add(len(-0.2), param("place")).expect("a length"),
         ],
     ));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
@@ -886,7 +888,7 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
     let placed = r.insert(translated(
         slider,
         [
-            Expr::add(len(1.0), param("place")).expect("a length"),
+            Formula::add(len(1.0), param("place")).expect("a length"),
             len(1.0),
             len(0.0),
         ],

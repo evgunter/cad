@@ -29,7 +29,7 @@
 //!
 //! A segment whose locus on a solid is an edge is that edge: the
 //! solid's adjacency skip reads the locus, not the geometry
-//! ([`Chords::Segment`]).
+//! ([`SegmentEdge::Locus`]).
 //!
 //! A matched segment's chord curve is computed once per solid, before
 //! any chord is minted ([`SegmentCurve`]): the joiner mints both chords
@@ -145,7 +145,8 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, Chords, CutOutcome, Datum, JoinLane, Leave, SegmentCurve, SplitJoinError,
+    ChordJoiner, CutOutcome, Datum, JoinLane, JoinPlan, Leave, SegmentCurve, SegmentEdge,
+    SplitJoinError,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::face_normal::face_outward_normal;
@@ -281,19 +282,45 @@ enum AuxDatum {
 }
 
 impl SolidJoin {
-    /// The segment's curve in `lane`, from the site of `halves.0`
-    /// ([`ChordJoiner::segment_curve`]).
+    /// The plan for joining `halves` in that order, its skip the edge
+    /// the segment's locus names ([`ChordJoiner::plan`]).
+    fn plan<T: Decide>(
+        &self,
+        body: &Body<T>,
+        halves: (HalfEdgeKey, HalfEdgeKey),
+        segment: Option<EdgeKey>,
+    ) -> Result<JoinPlan, BooleanError> {
+        self.joiner
+            .plan(body, halves, SegmentEdge::Locus(segment))
+            .map_err(BooleanError::Join)
+    }
+
+    /// The segment's curve in `lane`, from the site of the plan's first
+    /// half ([`ChordJoiner::segment_curve`]). A match whose two chords
+    /// are both skipped — a loop holding both halves of the segment's
+    /// edge — is refused.
     fn curve<T: Decide>(
         &self,
         body: &mut Body<T>,
-        halves: (HalfEdgeKey, HalfEdgeKey),
+        plan: &JoinPlan,
         lane: JoinLane<'_, T>,
-        segment: Option<EdgeKey>,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
-        self.joiner
-            .segment_curve(body, halves, lane, segment, leave)
-            .map_err(BooleanError::Join)
+        let curve = self
+            .joiner
+            .segment_curve(body, plan, lane, leave)
+            .map_err(BooleanError::Join)?;
+        let h1 = plan.halves().0;
+        curve.ok_or_else(|| {
+            BooleanError::Join(match body.face_of_half_edge(h1) {
+                Some(face) => SplitJoinError::SectionInvariant {
+                    face,
+                    what: "both chords of a matched segment are its own edge (a loop holding \
+                           both halves of that edge)",
+                },
+                None => crate::chord_join::corrupt_he(h1),
+            })
+        })
     }
 
     /// The wall-side curve against the germ plane through `origin` with
@@ -302,10 +329,9 @@ impl SolidJoin {
     fn split_curve<T: Decide>(
         &mut self,
         body: &mut Body<T>,
-        halves: (HalfEdgeKey, HalfEdgeKey),
+        plan: &JoinPlan,
         (origin, normal): (Point3<T>, UnitVec3<T>),
         datum: AuxDatum,
-        segment: Option<EdgeKey>,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         let mut ctx = crate::chord_join::SectionCtx {
@@ -313,7 +339,7 @@ impl SolidJoin {
             normal,
             plane_key: self.aux.get(&datum).copied(),
         };
-        let curve = self.curve(body, halves, JoinLane::Split(&mut ctx), segment, leave)?;
+        let curve = self.curve(body, plan, JoinLane::Split(&mut ctx), leave)?;
         if let Some(k) = ctx.plane_key {
             self.aux.insert(datum, k);
         }
@@ -325,10 +351,9 @@ impl SolidJoin {
     fn bool_planar_curve<T: Decide>(
         &mut self,
         body: &mut Body<T>,
-        halves: (HalfEdgeKey, HalfEdgeKey),
+        plan: &JoinPlan,
         wall: geom::Surface<T>,
         partner_face: FaceKey,
-        segment: Option<EdgeKey>,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         let datum = AuxDatum::Partner(partner_face);
@@ -337,29 +362,35 @@ impl SolidJoin {
             wall,
             partner_key: &mut partner,
         };
-        let curve = self.curve(body, halves, lane, segment, leave)?;
+        let curve = self.curve(body, plan, lane, leave)?;
         if let Some(k) = partner {
             self.aux.insert(datum, k);
         }
         Ok(curve)
     }
 
-    /// Mints the matched segment's chords between `h1` and `h2` on
-    /// `curve` ([`ChordJoiner::join`]).
+    /// Mints the matched segment's chords between `roles` on `curve`
+    /// ([`ChordJoiner::join`]): `plan`'s chords where the roles are its
+    /// order, else the plan of the roles' own order — the ring lane of a
+    /// planar face orders the halves by the curve, after it is computed.
     fn join<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
-        (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+        roles: (HalfEdgeKey, HalfEdgeKey),
+        plan: &JoinPlan,
         curve: &SegmentCurve<T>,
         segment: Option<EdgeKey>,
         tol: Tol,
     ) -> Result<(), BooleanError> {
-        let chords = Chords::Segment {
-            curve,
-            edge: segment,
+        let reordered;
+        let plan = if roles == plan.halves() {
+            plan
+        } else {
+            reordered = self.plan(body, roles, segment)?;
+            &reordered
         };
         self.joiner
-            .join(body, h1, h2, chords, tol)
+            .join(body, plan, curve, tol)
             .map_err(BooleanError::Join)?;
         Ok(())
     }
@@ -761,6 +792,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             ),
             GermLane::ring_closures,
         );
+        sa.joiner
+            .place_pending(&mut red.a, (ea, ra))
+            .map_err(BooleanError::Join)?;
+        sb.joiner
+            .place_pending(&mut red.b, (eb, rb))
+            .map_err(BooleanError::Join)?;
         let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)?;
         let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)?;
         let (a_halves, b_halves) = (a_lane.curve_order((ea, ra)), b_lane.curve_order((eb, rb)));
@@ -793,59 +830,48 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 });
             }
         }
+        let (plan_a, plan_b) = (
+            sa.plan(&red.a, a_halves, seg_a)?,
+            sb.plan(&red.b, b_halves, seg_b)?,
+        );
         let (curve_a, curve_b) = match lane {
             None => (
-                sa.curve(&mut red.a, a_halves, JoinLane::AlongEdge, seg_a, leave_a)?,
-                sb.curve(&mut red.b, b_halves, JoinLane::AlongEdge, seg_b, leave_b)?,
+                sa.curve(&mut red.a, &plan_a, JoinLane::AlongEdge, leave_a)?,
+                sb.curve(&mut red.b, &plan_b, JoinLane::AlongEdge, leave_b)?,
             ),
             // The chord runs along the two planes' common line: straight
             // on both sides.
             Some(GermLane::Planar) => (
-                sa.curve(&mut red.a, a_halves, JoinLane::Planar, seg_a, leave_a)?,
-                sb.curve(&mut red.b, b_halves, JoinLane::Planar, seg_b, leave_b)?,
+                sa.curve(&mut red.a, &plan_a, JoinLane::Planar, leave_a)?,
+                sb.curve(&mut red.b, &plan_b, JoinLane::Planar, leave_b)?,
             ),
             Some(GermLane::PlaneWall(plane)) => (
-                sa.bool_planar_curve(
-                    &mut red.a,
-                    a_halves,
-                    gb.clone(),
-                    germ.b_face,
-                    seg_a,
-                    leave_a,
-                )?,
+                sa.bool_planar_curve(&mut red.a, &plan_a, gb.clone(), germ.b_face, leave_a)?,
                 sb.split_curve(
                     &mut red.b,
-                    b_halves,
+                    &plan_b,
                     plane,
                     AuxDatum::Partner(germ.a_face),
-                    seg_b,
                     leave_b,
                 )?,
             ),
             Some(GermLane::WallPlane(plane)) => {
                 let curve_a = sa.split_curve(
                     &mut red.a,
-                    a_halves,
+                    &plan_a,
                     plane,
                     AuxDatum::Partner(germ.b_face),
-                    seg_a,
                     leave_a,
                 )?;
-                let curve_b = sb.bool_planar_curve(
-                    &mut red.b,
-                    b_halves,
-                    ga.clone(),
-                    germ.a_face,
-                    seg_b,
-                    leave_b,
-                )?;
+                let curve_b =
+                    sb.bool_planar_curve(&mut red.b, &plan_b, ga.clone(), germ.a_face, leave_b)?;
                 (curve_a, curve_b)
             }
             Some(GermLane::Radical(radical)) => {
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
                 (
-                    sa.split_curve(&mut red.a, a_halves, radical, datum(ka, kb), seg_a, leave_a)?,
-                    sb.split_curve(&mut red.b, b_halves, radical, datum(kb, ka), seg_b, leave_b)?,
+                    sa.split_curve(&mut red.a, &plan_a, radical, datum(ka, kb), leave_a)?,
+                    sb.split_curve(&mut red.b, &plan_b, radical, datum(kb, ka), leave_b)?,
                 )
             }
             // Each wall's own section table decides its rulings against
@@ -856,8 +882,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             Some(GermLane::Rulings(radical)) => {
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
                 let curves = (
-                    sa.split_curve(&mut red.a, a_halves, radical, datum(ka, kb), seg_a, leave_a)?,
-                    sb.split_curve(&mut red.b, b_halves, radical, datum(kb, ka), seg_b, leave_b)?,
+                    sa.split_curve(&mut red.a, &plan_a, radical, datum(ka, kb), leave_a)?,
+                    sb.split_curve(&mut red.b, &plan_b, radical, datum(kb, ka), leave_b)?,
                 );
                 rulings_are_straight([
                     (&curves.0, Operand::A, germ.a_face),
@@ -869,8 +895,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // The ring lane's order, wound with the curve.
         let a_roles = a_lane.resolve(&red.a, (ea, ra), &a_loose, &curve_a, band)?;
         let b_roles = b_lane.resolve(&red.b, (eb, rb), &b_loose, &curve_b, band)?;
-        sa.join(&mut red.a, a_roles, &curve_a, seg_a, tol)?;
-        sb.join(&mut red.b, b_roles, &curve_b, seg_b, tol)?;
+        sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
+        sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
         for (r, slot) in seg.ends {
             open[r].a[slot].1 = true;
             open[r].b[slot].1 = true;
@@ -961,6 +987,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             count: leftovers,
         }));
     }
+    // A pierce ring deferred at a pinch is placed by the join that
+    // reaches it; one still pending after every join has run never was.
+    sa.joiner.finish(&red.a).map_err(BooleanError::Join)?;
+    sb.joiner.finish(&red.b).map_err(BooleanError::Join)?;
     Ok(Connected {
         completed,
         a_fragments: sa.joiner.take_fragments(),
@@ -2294,7 +2324,9 @@ fn choose_roles<T: Decide>(
     // every same-loop order does.
     for (x, y) in [(ea, ra), (ra, ea)] {
         let sites = |order| {
-            crate::chord_join::segment_chord_sites(body, order, segment).map_err(BooleanError::Join)
+            JoinPlan::of(body, order, SegmentEdge::Locus(segment), band)
+                .map(|plan| plan.sites())
+                .map_err(BooleanError::Join)
         };
         let across = match (sites((x, y))?, sites((y, x))?) {
             ((Some(a), None), (None, Some(b))) if a == b => true,
@@ -2875,12 +2907,15 @@ mod self_check_rows {
             })
             .expect("the top loop runs (0,0) → (1,h)");
         let h2 = body.get_half_edge(h1).unwrap().next;
-        let chord = ChordJoiner::new(b)
+        let joiner = ChordJoiner::new(b);
+        let plan = joiner
+            .plan(body, (h1, h2), crate::chord_join::SegmentEdge::Locus(None))
+            .expect("the plan reads the prism's top loop");
+        let chord = joiner
             .segment_curve(
                 &mut body.clone(),
-                (h1, h2),
+                &plan,
                 JoinLane::Planar,
-                None,
                 crate::chord_join::Leave {
                     at: [
                         (h1, Vec3::new(1.0, 0.0, 0.0)),
@@ -2889,7 +2924,8 @@ mod self_check_rows {
                     datum: crate::chord_join::Datum::Germ,
                 },
             )
-            .expect("a planar face's chord is straight");
+            .expect("a planar face's chord is straight")
+            .expect("the adjacent chords' between edges are no segment locus");
         let up = super::IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), &chord);
         let err = super::ring_run_ccw(body, prism.top_face, (h1, h2), up, b)
             .expect_err("an in-band winding escalates");

@@ -198,6 +198,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_clearance_screen_reads_every_feature.rs"]
 mod band_clearance_screen_reads_every_feature;
+#[path = "band_co_requested_boundary.rs"]
+mod band_co_requested_boundary;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -220,6 +222,8 @@ mod blend4_r1_probes;
 mod blend6_verb_vocab;
 #[path = "blend_ball_side_bits.rs"]
 mod blend_ball_side_bits;
+#[path = "blend_bore_two_rims.rs"]
+mod blend_bore_two_rims;
 #[path = "blend_dual_tangent.rs"]
 mod blend_dual_tangent;
 #[path = "blend_margin_payload_interval.rs"]
@@ -486,6 +490,8 @@ mod revolve_ring;
 mod revolve_washer;
 #[path = "ring_r1_probes.rs"]
 mod ring_r1_probes;
+#[path = "round_tube_on_plate.rs"]
+mod round_tube_on_plate;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
 #[path = "s393_start_frame_door.rs"]
@@ -914,5 +920,7 @@ mod witness_ladder;
 mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;
+#[path = "pinch_faces_tessellate.rs"]
+mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;

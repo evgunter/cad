@@ -855,15 +855,18 @@ mod tests {
             C::NegativeSpacing => K::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
                 reversed: [-1.0, 0.0, 0.0]
-                    .map(|v| crate::expr::Expr::literal(v, crate::expr::Dimension::Scalar).ok()),
+                    .map(|v| crate::Formula::literal(v, crate::expr::Dimension::Scalar).ok()),
             },
             C::DegenerateSpacing => K::DegenerateSpacing,
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
-                step: crate::expr::Expr::angle_in(400.0, quantity::DEG).expect("a literal angle"),
+                step: crate::expr::Expr::try_from(
+                    crate::Formula::angle_in(400.0, quantity::DEG).expect("a literal angle"),
+                )
+                .expect("a literal holds no name"),
                 evaluated: None,
                 turns: crate::StepTurns::Within(
-                    crate::expr::Expr::angle_in(40.0, quantity::DEG).expect("a literal angle"),
+                    crate::Formula::angle_in(40.0, quantity::DEG).expect("a literal angle"),
                 ),
             },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
@@ -1007,18 +1010,22 @@ mod tests {
                 })
             }
             C::PartRootFailed => part(crate::PartFault::PartRootFailed {
+                held: Default::default(),
                 node: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
             C::PartRootPoisoned => part(crate::PartFault::PartRootPoisoned {
+                held: Default::default(),
                 root: n(8),
                 through: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
-            C::PartRootFailureUnrecorded => {
-                part(crate::PartFault::RootFailureUnrecorded { node: n(7) })
-            }
+            C::PartRootFailureUnrecorded => part(crate::PartFault::RootFailureUnrecorded {
+                node: n(7),
+                held: Default::default(),
+            }),
             C::PartProduct => part(crate::PartFault::PartProduct {
+                held: Default::default(),
                 refusal: crate::ProductError::NoBodyRoots.into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {

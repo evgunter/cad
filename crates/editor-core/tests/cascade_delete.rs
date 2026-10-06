@@ -14,6 +14,7 @@
 
 use crate::fixture::len;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     Doc, DocEdit, EditError, Node, RecipeNodeId, SpokenNode, apply, cascade_delete_order,
 };
@@ -22,7 +23,19 @@ use geom_core::Tol;
 /// The opaque profile payload: this suite never looks inside `P`.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
+impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored(&self) -> Self {
+        self.clone()
+    }
     fn drawn_pieces(
         &self,
         _env: &editor_core::VarEnv<f64>,
@@ -36,7 +49,7 @@ impl editor_core::ProfilePayload for FakeProfile {
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
 
-fn insert(doc: &TDoc, node: Node<FakeProfile>) -> (TDoc, RecipeNodeId) {
+fn insert(doc: &TDoc, node: Node<FakeProfile, Formula>) -> (TDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &TEdit::InsertNode {

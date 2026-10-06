@@ -17,7 +17,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
@@ -86,7 +88,7 @@ fn in_part_in_part(
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -95,18 +97,13 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// seating `b` at height `seat` by frame coincidence. `seat = 1.0`
 /// puts `b`'s bottom exactly on `a`'s top (the unit cube is z ∈ [0,1]);
 /// anything larger leaves a definite gap and the declaration is FALSE.
-fn rest_mate(a: StableName, b: StableName, seat: f64) -> Node<editor_core::ProfileProgram> {
+fn rest_mate(a: StableName, b: StableName, seat: f64) -> AuthoredNode {
     classed_mate(a, b, seat, ContactClass::Rest)
 }
 
 /// [`rest_mate`]'s shape at an arbitrary class — the totality rows need
 /// a `Tangent` declaration, whose class mints no record at rest.
-fn classed_mate(
-    a: StableName,
-    b: StableName,
-    seat: f64,
-    class: ContactClass,
-) -> Node<editor_core::ProfileProgram> {
+fn classed_mate(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -361,6 +358,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
                 route,
                 declaration,
                 relation: editor_core::Relation::Refuted,
+                ..
             } if route.through == instances[0]
                 && route.of == inner_id
                 && route.via.is_empty()

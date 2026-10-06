@@ -25,7 +25,7 @@
 //! decision by hand, differently, with `%g` or `round()` or an
 //! f-string, none of which round-trips. The formatter is the library's
 //! one answer, and the text it produces is exactly the text
-//! `Doc.parse_expr` reads.
+//! `Doc.parse_formula` reads.
 //!
 //! # The receiver is the quantity, not a float
 //!
@@ -228,7 +228,7 @@ macro_rules! continuous_quantity {
 /// NaN length is equal to nothing including itself and orders against
 /// nothing, and `-0.0 * m` equals `0.0 * m`. Nothing here refuses a
 /// non-finite value — the doors where a value enters recipe data do
-/// that. Unhashable for the reason `Expr` is, one layer up: a
+/// that. Unhashable for the reason `Formula` is, one layer up: a
 /// magnitude is not a key, and the value that keys is the authored
 /// record, `WrittenLength`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
@@ -252,7 +252,7 @@ continuous_quantity!(Length, Dimension::Length, meters, {
     /// (`quantity::fmt_length`).
     ///
     /// The pin, which is the reason to use this rather than an
-    /// f-string: `doc.parse_expr(x.format(u))` evaluates to `x`
+    /// f-string: `doc.parse_formula(x.format(u))` evaluates to `x`
     /// BIT-EXACTLY, for every finite length and every length unit.
     /// The formatter searches the f64 quotients around
     /// `meters / unit.factor` for one whose product with the factor
@@ -477,7 +477,7 @@ fn fold_zero(v: f64) -> f64 {
 /// correct for everything downstream, since the kernel only ever sees
 /// metres. This type is the record of what was TYPED, so a document
 /// can be read back the way it was written, and it is what
-/// `DocParam.written_length` takes.
+/// `FreeVar.written_length` takes.
 ///
 /// **No arithmetic, deliberately** — the Rust type has none for the
 /// reason its module docs give: there is no answer to what notation
@@ -554,7 +554,7 @@ impl WrittenLength {
         self.0 == other.0
     }
 
-    /// Consistent with [`Self::__eq__`], on `DocParam`'s already
+    /// Consistent with [`Self::__eq__`], on `FreeVar`'s already
     /// settled shape rather than `Length`'s: `-0.0` folds to `0.0`
     /// before the value's bits are hashed, because the equality this
     /// mirrors calls the two spellings of zero the same value and a

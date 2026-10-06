@@ -1045,12 +1045,10 @@ test_utils::f6_variants! {
         NameOnMissingVar,
         VarNameTwice,
         SlotDimension,
-        NamedReaderInSnapshot,
         ReaderOfUnmintedVar,
         SlotVarKind,
         PayloadVarKind,
         AnonymousVarUnread,
-        NamedReaderInDefinition,
         DefinitionReadsUnmintedVar,
         DefinitionVarKind,
         DefinitionCycle,
@@ -1205,15 +1203,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::NamedReaderInDefinition {
-                var: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
-                    Some(VarName::from_static("h")),
-                ),
-            },
-            vec!["the definition of h reads a variable by name", "by id"],
-        ),
-        (
             SnapshotError::DefinitionReadsUnmintedVar {
                 var: editor_core::SpokenVar::new(
                     editor_core::VarId(tagged(7)),
@@ -1305,13 +1294,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "Extrude \"base plate\" (000000000005): slot distance",
                 "needs a length expression",
-            ],
-        ),
-        (
-            SnapshotError::NamedReaderInSnapshot { node: node() },
-            vec![
-                "Extrude \"base plate\" (000000000005) reads a variable by name",
-                "reads variables by id",
             ],
         ),
         (
@@ -2340,6 +2322,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                     name: Box::new(face_name()),
                     why: RefusedRef::Vanished { by: None },
                 },
+                held: Default::default(),
             },
             CarriedRefusal {
                 route,
@@ -2348,6 +2331,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                     class: ContactClass::Tangent,
                     why,
                 },
+                held: Default::default(),
             },
         ],
     };

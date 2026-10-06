@@ -28,7 +28,7 @@ from pncad import (
     Doc,
     DocEdit,
     EntityKind,
-    Expr,
+    Formula,
     HitTestError,
     NamePat,
     Node,
@@ -59,10 +59,10 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
     return doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(x + 0.0, m), Expr.length_in(y + 0.0, m)),
-                (Expr.length_in(x + side, m), Expr.length_in(y + 0.0, m)),
-                (Expr.length_in(x + side, m), Expr.length_in(y + side, m)),
-                (Expr.length_in(x + 0.0, m), Expr.length_in(y + side, m)),
+                (Formula.length_in(x + 0.0, m), Formula.length_in(y + 0.0, m)),
+                (Formula.length_in(x + side, m), Formula.length_in(y + 0.0, m)),
+                (Formula.length_in(x + side, m), Formula.length_in(y + side, m)),
+                (Formula.length_in(x + 0.0, m), Formula.length_in(y + side, m)),
             ],
             plane=doc.sketch_frame(),
         )
@@ -71,7 +71,7 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
 
 def unit_cube(doc, at=(0.0, 0.0)):
     """A 1 m cube on the ground plane — z from 0 to 1."""
-    return doc.insert(Node.extrude(square(doc, at=at), Expr.length_in(1, m)))
+    return doc.insert(Node.extrude(square(doc, at=at), Formula.length_in(1, m)))
 
 
 def straight_down(x=0.5, y=0.5, z=3.0, scale=1.0):
@@ -243,14 +243,14 @@ class TestNearestAndTheCertifiedTie(unittest.TestCase):
         lower = unit_cube(doc)
         upper = doc.insert(
             Node.transform(lower, (
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(2, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(2, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ), Expr.angle_in(0, deg))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
+            ), Formula.angle_in(0, deg))
         )
         ev = evaluate(doc)
         picks = [
@@ -273,7 +273,7 @@ class TestNearestAndTheCertifiedTie(unittest.TestCase):
         # changes nothing else.
         doc = Doc()
         first = unit_cube(doc)
-        second = doc.insert(Node.extrude(square(doc), Expr.length_in(1, m)))
+        second = doc.insert(Node.extrude(square(doc), Formula.length_in(1, m)))
         ev = evaluate(doc)
         a = NodePick.build(ev, first, 0, DELTA)
         b = NodePick.build(ev, second, 0, DELTA)
@@ -409,13 +409,13 @@ class TestEnumeratingAWholeNode(unittest.TestCase):
         cube = unit_cube(doc)
         knife = doc.insert(
             Node.datum_plane((
-                Expr.length_in(0.5, m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(0.5, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ), (
-                Expr.literal(1.0),
-                Expr.literal(0.0),
-                Expr.literal(0.0),
+                Formula.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
             ))
         )
         cut = doc.insert(Node.split(cube, knife))
@@ -464,13 +464,13 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         doc = Doc()
         datum = doc.insert(
             Node.datum_plane((
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
             ))
         )
         ev = evaluate(doc)
@@ -491,13 +491,13 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         doc = Doc()
         datum = doc.insert(
             Node.datum_plane((
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
             ))
         )
         doc.apply(DocEdit.set_label(datum, "sketch plane"))
@@ -536,13 +536,13 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         doc = Doc()
         datum = doc.insert(
             Node.datum_plane((
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
             ))
         )
         ev = evaluate(doc)
@@ -596,14 +596,14 @@ class TestThePickRefusesTyped(unittest.TestCase):
         before = evaluate(doc)
         later_node = doc.insert(
             Node.transform(cube, (
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(2, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(2, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ), Expr.angle_in(0, deg))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
+            ), Formula.angle_in(0, deg))
         )
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
@@ -627,14 +627,14 @@ class TestThePickRefusesTyped(unittest.TestCase):
         before = evaluate(doc)
         later_node = doc.insert(
             Node.transform(cube, (
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(2, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(2, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ), Expr.angle_in(0, deg))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
+            ), Formula.angle_in(0, deg))
         )
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
@@ -719,7 +719,7 @@ class TestThePickIndexPairsWithItsDocument(unittest.TestCase):
         # the same way; a second, unrelated solid would leave this
         # node's value untouched and prove nothing about staleness.
         self.doc.apply(
-            DocEdit.set_param(self.cube, "distance", Expr.length_in(2, m))
+            DocEdit.set_param(self.cube, "distance", Formula.length_in(2, m))
         )
         later = evaluate(self.doc)
         # The premise, through the doors: the node's own body moved, so

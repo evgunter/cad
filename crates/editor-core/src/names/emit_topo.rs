@@ -3002,7 +3002,7 @@ mod split_carries_candidates {
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
-    fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+    fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         let a = crate::apply(
             &doc,
             &DocEdit::InsertNode {
@@ -3190,7 +3190,7 @@ mod split_edge_lineage {
         };
         let table = &value.name_table;
         let out = topo::split(
-            body,
+            &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
             &SplitPlane {
                 origin: *origin,
                 normal: *normal,

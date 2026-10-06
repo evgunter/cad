@@ -14,7 +14,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use std::sync::Arc;
 
@@ -170,7 +172,7 @@ fn instances(
     (doc, ids, opts, body)
 }
 
-fn frame(origin: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(
         origin,
         [0.0, 0.0, 1.0],
@@ -189,8 +191,8 @@ fn frame(origin: [f64; 3]) -> MateFrame {
 fn clocked(
     (a, a_body): (RecipeNodeId, RecipeNodeId),
     (b, b_body): (RecipeNodeId, RecipeNodeId),
-    alignment: Alignment,
-) -> Node<editor_core::ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     Node::Mate {
         a: fixture::head(in_part(a, a_body, CapEnd::End)),
         b: fixture::head(in_part(b, b_body, CapEnd::Start)),
@@ -199,7 +201,11 @@ fn clocked(
     }
 }
 
-fn coincidence(fa: MateFrame, fb: MateFrame, clocking: f64) -> Alignment {
+fn coincidence(
+    fa: MateFrame<Formula>,
+    fb: MateFrame<Formula>,
+    clocking: f64,
+) -> Alignment<Formula> {
     Alignment {
         a: fa,
         b: fb,
@@ -216,17 +222,13 @@ fn coincidence(fa: MateFrame, fb: MateFrame, clocking: f64) -> Alignment {
 fn at_the_store(
     doc: &ProfileDoc,
     opts: &EvalOptions,
-    node: Node<editor_core::ProfileProgram>,
+    node: AuthoredNode,
 ) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, MateFault)> {
     at_the_door(doc, &mate_reach::<f64>(opts, Tol::witness()), node)
 }
 
 /// [`at_the_store`] for a mate the door admits.
-fn mated(
-    doc: ProfileDoc,
-    opts: &EvalOptions,
-    node: Node<editor_core::ProfileProgram>,
-) -> (ProfileDoc, RecipeNodeId) {
+fn mated(doc: ProfileDoc, opts: &EvalOptions, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     at_the_store(&doc, opts, node).unwrap_or_else(|(_, fault)| panic!("the door admits: {fault}"))
 }
 

@@ -454,3 +454,67 @@ The previous orchestrator has exited; this session holds the track (`status: act
   to Ev only if the reports leave a fork that is Ev's.
 
 Signed (CLEAVE orchestrator).
+- **The ray-walk design question is decided without Ev** (`closest-crossing-and-graze-abandon-have-three-homes`).
+  Both designers' first reports agree on the final state, and neither touches ratified text:
+  - one walk driver (the retry ladder: graze → next ray, a ray-level in-band reading abandons and the
+    first is kept, refuse, exhausted → typed) and one closest-crossing fold, in `topo::ray_walk`, grown
+    from `ray_parity`;
+  - the per-ray reading stays two kinds: parity (planar, chart) and closest crossing (solid, sphere);
+  - each geometry keeps its schedule, crossings, no-hit verdict, K rows and error enum.
+
+  Both corrected the row's premise: the planar walk is parity, and there are five driver copies in
+  `topo` plus `profile`'s, not three. Their differences are of detail (a set-aside kind for confined
+  limits; a sphere boundary pre-pass; geom-core against topo). The orchestrator reconciled them: `topo`;
+  one precedence rule written once in the driver, decided on semantics; the sphere pre-pass measured
+  first. Re-priced H, `design` cleared. Dispatched as `cleave/ray-walk`. Review tier: DUAL (concurrent,
+  H) — a protocol consolidated across five readers, with refusal semantics that are hard to change later.
+  It is not a design-fork row: nothing went to Ev. The blinding record stays on its analysis branch.
+- **PR 4081 merges** (`split-lane-second-chord-recomputes-the-first-chords-arc`, closed). The split's
+  segment curve and its chord plan are each decided once (`ChordJoiner::segment_curve`, `JoinPlan`),
+  shared with the Boolean lane. The row's `NoChartedRun` premise had been dead on main since
+  `5ec92edc58`. What the double decision cost was measured on a new fixture, a pocketed drum split
+  across its ring: the two halves' wall arcs could sit a period apart, and half volumes failed to sum by
+  up to 5.9e-9. Goldens re-baselined: `tilted_below` and editor-core `cut_cylinder`.
+  - Review: single FULL, then the orchestrator's read of the fix pass's delta. The delta plans the
+    second chord before the first chord's surgery; the invariant that makes this exact is documented on
+    `JoinPlan`, and topo and sweep are green.
+  - Filed: `split-halves-volumes-sum-to-the-whole-only-within-their-pads` (P3, `design`). Its misses
+    track unequal quadrature pads, so it may belong to FLUX's quadrature ground; it stays here until
+    measured further.
+  - Class noted from the review: "decided once" has to cover the plan as well as the value. A
+    computed value that is shared while the plan choosing it is re-derived is the shape to grep for.
+- **Re-homed off CLEAVE's ground**: the lamina validator row went to RESTFRONT and the self-slit
+  tessellator panic to TESS, each with a note on its owner's log.
+- **Dispatched** (single FULL review each: both are refusal paths whose cause is untraced):
+  - `cleave/concave-graze`: `a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge`;
+  - `cleave/pierce-strut-after`: `a-pierce-strut-after-half-may-be-moved-by-the-other-run` (prove,
+    or refuse typed).
+- **PR 4084 merges** (the split's operand gate; `split-answers-an-inside-out-operand-with-two-inside-out-halves`
+  and its rider `split-gates-its-operand-on-null-edges-not-on-tier-2` are closed).
+  - What it does:
+    - The split's doors take `AtRestBody`, as the Boolean's do (REACH PR 3987).
+    - An operand that carries no verdict (a dual) goes through one shared gate: tier 2, check 7 per
+      solid, then check 10's winding per shell.
+    - The split's hand-written null-edge arms are now invariants.
+  - Review tier: single FULL, then the orchestrator's read of the fix pass's delta.
+  - Class noted from the review: **a total hides a sign one level down.** The gate read orientation
+    per solid, and an inside-out shell under a positive solid slipped through. A check over a sum
+    has to read each term at the finest grain the invariant names.
+  - Capability that regressed, disclosed: the lune piece no longer finishes at ε = 1e-6
+    (`VolumeUncomputable`, quadrature convergence), so a second split of it now refuses there. The
+    cause is on QUAD's row.
+  - Filed elsewhere:
+    - BAND: `blend-doors-answer-an-inside-out-operand-with-an-inside-out-body` (P1).
+    - EXCH: `exchange-writers-take-a-body-no-at-rest-gate-read`.
+    - Evidence on SHELL's and QUAD's existing rows.
+  - Filed here: `a-stray-inside-out-shell-beside-two-outer-shells-passes-the-no-verdict-gate` (P3),
+    plus the lane's three result-gate and sides rows.
+- **PR 4096 merges** (`a-pierce-strut-after-half-may-be-moved-by-the-other-run`, closed). The row's
+  witness cannot occur: the strut's `after` is the chord of the next sector, which no other run's
+  mint moves. The invariant is checked at both twins (vtxfac, `splitting/insert.rs`), and each check
+  goes red under a fan-overreach mutant.
+  - Review: single FULL, then the orchestrator's read of the fix pass's delta.
+  - Class noted: **a sweep scoped to one directory is not a sweep of the shape.** The first pass
+    covered `boolean/` only and missed the splitting twin. Name the scope as the blind spot.
+  - Filed: `run-loops-of-split-and-pierce-are-twins` (P3). Evidence added to
+    `classification-invariant-family-types-bug-only-states-against-d9-row-4`.
