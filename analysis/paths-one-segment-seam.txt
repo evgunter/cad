@@ -1,0 +1,4 @@
+PATHS fork: a one-segment loop's revolve and loft wall (work/paths/a-one-segment-loops-revolve-and-loft-wall-wraps-a-period-with-no-seam.md)
+dispatched 2026-10-06
+urandom byte: 109
+mapping: Fable=A Opus=B
