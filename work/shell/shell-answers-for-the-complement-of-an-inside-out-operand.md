@@ -83,11 +83,16 @@ The split's is closed by that branch (its doors take `AtRestBody`).
 or otherwise invalid operand cannot reach shell's construction. The
 editor-core wire takes the operand through `finished_operand`. The
 operand type is pinned at compile time (`const _` fn-pointer
-coercions in topo, sweep and verbs), so reverting the doors to `&Body`
+coercions in `crates/topo/tests/shell_operand_gate.rs`; the verbs seat
+was already pinned by lane3's `RunShellAtDual`), so reverting the doors
+to `&Body`
 no longer builds. The reviewer showed it compiled clean before the
 pins. A merge-base differential over every shell call in the
 workspace, the ignored cost rows and `demos/tour` changed outcome only
-on test-only operands. Residues filed on SHELF:
-- `shelled-result-discards-its-own-closing-verdict` (P3/E);
-- the offset doors' operand posture (P2);
-- the now-unreachable piece sort (P3).
+on test-only operands. Residues filed:
+- on SHELF, `shelled-result-discards-its-own-closing-verdict` (P3/E);
+- on SHELL, the offset doors' operand posture
+  (`replace-face-offset-answers-for-the-complement-of-an-inside-out-body`,
+  P2);
+- on SHELL, the now-unreachable piece sort
+  (`shell-operand-shape-arms-behind-the-at-rest-gate`, P3).
