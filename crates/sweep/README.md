@@ -170,18 +170,80 @@ the station; variable-radius machinery). Neither has a constructor
 vocabulary only); the ball-cap is the presumptive first pick when a
 consumer arrives.
 
+**Where a straight band ends, and where it turns.** One rule: a band
+ends where it meets the face it runs into. At a trivalent vertex of one
+convexity between planes the request decides which face that is, by how
+many of the vertex's three edges it names, and every answer is exact on
+stored kinds (plane, cylinder, line, circle, ellipse).
+
+- *All three* — the corner patch: the ball at rest (a sphere octant),
+  or the chamfer's plane through the three feet.
+- *One* — the CUT-OFF: the band ends in the end face's plane section of
+  it (`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`). A
+  chamfer ends in a chord at any angle; a fillet in a circle when the
+  end face is perpendicular to the edge and an ellipse otherwise,
+  `fillet3_cap_transverse` deciding which (one kind per configuration,
+  D3). The end face gains the curve and loses (convex) or gains
+  (concave) the sliver between it and the old vertex; the two
+  unrequested edges end at the feet; the old vertex goes. The ruled
+  band's transverse cut-off below is the perpendicular case.
+- *Two* — the MITRE (`CornerConfig::Turn`, `RunOutPolicy::Mitre`): each
+  band is cut off by the other band's support, the two regions overlap,
+  and the bands meet along their intersection — a line for a chamfer, a
+  planar ellipse for a fillet (two cylinders of one radius tangent to
+  the shared support, whose axes therefore meet). When the trihedron is
+  isosceles about the unrequested edge L — equal dihedrals at the two
+  requested edges, the same fact as equal face angles at the vertex —
+  the mitre runs from the trimlines' crossing on the shared face down to
+  L, and L ends there. Otherwise the band that reaches further is cut off
+  past the mitre by the other band's far support, one more short curve
+  down to L. Which holds is a margined verdict: Zero builds the first,
+  definite the second, the sliver band refuses. No ball rests at a turn,
+  so the mitre is G0 between the bands; it never competes with the
+  patch, because the request count decides.
+
+Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
+links: Zero, one band through a joint; definite, two chain ends at a
+turn; sliver, escalated. Tangency is what lets one band run through a
+junction, not a condition on the request. It keeps its name and its
+place in the order, and still refuses at a junction involving a curved
+link. The planar band carves locally, as the ruled band does: the end
+face's rim edges split at the feet, the end curve `mef`'d across it, one
+trimline per support.
+
+What still refuses, typed `UnsupportedRunOut` with a detail naming the
+shape: a curved end face (a fillet against a cylinder meets it in a
+quartic with no stored carrier); a foot that lands inside a support
+rather than on a rim edge (a band running into a wall or a step, and the
+inner corner of an L-shaped rim, where the shared face's sector is
+reflex); an end vertex of valence other than three. A turn whose two
+edges round opposite ways refuses `UnsupportedCorner { MixedConvexity }`.
+
+Naming: the cut-off curve is `EndArc { vertex, edge }` and the feet
+`FootVertex { vertex, support }`, as the ruled cut-off names them; the
+trimlines' crossing at a turn is `FootVertex { vertex, shared support }`.
+A turn adds two roles, keyed by the vertex the bands end at — a
+trivalent vertex has at most one turn, and the request fixes its edges:
+`Mitre { vertex }` for the edge where the bands meet, and
+`TurnFoot { vertex }` for the point where L ends, one name whether the
+trihedron is isosceles or not. In the non-isosceles case the extra
+curve is that band's `EndArc` and its end `FootVertex`; both resolve
+`Vanished` at equality. In the isosceles case the turn foot has four
+edges, so blending L in a later call refuses, and the recourse is to
+request it in the same call, which builds the patch.
+
 **What IS built beside it is a different termination — the ruled
 band's TRANSVERSE CUT-OFF (FILLET-H7, Ev's ruling on PR 1736).** A
 ruled link (`CylinderPlaneCylinder`, `CylinderCylinderCylinder`: a
 cylinder band about a straight spine, both trimlines lines along the
 ruling) ends where its supports do, at a vertex whose two unrequested
 edges lie in one plane face perpendicular to the ruling —
-`CornerConfig::TransverseCap`, decided by `fillet3_cap_transverse`
+`CornerConfig::EndFace`, decided by `fillet3_cap_transverse`
 (the cap normal's departure from the ruling, in meters at the link's
 own extent, the lever the shared-ruling hypothesis is metered at). The
 band ends in that plane's section of it, an exact stored arc of the
 band's radius about the spine's crossing
-(`RunOutPolicy::CutOffAtTransverseCap`; `CornerConfig::policy` maps
+(`RunOutPolicy::CutOffAtEndFace`; `CornerConfig::policy` maps
 the tag). The carve (`blend/open/ruled.rs`, beside the planar band's
 `blend/open/planar.rs`; the rim phases stay in `blend/surgery.rs`)
 mints no strut: the cap's two
@@ -203,8 +265,8 @@ half-plane towards the old vertex that the sliver lies in. The meter is
 the same ring carry-through pass under the same
 `fillet3_ring_clearance`; an edge not definitely clear of the region
 refuses `RingClearance` at the cap
-(`crates/sweep/tests/band_ruled_cap_ring.rs`). An
-oblique or curved end face refuses typed as the run-out A3-3 reserves.
+(`crates/sweep/tests/band_ruled_cap_ring.rs`). A
+curved end face refuses typed.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
 creases in one call, at the prism closed form `ΔV = A_section · L`
 (`crates/sweep/tests/fillet_h7_transverse_cap.rs`). The CONCAVE

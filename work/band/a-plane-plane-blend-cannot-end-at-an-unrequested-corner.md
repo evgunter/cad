@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P0
 cost: H
 design: true
+needs_ev: true
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo`, whose scene
