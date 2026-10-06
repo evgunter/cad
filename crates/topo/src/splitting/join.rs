@@ -36,9 +36,10 @@
 //!   rounding order (`super::order`'s module docs). A curved face's
 //!   crossings lie on a conic, which no lexicographic order follows:
 //!   they are paired along the conic, each entry into the face with
-//!   the exit that ends the arc inside it ([`conic_pairs`]). The
-//!   partner of such a half is consumed only by it, and it consumes
-//!   only its partner.
+//!   the exit that ends the arc inside it ([`conic_pairs`]), or, where
+//!   the conic is a pair of rulings, along each ruling
+//!   ([`ruling_pairs`]). The partner of such a half is consumed only by
+//!   it, and it consumes only its partner.
 //! - **Elsewhere, the book's rule**: the first registered half in the
 //!   *same face* (at the time of the scan) with the *opposite* up/down
 //!   sense, among the halves with no fixed partner.
@@ -55,6 +56,7 @@
 //! polygon to carrying no zero-width spur (`split_section_spur`;
 //! `Sweep::assert_no_spur`), and writes the F9 record.
 
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
@@ -68,7 +70,7 @@ use crate::chord_join::{
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
-use crate::validate::decide;
+use crate::validate::{decide, decide_nonzero};
 use geom_core::Tol;
 
 /// One completed section polygon: the null face and its role loops
@@ -209,7 +211,7 @@ fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, SplitJ
 /// The fixed partners of the null-edge halves on faces with more than
 /// two crossings (module docs), both ways round: a planar face's along
 /// its section line ([`line_pairs`]), a curved face's along its section
-/// conic ([`conic_pairs`]).
+/// conic ([`conic_pairs`]) or its two rulings ([`ruling_pairs`]).
 ///
 /// A face's halves are taken in insertion order (null-edge record
 /// order, up half first — the half starting at `below_end`, the order
@@ -391,21 +393,92 @@ fn line_pairs<T: Decide>(
         Ok(_) => return Ok(Vec::new()),
         Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
     }
-    let d = d.normalize();
+    let along: Vec<&Crossing<T>> = crossings.iter().collect();
+    pair_along_line(face, &along, red.plane.origin, d.normalize(), band)
+}
+
+/// Crossings on one line through `origin` along unit `d`, paired along
+/// it: keyed by `(p − origin)·d`, ordered by
+/// [`super::order::sort_along_line`], each taking the first unpaired
+/// one before it of opposite sense. A crossing left unpaired keeps the
+/// book's rule.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] naming the face, where the order of
+/// two crossings along the line is undecided.
+fn pair_along_line<T: Decide>(
+    face: FaceKey,
+    crossings: &[&Crossing<T>],
+    origin: Point3<T>,
+    d: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
     let keys: Vec<T> = crossings
         .iter()
-        .map(|c| (c.point - red.plane.origin).dot(d))
+        .map(|c| (c.point - origin).dot(d))
         .collect();
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
     let mut loose: Vec<&Crossing<T>> = Vec::new();
     for i in order {
-        let c = &crossings[i];
+        let c = crossings[i];
         match loose.iter().position(|e| e.down != c.down) {
             Some(j) => pairs.push((loose.remove(j).half, c.half)),
             None => loose.push(c),
         }
+    }
+    Ok(pairs)
+}
+
+/// A curved face's crossings paired where the plane meets its wall
+/// along two rulings (a cylinder's parallel pair, a cone's pair through
+/// the apex): each crossing goes to the ruling it lies on, by
+/// **`split_join_ruling_side`** (its distance from the other ruling
+/// less its distance from this one, m), and each ruling's crossings
+/// are paired along it ([`pair_along_line`]). An arc of the section
+/// inside the face runs along one ruling, so it never pairs crossings
+/// of two; the sweep's lexicographic order interleaves two rulings'
+/// crossings wherever the rulings are not parallel to its `v` axis.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] naming the face, where a crossing
+/// lies as near one ruling as the other (the rulings meet there, at a
+/// cone's apex, or run within the band of each other), or where
+/// [`pair_along_line`] escalates; [`SplitJoinError::SectionInvariant`]
+/// where the section's carrier is not a line.
+fn ruling_pairs<T: Decide>(
+    face: FaceKey,
+    rulings: &[geom::Curve3<T>; 2],
+    crossings: &[Crossing<T>],
+    band: Band,
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+    let mut lines = Vec::with_capacity(2);
+    for ruling in rulings {
+        let geom::Curve3::Line { origin, dir } = *ruling else {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a ruling section carried a non-line",
+            });
+        };
+        lines.push((origin, dir.normalize()));
+    }
+    let off = |p: Point3<T>, (o, d): (Point3<T>, geom_core::Vec3<T>)| (p - o).cross(d).norm();
+    let mut on: [Vec<&Crossing<T>>; 2] = [Vec::new(), Vec::new()];
+    for c in crossings {
+        let margin = Margin::of(off(c.point, lines[1]) - off(c.point, lines[0]));
+        match decide_nonzero("split_join_ruling_side", margin, band)
+            .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+        {
+            NonzeroSign::Positive => on[0].push(c),
+            NonzeroSign::Negative => on[1].push(c),
+        }
+    }
+    let mut pairs = Vec::new();
+    for (side, &(origin, d)) in on.iter().zip(&lines) {
+        pairs.extend(pair_along_line(face, side, origin, d, band)?);
     }
     Ok(pairs)
 }
@@ -455,8 +528,9 @@ fn line_pairs<T: Decide>(
 /// reads the order cyclically, so where the cycle starts changes no
 /// pair.
 ///
-/// A planar face, a straight section and the kinds the gate refuses
-/// pair nothing here: they keep the book's rule.
+/// A section along two rulings is paired along them
+/// ([`ruling_pairs`]). A planar face, a tangent ruling and the kinds
+/// the gate refuses pair nothing here: they keep the book's rule.
 ///
 /// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
 /// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
@@ -481,12 +555,15 @@ fn conic_pairs<T: Decide>(
         .get_half_edge(first)
         .ok_or_else(|| corrupt_he(first))?
         .start;
-    let Some(WallSection {
-        wall,
-        case: SectionCase::Conic(conic),
-    }) = wall_section(body, band, red.plane.origin, red.plane.normal, face, at)?
+    let Some(WallSection { wall, case }) =
+        wall_section(body, band, red.plane.origin, red.plane.normal, face, at)?
     else {
         return Ok(Vec::new());
+    };
+    let conic = match case {
+        SectionCase::Conic(conic) => conic,
+        SectionCase::Straight(rulings) => return ruling_pairs(face, &rulings, crossings, band),
+        SectionCase::Tangent(_) => return Ok(Vec::new()),
     };
     let refuse = |case| SplitJoinError::SectionCrossings { face, case, band };
     let escalate = |diag| SplitJoinError::Escalated { face, diag };

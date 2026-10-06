@@ -814,9 +814,9 @@ impl<T: Real> SectionConic<T> {
 pub(crate) enum SectionCase<T: Real> {
     /// A conic to select an arc of.
     Conic(SectionConic<T>),
-    /// Ruling seams: the straight chord is the honest carrier, so the
-    /// caller mints no spec.
-    Straight,
+    /// The two rulings the plane meets the wall along: the straight
+    /// chord is the honest carrier, so the caller mints no spec.
+    Straight([geom::Curve3<T>; 2]),
     /// The tangent locus, as the table constructed it.
     Tangent(geom::Curve3<T>),
 }
@@ -932,7 +932,9 @@ fn section_case<T: Decide>(
         return match geom_brep::plane_cone_section(plane_s, wall, extent, band).map_err(table)? {
             geom_brep::PlaneConeSection::TiltedEllipse(c)
             | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
-            geom_brep::PlaneConeSection::ApexLinePair { .. } => Ok(SectionCase::Straight),
+            geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => {
+                Ok(SectionCase::Straight([l1, l2]))
+            }
             geom_brep::PlaneConeSection::ApexTangentLine(line) => Ok(SectionCase::Tangent(line)),
             geom_brep::PlaneConeSection::ApexPoint(_) => Err(invariant(
                 "apex-point plane×cone classification under a minted chord — the plane \
@@ -944,7 +946,9 @@ fn section_case<T: Decide>(
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
         | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
-        geom_brep::PlaneCylinderSection::ParallelLines { .. } => Ok(SectionCase::Straight),
+        geom_brep::PlaneCylinderSection::ParallelLines { l1, l2 } => {
+            Ok(SectionCase::Straight([l1, l2]))
+        }
         // C7 (M5 PR 9): the tangent locus is CONSTRUCTED by
         // classification, never marched. What it MEANS is the caller's
         // (see the enum).
@@ -1245,7 +1249,7 @@ fn chord_spec<T: Decide>(
     };
     let conic = match case {
         // Ruling sections: the straight chord is the honest carrier.
-        SectionCase::Straight => return Ok(None),
+        SectionCase::Straight(_) => return Ok(None),
         // C7 (M5 PR 9): the tangent ruling is described
         // `TangentIntersection { wall, aux plane }` and pushed through
         // the ordinary certification gate by the mef/mekr caller. No
@@ -1512,7 +1516,7 @@ fn bool_planar_chord_spec<T: Decide>(
     let extent = face_extent(body, u1, face).map_err(unbounded)?;
     let conic = match section_case(face, band, &plane_s, wall, extent)? {
         // Ruling seams are straight chords on the plane too.
-        SectionCase::Straight => return Ok(None),
+        SectionCase::Straight(_) => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING
         // operands — the M5 envelope refuses those upstream; reaching
         // here is a frontier configuration, refused typed. (The split
