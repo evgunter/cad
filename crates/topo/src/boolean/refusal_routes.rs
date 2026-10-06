@@ -964,9 +964,9 @@ pub(crate) const SPHERES: SizedDecision = SizedDecision {
 
 /// The lever of [`SphereQuestion::CutIn`]: the circle's place on the
 /// face, and the plane's lean off the face's meridian through it.
-const CUT_LEVER: &str = "move the parts so the circle the plane cuts on the sphere lies well away \
-                         from that sphere face's edges and poles, or turn the plane so it clearly \
-                         leans off the face's meridian through that circle";
+const CUT_LEVER: &str = "move the parts so the plane's circle on the sphere lies well away from \
+                         that face's edges and poles, or turn the plane off the face's meridian \
+                         through the circle";
 
 /// The curved-extent scan's lever where its enclosures cannot certify
 /// the operands (`BooleanError::FallbackExtentUnsupported`, and the
@@ -2329,9 +2329,9 @@ pub(in crate::boolean) mod tests {
                 "where a cut through the circle a plane cuts on a sphere face meets that face's \
                  boundary",
                 Ending::Lever(
-                    "Recourse: move the parts so the circle the plane cuts on the sphere lies \
-                     well away from that sphere face's edges and poles, or turn the plane so it \
-                     clearly leans off the face's meridian through that circle",
+                    "Recourse: move the parts so the plane's circle on the sphere lies well away \
+                     from that face's edges and poles, or turn the plane off the face's meridian \
+                     through the circle",
                     LeverPass::ByArm,
                 ),
             ),
