@@ -462,8 +462,12 @@ BOUNDS_ALLOWLIST=(
   # `clusters`, the subdivision driver (a piece's half-length bracket
   # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
   # edge by its certified box against the touch's ball before deciding a
-  # distance bound; and `off_face` and `ball_off_face`, which carry the
-  # bound to call those two and read no bracket themselves.
+  # distance bound (a box miss is a terminal clear, the disjointness
+  # direction #571 allows); and `off_face` and `ball_off_face`, which
+  # carry the bound to call those two and read no bracket themselves.
+  # Why not `Decide + CertifiedBounds`: the public boolean is
+  # instantiated at `Dual64` (`crates/topo/tests/inside_out_operand.rs`),
+  # which has no certified enclosure (`real.rs`'s entry).
   'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard

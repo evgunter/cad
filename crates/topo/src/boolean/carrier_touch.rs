@@ -42,6 +42,7 @@
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! and a curve with no speed bound localize nothing, and the door stays.
 
+use geom_brep::implicit::Conic;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::BooleanError;
@@ -49,13 +50,27 @@ use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment};
 use super::{BooleanDecision, reduce};
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary};
+use crate::entity::{EdgeKey, EntityId, FaceKey};
+use crate::live::BoundaryMember;
 use crate::validate::decide;
 
-/// The most pieces a span is cut into before the localization gives up.
+/// The most pieces a span is cut into before the localization gives up:
+/// a bound on the walk (D9), the same as the crossing layer's other
+/// bisections (`circle_roots::SUBDIVISION_BUDGET`,
+/// `splitting::spiric_arc::MAX_PIECES`). Away from a meeting the
+/// second-order bound clears a piece in proportion to its distance from
+/// it, so each level of the bisection keeps a few open pieces per
+/// meeting, down to the floor `log₂(span / floor)` levels below. The
+/// rows here (`pierce_tangent_off_face`) spend 70 to 150 pieces a
+/// meeting across ε 1e-6 to 1e-12, so [`CLUSTER_BUDGET`] meetings fit
+/// with room to spare.
 const PIECE_BUDGET: usize = 4096;
 
-/// The most clusters a span may localize into.
+/// The most clusters a span may localize into: the most meetings a span
+/// of these curves has with these carriers. A conic against a torus is
+/// degree 8 in the conic's half-angle tangent, and every other pair
+/// here (a line against a torus, any of them against a quadric) is at
+/// most 4.
 const CLUSTER_BUDGET: usize = 8;
 
 /// **Whether every meeting of the span `carrier(t0..t1)` with
@@ -114,18 +129,22 @@ fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
 }
 
 /// Bounds on the curve's speed, metres per unit of its parameter, and on
-/// its curvature.
+/// its curvature. A conic's come from [`Conic`], which reads the
+/// semi-axes as magnitudes in either order (an ellipse stored minor
+/// first is as legal as one stored major first: `geom::Curve3::Ellipse`).
 fn speed_bound<T: Real>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
     match *carrier {
         geom::Curve3::Line { dir, .. } => Some((dir.norm(), T::zero())),
-        geom::Curve3::Circle { radius, .. } => Some((radius, T::one() / radius)),
-        geom::Curve3::Ellipse { major, minor, .. } => Some((major, major / minor.powi(2))),
-        _ => None,
+        _ => Conic::of(carrier).map(|c| (c.speed_hi(), c.curvature_hi())),
     }
 }
 
 /// A point's signed distance from the carrier, its foot on it, and the
-/// distance's gradient there (the unit normal at the foot).
+/// distance's gradient there (the unit normal at the foot). Not
+/// `carrier_eq::distance_to`, which answers the unsigned distance alone
+/// from a `CarrierDesc`: the localization needs the sign (which side a
+/// piece lies on), the foot (the ball's centre) and the normal (the
+/// second-order bound's slope).
 fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Point3<T>, Vec3<T>)> {
     // The point's height along `axis` from `origin`, and its offset
     // across it.
@@ -185,6 +204,11 @@ fn clusters<T: Decide + Bounds>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Option<Vec<(T, T)>> {
+    // A curve tangent to the carrier stays within `escalate` of it over
+    // a half-length of about `√(2κ·escalate)`, and no bound clears a
+    // piece in there, so cutting finer only multiplies pieces. The floor
+    // keeps a cluster's pieces an eighth of that, so a cluster's
+    // half-length adds little to the ball it reads.
     let floor = (kappa * T::from_f64(band.escalate())).sqrt().hi() / 8.0;
     let half = T::from_f64(0.5);
     let mut out: Vec<(T, T)> = Vec::new();
@@ -272,22 +296,13 @@ fn ball_off_face<T: Decide + Bounds>(
         Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
     }
     let f = crate::live::proven(&y.faces, face, EntityId::Face);
-    for (_, l) in y.face_loops_linked(face, f) {
-        match l.boundary {
-            LoopBoundary::Empty { vertex } => {
-                let p = y.resolve_vertex_point(vertex, crate::live::Proven);
-                if !clear((p - foot).norm(), radius, band) {
-                    return Ok(false);
-                }
-            }
-            LoopBoundary::Cycle { first } => {
-                for he in y.loop_walk(first).closed("loop", first) {
-                    let ek = crate::live::proven(&y.half_edges, he, EntityId::HalfEdge).edge;
-                    if !edge_clear_of_ball(y, ek, foot, radius, band)? {
-                        return Ok(false);
-                    }
-                }
-            }
+    for member in y.face_boundary_linked(face, f) {
+        let clear_of_ball = match member {
+            BoundaryMember::Isolated { point, .. } => clear((point - foot).norm(), radius, band),
+            BoundaryMember::Edge { ek, .. } => edge_clear_of_ball(y, ek, foot, radius, band)?,
+        };
+        if !clear_of_ball {
+            return Ok(false);
         }
     }
     Ok(true)
@@ -359,11 +374,18 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
             minor,
             ..
         } => {
+            // The annulus between the semi-axis magnitudes, whichever is
+            // stored first.
+            let (lo, hi) = (major.abs().min(minor.abs()), major.abs().max(minor.abs()));
             let (h, rho) = split(center, axis);
-            let g = (rho - major).max(minor - rho).max(T::zero());
+            let g = (rho - hi).max(lo - rho).max(T::zero());
             (g.powi(2) + h.powi(2)).sqrt()
         }
         _ => return Ok(false),
     };
     Ok(clear(gap, radius, band))
 }
+
+#[cfg(test)]
+#[path = "carrier_touch_rows.rs"]
+mod carrier_touch_rows;

@@ -2301,6 +2301,22 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // UNDECLARED: the undeclared `NoInterior` rule
                     // ([`Placement::undeclared_no_interior`]), over this
                     // span's one ON end.
+                    //
+                    // Under `OffFace` the ON end cannot place In, OnEdge
+                    // or OnVertex on THIS face, so the two reads cannot
+                    // disagree. The end is a meeting of the span with the
+                    // carrier, so its piece never clears and it lies in a
+                    // cluster, within `ℓ + |d(m)|` of the ball's foot:
+                    // `escalate` inside the ball. Every vertex and edge
+                    // of the face was decided farther from the foot than
+                    // the ball's radius, so each is more than `escalate`
+                    // from the end, beyond the band an On answer needs.
+                    // In would contradict the same door's
+                    // (`curved_face_placement`) `Out` at the foot across a
+                    // disc of the carrier no boundary enters. The one
+                    // `Recorded` left is the face-free vertex hit, a
+                    // sibling face's incidence, which records here as it
+                    // would there.
                     let mut ends = [None, None];
                     for (i, (on, w, pw)) in [(s1 == Sign::Zero, u, pu), (s2 == Sign::Zero, v, pv)]
                         .into_iter()
@@ -2338,6 +2354,8 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // - **`OffFace`**: every meeting of the span with the carrier, the
         //   ends' among them, lies off this face whether or not the edge
         //   lies on the carrier, so the ends decide under the same rule.
+        //   Neither end can place on this face against the verdict (the
+        //   mixed-sign arm above says why).
         // - **`LiesOn`: an arc lying on the carrier**, exactly on by the
         //   circle root door. It is an ON event (C4's one-sided cover,
         //   narrowed to touches) when every surface of a face it bounds is

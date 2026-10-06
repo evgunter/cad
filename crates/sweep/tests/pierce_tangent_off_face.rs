@@ -11,9 +11,19 @@
 //! The near-miss rows slide the touch across the lens's rim. Outside by
 //! a few balls the touch is no event; inside it, it is a tangency of the
 //! two boundaries, and within the ball of the rim it is not certified
-//! clear of the face's edge: both refuse typed. The ball's radius is
-//! `√(2r·(zero + escalate))` (`reduce::CarrierTouch`), computed here
-//! from the run's band.
+//! clear of the face's edge: both refuse typed. The rows place the touch
+//! by [`reach`], `√(2r·(zero + escalate))`: how far along a line tangent
+//! to a carrier of radius `r` the line stays within the band of it.
+//! The kernel's ball (`topo::boolean::carrier_touch::off_face`) is
+//! `ℓ + |d(m)| + escalate` about the foot of a cluster's middle `m`,
+//! `ℓ` the cluster's half-length in metres and `d(m)` its distance from
+//! the carrier. The localization stops cutting near that same scale,
+//! so the two agree to within a few percent for these poses (1.02 to
+//! 1.04 across ε 1e-12, 1e-9 and 1e-6), and "three balls outside" and
+//! "0.3 balls" straddle the kernel's own threshold at every band.
+//!
+//! The donut rows add the torus's inner side, where its reach is
+//! `min(r, R − r)`, and a span whose middle lies on the torus axis.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -86,18 +96,24 @@ fn lens_volume() -> f64 {
     cap_volume(R1, R1 - RIM) + cap_volume(R2, R2 - (D - RIM))
 }
 
-/// The brick `[−h, h] × [0, 1] × [0, 1]` carried so that its x edge at
+/// The brick `[−h, h] × [0, w] × [0, w]` carried so that its x edge at
 /// the origin runs along `along` through `at`, its faces through that
 /// edge leaving along `(n ± m)/√2`: at 45° to the plane of `along` and
-/// `m`, on `n`'s side of it. Volume `2h`.
-fn edge_brick(h: f64, at: Vec3<f64>, along: Vec3<f64>, n: Vec3<f64>, m: Vec3<f64>) -> Body<f64> {
+/// `m`, on `n`'s side of it. Volume `2h·w²`.
+fn edge_brick(
+    (h, w): (f64, f64),
+    at: Vec3<f64>,
+    along: Vec3<f64>,
+    n: Vec3<f64>,
+    m: Vec3<f64>,
+) -> Body<f64> {
     let (s1, s2) = ((n + m) * FRAC_1_SQRT_2, (n - m) * FRAC_1_SQRT_2);
     let (s1, s2) = if along.cross(s1).dot(s2) > 0.0 {
         (s1, s2)
     } else {
         (s2, s1)
     };
-    let brick = sweep::test_support::brick((-h, h), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let brick = sweep::test_support::brick((-h, h), (0.0, w), (0.0, w), Tol::witness());
     moved(
         &brick,
         &Affine3::from_parts(Mat3::from_cols(along, s1, s2), at),
@@ -111,7 +127,7 @@ fn edge_brick(h: f64, at: Vec3<f64>, along: Vec3<f64>, n: Vec3<f64>, m: Vec3<f64
 fn brick_touching_unit_sphere(h: f64, theta: f64) -> Body<f64> {
     let n = Vec3::new(0.0, theta.cos(), theta.sin());
     let m = Vec3::new(0.0, -theta.sin(), theta.cos());
-    edge_brick(h, n, Vec3::new(1.0, 0.0, 0.0), n, m)
+    edge_brick((h, 1.0), n, Vec3::new(1.0, 0.0, 0.0), n, m)
 }
 
 /// Every tier of validation, a closed tessellation, then the volume
@@ -278,7 +294,7 @@ fn a_brick_edge_tangent_to_a_wall_in_its_mouth_builds() {
     let c = FRAC_1_SQRT_2;
     let n = Vec3::new(c, -c, 0.0);
     let brick = edge_brick(
-        0.3,
+        (0.3, 1.0),
         n + Vec3::new(0.0, 0.0, 1.0),
         Vec3::new(c, c, 0.0),
         n,
@@ -287,44 +303,101 @@ fn a_brick_edge_tangent_to_a_wall_in_its_mouth_builds() {
     assert_every_op_apart("sector, brick", &sector, &brick, (1.5 * PI, 0.6));
 }
 
+/// The revolution about y, through `sweep`, of the disc of radius `r`
+/// about `(big, 0)`: the donut `R = big`, `r` with its mouth the
+/// azimuths past `sweep` from `+x` (towards `−z`). Volume
+/// `sweep·π·r²·big`.
+fn donut(sweep: f64, big: f64, r: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![bulge_loop(vec![
+            (Point2::new(big, -r), 1.0),
+            (Point2::new(big, r), 1.0),
+        ])],
+    )
+    .validate(tol)
+    .unwrap();
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Partial(sweep),
+        tol,
+    )
+    .unwrap()
+    .body
+}
+
 /// **Torus.** The 270° revolution of the donut (`R = 2`, `r = 1/2`)
 /// about y, and a turned brick whose edge grazes the torus on its outer
 /// equator in the mouth. The line × torus quartic answers a graze as an
 /// uncertain count, which the localization reads.
 #[test]
 fn a_brick_edge_grazing_a_torus_in_its_mouth_builds() {
-    let tol = Tol::witness();
-    let profile = Profile::new(
-        SketchPlane::xy(),
-        vec![bulge_loop(vec![
-            (Point2::new(2.0, -0.5), 1.0),
-            (Point2::new(2.0, 0.5), 1.0),
-        ])],
-    )
-    .validate(tol)
-    .unwrap();
-    let donut = revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Partial(1.5 * PI),
-        tol,
-    )
-    .unwrap()
-    .body;
     let c = FRAC_1_SQRT_2;
     let n = Vec3::new(c, 0.0, c);
     let brick = edge_brick(
-        0.5,
+        (0.5, 1.0),
         n * 2.5,
         Vec3::new(-c, 0.0, c),
         n,
         Vec3::new(0.0, 1.0, 0.0),
     );
-    let donut_volume = 0.75 * 2.0 * PI.powi(2) * 2.0 * 0.5f64.powi(2);
-    assert_every_op_apart("donut, brick", &donut, &brick, (donut_volume, 1.0));
+    let donut_volume = 1.5 * PI * PI * 0.5f64.powi(2) * 2.0;
+    assert_every_op_apart(
+        "donut, brick",
+        &donut(1.5 * PI, 2.0, 0.5),
+        &brick,
+        (donut_volume, 1.0),
+    );
+}
+
+/// **Torus, its inner side.** The same donut, and a slim brick in its
+/// mouth whose edge, along y, touches the tube on its INNER equator
+/// from the hole, where the carrier's curvature about the axis has the
+/// other sign and its reach is `min(r, R − r)`.
+#[test]
+fn a_brick_edge_touching_a_torus_inner_equator_in_its_mouth_builds() {
+    let c = FRAC_1_SQRT_2;
+    let n = Vec3::new(c, 0.0, c);
+    let brick = edge_brick(
+        (0.25, 0.3),
+        n * 1.5,
+        Vec3::new(0.0, 1.0, 0.0),
+        -n,
+        Vec3::new(-c, 0.0, c),
+    );
+    let donut_volume = 1.5 * PI * PI * 0.5f64.powi(2) * 2.0;
+    assert_every_op_apart(
+        "donut, inner equator",
+        &donut(1.5 * PI, 2.0, 0.5),
+        &brick,
+        (donut_volume, 0.5 * 0.09),
+    );
+}
+
+/// **Torus, two touches over its axis.** A quarter donut and a long
+/// brick whose edge runs over the torus's top through the axis, at the
+/// tube's height, in the three quarters the donut leaves open: the edge
+/// touches the carrier twice, at `±R` along it, both off the face, and
+/// its span's middle lies on the axis, where the carrier's foot is
+/// undefined.
+#[test]
+fn a_brick_edge_over_a_quarter_donuts_axis_touching_it_twice_builds() {
+    let c = FRAC_1_SQRT_2;
+    let along = Vec3::new(c, 0.0, c);
+    let up = Vec3::new(0.0, 1.0, 0.0);
+    let brick = edge_brick((3.0, 0.5), up * 0.5, along, up, along.cross(up));
+    let donut_volume = 0.5 * PI * PI * 0.5f64.powi(2) * 2.0;
+    assert_every_op_apart(
+        "quarter donut, edge over the axis",
+        &donut(0.5 * PI, 2.0, 0.5),
+        &brick,
+        (donut_volume, 6.0 * 0.25),
+    );
 }
 
 /// **A circle edge.** A coin of radius 0.3 and thickness 0.5 on the x
