@@ -7526,3 +7526,8 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
 - The PR body is updated in place. Merge on green.
 - Buildable now: field privacy plus the vouch, and the tier-1 naming check. To dispatch once the usage warning clears.
 - `offset-held-neighbour-image-…` is now `blocked_on` D10.
+
+## 17:55 (2026-10-06)
+
+- **PR 3970 merged** at `edc12bbd`, head `faa32028`. It had a doc-only conflict: main took fork-log row 75, so ours is now **row 76**. Unsubscribed.
+- **Ev's standing rule:** when a conflict is doc-only and CI already went green on an earlier head, merge after resolving it without waiting for CI again. That includes renumbering a fork-log row or taking main's side of a `status:` line.
