@@ -576,3 +576,11 @@ Signed (CLEAVE orchestrator).
   - RESTFRONT: whether a derived description short of intrinsic must refuse at rest (D2/C7 against
     `validate.rs`);
   - PRED: two more hand-rolled fold sites.
+- **PR 4083 merged** (the ray walk, DR-90).
+  - Its tail ported the Klein tour tripwire's retirement and re-baselined the tolerance stop, both
+    after PATHS PR 3774, which turned main's tour red unseen. The tolerance study's own answer moved,
+    noted on PATHS's log.
+  - It also closed the 1e-6 reds of PR 4120's seam rows, which SHELL and another lane had filed here
+    twice.
+- **Fixed by hand:** the tube P0 row's closure had been dropped from PR 4120's state-sync commit (the
+  row file was absent at that branch's head, so the status flip failed silently). Closed here.
