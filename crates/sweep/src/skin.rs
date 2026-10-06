@@ -1000,20 +1000,23 @@ fn compatible_strips(
         .collect()
 }
 
-/// A loft's v-parameters: Book Eq. 10.8 over EVERY compatible control
-/// row of every strip, outer loop and holes alike. One vector is
-/// forced — the seam at a vertex is one wall's `u = 0` iso and its
-/// neighbour's `u = 1` iso, one curve only if both walls interpolate
-/// at the same parameters — and taking it over the whole set makes it
-/// a function of the section set: no strip, and so no authored start
-/// vertex, roll or sense, is singled out.
+/// A loft's v-parameters: Book Eq. 10.8 over every compatible control
+/// row of the OUTER loop's strips; every hole is interpolated at those
+/// parameters. One vector per loop is forced — the seam at a vertex is
+/// one wall's `u = 0` iso and its neighbour's `u = 1` iso, one curve
+/// only if both walls interpolate at the same parameters — and taking
+/// it over the whole loop makes it a function of the section set: no
+/// strip, and so no authored start vertex, roll or sense, is singled
+/// out. The outer loop is the one whose role validation fixes, so
+/// reading it is still label-free; and a hole cannot move the outer
+/// walls, so a hole that is the outer loop scaled lofts to the outer
+/// surface scaled.
 fn strip_parameters(strips: &[Vec<Vec<NurbsCurve3<f64>>>]) -> Result<Vec<f64>, SkinError> {
     let k = strips[0][0].len();
     chord_length_parameters(
         k,
-        strips
+        strips[0]
             .iter()
-            .flatten()
             .flat_map(|strip| (0..strip[0].control().len()).map(move |i| control_row(strip, i))),
     )
 }
@@ -1048,8 +1051,9 @@ fn skin_strips(
 /// any surface is built, and the parameters to hand [`loft_geometry`]
 /// for the loft body's walls.
 ///
-/// Book Eq. 10.8 over every compatible control row of every wall:
-/// chord lengths accumulated down each row, normalised, averaged. The
+/// Book Eq. 10.8 over every compatible control row of the outer
+/// loop's walls (holes read the outer loop's parameters): chord
+/// lengths accumulated down each row, normalised, averaged. The
 /// answer is a function of the section SET — re-spelling a section
 /// from another vertex, or rolling it by one of its own symmetries,
 /// does not move it. It is literally the computation `loft_body` runs
