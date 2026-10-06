@@ -38,8 +38,9 @@
 //! feet already fold the chain's verdict (`Convexity::ball_side` in
 //! the sheet reduction), the band's sense bit folds it once more at
 //! the surface pass, and the combinatorics are the same on a concave
-//! chain — the cap face then GAINS the region under the arc rather
-//! than losing it, which is what "the band adds material" means here.
+//! chain. The cap face loses the region under the arc on either side:
+//! a convex band cuts it away, a concave band's fill covers it, which
+//! is what "the band adds material" means here.
 //! Both sides are pinned through the extrude door: a D-profile rod
 //! (convex, `ΔV = −2·A·L`,
 //! `fillet_h7_transverse_cap::the_d_profile_rod_carves_through_a_cap_arc_past_pi`)
@@ -92,8 +93,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     /// # Errors
     ///
     /// [`BlendError::UnsupportedGeometry`] when the link's band is not
-    /// a cylinder, a trimline not a line, or a convex link's cap rim
-    /// neither a line nor a circle ([`EndCut::plan`]);
+    /// a cylinder, a trimline not a line, or a cap rim neither a line
+    /// nor a circle ([`EndCut::plan`]);
     /// [`BlendError::UnsupportedChain`]
     /// when a support carries a ring, or when a cap rim is itself
     /// requested; [`BlendError::UnsupportedRunOut`] when a foot lands
@@ -185,7 +186,6 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                     center: spine_origin,
                     radius,
                 },
-                link.convexity(),
             )?);
         }
         let Ok(ends) = <[EndCut<T>; 2]>::try_from(ends) else {
@@ -199,12 +199,16 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         self.link
     }
 
-    /// The slivers this link's cut-offs REMOVE from its caps: one per
-    /// end on a convex link, none on a concave one, whose slivers are
-    /// void of the source and are added to the caps rather than taken
-    /// from them.
-    pub(in crate::blend) fn removed_slivers(&self) -> impl Iterator<Item = &CapSliver<T>> {
-        self.ends.iter().filter_map(|e| e.sliver.as_ref())
+    /// The link's two cut-off ends.
+    pub(in crate::blend) fn ends(&self) -> &[EndCut<T>; 2] {
+        &self.ends
+    }
+
+    /// The slivers this link's cut-offs remove from its caps, one per
+    /// end on either side: a concave link's fill covers its caps'
+    /// slivers as a convex link's cut takes them away.
+    pub(in crate::blend) fn slivers(&self) -> impl Iterator<Item = &CapSliver<T>> {
+        self.ends.iter().map(|e| &e.sliver)
     }
 }
 
@@ -214,10 +218,9 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
 /// # Errors
 ///
 /// [`BlendError::Op`] when an Euler operator refuses;
-/// [`BlendError::UnsupportedChain`] / [`BlendError::UnsupportedGeometry`]
-/// from the split parameter (a foot off its rim's span, an uncertified
-/// rim); [`BlendError::BodyNotIntact`] where a cycle read disagrees
-/// with the plan.
+/// [`BlendError::UnsupportedRunOut`] / [`BlendError::UnsupportedGeometry`]
+/// from a cut-off ([`cut_off`]); [`BlendError::BodyNotIntact`] where a
+/// cycle read disagrees with the plan.
 pub(in crate::blend) fn ruled_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     plan: &RuledPlan<'_, T>,

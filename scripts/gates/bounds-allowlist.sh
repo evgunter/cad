@@ -584,9 +584,9 @@ BOUNDS_ALLOWLIST=(
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,
-  # as before), and `end_face_transverse` is `cap_transverse`'s decision
-  # split off so each band words its own refusal; both decide only
-  # through `classify`.
+  # as before), and `face_clearance_margin` is `face_clearance` with its
+  # margin formed by the caller, the door the surgery's strip meter
+  # refuses through; both decide only through `classify`.
   'crates/sweep/src/blend/battery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
@@ -613,7 +613,12 @@ BOUNDS_ALLOWLIST=(
   # reads, moved and shared; no new decision reads a bracket.
   'crates/sweep/src/blend/open/planar.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 2 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/open/end_face.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # end_face.rs 5 -> 7: `foot_param` is the one read of where a foot
+  # lands on its rim (`split_param_in_span`'s window test, worded as the
+  # run-out), and `shared_rims_clear` meters two cut-offs' feet on one
+  # rim, deciding only through `classify` over a span metered as the
+  # split meters it; the two sliver constructors became one.
+  'crates/sweep/src/blend/open/end_face.rs 7 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # 7 -> 8: the fitted door gained a fourth body,
   # `sphere_circle_image_lane` (`Decide + Bounds + CertifiedEnclosure`,

@@ -123,8 +123,10 @@
 //! approximating-blend lane, banked as its own reviewed unit). An end
 //! whose configuration is the supported one but whose shape the cut-off
 //! does not build — an oblique end face under a fillet, a curved end
-//! face, a foot landing inside a support — is a **run-out**, and refuses
-//! as [`BlendError::UnsupportedRunOut`].
+//! face, a foot off its rim's span (landing inside a support), two
+//! cut-offs' feet crossing on the one rim they share — is a
+//! **run-out**, and refuses as [`BlendError::UnsupportedRunOut`] before
+//! any mutation.
 
 mod admit;
 pub mod arms;
@@ -260,12 +262,16 @@ pub enum BlendDecision {
     /// link's cap, or a plane–plane fillet's cut-off — is perpendicular
     /// to its spine. Passes only at zero.
     CapTransverse,
+    /// `fillet3_cut_off_feet`: two cut-offs at the two ends of one rim
+    /// put their feet on it in order and definitely apart, so the
+    /// second split lands on the piece the first leaves.
+    CutOffFeet,
 }
 
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -277,6 +283,7 @@ impl BlendDecision {
         Self::ContactSecondOrder,
         Self::CornerIndependence,
         Self::CapTransverse,
+        Self::CutOffFeet,
     ];
 
     /// The `k_stats` name the decision is metered under.
@@ -294,6 +301,7 @@ impl BlendDecision {
             Self::ContactSecondOrder => "tangent_second_order",
             Self::CornerIndependence => "fillet3_corner_independence",
             Self::CapTransverse => "fillet3_cap_transverse",
+            Self::CutOffFeet => "fillet3_cut_off_feet",
         }
     }
 
@@ -320,6 +328,9 @@ impl BlendDecision {
             Self::CapTransverse => {
                 "whether a cylinder band's end face is a plane perpendicular to its spine"
             }
+            Self::CutOffFeet => {
+                "whether two cut-offs' feet on the rim they share stand definitely apart"
+            }
         }
     }
 
@@ -341,7 +352,7 @@ impl BlendDecision {
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactSecondOrder => FILLET3_CONTACT_RECOURSE,
             Self::CornerIndependence => FILLET3_CORNER_INDEPENDENCE_RECOURSE,
-            Self::CapTransverse => FILLET3_CORNER_RECOURSE,
+            Self::CapTransverse | Self::CutOffFeet => FILLET3_CORNER_RECOURSE,
         }
     }
 
@@ -356,6 +367,7 @@ impl BlendDecision {
             }
             Self::FaceClearance | Self::RingClearance => Some(("clearance", SizedPass::Positive)),
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
+            Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             Self::ChainG1 | Self::SupportCoaxiality | Self::CapTransverse => None,
@@ -902,7 +914,10 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for an end no band builds — it names the ends that DO
 /// carve, and of the residue the mitre, the one end a request can name
-/// that no band takes; the run-outs' own details name their shapes.
+/// that no band takes. "Whatever is requested" covers a vertex that
+/// mixes convexity: it ends no chain whether the request names one of
+/// its edges, two, or all three, because its configuration is read
+/// before the count. The run-outs' own details name their shapes.
 ///
 /// The ends it names are true of either verb on either material side:
 /// the uniform trivalent vertex carves wherever the material lies (the
@@ -915,8 +930,8 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end each chain at trivalent vertices of one convexity \
-     between planes: request all three edges there, or the chain's edge alone, cut off in a plane \
-     end face (perpendicular, for a round band); the mitre is not built";
+     between planes, whatever is requested: all three edges, or the chain's edge alone, cut off in \
+     a plane end face (perpendicular, for a round band); no mitre is built";
 /// The lever of `fillet3_corner_independence`, shared by its in-band
 /// arm and its decided-Zero one ([`CornerConfig::DependentNormals`]).
 ///
@@ -1201,7 +1216,9 @@ pub enum BlendError {
         margin: ClassifiedMargin,
         /// The straight-line gap between the two boundary features,
         /// meters — the MEASUREMENT, in the shape its scalar reports
-        /// readings in. Nothing classified it (it is stated as a fact
+        /// readings in. From the surgery's planar strip meter, the
+        /// screen's closed form, it is the margin plus the setback: how
+        /// far the edge clears the requested edge in the strip's frame. Nothing classified it (it is stated as a fact
         /// beside the margin that WAS classified), so it carries no
         /// predicate and no sign; at the interval scalar it is the
         /// enclosure the measurement produced, never one end of it.
@@ -1411,8 +1428,9 @@ pub enum BlendError {
     /// **Frontier** (D2 addendum row 2): a chain ends at a
     /// configuration a band builds, but in a shape its end does not —
     /// a run-out: an oblique end face under a fillet (the ellipse), a
-    /// curved end face, a foot that lands inside a face rather than on
-    /// the end face's rim.
+    /// curved end face, a foot off its rim's span (inside a face rather
+    /// than on the end face's rim), two cut-offs' feet that cross on one
+    /// shared rim.
     ///
     /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
     /// which is the OQ6 vocabulary for what a vertex's own

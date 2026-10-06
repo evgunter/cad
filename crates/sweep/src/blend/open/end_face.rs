@@ -28,27 +28,27 @@
 //!    `face_a`-side rim remnant, and `kev` the `face_b`-side remnant —
 //!    now a spur — together with `V`.
 //!
-//! **What the cut-off takes from `C`, metered first.** On the convex side
-//! the sliver leaves `C`, and every other edge of `C` stays where it was,
-//! so each is metered before any mutation against a region that encloses
-//! the sliver ([`CapSliver`]); on the concave side the sliver is void of
-//! the source and `C` gains it, so there is nothing to meter.
+//! **What the cut-off takes from `C`, metered first.** On either side
+//! `C` loses the sliver: on the convex side it is cut away with the
+//! material beyond the band, on the concave side the band's fill covers
+//! it. Every other edge of `C` stays where it was, so each is metered
+//! before any mutation against a region that encloses the sliver
+//! ([`CapSliver`]), whichever the band's convexity.
 
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Bounds, Decide, Point3, Real, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, InfSpeed, Margin, Point3, Real, Sign, Tol, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, MefSite, VertexKey};
 
-use crate::blend::BlendError;
-use crate::blend::battery::{Convexity, cap_incidence};
+use crate::blend::battery::cap_incidence;
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
     CircleFrame, ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, face_of_half,
     halves_of, not_intact, op, piece_along, piece_distance, point_of, retire_fragment,
-    seam_split_param, split_fragment, split_param_in_span, stored_piece, unbuilt_geometry,
-    unbuilt_run_out,
+    split_fragment, split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
 };
+use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
 
 /// The refusal for a cut-off whose foot does not land inside its rim's
 /// span: the trimline runs past the end face's rim into the support,
@@ -76,10 +76,10 @@ pub(in crate::blend) struct EndCut<T: Real> {
     /// The old vertex, which dies with the sliver.
     pub(in crate::blend) vertex: VertexKey,
     /// The end face — the one face at `vertex` that is not a support.
-    /// Its two rims are NOT stored: two bands may end on one end face
-    /// and share a rim (the flat's chord between a rod's two creases,
-    /// a box face's edge between two cut-offs), which the first carve
-    /// splits, so the carve reads them live ([`end_rims`]).
+    /// The carve reads its two rims live ([`end_rims`]) rather than off
+    /// the sliver's source keys: two bands may end on one end face and
+    /// share a rim (the flat's chord between a rod's two creases, a box
+    /// face's edge between two cut-offs), which the first carve splits.
     pub(in crate::blend) face: FaceKey,
     /// The foot of `face_a`'s trimline, on the rim the end face shares
     /// with `face_a`.
@@ -88,9 +88,8 @@ pub(in crate::blend) struct EndCut<T: Real> {
     pub(in crate::blend) foot_b: Point3<T>,
     /// The end curve between the feet.
     curve: EndCurve<T>,
-    /// The region the cut-off removes from the end face, on a convex
-    /// band; `None` on a concave one, whose sliver the end face gains.
-    pub(in crate::blend) sliver: Option<CapSliver<T>>,
+    /// The region the cut-off removes from the end face.
+    pub(in crate::blend) sliver: CapSliver<T>,
 }
 
 impl<T: Decide + Bounds> EndCut<T> {
@@ -124,7 +123,6 @@ impl<T: Decide + Bounds> EndCut<T> {
         (q_a, q_b): (Point3<T>, Point3<T>),
         along: Vec3<T>,
         curve: EndCurve<T>,
-        convexity: Convexity,
     ) -> Result<Self, BlendError> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
@@ -148,12 +146,7 @@ impl<T: Decide + Bounds> EndCut<T> {
         // anywhere else the band runs into a face the cut-off does not
         // touch.
         for (rim, foot) in [(rim_a, foot_a), (rim_b, foot_b)] {
-            if split_param_in_span(body, rim, foot)?.is_none() {
-                return Err(unbuilt_run_out(
-                    EntityId::Vertex(vertex),
-                    FOOT_INSIDE_A_FACE,
-                ));
-            }
+            foot_param(body, rim, vertex, foot)?;
         }
         let curve = match curve {
             EndCurve::Chord => EndCurve::Chord,
@@ -162,18 +155,13 @@ impl<T: Decide + Bounds> EndCut<T> {
                 radius,
             },
         };
-        let sliver = match convexity {
-            Convexity::Concave => None,
-            Convexity::Convex => {
-                let rims = [(rim_a, foot_a), (rim_b, foot_b)];
-                Some(match curve {
-                    EndCurve::Chord => CapSliver::of_chord(body, crease, vertex, face, rims)?,
-                    EndCurve::Arc { center, radius } => {
-                        CapSliver::of_arc(body, crease, vertex, face, rims, center, radius)?
-                    }
-                })
-            }
-        };
+        let sliver = CapSliver::of(
+            body,
+            vertex,
+            face,
+            [(rim_a, foot_a), (rim_b, foot_b)],
+            curve,
+        )?;
         Ok(Self {
             vertex,
             face,
@@ -193,8 +181,8 @@ impl<T: Decide + Bounds> EndCut<T> {
     }
 }
 
-/// **A region that encloses what a convex cut-off removes from its end
-/// face**, as the surgery's ring carry-through pass meters it.
+/// **A region that encloses what a cut-off removes from its end face**,
+/// on either side, as the surgery's ring carry-through pass meters it.
 ///
 /// The sliver `S` is bounded by the end curve `A` from one foot to the
 /// other and the two rim pieces from the feet to the old vertex `V`. It
@@ -203,9 +191,10 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// `Ω = { radius ≤ ‖p − center‖ ≤ reach } ∩ { (p − center)·toward ≥ floor }`:
 ///
 /// - outside the disc of `radius` about `center`: on an arc end, that
-///   disc is the band's section, which is tangent to both rims and lies
-///   in the material the band keeps; on a chord end `radius` is zero and
-///   the clause is empty;
+///   disc is bounded by the band's section circle, tangent to both rims,
+///   and lies on the far side of `A` from `V` (in the material the band
+///   keeps on the convex side, in the void it leaves on the concave
+///   side); on a chord end `radius` is zero and the clause is empty;
 /// - within `reach` and above `floor`, because `‖p − center‖` is convex
 ///   and `(p − center)·toward` linear, so over the compact `S` the first
 ///   is largest, and the second smallest, somewhere on `S`'s boundary,
@@ -216,8 +205,8 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// `toward` is the unit direction from `center` to `V`. Its choice is
 /// free for soundness — every unit direction gives a sound `floor` —
 /// and this one lays the half-plane's edge across the corner, so the
-/// part of the disc on the far side of `center` from `V`, which is kept
-/// material, lies outside `Ω`.
+/// part of the disc on the far side of `center` from `V`, which the
+/// cut-off does not touch, lies outside `Ω`.
 ///
 /// An arc `A` is not an edge of the source, so the plan describes it:
 /// at a foot the rim and the section circle are tangent and `S` is the
@@ -275,138 +264,201 @@ impl<T: Bounds> CapSliver<T> {
     }
 }
 
-/// The two rim pieces' extremes over a sliver: each piece's far extent
-/// from the centre and least height along `toward`, `face_a`'s first,
-/// and the unit tangent `face_a`'s piece leaves its foot along.
-struct RimExtremes<T: Real> {
-    far: [T; 2],
-    low: [T; 2],
-    leaves: Vec3<T>,
-}
-
 impl<T: Decide + Bounds> CapSliver<T> {
-    /// The rims' pieces from their feet to the old vertex, read off the
-    /// source ([`RimExtremes`]).
-    fn rim_extremes(
-        body: &Body<T>,
-        crease: EdgeKey,
-        vertex: VertexKey,
-        rims: [(EdgeKey, Point3<T>); 2],
-        center: Point3<T>,
-        toward: Vec3<T>,
-    ) -> Result<RimExtremes<T>, BlendError> {
-        let unsupported = |rim: EdgeKey| {
-            unbuilt_geometry(
-                EntityId::Edge(rim),
-                "an end face's rim is neither a line nor a circle, the only rims the sliver's \
-                 extent is closed-form over",
-            )
-        };
-        let mut far = [T::zero(); 2];
-        let mut low = far;
-        let mut leaves = Vec3::new(T::zero(), T::zero(), T::zero());
-        for (i, (rim, foot)) in rims.into_iter().enumerate() {
-            let ((carrier, window), leaving) = rim_piece(body, rim, crease, vertex, foot)?;
-            far[i] = piece_distance(carrier, window, center)
-                .ok_or_else(|| unsupported(rim))?
-                .1;
-            low[i] = piece_along(carrier, window, center, toward)
-                .ok_or_else(|| unsupported(rim))?
-                .0;
-            if i == 0 {
-                leaves = leaving;
-            }
-        }
-        Ok(RimExtremes { far, low, leaves })
-    }
-
-    /// **The region a cut-off on an arc removes**, read off the source
-    /// before any mutation. `rims` pairs each rim with its foot,
-    /// `face_a`'s first.
+    /// **The region a cut-off removes from its end face**, read off the
+    /// source before any mutation. `rims` pairs each rim with its foot,
+    /// `face_a`'s first. The two end curves differ only in the curve's
+    /// own term: an arc is read over its span from `face_a`'s foot, a
+    /// chord — `center` its midpoint, no inner disc — at its two ends,
+    /// where a segment's extremes are.
     ///
     /// # Errors
     ///
     /// [`BlendError::UnsupportedGeometry`] when a rim carries no
-    /// certified line or circle, or from a foot's split parameter;
-    /// [`BlendError::BodyNotIntact`] when the old vertex, a rim, or the
-    /// end face's half of a rim does not resolve.
-    fn of_arc(
+    /// certified line or circle; [`BlendError::UnsupportedRunOut`] from
+    /// a foot off its rim's span; [`BlendError::BodyNotIntact`] when the
+    /// old vertex, a rim, or the end face's half of a rim does not
+    /// resolve.
+    fn of(
         body: &Body<T>,
-        crease: EdgeKey,
         vertex: VertexKey,
         cap: FaceKey,
         rims: [(EdgeKey, Point3<T>); 2],
-        center: Point3<T>,
-        radius: T,
+        curve: EndCurve<T>,
     ) -> Result<Self, BlendError> {
         let pv = point_of(body, vertex)
             .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
-        let toward = (pv - center).normalize();
-        let RimExtremes {
-            far,
-            low,
-            leaves: leaves_a,
-        } = Self::rim_extremes(body, crease, vertex, rims, center, toward)?;
         let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
-        // The cut-off arc, from `face_a`'s foot along the rim's tangent
-        // there (the type's docs), to `face_b`'s: its span read in
-        // `(0, τ]` past the start.
-        let from = foot_a - center;
-        let arc = CircleFrame {
-            center,
-            axis: from.cross(leaves_a).normalize(),
-            radius,
-            u_ref: from.normalize(),
+        let (center, radius) = match curve {
+            EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), T::zero()),
+            EndCurve::Arc { center, radius } => (center, radius),
         };
-        let (low_arc, _) = arc.along((T::zero(), arc.past(T::zero(), foot_b)), center, toward);
+        let toward = (pv - center).normalize();
+        // The rims' pieces from their feet to the old vertex: each one's
+        // far extent from `center` and least height along `toward`.
+        let pieces = [
+            rim_piece(body, rim_a, vertex, foot_a)?,
+            rim_piece(body, rim_b, vertex, foot_b)?,
+        ];
+        let mut far = [T::zero(); 2];
+        let mut low = far;
+        for (i, ((carrier, window), _)) in pieces.iter().enumerate() {
+            let unsupported = || {
+                unbuilt_geometry(
+                    EntityId::Edge(rims[i].0),
+                    "an end face's rim is neither a line nor a circle, the only rims the \
+                     sliver's extent is closed-form over",
+                )
+            };
+            far[i] = piece_distance(carrier, *window, center)
+                .ok_or_else(unsupported)?
+                .1;
+            low[i] = piece_along(carrier, *window, center, toward)
+                .ok_or_else(unsupported)?
+                .0;
+        }
+        let (curve_far, curve_low) = match curve {
+            EndCurve::Chord => (
+                (foot_a - center).norm().max((foot_b - center).norm()),
+                (foot_a - center)
+                    .dot(toward)
+                    .min((foot_b - center).dot(toward)),
+            ),
+            // The arc, from `face_a`'s foot along the tangent its rim
+            // piece leaves that foot by (the type's docs), to `face_b`'s:
+            // its span read in `(0, τ]` past the start.
+            EndCurve::Arc { .. } => {
+                let from = foot_a - center;
+                let arc = CircleFrame {
+                    center,
+                    axis: from.cross(pieces[0].1).normalize(),
+                    radius,
+                    u_ref: from.normalize(),
+                };
+                let (low_arc, _) =
+                    arc.along((T::zero(), arc.past(T::zero(), foot_b)), center, toward);
+                (radius, low_arc)
+            }
+        };
         Ok(Self {
             cap,
             rims: [rim_a, rim_b],
             center,
             radius,
-            reach: radius.max(far[0]).max(far[1]),
+            reach: curve_far.max(far[0]).max(far[1]),
             toward,
-            floor: low_arc.min(low[0]).min(low[1]),
+            floor: curve_low.min(low[0]).min(low[1]),
         })
     }
+}
 
-    /// **The region a cut-off on a chord removes** — the triangle of the
-    /// two feet and the old vertex, its rims straight: `center` the
-    /// chord's midpoint, no inner disc, and the extremes over the two
-    /// rim pieces and the chord, whose own extremes are at its ends.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::of_arc`].
-    fn of_chord(
-        body: &Body<T>,
-        crease: EdgeKey,
-        vertex: VertexKey,
-        cap: FaceKey,
-        rims: [(EdgeKey, Point3<T>); 2],
-    ) -> Result<Self, BlendError> {
-        let pv = point_of(body, vertex)
-            .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
-        let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
-        let half = T::from_f64(0.5);
-        let center = foot_a + (foot_b - foot_a) * half;
-        let toward = (pv - center).normalize();
-        let RimExtremes { far, low, .. } =
-            Self::rim_extremes(body, crease, vertex, rims, center, toward)?;
-        let chord_far = (foot_a - center).norm().max((foot_b - center).norm());
-        let chord_low = (foot_a - center)
-            .dot(toward)
-            .min((foot_b - center).dot(toward));
-        Ok(Self {
-            cap,
-            rims: [rim_a, rim_b],
-            center,
-            radius: T::zero(),
-            reach: chord_far.max(far[0]).max(far[1]),
-            toward,
-            floor: chord_low.min(low[0]).min(low[1]),
+/// **Where a foot lands on its rim**: the parameter the carve splits the
+/// rim at, strictly inside the rim's stored span — or the one refusal
+/// for a foot that is not ([`FOOT_INSIDE_A_FACE`]), read at the plan on
+/// the source rim and again by the carve on the live one. Between the
+/// two reads the only thing that changes a rim is another cut-off's
+/// split from its other end, which [`shared_rims_clear`] meters first.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedRunOut`] for a foot off its rim's span;
+/// [`BlendError::UnsupportedGeometry`] / [`BlendError::BodyNotIntact`]
+/// from the read ([`split_param_in_span`]).
+fn foot_param<T: Decide + Bounds>(
+    body: &Body<T>,
+    rim: EdgeKey,
+    vertex: VertexKey,
+    foot: Point3<T>,
+) -> Result<T, BlendError> {
+    split_param_in_span(body, rim, foot)?
+        .ok_or_else(|| unbuilt_run_out(EntityId::Vertex(vertex), FOOT_INSIDE_A_FACE))
+}
+
+/// The refusal for two cut-offs whose feet on one shared rim cross or
+/// coincide.
+pub(in crate::blend) const FEET_CROSS_ON_A_SHARED_RIM: &str = "two cut-offs' feet cross or \
+     coincide on the rim they share, so the regions they take from the end faces meet";
+
+/// **Two cut-offs on one rim, metered before any mutation.** A rim
+/// joins two vertices and a band may be cut off at each — two bands
+/// on one end face share its rim, and so do two bands whose end faces
+/// are each other's supports. The first carve splits the rim at its
+/// foot and the second splits the piece that is left, so the second
+/// foot must lie on that piece: the two feet in order along the rim,
+/// each nearer its own cut-off's vertex, apart by a margin
+/// (`fillet3_cut_off_feet`, the span between them metered into meters
+/// as `topo`'s edge split meters its interior test) decided definitely
+/// positive. Feet that cross or coincide refuse typed here, naming the
+/// shared rim; feet apart only within the band escalate.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedRunOut`] ([`FEET_CROSS_ON_A_SHARED_RIM`],
+/// or [`FOOT_INSIDE_A_FACE`] from a foot's read);
+/// [`BlendError::Escalated`] for feet apart within the band;
+/// [`BlendError::UnsupportedGeometry`] / [`BlendError::BodyNotIntact`]
+/// from a rim's read.
+pub(in crate::blend) fn shared_rims_clear<'e, T: Decide + Bounds + 'e>(
+    body: &Body<T>,
+    ends: impl IntoIterator<Item = &'e EndCut<T>>,
+    band: Band,
+) -> Result<(), BlendError> {
+    let mut feet: Vec<(EdgeKey, VertexKey, Point3<T>)> = ends
+        .into_iter()
+        .flat_map(|e| {
+            let [a, b] = e.sliver.rims;
+            [(a, e.vertex, e.foot_a), (b, e.vertex, e.foot_b)]
         })
+        .collect();
+    feet.sort_by_key(|&(rim, v, _)| (rim, v));
+    for pair in feet.windows(2) {
+        let [(rim, v0, f0), (r1, v1, f1)] = [pair[0], pair[1]];
+        if rim != r1 {
+            continue;
+        }
+        let refuse = || unbuilt_run_out(EntityId::Edge(rim), FEET_CROSS_ON_A_SHARED_RIM);
+        let (t0, t1) = (
+            foot_param(body, rim, v0, f0)?,
+            foot_param(body, rim, v1, f1)?,
+        );
+        let Some((carrier, _)) = stored_piece(body, rim)? else {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(rim),
+                "an end face's rim carries no certified carrier",
+            ));
+        };
+        let rate = match *carrier {
+            Curve3::Line { .. } => InfSpeed::new(T::one()),
+            Curve3::Circle { radius, .. } => InfSpeed::new(radius),
+            // `foot_param` read both feet, and it reads lines and
+            // circles only.
+            Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                return Err(refuse());
+            }
+        };
+        let he_plus = body
+            .get_edge(rim)
+            .ok_or_else(|| not_intact(EntityId::Edge(rim), "a shared rim"))?
+            .he_plus;
+        // The stored window runs along `he_plus`, so the foot of the
+        // cut-off at its start must come first.
+        let span = if body.get_half_edge(he_plus).map(|h| h.start) == Some(v0) {
+            t1 - t0
+        } else {
+            t0 - t1
+        };
+        let margin = Margin::metered(span, rate);
+        match classify(
+            BlendSite::Link { edge: rim },
+            BlendDecision::CutOffFeet,
+            margin,
+            band,
+        )? {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => return Err(refuse()),
+        }
     }
+    Ok(())
 }
 
 /// **One rim's piece from its foot to the old vertex**: the rim's stored
@@ -420,13 +472,12 @@ impl<T: Decide + Bounds> CapSliver<T> {
 /// # Errors
 ///
 /// [`BlendError::UnsupportedGeometry`] when the rim carries no certified
-/// carrier, or from the foot's split parameter;
-/// [`BlendError::BodyNotIntact`] when the rim does not resolve or does
-/// not end at `vertex`.
+/// carrier; [`BlendError::UnsupportedRunOut`] from the foot's parameter
+/// ([`foot_param`]); [`BlendError::BodyNotIntact`] when the rim does not
+/// resolve or does not end at `vertex`.
 fn rim_piece<T: Decide + Bounds>(
     body: &Body<T>,
     rim: EdgeKey,
-    crease: EdgeKey,
     vertex: VertexKey,
     foot: Point3<T>,
 ) -> Result<(Piece<'_, T>, Vec3<T>), BlendError> {
@@ -440,7 +491,7 @@ fn rim_piece<T: Decide + Bounds>(
             "an end face's rim carries no certified carrier",
         ));
     };
-    let t = seam_split_param(body, rim, crease, foot)?;
+    let t = foot_param(body, rim, vertex, foot)?;
     let forward = carrier.ders1(t).1.normalize();
     if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
         Ok(((carrier, (t0, t)), -forward))
@@ -496,14 +547,13 @@ pub(in crate::blend) fn end_rims<T: Decide>(
 fn split_rim<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     rim: EdgeKey,
-    crease: EdgeKey,
     vertex: VertexKey,
     support: FaceKey,
     foot: Point3<T>,
     rec: &mut BlendNaming,
     tol: Tol,
 ) -> Result<SplitFragments, BlendError> {
-    let t = seam_split_param(body, rim, crease, foot)?;
+    let t = foot_param(body, rim, vertex, foot)?;
     let frag = split_fragment(body, rim, vertex, t, None, rec, "end rim split", tol)?;
     rec.feet.push((frag.vertex, vertex, support));
     retire_fragment(rec, frag.near, frag.source);
@@ -530,9 +580,11 @@ pub(in crate::blend) struct CutRims {
 /// # Errors
 ///
 /// [`BlendError::Op`] when an Euler operator refuses;
-/// [`BlendError::UnsupportedChain`] / [`BlendError::UnsupportedGeometry`]
-/// from a split parameter; [`BlendError::BodyNotIntact`] where a cycle
-/// read disagrees with the plan.
+/// [`BlendError::UnsupportedRunOut`] for a foot off its live rim's span
+/// ([`foot_param`]), which the plan's reads and [`shared_rims_clear`]
+/// leave no route to; [`BlendError::UnsupportedGeometry`] from a rim's
+/// read; [`BlendError::BodyNotIntact`] where a cycle read disagrees with
+/// the plan.
 pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     end: &EndCut<T>,
@@ -551,8 +603,8 @@ pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
             "a cut-off's end face is not the one the plan read",
         ));
     }
-    let a = split_rim(body, rim_a, crease, v, face_a, end.foot_a, rec, tol)?;
-    let b = split_rim(body, rim_b, crease, v, face_b, end.foot_b, rec, tol)?;
+    let a = split_rim(body, rim_a, v, face_a, end.foot_a, rec, tol)?;
+    let b = split_rim(body, rim_b, v, face_b, end.foot_b, rec, tol)?;
     // In the end face's cycle the half-edge ENDING at the old vertex
     // starts at one foot; two positions on, the half-edge starts at the
     // other.

@@ -101,15 +101,20 @@
 //!
 //! The battery already judged every margin (the C8 ordering contract —
 //! [`super::build::fillet_edges`] runs it first and hands the verdict
-//! in). The surgery adds TWO numeric decisions of its own. The ring
-//! carry-through honesty check, **`fillet3_ring_clearance`**: a Q1
+//! in). The surgery adds numeric decisions of its own, each before any
+//! mutation but the last. The ring carry-through honesty check,
+//! **`fillet3_ring_clearance`**: a Q1
 //! trilean whose margin (meters) is the closed-form clearance between
 //! a support face's ring and a blend's trimline — circle-vs-line and
 //! circle-vs-circle, exact, never sampled — between each other
 //! outer-boundary edge of a closed rim's support and that support's
-//! trim, and, on a transverse cap a convex ruled band cuts off,
-//! between each edge the cut leaves on the cap and a region enclosing
-//! the sliver it removes. A boundary edge is read exactly when it is a
+//! trim, and, on the end face of every cut-off, convex or concave,
+//! between each edge the cut leaves on it and a region enclosing the
+//! sliver it removes. The planar strip meter decides under predicate
+//! 2's name, **`fillet3_face_clearance`**, as that screen's closed form
+//! ([`strip_clearance`]); two cut-offs' feet on one rim under
+//! **`fillet3_cut_off_feet`** ([`super::open::end_face::shared_rims_clear`]).
+//! A boundary edge is read exactly when it is a
 //! line or circle and through a certified bound ([`boxed_reach`]) when
 //! it is an ellipse, spiric or NURBS curve, and the refusal says which;
 //! an edge requested in the same call is read at its own trim. Positive
@@ -199,10 +204,10 @@ use super::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary,
 };
 use super::arms::EdgeBlend;
-use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
+use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link, face_clearance_margin};
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
-use super::open::end_face::CapSliver;
+use super::open::end_face::{CapSliver, shared_rims_clear};
 use super::open::planar::{
     BlankPlan, Corner, CutOffPlan, JointPlan, blank_phase, corner_plan, cut_off_plan, joint_plan,
 };
@@ -583,15 +588,16 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     opens.sort_by_key(AdmittedOpen::edge);
     rims.sort_by_key(|r| r.chain.first().edge);
     shared_support_gate(&rims)?;
-    // The two open bands part here: a PLANAR link terminates in corners
-    // and carves its supports whole (below); a RULED link terminates in
-    // transverse caps and carves in `ruled`. Both are admitted opens.
+    // The two open bands part here: a PLANAR link ends at corners,
+    // joints and cut-offs and carves its supports locally (below); a
+    // RULED link is cut off at both ends and carves in `ruled`. Both are
+    // admitted opens.
     let (planar, ruled): (Vec<AdmittedOpen<'_, T>>, Vec<AdmittedOpen<'_, T>>) = opens
         .iter()
         .copied()
         .partition(|o| !o.link().arm.is_ruled());
     // A ruled chain is admitted with one link only, so its band is that
-    // link's; the planar bands are carved whole by the blank phase.
+    // link's; the planar bands are carved by the blank phase.
     let planar_bands: Vec<&OpenBand<'_, T>> = bands
         .iter()
         .filter(|b| !b.first().link().arm.is_ruled())
@@ -715,16 +721,22 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         ruled_plans.push(RuledPlan::plan(source, *o, &opens, &verdict.end_faces)?);
     }
 
-    // ---- The ring carry-through honesty check (the one decision this
-    // module adds — module docs). ----
+    // ---- Two cut-offs on one rim: the second split must land on the
+    // piece the first leaves. ----
+    shared_rims_clear(
+        source,
+        ruled_plans
+            .iter()
+            .flat_map(RuledPlan::ends)
+            .chain(cut_offs.iter().map(|c| &c.end)),
+        band,
+    )?;
+
+    // ---- The ring carry-through honesty check (module docs). ----
     let slivers: Vec<(&CapSliver<T>, Convexity)> = ruled_plans
         .iter()
-        .flat_map(|p| p.removed_slivers().map(|s| (s, p.link().convexity())))
-        .chain(
-            cut_offs
-                .iter()
-                .filter_map(|c| c.end.sliver.as_ref().map(|s| (s, c.link.convexity()))),
-        )
+        .flat_map(|p| p.slivers().map(|s| (s, p.link().convexity())))
+        .chain(cut_offs.iter().map(|c| (&c.end.sliver, c.link.convexity())))
         .collect();
     ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;
 
@@ -2493,8 +2505,8 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
 /// margin, in closed form; every other outer-boundary edge of a closed
-/// rim's supports must clear that support's trim; every edge a convex
-/// cut-off leaves on its end face must clear the sliver it removes; and
+/// rim's supports must clear that support's trim; every edge a cut-off
+/// leaves on its end face must clear the sliver it removes; and
 /// every outer-boundary edge a planar band's local carve leaves on a
 /// support must clear the strip it removes.
 fn ring_clearance_pass<T: Decide + Bounds>(
@@ -2687,6 +2699,35 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// the converse does not hold, which is the meter's conservative
 /// direction.
 ///
+/// **It is predicate 2's question, in closed form, and refuses as
+/// predicate 2 does** ([`BlendError::FaceClearanceUncertified`], through
+/// [`face_clearance_margin`]): whether a support survives a requested
+/// edge's setback against another of its boundary features. The screen
+/// reads `gap − setback` off `CHAIN_SAMPLES` points per edge, a gap
+/// never smaller than the true one, so a feature whose closest approach
+/// falls between samples — a spike's tip — passes it and is refused
+/// here, which is [`ring_clearance`]'s relation to the screen for
+/// rings. The screen cannot be the one home: it runs before predicate 6
+/// has classified the band's ends, and the strip's extent along the
+/// edge is set by their feet (a cut-off's foot on its rim, a corner's
+/// on its trimline), which only the plan holds. The `gap` the refusal
+/// reports is the margin plus `across`: how far the edge clears the
+/// requested edge before the band's setback is taken off.
+///
+/// **Nor is arm (b) its home**, though both meter a support's outer
+/// boundary against what a band removes: a closed rim's band removes an
+/// annulus between the rim and a circular trim, read through the
+/// support's latitude function, and an open band a rectangle-bounded
+/// strip between two stations; one region serving both would be the
+/// looser of the two on each.
+///
+/// **Only the outer cycle is walked.** Every support here is an open
+/// link's, and arm (a) has already metered each of its rings against
+/// the link's unbounded trimline, which encloses the strip — or refused
+/// it, typed, as not a circle. A requested plane–plane edge is a line,
+/// so a ring that carries one is never a circle: a requested ring edge
+/// refuses at arm (a) before this arm could read it.
+///
 /// Not metered: requested edges, which their own strips replace and
 /// predicate 2 meters pairwise, and the edges at the two stations — on
 /// the support, the rim a cut-off splits at its foot or the requested
@@ -2706,20 +2747,12 @@ fn strip_clearance<T: Decide + Bounds>(
             "a planar support has no outer cycle that walks",
         )
     })?;
-    let foot = |v: VertexKey| {
-        support
-            .stations()
-            .iter()
-            .find(|s| s.vertex == v)
-            .map(|s| s.foot)
-            .ok_or_else(|| not_intact(EntityId::Vertex(v), "a requested edge's station"))
-    };
     for chord in support.chords() {
         let o = point_of(body, chord.from)
             .ok_or_else(|| not_intact(EntityId::Vertex(chord.from), "a station's point"))?;
         let t = point_of(body, chord.to)
             .ok_or_else(|| not_intact(EntityId::Vertex(chord.to), "a station's point"))?;
-        let (x, y) = (foot(chord.from)?, foot(chord.to)?);
+        let [x, y] = chord.feet;
         let d = (t - o).normalize();
         let off = x - o;
         let m = (off - d * off.dot(d)).normalize();
@@ -2732,11 +2765,6 @@ fn strip_clearance<T: Decide + Bounds>(
         };
         let (low_d, high_d) = (along(d), -along(-d));
         let across = -along(-m);
-        let convexity = opens
-            .iter()
-            .find(|op| op.edge() == chord.edge)
-            .map(AdmittedOpen::convexity)
-            .ok_or_else(|| not_intact(EntityId::Edge(chord.edge), "a requested edge's link"))?;
         for &he in &outer {
             let edge = body
                 .get_half_edge(he)
@@ -2755,12 +2783,10 @@ fn strip_clearance<T: Decide + Bounds>(
                 ));
             };
             let reach = |u: Vec3<T>| match carrier {
-                Curve3::Line { .. } | Curve3::Circle { .. } => {
-                    piece_along(carrier, window, o, u).map(|r| (r, false))
-                }
+                Curve3::Line { .. } | Curve3::Circle { .. } => piece_along(carrier, window, o, u),
                 Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                     let ends = (carrier.eval(window.0), carrier.eval(window.1));
-                    boxed_reach(carrier, window, ends, o, Some(u)).map(|r| (r, true))
+                    boxed_reach(carrier, window, ends, o, Some(u))
                 }
             };
             let unread = || {
@@ -2769,13 +2795,13 @@ fn strip_clearance<T: Decide + Bounds>(
                     "an outer-boundary edge of a planar support has no finite certified box",
                 )
             };
-            let ((lo_m, hi_m), bounded_m) = reach(m).ok_or_else(unread)?;
-            let ((lo_d, hi_d), bounded_d) = reach(d).ok_or_else(unread)?;
+            let (lo_m, hi_m) = reach(m).ok_or_else(unread)?;
+            let (lo_d, hi_d) = reach(d).ok_or_else(unread)?;
             let margin = (lo_m - across)
                 .max(-hi_m)
                 .max(lo_d - high_d)
                 .max(low_d - hi_d);
-            ring_clearance(face, convexity, margin, bounded_m || bounded_d, band)?;
+            face_clearance_margin(face, margin, margin + across, false, band)?;
         }
     }
     Ok(())

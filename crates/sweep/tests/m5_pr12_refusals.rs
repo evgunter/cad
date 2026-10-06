@@ -252,7 +252,7 @@ fn a_planar_chain_ending_at_a_curved_neighbour_refuses_its_curved_end_face() {
         };
         match run_battery(&req, band()) {
             Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-                assert_eq!(detail, sweep::blend::battery::PLANAR_END_FACE_CURVED);
+                assert_eq!(detail, sweep::blend::battery::END_FACE_CURVED);
             }
             other => panic!("a planar cap edge ends at the torus wall, got {other:?}"),
         }

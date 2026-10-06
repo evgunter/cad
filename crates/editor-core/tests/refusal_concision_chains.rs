@@ -2355,8 +2355,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedRunOut",
             E::UnsupportedRunOut {
                 at: EntityId::Vertex(vertex),
-                detail: "a plane–plane band's edge ends at a curved end face; the cut-off is \
-                         built in a plane end face only",
+                detail: sweep::blend::battery::END_FACE_CURVED,
             },
         ),
         (

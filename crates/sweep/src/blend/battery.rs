@@ -859,7 +859,31 @@ pub fn face_clearance<T: Decide + Bounds>(
     cross_chain: bool,
     band: Band,
 ) -> Result<(), BlendError> {
-    let margin = gap - setback_here - setback_there;
+    face_clearance_margin(
+        face,
+        gap - setback_here - setback_there,
+        gap,
+        cross_chain,
+        band,
+    )
+}
+
+/// [`face_clearance`] with its margin already formed: the door the
+/// surgery's planar strip meter decides through, whose margin is the
+/// closed form of the screen's `gap − setback` over a strip's bounding
+/// rectangle rather than one subtraction (`surgery::strip_clearance`).
+/// `gap` is the measurement the refusal reports beside it.
+///
+/// # Errors
+///
+/// As [`face_clearance`].
+pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
+    face: FaceKey,
+    margin: T,
+    gap: T,
+    cross_chain: bool,
+    band: Band,
+) -> Result<(), BlendError> {
     match classify(
         BlendSite::Chain,
         BlendDecision::FaceClearance,
@@ -1538,6 +1562,12 @@ fn break_at_turns<T: Real>(chain: Chain<T>, turns: &[usize]) -> Vec<Chain<T>> {
         runs.push((run, head, tail));
     } else {
         // A closed chain's walk starts after a turn and so ends on one.
+        // One turn is enough: a rim of straight links closes only by
+        // turning at three junctions or more, but a teardrop's two
+        // lines meet at one corner and are closed by an arc tangent to
+        // both, so its one run starts and ends at that corner, where the
+        // end names two of three edges, the turn
+        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_and_refuses_the_turn`).
         debug_assert!(run.is_empty(), "a closed chain's runs end at turns");
     }
     runs.into_iter()
@@ -1827,26 +1857,24 @@ fn is_seam_vertex<T: Decide>(
     }
 }
 
-/// The refusal for a ruled link's end that is not a transverse cap —
-/// an oblique cap, or a curved end face. Both are run-outs, not corner
-/// configurations, so they carry the run-out vocabulary and the corner
-/// recourse's residue.
-pub const RULED_END_NOT_TRANSVERSE: &str =
-    "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling";
+/// The refusal for a cylinder band — the ruled band, the plane–plane
+/// fillet — ending at a plane end face that is not perpendicular to its
+/// spine ([`cap_transverse`]): its section there is an ellipse, which
+/// the cut-off does not build. A run-out, not a corner configuration,
+/// so it carries the run-out vocabulary and the corner recourse's
+/// residue.
+pub const END_FACE_OBLIQUE: &str = "a round band ends at a plane end face oblique to its \
+     spine, where its section is an ellipse, which is not built";
 
-/// The refusal for a plane–plane fillet's cut-off at a plane end face
-/// oblique to its edge: the band's section there is an ellipse, which
-/// the cut-off does not build.
-pub const PLANAR_FILLET_END_OBLIQUE: &str = "a round band's edge ends at a plane end face \
-     oblique to it, where its section is an ellipse, which is not built";
+/// The refusal for a straight band — either open band — ending at a
+/// curved end face.
+pub const END_FACE_CURVED: &str = "a straight band ends at a curved end face; the cut-off is \
+     built in a plane end face only";
 
-/// The refusal for a plane–plane band's cut-off at a curved end face.
-pub const PLANAR_END_FACE_CURVED: &str = "a plane–plane band's edge ends at a curved end face; \
-     the cut-off is built in a plane end face only";
-
-/// **`fillet3_cap_transverse`** — does a ruled link's end face lie
-/// perpendicular to the band's ruling, so the band can be cut off in
-/// the cap's own section of it?
+/// **`fillet3_cap_transverse`** — does a cylinder band's end face lie
+/// perpendicular to the band's spine (a ruled link's ruling, a
+/// plane–plane fillet's edge), so the band can be cut off in the end
+/// face's own section of it, a circle?
 ///
 /// Margin: the cap normal's **departure** from the ruling, `|n̂ × τ̂|`
 /// in METERS at the link's own lever arm — [`Link::arm_len`], the
@@ -1877,29 +1905,6 @@ pub fn cap_transverse<T: Decide + Bounds>(
     lever: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    if end_face_transverse(vertex, cap_normal, ruling, lever, band)? {
-        return Ok(());
-    }
-    Err(super::surgery::unbuilt_run_out(
-        EntityId::Vertex(vertex),
-        RULED_END_NOT_TRANSVERSE,
-    ))
-}
-
-/// [`cap_transverse`]'s decision, answered rather than refused: `true`
-/// where the end face is perpendicular to the spine, so each band
-/// refuses a definite departure in its own words.
-///
-/// # Errors
-///
-/// [`BlendError::Escalated`] on an in-band departure.
-fn end_face_transverse<T: Decide + Bounds>(
-    vertex: VertexKey,
-    cap_normal: Vec3<T>,
-    ruling: Vec3<T>,
-    lever: T,
-    band: Band,
-) -> Result<bool, BlendError> {
     let margin = Margin::levered(
         cap_normal.normalize().cross(ruling.normalize()).norm(),
         lever,
@@ -1910,8 +1915,11 @@ fn end_face_transverse<T: Decide + Bounds>(
         margin,
         band,
     )? {
-        Sign::Zero => Ok(true),
-        _ => Ok(false),
+        Sign::Zero => Ok(()),
+        _ => Err(super::surgery::unbuilt_run_out(
+            EntityId::Vertex(vertex),
+            END_FACE_OBLIQUE,
+        )),
     }
 }
 
@@ -2041,7 +2049,7 @@ fn corner_at<T: Decide + Bounds>(
         else {
             return Err(super::surgery::unbuilt_run_out(
                 EntityId::Vertex(vertex),
-                RULED_END_NOT_TRANSVERSE,
+                END_FACE_CURVED,
             ));
         };
         // The ruling is the arm's own: a ruled arm's band is the
@@ -2090,7 +2098,7 @@ fn corner_at<T: Decide + Bounds>(
         else {
             return Err(super::surgery::unbuilt_run_out(
                 EntityId::Vertex(vertex),
-                PLANAR_END_FACE_CURVED,
+                END_FACE_CURVED,
             ));
         };
         Some(*normal)
@@ -2173,12 +2181,7 @@ fn corner_at<T: Decide + Bounds>(
                 let Surface::Cylinder { axis, .. } = link.blend.surface else {
                     return Err(indeterminate());
                 };
-                if !end_face_transverse(vertex, normal, axis, link.arm_len, band)? {
-                    return Err(super::surgery::unbuilt_run_out(
-                        EntityId::Vertex(vertex),
-                        PLANAR_FILLET_END_OBLIQUE,
-                    ));
-                }
+                cap_transverse(vertex, normal, axis, link.arm_len, band)?;
             }
             Ok(Some(CornerConfig::EndFace))
         }

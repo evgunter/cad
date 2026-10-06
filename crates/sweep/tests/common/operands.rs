@@ -231,7 +231,7 @@ pub fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: 
 /// **A prism whose right side is a half-round**, unit high, and the
 /// top front edge that ends there: the one plane–plane edge the blend
 /// suites reach whose end face is CURVED, a run-out both verbs refuse
-/// (`blend::battery::PLANAR_END_FACE_CURVED`).
+/// (`blend::battery::END_FACE_CURVED`).
 pub fn half_round_end() -> (Body<f64>, EdgeKey) {
     let body = prism(
         vec![

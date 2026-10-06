@@ -16,7 +16,7 @@ cap edges (`crates/sweep/tests/m5_pr12_refusals.rs`,
 `a_planar_chain_ending_at_a_curved_neighbour_refuses_its_curved_end_face`)
 end at the torus wall, and `battery::corner_at` now reads a plane–plane
 end's end face before resolving its neighbours, so they refuse
-`UnsupportedRunOut` (`PLANAR_END_FACE_CURVED`) instead. The tag is still
+`UnsupportedRunOut` (`END_FACE_CURVED`) instead. The tag is still
 reachable — a curved open link ending beside an unresolvable edge, or a
 turn whose unrequested third edge is tangential (two coplanar faces) —
 but no fixture builds either, so the arm `corner_at` folds every

@@ -33,7 +33,9 @@ use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::{BlendRequest, RULED_END_NOT_TRANSVERSE, cap_transverse, run_battery};
+use sweep::blend::battery::{
+    BlendRequest, END_FACE_CURVED, END_FACE_OBLIQUE, cap_transverse, run_battery,
+};
 use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, finished, revolved_about_y,
@@ -385,7 +387,7 @@ fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
         let BlendError::UnsupportedRunOut { at, detail } = err.error else {
             panic!("the oblique cap is a run-out, got {:?}", err.error);
         };
-        assert_eq!(detail, RULED_END_NOT_TRANSVERSE);
+        assert_eq!(detail, END_FACE_OBLIQUE);
         let topo::EntityId::Vertex(v) = at else {
             panic!("the refusal names the vertex, got {at:?}");
         };
@@ -633,7 +635,7 @@ fn the_cap_lever_is_the_links_extent() {
                     assert_eq!(source.predicate, Some("fillet3_cap_transverse"));
                 }
                 (false, BlendError::UnsupportedRunOut { detail, .. }) => {
-                    assert_eq!(detail, RULED_END_NOT_TRANSVERSE);
+                    assert_eq!(detail, END_FACE_OBLIQUE);
                 }
                 (_, other) => panic!(
                     "L = {len}: the verdict must follow the lever (in band: {in_band}), got \
@@ -672,7 +674,7 @@ fn a_curved_end_face_refuses_typed_before_metering() {
         let BlendError::UnsupportedRunOut { at, detail } = err.error else {
             panic!("the curved end is a run-out, got {:?}", err.error);
         };
-        assert_eq!(detail, RULED_END_NOT_TRANSVERSE);
+        assert_eq!(detail, END_FACE_CURVED);
         let topo::EntityId::Vertex(v) = at else {
             panic!("the refusal names the vertex, got {at:?}");
         };

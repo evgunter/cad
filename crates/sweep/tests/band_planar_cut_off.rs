@@ -16,7 +16,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
-use sweep::blend::battery::{PLANAR_END_FACE_CURVED, PLANAR_FILLET_END_OBLIQUE};
+use sweep::blend::battery::{END_FACE_CURVED, END_FACE_OBLIQUE};
 use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::chamfer::chamfer_edges;
@@ -26,20 +26,20 @@ use sweep::test_support::{
 use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
 
 /// The band size every row asks for, meters.
-const D: f64 = 0.1;
+pub(crate) const D: f64 = 0.1;
 
-fn tol() -> Tol {
+pub(crate) fn tol() -> Tol {
     Tol::witness()
 }
 
-fn volume(body: &Body<f64>) -> f64 {
+pub(crate) fn volume(body: &Body<f64>) -> f64 {
     let p = mass_properties(body, tol()).expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }
 
 /// The edge of `body` between the two points, either way round.
-fn edge(body: &Body<f64>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
+pub(crate) fn edge(body: &Body<f64>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
     let (a, b) = (Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]));
     let at = |p: Point3<f64>, q: Point3<f64>| (p - q).norm() < 1e-12;
     query::all_edges(body)
@@ -62,13 +62,17 @@ fn edge(body: &Body<f64>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum Verb {
+pub(crate) enum Verb {
     Chamfer,
     Fillet,
 }
 
 impl Verb {
-    fn run(self, body: &Body<f64>, edges: &[EdgeKey]) -> Result<Blended<f64>, BlendError> {
+    pub(crate) fn run(
+        self,
+        body: &Body<f64>,
+        edges: &[EdgeKey],
+    ) -> Result<Blended<f64>, BlendError> {
         match self {
             Self::Chamfer => chamfer_edges(body, edges, D, tol()),
             Self::Fillet => fillet_edges(body, edges, D, tol()),
@@ -77,7 +81,7 @@ impl Verb {
     }
 
     /// The section a band removes from (or adds to) a right dihedral.
-    fn section(self) -> f64 {
+    pub(crate) fn section(self) -> f64 {
         match self {
             Self::Chamfer => D * D / 2.0,
             Self::Fillet => (1.0 - PI / 4.0) * D * D,
@@ -88,7 +92,7 @@ impl Verb {
     /// at a right trihedron: the cube closed forms' per-corner term
     /// (`common::oracles`), `(2/3)d³` for the chamfer and
     /// `(2 − 7π/12)r³` for the fillet.
-    fn corner(self) -> f64 {
+    pub(crate) fn corner(self) -> f64 {
         match self {
             Self::Chamfer => 2.0 / 3.0 * D.powi(3),
             Self::Fillet => (2.0 - 7.0 * PI / 12.0) * D.powi(3),
@@ -99,7 +103,7 @@ impl Verb {
 /// Carve, and check what holds of every built row: tier 3, Euler on one
 /// genus-0 shell, naming totality, and `ΔV = removed` (negative where
 /// the band adds material).
-fn carve(
+pub(crate) fn carve(
     body: &Body<f64>,
     edges: &[EdgeKey],
     verb: Verb,
@@ -128,7 +132,7 @@ fn carve(
 
 /// The box every box row carves: `2 × 1.5 × 1`, low corner at the
 /// origin, so its three edge lengths are told apart.
-fn the_box() -> Body<f64> {
+pub(crate) fn the_box() -> Body<f64> {
     block(2.0, 1.5, 1.0, tol())
 }
 
@@ -266,29 +270,99 @@ fn an_oblique_end_face_cuts_the_chamfer_off_and_refuses_the_fillet() {
     );
     match Verb::Fillet.run(&body, &[e]) {
         Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-            assert_eq!(detail, PLANAR_FILLET_END_OBLIQUE);
+            assert_eq!(detail, END_FACE_OBLIQUE);
         }
         other => panic!("an oblique fillet end refuses as a run-out, got {other:?}"),
     }
 }
 
 /// **The concave side**: one floor edge of the pocketed die, whose ends
-/// are concave trihedra with the pocket's walls as end faces. The band
-/// ADDS its section along the edge's length, and each end face gains
-/// the sliver rather than losing it.
+/// are concave trihedra with the pocket's end walls as end faces. The
+/// band ADDS its section along the edge's length, and each end wall
+/// LOSES the sliver between the end curve and the old vertex, which the
+/// fill now covers, just as a convex end face loses the one its cut
+/// takes away: the wall's outline trades the old vertex for the two
+/// feet, and a chamfer's end wall, a polygon still, gives up exactly
+/// `d²/2` of its area.
 #[test]
-fn a_concave_edge_is_cut_off_with_its_end_faces_gaining_the_sliver() {
+fn a_concave_edge_is_cut_off_with_its_end_walls_losing_the_sliver() {
     let body = pocket_die(0.0, 0.0, 0.0, tol());
     let e = edge(&body, [0.25, 0.25, 0.5], [0.75, 0.25, 0.5]);
     for verb in [Verb::Chamfer, Verb::Fillet] {
-        carve(
+        let out = carve(
             &body,
             &[e],
             verb,
             -verb.section() * 0.5,
             "a pocket floor edge",
         );
+        for x in [0.25, 0.75] {
+            let before = end_wall(&body, x);
+            let after = end_wall(&out.body, x);
+            let v = Point3::new(x, 0.25, 0.5);
+            let feet = [Point3::new(x, 0.25 + D, 0.5), Point3::new(x, 0.25, 0.5 + D)];
+            let has =
+                |ps: &[Point3<f64>], p: Point3<f64>| ps.iter().any(|q| (*q - p).norm() < 1e-12);
+            assert!(
+                has(&before, v) && !feet.iter().any(|f| has(&before, *f)),
+                "x = {x}: the source wall has the old vertex and no feet"
+            );
+            assert!(
+                !has(&after, v) && feet.iter().all(|f| has(&after, *f)),
+                "x = {x} ({verb:?}): the wall loses the old vertex to the two feet, got {after:?}"
+            );
+            assert_eq!(
+                after.len(),
+                before.len() + 1,
+                "x = {x} ({verb:?}): one corner becomes two"
+            );
+            if let Verb::Chamfer = verb {
+                let lost = shoelace_yz(&before) - shoelace_yz(&after);
+                assert!(
+                    (lost - D * D / 2.0).abs() < 1e-14,
+                    "x = {x}: the end wall loses the sliver d²/2, got {lost}"
+                );
+            }
+        }
     }
+}
+
+/// The outline of the one face whose outer cycle lies in the plane
+/// `x = x0`, as its vertices in cycle order.
+fn end_wall(body: &Body<f64>, x0: f64) -> Vec<Point3<f64>> {
+    let outlines: Vec<Vec<Point3<f64>>> = query::all_faces(body)
+        .into_iter()
+        .filter_map(|f| {
+            let lp = body.get_face(f)?.outer;
+            let topo::LoopBoundary::Cycle { first } = body.get_loop(lp)?.boundary else {
+                return None;
+            };
+            let ps: Vec<Point3<f64>> = body
+                .loop_cycle(first)?
+                .into_iter()
+                .map(|h| {
+                    let v = body.get_half_edge(h).expect("a half").start;
+                    *body
+                        .get_point(body.get_vertex(v).expect("v").point)
+                        .expect("p")
+                })
+                .collect();
+            ps.iter().all(|p| (p.x - x0).abs() < 1e-12).then_some(ps)
+        })
+        .collect();
+    let [outline] = &outlines[..] else {
+        panic!("one face lies in x = {x0}, got {}", outlines.len());
+    };
+    outline.clone()
+}
+
+/// The area a polygon in a plane `x = const` encloses.
+fn shoelace_yz(ps: &[Point3<f64>]) -> f64 {
+    let n = ps.len();
+    let twice: f64 = (0..n)
+        .map(|i| ps[i].y * ps[(i + 1) % n].z - ps[(i + 1) % n].y * ps[i].z)
+        .sum();
+    twice.abs() / 2.0
 }
 
 /// **The refusals the cut-off leaves**, each typed: a curved end face,
@@ -311,7 +385,7 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     for verb in [Verb::Chamfer, Verb::Fillet] {
         match verb.run(&d_prism, &[e]) {
             Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-                assert_eq!(detail, PLANAR_END_FACE_CURVED, "{verb:?}");
+                assert_eq!(detail, END_FACE_CURVED, "{verb:?}");
             }
             other => panic!("{verb:?}: a curved end face refuses, got {other:?}"),
         }
@@ -397,5 +471,61 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
             }) => {}
             other => panic!("{verb:?}: two edges of a corner refuse as a turn, got {other:?}"),
         }
+    }
+}
+
+/// **A closed rim that turns once**: a teardrop prism's top rim — two
+/// lines meeting at a corner, closed by an arc tangent to both. Its one
+/// plane–plane junction is a definite turn and its two others are
+/// tangent, so chain G1 breaks the closed chain into ONE open chain
+/// whose head and tail are both the corner; the end there names two of
+/// the corner's three edges, the turn, refused typed at that vertex.
+#[test]
+fn a_closed_rim_with_one_turn_breaks_there_and_refuses_the_turn() {
+    use profile::RawLoop;
+    let s3 = 3f64.sqrt();
+    let body = sweep::test_support::extruded(
+        profile::SketchPlane::xy(),
+        vec![
+            profile::test_support::bulge_loop(vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(1.5, -s3 / 2.0), s3),
+                (Point2::new(1.5, s3 / 2.0), 0.0),
+            ])
+            .with_tangent_joints(vec![1, 2]),
+        ],
+        1.0,
+        tol(),
+    );
+    let at = |p: Point3<f64>| p.z == 1.0;
+    let rim: Vec<EdgeKey> = query::all_edges(&body)
+        .into_iter()
+        .filter(|&e| {
+            let he = body.get_edge(e).expect("e").he_plus;
+            let p = |v| {
+                *body
+                    .get_point(body.get_vertex(v).expect("v").point)
+                    .expect("p")
+            };
+            at(p(body.get_half_edge(he).expect("h").start))
+                && at(p(body.half_edge_end(he).expect("end")))
+        })
+        .collect();
+    assert_eq!(rim.len(), 3, "two lines and the arc");
+    match Verb::Fillet.run(&body, &rim) {
+        Err(BlendError::UnsupportedCorner {
+            vertex,
+            corner: CornerConfig::Turn,
+            policy: Some(RunOutPolicy::Mitre),
+        }) => {
+            let p = *body
+                .get_point(body.get_vertex(vertex).expect("v").point)
+                .expect("p");
+            assert!(
+                (p - Point3::new(0.0, 0.0, 1.0)).norm() == 0.0,
+                "the turn is the teardrop's corner, got {p:?}"
+            );
+        }
+        other => panic!("a rim that turns once refuses the turn, got {other:?}"),
     }
 }

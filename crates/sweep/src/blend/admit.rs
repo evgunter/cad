@@ -4,7 +4,10 @@
 //! time — this chain's links are plane–plane and meet only at joints
 //! on one support pair; this corner is trivalent with all three edges
 //! requested; every requested edge of this support face ends at a
-//! planned corner, joint or cut-off of it.
+//! planned corner, joint or cut-off of it. A cut-off — an end whose
+//! edge alone is requested — has no token of its own: the verdict
+//! classified it, its plan reads it off the source, and a support's
+//! admission counts it among the stations.
 //! Each type here is one of those
 //! clauses, and **holding the value is the fact**: a helper handed one
 //! has no branch left to write about it. A refusal belongs to the door
@@ -538,16 +541,37 @@ pub(super) struct BoundaryStation<T: Real> {
     pub(super) vertex: VertexKey,
     /// The band's foot on this face.
     pub(super) foot: Point3<T>,
+    /// Which planned end or joint the station is.
+    pub(super) kind: StationKind,
+}
+
+/// Which of the three planned shapes a station is — one, by admission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum StationKind {
+    /// A corner patch's sharp vertex.
+    Corner,
+    /// A joint, where one band runs on through.
+    Joint,
+    /// A cut-off's old vertex.
+    CutOff,
+}
+
+impl StationKind {
     /// Whether the carve spins a STRUT out to the foot — at a corner or
     /// a joint, whose foot lies inside the face — rather than finding
     /// it already on a split rim, at a cut-off.
-    pub(super) strut: bool,
+    pub(super) fn spins_a_strut(self) -> bool {
+        match self {
+            Self::Corner | Self::Joint => true,
+            Self::CutOff => false,
+        }
+    }
 }
 
 /// One requested edge of an admitted support face, as its boundary
 /// traverses it: the carve's trimline chord runs from the foot at
 /// `from` to the foot at `to`.
-pub(super) struct BoundaryChord {
+pub(super) struct BoundaryChord<T: Real> {
     /// The requested edge's half-edge in this face's cycle.
     pub(super) half_edge: HalfEdgeKey,
     /// The requested edge.
@@ -556,6 +580,9 @@ pub(super) struct BoundaryChord {
     pub(super) from: VertexKey,
     /// The station it ends at.
     pub(super) to: VertexKey,
+    /// The band's feet on this face at `from` and at `to`, the two
+    /// stations' own.
+    pub(super) feet: [Point3<T>; 2],
 }
 
 /// One planned cut-off, as support admission reads it: the old vertex,
@@ -576,7 +603,7 @@ pub(super) type CutOffRow<T> = (VertexKey, [FaceKey; 2], [Point3<T>; 2]);
 pub(super) struct RequestedBoundary<T: Real> {
     face: FaceKey,
     stations: Vec<BoundaryStation<T>>,
-    chords: Vec<BoundaryChord>,
+    chords: Vec<BoundaryChord<T>>,
 }
 
 // `Decide` alone: admission walks a cycle and folds a stored plane
@@ -641,9 +668,10 @@ impl<T: Decide> RequestedBoundary<T> {
             // cut-off's vertex carries one requested edge where a corner
             // carries three — so a vertex is at most one of the three,
             // and a requested edge's end is at least one.
-            let (foot, strut) = match (corner, joint, cut) {
-                (Some(Some(foot)), None, None) | (None, Some(foot), None) => (foot, true),
-                (None, None, Some(foot)) => (foot, false),
+            let (foot, kind) = match (corner, joint, cut) {
+                (Some(Some(foot)), None, None) => (foot, StationKind::Corner),
+                (None, Some(foot), None) => (foot, StationKind::Joint),
+                (None, None, Some(foot)) => (foot, StationKind::CutOff),
                 _ => {
                     return Err(not_intact(
                         EntityId::Vertex(v),
@@ -656,8 +684,22 @@ impl<T: Decide> RequestedBoundary<T> {
                 half_edge: he,
                 vertex: v,
                 foot,
-                strut,
+                kind,
             })
+        };
+        // A station's foot, admitting the station the first time one of
+        // its requested edges reaches it.
+        let footed = |stations: &mut Vec<BoundaryStation<T>>,
+                      he: HalfEdgeKey,
+                      v: VertexKey|
+         -> Result<Point3<T>, BlendError> {
+            if let Some(s) = stations.iter().find(|s| s.vertex == v) {
+                return Ok(s.foot);
+            }
+            let s = station(he, v)?;
+            let foot = s.foot;
+            stations.push(s);
+            Ok(foot)
         };
         let mut stations: Vec<BoundaryStation<T>> = Vec::new();
         let mut chords = Vec::new();
@@ -684,16 +726,16 @@ impl<T: Decide> RequestedBoundary<T> {
                 if !opens.iter().any(|o| o.edge() == h.edge) {
                     continue;
                 }
-                for (at, v) in [(he, h.start), (walk[(i + 1) % n], next.start)] {
-                    if !stations.iter().any(|s| s.vertex == v) {
-                        stations.push(station(at, v)?);
-                    }
-                }
+                let feet = [
+                    footed(&mut stations, he, h.start)?,
+                    footed(&mut stations, walk[(i + 1) % n], next.start)?,
+                ];
                 chords.push(BoundaryChord {
                     half_edge: he,
                     edge: h.edge,
                     from: h.start,
                     to: next.start,
+                    feet,
                 });
             }
         }
@@ -715,7 +757,7 @@ impl<T: Decide> RequestedBoundary<T> {
     }
 
     /// Its requested edges, in cycle order.
-    pub(super) fn chords(&self) -> &[BoundaryChord] {
+    pub(super) fn chords(&self) -> &[BoundaryChord<T>] {
         &self.chords
     }
 }

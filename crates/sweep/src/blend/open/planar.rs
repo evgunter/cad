@@ -26,6 +26,9 @@
 //! The other open band is [`super::ruled`]; what the two share, and the
 //! seam both rest on, is stated at [`super`].
 
+use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
+
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
@@ -344,7 +347,6 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
         (q_a, q_b),
         along,
         curve,
-        link.convexity(),
     )?;
     Ok(CutOffPlan { link, end })
 }
@@ -408,14 +410,14 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     // Per (station vertex, support face): the foot vertex the carve
     // landed there — a strut's far end or a split rim's new vertex.
-    let mut foot_of: Vec<(VertexKey, FaceKey, VertexKey)> = Vec::new();
-    let foot_at = |foot_of: &[(VertexKey, FaceKey, VertexKey)], v: VertexKey, f: FaceKey| {
-        foot_of
-            .iter()
-            .find(|(vv, ff, _)| *vv == v && *ff == f)
-            .map(|(_, _, x)| *x)
-            .ok_or_else(|| not_intact(EntityId::Vertex(v), "a station's foot on its support"))
-    };
+    let mut foot_of: BTreeMap<(VertexKey, FaceKey), VertexKey> = BTreeMap::new();
+    let foot_at =
+        |foot_of: &BTreeMap<(VertexKey, FaceKey), VertexKey>, v: VertexKey, f: FaceKey| {
+            foot_of
+                .get(&(v, f))
+                .copied()
+                .ok_or_else(|| not_intact(EntityId::Vertex(v), "a station's foot on its support"))
+        };
 
     // ---- Per cut-off: both rims split at their feet and the end curve
     // `mef`'d across the end face ([`cut_off`]). ----
@@ -424,8 +426,18 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         let l = c.link.link();
         let (rims, row) = cut_off(body, &c.end, l.edge, (l.face_a, l.face_b), rec, tol)?;
         described.push(row);
-        foot_of.push((c.end.vertex, l.face_a, rims.a.vertex));
-        foot_of.push((c.end.vertex, l.face_b, rims.b.vertex));
+        once(
+            &mut foot_of,
+            (c.end.vertex, l.face_a),
+            rims.a.vertex,
+            EntityId::Vertex(c.end.vertex),
+        )?;
+        once(
+            &mut foot_of,
+            (c.end.vertex, l.face_b),
+            rims.b.vertex,
+            EntityId::Vertex(c.end.vertex),
+        )?;
         cuts.push(rims);
     }
 
@@ -436,12 +448,13 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     // geometry and has no coverage refusal of its own to make. ----
     // Per (edge, face): the half-edge of the edge now inside that
     // face's strip (for the kef), keyed structurally.
-    let mut strip_half: Vec<(EdgeKey, FaceKey, HalfEdgeKey)> = Vec::new();
-    // Per (vertex, face): the strut edge (for the corner merges).
-    let mut strut_of: Vec<(VertexKey, FaceKey, EdgeKey)> = Vec::new();
+    let mut strip_half: BTreeMap<(EdgeKey, FaceKey), HalfEdgeKey> = BTreeMap::new();
+    // Per vertex: its strut edges, one per support (for the corner and
+    // joint fusions).
+    let mut strut_of: BTreeMap<VertexKey, Vec<EdgeKey>> = BTreeMap::new();
     for support in supports {
         let f = support.face();
-        for station in support.stations().iter().filter(|s| s.strut) {
+        for station in support.stations().iter().filter(|s| s.kind.spins_a_strut()) {
             let v = station.vertex;
             let p = *body
                 .get_vertex(v)
@@ -477,9 +490,9 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(|e| op("strut mev", e))?;
-            strut_of.push((v, f, created.edge));
+            strut_of.entry(v).or_default().push(created.edge);
             rec.feet.push((created.vertex, v, f));
-            foot_of.push((v, f, created.vertex));
+            once(&mut foot_of, (v, f), created.vertex, EntityId::Vertex(v))?;
         }
         for chord in support.chords() {
             // The strip is the run from the foot at `from` through the
@@ -507,37 +520,38 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             // own source edge, in this support face. Birth data,
             // straight off the plan.
             rec.trims.push((created.edge, chord.edge, f));
-            strip_half.push((chord.edge, f, chord.half_edge));
+            once(
+                &mut strip_half,
+                (chord.edge, f),
+                chord.half_edge,
+                EntityId::Edge(chord.edge),
+            )?;
         }
     }
 
     // ---- Per link: merge the two strips across the dying edge. ----
-    let mut hexagon: Vec<(EdgeKey, LoopKey)> = Vec::new();
+    let mut hexagon: BTreeMap<EdgeKey, LoopKey> = BTreeMap::new();
     for o in opens {
         let e = o.link().edge;
         // `strip_half` holds a row per (boundary edge, support face)
         // carved above. A miss means the verdict's two support faces
         // for this link are not the faces whose boundary carries it.
-        let half_a = strip_half
-            .iter()
-            .find(|(ee, ff, _)| *ee == e && *ff == o.link().face_a)
-            .map(|(_, _, h)| *h)
-            .ok_or_else(|| not_intact(EntityId::Face(o.link().face_a), "a link's support"))?;
-        let half_b = strip_half
-            .iter()
-            .find(|(ee, ff, _)| *ee == e && *ff == o.link().face_b)
-            .map(|(_, _, h)| *h)
-            .ok_or_else(|| not_intact(EntityId::Face(o.link().face_b), "a link's support"))?;
+        let half_on = |f: FaceKey| {
+            strip_half
+                .get(&(e, f))
+                .copied()
+                .ok_or_else(|| not_intact(EntityId::Face(f), "a link's support"))
+        };
+        let (half_a, half_b) = (half_on(o.link().face_a)?, half_on(o.link().face_b)?);
         let survivor_loop = body
             .get_half_edge(half_b)
             .map(|h| h.parent_loop)
             .ok_or_else(|| not_intact(EntityId::HalfEdge(half_b), "a carved strip's half"))?;
         sources.kef_minted(body, half_a, "edge-strip kef", tol)?;
-        hexagon.push((e, survivor_loop));
+        once(&mut hexagon, e, survivor_loop, EntityId::Edge(e))?;
     }
     let hex_face = |body: &Body<T>, e: EdgeKey| -> Option<FaceKey> {
-        let lp = hexagon.iter().find(|(ee, _)| *ee == e)?.1;
-        Some(body.get_loop(lp)?.face)
+        Some(body.get_loop(*hexagon.get(&e)?)?.face)
     };
 
     // ---- Per corner: three arcs, then the corner fusion. ----
@@ -602,15 +616,12 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         // Fuse the three triangles: kef the struts that still separate
         // two faces (sorted), kev the last one together with the sharp
         // vertex.
-        let mut struts_here: Vec<EdgeKey> = strut_of
-            .iter()
-            .filter(|(v, _, _)| *v == vertex)
-            .map(|(_, _, e)| *e)
-            .collect();
+        let mut struts_here: Vec<EdgeKey> = strut_of.get(&vertex).cloned().unwrap_or_default();
         struts_here.sort_unstable();
-        // Also checked here rather than inherited: `strut_of` carries
-        // one row per (corner vertex, support face), so three rows at
-        // this vertex is three struts on three DISTINCT supports —
+        // Also checked here rather than inherited: `strut_of` holds one
+        // strut per (corner vertex, support face) — `foot_of`'s key
+        // refuses a second — so three at this vertex is three struts on
+        // three DISTINCT supports —
         // which is the whole premise of the one-spur fusion below.
         if struts_here.len() != 3 {
             return Err(unbuilt_run_out(
@@ -720,11 +731,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     // is left a spur whose far vertex is the joint. ----
     for jp in joints {
         let vertex = jp.joint.vertex();
-        let mut struts_here: Vec<EdgeKey> = strut_of
-            .iter()
-            .filter(|(v, _, _)| *v == vertex)
-            .map(|(_, _, e)| *e)
-            .collect();
+        let mut struts_here: Vec<EdgeKey> = strut_of.get(&vertex).cloned().unwrap_or_default();
         struts_here.sort_unstable();
         let [merge, spur] = struts_here[..] else {
             return Err(unbuilt_run_out(
@@ -782,6 +789,27 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         blend_faces.push(f);
     }
     Ok((blend_faces, corner_faces, described))
+}
+
+/// Record `value` under `key`, which the carve mints once: a second
+/// row for one key is a plan the body disagrees with, refused rather
+/// than overwritten.
+fn once<K: Ord, V>(
+    map: &mut BTreeMap<K, V>,
+    key: K,
+    value: V,
+    at: EntityId,
+) -> Result<(), BlendError> {
+    match map.entry(key) {
+        Entry::Vacant(slot) => {
+            slot.insert(value);
+            Ok(())
+        }
+        Entry::Occupied(_) => Err(not_intact(
+            at,
+            "the carve minted a second row for one station, strip or link",
+        )),
+    }
 }
 
 #[cfg(test)]
