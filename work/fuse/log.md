@@ -535,3 +535,8 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   tripwire was retired in 65b1b0a8 (SHELL, PR 4168). The PATHS row the
   orchestrator filed is closed against that commit. PR 3953 and
   PR 4108 are told to merge main and land when green.
+- 2026-10-06 — PR 4108 lands (one home for where a shell stands,
+  `stands.rs`), green after main's reds were fixed. The row closes.
+  RESTFRONT's `check-ten-falls-silent-on-a-shell-whose-every-vertex-touches-another`
+  is answered by it, so its owner may close it (noted on RESTFRONT's
+  log).
