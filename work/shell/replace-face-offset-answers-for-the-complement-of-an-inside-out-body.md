@@ -30,3 +30,10 @@ Owed: decide the public door's posture — split a public door that takes
 a finished body (and returns one) from the crate-internal step `shell`
 uses, or read check 7 per solid at the door — and refuse the wedge row
 typed.
+
+The two simultaneous offset doors share the shape and the reason:
+`offset_planes_together` (`crates/topo/src/offset_together.rs`) and
+`offset_charts_together` (`crates/topo/src/offset_axial.rs`) take
+`&mut Body` and are the sealed arm's per-solid steps over the same
+clone. Their inside-out posture is unmeasured; one decision should
+cover all three doors.
