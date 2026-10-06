@@ -323,6 +323,15 @@ fn fold_replace_face_error<T: Real>(
             edge,
             gap: end(gap, Supremum),
         },
+        // The move at its longest, either sign: the reading under which
+        // it reaches the edge's far end.
+        R::ReanchorCollapse { edge, offset } => {
+            let (lo, hi) = (end(offset, Infimum), end(offset, Supremum));
+            R::ReanchorCollapse {
+                edge,
+                offset: if hi.abs() > lo.abs() { hi } else { lo },
+            }
+        }
         R::ReanchorInconclusive { edge, error } => R::ReanchorInconclusive { edge, error },
         R::NurbsLaneUnsupported { edge, scalar } => R::NurbsLaneUnsupported { edge, scalar },
         R::TogetherNonPlanar { face, kind } => R::TogetherNonPlanar { face, kind },

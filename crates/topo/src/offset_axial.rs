@@ -261,8 +261,8 @@ struct MovedChart<T: Real> {
     old: Surface<T>,
     /// The surface after [`geom_brep::offset_surface`].
     new: Surface<T>,
-    /// The signed offset along the chart's stored outward direction —
-    /// the caller's number.
+    /// The signed offset along the chart's stored normal — the
+    /// caller's number.
     distance: T,
     /// The chart's constraint on a corner, in axial terms.
     constraint: Constraint<T>,
@@ -444,9 +444,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         // the continuous extension of the OPENING nappe's normal field
         // — `n₊` does not flip across the apex — so a mirror-nappe
         // face's material moves `−d` along its OWN chart normal. A
-        // `ChartMove`'s distance is along the FACE's outward direction,
-        // so below the apex the two conventions are opposite and the
-        // caller's number is turned over before it reaches the mint.
+        // `ChartMove`'s distance is along that chart normal, so below
+        // the apex it and `n₊` are opposite and the caller's number is
+        // turned over before it reaches the mint.
         // Measured on the cone frustum: unturned, the cavity comes back
         // LARGER than its operand (0.001058 against 0.000895) — a
         // shrink that grew.
