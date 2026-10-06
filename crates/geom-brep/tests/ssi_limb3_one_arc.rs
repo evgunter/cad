@@ -930,3 +930,43 @@ fn r2_probe_dense_loose_wall_cost() {
         );
     }
 }
+
+/// Review probe (r2): many C0 spans each with a positive near-touch.
+#[test]
+fn r2_probe_many_near_touches() {
+    let e = eps();
+    let (plane, _) = ground();
+    let domain = SsiDomain {
+        center: Point3::new(0.5, 0.5, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let qb = 7.0 * 262_144.0;
+    let p = 3.0 * 262_144.0 + 1.0;
+    let q2 = qb * qb;
+    let c = [
+        (p * p + 1.0) / q2,
+        (-p * (qb - p) + 1.0) / q2,
+        ((qb - p) * (qb - p) + 1.0) / q2,
+    ];
+    for m in [1024usize, 4096, 8192] {
+        let mut hs = vec![];
+        for i in 0..m {
+            let s = if i % 2 == 0 { c } else { [c[2], c[1], c[0]] };
+            if i == 0 {
+                hs.push(s[0] * 0.5 * e);
+            }
+            hs.push(s[1] * 0.5 * e);
+            hs.push(s[2] * 0.5 * e);
+        }
+        let wall = c0_wall(10.0, &hs);
+        let t = std::time::Instant::now();
+        let out = ssi::plane_nurbs_ssi(&plane, &wall, domain, band());
+        eprintln!(
+            "r2 near-touch wall m {m}: {:?} in {:?}",
+            out.map(|o| (o.branches.len(), o.boundary.len())).map_err(|e| e.to_string()),
+            t.elapsed()
+        );
+    }
+}
