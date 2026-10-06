@@ -610,6 +610,8 @@ mod m9_3_wall_door;
 
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
+#[path = "pierce_tangent_off_face.rs"]
+mod pierce_tangent_off_face;
 #[path = "full_turn_wall.rs"]
 mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]

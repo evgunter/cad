@@ -1912,6 +1912,21 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeB
     }
 }
 
+/// The box of the ball about `c` of radius `r`, from their enclosures,
+/// padded by `pad`.
+pub(crate) fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> Aabb {
+    let r = r.hi();
+    Aabb {
+        min_x: c.x.lo() - r,
+        min_y: c.y.lo() - r,
+        min_z: c.z.lo() - r,
+        max_x: c.x.hi() + r,
+        max_y: c.y.hi() + r,
+        max_z: c.z.hi() + r,
+    }
+    .padded(pad)
+}
+
 /// The edge's certified box, padded — [`EdgeBoxRule`]'s `f64`-bracket
 /// instantiation, and therefore a superset of the edge's locus or the
 /// poison box.
