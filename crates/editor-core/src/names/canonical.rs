@@ -168,6 +168,8 @@ impl RankRule {
     /// pair, or the pair of the seam it is a piece of, through every
     /// wrapper that carries an entity — which is the orientation the
     /// pair emitter ranked along (`emit_topo`'s `crossed_edge_order`).
+    /// A Split's crossing group ranks along the edge it crosses, oriented
+    /// the same way ([`split_crossed_edges`]).
     fn derive<'n, E>(
         was: &'n StableName,
         now: &StableName,
@@ -175,6 +177,9 @@ impl RankRule {
         image: Image<'_, 'n, E>,
     ) -> Result<Self, E> {
         let is_edge = |n: &StableName| n.kind == EntityKind::Edge;
+        if let Some((was_edge, now_edge)) = split_crossed_edges(was, now) {
+            return Self::along(was_edge, now_edge, image);
+        }
         match (was.kind, seam_vertex_parents(was), seam_vertex_parents(now)) {
             (EntityKind::Vertex, Some((a, b)), Some((a2, b2))) => {
                 // The edge parent in `now`: the one of kind edge, which a
@@ -275,6 +280,14 @@ fn flip_senses<'n, E>(
         (
             Some(RoleSeg::Crossing { edge: was_edge, .. }),
             Some(RoleSeg::Crossing { edge, sense, .. }),
+        ) => {
+            if RankRule::along(was_edge, edge, image)? == RankRule::Reverse {
+                *sense = sense.flipped();
+            }
+        }
+        (
+            Some(RoleSeg::CrossingVertex { edge: was_edge, .. }),
+            Some(RoleSeg::CrossingVertex { edge, sense, .. }),
         ) => {
             if RankRule::along(was_edge, edge, image)? == RankRule::Reverse {
                 *sense = sense.flipped();
@@ -472,8 +485,30 @@ fn sorted_set(mut set: Vec<StableName>) -> Vec<StableName> {
 fn has_sense(name: &StableName) -> bool {
     matches!(
         name.path.first(),
-        Some(RoleSeg::Crossing { .. } | RoleSeg::EdgeCrossing { .. })
+        Some(
+            RoleSeg::Crossing { .. }
+                | RoleSeg::EdgeCrossing { .. }
+                | RoleSeg::CrossingVertex { .. }
+        )
     )
+}
+
+/// The edge a Split's crossing vertex `was` crosses, and the edge its
+/// rewrite `now` crosses: its senses and ranks are read along that
+/// edge, oriented by the seam line it lies on where it lies on one
+/// (`emit_topo`'s `crossed_edge_orientation`), as a boolean crossing's
+/// are.
+fn split_crossed_edges<'w, 'n>(
+    was: &'w StableName,
+    now: &'n StableName,
+) -> Option<(&'w StableName, &'n StableName)> {
+    match (was.path.first(), now.path.first()) {
+        (
+            Some(RoleSeg::CrossingVertex { edge: w, .. }),
+            Some(RoleSeg::CrossingVertex { edge: n, .. }),
+        ) if was.kind == EntityKind::Vertex => Some((w, n)),
+        _ => None,
+    }
 }
 
 /// Whether `name` carries a rank to re-read.
@@ -834,6 +869,66 @@ mod tests {
         let now = crossing(union_seam(&x3, &y3), Sense::Enters, 0);
         let out = rewritten(&was, now.clone(), &mut swap((x3, y3))).unwrap();
         assert_eq!(out, now);
+    }
+
+    #[test]
+    fn a_split_crossings_sense_along_a_seam_an_embedded_name_writes_flips_with_its_rank() {
+        // A Split (node 12) crossed a union's (node 9) seam edge: its
+        // crossing's sense and rank are read along the union seam as the
+        // pair written inside the crossed edge's name orients it, as a
+        // boolean's are, so a rewrite that reorders that pair flips the
+        // sense and reverses the rank, and one that keeps it keeps both.
+        use crate::names::role::{Sense, SplitHalf};
+
+        let (x, y) = (face(9, 1), face(9, 2));
+        let union_seam = |a: &StableName, b: &StableName| {
+            name(EntityKind::Edge, 9, vec![seam(a.clone(), b.clone())])
+        };
+        let crossing = |edge: StableName, sense, r| {
+            name(
+                EntityKind::Vertex,
+                12,
+                vec![
+                    RoleSeg::CrossingVertex {
+                        side: SplitHalf::Above,
+                        edge: NameRef::new(edge),
+                        sense,
+                    },
+                    rank(r, 2),
+                ],
+            )
+        };
+        let was = crossing(union_seam(&x, &y), Sense::Enters, 0);
+        let swap = |(x2, y2): (StableName, StableName)| {
+            let (x, y) = (x.clone(), y.clone());
+            move |n: &StableName| -> Result<StableName, ()> {
+                Ok(if *n == x {
+                    x2.clone()
+                } else if *n == y {
+                    y2.clone()
+                } else {
+                    n.clone()
+                })
+            }
+        };
+        let (x2, y2) = (face(9, 5), face(9, 4));
+        let now = crossing(union_seam(&y2, &x2), Sense::Enters, 0);
+        let out = rewritten(&was, now, &mut swap((x2.clone(), y2.clone()))).unwrap();
+        assert_eq!(out, crossing(union_seam(&y2, &x2), Sense::Leaves, 1));
+        let (x3, y3) = (face(9, 4), face(9, 5));
+        let now = crossing(union_seam(&x3, &y3), Sense::Enters, 0);
+        let out = rewritten(&was, now.clone(), &mut swap((x3, y3))).unwrap();
+        assert_eq!(out, now);
+        // A lone crossing, with no rank to re-read, still flips.
+        let lone = |edge: StableName, sense| {
+            let mut n = crossing(edge, sense, 0);
+            n.path.truncate(1);
+            n
+        };
+        let was = lone(union_seam(&x, &y), Sense::Enters);
+        let now = lone(union_seam(&y2, &x2), Sense::Enters);
+        let out = rewritten(&was, now, &mut swap((x2.clone(), y2.clone()))).unwrap();
+        assert_eq!(out, lone(union_seam(&y2, &x2), Sense::Leaves));
     }
 
     #[test]
