@@ -4,6 +4,8 @@ kind: issue
 title: A lens of two domes turned on each other keeps the crossing layer's door
 status: open
 opened: 2026-10-02
+priority: P1
+cost: M
 ---
 
 ## What

@@ -484,3 +484,33 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — triage after the usage reset; the next slate
+
+The weekly limit stopped every lane on 2026-10-03. PR 3954's fix pass
+resumes. Fourteen lane-filed items had no band; banded here:
+
+- **P0**: `in-face-pierce-rings-pair-across-the-gap` (a bar through a
+  pipe) and `planar-ring-lane-closes-its-island-with-a-straight-chord`
+  (a D-prism through a slab). Both are a normal verb refusing normal
+  geometry.
+- **P1**:
+  - the seam's subtract and intersect, the rim across a seam ruling,
+    the half-band rim offset, the turned hemisphere and lens, and the
+    torus seam graze (M);
+  - the torus meridian lying on a torus (H);
+  - the flush detector offering disjoint pairs (E);
+  - the strut cover on cylinder pairs, and three wedges meeting at a
+    point (M).
+- **P2**: a flush pair with no readable extent (E).
+- **P3**: the valence-2 vertices on the tube's seam rulings (M).
+
+**Dispatched:**
+
+- `declared-cusps-second-order-wedge-arm` items 3–4 go to an Opus+Fable
+  designer pair. The questions are the boolean routing of a verified
+  declared kiss, the internal kiss, and the emitted locus's
+  representation, plus how to cut the work into units. The blinding is
+  on `analysis/design-fork/declared-cusps-routing-and-emission`.
+- `plane-cylinder-section-reads-its-gap-at-the-stored-origin`, tier
+  SINGLE FULL: the classifiers' pivot moves every caller's band reading.

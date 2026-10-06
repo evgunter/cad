@@ -4,6 +4,8 @@ kind: issue
 title: A torus meridian lying on a torus is the F≡0 case the circle×torus root door answers Unsettled
 status: open
 opened: 2026-10-02
+priority: P1
+cost: H
 ---
 
 

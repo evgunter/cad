@@ -4,6 +4,8 @@ kind: issue
 title: The sphere-capped tube with its hemisphere turned about the axis (seam rulings misaligned) refuses at the crossing layer
 status: open
 opened: 2026-10-02
+priority: P1
+cost: M
 ---
 
 

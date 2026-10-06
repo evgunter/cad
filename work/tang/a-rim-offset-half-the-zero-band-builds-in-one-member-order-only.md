@@ -4,6 +4,8 @@ kind: issue
 title: A dome rim offset half the zero band off the tube builds in one member order and refuses in the other
 status: open
 opened: 2026-10-02
+priority: P1
+cost: M
 ---
 
 ## What

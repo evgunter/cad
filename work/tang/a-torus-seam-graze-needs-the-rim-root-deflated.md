@@ -4,6 +4,8 @@ kind: issue
 title: A G1 torus chain declared a Seam stops at the graze of an edge leaving the rim: a torus×torus seam certifies no side
 status: open
 opened: 2026-10-02
+priority: P1
+cost: M
 ---
 
 

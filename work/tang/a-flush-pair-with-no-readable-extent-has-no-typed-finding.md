@@ -4,6 +4,8 @@ kind: issue
 title: A flush pair with no readable extent refuses through a labelled Indeterminate, not a typed finding
 status: open
 opened: 2026-10-02
+priority: P2
+cost: E
 ---
 
 ## What
