@@ -276,9 +276,10 @@ impl From<FitError> for SkinError {
 ///
 /// # Errors
 ///
-/// [`SkinError::DegenerateSection`] for a zero-length chord, a zero
+/// [`SkinError::DegenerateSection`] for a line of zero length, a zero
 /// or non-finite sweep, or an arc whose start is not a finite, positive
-/// distance from its centre; [`SkinError::Structure`] if validated
+/// distance from its centre (an arc may close on its own start: D1's
+/// full turn, one segment at one vertex); [`SkinError::Structure`] if validated
 /// construction refuses.
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note): a poisoned coordinate must take
@@ -303,15 +304,12 @@ pub fn segment_curve(
                 vec![1.0, 1.0],
             )?)
         }
-        SketchSegment::Arc { a, b, arc } => {
+        SketchSegment::Arc { a, arc, .. } => {
             let Arc2 {
                 centre,
                 sweep: theta,
                 ..
             } = arc;
-            if !(a.distance(b) > 0.0) {
-                return Err(degenerate("zero-length chord"));
-            }
             if !theta.is_finite() || theta == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }

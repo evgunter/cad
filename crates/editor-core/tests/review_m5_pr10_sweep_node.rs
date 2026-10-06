@@ -101,7 +101,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
                              single-segment case: {what}"
                         );
                         assert!(
-                            what.contains("closed chain of two or more segments"),
+                            what.contains("a closed chain of segments"),
                             "{name}: the arm must say WHY no path is expressible: {what}"
                         );
                     }

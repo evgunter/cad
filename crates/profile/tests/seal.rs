@@ -12,9 +12,7 @@
 //! consequences, never a compile error.
 
 use geom_core::{Arc2, Point2, Tol};
-use profile::{
-    Profile, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop,
-};
+use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop};
 
 /// The read surface is COMPLETE: every accessor, exercised against a
 /// door-built loop.
@@ -114,10 +112,13 @@ fn the_canonical_door_writes_the_stored_form_verbatim() {
         }),
     )]);
     assert_eq!(circle.segments().len(), 1);
-    let validated = Profile::new(SketchPlane::xy(), vec![circle])
-        .validate(Tol::witness())
-        .unwrap_or_else(|e| panic!("a one-segment circle validates (D1's full turn), got {e}"));
-    assert_eq!(validated.loops()[0].segments().len(), 1);
+    let validated = Profile::new(SketchPlane::xy(), vec![circle]).validate(Tol::witness());
+    assert!(
+        validated
+            .as_ref()
+            .is_ok_and(|v| v.loops()[0].segments().len() == 1),
+        "a one-segment circle validates as one segment (D1's full turn), got {validated:?}"
+    );
 }
 
 /// **Cannot-mint, at the source level.** Deserialization is the one

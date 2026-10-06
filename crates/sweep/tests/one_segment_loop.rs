@@ -9,10 +9,9 @@
 //!   periodic wall, one strut with both halves in that wall, described
 //!   as the wall's seam; outer and hole, both directions, `f64` and
 //!   `Interval`;
-//! - **revolve**: a partial revolve's torus patch (one start and one end
-//!   meridian, one latitude strut) and a full revolve's torus (one
-//!   vertex, a meridian and a latitude circle, one face), with holes;
-//! - **loft**: two one-segment sections skinned into one wall;
+//! - **revolve** and **loft** refuse a one-segment loop, typed: the one
+//!   wall each would build wraps a period no chart here has a seam on
+//!   (a torus's tube angle; a spline wall's `u`);
 //! - **a boolean** on an extruded periodic wall with a seam strut.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -32,9 +31,14 @@ fn tol() -> Tol {
 /// A one-segment circle about `(cx, cy)` of radius `r`, its vertex at
 /// carrier angle 0, turning `sweep` (±2π).
 fn circle<T: Real>(cx: f64, cy: f64, r: f64, sweep: f64) -> ProfileLoop<T> {
+    circle_at(cx, cy, r, 0.0, sweep)
+}
+
+/// [`circle`] with its vertex at carrier angle `phase`.
+fn circle_at<T: Real>(cx: f64, cy: f64, r: f64, phase: f64, sweep: f64) -> ProfileLoop<T> {
     let f = T::from_f64;
     RawLoop::new([(
-        Point2::new(f(cx + r), f(cy)),
+        Point2::new(f(cx + r * phase.cos()), f(cy + r * phase.sin())),
         Segment::Arc(Arc2 {
             centre: Point2::new(f(cx), f(cy)),
             radius: f(r),
@@ -116,7 +120,10 @@ fn an_extruded_one_segment_circle_is_one_wall_with_a_seam_strut() {
                 panic!("{what}: one wall, got {:?}", t.walls[0]);
             };
             assert_eq!(wall.segments, vec![0], "{what}");
-            assert!(is_seam(&t.body, wall.strut), "{what}: the strut is the wall's seam");
+            assert!(
+                is_seam(&t.body, wall.strut),
+                "{what}: the strut is the wall's seam"
+            );
             for rim in wall.top_rims.iter().chain(&wall.bottom_rims) {
                 let e = t.body.get_edge(*rim).unwrap();
                 let (a, b) = (
@@ -136,7 +143,13 @@ fn an_extruded_one_segment_circle_is_one_wall_with_a_seam_strut() {
 #[test]
 fn one_segment_circles_extrude_as_holes_and_around_them() {
     let h = 1.25;
-    let cases: Vec<(&str, Vec<ProfileLoop<f64>>, f64, (usize, usize, usize))> = vec![
+    type Case = (
+        &'static str,
+        Vec<ProfileLoop<f64>>,
+        f64,
+        (usize, usize, usize),
+    );
+    let cases: Vec<Case> = vec![
         (
             "annulus",
             vec![circle(0.0, 0.0, 2.0, TAU), circle(0.0, 0.0, 1.0, -TAU)],
@@ -226,12 +239,7 @@ fn a_boolean_on_an_extruded_seam_wall_builds_along_it_and_refuses_across_it() {
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
     use topo::{BooleanDeclarations, BooleanError, SplitJoinError};
 
-    let cyl = extruded(
-        vec![circle(0.0, 0.0, 1.0, TAU)],
-        2.0,
-        ExtrudeSide::Along,
-    )
-    .body;
+    let cyl = extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body;
     // ∫_{-1/2}^{1/2} √(1 − y²) dy: the disc's share of a bar of width 1
     // reaching past x = 1 from x = 0.
     let bar_in_disc = 0.75f64.sqrt() * 0.5 + (0.5f64).asin();
@@ -290,9 +298,127 @@ fn a_boolean_on_an_extruded_seam_wall_builds_along_it_and_refuses_across_it() {
             }
             (out, want) => panic!(
                 "{what}: want {}, got {:?}",
-                want.map_or("the single-site refusal".to_string(), |v| format!("volume {v}")),
+                want.map_or("the single-site refusal".to_string(), |v| format!(
+                    "volume {v}"
+                )),
                 out.map(|_| "a body")
             ),
         }
+    }
+}
+
+/// The sketch y axis: `r(p) = p.x`.
+fn y_axis<T: Real>() -> sweep::RevolveAxis<T> {
+    sweep::RevolveAxis {
+        origin: Point2::new(T::zero(), T::zero()),
+        dir: geom_core::Vec2::new(T::zero(), T::one()),
+    }
+}
+
+/// **A one-segment loop does not revolve yet, and says so.** Its wall
+/// would be one torus face wrapping the tube's own angle, cut only by
+/// the latitude strut at its vertex; a seam here is a `u_ref`
+/// meridian, so no chart describes that cut (built, the patch reads
+/// inside out: tier 3's `CurvedSenseInverted` and a negated volume).
+/// Every case refuses `OneSegmentLoop` naming the loop — the outer,
+/// a hole, part of a turn either way and a full turn, at `f64` and at
+/// `Interval` — and nothing panics on the way.
+#[test]
+fn a_one_segment_loop_revolve_refuses_typed() {
+    let cases: Vec<(&str, Vec<ProfileLoop<f64>>, usize)> = vec![
+        ("an off-axis circle", vec![circle(3.0, 0.25, 0.5, TAU)], 0),
+        (
+            "a rectangle with a round hole",
+            vec![rect(2.0, -1.0, 4.0, 1.0), circle(3.0, 0.0, 0.5, -TAU)],
+            1,
+        ),
+    ];
+    for (what, loops, want) in cases {
+        for turn in [
+            sweep::Revolution::Partial(1.25),
+            sweep::Revolution::Partial(-1.25),
+            sweep::Revolution::Full,
+        ] {
+            let got = sweep::revolve(&validated(loops.clone()), y_axis(), turn, tol());
+            assert!(
+                matches!(got, Err(sweep::RevolveError::OneSegmentLoop { loop_index }) if loop_index == want),
+                "{what}, {turn:?}: {:?}",
+                got.err()
+            );
+        }
+        let at_i: Vec<ProfileLoop<Interval>> = loops
+            .iter()
+            .map(|l| l.map_scalar(Interval::from_f64))
+            .collect();
+        let got = sweep::revolve(
+            &validated(at_i),
+            y_axis(),
+            sweep::Revolution::Partial(Interval::from_f64(1.25)),
+            tol(),
+        );
+        assert!(
+            matches!(got, Err(sweep::RevolveError::OneSegmentLoop { loop_index }) if loop_index == want),
+            "{what} at Interval: {:?}",
+            got.err()
+        );
+    }
+}
+
+/// **A one-segment section skins but does not loft yet, and says
+/// so.** The section curve converts (`segment_curve` reads a full turn
+/// from its start), so the geometry door builds one wall per
+/// one-segment loop; the body would be that one spline face closing on
+/// itself, its strut both its `u = 0` and `u = 1` edges, which a
+/// non-periodic chart cannot image twice (built, the pcurve mint
+/// refuses the second half). The assembly refuses `OneSegmentLoop`.
+#[test]
+fn a_one_segment_section_skins_and_the_loft_refuses_typed() {
+    let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
+    let cases: Vec<(&str, Vec<ProfileLoop<f64>>, usize)> = vec![
+        ("a circle", vec![circle(0.0, 0.0, 1.0, TAU)], 0),
+        (
+            "a square with a round hole",
+            vec![rect(-2.0, -2.0, 2.0, 2.0), circle(0.25, 0.0, 1.0, TAU)],
+            1,
+        ),
+    ];
+    for (what, section, want) in cases {
+        let sections = vec![section.clone(), section];
+        let geometry = sweep::loft_geometry(&sections, &places, 1, tol())
+            .unwrap_or_else(|e| panic!("{what}: the sections skin: {e}"));
+        assert_eq!(geometry.walls[want].len(), 1, "{what}: one wall");
+        let got = sweep::loft_body::<f64>(&sections, &places, 1, tol());
+        assert!(
+            matches!(got, Err(sweep::LoftError::OneSegmentLoop { loop_index }) if loop_index == want),
+            "{what}: {:?}",
+            got.err()
+        );
+    }
+}
+
+/// A one-segment circle centred on the axis crosses it, and one tangent
+/// to it touches it, whatever its arity: both refuse, typed.
+#[test]
+fn a_one_segment_circle_on_or_against_the_axis_refuses() {
+    for (what, lp) in [
+        ("centred on the axis", circle(0.0, 0.0, 1.0, TAU)),
+        ("tangent to the axis", circle_at(1.0, 0.0, 1.0, PI, TAU)),
+    ] {
+        let got = sweep::revolve(
+            &validated(vec![lp]),
+            y_axis(),
+            sweep::Revolution::Partial(1.0),
+            tol(),
+        );
+        assert!(
+            matches!(
+                got,
+                Err(sweep::RevolveError::ArcCrossesAxis { .. }
+                    | sweep::RevolveError::UnsupportedToroid { .. }
+                    | sweep::RevolveError::VertexCrossesAxis { .. })
+            ),
+            "{what}: {:?}",
+            got.err()
+        );
     }
 }

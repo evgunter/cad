@@ -5255,6 +5255,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "degenerate_stacking",
             "euler",
+            "one_segment_loop",
             "pcurve",
             "reversed_stacking",
             "seam_structure",
@@ -5796,6 +5797,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "multiple_axis_runs",
             "non_finite_axis",
             "non_manifold_axis_contact",
+            "one_segment_loop",
             "op",
             "pcurve",
             "pinned_run_station",
@@ -6464,6 +6466,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_a_gauge", 2),
     ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
+    // One fact: revolve and loft refuse a one-segment loop for the same
+    // missing seam on the period their one wall wraps.
+    ("one_segment_loop", 2),
     ("op", 3),
     ("part_unresolved", 3),
     // ONE concept, and pinned as one: the variable-read convention

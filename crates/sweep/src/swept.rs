@@ -879,7 +879,8 @@ pub(crate) fn joins<T: Real, S: SweptChord<T>>(
 /// the cosurface band, and profile validation escalates a carrier pair
 /// that near-coincides before any sweep sees it, so such a loop is a
 /// kernel defect, refused here rather than built as one full-period
-/// wall with one strut.
+/// wall with one strut. A one-segment loop never reaches here: each
+/// verb sweeps it whole or refuses it before its runs are read.
 pub(crate) fn wall_runs(joins: &[Join]) -> Vec<Run> {
     let n = joins.len();
     let starts: Vec<usize> = (0..n).filter(|&j| joins[j] != Join::Run).collect();

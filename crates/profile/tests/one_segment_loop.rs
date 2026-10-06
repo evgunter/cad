@@ -8,6 +8,8 @@
 //! one-vertex table that is not a full turn is refused typed, by the
 //! check that reads what is wrong with it.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use core::f64::consts::{PI, TAU};
 
 use geom_core::{Arc2, Bounds, Interval, Point2, Real, Sign, Tol};
@@ -62,7 +64,11 @@ fn a_one_segment_circle_validates_with_its_carrier_verbatim() {
         assert_eq!(out.vertices().len(), 1, "one vertex");
         assert_eq!(out.segments().len(), 1, "one segment");
         let seg = out.segments()[0];
-        assert_eq!(bits(&seg.start), bits(&seg.end), "the segment closes on its vertex");
+        assert_eq!(
+            bits(&seg.start),
+            bits(&seg.end),
+            "the segment closes on its vertex"
+        );
         let SegmentKind::Arc { arc, turn: got } = seg.kind else {
             panic!("a full turn is an arc, got {:?}", seg.kind);
         };
@@ -112,7 +118,11 @@ fn crossings_copy_a_one_segment_circles_carrier() {
     };
     let back = lp.reversed();
     let (f, r) = (carrier(&lp), carrier(&back));
-    assert_eq!(bits(&r.centre), bits(&f.centre), "reversal keeps the centre");
+    assert_eq!(
+        bits(&r.centre),
+        bits(&f.centre),
+        "reversal keeps the centre"
+    );
     assert_eq!(r.radius.to_bits(), f.radius.to_bits(), "and the radius");
     assert_eq!(r.sweep.to_bits(), (-TAU).to_bits(), "and negates the sweep");
     let at_i = lp.map_scalar(Interval::from_f64);
@@ -157,8 +167,14 @@ fn two_one_segment_circles_meet_as_any_two_loops_do() {
         matches!(crossing, Err(ProfileError::NonSimple { .. })),
         "{crossing:?}"
     );
-    let same = validate(vec![circle(0.0, 0.0, 1.0, TAU), circle(0.0, 0.0, 1.0, -TAU)]);
-    assert!(matches!(same, Err(ProfileError::NonSimple { .. })), "{same:?}");
+    let same = validate(vec![
+        circle(0.0, 0.0, 1.0, TAU),
+        circle(0.0, 0.0, 1.0, -TAU),
+    ]);
+    assert!(
+        matches!(same, Err(ProfileError::NonSimple { .. })),
+        "{same:?}"
+    );
     let nested = validate(vec![circle(0.0, 0.0, 2.0, TAU), circle(0.5, 0.0, 1.0, TAU)]);
     assert!(nested.is_ok(), "{nested:?}");
 }
@@ -175,7 +191,10 @@ fn a_one_vertex_table_that_is_not_a_full_turn_is_refused() {
         segment_index: 0,
     };
     let line: ProfileLoop<f64> = RawLoop::new([(Point2::new(1.0, 0.0), Segment::Line)]);
-    assert_eq!(validate(vec![line]).err(), Some(ProfileError::DegenerateSegment(at)));
+    assert_eq!(
+        validate(vec![line]).err(),
+        Some(ProfileError::DegenerateSegment(at))
+    );
     assert_eq!(
         validate(vec![circle(0.0, 0.0, 1.0, 1e-15)]).err(),
         Some(ProfileError::DegenerateSegment(at)),
@@ -242,10 +261,8 @@ fn a_full_turn_between_two_vertices_is_refused() {
             check: ArcCheck::Landing
         }),
     );
-    let doubled: ProfileLoop<f64> = RawLoop::new([
-        (Point2::new(1.0, 0.0), full),
-        (Point2::new(1.0, 0.0), full),
-    ]);
+    let doubled: ProfileLoop<f64> =
+        RawLoop::new([(Point2::new(1.0, 0.0), full), (Point2::new(1.0, 0.0), full)]);
     assert_eq!(
         validate(vec![doubled]).err(),
         Some(ProfileError::DegenerateSegment(at)),
