@@ -1,0 +1,70 @@
+# Review r1 of PR 4139: probe rows (crates/sweep/examples/r1_4139_probes.rs, set `dbl`).
+# main = 897a2c24 + live::linked import; head = 7863f27b. Each row: tag, then main, then head.
+# `| cNfFvV`: exact link cones N (F flat) at the point, V vertices there; `!CONEMISMATCH` = V outside [N-F, N].
+# The 16 lines main builds that head refuses (all of them pass a pre-zip weld_pinches on head):
+dbl asym asym seed=15 fib11 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=60.032499107 want=60.032499107 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(11v5), loop: LoopKey(16v5) }] } | c1f0
+dbl asym asym seed=15 fib6 yx S
+  main: OK BAD t2=true t3p=false cert=true operand=true v=60.576066131 want=60.576066131 | c1f0v1 mesh=CHECKFAIL("MismatchedWinding { edge: (12, 13) }")
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(12v9), loop: LoopKey(14v7) }] } | c1f0
+dbl asym asym seed=225 fib11 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=60.723453080 want=60.723453080 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(9v5), loop: LoopKey(9v7) }] } | c1f0
+dbl asym asym seed=225 fib6 yx S
+  main: OK BAD t2=true t3p=false cert=true operand=true v=61.106288224 want=61.106288224 | c1f0v1 mesh=CHECKFAIL("MismatchedWinding { edge: (12, 13) }")
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(7v3), loop: LoopKey(14v5) }] } | c1f0
+dbl asym asym seed=268 fib11 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=61.626991886 want=61.626991886 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(9v7), loop: LoopKey(13v7) }] } | c1f0
+dbl asym asym seed=268 fib19 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=61.571517368 want=61.571517368 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(14v7), loop: LoopKey(13v7) }] } | c1f0
+dbl asym asym seed=268 fib27 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=61.531011334 want=61.531011334 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(14v7), loop: LoopKey(13v7) }] } | c1f0
+dbl asym asym seed=268 fib32 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=61.142550818 want=61.142550818 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(13v5), loop: LoopKey(13v7) }] } | c1f0
+dbl asym asym seed=268 fib40 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=61.167049463 want=61.167049463 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(8v5), loop: LoopKey(9v7) }] } | c1f0
+dbl asym asym seed=268 fib45 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=60.559167266 want=60.559167266 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(12v9), loop: LoopKey(14v7) }] } | c1f0
+dbl asym asym seed=268 fib53 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=60.789078351 want=60.789078351 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(9v5), loop: LoopKey(9v7) }] } | c1f0
+dbl asym asym seed=268 fib66 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=60.265362854 want=60.265362854 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(7v5), loop: LoopKey(9v13) }] } | c1f0
+dbl asym asym seed=338 fib103 yx S
+  main: OK BAD t2=true t3p=false cert=true operand=true v=59.191196596 want=59.191196596 | c1f0v1 mesh=CHECKFAIL("MismatchedWinding { edge: (12, 13) }")
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(7v11), loop: LoopKey(15v9) }] } | c1f0
+dbl asym asym seed=338 fib95 yx S
+  main: OK BAD t2=true t3p=false cert=true operand=true v=59.515027331 want=59.515027331 | c1f0v1 mesh=CHECKFAIL("MismatchedWinding { edge: (12, 13) }")
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(15v7), loop: LoopKey(14v7) }] } | c1f0
+dbl asym asym seed=426 fib11 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=61.262867427 want=61.262867427 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(13v7), loop: LoopKey(13v7) }] } | c1f0
+dbl asym asym seed=426 fib6 yx S
+  main: OK SOUND t2=true t3p=true cert=true operand=true v=61.593069630 want=61.593069630 | c1f0v1 mesh=ok
+  head: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(14v9), loop: LoopKey(10v7) }] } | c1f0
+
+# Debug trace on head (env-gated eprintln in split_cones and after the shell split), dbl asym asym seed=268 fib11 yx S:
+  R1DBG split_cones: 2 seams, 13 pairs
+  R1DBG A vertex VertexKey(19v1) runs [2, 7, 10] cones [2, 7, 2]
+  R1DBG B vertex VertexKey(18v3) runs [7, 10] cones [2, 7]
+  R1DBG point PointKey(13v1): vertices [VertexKey(19v1), VertexKey(38v1)]
+  R1DBG   face FaceKey(2v1) loop LoopKey(2v1) outer=true passes [VertexKey(38v1)]
+  R1DBG   face FaceKey(5v3) loop LoopKey(5v3) outer=true passes [VertexKey(38v1)]
+  R1DBG   face FaceKey(7v7) loop LoopKey(8v7) outer=true passes [VertexKey(38v1)]
+  R1DBG   face FaceKey(8v3) loop LoopKey(15v3) outer=true passes [VertexKey(38v1)]
+  R1DBG   face FaceKey(9v7) loop LoopKey(13v7) outer=true passes [VertexKey(19v1)]
+  R1DBG   face FaceKey(13v5) loop LoopKey(14v7) outer=true passes [VertexKey(38v1)]
+  R1DBG   face FaceKey(14v3) loop LoopKey(16v5) outer=true passes [VertexKey(38v1)]
+  R1DBG   face FaceKey(19v1) loop LoopKey(20v1) outer=true passes [VertexKey(19v1)]
+  R1DBG   face FaceKey(20v1) loop LoopKey(21v1) outer=true passes [VertexKey(19v1)]
+  R1DBG   face FaceKey(22v1) loop LoopKey(23v1) outer=true passes [VertexKey(38v1)]
+  dbl asym asym seed=268 fib11 yx S: ERR ResultInvalid { errors: [LoopRoleInverted { face: FaceKey(9v7), loop: LoopKey(13v7) }] } | c1f0
+# Brute-force link count (lat-long 2880x1440 flood fill) for the same line: cones=1, exact oracle (1, 0).
