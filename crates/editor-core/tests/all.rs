@@ -84,6 +84,8 @@ mod asm_upd_pin_update;
 mod assemble_one_local_battery;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
+#[path = "band_planar_cut_off_names.rs"]
+mod band_planar_cut_off_names;
 #[path = "band_run_wall_names.rs"]
 mod band_run_wall_names;
 #[path = "blend5_r1_probes.rs"]
@@ -142,6 +144,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_blend_one_box_of_two.rs"]
+mod edit_blend_one_box_of_two;
 #[path = "edit_bore_two_rims.rs"]
 mod edit_bore_two_rims;
 #[path = "edit_doc_param_distribution.rs"]

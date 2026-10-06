@@ -1068,13 +1068,6 @@ fn pair_region_verified<T: Decide>(
     )
 }
 
-/// Builds the geometry snapshot: exact planar entities for the
-/// vertex-granular sweeps, curved entities routed to the
-/// face-granular arms (M9-2 — the census ADMITS every carrier kind;
-/// the blanket exact-on-planar refusal retired with the census arms
-/// that replaced it, and what each arm can and cannot certify is the
-/// module-docs envelope, stated rather than sampled). Total: every
-/// entity lands in exactly one bucket, so there is no refusal path.
 /// The exact sweeps' admission test for one edge, in ONE place.
 /// [`snapshot`] keeps an edge iff its carrier is a certified `Line`,
 /// and `line_bounded` — the planar × planar skip's premise — asks the
@@ -1109,8 +1102,9 @@ fn face_loops(face: &Face) -> impl Iterator<Item = LoopKey> + '_ {
 /// `body` can walk, `Err(loop)` for one it cannot — a lost loop, an
 /// empty (lone-vertex) loop, an unwalkable cycle. What an unwalkable
 /// loop MEANS is the caller's to say, at the call site; this walk
-/// never decides it. The file's one loop-walk: every site that reads
-/// a face's boundary reads it here.
+/// never decides it. The typed walk that `snapshot` and the backstop
+/// read; the boundary-box sites read
+/// [`Body::face_boundary_linked`], whose every hop is a link.
 fn face_cycles<'a, T: Real>(
     body: &'a Body<T>,
     face: &'a Face,
@@ -1126,6 +1120,13 @@ fn face_cycles<'a, T: Real>(
     })
 }
 
+/// Builds the geometry snapshot: exact planar entities for the
+/// vertex-granular sweeps, curved entities routed to the
+/// face-granular arms (M9-2 — the census ADMITS every carrier kind;
+/// the blanket exact-on-planar refusal retired with the census arms
+/// that replaced it, and what each arm can and cannot certify is the
+/// module-docs envelope, stated rather than sampled). Total: every
+/// entity lands in exactly one bucket, so there is no refusal path.
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body
         .vertices
@@ -1464,8 +1465,19 @@ fn contain<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<FaceContainment> {
-    match contfp(body, f.key, f.normal, q, band) {
-        Ok(c) => Some(c),
+    read_containment(f.key, contfp(body, f.key, f.normal, q, band), errors)
+}
+
+/// A containment door's answer about `face`, its refusal pushed
+/// (`None`): the census's one routing of [`ContainError`], for the
+/// planar door and the curved one alike.
+fn read_containment<V>(
+    face: FaceKey,
+    read: Result<V, ContainError>,
+    errors: &mut Vec<ValidationError>,
+) -> Option<V> {
+    match read {
+        Ok(v) => Some(v),
         Err(ContainError::Escalated(cause)) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None
@@ -1499,7 +1511,7 @@ fn contain<T: Decide>(
             | ContainError::Curved(_)),
         ) => {
             errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Face(f.key)),
+                subject: CensusSubject::Entity(EntityId::Face(face)),
                 cause: CensusUnsupportedCause::Containment(e),
             });
             None
@@ -2787,11 +2799,11 @@ fn boundary_axial<T: Decide>(
     let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
     for member in body.face_boundary_linked(f, face) {
         let sp = match member {
-            BoundaryMember::Isolated(p) => {
+            BoundaryMember::Isolated { point: p, .. } => {
                 let p = SpanBox::point(p);
                 edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p))
             }
-            BoundaryMember::Edge { ek, edge: e } => {
+            BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
                 let certified = body.edge_curve_linked(ek, e).certified();
                 let carrier = certified.map(geom_brep::EdgeCurve::carrier);
@@ -2847,11 +2859,11 @@ fn boundary_reach<T: Decide>(
     };
     for member in body.face_boundary_linked(f, face) {
         match member {
-            BoundaryMember::Isolated(p) => {
+            BoundaryMember::Isolated { point: p, .. } => {
                 let p = frame.point(p);
                 grow((p, p));
             }
-            BoundaryMember::Edge { ek, edge } => grow(edge_reach_of(body, ek, edge, frame)?),
+            BoundaryMember::Edge { ek, edge, .. } => grow(edge_reach_of(body, ek, edge, frame)?),
         }
     }
     acc
@@ -5655,37 +5667,77 @@ fn confirm_declarations<T: Decide>(
         confirm_edge_edge(body, geo, *c, band, errors);
     }
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
-        let stale = ValidationError::StaleContactDeclaration {
-            declaration: StaleDeclaration::VertexOnFace {
-                vertex: c.vertex,
-                face: c.face,
-            },
-        };
-        let (Some(&q), Some(f)) = (
-            geo.vmap.get(&c.vertex),
-            geo.faces.iter().find(|f| f.key == c.face),
-        ) else {
+        confirm_vertex_on_face(body, geo, *c, band, errors);
+    }
+}
+
+/// One `(vertex, face)` record's witness: both cells live, and the
+/// vertex strictly inside the face — on its plane and inside its region
+/// for a planar face, inside its trim by the curved containment door
+/// ([`crate::boolean::curved_face_containment`], which puts a point off
+/// the carrier `Out`) for a curved one.
+fn confirm_vertex_on_face<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    c: crate::boolean::VfContact,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::VertexOnFace {
+            vertex: c.vertex,
+            face: c.face,
+        },
+    };
+    let Some(&q) = geo.vmap.get(&c.vertex) else {
+        errors.push(stale);
+        return;
+    };
+    let Some(f) = geo.faces.iter().find(|f| f.key == c.face) else {
+        if !geo.curved_faces.contains(&c.face) {
             errors.push(stale);
-            continue;
-        };
-        match signed_is_zero(
-            "pm_census_confirm_vf",
-            Margin::of((q - f.origin).dot(f.normal)),
-            band,
+            return;
+        }
+        // `None` is the door's remainder, not a refusal: no
+        // `ContainError` stands behind it to carry, so it is named the
+        // way the census names a configuration outside its lanes.
+        match read_containment(
+            c.face,
+            crate::boolean::curved_face_containment(body, c.face, q, band),
             errors,
         ) {
-            Some(true) => {}
-            Some(false) => {
-                errors.push(stale);
-                continue;
-            }
-            None => continue,
-        }
-        match contain(body, f, q, band, errors) {
-            Some(FaceContainment::In) => {}
-            Some(_) => errors.push(stale),
+            Some(Some(FaceContainment::In)) => {}
+            Some(Some(_)) => errors.push(stale),
+            Some(None) => errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Face(c.face)),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a vertex-on-face record on a curved face whose trim \
+                               the containment door does not read",
+                    },
+                ),
+            }),
             None => {}
         }
+        return;
+    };
+    match signed_is_zero(
+        "pm_census_confirm_vf",
+        Margin::of((q - f.origin).dot(f.normal)),
+        band,
+        errors,
+    ) {
+        Some(true) => {}
+        Some(false) => {
+            errors.push(stale);
+            return;
+        }
+        None => return,
+    }
+    match contain(body, f, q, band, errors) {
+        Some(FaceContainment::In) => {}
+        Some(_) => errors.push(stale),
+        None => {}
     }
 }
 

@@ -3121,7 +3121,7 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
 pub struct ShellDoor<T: Decide> {
     /// [`ShellDoor::open`]'s body — `crate::shell_open`, and nothing
     /// else can be written here (`wiring_rows` pins the pointer).
-    open: fn(&Body<T>, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
+    open: fn(&crate::AtRestBody<T>, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds + AtRestPolicy> ShellDoor<T> {
@@ -3150,7 +3150,7 @@ impl<T: Decide> ShellDoor<T> {
     /// [`ShellError`] — the door's own, verbatim.
     pub fn open(
         self,
-        body: &Body<T>,
+        body: &crate::AtRestBody<T>,
         thickness: T,
         open_faces: &[FaceKey],
         tol: Tol,
@@ -3410,8 +3410,11 @@ pub trait AtRestPolicy: Decide {
     /// new-edge mints ([`Body::mev`], [`Body::mef`], [`Body::mekr`] and
     /// the ring doors), [`Body::set_edge_curve`], [`Body::split_edge`]
     /// and [`Body::kev_describing`]'s list; the re-chart
-    /// ([`Body::set_face_surfaces_describing`]); and the re-basing gate
-    /// of a fan `mev` and of the kill doors' merge.
+    /// ([`Body::set_face_surfaces_describing`]); the re-basing gate
+    /// of a fan `mev` and of the kill doors' merge; and the offset
+    /// door's re-anchor of a spline-carried edge
+    /// ([`crate::replace_face_offset`], through
+    /// [`geom_brep::NurbsLane::carrier_foot`]).
     ///
     /// `None` is certification rights (DL1), the same fact as
     /// [`AtRestPolicy::fitted_lane`]'s: the certificate of an

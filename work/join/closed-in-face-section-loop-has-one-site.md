@@ -47,3 +47,18 @@ the loose ends are counted; pinned by
 `crates/sweep/tests/germ_coplanar_conic.rs`
 `a_closed_section_loop_with_one_site_refuses_typed`. The self-loop
 arm (a record matching itself) is not built.
+
+## Also seen by CLEAVE (`cleave/tube-across-axis`, 2026-10-06)
+
+A box `(−1.5, 1.5) × (0, 1) × (−1.5, 1.5)` minus the tube revolved a full
+turn about `y` from `(0.3, −0.5)–(0.5, −0.5)–(0.5, 1.5)–(0.3, 1.5)`
+refuses `Join(SingleSiteSectionLoop { count: 4 })`. The box's two faces
+cut each tube wall across its one seam, so every section circle has one
+site. The same box minus a revolved solid rod builds, because the rod's
+wall is two faces with two seams.
+
+The split's version of this, a one-site loop on a wall of one face, is
+built on that branch. Its join already pairs a face's two halves at the
+one site into a self-loop chord, and `chord_join::chord_spec` now gives
+that chord the whole section conic instead of the scaffolding circle.
+That may be the shape of the boolean's self-loop arm.

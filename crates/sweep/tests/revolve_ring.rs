@@ -65,8 +65,9 @@ fn one_call_hollow_ring() {
     assert_eq!(outer.faces.len(), 4);
 
     // Entity census: each shell is a 4-segment lamina ring — 4 walls,
-    // 4 meridians, 4 full-period rim self-loops, 4 vertices, no rings.
-    assert_eq!(counts(&t.body), (8, 16, 8, 0));
+    // 2 meridians (the cylinders'), 4 full-period rim self-loops, 4
+    // vertices, and a ring per plane annulus.
+    assert_eq!(counts(&t.body), (8, 12, 8, 4));
 
     // The handle bundle covers the hole loop with result-body keys.
     assert!(t.walls()[1].iter().all(Option::is_some));
@@ -76,35 +77,20 @@ fn one_call_hollow_ring() {
         panic!("full revolve")
     };
     assert_eq!(meridians.len(), 2);
-    assert!(meridians[1].iter().all(Option::is_some));
+    assert_eq!(
+        meridians[1].iter().filter(|m| m.is_some()).count(),
+        2,
+        "the cavity's cylinders keep a meridian, its plane annuli none"
+    );
     // The revolve's seam conventions hold inside the cavity exactly as
-    // on the outer shell: meridians of periodic walls (the two
-    // cylinders) re-describe as the wall chart's own seam; meridians
-    // of plane annuli honestly do not (a plane chart is not periodic)
-    // and stay images the profile segment declared.
-    //
-    // **Re-expressed at PCURVE P-1b.** The old filter counted the
-    // `IsoCurve`/`Seam` VARIANT against `MappedCurve`. Both are chart
-    // images since U2, so counting variants would return 4 here and
-    // discriminate nothing; the fact the row is about — which
-    // meridians carry the chart's seam obligation — is the `seam` flag
-    // on the image, so that is what is counted. The census is
-    // unchanged at 2, and it now also states what the other two are:
-    // declared images, not seams.
-    let hole = &meridians[1];
-    let hole_seams = hole
+    // on the outer shell: the meridians of periodic walls (the two
+    // cylinders) re-describe as the wall chart's own seam, derived.
+    let hole_seams = meridians[1]
         .iter()
-        .filter(|m| chart_image(&t.body, m.unwrap()).seam)
+        .flatten()
+        .filter(|m| chart_image(&t.body, **m).seam && !authority(&t.body, **m).is_declared())
         .count();
     assert_eq!(hole_seams, 2);
-    let hole_declared = hole
-        .iter()
-        .filter(|m| {
-            let c = chart_image(&t.body, m.unwrap());
-            !c.seam && authority(&t.body, m.unwrap()).is_declared()
-        })
-        .count();
-    assert_eq!(hole_declared, 2, "the plane annuli's two meridians");
 
     // Mass properties = outer minus hole, both derived independently
     // by Pappus (2π·r̄·A for volumes, 2π·r̄·L per wall for areas):
@@ -237,9 +223,10 @@ fn wire_outer_with_hole_cavity() {
         panic!("full revolve")
     };
     // The outer is the wire case (π-band walls exist for its off-axis
-    // segments); the hole is lamina (its meridians all present).
+    // segments); the hole is lamina (a meridian per curved wall, none
+    // on its plane annuli).
     assert!(pi_walls.iter().any(Option::is_some));
-    assert!(meridians[1].iter().all(Option::is_some));
+    assert_eq!(meridians[1].iter().filter(|m| m.is_some()).count(), 2);
 
     // Pappus: outer cylinder solid 2·3 at r̄ 1 minus hole 1·1 at r̄ 1.
     let pi = core::f64::consts::PI;

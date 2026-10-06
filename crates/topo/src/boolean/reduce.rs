@@ -2390,8 +2390,8 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         //   is then a curve where two different carriers meet, not a
         //   cosurface question. It takes the coplanar conic's posture,
         //   endpoint processing only, once its interior is certified to
-        //   meet this face's boundary nowhere it does not run along
-        //   ([`lying_on`]).
+        //   meet this face's boundary nowhere it does not run along, and
+        //   is split where it does meet it ([`lying_on`]).
         //
         // Every other answer keeps the door: the undeclared cosurface
         // question (CONTACT-DESIGN C2/C4), a parent the ladder does not
@@ -2731,8 +2731,8 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 
 /// **An arc lying on `face`'s carrier, its parents distinct from it:**
 /// the endpoint records, once the arc's interior is certified to cross
-/// `face`'s boundary nowhere. Two certificates do that, and anything
-/// else keeps the door (`None`):
+/// `face`'s boundary nowhere, or a split where it crosses it. Three
+/// readings, in order, and anything else keeps the door (`None`):
 ///
 /// - **off the boundary but at its ends**: the face's boundary meets the
 ///   arc's own circle nowhere but at the vertices of `y` the arc's ends
@@ -2751,14 +2751,41 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 ///   cross no face's interior: the end records, with the chain's inner
 ///   vertices that the other direction's sweep records on this arc, are
 ///   every incidence it has.
+/// - **the interior question**: where the arc's span meets the face's
+///   boundary strictly inside it ([`super::carrier_cross`]: any line or
+///   circle boundary edge, or a boundary vertex). A meeting is a
+///   `Pierce` the caller splits both edges at, as at a wall pierce
+///   landing on the boundary, and each fragment is read again here; a
+///   certified absence is (a)'s conclusion. A seam ruling a rim crosses
+///   mid-arc is such a meeting: (a) reads the whole circle, which the
+///   ruling meets wherever the rim is turned, and (b) has no chain.
 ///
-/// The ends are placed, and recorded, before either certificate runs:
+/// Over line and circle boundaries (a) is a fast path: what it certifies
+/// the interior question would too. It still decides alone where a
+/// boundary edge is another conic, which (a) reads through its plane
+/// crossings and the interior question does not read at all.
+///
+/// The interior question's candidates overlap. On a surface of
+/// revolution a boundary ruling's end vertex projects onto the arc at
+/// the ruling's crossing, so the line closed form finds nothing the
+/// vertices do not. And where both of the arc's ends lie in this face, a
+/// circle boundary's crossing missed here is split by the other sweep
+/// direction, when that boundary edge pierces the arc's parent face at
+/// it. Only the circle closed form for an arc that runs from this face
+/// into another is pinned alone
+/// (`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`,
+/// `a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared`).
+///
+/// The ends are placed, and recorded, before any certificate runs:
 /// certificate (a) reads the vertices of `y` the placements pair them
 /// with, minting one where an end lands on an edge. That is sound
-/// because every answer but `Recorded` either follows two `Elsewhere`
-/// placements, which record nothing, or is `None`, which the caller
-/// turns into the frontier that ends the op, so no record or split made
-/// here outlives a certificate that did not hold.
+/// because every answer but `Recorded` and `Pierce` either follows two
+/// `Elsewhere` placements, which record nothing, or is `None`, which the
+/// caller turns into the frontier that ends the op, so no record or
+/// split made here outlives a certificate that did not hold. A `Pierce`
+/// keeps the records: its fragments carry the same ends, and placing
+/// them again records nothing new ([`ContactAcc`] keeps each record
+/// once, by key).
 fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     arc: &ArcOnCarrier<'_, T>,
     y: &mut Body<T>,
@@ -2798,33 +2825,45 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
         return Ok(None);
     }
     let at_ends: Vec<VertexKey> = placed.iter().filter_map(|(_, w)| *w).collect();
-    if boundary_meets_circle_only_at(y, face, (center, axis, radius), &at_ends, band)? {
+    // The ends' placements, once the arc's interior is certified to meet
+    // the boundary nowhere: it lies wholly inside the face or wholly
+    // outside it.
+    let interior_clear = || {
         let all = |p: Placement| placed.iter().all(|(q, _)| *q == p);
         if all(Placement::Elsewhere) {
-            return Ok(Some(CurvedEvent::None));
+            return Some(CurvedEvent::None);
         }
         // With no end paired with a vertex of `y`, one end in and one
         // out would need the arc to cross a boundary the certificate has
-        // just kept off its circle: only two certified answers
+        // just kept off its interior: only two certified answers
         // contradicting reach it, and that keeps the door. An end paired
         // with a vertex is outside that argument (the face-free vertex
         // search can pair one off this face's boundary), and the record
         // it made is its answer.
         let mixed = at_ends.is_empty() && !all(Placement::Recorded);
-        return Ok((!mixed).then_some(CurvedEvent::Recorded));
-    }
-    let [(_, Some(wu)), (_, Some(wv))] = placed else {
-        return Ok(None);
+        (!mixed).then_some(CurvedEvent::Recorded)
     };
-    let (dir, _) = curve.walk_tangents(
-        x.get_half_edge(e.he_plus)
-            .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
-            .start
-            == ends[0].0,
-    );
+    if boundary_meets_circle_only_at(y, face, (center, axis, radius), &at_ends, band)? {
+        return Ok(interior_clear());
+    }
+    if let [(_, Some(wu)), (_, Some(wv))] = placed {
+        let (dir, _) = curve.walk_tangents(
+            x.get_half_edge(e.he_plus)
+                .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
+                .start
+                == ends[0].0,
+        );
+        if arc_chain_reaches(y, wu, wv, dir, (center, axis, radius), band)? {
+            return Ok(Some(CurvedEvent::Recorded));
+        }
+    }
+    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
     Ok(
-        arc_chain_reaches(y, wu, wv, dir, (center, axis, radius), band)?
-            .then_some(CurvedEvent::Recorded),
+        match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
+            BoundaryCrossing::At { t, p, at } => Some(CurvedEvent::Pierce { t, p, at }),
+            BoundaryCrossing::Clear => interior_clear(),
+            BoundaryCrossing::Unread => None,
+        },
     )
 }
 
@@ -2952,77 +2991,67 @@ fn boundary_meets_circle_only_at<T: Decide>(
             Err(_) => None,
         }
     };
-    for (_, l) in y.face_loops_linked(face, f) {
-        match l.boundary {
-            crate::entity::LoopBoundary::Empty { vertex } => {
+    for member in y.face_boundary_linked(face, f) {
+        match member {
+            crate::live::BoundaryMember::Isolated { vertex, .. } => {
                 if place(vertex).is_none() {
                     return Ok(false);
                 }
             }
-            crate::entity::LoopBoundary::Cycle { first } => {
-                for he in y.loop_walk(first).closed("loop", first) {
-                    let ek = crate::live::proven(&y.half_edges, he, EntityId::HalfEdge).edge;
-                    let e = crate::live::linked(
-                        &y.edges,
-                        ek,
-                        EntityId::Edge,
-                        EntityId::HalfEdge(he),
-                        "edge",
-                    );
-                    let end = |h, field| {
-                        crate::live::linked(
-                            &y.half_edges,
-                            h,
-                            EntityId::HalfEdge,
-                            EntityId::Edge(ek),
-                            field,
-                        )
-                        .start
-                    };
-                    let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
-                    let (Some(sa), Some(sb)) = (place(a), place(b)) else {
-                        return Ok(false);
-                    };
-                    let Some(c) = y.edge_curve_linked(ek, e).certified() else {
-                        return Ok(false);
-                    };
-                    let (t0, t1) = c.params();
-                    let clear = match crate::splitting::plane_crossing_lane(
-                        c.carrier(),
-                        t0,
-                        t1,
-                        center,
-                        axis,
-                        band,
-                    ) {
-                        PlaneCrossingLane::Line => {
-                            let (pa, pb) = (point(a), point(b));
-                            match (sa, sb) {
-                                (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
-                                    let (ha, hb) = (height(pa), height(pb));
-                                    off_circle(pa + (pb - pa) * (ha / (ha - hb)))
-                                }
-                                (PlaneSide::Off(_), _) | (_, PlaneSide::Off(_)) => true,
-                                (PlaneSide::At, PlaneSide::At) => {
-                                    off_circle(pa.lerp(pb, T::from_f64(0.5)))
-                                }
-                                _ => false,
+            crate::live::BoundaryMember::Edge { ek, edge: e, .. } => {
+                let end = |h, field| {
+                    crate::live::linked(
+                        &y.half_edges,
+                        h,
+                        EntityId::HalfEdge,
+                        EntityId::Edge(ek),
+                        field,
+                    )
+                    .start
+                };
+                let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
+                let (Some(sa), Some(sb)) = (place(a), place(b)) else {
+                    return Ok(false);
+                };
+                let Some(c) = y.edge_curve_linked(ek, e).certified() else {
+                    return Ok(false);
+                };
+                let (t0, t1) = c.params();
+                let clear = match crate::splitting::plane_crossing_lane(
+                    c.carrier(),
+                    t0,
+                    t1,
+                    center,
+                    axis,
+                    band,
+                ) {
+                    PlaneCrossingLane::Line => {
+                        let (pa, pb) = (point(a), point(b));
+                        match (sa, sb) {
+                            (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
+                                let (ha, hb) = (height(pa), height(pb));
+                                off_circle(pa + (pb - pa) * (ha / (ha - hb)))
                             }
+                            (PlaneSide::Off(_), _) | (_, PlaneSide::Off(_)) => true,
+                            (PlaneSide::At, PlaneSide::At) => {
+                                off_circle(pa.lerp(pb, T::from_f64(0.5)))
+                            }
+                            _ => false,
                         }
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
-                            roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
-                        }
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => matches!(
-                            decide("bool_arc_plane_side", Margin::of(offset), band),
-                            Ok(Sign::Positive | Sign::Negative)
-                        ),
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(_)))
-                        | PlaneCrossingLane::Unlaned => false,
-                    };
-                    if !clear {
-                        return Ok(false);
                     }
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
+                        roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
+                    }
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => matches!(
+                        decide("bool_arc_plane_side", Margin::of(offset), band),
+                        Ok(Sign::Positive | Sign::Negative)
+                    ),
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(_)))
+                    | PlaneCrossingLane::Unlaned => false,
+                };
+                if !clear {
+                    return Ok(false);
                 }
             }
         }
@@ -5831,8 +5860,9 @@ mod esc_tests {
 }
 
 /// **`boundary_meets_circle_only_at`: a stale face refuses typed; a torn
-/// curve past one that resolves panics**, where it read as a curve the
-/// certificate cannot place and answered `Ok(false)`.
+/// ring link or curve past one that resolves panics**, where the ring
+/// was stepped over and the curve read as one the certificate cannot
+/// place, answering `Ok(false)`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -5862,6 +5892,14 @@ mod torn_hop_rows {
             ),
             "a face the caller carries that does not resolve refuses typed"
         );
+        let mut torn = body.clone();
+        let named = crate::review_d18::tear_ring(&mut torn, face);
+        assert_torn_op_panics(
+            "boundary_meets_circle_only_at (ring)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| boundary_meets_circle_only_at(b, face, circle, &[], band),
+        );
         let outer = body.get_face(face).unwrap().outer;
         let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
         else {
@@ -5880,6 +5918,40 @@ mod torn_hop_rows {
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| boundary_meets_circle_only_at(b, face, circle, &[], band),
+        );
+    }
+}
+
+/// **The accumulator keeps each record once, by key**: what lets a
+/// caller place an endpoint again after a split without minting a
+/// second record ([`lying_on`]'s `Pierce`).
+#[cfg(test)]
+mod contact_acc_rows {
+    use super::ContactAcc;
+    use crate::boolean::{Operand, VfContact, VvContact};
+    use crate::test_support_fixtures::prism_z;
+    use geom_core::Tol;
+
+    #[test]
+    fn a_record_pushed_twice_is_kept_once() {
+        let p = prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let (a, b, face) = (p.bottom[0], p.top[0], p.bottom_face);
+        let mut acc = ContactAcc::default();
+        for _ in 0..2 {
+            acc.vv(VvContact { a, b });
+            acc.vf(Operand::A, VfContact { vertex: a, face });
+            acc.vf(Operand::B, VfContact { vertex: b, face });
+        }
+        let r = acc.finish();
+        assert_eq!(
+            (r.vv.len(), r.a_on_b.len(), r.b_on_a.len()),
+            (1, 1, 1),
+            "one record of each kind"
         );
     }
 }

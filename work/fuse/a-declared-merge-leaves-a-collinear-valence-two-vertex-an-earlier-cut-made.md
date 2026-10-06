@@ -169,3 +169,13 @@ Contact records are cell pairs, recorded coincidences under D10:
 - step 3, the tier-2 no-joinable-vertex check;
 - step 4, merged-set edge names (EMIT).
 
+
+## The refusing orders reach `SeamVertexParentage` (EMIT, 2026-10-06)
+
+The table's `[a, s, b]` and `[s, a, b]` refuse `DeclareResolve` today.
+With that refusal gone (INTENT's stage 4, or a scratch fan-out), they
+refuse `NamingError::SeamVertexParentage` instead, and
+`emit_union_flush_names::a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names`
+meets it in `[0,2,1]`. Measured in
+`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`,
+"Re-measured on main (2026-10-06)".

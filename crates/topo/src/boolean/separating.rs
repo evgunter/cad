@@ -264,8 +264,8 @@ fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
             let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
             for member in body.face_boundary_linked(f, face) {
                 match member {
-                    BoundaryMember::Isolated(p) => add(p),
-                    BoundaryMember::Edge { ek, edge } => {
+                    BoundaryMember::Isolated { point, .. } => add(point),
+                    BoundaryMember::Edge { ek, edge, .. } => {
                         add(edge_end_point(body, ek, edge.he_plus, "he_plus"));
                     }
                 }
