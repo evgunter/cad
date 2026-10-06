@@ -689,13 +689,15 @@ impl<T: Decide> ConicArc<T> {
         // A circle's two levers are one, and its lower bound has spoken.
         // An ellipse's upper lever is the edge's speed over the overlap
         // itself: `|P′(θ)| = √((a·sin θ)² + (b·cos θ)²)` at its middle
-        // `m = t0 − Δ/2`, plus `a·|Δ|/2` for the stretch either side
-        // (the speed changes at most as fast as `|P″| ≤ a`) — never less
+        // `m = t0 − Δ/2`, plus `max(|a|, |b|)·|Δ|/2` for the stretch
+        // either side (the speed changes at most as fast as
+        // `|P″| ≤ max(|a|, |b|)`, the semi-axes carrying no order) — never less
         // than the speed anywhere on the overlap, and tight as it
         // shrinks, so a certified window (its ends pinned within the
         // band of its vertex) is never read as over-wound.
         let (sm, cm) = (t0 - gap * T::from_f64(0.5)).sin_cos();
-        let speed = ((a * sm).powi(2) + (b * cm).powi(2)).sqrt() + a * gap.abs() * T::from_f64(0.5);
+        let speed = ((a * sm).powi(2) + (b * cm).powi(2)).sqrt()
+            + a.abs().max(b.abs()) * gap.abs() * T::from_f64(0.5);
         if kind == ConicKind::Ellipse
             && let Ok(Sign::Negative) = decide(rows.span, Margin::levered(gap, speed), band)
         {
@@ -766,17 +768,18 @@ impl<T: Decide> ConicArc<T> {
     /// bounded on both sides instead, and each verdict reads the bound
     /// that makes it sound:
     ///
-    /// - **Lower**, `d ≥ 2|F| / (g + √(g² + 4|F|/b²))`, for
-    ///   `F = X²/a² + Y²/b² − 1` (zero on the ellipse) and `g = |∇F(Q)|`:
-    ///   along the segment from `Q` to its foot, `F` falls to zero while
-    ///   `|∇F|` grows at most at the Hessian's norm `2/b²`, so
-    ///   `|F| ≤ g·d + d²/b²`, whose positive root is the bound.
+    /// - **Lower**, `d ≥ 2|F| / (g + √(g² + 4|F|/s²))`, for
+    ///   `F = X²/a² + Y²/b² − 1` (zero on the ellipse), `g = |∇F(Q)|`
+    ///   and `s = min(|a|, |b|)`, the smaller semi-axis whichever is
+    ///   stored first: along the segment from `Q` to its foot, `F` falls
+    ///   to zero while `|∇F|` grows at most at the Hessian's norm `2/s²`,
+    ///   so `|F| ≤ g·d + d²/s²`, whose positive root is the bound.
     /// - **Upper**, `d ≤ |Q − P|` for any point `P` of the ellipse; `P` is
     ///   one Newton step of `F` from `Q` (along `∇F`) snapped radially
     ///   onto the ellipse in unit coordinates. Both bounds approach `d`
     ///   as `d → 0`; they part by more than the band's own ratio only
     ///   where the ellipse bends tighter than the band resolves (its
-    ///   smallest radius of curvature `b²/a` within a few `ε`).
+    ///   smallest radius of curvature `s²/max(|a|, |b|)` within a few `ε`).
     ///
     /// `OFF` only where the LOWER bound clears the escalation band; `ON`
     /// the carrier only where the UPPER bound is within the zero band;
@@ -850,9 +853,10 @@ impl<T: Decide> ConicArc<T> {
         let g2 = gx.powi(2) + gy.powi(2);
         let g = g2.sqrt();
         // The LOWER bound first: it is finite everywhere — at the centre,
-        // where `∇F` vanishes, it is `b` exactly, the true distance — and
-        // a definite OFF needs nothing else.
-        let lower = two * f.abs() / (g + (g2 + T::from_f64(4.0) * f.abs() / b.powi(2)).sqrt());
+        // where `∇F` vanishes, it is the smaller semi-axis exactly, the
+        // true distance — and a definite OFF needs nothing else.
+        let small = a.abs().min(b.abs());
+        let lower = two * f.abs() / (g + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt());
         let lower = (lower.powi(2) + axial.powi(2)).sqrt();
         let far = decide_magnitude(rows.on, Margin::of(lower), band);
         if far == Ok(Magnitude::Positive) {
@@ -2288,6 +2292,76 @@ mod tests {
             matches!(&got, Err(d) if d.predicate == Some("point_in_arc_loop_conic_straddle")),
             "{got:?}"
         );
+    }
+
+    /// The ellipse of semi-axes `a` along x and `b` along y about the
+    /// origin in `z = 0`, stored with `b` in `major` (`u_ref` along y),
+    /// as STEP import may store it: `geom::Curve3::Ellipse` certifies the
+    /// semi-axes positive, not ordered. Its parameter runs a quarter
+    /// turn behind the `a`-in-`major` storage's.
+    fn stored_minor_first(a: f64, b: f64) -> geom::Curve3<f64> {
+        geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: b,
+            minor: a,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        }
+    }
+
+    /// **[`an_ellipse_tighter_than_the_band_straddles_it`], stored minor
+    /// first.** The lower bound's Hessian term is the SMALLER semi-axis
+    /// whichever field holds it; read off `b` (here the larger), it
+    /// over-states the distance and reads the point `Off`.
+    #[test]
+    fn an_ellipse_stored_minor_first_tighter_than_the_band_straddles_it() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = band.zero();
+        let (a, b) = (1.0, (eps / 100.0).sqrt());
+        let Ok(Some(k)) = ConicArc::of(
+            &stored_minor_first(a, b),
+            (0.0, core::f64::consts::TAU),
+            WALK_ROWS.conic,
+            band,
+        ) else {
+            panic!("the full ellipse is read");
+        };
+        let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), WALK_ROWS.conic, band);
+        assert!(
+            matches!(&got, Err(d) if d.predicate == Some("point_in_arc_loop_conic_straddle")),
+            "{got:?}"
+        );
+    }
+
+    /// **[`an_over_wound_ellipse_window_is_not_an_arc`]'s population,
+    /// stored minor first**: never an arc.
+    #[test]
+    fn an_over_wound_ellipse_window_stored_minor_first_is_not_an_arc() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = band.zero();
+        for a in [14.0f64, 20.0, 100.0] {
+            for overlap in [30.0 * eps, 100.0 * eps] {
+                for at in [
+                    core::f64::consts::FRAC_PI_2,
+                    0.0,
+                    core::f64::consts::FRAC_PI_4,
+                ] {
+                    let speed = (a.powi(2) * at.sin().powi(2) + at.cos().powi(2)).sqrt();
+                    let dt = overlap / speed;
+                    let start = at - 0.5 * dt - core::f64::consts::FRAC_PI_2;
+                    let span = (start, start + core::f64::consts::TAU + dt);
+                    let got =
+                        ConicArc::of(&stored_minor_first(a, 1.0), span, WALK_ROWS.conic, band);
+                    assert!(
+                        matches!(
+                            got,
+                            Err(ConicArcError::Escalated(_) | ConicArcError::WoundPastPeriod)
+                        ),
+                        "a/b {a}, overlap {overlap} at {at}: read as an arc"
+                    );
+                }
+            }
+        }
     }
 
     /// **A null self-loop is not its placeholder circle.** `mef`'s lone

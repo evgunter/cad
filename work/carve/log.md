@@ -247,3 +247,26 @@ The coincident-sections lane was steered by message: the sliver
 decision lives in `skin.rs`, not in the fold, which retires.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-06 — `self-closed-link-sharing-its-vertex-records-two-junctions` closed (PR 4185)
+
+`walk_chains` counts every link at both its ends, so a self-closed link
+holds two ends at its one vertex. Such a link walks alone: closed with
+no junction when nothing else is there, and a corner beside anything
+else. Reproduced on real links (the dome's equator rim with another
+rim's start moved onto its vertex); no body the tree builds reaches it.
+
+Review: single FULL (Opus). It ran eight extra incidence shapes in every
+request order and 485 blend-family tests. It traced the lane's two open
+points and found that the fix turns a possibly silent outcome into a
+typed one (`resolve_annulus` refuses `UnsupportedChain` before
+carving). It found no MAJOR. Its fix pass corrected three comments the
+fix had made false (the walk's rule is now stated in link ends;
+`cap_incidence`'s manifold premise), and its every-order row joined the
+suite. Two rows were filed, both P3/M:
+`corner-valence-reads-a-self-closed-edge-once` (five readers count a
+self-closed edge once, against the walk's ends) and
+`a-walked-chain-closes-at-a-corner-without-a-junction` (pre-existing;
+the cube's top loop plus one vertical).
+
+Signed: (CARVE orchestrator)

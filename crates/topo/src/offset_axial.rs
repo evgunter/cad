@@ -305,8 +305,8 @@ struct MovedChart<T: Real> {
     old: Surface<T>,
     /// The surface after [`geom_brep::offset_surface`].
     new: Surface<T>,
-    /// The signed offset along the chart's stored outward direction —
-    /// the caller's number.
+    /// The signed offset along the chart's stored normal — the
+    /// caller's number.
     distance: T,
     /// The chart's constraint on a corner, in axial terms.
     constraint: Constraint<T>,
@@ -491,9 +491,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         // the continuous extension of the OPENING nappe's normal field
         // — `n₊` does not flip across the apex — so a mirror-nappe
         // face's material moves `−d` along its OWN chart normal. A
-        // `ChartMove`'s distance is along the FACE's outward direction,
-        // so below the apex the two conventions are opposite and the
-        // caller's number is turned over before it reaches the mint.
+        // `ChartMove`'s distance is along that chart normal, so below
+        // the apex it and `n₊` are opposite and the caller's number is
+        // turned over before it reaches the mint.
         // Measured on the cone frustum: unturned, the cavity comes back
         // LARGER than its operand (0.001058 against 0.000895) — a
         // shrink that grew.
@@ -619,7 +619,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
-                what: "a null edge, which carries no curve to transport",
+                what: "it has no curve to move",
             });
         };
         let old_carrier = curve.carrier().clone();
@@ -1078,7 +1078,7 @@ fn corner_arms<T: Decide>(
         let Some(curve) = body.edge_curve_linked(key, edge).certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge: key,
-                what: "a null edge, which carries no curve to transport",
+                what: "it has no curve to move",
             });
         };
         let (t0, t1) = curve.params();
@@ -1286,9 +1286,9 @@ fn solve_corner<T: Decide>(
                 (_, []) | (Profile::Circle { .. }, [_]) => {}
                 (Profile::Line { .. }, [_, ..]) => {
                     return Err(refuse(
-                        "a line profile and a plane parallel to the axis meet here off the \
-                         axis: the plane fixes an azimuth and the line one coordinate, and the \
-                         corner's station along the line is a datum this door does not carry",
+                        "a line profile and a plane parallel to the axis meet here off the axis: \
+                         the plane fixes an azimuth and the line one coordinate, and nothing \
+                         records where along the line the corner stands",
                     ));
                 }
                 (Profile::Circle { .. }, [_, _, ..]) => {
@@ -1319,7 +1319,10 @@ fn solve_corner<T: Decide>(
                     ) {
                         Ok(Sign::Positive) => {}
                         Ok(_) => {
-                            return Err(refuse("an axis pole whose one surface fixes no station"));
+                            return Err(refuse(
+                                "a corner on the axis whose one surface fixes no \
+                                               height along it",
+                            ));
                         }
                         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                     }
@@ -1339,8 +1342,8 @@ fn solve_corner<T: Decide>(
                         Ok(Sign::Zero) => {}
                         Ok(_) => {
                             return Err(refuse(
-                                "an axis pole whose one surface is a profile circle centred off the \
-                             axis, which no point of the axis lies on",
+                                "a corner on the axis whose one surface is a profile circle \
+                                 centred off the axis, which no point of the axis lies on",
                             ));
                         }
                         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
@@ -1516,7 +1519,7 @@ fn solve_corner<T: Decide>(
         }
         _ => Err(refuse(
             "more than one plane parallel to the axis meets here, so the azimuth is \
-             over-determined — a form this corpus has no fixture for and this door does not guess",
+             over-determined",
         )),
     }
 }
@@ -1915,7 +1918,7 @@ fn mint_carrier<T: Decide>(
                 }
             }
             _ => Err(refuse(
-                "a seam whose carrier and chart are not one of the closed-form pairs",
+                "a seam whose curve and surface have no exact offset together",
             )),
         };
     }
@@ -1955,12 +1958,12 @@ fn mint_carrier<T: Decide>(
                  nothing, not two ovals",
             ),
             geom_brep::SectionError::Spiric(geom::SpiricInvalid::ThroughAxis) => refuse(
-                "a rim whose moved cap the section reads off the torus wall's axis but the \
-                 spiric constructor reads through it",
+                "a rim whose moved cap the kernel reads both off the torus wall's axis and \
+                 through it",
             ),
             _ => refuse(
-                "a rim whose moved wall the section arm refuses as an operand — no longer \
-                 a ring torus or a sphere it can cut",
+                "a rim whose moved wall is no longer a ring torus or a sphere a cap can be cut \
+                 against",
             ),
         };
         // The section's curves, with the torus's two named by the side
@@ -2034,8 +2037,8 @@ fn mint_carrier<T: Decide>(
         };
         let Some(old_normal) = normal_of(old) else {
             return Err(refuse(
-                "a rim between a curved wall and a plane parallel to the axis whose carrier \
-                 is not a plane curve with a sense to carry",
+                "a rim between a curved wall and a plane parallel to the axis whose curve is not \
+                 a flat curve with a direction to carry",
             ));
         };
         let new_normal = normal_of(&chosen)
@@ -2050,8 +2053,8 @@ fn mint_carrier<T: Decide>(
                 .reversed()
                 .unwrap_or_else(|| unreachable!("{edge:?}: a closed-form carrier reverses"))),
             Ok(Sign::Zero) => Err(refuse(
-                "a rim whose old carrier's plane is not parallel to its cap's, so its sense \
-                 does not transfer",
+                "a rim whose old curve's plane is not parallel to its cap's, so its direction \
+                 does not carry over",
             )),
             Err(source) => Err(ReplaceFaceError::Escalated { source }),
         };
@@ -2102,7 +2105,7 @@ fn mint_carrier<T: Decide>(
             Ok(latitude_circle(frame, p_start, *axis, *u_ref))
         }
         _ => Err(refuse(
-            "an edge between two distinct charts whose carrier is neither a line nor a circle",
+            "an edge between two different surfaces whose curve is neither a line nor a circle",
         )),
     }
 }
@@ -2231,7 +2234,7 @@ fn param_on<T: Decide>(
 ) -> Result<T, ReplaceFaceError<T>> {
     let unread = || ReplaceFaceError::TogetherAxialEdge {
         edge,
-        what: "a carrier kind this door does not parameterize",
+        what: "its kind of curve has no exact offset here",
     };
     let guess = match carrier {
         Curve3::Circle { .. } | Curve3::Spiric { .. } => {
@@ -2334,8 +2337,8 @@ fn forward_window<T: Decide>(
         Ok(Sign::Positive) => Ok(t1),
         Ok(Sign::Zero | Sign::Negative) => Err(ReplaceFaceError::TogetherAxialEdge {
             edge,
-            what: "an edge whose moved ends read as one point of its carrier, or in reverse, \
-                   so it has no forward window to run",
+            what: "an edge whose moved ends read as one point of its curve, or in reverse, so it \
+                   has no forward span left",
         }),
         Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
@@ -2462,8 +2465,7 @@ fn reauthor<T: Decide>(
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
                         let Curve3::Circle { center, radius, .. } = carrier else {
                             return Err(refuse(
-                                "a declaring pushforward whose sketch arc has no moved circle \
-                                 to be re-authored about",
+                                "a sketch arc with no moved circle to be redrawn about",
                             ));
                         };
                         let centre = flat(*center);

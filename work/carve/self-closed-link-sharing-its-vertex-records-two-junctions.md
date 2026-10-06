@@ -2,11 +2,13 @@
 id: self-closed-link-sharing-its-vertex-records-two-junctions
 kind: issue
 title: walk_chains records two junctions at one vertex and closes the chain when a self-closed link shares its vertex with one other requested link
-status: dispatched
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
 branch: carve/self-closed-link-counts-its-vertex-twice
+pr: 4185
+closed: 2026-10-06
 ---
 
 
@@ -44,3 +46,15 @@ rule — or make the closing branch refuse a junction whose two links
 are the run's own two end links when the run has a free end. Row it
 through `test_support::walked_chains` on hand-built links if no door
 reaches it.
+
+## Built (2026-10-06)
+
+`walk_chains` counts every link at both its ends, so a self-closed
+link's vertex holds two of its ends. Beside one other requested link
+that vertex is a corner: the self-closed link walks alone into a
+closed chain with no junction, and the other link's chain is open and
+ends there. `closed_chain_junctions::a_self_closed_link_counts_its_vertex_twice`
+pins it on the dome's equator rim and a second link rewired onto its
+vertex, walked through `test_support::walked_links`; no door builds the
+shape on a body. The corner predicates downstream still count a
+self-closed edge once: `corner-valence-reads-a-self-closed-edge-once`.
