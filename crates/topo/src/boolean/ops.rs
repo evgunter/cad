@@ -754,7 +754,11 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let connected = bool_connect(&mut red, a, b, band, tol);
     red.leave_join_surgery(connected.is_ok());
     let connected = match connected {
-        Ok(c) => c,
+        Ok(c) => {
+            #[cfg(any(test, feature = "test-support"))]
+            record_join_route(crate::test_support::JoinRoute::Connected);
+            c
+        }
         Err(
             err @ (BooleanError::Join(_)
             | BooleanError::JoinDesync { .. }
@@ -765,6 +769,8 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 red.b = sb;
                 return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
                     Some(result) => {
+                        #[cfg(any(test, feature = "test-support"))]
+                        record_join_route(crate::test_support::JoinRoute::RestDoor);
                         interior_loops?;
                         Ok(Joined::Answered(Box::new(result)))
                     }
@@ -3541,6 +3547,26 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     }))
 }
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    /// The route of each join this thread ran, in call order: the
+    /// witness a test reads to tell whether the declared-REST door
+    /// ([`super::rest::try_rest_union`]) built a union the chord join
+    /// refused, where both build one body.
+    static JOIN_ROUTES: core::cell::RefCell<Vec<crate::test_support::JoinRoute>> =
+        const { core::cell::RefCell::new(Vec::new()) };
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_join_route(route: crate::test_support::JoinRoute) {
+    JOIN_ROUTES.with(|r| r.borrow_mut().push(route));
+}
+
+/// Drains [`JOIN_ROUTES`].
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn take_join_routes() -> Vec<crate::test_support::JoinRoute> {
+    JOIN_ROUTES.with(|r| core::mem::take(&mut *r.borrow_mut()))
+}
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

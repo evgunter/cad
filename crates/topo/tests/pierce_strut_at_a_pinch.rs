@@ -29,24 +29,87 @@ use topo::{
     union, union_with, validate_geometric, validate_pseudomanifold,
 };
 
-type Op = fn(&Body<f64>, &Body<f64>, Tol) -> Result<BooleanResult<f64>, topo::BooleanError>;
+/// An op on the pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Union,
+    Subtract,
+    Intersect,
+}
 
-/// The six ops on `(x, y)` with each one's name, faces/edges/vertices
-/// and closed-form volume, in that order.
-type Row = (&'static str, Op, bool, [usize; 3], f64);
+/// One op on `(x, y)`: its name, its kind, whether `y` goes first, its
+/// faces/edges/vertices, its closed-form volume and its tier-3′ verdict.
+///
+/// A result 3′ refuses is refused by an operand's own contacts along its
+/// pinch line, which no boolean carries into its result
+/// (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
+type Row = (&'static str, Kind, bool, [usize; 3], f64, bool);
 
 fn t() -> Tol {
     Tol::witness()
 }
 
+type Point = (i64, i64, i64);
+
+/// A body's geometry, key-free: each face by the points of its loops'
+/// vertices, each edge by its ends' points, rounded to a micron, as
+/// sorted multisets.
+fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
+    let at = |p: geom_core::Point3<f64>| {
+        let n = |x: f64| (x * 1e6).round() as i64;
+        (n(p.x), n(p.y), n(p.z))
+    };
+    let mut faces: Vec<Vec<Point>> = body
+        .faces()
+        .map(|(_, f)| {
+            let mut ps: Vec<Point> = core::iter::once(f.outer)
+                .chain(f.rings.iter().copied())
+                .flat_map(|l| {
+                    let first = match body.get_loop(l).unwrap().boundary {
+                        topo::LoopBoundary::Cycle { first } => first,
+                        topo::LoopBoundary::Empty { .. } => {
+                            panic!("a closed body has no empty loop")
+                        }
+                    };
+                    body.loop_cycle(first)
+                        .unwrap()
+                        .into_iter()
+                        .map(|he| at(body.half_edge_start_point(he).unwrap()))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            ps.sort_unstable();
+            ps
+        })
+        .collect();
+    faces.sort_unstable();
+    let mut edges: Vec<[Point; 2]> = body
+        .edges()
+        .map(|(_, e)| {
+            let mut ps =
+                [e.he_plus, e.he_minus].map(|he| at(body.half_edge_start_point(he).unwrap()));
+            ps.sort_unstable();
+            ps
+        })
+        .collect();
+    edges.sort_unstable();
+    (faces, edges)
+}
+
 /// Runs every row on `(x, y)` (`swap` puts `y` first) and asserts the
-/// result's counts, volume and tier-3 validity, and that the two orders
-/// of a symmetric op agree. Returns each result's tier-3′ verdict.
-fn every_op(label: &str, x: &Body<f64>, y: &Body<f64>, rows: &[Row]) -> Vec<bool> {
-    let mut verdicts = Vec::new();
-    for &(name, op, swap, counts, volume) in rows {
+/// result's counts, volume, tier-3 validity and tier-3′ verdict, and
+/// that the two orders of a union, and of an intersection, are one body.
+fn every_op(label: &str, x: &Body<f64>, y: &Body<f64>, rows: &[Row]) {
+    type Shape = (Vec<Vec<Point>>, Vec<[Point; 2]>);
+    let mut by_kind: Vec<(Kind, bool, Shape)> = Vec::new();
+    for &(name, kind, swap, counts, volume, verdict) in rows {
         let what = format!("{label}: {name}");
         let (a, b) = if swap { (y, x) } else { (x, y) };
+        let op = match kind {
+            Kind::Union => union,
+            Kind::Subtract => subtract,
+            Kind::Intersect => intersect,
+        };
         let r = match op(a, b, t()) {
             Ok(BooleanResult::Body(r)) => r,
             Ok(BooleanResult::Empty) => panic!("{what}: empty"),
@@ -64,9 +127,25 @@ fn every_op(label: &str, x: &Body<f64>, y: &Body<f64>, rows: &[Row]) -> Vec<bool
             (v - volume).abs() < 1e-9,
             "{what}: volume {v}, closed form {volume}"
         );
-        verdicts.push(validate_pseudomanifold(&r.body, &r.contacts, t()).is_ok());
+        assert_eq!(
+            validate_pseudomanifold(&r.body, &r.contacts, t()).is_ok(),
+            verdict,
+            "{what}: tier 3′"
+        );
+        by_kind.push((kind, swap, shape(&r.body)));
     }
-    verdicts
+    for kind in [Kind::Union, Kind::Intersect] {
+        let both: Vec<&Shape> = by_kind
+            .iter()
+            .filter(|(k, _, _)| *k == kind)
+            .map(|(_, _, s)| s)
+            .collect();
+        assert_eq!(both.len(), 2, "{label}: {kind:?} runs both ways round");
+        assert!(
+            both[0] == both[1],
+            "{label}: {kind:?} differs by operand order"
+        );
+    }
 }
 
 fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -99,27 +178,42 @@ fn the_staircase_and_the_plate_build_in_every_op() {
     let both = 3.0 * 2.0 * 0.5 - (0.5 * 1.0 + 0.25 + 0.25) * 0.5;
     let p_volume = 6.0;
     let rows: [Row; 6] = [
-        ("X − P", subtract, false, [28, 74, 48], x_volume - both),
+        (
+            "X − P",
+            Kind::Subtract,
+            false,
+            [28, 74, 48],
+            x_volume - both,
+            false,
+        ),
         (
             "X ∪ P",
-            union,
+            Kind::Union,
             false,
             [28, 74, 50],
             x_volume + p_volume - both,
+            false,
         ),
-        ("X ∩ P", intersect, false, [20, 48, 28], both),
-        ("P − X", subtract, true, [20, 48, 30], p_volume - both),
+        ("X ∩ P", Kind::Intersect, false, [20, 48, 28], both, true),
+        (
+            "P − X",
+            Kind::Subtract,
+            true,
+            [20, 48, 30],
+            p_volume - both,
+            false,
+        ),
         (
             "P ∪ X",
-            union,
+            Kind::Union,
             true,
             [28, 74, 50],
             x_volume + p_volume - both,
+            false,
         ),
-        ("P ∩ X", intersect, true, [20, 48, 28], both),
+        ("P ∩ X", Kind::Intersect, true, [20, 48, 28], both, true),
     ];
-    let verdicts = every_op("staircase", &x, &p, &rows);
-    assert!(verdicts[2] && verdicts[5], "the intersections pass 3′");
+    every_op("staircase", &x, &p, &rows);
 }
 
 /// **A bare pinch against a face its line pierces, every op both ways
@@ -136,12 +230,54 @@ fn a_pinch_through_a_face_builds_in_every_op() {
     // B holds a quarter of each brick's lower half.
     let both = 2.0 * 0.25 * 0.5;
     let rows: [Row; 6] = [
-        ("pinch ∪ B", union, false, [19, 48, 31], 2.0 + 1.0 - both),
-        ("pinch − B", subtract, false, [18, 42, 28], 2.0 - both),
-        ("pinch ∩ B", intersect, false, [12, 24, 16], both),
-        ("B ∪ pinch", union, true, [19, 48, 31], 2.0 + 1.0 - both),
-        ("B − pinch", subtract, true, [13, 30, 19], 1.0 - both),
-        ("B ∩ pinch", intersect, true, [12, 24, 16], both),
+        (
+            "pinch ∪ B",
+            Kind::Union,
+            false,
+            [19, 48, 31],
+            2.0 + 1.0 - both,
+            false,
+        ),
+        (
+            "pinch − B",
+            Kind::Subtract,
+            false,
+            [18, 42, 28],
+            2.0 - both,
+            false,
+        ),
+        (
+            "pinch ∩ B",
+            Kind::Intersect,
+            false,
+            [12, 24, 16],
+            both,
+            false,
+        ),
+        (
+            "B ∪ pinch",
+            Kind::Union,
+            true,
+            [19, 48, 31],
+            2.0 + 1.0 - both,
+            false,
+        ),
+        (
+            "B − pinch",
+            Kind::Subtract,
+            true,
+            [13, 30, 19],
+            1.0 - both,
+            false,
+        ),
+        (
+            "B ∩ pinch",
+            Kind::Intersect,
+            true,
+            [12, 24, 16],
+            both,
+            false,
+        ),
     ];
     every_op("pinch", &pinch, &b, &rows);
 }
@@ -177,28 +313,52 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
     let rows: [Row; 6] = [
         (
             "pinch ∪ B",
-            union,
+            Kind::Union,
             false,
             [18, 45, 29],
             pinch_volume + 1.0 - both,
+            false,
         ),
         (
             "pinch − B",
-            subtract,
+            Kind::Subtract,
             false,
             [18, 42, 28],
             pinch_volume - both,
+            false,
         ),
-        ("pinch ∩ B", intersect, false, [13, 27, 18], both),
+        (
+            "pinch ∩ B",
+            Kind::Intersect,
+            false,
+            [13, 27, 18],
+            both,
+            false,
+        ),
         (
             "B ∪ pinch",
-            union,
+            Kind::Union,
             true,
             [18, 45, 29],
             pinch_volume + 1.0 - both,
+            false,
         ),
-        ("B − pinch", subtract, true, [13, 30, 19], 1.0 - both),
-        ("B ∩ pinch", intersect, true, [13, 27, 18], both),
+        (
+            "B − pinch",
+            Kind::Subtract,
+            true,
+            [13, 30, 19],
+            1.0 - both,
+            false,
+        ),
+        (
+            "B ∩ pinch",
+            Kind::Intersect,
+            true,
+            [13, 27, 18],
+            both,
+            false,
+        ),
     ];
     every_op("reflex", &pinch, &b, &rows);
 }

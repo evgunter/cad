@@ -93,6 +93,8 @@ mod finish;
 pub(crate) mod insert;
 mod join;
 mod ops;
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use ops::take_join_routes;
 pub(crate) mod section_cert;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::no_crossings_certificates;

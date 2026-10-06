@@ -187,6 +187,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
             count: st.ends.len(),
         });
     }
+    st.joiner.finish(&red.body)?;
     let fragments = st.joiner.take_fragments();
     Ok((st.completed, fragments))
 }

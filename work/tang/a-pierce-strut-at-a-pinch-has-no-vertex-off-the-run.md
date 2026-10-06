@@ -110,21 +110,28 @@ one full review.
 ## Closed
 
 The second mechanism, the deferral. `ChordJoiner::rehome_rings` leaves a ring
-pending when every vertex lands `OnBoundary` and every edge is a
-null edge. Only an unjoined pierce ring is like that, and only the
-boolean's vertex-on-face insertion mints one. The ring stays in its
-face, and later re-homing skips it. The next `join` that reaches it
-moves it into the face of the ring it meets (`place_pending`), whose
-own off-run vertices placed it. No geometry is read, so neither a
-reflex corner at the pinch nor a curved face needs an arm. Three
-cases still refuse `RingHomingAmbiguous`:
+pending when it lies on a plane, every vertex is decided ON the run
+(`RingSide::OnRun`), and every edge is a null edge. Only an unjoined
+pierce ring is like that, and only the boolean's vertex-on-face
+insertion mints one. The ring stays in its face; a later division of
+that face reads it on the run again or out, never in. The next `join`
+that reaches it moves it into the face of the ring it meets
+(`place_pending`), whose own off-run vertices placed it. No geometry
+is read, so a reflex corner at the pinch needs no arm.
+
+On a wall's chart nothing is deferred. There a strut's point is a run
+vertex, so its azimuth ray is degenerate and decides nothing
+(`RingSide::Undecided`). That refuses as on cf867b38. The declared
+curved unions it reaches go back to the REST door
+(`a_shaft_through_the_bore_off_its_seam_takes_the_rest_door`).
+
+Four cases still refuse `RingHomingAmbiguous`:
 
 - two pending rings in different faces joined;
 - a join inside one pending loop;
-- a ring still pending once `bool_connect` is quiescent.
-
-A ring with a real edge that is on the run at every vertex refuses
-as before.
+- a ring still pending when either sweep ends (`ChordJoiner::finish`);
+- a ring with a real edge on the run, or a chart ring no vertex of
+  which is decided.
 
 Measured on cf867b38, then built on the branch:
 

@@ -776,15 +776,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     }
     // A pierce ring deferred at a pinch is placed by the join that
     // reaches it; one still pending after every join has run never was.
-    if let Some(ring) = sa
-        .joiner
-        .unplaced_ring(&red.a)
-        .or_else(|| sb.joiner.unplaced_ring(&red.b))
-    {
-        return Err(BooleanError::Join(SplitJoinError::RingHomingAmbiguous {
-            ring,
-        }));
-    }
+    sa.joiner.finish(&red.a).map_err(BooleanError::Join)?;
+    sb.joiner.finish(&red.b).map_err(BooleanError::Join)?;
     Ok(Connected {
         completed,
         a_fragments: sa.joiner.take_fragments(),

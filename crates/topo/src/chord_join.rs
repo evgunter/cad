@@ -332,13 +332,15 @@ pub enum SplitJoinError {
     /// its schedule, or met an edge of the divided face's outline it
     /// cannot cross ([`PointInLoopError::Uncrossable`]).
     RingHoming(PointInLoopError),
-    /// Every vertex of a ring landed ON the run dividing its face off,
-    /// so no vertex says which side the ring is on: a ring an
-    /// ill-conditioned operand put on the run. A pierce ring there is
-    /// deferred instead ([`ChordJoiner`]'s pending rings), and refuses
-    /// this way only if its join cannot place it either: it meets a
-    /// pending ring in another face, a polygon completes inside it, or
-    /// it is still pending when the sweep is done.
+    /// No vertex of a ring says which side of the run dividing its face
+    /// off it is on: every vertex is ON the run (a ring an
+    /// ill-conditioned operand put there), or, on a wall's chart, no
+    /// vertex's ray is decided. A pierce ring on a plane with every
+    /// vertex on the run is deferred instead ([`ChordJoiner`]'s pending
+    /// rings), and refuses this way only if its join cannot place it
+    /// either: it meets a pending ring in another face, a polygon
+    /// completes inside it, or it is still pending when either sweep is
+    /// done.
     RingHomingAmbiguous {
         /// The undecidable ring.
         ring: LoopKey,
@@ -823,10 +825,9 @@ pub(crate) struct ChordJoiner {
     /// The run band (ring re-homing containment).
     band: Band,
     /// Pierce rings a division left unplaced: every vertex on the run,
-    /// every edge a null edge (a strut at a pinch). Each stays in the
-    /// face it was in, skipped by later re-homing, until a join
-    /// connects it to a ring that is placed, and it moves to that
-    /// ring's face.
+    /// every edge a null edge (a strut at a pinch on a plane). Each stays
+    /// in the face it was in until a join connects it to a ring that is
+    /// placed, and it moves to that ring's face.
     pending: SecondaryMap<LoopKey, ()>,
 }
 
@@ -843,10 +844,21 @@ impl ChordJoiner {
 
     /// A pierce ring still unplaced, if any: asked once the sweep is
     /// quiescent, when every join that could have placed it has run.
+    /// A pending key whose loop has died (a `mekr` merged it away) names
+    /// nothing, and slotmap versions keep it from naming a new loop.
     pub(crate) fn unplaced_ring<T: Real>(&self, body: &Body<T>) -> Option<LoopKey> {
         self.pending
             .keys()
             .find(|&ring| body.get_loop(ring).is_some())
+    }
+
+    /// The quiescence check both sweeps end with: a ring still pending
+    /// was never reached by a join, so nothing placed it.
+    pub(crate) fn finish<T: Real>(&self, body: &Body<T>) -> Result<(), SplitJoinError> {
+        match self.unplaced_ring(body) {
+            Some(ring) => Err(SplitJoinError::RingHomingAmbiguous { ring }),
+            None => Ok(()),
+        }
     }
 
     /// Places a pending ring before `h1` and `h2` are joined: the join
@@ -875,7 +887,10 @@ impl ChordJoiner {
                 return Err(SplitJoinError::RingHomingAmbiguous { ring: l1 });
             }
             // Two pending rings of one face merge into a ring still
-            // pending; the join's mekr keeps one of the two keys.
+            // pending: the join's mekr keeps one of the two loops, the
+            // second chord walls a sliver off that ring's face, and the
+            // dead loop's key stays in `pending` but resolves to nothing
+            // ([`Self::unplaced_ring`]).
             (true, true) => {}
             (true, false) | (false, true) => {
                 let (ring, to) = if p1 { (l1, f2) } else { (l2, f1) };
@@ -3609,11 +3624,14 @@ impl ChordJoiner {
     /// tested: a ring-lane remainder is geometrically coincident with
     /// the run and would land `OnBoundary`.
     ///
-    /// A pierce ring every vertex of which lands `OnBoundary` is a
-    /// strut at a pinch the run passes through: no point of it says
-    /// which side it is on, but its own polygon will, so it is left
-    /// pending ([`Self::place_pending`]) and skipped here from then on.
-    /// Any other ring that lands there refuses.
+    /// A pierce ring on a plane every vertex of which is decided ON the
+    /// run ([`RingSide::OnRun`]) is a strut at a pinch the run passes
+    /// through: no point of it says which side it is on, but its own
+    /// polygon will, so it is left pending ([`Self::place_pending`]). Its
+    /// point stays on the boundary of the face holding it, so a later
+    /// division of that face reads it on the run again or out, and
+    /// never moves it. Any other ring on the run, and any ring no vertex
+    /// of which is decided (a chart's degenerate rays), refuses.
     fn rehome_rings<T: Decide>(
         &mut self,
         body: &mut Body<T>,
@@ -3645,7 +3663,7 @@ impl ChordJoiner {
             Some(face_plane_normal(body, oldf)?)
         };
         for ring in rings {
-            if ring == remainder || self.pending.contains_key(ring) {
+            if ring == remainder {
                 continue;
             }
             let side = match normal {
@@ -3653,12 +3671,12 @@ impl ChordJoiner {
                 None => chart_ring_side(body, &surface, newf, ring, self.band)?,
             };
             match side {
-                LoopContainment::In => body.ring_move(ring, newf)?,
-                LoopContainment::Out => {}
-                LoopContainment::OnBoundary if is_pierce_ring(body, ring)? => {
+                RingSide::In => body.ring_move(ring, newf)?,
+                RingSide::Out => {}
+                RingSide::OnRun if is_pierce_ring(body, ring)? => {
                     self.pending.insert(ring, ());
                 }
-                LoopContainment::OnBoundary => {
+                RingSide::OnRun | RingSide::Undecided => {
                     return Err(SplitJoinError::RingHomingAmbiguous { ring });
                 }
             }
@@ -3793,16 +3811,48 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// vertex off `run`'s boundary: a ring disjoint from the run cannot
 /// cross it, but it may touch it at a vertex — a pinch, where two
 /// sections meet at one point — so its anchor alone can land `OnBoundary`
-/// on a ring that is plainly on one side. `OnBoundary` only when every
-/// vertex does.
+/// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
+/// every vertex does: each such verdict is decided, so the ring is on
+/// the run.
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
     run: LoopKey,
     normal: Vec3<T>,
     band: Band,
-) -> Result<LoopContainment, SplitJoinError> {
-    let vertices = match body
+) -> Result<RingSide, SplitJoinError> {
+    for v in ring_vertices(body, ring)? {
+        let p = vertex_point(body, v)?;
+        match point_in_loop(body, run, normal, p, band)? {
+            LoopContainment::In => return Ok(RingSide::In),
+            LoopContainment::Out => return Ok(RingSide::Out),
+            LoopContainment::OnBoundary => {}
+        }
+    }
+    Ok(RingSide::OnRun)
+}
+
+/// Where ring re-homing puts a bystander ring.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RingSide {
+    /// Inside the run: it moves to the new face.
+    In,
+    /// Outside the run: it stays.
+    Out,
+    /// Every vertex is ON the run ([`ring_side`]'s decided verdict).
+    OnRun,
+    /// No vertex was decided: on a chart, a vertex whose ray is
+    /// degenerate says nothing, whether or not it is on the run
+    /// ([`chart_ring_side`]).
+    Undecided,
+}
+
+/// The vertices of `ring`, in cycle order (an empty ring's lone one).
+fn ring_vertices<T: Decide>(
+    body: &Body<T>,
+    ring: LoopKey,
+) -> Result<Vec<VertexKey>, SplitJoinError> {
+    match body
         .get_loop(ring)
         .ok_or_else(|| corrupt_loop(ring))?
         .boundary
@@ -3812,17 +3862,9 @@ fn ring_side<T: Decide>(
             .ok_or_else(|| corrupt_he(first))?
             .into_iter()
             .map(|he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start))
-            .collect::<Result<Vec<_>, SplitJoinError>>()?,
-        LoopBoundary::Empty { vertex } => vec![vertex],
-    };
-    for v in vertices {
-        let p = vertex_point(body, v)?;
-        match point_in_loop(body, run, normal, p, band)? {
-            LoopContainment::OnBoundary => {}
-            side => return Ok(side),
-        }
+            .collect(),
+        LoopBoundary::Empty { vertex } => Ok(vec![vertex]),
     }
-    Ok(LoopContainment::OnBoundary)
 }
 
 /// [`ring_side`] on a cylinder wall's chart: which side of
@@ -3840,6 +3882,10 @@ fn ring_side<T: Decide>(
 /// metres; a ring vertex on the ray's degenerate rows (the run passes
 /// through its azimuth at a vertex, or along it) says nothing and the
 /// next vertex is asked, as [`ring_side`] does for a vertex on the run.
+/// Such a vertex may or may not be on the run, so a ring none of whose
+/// vertices is decided is [`RingSide::Undecided`], never
+/// [`RingSide::OnRun`]: a pierce strut at a pinch, whose point is a run
+/// vertex, always reads so here, and refuses rather than waiting.
 /// A sphere face refuses typed ([`no_wall_chart`]).
 ///
 /// This is the third point-in-region routine beside [`ring_side`] (on a
@@ -3852,7 +3898,7 @@ fn chart_ring_side<T: Decide>(
     newf: FaceKey,
     ring: LoopKey,
     band: Band,
-) -> Result<LoopContainment, SplitJoinError> {
+) -> Result<RingSide, SplitJoinError> {
     let WallChart {
         origin: centre,
         axis,
@@ -3881,19 +3927,7 @@ fn chart_ring_side<T: Decide>(
         ));
     }
     let mid = (lo + hi) * T::from_f64(0.5);
-    let vertices = match body
-        .get_loop(ring)
-        .ok_or_else(|| corrupt_loop(ring))?
-        .boundary
-    {
-        LoopBoundary::Cycle { first } => body
-            .loop_cycle(first)
-            .ok_or_else(|| corrupt_he(first))?
-            .into_iter()
-            .map(|he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start))
-            .collect::<Result<Vec<_>, SplitJoinError>>()?,
-        LoopBoundary::Empty { vertex } => vec![vertex],
-    };
+    let vertices = ring_vertices(body, ring)?;
     // The chart segments of the run: each edge (`Some(image)`), then the
     // straight row to the next image's entry.
     let n = images.len();
@@ -3946,12 +3980,12 @@ fn chart_ring_side<T: Decide>(
             }
         }
         return Ok(if crossings % 2 == 1 {
-            LoopContainment::In
+            RingSide::In
         } else {
-            LoopContainment::Out
+            RingSide::Out
         });
     }
-    Ok(LoopContainment::OnBoundary)
+    Ok(RingSide::Undecided)
 }
 
 /// A representative point of a loop (its anchor vertex).
@@ -4972,6 +5006,11 @@ mod pending_ring_tests {
         Ok(made.face)
     }
 
+    /// The vertices of `face`'s outer loop.
+    fn face_corners(body: &Body<f64>, face: FaceKey) -> Vec<VertexKey> {
+        ring_vertices(body, body.get_face(face).unwrap().outer).unwrap()
+    }
+
     /// Asserts `got` is the ambiguous-homing refusal naming `ring`.
     fn refuses_at<R: core::fmt::Debug>(got: Result<R, SplitJoinError>, ring: LoopKey) {
         match got {
@@ -5058,17 +5097,13 @@ mod pending_ring_tests {
         )
         .unwrap();
         assert_eq!(j.unplaced_ring(&body), None, "the join placed the strut");
-        // The join's second chord walls a sliver off the face it
-        // joined in; the fragment log names that face.
+        // The join's second chord walls a sliver, holding the strut's
+        // half, off the partner's face.
         let joined = face_of(&body, body.get_half_edge(s[0]).unwrap().parent_loop);
-        let fragments = j.take_fragments();
-        assert!(
-            joined == home || fragments.contains(&(joined, home)),
-            "joined in {joined:?}, not in its partner's face {home:?} ({fragments:?})"
-        );
-        assert!(
-            fragments.iter().all(|&(_, from)| from == home),
-            "every chord divided the partner's face: {fragments:?}"
+        assert_eq!(
+            j.take_fragments(),
+            [(joined, home)],
+            "the join divided the partner's face"
         );
     }
 
@@ -5080,8 +5115,9 @@ mod pending_ring_tests {
         let (a, ha) = pierce_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0), 1);
         let (b, hb) = pierce_ring(&mut body, top, Point3::new(0.5, 0.5, 1.0), 1);
         let newf = divide(&mut j, &mut body, top, (c[0], c[2])).unwrap();
-        // Both are pending in `top`; carry one across as a later division
-        // with it pending in the other piece would leave it.
+        // Both are pending in `top`. No sweep reaches two pending rings
+        // in different faces, so the state is fabricated: one is carried
+        // across by hand.
         body.ring_move(b, newf).unwrap();
         assert!(j.unplaced_ring(&body).is_some());
         refuses_at(
@@ -5117,5 +5153,105 @@ mod pending_ring_tests {
             ),
             ring,
         );
+    }
+
+    /// **Two pending struts of one face merge into a ring still pending,
+    /// and the join that reaches it from a placed ring places it.**
+    #[test]
+    fn two_pending_struts_merge_and_are_placed_together() {
+        let (mut body, top, c) = slab();
+        let mut j = joiner();
+        let (a, ha) = pierce_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0), 2);
+        let (b, hb) = pierce_ring(&mut body, top, Point3::new(0.5, 0.5, 1.0), 1);
+        let (lower, l) = pierce_ring(&mut body, top, Point3::new(1.5, 0.5, 1.0), 1);
+        divide(&mut j, &mut body, top, (c[0], c[2])).unwrap();
+        let home = face_of(&body, lower);
+        assert_eq!((face_of(&body, a), face_of(&body, b)), (top, top));
+        assert_ne!(top, home, "the fixture puts the partner apart");
+        j.join(
+            &mut body,
+            ha[0],
+            hb[0],
+            JoinLane::Planar,
+            SegmentEdge::Is(None),
+            tol(),
+        )
+        .unwrap();
+        let merged = body.get_half_edge(ha[1]).unwrap().parent_loop;
+        assert_eq!(
+            j.unplaced_ring(&body),
+            Some(merged),
+            "the merged ring is still pending"
+        );
+        assert_eq!(face_of(&body, merged), top, "and still where it was");
+        let merge = j.take_fragments();
+        assert!(
+            merge.iter().all(|&(_, from)| from == top),
+            "the merge's chords divided only the face it was in: {merge:?}"
+        );
+        j.join(
+            &mut body,
+            ha[1],
+            l[0],
+            JoinLane::Planar,
+            SegmentEdge::Is(None),
+            tol(),
+        )
+        .unwrap();
+        assert_eq!(j.unplaced_ring(&body), None, "the partner's join placed it");
+        let joined = face_of(&body, body.get_half_edge(ha[1]).unwrap().parent_loop);
+        assert_eq!(
+            j.take_fragments(),
+            [(joined, home)],
+            "its chords walled a sliver off the partner's face"
+        );
+    }
+
+    /// **A pending strut stays pending through a later division whose
+    /// run misses it.**
+    #[test]
+    fn a_pending_strut_stays_pending_through_a_later_division() {
+        let p = prism_z::<f64>(
+            &[
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (3.0, 1.0),
+                (2.0, 2.0),
+                (0.0, 2.0),
+                (-1.0, 1.0),
+            ],
+            0.0,
+            1.0,
+            tol(),
+        );
+        let (mut body, top, c) = (p.body, p.top_face, p.top);
+        let mut j = joiner();
+        let (strut, _) = pierce_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0), 1);
+        // The run from (-1, 1) to (3, 1) through the strut.
+        divide(&mut j, &mut body, top, (c[5], c[2])).unwrap();
+        assert_eq!(j.unplaced_ring(&body), Some(strut));
+        assert_eq!(face_of(&body, strut), top);
+        // Cut a corner off whichever half `top` kept, along a chord
+        // that passes above or below the strut.
+        let corner = if face_corners(&body, top).contains(&c[3]) {
+            (c[3], c[5])
+        } else {
+            (c[0], c[2])
+        };
+        divide(&mut j, &mut body, top, corner).unwrap();
+        assert_eq!(j.unplaced_ring(&body), Some(strut), "still pending");
+        assert_eq!(face_of(&body, strut), top, "and still where it was");
+    }
+
+    /// **A strut still pending when a sweep is done refuses**: the
+    /// check both sweeps end with.
+    #[test]
+    fn a_strut_still_pending_at_the_end_refuses() {
+        let (mut body, top, c) = slab();
+        let mut j = joiner();
+        assert!(j.finish(&body).is_ok(), "nothing pending");
+        let (strut, _) = pierce_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0), 1);
+        divide(&mut j, &mut body, top, (c[0], c[2])).unwrap();
+        refuses_at(j.finish(&body), strut);
     }
 }
