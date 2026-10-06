@@ -109,6 +109,8 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
 mod offset_restates_a_neighbour_chart_rim;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "operand_gate_pose.rs"]
 mod operand_gate_pose;
 #[path = "operand_gate_support_plates.rs"]

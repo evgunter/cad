@@ -20,7 +20,7 @@ and P1 rows; its P2, P3 and unbanded rows went to RULES
 | P1 | `a-widened-rotation-angle-refuses-on-the-plain-interval-lane` | D | a widened rotation angle refuses on the plain Interval lane at the first Node::Transform |
 | P1 | `the-chain-demo-detects-no-self-intersection` | H | the chain demo detects no self-intersection (its certified half waits on CLEAR's `symbolic-tier-and-clearance-engine`) |
 
-In flight: `SYM-16` (`ignored-sym-receipt-rows-drifted-red-on-main-unattributed`).
+In flight: `SYM-17` (`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`).
 
 ## SYM-14 — requested by Ev (2026-09-22, P1), MERGED
 
