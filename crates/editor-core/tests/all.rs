@@ -150,6 +150,8 @@ mod edit_doc_param_unit;
 mod edit_has_minted;
 #[path = "edit_instance_crossing_names.rs"]
 mod edit_instance_crossing_names;
+#[path = "edit_bore_two_rims.rs"]
+mod edit_bore_two_rims;
 #[path = "edit_ladder_rim.rs"]
 mod edit_ladder_rim;
 #[path = "edit_one_predicate.rs"]
