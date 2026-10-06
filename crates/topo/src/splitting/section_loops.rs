@@ -59,20 +59,21 @@ pub(super) fn chord_u_ref<T: Real>(
     if let [a, b, ..] = points {
         return (*b - *a).normalize();
     }
+    let first = match body.get_loop(l).map(|lp| lp.boundary) {
+        Some(LoopBoundary::Cycle { first }) => first,
+        other => unreachable!("section loop {l:?} has one corner and is no cycle: {other:?}"),
+    };
     assert!(
-        one_whole_conic(body, l),
+        one_whole_conic(body, first),
         "section loop {l:?} has one corner and no whole section conic: the join refuses a loop of \
          lone-site placeholders before it is charted"
     );
     n.orthonormal_basis().0
 }
 
-/// Whether `l` is one edge on a section conic that is no placeholder
-/// ([`crate::chord_join::lone_site_placeholder`]).
-fn one_whole_conic<T: Real>(body: &Body<T>, l: LoopKey) -> bool {
-    let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|lp| lp.boundary) else {
-        return false;
-    };
+/// Whether the cycle at `first` is one edge on a section conic that is
+/// no placeholder ([`crate::chord_join::lone_site_placeholder`]).
+fn one_whole_conic<T: Real>(body: &Body<T>, first: crate::entity::HalfEdgeKey) -> bool {
     let Some(he) = body.get_half_edge(first) else {
         return false;
     };
