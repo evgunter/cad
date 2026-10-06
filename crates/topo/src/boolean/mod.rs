@@ -73,8 +73,8 @@
 mod arcs;
 pub(crate) mod boxes;
 mod carrier_cross;
-mod carrier_touch;
 pub mod carrier_eq;
+mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
 pub(crate) mod combine;

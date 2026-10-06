@@ -98,7 +98,10 @@ fn edge_brick(h: f64, at: Vec3<f64>, along: Vec3<f64>, n: Vec3<f64>, m: Vec3<f64
         (s2, s1)
     };
     let brick = sweep::test_support::brick((-h, h), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    moved(&brick, &Affine3::from_parts(Mat3::from_cols(along, s1, s2), at))
+    moved(
+        &brick,
+        &Affine3::from_parts(Mat3::from_cols(along, s1, s2), at),
+    )
 }
 
 /// A brick of half-length `h` whose edge touches the unit sphere at
@@ -334,7 +337,11 @@ fn a_rim_circle_tangent_to_the_lens_sphere_below_its_face_builds() {
     let r = 0.3;
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![profile::circle(Point2::new(0.0, -1.3), r, tol).unwrap().into()],
+        vec![
+            profile::circle(Point2::new(0.0, -1.3), r, tol)
+                .unwrap()
+                .into(),
+        ],
     )
     .validate(tol)
     .unwrap();

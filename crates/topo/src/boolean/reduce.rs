@@ -2325,6 +2325,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   the trim, and each root at an end is that end's own
         //   incidence. So the ends decide, under the same rule as the
         //   mixed-sign arm ([`Placement::undeclared_no_interior`]).
+        // - **`OffFace`**: every meeting of the span with the carrier, the
+        //   ends' among them, lies off this face whether or not the edge
+        //   lies on the carrier, so the ends decide under the same rule.
         // - **`LiesOn`: an arc lying on the carrier**, exactly on by the
         //   circle root door. It is an ON event (C4's one-sided cover,
         //   narrowed to touches) when every surface of a face it bounds is

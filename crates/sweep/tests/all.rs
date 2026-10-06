@@ -610,8 +610,6 @@ mod m9_3_wall_door;
 
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
-#[path = "pierce_tangent_off_face.rs"]
-mod pierce_tangent_off_face;
 #[path = "full_turn_wall.rs"]
 mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]
@@ -676,6 +674,8 @@ mod mate7a_r2_probes;
 mod mate7a_torus_rest;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
 mod pi_seam_and_kiss_through_the_boolean;
+#[path = "pierce_tangent_off_face.rs"]
+mod pierce_tangent_off_face;
 #[path = "snowman.rs"]
 mod snowman;
 #[path = "tang_circle_cylinder.rs"]

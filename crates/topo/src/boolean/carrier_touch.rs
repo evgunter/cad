@@ -86,8 +86,7 @@ pub(super) fn off_face<T: Decide + Bounds>(
         let Some((dist, foot, _)) = distance(surface, m) else {
             return Ok(false);
         };
-        let radius =
-            speed * (b - a).abs() * half + dist.abs() + T::from_f64(band.escalate());
+        let radius = speed * (b - a).abs() * half + dist.abs() + T::from_f64(band.escalate());
         if !ball_off_face(y, face, foot, radius, kappa, band)? {
             return Ok(false);
         }
@@ -127,10 +126,7 @@ fn speed_bound<T: Real>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
 
 /// A point's signed distance from the carrier, its foot on it, and the
 /// distance's gradient there (the unit normal at the foot).
-fn distance<T: Real>(
-    surface: &geom::Surface<T>,
-    q: Point3<T>,
-) -> Option<(T, Point3<T>, Vec3<T>)> {
+fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Point3<T>, Vec3<T>)> {
     // The point's height along `axis` from `origin`, and its offset
     // across it.
     let split = |origin: Point3<T>, axis: Vec3<T>| {
@@ -250,11 +246,7 @@ fn ball_off_face<T: Decide + Bounds>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     if !matches!(
-        decide(
-            "bool_touch_ball_in_reach",
-            Margin::of(kappa - radius),
-            band
-        ),
+        decide("bool_touch_ball_in_reach", Margin::of(kappa - radius), band),
         Ok(Sign::Positive)
     ) {
         return Ok(false);
