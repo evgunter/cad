@@ -7358,3 +7358,16 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
     - correct the PR body.
   - The viewer `review_pick_r2` red was main's, re-pinned on main in `2e4a03b3`.
 - Nothing new on PR 3970.
+
+## 08:46 (2026-10-06) check-in
+
+- **PR 4105 review fixes** at `48f15d7d` (fix lane about $3.2, archived). Every adjudicated item is answered:
+  - P-S spline witness (M4 red);
+  - certified-only two-face witness (M2a and M2b red);
+  - one predicate, `description_remints`, for both plans (M5 red);
+  - `Remints` kept, since it now has two callers passing different values;
+  - `pcurves.rs` doc and strings only (verified by diff);
+  - PR body corrected.
+  - Merging once `gate ok` reports; the rest of CI is green.
+- **For PCERT:** PR 4105 changes only doc text and string literals in `crates/topo/src/pcurves.rs`: the module doc's "Completes the map" paragraph, `staleness_posture::Completes` and its `kev_describing` note, and two `unreachable!` strings in `site_rows`. Its reviewer found no overlap with `pcert/chart-angle-integers`' hunks.
+- PR 4099 fix lane: pushed `f2c43f5f` (CI green); batteries still running.
