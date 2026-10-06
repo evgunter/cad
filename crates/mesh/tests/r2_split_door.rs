@@ -29,7 +29,11 @@ fn r2_split_door_near_pole() {
             geom_core::Vec3::new(0.0, 1.0, 0.0),
             geom_core::Tol::witness(),
         );
-        let r = split(&ball(), &plane, Tol::witness());
+        let r = split(
+            &topo::test_support::finished("the operand", ball(), Tol::witness()),
+            &plane,
+            Tol::witness(),
+        );
         match r {
             Err(e) => {
                 // The pinned invariant is the REFUSAL — measured

@@ -1412,8 +1412,14 @@ these. All are shipped in `editor-core` except where noted:
   it; it is not unique and never identity (references hold ids, and
   nothing resolves a label). Kernel sentences speak a node as its
   kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
-  and tag when it has none; the label is read off the document when
-  the sentence is made, never from a value the evaluation memo reuses.
+  and tag when it has none. A spoken label is never one its value can
+  outlive: a value the evaluation memo reuses holds a label only when
+  its memo key fixes that label. A document's own labels are outside
+  its evaluation key (a rename re-evaluates nothing), so what it
+  memoizes keeps bare ids and the label is read off the document when
+  the sentence is made; a part's labels are in its pin, and the pin is
+  in the instance's key, so a fault from inside a part carries the
+  part's nodes as the pinned part says them.
   The kernel mints no label; the viewer's create forms propose an
   editable "Kind N", stored only when the person commits it. Faces and
   bodies carry the same `Label` text as an appearance attribute.

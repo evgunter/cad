@@ -4647,9 +4647,7 @@ fn check_name_steps<P>(before: &Doc<P>, doc: &Doc<P>, name: &StableName) -> Resu
 /// `before` in their helpers), never from the working copy the edit is
 /// writing. A node the edit is minting is spoken by
 /// [`SpokenNode::entering`]. An id neither holds is
-/// [`SpokenNode::absent`]. The one exception is a cluster gauge, which
-/// is spoken from the document the edit leaves, or, when the edit
-/// dropped it, from the one it found (`mate::solve::gauge_spoken`).
+/// [`SpokenNode::absent`].
 fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
     if doc.node(id).is_some() {
         doc.spoken(id)
@@ -4660,10 +4658,8 @@ fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
 
 /// **A node an edit's result names, as its refusal speaks it**: from
 /// `before` when it holds the node, else by its kind as `after` mints
-/// it ([`written`]), else [`SpokenNode::absent`]. A refusal speaks the
-/// node as the author handed it; a cluster gauge prefers `after`
-/// (`mate::solve::gauge_spoken`) because its row reports what the edit
-/// left.
+/// it ([`written`]), else [`SpokenNode::absent`]: a refusal speaks the
+/// node as the author handed it.
 fn spoken_before_else_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId) -> SpokenNode {
     match after.node(id) {
         Some(node) => written(before, id, node),

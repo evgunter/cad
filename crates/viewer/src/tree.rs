@@ -935,8 +935,9 @@ pub fn part_file(node: &Node<ProfileProgram>, files: &PartFiles) -> Option<Strin
 /// the last is the failing node's own refusal.
 ///
 /// Each line is that node's refusal exactly as its own tree draws it,
-/// a node of `doc` spoken from it ([`pncad::document::CarriedLevel::line_in`]); the
-/// document it is in is its label ([`CarriedLine::document`]).
+/// a node of `doc` spoken from it and a part's node as the pinned part
+/// holds it ([`pncad::document::CarriedLevel::line_in`]); the document
+/// it is in is its label ([`CarriedLine::document`]).
 pub fn carried_lines(
     doc: &Doc<ProfileProgram>,
     kind: &NodeErrorKind,
@@ -946,7 +947,7 @@ pub fn carried_lines(
         .map(|level| CarriedLine {
             document: match level.document {
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
-                CarriedIn::Part(doc_ref) => files.name(doc_ref.id).to_owned(),
+                CarriedIn::Part { doc_ref, .. } => files.name(doc_ref.id).to_owned(),
             },
             line: level.line_in(doc),
         })

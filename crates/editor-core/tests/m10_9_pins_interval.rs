@@ -284,7 +284,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 1002 → 1004, verdicts unchanged: six registered decisions
             // go numeric where the reversed chord's re-lowered centre
             // used to freeze to an atom the rim registration reached
-            // (`work/sym/registrations-sealed-inside-frozen-compounds`),
+            // (`work/rules/registrations-sealed-inside-frozen-compounds`),
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
@@ -633,7 +633,7 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// into the door. The axis-order basis mints no `copysign` for rule F
 /// to fold, and at the scale the pad certifies whole at, over its
 /// analyzed box, the two dials read the same receipt
-/// (`work/sym/the-negative-arm-lost-its-document-consumer`). Since the
+/// (`work/rules/the-negative-arm-lost-its-document-consumer`). Since the
 /// extrude closes with the pcurve mint, the pad refuses at
 /// `pcurve_envelope` at that scale under both dials
 /// (`work/pcert/fillet-meridian-radius-term-is-registered-only`), so the

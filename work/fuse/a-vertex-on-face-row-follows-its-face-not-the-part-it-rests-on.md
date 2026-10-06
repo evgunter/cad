@@ -2,10 +2,11 @@
 id: a-vertex-on-face-row-follows-its-face-not-the-part-it-rests-on
 kind: issue
 title: A vertex-on-face row follows its face's lineage, not the part of the face the vertex rests on: ∩ keeps it stale, ∖ drops it
-status: open
+status: parked
 opened: 2026-10-03
 priority: P1
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

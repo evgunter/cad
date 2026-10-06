@@ -21,8 +21,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, CarriedIn, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions,
-    Evaluation, Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, PersistError,
+    CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
+    Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, PersistError,
     ProductErrorKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
     SnapshotError, StableName, content_pin, evaluate, load, product, product_named, save,
 };
@@ -1066,7 +1066,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let ev = run(&doc, &opts);
     let fault = part_fault(&ev, ids[0]);
     match &fault {
-        PartFault::PartRootFailed { node, refusal } => {
+        PartFault::PartRootFailed { node, refusal, .. } => {
             assert_eq!(*node, inner_root, "the failing ROOT is named");
             assert!(
                 matches!(
@@ -1090,8 +1090,10 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         "the message never points at an object the caller cannot reach: {rendered}"
     );
     assert!(
-        rendered.contains(&format!("node {}", test_utils::refusal::tag(inner_root.0)))
-            && !rendered.contains("did not resolve"),
+        rendered.contains(&format!(
+            "InstantiatePart {}",
+            test_utils::refusal::tag(inner_root.0)
+        )) && !rendered.contains("did not resolve"),
         "it names the root and points, never quoting the root's own refusal: {rendered}"
     );
     assert!(
@@ -1128,7 +1130,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
         },
     );
     let p3_own = match run(&p3, &EvalOptions::default()).result(p3_root) {
-        Some(NodeResult::Failed(e)) => e.to_string(),
+        Some(NodeResult::Failed(e)) => e.spoken(&p3),
         other => panic!("p3's extrude refuses on its own: {other:?}"),
     };
     let r3 = store.insert(p3, tol);
@@ -1146,7 +1148,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     let ev = run(&asm, &with_resolver(store));
     let levels: Vec<_> = failure(&ev, instance)
         .carried_chain()
-        .map(|level| (level.document, level.node, level.line()))
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
         .collect();
     assert_eq!(
         levels
@@ -1154,9 +1156,9 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
             .map(|(document, node, _)| (*document, *node))
             .collect::<Vec<_>>(),
         vec![
-            (CarriedIn::Part(&r1), p1_root),
-            (CarriedIn::Part(&r2), p2_root),
-            (CarriedIn::Part(&r3), p3_root),
+            (Some(&r1), p1_root),
+            (Some(&r2), p2_root),
+            (Some(&r3), p3_root),
         ],
         "one level per document, in order, each in the part it is numbered in"
     );
@@ -1184,6 +1186,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
         root,
         through,
         refusal,
+        ..
     } = &fault
     else {
         panic!("expected PartRootPoisoned, got {fault:?}");
@@ -1196,23 +1199,23 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let rendered = fault.to_string();
     assert!(
         rendered.contains(&format!(
-            "repair node {}",
+            "repair Extrude {}",
             test_utils::refusal::tag(extrude.0)
-        )) && rendered.contains(&format!("node {}", test_utils::refusal::tag(moved.0))),
+        )) && rendered.contains(&format!("Transform {}", test_utils::refusal::tag(moved.0))),
         "the instance names the root and points at the failed node: {rendered}"
     );
     let levels: Vec<_> = failure(&ev, ids[0])
         .carried_chain()
-        .map(|level| (level.document, level.node, level.line()))
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
         .collect();
     assert_eq!(
         levels,
-        vec![(CarriedIn::Part(&part_ref), extrude, own.clone())],
+        vec![(Some(&part_ref), extrude, own.clone())],
         "the traceback ends at the failing node, drawn as the part draws it"
     );
     let refused = own
         .strip_prefix(&format!(
-            "node {} failed: ",
+            "Extrude {} failed: ",
             test_utils::refusal::tag(extrude.0)
         ))
         .expect("a node line opens with its node");
@@ -1265,10 +1268,10 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (part, extrude, moved)
 }
 
-/// `node`'s own refusal line, as `doc`'s own evaluation draws it.
+/// `node`'s own refusal line, as `doc`'s own tree draws it.
 fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String {
     match run(doc, opts).result(node) {
-        Some(NodeResult::Failed(e)) => e.to_string(),
+        Some(NodeResult::Failed(e)) => e.spoken(doc),
         other => panic!(
             "node {} refuses on its own: {other:?}",
             test_utils::refusal::tag(node.0)
@@ -1304,6 +1307,7 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
         root,
         through,
         refusal,
+        ..
     } = &fault
     else {
         panic!("expected PartRootPoisoned, got {fault:?}");
@@ -1322,13 +1326,13 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let bracket_line = own_line(&bracket, inner, &opts);
     let levels: Vec<_> = failure(&ev, ids[0])
         .carried_chain()
-        .map(|level| (level.document, level.node, level.line()))
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
         .collect();
     assert_eq!(
         levels,
         vec![
-            (CarriedIn::Part(&bracket_ref), inner, bracket_line),
-            (CarriedIn::Part(&part_ref), extrude, broken_line),
+            (Some(&bracket_ref), inner, bracket_line),
+            (Some(&part_ref), extrude, broken_line),
         ],
         "one level per document, ending at the failing node"
     );
@@ -1381,7 +1385,7 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     let ev = run(&doc, &opts);
 
     let kind_of = |fault: &PartFault| match fault {
-        PartFault::PartProduct { refusal } => {
+        PartFault::PartProduct { refusal, .. } => {
             let said = fault.to_string();
             let sentence = said
                 .strip_prefix("the part has no product: ")

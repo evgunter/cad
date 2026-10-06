@@ -424,3 +424,23 @@ coincidence is now a margined verdict (no declarations), checked by the
 ## 2026-10-04 — #3955 is partly on D10's retired ground (INTENT note)
 
 A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pairs) partly superseded: its new declared-backing arms (`Declared::ve_backed`, `StaleDeclaration::VertexOnEdge`, the Python `vertex_on_edge` tag) sit on declared contact, which INTENT stage 4 retires; the cell-pair record model, the single substitution door, edge-split lineage and the joinable-vertex join survive under D10's "every value-decided coincidence is recorded". It was started before the hold, so it may finish; please add no new declaration vocabulary (or keep it minimal for stage 4 to retire) and avoid declaration language in the tier-3′ prose it edits.
+
+- 2026-10-06 — Resumed after the usage reset. Both open lanes have PRs:
+  - #3953 (one-arc struts: an order-free Out-holds rule);
+  - #3955 (#3881 step 1: cell-pair records).
+
+  Both sit about 1,700 commits behind main and conflict. Both lanes
+  were sent back to merge main:
+  - #3953 first measures main alone, because JOIN's `insert.rs`
+    rewrites (c50f2ff22e, 2313350276, ca9de38ac5) cover nearby ground.
+    If main already builds the one-arc case, only the tests land.
+  - #3955 follows the D10 INTENT note: no new declaration vocabulary,
+    records framed as recorded coincidences, and its tier-3′ wording
+    re-done on main's D10 text.
+
+  Under the D10 hold, eight FUSE rows whose substance is declared or
+  undeclared contact records or settled declared pairs are now
+  `parked` on `d10-one-way-to-say-intent-is-unbuilt`. The P1 carried-row
+  row stays, because #3955 (started before the hold) folds it in.
+  Dispatched `one-home-for-where-a-shell-stands` (P2, off the held
+  ground) on `fuse/one-home-shell-stands`.

@@ -3191,7 +3191,7 @@ mod split_edge_lineage {
         };
         let table = &value.name_table;
         let out = topo::split(
-            body,
+            &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
             &SplitPlane {
                 origin: *origin,
                 normal: *normal,
