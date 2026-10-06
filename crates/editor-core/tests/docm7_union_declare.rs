@@ -321,7 +321,7 @@ fn a_union_site_dropped_by_set_members_strands_and_loads() {
     let stranded = run(&doc);
     let refused = failure(&stranded, union).expect("the stranded site refuses at evaluation");
     assert!(
-        matches!(refused, NodeErrorKind::DeclareResolve { error } if matches!(**error, ResolveError::Vanished { .. })),
+        matches!(refused, NodeErrorKind::DeclareResolve { error, .. } if matches!(**error, ResolveError::Vanished { .. })),
         "a stranded site refuses as a vanished name: {refused:?}"
     );
     let text = editor_core::persist::save(&doc, &[], tol).expect("the stranded document saves");
@@ -1369,7 +1369,7 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     assert!(
         matches!(
             failure(&ev, pair),
-            Some(NodeErrorKind::DeclareResolve { error })
+            Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::Vanished { .. })
         ),
         "expected rung 3, got {:?}",
@@ -1380,7 +1380,7 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     assert!(
         matches!(
             failure(&ev, pair),
-            Some(NodeErrorKind::DeclareResolve { error })
+            Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::NodeGone { .. })
         ),
         "expected rung 1, got {:?}",
@@ -1462,7 +1462,7 @@ fn rebind_moves_the_name_and_leaves_the_site() {
     assert!(
         matches!(
             failure(&ev, union),
-            Some(NodeErrorKind::DeclareResolve { error })
+            Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::Vanished { .. })
         ),
         "expected rung 3, got {:?}",
@@ -1501,7 +1501,7 @@ fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
     assert!(
         matches!(
             failure(&ev, pair),
-            Some(NodeErrorKind::DeclareResolve { error })
+            Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::Vanished { .. })
         ),
         "a name read in the operand its site does not name: {:?}",

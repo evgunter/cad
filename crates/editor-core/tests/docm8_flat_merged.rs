@@ -657,7 +657,7 @@ enum Outcome {
 fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
     match failure(ev, union) {
         None => Outcome::Fused,
-        Some(NodeErrorKind::DeclareResolve { error }) => match &**error {
+        Some(NodeErrorKind::DeclareResolve { error, .. }) => match &**error {
             ResolveError::Vanished {
                 name,
                 diagnosis: Diagnosis::ConsumedByFold { by },

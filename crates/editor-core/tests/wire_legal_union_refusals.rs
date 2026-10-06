@@ -223,7 +223,7 @@ fn every_order(
                 Some(NodeErrorKind::Naming(NamingError::MergedChordConstituents { .. })) => {
                     Seen::MergedChord
                 }
-                Some(NodeErrorKind::DeclareResolve { error })
+                Some(NodeErrorKind::DeclareResolve { error, .. })
                     if matches!(
                         &**error,
                         ResolveError::Vanished {
