@@ -270,14 +270,15 @@ pub(crate) struct Drafts {
     pub(crate) creation_labels: BTreeMap<&'static str, String>,
 }
 
-/// **A label field's text, as the document's label**: blank clears
-/// (`None`); anything else is held to the label rule.
+/// **A label field's text, as the document's label**: a field that
+/// shows nothing ([`Label::is_blank`]) clears (`None`); anything else
+/// is held to the label rule.
 ///
 /// # Errors
 ///
 /// [`LabelFault`] for a text the rule refuses.
 pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
-    if text.trim().is_empty() {
+    if Label::is_blank(text) {
         return Ok(None);
     }
     Label::new(text).map(Some)
@@ -1360,6 +1361,11 @@ mod tests {
     #[test]
     fn a_label_field_reads_blank_as_clear_and_holds_the_rest_to_the_rule() {
         assert_eq!(super::label_typed(" \t "), Ok(None));
+        assert_eq!(
+            super::label_typed("\u{200b}"),
+            Ok(None),
+            "a field of a zero-width space shows nothing, so it clears"
+        );
         assert_eq!(
             super::label_typed(" lid ").map(|label| label.map(|l| l.as_str().to_owned())),
             Ok(Some(" lid ".to_owned()))
