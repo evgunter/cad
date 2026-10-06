@@ -2418,6 +2418,24 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "conic_quadric/cone_rows.rs",
+        "sphere_or_wall_before",
+        "BooleanDecision::ArcCylinderRoots",
+        1,
+    ),
+    (
+        "conic_quadric/cone_rows.rs",
+        "sphere_or_wall_before",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "conic_quadric/mod.rs",
+        "cone_roots",
+        "BooleanDecision::ArcConeRoots",
+        2,
+    ),
+    (
         "conic_quadric/mod.rs",
         "conic_quadric_roots",
         "BooleanDecision::ArcCylinderRoots",
@@ -2601,6 +2619,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
+    (
+        "reduce.rs",
+        "line_cone_roots",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
     (
         "reduce.rs",
         "line_wall_roots_of",
