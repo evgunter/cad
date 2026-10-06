@@ -115,8 +115,8 @@ fn corrupt_payloads_refuse_typed() {
     );
 }
 
-/// The save's text back out with the extrude's distance expression
-/// replaced by `wire`.
+/// The save's text back out with the variable the extrude's distance
+/// reads defined by the expression `wire`.
 ///
 /// The tamper is STRUCTURAL rather than a string replacement: an
 /// expression's spelling carries whatever fields `WireExpr` has today
@@ -131,14 +131,17 @@ fn with_distance(text: &str, wire: serde_json::Value) -> String {
     let nodes = body["snapshot"]["nodes"]
         .as_object_mut()
         .expect("a node map");
-    let mut swapped = 0;
-    for node in nodes.values_mut() {
-        if let Some(extrude) = node.get_mut("Extrude") {
-            extrude["distance"] = wire.clone();
-            swapped += 1;
-        }
-    }
-    assert_eq!(swapped, 1, "the fixture has exactly one extrude to tamper");
+    let distances: Vec<u64> = nodes
+        .values()
+        .filter_map(|node| node.get("Extrude")?["distance"].as_u64())
+        .collect();
+    let [distance] = distances[..] else {
+        panic!("the fixture has exactly one extrude to tamper, got {distances:?}")
+    };
+    body["snapshot"]["vars"][distance.to_string()] = serde_json::json!({
+        "kind": "Length",
+        "def": { "Defined": wire },
+    });
     format!(
         "{header}\n{}",
         serde_json::to_string(&body).expect("re-emit")
@@ -658,19 +661,24 @@ fn program_structure_doors_refuse_typed_at_load() {
     // notation, so leaving `"m"` beside an `Angle` dim would be caught
     // one door earlier as a display-unit mismatch, and this row is
     // about the SLOT's role dimension, not the literal's own coherence.
-    v["snapshot"]["nodes"][circle.0.to_string()]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]
-        ["dim"] = serde_json::Value::String("Angle".into());
-    v["snapshot"]["nodes"][circle.0.to_string()]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]
-        ["unit"] = serde_json::Value::String("rad".into());
+    crate::fixture::retype_slot_var(
+        &mut v,
+        |v| {
+            &v["snapshot"]["nodes"][circle.0.to_string()]["Profile"]["loops"][0]["Circle"]["centre"]
+                [0]
+        },
+        "Angle",
+        "rad",
+    );
     let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
     // A program slot is a slot like any other, so the document-wide
-    // slot walk decides it — the same `Node::slot_dimension_fault` the
-    // edit doors ask, in the load door's vocabulary.
+    // slot read walk decides it: the variable's kind against the
+    // dimension the address reads it at.
     match load(&mangled, Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::SlotDimension {
+        Err(PersistError::Snapshot(editor_core::SnapshotError::SlotVarKind {
             node,
-            expected: editor_core::Dimension::Length,
-            found: editor_core::Dimension::Angle,
+            declared: editor_core::Dimension::Angle,
+            referenced: editor_core::Dimension::Length,
             ..
         })) => assert_eq!(node.id(), circle),
         other => panic!("wrong-dimension role must refuse typed at load, got {other:?}"),

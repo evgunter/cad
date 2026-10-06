@@ -217,14 +217,12 @@ fn repoint_measure(
 /// read is the DIMENSION rule's.
 fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
     doctored(text, |wire| {
-        let lit = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
-        assert_eq!(
-            lit["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at a length bound"
+        crate::fixture::retype_slot_var(
+            wire,
+            |wire| &wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"],
+            "Angle",
+            "rad",
         );
-        lit["dim"] = serde_json::json!("Angle");
-        lit["unit"] = serde_json::json!("rad");
     })
 }
 

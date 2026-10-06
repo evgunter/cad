@@ -6775,7 +6775,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     // Whether the node HAS the slot is this door's own question: the
     // subject is an address a caller named, and `SetParam` aimed at a
     // radius on an extrude is a reachable mistake rather than the
-    // node-layer invariant `Node::slot_dimension_fault` asserts.
+    // node-layer invariant `Node::formula_dimension_fault` asserts.
     if node.expr(slot).is_none() {
         return Err(EditError::UnknownSlot { id: spoken, slot });
     }

@@ -71,11 +71,11 @@ fn a_half_turn_literal_round_trips() {
     let doc = half_turn_doc();
     let text = save(&doc, &[], Tol::witness()).expect("the document saves");
     assert!(
-        text.contains(r#""unit": "pi rad""#),
+        text.contains(r#""display_unit": "pi rad""#),
         "the half-turn symbol is on the wire: {text}"
     );
     assert!(
-        !text.contains(r#""unit": "pi""#),
+        !text.contains(r#""display_unit": "pi""#),
         "the retired spelling is gone: {text}"
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
@@ -106,7 +106,7 @@ fn a_half_turn_literal_round_trips() {
 #[test]
 fn the_retired_spelling_refuses_and_carries_the_symbol() {
     let text = save(&half_turn_doc(), &[], Tol::witness()).expect("the document saves");
-    let retired = text.replace(r#""unit": "pi rad""#, r#""unit": "pi""#);
+    let retired = text.replace(r#""display_unit": "pi rad""#, r#""display_unit": "pi""#);
     assert_ne!(retired, text, "the substitution must actually land");
     match load(&retired, Tol::witness()) {
         Err(PersistError::Dimension { error, .. }) => assert_eq!(

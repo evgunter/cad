@@ -3285,11 +3285,12 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
                 },
             ),
         ] {
+            let mut written = editor_core::test_support::scratch();
             let resolved = editor_core::test_support::stored_loop(
-                &mut editor_core::test_support::scratch(),
+                &mut written,
                 &LoopProgram::Chain(vec![step]),
             )
-            .resolve::<f64>(&env, 0)
+            .resolve::<f64>(&written.var_env(), 0)
             .expect("a literal spec resolves");
             let wire = match &resolved[0] {
                 Step::ArcTo(w) => w,

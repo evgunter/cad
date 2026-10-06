@@ -1168,7 +1168,8 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     let k = k.expect("the promote mints its gauge");
     let out = split(&doc).expect("the promoted offset stays in the host");
     assert!(
-        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&editor_core::test_support::stored_placement(&mut editor_core::test_support::scratch(), &offset))),
+        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. })
+            if crate::fixture::written_placement(&out.remainder, placement) == offset),
         "the promoted gauge holds the parametric offset"
     );
     assert_eq!(

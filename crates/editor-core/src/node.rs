@@ -676,10 +676,10 @@ impl SlotId {
     /// it down.
     ///
     /// Every door that decides whether an expression may sit in a slot
-    /// asks this — [`Node::slot_dimension_fault`] per slot of a node
-    /// the document already holds, and `edit`'s `set_slot` of an
-    /// expression the node does not hold YET, which is why the subject
-    /// is a `(slot, expr)` pair rather than a node.
+    /// asks this — [`Node::formula_dimension_fault`] per slot of an
+    /// authored node, and `edit`'s `set_slot` of a formula the node
+    /// does not hold yet, which is why the subject is a `(slot, expr)`
+    /// pair rather than a node.
     pub(crate) fn dimension_fault<L: crate::expr::LeafSet>(
         self,
         expr: &crate::expr::ExprTree<L>,
@@ -1768,20 +1768,20 @@ impl core::fmt::Display for MeasureNodeFault {
 
 impl core::error::Error for MeasureNodeFault {}
 
-/// **What makes a node's SLOT unusable** ([`Node::slot_dimension_fault`];
-/// spec D6) — one vocabulary for the edit doors and the load door, so
-/// the rule "a slot's expression carries the dimension the slot
-/// address fixes" has one definition rather than one per door.
+/// **What makes a formula unusable at a slot**
+/// ([`Node::formula_dimension_fault`]; spec D6) — the rule "a slot's
+/// formula carries the dimension the slot address fixes", asked by the
+/// edit doors before they lower. A stored slot holds a variable, and a
+/// variable of another kind is the read walks' fault (VR4).
 ///
 /// The domain is [`Node::slots`], which is EVERY node kind: a profile
 /// program's step arguments, an extrude's distance, a datum's
 /// coordinates and a pattern's count are the same question asked of
-/// different addresses, and a door that asks it of one kind admits
-/// files the other doors could not have produced.
+/// different addresses.
 /// ONE fact, so a struct: the dimensions disagree. A slot
 /// [`Node::slots`] names and [`Node::expr`] cannot answer for is not a
 /// property of the document at all — it is a disagreement between two
-/// matches in this module, which [`Node::slot_dimension_fault`]
+/// matches in this module, which [`Node::formula_dimension_fault`]
 /// asserts against at the site rather than routing to a door as a
 /// refusal.
 ///
@@ -1789,7 +1789,6 @@ impl core::error::Error for MeasureNodeFault {}
 /// which each door forwards into its own subject — the shape
 /// [`crate::placement::Frame::admission_fault`] carries for the frame
 /// rule. The sentence is written here and reaches a reader as
-/// "node 7: slot radius needs …" from the load door and as
 /// "slot radius needs …" from the edit door.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SlotDimensionFault {
@@ -3962,37 +3961,6 @@ impl<P> Node<P> {
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }
-    }
-
-    /// **The slot-dimension rule, asked of this node** (spec D6):
-    /// every expression the slot table pairs with a slot carries the
-    /// dimension [`SlotId::dimension`] fixes for that address. `None`
-    /// when the node carries no slot at all, which is most of the
-    /// assembly vocabulary.
-    ///
-    /// One home for the question, read by the edit doors
-    /// (`check_node_slots`) and by the load door's walk, each naming
-    /// the answer in its own vocabulary. The `pub` payloads are what
-    /// make a violation reachable: a hand-built node and a corrupt
-    /// file can both state one, and neither may reach a document the
-    /// edit doors could not have produced.
-    ///
-    /// A stored slot holds a variable, whose dimension is its kind: the
-    /// rule asks the kind of each live slot variable `doc` holds (VR4).
-    /// A slot reading a variable `doc` does not hold is the read
-    /// walks', not this rule's.
-    pub(crate) fn slot_dimension_fault(&self, doc: &crate::Doc<P>) -> Option<SlotDimensionFault>
-    where
-        P: crate::ProfilePayload,
-    {
-        self.rows().into_iter().find_map(|(slot, var)| {
-            let found = doc.vars.get(var)?.kind().dimension();
-            (found != slot.dimension()).then_some(SlotDimensionFault {
-                slot,
-                expected: slot.dimension(),
-                found,
-            })
-        })
     }
 }
 

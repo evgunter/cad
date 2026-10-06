@@ -671,8 +671,8 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
     let seq = seq.expect("ok");
     assert_eq!(
         seq.len(),
-        3,
-        "one entry per continuous parameter, k included"
+        crate::fixture::continuous_vars(&s.doc),
+        "one entry per continuous variable, k and every written dimension included"
     );
     for (n, expect) in [("w", 1.0), ("d", 1.0), ("k", 0.0)] {
         match entry(&s.doc, &seq, n) {

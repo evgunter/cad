@@ -1843,3 +1843,85 @@ pub fn without_anonymous(
         .cloned()
         .collect()
 }
+
+/// **Retypes, in a saved document's wire, the free variable a slot
+/// reads**: the slot at `slot`'s JSON holds its variable's id, and the
+/// variable's kind, dimension and display unit all move to `dim` and
+/// `unit`, so the variable stays well-formed and only a rule about
+/// what reads it can refuse it.
+pub fn retype_slot_var(
+    wire: &mut serde_json::Value,
+    slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
+    dim: &str,
+    unit: &str,
+) {
+    let var = slot(wire)
+        .as_u64()
+        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)));
+    let held = &mut wire["snapshot"]["vars"][var.to_string()];
+    let def = &mut held["def"]["Free"]["Continuous"];
+    assert!(
+        def.is_object(),
+        "the surgery is aimed at a free continuous variable: {held}"
+    );
+    def["dim"] = serde_json::json!(dim);
+    def["display_unit"] = serde_json::json!(unit);
+    held["kind"] = serde_json::json!(dim);
+}
+
+/// **The free continuous definition, in a saved document's wire, of
+/// the variable a slot reads** — the slot at `slot`'s JSON holds the
+/// variable's id — for a row that doctors a written value.
+pub fn slot_var_def<'w>(
+    wire: &'w mut serde_json::Value,
+    slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
+) -> &'w mut serde_json::Value {
+    let var = slot(wire)
+        .as_u64()
+        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)));
+    &mut wire["snapshot"]["vars"][var.to_string()]["def"]["Free"]["Continuous"]
+}
+
+/// **A stored placement as it was written** in `doc`: each rigid step's
+/// components the formulas their variables were written as
+/// (`Doc::written`), for a row comparing it with the placement it
+/// authored.
+pub fn written_placement(
+    doc: &ProfileDoc,
+    placement: &editor_core::Placement,
+) -> editor_core::Placement<editor_core::Formula> {
+    let dims: std::collections::BTreeMap<editor_core::VarId, editor_core::Dimension> = placement
+        .authored()
+        .steps
+        .iter()
+        .flat_map(|step| match step {
+            editor_core::Step::Rigid {
+                translation,
+                axis,
+                angle,
+            } => translation
+                .iter()
+                .chain(axis)
+                .chain([angle])
+                .cloned()
+                .collect::<Vec<_>>(),
+            editor_core::Step::Literal(_) => Vec::new(),
+        })
+        .filter_map(|leaf| Some((leaf.as_var()?, leaf.dim())))
+        .collect();
+    placement
+        .try_map_slots(&mut |var| {
+            Ok::<_, core::convert::Infallible>(editor_core::Formula::from(
+                doc.written(&editor_core::Expr::var(*var, dims[var])),
+            ))
+        })
+        .unwrap_or_else(|e| match e {})
+}
+
+/// How many continuous free variables `doc` holds — every parameter
+/// axis, named or written in a slot (VR8).
+pub fn continuous_vars(doc: &ProfileDoc) -> usize {
+    doc.free_vars()
+        .filter(|(_, free)| matches!(free, editor_core::FreeVar::Continuous { .. }))
+        .count()
+}

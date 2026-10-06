@@ -1380,14 +1380,12 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     // rebuild, and would never reach the snapshot walk this row is
     // about.
     let dim_corrupt = doctored(&text, |wire| {
-        let lit = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
-        assert_eq!(
-            lit["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at the bound's length literal"
+        crate::fixture::retype_slot_var(
+            wire,
+            |wire| &wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"],
+            "Angle",
+            "rad",
         );
-        lit["dim"] = serde_json::json!("Angle");
-        lit["unit"] = serde_json::json!("rad");
     });
     match editor_core::load(&dim_corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {

@@ -577,11 +577,8 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         let angle = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"][2]
             ["Rigid"]["angle"];
         let turn = doc.var_named("turn").expect("the fixture declares turn");
-        let text = angle
-            .to_string()
-            .replace(&format!("\"var\":{}", turn.0), "\"var\":1");
-        assert_ne!(text, angle.to_string(), "aimed at the variable");
-        *angle = serde_json::from_str(&text).expect("still an expression");
+        assert_eq!(*angle, serde_json::json!(turn.0), "aimed at the variable");
+        *angle = serde_json::json!(1);
     });
     assert!(
         load(&bad_ref, Tol::witness()).is_err(),
@@ -593,7 +590,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         steps[2]["Rigid"]["translation"][0] = angle;
     });
     match load(&bad_dim, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDimension { slot, .. })) => {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind { slot, .. })) => {
             assert_eq!(slot, x);
         }
         other => panic!("a wrong dimension at step 2 must refuse at load, got {other:?}"),

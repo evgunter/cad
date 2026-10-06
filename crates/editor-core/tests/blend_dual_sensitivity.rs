@@ -169,7 +169,11 @@ fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
         ("depth", D0, D0 / m0),
         ("radius", R0, -4.0 * (1.0 - 2.0 * R0) / m0),
     ];
-    assert_eq!(entries.len(), closed.len(), "one entry per parameter");
+    assert_eq!(
+        entries.len(),
+        crate::fixture::continuous_vars(&doc),
+        "one entry per continuous variable, every written dimension's included (VR8)"
+    );
     let mut misses = Vec::new();
     for &(param, nominal, want) in &closed {
         let var = doc.var_named(param).expect("the fixture declares it");

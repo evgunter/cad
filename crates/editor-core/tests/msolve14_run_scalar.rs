@@ -649,15 +649,16 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let opts = p.opts();
     let poses = solve(&doc, &opts, Tol::witness());
     let world = |id| poses.placement(&doc, id).expect("posed").affine::<f64>();
+    let mut written = editor_core::test_support::scratch();
     let root_offset = editor_core::test_support::stored_placement(
-        &mut editor_core::test_support::scratch(),
+        &mut written,
         &editor_core::Placement::from(Step::Rigid {
             translation: [1.0, 2.0, 0.0].map(len),
             axis: [0.0, 1.0, 0.0].map(scl),
             angle: ang(0.2),
         }),
     )
-    .eval(&doc.var_env::<f64>(), fixture::band())
+    .eval(&written.var_env::<f64>(), fixture::band())
     .expect("a literal offset evaluates");
     let stated = root_offset * world(slab).inverse() * world(third);
     let doc = set_offset(
@@ -2104,8 +2105,17 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
     let resolver = b.opts.resolver.clone().expect("the store resolves");
     let entries = sensitivities(&doc, m, None, None, false, Some(&resolver), Tol::witness())
         .expect("the driver runs");
-    assert_eq!(entries.len(), 1, "one continuous parameter");
-    match &entries[0].outcome {
+    assert_eq!(
+        entries.len(),
+        crate::fixture::continuous_vars(&doc),
+        "one entry per continuous variable"
+    );
+    let spacing = doc.var_named("s").expect("the spacing parameter");
+    let entry = entries
+        .iter()
+        .find(|e| e.param == spacing)
+        .expect("an entry for the spacing");
+    match &entry.outcome {
         SensitivityOutcome::Derivative { value, .. } => assert!(
             (value - fd).abs() <= 1e-12,
             "∂m/∂s is {value} where the closed form gives {fd}"
