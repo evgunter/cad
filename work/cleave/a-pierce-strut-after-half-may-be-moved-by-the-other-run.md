@@ -2,11 +2,13 @@
 id: a-pierce-strut-after-half-may-be-moved-by-the-other-run
 kind: issue
 title: vtxfac's bisector-only pierce run reads its strut corner 'after' off the entry table after the other run's fan may have moved it
-status: dispatched
+status: closed
 opened: 2026-10-05
 priority: P2
 cost: M
 branch: cleave/pierce-strut-after
+closed: 2026-10-06
+pr: 4096
 ---
 
 
@@ -94,3 +96,11 @@ too.
 - `boolean/insert.rs` `mint_directed` now anchors every strut through
   `corner_bound`, so `mint_run` no longer reads `sectors[from].he`
   after a mint.
+
+## Closed (PR 4096, 2026-10-06)
+
+Closed by a proof, not a refusal: no witness exists. The invariant is stated and checked
+(`unreachable!`, D9) at both sites, `vtxfac.rs` and its twin in `splitting/insert.rs`. Two tests
+observe the strut-second order directly. `insert.rs`'s `mint_run` now anchors every dangling strut
+through `corner_bound`. Review tier: single FULL (APPROVE-WITH-FIXES, no MAJOR), confirmed by a
+battery of 5,184 booleans. The fix pass extended the proof and check to the splitting twin.
