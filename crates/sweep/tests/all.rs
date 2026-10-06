@@ -494,6 +494,8 @@ mod revolve_ring;
 mod revolve_washer;
 #[path = "ring_r1_probes.rs"]
 mod ring_r1_probes;
+#[path = "round_tube_on_plate.rs"]
+mod round_tube_on_plate;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
 #[path = "s393_start_frame_door.rs"]
@@ -926,3 +928,6 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+
+#[path = "pole_ball_shells.rs"]
+mod pole_ball_shells;
