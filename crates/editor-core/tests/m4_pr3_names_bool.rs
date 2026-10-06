@@ -184,6 +184,9 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         .partition(|p| matches!(p.as_slice(), [RoleSeg::FromA(_)]));
     assert_eq!(of_a.len(), 2, "`a`'s cut rim in two pieces: {pieces:?}");
     assert_eq!(of_a[0], of_a[1], "both pieces of one rim");
+    // `a` cuts four of the notch's edges, two start rims and two
+    // laterals, and keeps one piece of each: still named by its ends.
+    assert_eq!(of_n.len(), 4, "the notch's lone pieces: {pieces:?}");
     assert!(
         of_n.iter()
             .all(|p| matches!(p.as_slice(), [RoleSeg::FromB(_)]))
