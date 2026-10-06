@@ -6,10 +6,6 @@ status: open
 opened: 2026-09-30
 priority: P2
 cost: M
-design: true
-needs_ev: true
-pr: 4156
-branch: emit/ev-least-name-is-first-minted
 parent: sibling-branches-mint-one-node-id-for-different-nodes
 ---
 
@@ -90,3 +86,41 @@ added is refused `DeclaredNameNotUpstream` by `declared_side_fault`
 can hold this name". The loss becomes reachable once that refusal reads
 membership. What is visible today, with no edit: digest order names a
 flush stretch for the later-placed member about half the time.
+
+## Ruled (Ev, PR 4156, 2026-10-06)
+
+Ev approved putting seniority in the id, and removing `Doc::order`. On the
+form: "hopefully you can use some custom type instead of doing weird bit
+packing stuff directly in the integer field. (i'm fine with a like
+(32, 64) for (order, id) also, unless there's a specific need to have it
+fit in one integer)". The names README (N1's id clause, the flush
+paragraph) states the pair; fork-log row 74 records it.
+
+**What to build:**
+- **The id type.** `RecipeNodeId`, `StepId` and `VarId` become a pair
+  `(ordinal: u32, digest: u64)`. The ordinal is the mint log's length when
+  the id is drawn, plus one, and the digest is the first 64 bits of the
+  chain digest. `Ord` compares the ordinal first. Make it one shared type
+  if that fits.
+  - Before choosing the representation, check every place that relies on an
+    id being one integer: serde and wire formats, display tags (the
+    high-48-bit tag), hashing, the Python bindings, slotmap/BTreeMap keys,
+    and golden digests.
+  - If one of them genuinely needs a single integer, stop and report it
+    before working around it; that is the exception Ev named.
+- **Retire stored order.** Delete `Doc::order`, `Doc::positions` and
+  `Doc::var_order`, deriving each from the ids. Repoint every reader to id
+  order: `eval::schedule`, the mate solve's tree edge, the resolve lanes'
+  evidence order, the refactor, `check_declared_sides`, and pncad-py's
+  node map. Retire `VarOrderMismatch` and the `order` list on the wire.
+- **Collision refusals.** `NodeIdCollides`, `VarIdCollides` and
+  `StepIdFault::Collides` become unreachable within a document; remove
+  them. Keep the load door's check that the mint log ascends.
+- **`emit_union::Flush`** keeps "least", which now means first minted. Its
+  docs change to say so.
+- **Re-baseline** every id-bearing corpus document and golden, and say in
+  the PR what moved. On the corpus, `name_tables_by_position` should not
+  move.
+- **Test:** re-drawing another member never takes a held flush stretch. Use
+  the designers' fixture, with `declared_side_fault`'s refusal set aside, or
+  wait for the doors row that relaxes it.

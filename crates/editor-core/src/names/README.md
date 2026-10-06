@@ -71,10 +71,12 @@ DM4) follow this rule, and so do profile pieces:
   states it, which holds its inputs' and names' ids but not its own; the
   insert then extends the chain once more and takes the node's
   `RecipeNodeId` from it. The steps one edit mints take the chain's next
-  digests, one per step in authored order. An id is its mint ordinal (the
-  mint log's length when it was drawn, plus one) in its high 24 bits, over
-  the first 40 bits of its digest, so ids order as they were minted: of two
-  nodes or steps in one document, the one minted first has the lesser id.
+  digests, one per step in authored order. An id is a pair: its mint
+  ordinal (the mint log's length when it was drawn, plus one; a `u32`) and
+  the first 64 bits of its digest. Ids order by ordinal first, so they order
+  as they were minted: of two nodes or steps in one document, the one minted
+  first has the lesser id, and the document keeps no separate record of the
+  order its nodes were placed in.
   So a node's or a step's id is a function of the edit sequence that
   minted it:
   - the same sequence of edits from one value mints the same ids (D9);
