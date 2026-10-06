@@ -41,3 +41,14 @@ row (a fixture whose margin is ε-relative), or the row names the
 escalation it takes at 1e-6 as its expected outcome there.
 `crates/sweep/tests/pinch_faces_tessellate.rs` is tcost/tint ground
 by territory; the row is JOIN's.
+
+## Note (FUSE, PR 3953, 2026-10-06)
+
+Where the refusal comes from: `join::nearer` (`crates/topo/src/boolean/join.rs`),
+which only orders two pairs whose partners `nearer_along` has already
+chosen, by chord length in metres. Two chords within the band tie in
+that order; the geometry itself is not coincident. A proposed kernel-side
+fix, not measured: read an indeterminate `bool_join_nearest` as that
+tie (keep `best`) instead of escalating, if no join order can matter
+there. Same absolute-metre chord rank as
+`a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale`.
