@@ -4,6 +4,8 @@ kind: issue
 title: A union across a rabbet's step with every finding declared refuses Join(UnpairedLooseEnds { count: 6 })
 status: open
 opened: 2026-10-01
+priority: P1
+cost: M
 ---
 
 
