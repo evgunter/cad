@@ -374,10 +374,9 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let pv = point_of(body, vertex)
             .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
         let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
-        let (center, radius) = curve.round().unwrap_or((
-            foot_a + (foot_b - foot_a) * T::from_f64(0.5),
-            T::zero(),
-        ));
+        let (center, radius) = curve
+            .round()
+            .unwrap_or((foot_a + (foot_b - foot_a) * T::from_f64(0.5), T::zero()));
         let toward = (pv - center).normalize();
         // The rims' pieces from their feet to the old vertex: each one's
         // far extent from `center` and least height along `toward`.

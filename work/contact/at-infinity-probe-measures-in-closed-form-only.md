@@ -145,3 +145,17 @@ legal-operand check fails: the union with a far brick refuses
 notch327 `phi230 th210`, `th225`, `th315`, `th330`, `phi300 th135`,
 `th150`, `th30`, `th45`. Main already ships 294 such intersection
 lines in that battery.
+
+## Another witness (BAND, the oblique fillet's band)
+
+A plane–plane fillet cut off at an oblique end face ends in an arc of
+the end plane's elliptic section of its cylinder, so its band is a
+cylinder face trimmed by two ellipse arcs. The parallelogram prism of
+`crates/sweep/tests/band_planar_oblique_fillet.rs`, its top front edge
+filleted at r = 0.1, measures through the certified door at the closed
+form and tessellates watertight, but every boolean with it refuses
+`Containment(VolumeUncertified)` — subtract and union, a notch beside
+the band, a slot through it, and a brick wholly apart. Pinned by
+`the_ellipse_edges_pass_the_tessellator_and_stop_at_the_boolean_containment_door`.
+The ruled band's oblique cap and the tour bracket's filleted chords
+(`demos/tour/src/bracket.rs`) carry the same face shape.

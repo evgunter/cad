@@ -92,6 +92,7 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("side_planes_cosurface", COSURFACE),
     ("wall_arcs_cosurface", COSURFACE),
     ("wall_lines_cosurface", COSURFACE),
+    ("ellipse_axes_distinct", ELLIPSE),
 ];
 
 const AXIS: &str = "the revolve axis's own classifications: an escalation here is typed on \
@@ -102,6 +103,9 @@ const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
 const TUBE: &str = "the tube door's window and wall classifications, typed on `TubeError` — \
                     whose Display names which of the two tube doors a wall escalation came \
                     from";
+const ELLIPSE: &str = "the ellipse carrier door's own gate (`Curve3::ellipse`), read by the \
+                       cut-off's kind-picker on the semi-axes it hands that door; its \
+                       escalation is typed `CapTransverse` on `BlendError`";
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \
                          verb; the escalation is typed on that verb's error";
 

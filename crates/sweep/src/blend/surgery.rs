@@ -38,7 +38,7 @@
 //! **Open chains** are the two open bands, each carved by its own
 //! module and narrated there, once: the plane–plane band between
 //! trivalent corners in [`super::open::planar`], the ruled band cut off
-//! at transverse caps in [`super::open::ruled`]. Both are admitted here
+//! at plane caps in [`super::open::ruled`]. Both are admitted here
 //! ([`OpenBand`]) and carve on the clone this door makes. A planar band
 //! may run across [`Joint`]s — consecutive links on the same two
 //! support faces, which a coplanar-face merge leaves wherever a wall
@@ -3179,8 +3179,8 @@ pub(super) enum ContactCarrier<T: Real> {
     Chord,
     /// A corner arc about the corner ball's centre (sweep < π).
     CornerArc { center: Point3<T>, radius: T },
-    /// A ruled band's cut-off at a transverse cap: the arc of the cap
-    /// plane's section of the band (a circle of the band's radius about
+    /// A cylinder band's cut-off at a plane end face perpendicular to
+    /// its spine: the arc of that plane's section of the band (a circle of the band's radius about
     /// the spine's crossing, sweep < π) — where the band meets the cap
     /// TRANSVERSALLY, so it is described as the plain intersection
     /// locus, never a tangent one.

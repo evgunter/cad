@@ -1,10 +1,11 @@
 //! **The plane–plane band's cut-off** (`work/band/a-plane-plane-blend-
-//! cannot-end-at-an-unrequested-corner.md`, steps 1 and 2): a straight
+//! cannot-end-at-an-unrequested-corner.md`, steps 1 to 3): a straight
 //! band ends at a trivalent vertex of one convexity as the request
 //! decides — all three edges, the corner patch; the edge alone, the
 //! cut-off in the end face's plane section of the band (a chord at any
-//! angle for a chamfer, an arc at a perpendicular end face for a
-//! fillet); two, the turn, refused.
+//! angle for a chamfer, and for a fillet an arc of a circle at a
+//! perpendicular end face and of an ellipse at an oblique one); two,
+//! the turn, refused.
 //!
 //! Every built row is checked at its closed form and at tier 3, with
 //! naming totality; the box rows are checked once more against an

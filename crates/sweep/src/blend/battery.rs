@@ -799,7 +799,7 @@ pub fn corner_config<T: Decide + Bounds>(
 ///
 /// [`BlendError::UnsupportedCorner`] ([`CornerConfig::DependentNormals`])
 /// on a non-positive margin; [`BlendError::Escalated`] in band.
-fn corner_independence<T: Decide + Bounds>(
+fn corner_independence<T: Decide>(
     vertex: VertexKey,
     normals: [Vec3<T>; 3],
     radius: T,

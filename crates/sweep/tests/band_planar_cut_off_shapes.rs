@@ -137,13 +137,7 @@ fn end_faces_leaning_along_the_support_cut_both_verbs_at_the_centroid_length() {
         );
         let e = edge(&body, [0.0, 0.0, 0.0], [2.0, 0.0, 0.0]);
         let removed = verb.section() * (2.0 - 2.0 * s * verb.centroid());
-        carve(
-            &body,
-            &[e],
-            verb,
-            removed,
-            &format!("xz trapezoid s = {s}"),
-        );
+        carve(&body, &[e], verb, removed, &format!("xz trapezoid s = {s}"));
     }
 }
 

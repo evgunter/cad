@@ -159,7 +159,7 @@ pub struct Retired {
 #[derive(Clone, Debug, Default)]
 pub struct BlendNaming {
     // ---- The open bands: the blank phase (plane–plane chains between
-    // corners) and the ruled band (between transverse caps). ----
+    // corners) and the ruled band (between plane caps). ----
     /// Blend face ← the source edge it replaces (the fillet's rolling
     /// band — about a corner-terminated or a cap-terminated spine — or
     /// the chamfer's ruled strip).
@@ -178,7 +178,7 @@ pub struct BlendNaming {
     /// face it lies in).
     pub trims: Vec<(EdgeKey, EdgeKey, FaceKey)>,
     /// Foot vertex ← (the source corner, joint or cap vertex it retracts from,
-    /// the support face it lies in). At a transverse cap the foot sits
+    /// the support face it lies in). At a cut-off the foot sits
     /// on the cap's rim edge, where the support's trimline meets the
     /// cap plane.
     pub feet: Vec<(VertexKey, VertexKey, FaceKey)>,

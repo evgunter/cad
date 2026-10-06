@@ -1,6 +1,6 @@
-//! **The ruled band ends at its transverse cap** (FILLET-H7): the
-//! cylinder–plane(∥) arm's band, carved between the plane caps
-//! perpendicular to its ruling.
+//! **The ruled band ends at its plane caps** (FILLET-H7): the
+//! cylinder–plane(∥) arm's band, carved between the plane caps it
+//! ends at, perpendicular to its ruling or oblique.
 //!
 //! The consumer is a rod with a flat milled along it — `cylinder ∖ box`
 //! through the public boolean door — whose two creases are straight
@@ -13,17 +13,18 @@
 //! spine's crossing of the cap, described as the band×cap intersection;
 //! the trimlines are described as the band's tangent contact with the
 //! support they lie in; naming is total; the same shape spelled as a
-//! D-profile extrude (one 254° cap arc) carves too; an oblique cap
-//! refuses typed naming the reserved run-out; the predicate's trio and
-//! the lever it is metered at (the link's extent, shown through the
-//! battery on one tilt at two lengths); a curved end face refuses before
-//! metering; a mutant cut-off arc is refused at the attachment gate.
+//! D-profile extrude (one 254° cap arc) carves too; an oblique cap cuts
+//! the band off in an ellipse, at the centroid closed form; the
+//! kind-picker's arms and the lever it is metered at (the link's
+//! extent, shown through the battery on one tilt at two lengths); a
+//! curved end face refuses before metering; a mutant cut-off arc is
+//! refused at the attachment gate.
 //!
 //! The Phase-1 measurements that framed the unit stay as rows: the
 //! parallel-cylinder union (the `CylinderCylinderCylinder` consumer)
 //! still refuses at the boolean's curved-pierce door, and a box's single
-//! edge still refuses as a run-out — the cut-off is not widened to
-//! plane–plane straight edges.
+//! edge is cut off at its end faces by the plane–plane band's own
+//! cut-off.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,7 +34,9 @@ use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::{BlendRequest, END_FACE_CURVED, EndSection, cap_transverse, run_battery};
+use sweep::blend::battery::{
+    BlendRequest, END_FACE_CURVED, EndSection, cap_transverse, run_battery,
+};
 use sweep::blend::{BlendDecision, BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, finished, revolved_about_y,
@@ -469,7 +472,11 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                     ref other => panic!("{what}: an end curve, got {other:?}"),
                 }
             }
-            assert_eq!(ellipses, request.len(), "{what}: one ellipse per oblique end");
+            assert_eq!(
+                ellipses,
+                request.len(),
+                "{what}: one ellipse per oblique end"
+            );
         }
     }
 }
@@ -504,7 +511,10 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
         u_major.dot(n).abs() < 1e-15 && u_major.y.abs() < 1e-15,
         "the major axis is the tilt's trace in the cap, got {u_major:?}"
     );
-    assert!(normal.cross(n).norm() < 1e-15, "the ellipse's axis is the cap's normal");
+    assert!(
+        normal.cross(n).norm() < 1e-15,
+        "the ellipse's axis is the cap's normal"
+    );
     let t = 0.5 * (band.zero() + band.escalate());
     let escalated = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, R, 1.0, band)
         .expect_err("an in-band cap escalates");
@@ -703,7 +713,10 @@ fn the_cap_lever_is_the_links_extent() {
                 }
                 Err(err) if axes_apart <= door.escalate() => {
                     let BlendError::Escalated { source, .. } = err.error else {
-                        panic!("L = {len}: the door's sliver escalates, got {:?}", err.error);
+                        panic!(
+                            "L = {len}: the door's sliver escalates, got {:?}",
+                            err.error
+                        );
                     };
                     assert_eq!(source.predicate, Some("ellipse_axes_distinct"));
                 }

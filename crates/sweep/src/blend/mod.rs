@@ -37,7 +37,8 @@
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`; and,
 //!    at a RULED link's end, [`battery::cap_transverse`] —
 //!    `fillet3_cap_transverse`, the same predicate's classification of
-//!    the termination a ruled band has (a transverse cap, not a corner)
+//!    the termination a ruled band has (a plane cap, not a corner):
+//!    the picker of its section there, a circle or an ellipse
 //!
 //! **What "the offending margin as payload" means, exactly.** A
 //! definite refusal carries a [`ClassifiedMargin`]: the reading the
@@ -108,10 +109,11 @@
 //! the void with its ball, or the chamfer's flat patch); one, the
 //! CUT-OFF in the end face's plane section of the band
 //! ([`CornerConfig::EndFace`], [`RunOutPolicy::CutOffAtEndFace`]): a
-//! chord at any angle for a chamfer, a circle at a perpendicular end
-//! face for a fillet; and the RULED band — a straight edge between a
-//! cylinder and a plane or cylinder sharing its ruling — cut off at
-//! plane end faces perpendicular to the ruling, decided by
+//! chord at any angle for a chamfer, and for a fillet a circle at a
+//! perpendicular end face and an ellipse at an oblique one; and the
+//! RULED band — a straight edge between a cylinder and a plane or
+//! cylinder sharing its ruling — cut off at its plane end faces the
+//! same way, the circle or the ellipse picked by
 //! `fillet3_cap_transverse` at the link's own extent.
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
@@ -257,9 +259,12 @@ pub enum BlendDecision {
     /// `fillet3_corner_independence`: a uniform trivalent corner's three
     /// support normals are independent.
     CornerIndependence,
-    /// `fillet3_cap_transverse`: a cylinder band's end face — a ruled
-    /// link's cap, or a plane–plane fillet's cut-off — is perpendicular
-    /// to its spine. Passes only at zero.
+    /// `fillet3_cap_transverse`: the kind a cylinder band's plane end
+    /// face — a ruled link's cap, or a plane–plane fillet's cut-off —
+    /// cuts from it: a circle at zero, where the face is perpendicular
+    /// to its spine, an ellipse at a definite departure. It escalates
+    /// in band, and where the ellipse's axes are one circle under the
+    /// ellipse door's own gate.
     CapTransverse,
     /// `fillet3_cut_off_feet`: two cut-offs at the two ends of one rim
     /// put their feet on it in order and definitely apart, so the
@@ -325,7 +330,8 @@ impl BlendDecision {
                 "whether the three face normals at the corner are independent"
             }
             Self::CapTransverse => {
-                "whether a cylinder band's end face is a plane perpendicular to its spine"
+                "whether a cylinder band's plane end face is perpendicular to its spine, \
+                 cutting a circle from it, or oblique, cutting an ellipse"
             }
             Self::CutOffFeet => {
                 "whether two cut-offs' feet on the rim they share stand definitely apart"
@@ -712,8 +718,9 @@ pub enum CornerConfig {
     /// it ([`RunOutPolicy::CutOffAtEndFace`]).
     ///
     /// IN SCOPE for the plane–plane chamfer at any angle, and for a
-    /// cylinder band — the plane–plane fillet's, or a ruled arm's —
-    /// where the end face is perpendicular to the spine
+    /// cylinder band — the plane–plane fillet's, or a ruled arm's — at
+    /// any plane end face its spine crosses, in a circle where the face
+    /// is perpendicular to the spine and an ellipse where it is oblique
     /// (`fillet3_cap_transverse`, metered at the link's own extent).
     /// Not a corner in the trihedral sense — no ball rests there — and
     /// not a seam vertex: the surface is not smooth through it.
@@ -992,7 +999,7 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// **And it names BOTH terminations the surgery carves.** A
 /// plane\u{2013}plane link ends at a uniform trivalent corner; a RULED link —
 /// a cylinder with a plane or another cylinder, along the ruling they
-/// share — ends at transverse caps, which is the OQ6 scope decision
+/// share — ends at plane caps, which is the OQ6 scope decision
 /// stated at the top of this module and what
 /// `sweep/tests/fillet_h7_transverse_cap.rs` carves on the rod with a
 /// flat. Naming only the first left the second endorsed by
@@ -1484,8 +1491,8 @@ pub enum BlendError {
     /// (`fillet3_ring_clearance`): a ring of a support face sits
     /// within (or in band of) a blend trimline, so splitting the face
     /// along that trimline would consume the ring's feature instead
-    /// of carrying it through — or an edge of a transverse cap that a
-    /// convex ruled cut-off leaves on it (an edge of a ring, or of the
+    /// of carrying it through — or an edge of an end face that a
+    /// cut-off leaves on it (an edge of a ring, or of the
     /// cycle the cut runs in other than the two rims it shortens) is
     /// not definitely clear of a region enclosing the sliver the cut
     /// removes, so the cut would cross it or leave it outside the

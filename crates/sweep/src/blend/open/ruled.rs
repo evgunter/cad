@@ -70,8 +70,8 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, MefSite, VertexKey};
 
 use super::end_face::{CapSliver, CutRims, EndCurve, EndCut, cut_off, end_rims, fold_sliver};
 use crate::blend::BlendError;
-use crate::blend::battery::EndSection;
 use crate::blend::admit::AdmittedOpen;
+use crate::blend::battery::EndSection;
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
     ContactCarrier, Described, SourceFaces, chord_site, face_of_half, halves_of, not_intact, op,
@@ -213,7 +213,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     }
 }
 
-/// **Carve one ruled link**: the band between its two transverse caps.
+/// **Carve one ruled link**: the band between its two plane caps.
 /// Returns the band face and the new edges awaiting their descriptions.
 ///
 /// # Errors
