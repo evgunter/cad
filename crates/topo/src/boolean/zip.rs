@@ -784,6 +784,10 @@ mod tests {
         assert_eq!(fusions.rows(), [(a, b)], "no row of a refused extend stays");
         assert_eq!(fusions.survivor(d), d, "d is not fused");
         fusions.push((d, e)).unwrap();
-        assert_eq!(fusions.rows(), [(a, b), (d, e)], "the list still takes rows");
+        assert_eq!(
+            fusions.rows(),
+            [(a, b), (d, e)],
+            "the list still takes rows"
+        );
     }
 }
