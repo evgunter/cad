@@ -7471,3 +7471,11 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - the B1 probe committed as a witness either way;
   - the text corrections.
 - The PR 4165 impl lane was archived while it was still editing the PR body (about 15:58); the fix lane supersedes it.
+
+## 16:25 (2026-10-06)
+
+- PR 4154's CI at `bb5ae216` was red again. The same five sweep rows failed in the **eps 1e-6** step:
+  - `split_across_a_revolve_seam` ×3, `m5_pr6_pcurves` seam tube and `pinch_faces_tessellate`;
+  - plus `ellipse_torus::certified_torus_answers_hold_against_the_true_distance` in the slow set.
+- They are red on main at 1e-6 too: I reproduced them on `ef8479f2`. CLEAVE and JOIN had filed them, and PR 4083, merged just now, fixes them.
+- I pushed a real main merge to the branch at `bb1b5a92`. The five rows pass at 1e-6 locally, and the revert/review_d18/void filter passes 127/127. Awaiting CI.
