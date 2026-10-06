@@ -1209,6 +1209,30 @@ pub(crate) fn conic_extent<T: Real>(
     }
 }
 
+/// The padded box of the full circle about `center` of radius
+/// `radius` in the plane spanned by the unit `u_ref` and `v_ref`:
+/// [`conic_extent`] at the bracket lane, so coordinate `i` reaches
+/// `radius·√(u_i² + v_i²) = radius·√(1 − n_i²)` from the centre, where
+/// `n` is the plane's normal — the circle's own extent, which turns with
+/// it, not the `2·radius` cube about the centre.
+pub(crate) fn circle_box<T: Bounds>(
+    center: Point3<T>,
+    u_ref: Vec3<T>,
+    v_ref: Vec3<T>,
+    radius: T,
+    pad: f64,
+) -> Aabb {
+    let r = radius.hi();
+    aabb_of(conic_extent(
+        &bracket_point(center),
+        &bracket_vector(u_ref),
+        &bracket_vector(v_ref),
+        r,
+        r,
+    ))
+    .padded(pad)
+}
+
 /// **The one soundness rule for a face's box**, stated per surface
 /// kind: which cheap construction yields a genuine SUPERSET of the
 /// face's locus. Every consumer that bounds a face reads its arm from

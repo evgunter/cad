@@ -116,6 +116,7 @@ pub use refusal_routes::{
 pub(crate) mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
+pub(crate) mod separating;
 mod shell_witness;
 pub mod solid_contain;
 pub(crate) mod sphere_region;

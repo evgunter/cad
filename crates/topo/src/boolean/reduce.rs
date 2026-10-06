@@ -68,6 +68,7 @@ use super::circle_roots::CircleRoots;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::PlaneDesc;
 use super::refusal_routes::NeighbourOffset;
+use super::separating::Item;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
@@ -333,10 +334,20 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
                 Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
             })
             .collect::<Result<_, BooleanError>>()?;
+        let mut axes = None;
         for (face, kind) in offenders {
             let boxed = super::boxes::face_box(body, face, pad, band)?;
             for &(other_face, other_kind, ref other_box) in &others {
-                if boxed.overlaps(other_box) && !covered(operand, face, other_face) {
+                if boxed.overlaps(other_box)
+                    && !covered(operand, face, other_face)
+                    && !super::separating::apart(
+                        (body, Item::Face(face)),
+                        (other, Item::Face(other_face)),
+                        axes.get_or_insert_with(|| super::separating::operand_axes(a, b, band)),
+                        pad,
+                        band,
+                    )
+                {
                     return Ok(Some(UnsupportedPair {
                         operand,
                         face,
@@ -1063,6 +1074,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
     let pad = knobs.pad_override.unwrap_or_else(|| boxes::sweep_pad(band));
+    let axes = super::separating::operand_axes(x, y, band);
     // With `sweep-testing`, the tree is optional so the idealized
     // reference can decline it. Without the feature there is no
     // `Idealized` variant to decline it with, so the tree is
@@ -1121,6 +1133,19 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // the conic ROOT lane); curved faces get the clearance /
             // typed-frontier arm.
             let Some(plane) = face_plane(y, face) else {
+                // The tree's overlap is a world-axis one: a curved face
+                // the edge is apart from along a direction that turns
+                // with the operands meets it nowhere, whichever arm its
+                // kind has.
+                if super::separating::apart(
+                    (x, Item::Edge(edge_key)),
+                    (y, Item::Face(face)),
+                    &axes,
+                    pad,
+                    band,
+                ) {
+                    continue;
+                }
                 let event = curved_face_arm(
                     x, y, x_is, edge_key, &edge, u, v, face, pu, pv, declared, contacts, band, tol,
                 )?;

@@ -1248,10 +1248,23 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     stop: bool,
 ) -> Vec<PairVerdict> {
     let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
+    let pad = boxes::sweep_pad(band);
+    let mut axes = None;
     let mut out = Vec::new();
     for fa in a_rows {
         for &fb in &b_rows {
             if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
+                continue;
+            }
+            // The overlap is a world-axis one; a pair apart along a
+            // direction that turns with the operands has no section.
+            if super::separating::apart(
+                (a, super::separating::Item::Face(fa.face)),
+                (b, super::separating::Item::Face(fb.face)),
+                axes.get_or_insert_with(|| super::separating::operand_axes(a, b, band)),
+                pad,
+                band,
+            ) {
                 continue;
             }
             let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts);
@@ -3133,7 +3146,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // witness extends to the whole circle.
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
-                                let circle_box = centred_box(foot, rho, pad);
+                                let circle_box =
+                                    boxes::circle_box(foot, u_ref, normal.cross(u_ref), rho, pad);
                                 if face_boundary_meets(y, yf, &circle_box, pad) {
                                     return Err(BooleanError::FallbackExtentUnsupported {
                                         operand: x_is,
