@@ -2,10 +2,12 @@
 id: shell-answers-for-the-complement-of-an-inside-out-operand
 kind: issue
 title: topo::shell consumes an inside-out operand and answers for its complement: no orientation gate on the way in
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: M
+pr: 4112
+branch: shell/operand-at-rest
 ---
 
 

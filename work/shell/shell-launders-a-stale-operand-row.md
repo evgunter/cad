@@ -2,11 +2,13 @@
 id: shell-launders-a-stale-operand-row
 kind: issue
 title: shell's closing pcurve mint clears the map first, so a stale or missing row on the OPERAND is laundered into a valid result — the verb does not gate its operand's rows, and neither does any of the thirteen producers spelling the same mint
-status: open
+status: review
 opened: 2026-09-08
 priority: P1
 cost: M
 rides_with: shell-answers-for-the-complement-of-an-inside-out-operand
+pr: 4112
+branch: shell/operand-at-rest
 ---
 
 Measured by the SHELL-9 R2 review lane, by execution
