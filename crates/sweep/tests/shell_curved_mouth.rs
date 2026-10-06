@@ -285,3 +285,107 @@ fn a_whole_side_wall_disconnects_the_caps() {
         other => panic!("expected the disconnect gate, got {other:?}"),
     }
 }
+
+/// The D-section with its half-cylinder SPLIT along the ruling at
+/// `u = 0` into two faces on one chart: a window of two faces that does
+/// not wrap. Built through the public Euler doors, then minted and
+/// finished.
+fn split_d_section(r: f64, h: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let mut body = d_section(r, h);
+    let wall = faces_on(&body, geom::SurfaceKind::Cylinder)[0];
+    let surface = body.get_face(wall).unwrap().surface;
+    // The wall's two arcs, each split at its x = r point.
+    let arcs: Vec<topo::EdgeKey> = body
+        .edges()
+        .filter(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let mut mids = Vec::new();
+    for arc in arcs {
+        let key = body.get_edge(arc).unwrap().curve;
+        let (t0, t1) = body
+            .get_curve_geom(key)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .params();
+        let made = body.split_edge(arc, 0.5 * (t0 + t1), tol).unwrap();
+        mids.push(made.vertex);
+    }
+    let p = |b: &Body<f64>, v: topo::VertexKey| b.vertex_points().find(|(k, _)| *k == v).unwrap().1;
+    let (bottom, top) = if p(&body, mids[0]).z < p(&body, mids[1]).z {
+        (mids[0], mids[1])
+    } else {
+        (mids[1], mids[0])
+    };
+    let leaving = |b: &Body<f64>, v: topo::VertexKey| {
+        let lk = b.get_face(wall).unwrap().outer;
+        let topo::LoopBoundary::Cycle { first } = b.get_loop(lk).unwrap().boundary else {
+            panic!("a cycle")
+        };
+        b.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .find(|&he| b.get_half_edge(he).unwrap().start == v)
+            .unwrap()
+    };
+    let (he1, he2) = (leaving(&body, bottom), leaving(&body, top));
+    let (pb, pt) = (p(&body, bottom), p(&body, top));
+    body.mef(
+        topo::MefSite::Chords { he1, he2 },
+        geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(surface),
+            carrier: geom::Curve3::Line {
+                origin: pb,
+                dir: (pt - pb) / (pt - pb).norm(),
+            },
+            param_start: 0.0,
+            param_end: (pt - pb).norm(),
+        },
+        topo::FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    body
+}
+
+/// **A window of two faces that does not wrap is still a ring.** The
+/// D-section's half-cylinder, split along its middle ruling into two
+/// faces on one chart, carries an interior edge, but no cycle of its
+/// boundary winds the period. So its two faces merge, as a plane
+/// chart's do, and the window opens to the same ring and the same
+/// closed form as the unsplit D-section.
+#[test]
+fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
+    let tol = Tol::witness();
+    let (r, h, t) = (0.5, 0.8, 0.05);
+    let body = split_d_section(r, h);
+    let wall = faces_on(&body, geom::SurfaceKind::Cylinder);
+    assert_eq!(wall.len(), 2, "the half-cylinder is split in two");
+    let shelled = open(&body, &wall, t).expect("the split window opens");
+    let cut = &shelled.body;
+    assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "tier 3");
+    assert_eq!(rings_of(cut), 1, "one ring");
+    let rim = faces_on(cut, geom::SurfaceKind::Cylinder);
+    assert_eq!(rim.len(), 1, "the two faces merge into one rim");
+    assert_eq!(
+        cut.get_face(rim[0]).map(|f| f.rings.len()),
+        Some(1),
+        "and the rim carries the ring"
+    );
+    let segment = r * r * (t / r).acos() - t * (r * r - t * t).sqrt();
+    let want = PI * r * r / 2.0 * h - segment * (h - 2.0 * t);
+    let props = topo::mass_properties(cut, tol).expect("props");
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "volume: got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
+    );
+}

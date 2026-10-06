@@ -294,16 +294,16 @@
 //! so a cylinder, sphere or torus comes back by its change of radius
 //! and a cone by its apex slide. Then, on a PERIODIC chart:
 //!
-//! - **A chart that wraps its period** — its surviving side carries an
-//!   interior edge, a seam between two branches or one a face walks
-//!   twice — becomes a SEAMED BAND, the shape the full revolve mints.
+//! - **A chart that wraps its period** — a cycle of its surviving
+//!   side's boundary winds the chart's `u` once ([`wraps_its_period`])
+//!   — becomes a SEAMED BAND, the shape the full revolve mints.
 //!   The surviving side is not reduced: the glue makes the dying side's
 //!   boundary a ring of its first face, and each seam's pole end is then
 //!   re-anchored on the ring corner that stands for its boundary end
 //!   ([`seamed_band`]), so every face and seam of the operand's chart
 //!   survives under its key and no face carries a ring. Built through a
-//!   POLE today (a cap, two branches or one); a band that wraps between
-//!   two boundaries refuses [`ShellError::OpenFaceRimNotExpressible`].
+//!   POLE today (a cap of two branches); a band that wraps between two
+//!   boundaries refuses [`ShellError::OpenFaceRimNotExpressible`].
 //! - **A window that does not wrap** is a ring, exactly as on a plane.
 //!   What its readers cannot yet read is theirs and refuses where they
 //!   read it: a ringed sphere or cone face at tier 3's check 7
@@ -1588,17 +1588,18 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // what fills `dead` — recorded at the call, never inferred
         // afterwards from what stopped resolving.
         // The designated chart reduced to one face — the mouth — and
-        // its counterpart chart reduced to one. On a PERIODIC chart the
-        // side that survives keeps every face it has: its chart
-        // branches and its seams are D1's, and the rim takes them over.
-        let periodic = matches!(
-            out.face_surface_linked(designated, proven(&out.faces, designated, EntityId::Face)),
-            geom::Surface::Cylinder { .. }
-                | geom::Surface::Cone { .. }
-                | geom::Surface::Sphere { .. }
-                | geom::Surface::Torus { .. }
-        );
-        let keeps = |which: RimShell| periodic && side == which;
+        // its counterpart chart reduced to one. On a chart that WRAPS
+        // its period the side that survives keeps every face it has: its
+        // chart branches and its seams are D1's, and the rim takes them
+        // over as a SEAMED BAND rather than a ring — a ring there would
+        // be a face whose domain closes with no wrap edge to close it
+        // across.
+        let survivor_chart = match side {
+            RimShell::Void => &sources,
+            RimShell::Outer => &group,
+        };
+        let wraps = wraps_its_period(&out, survivor_chart, band)?;
+        let keeps = |which: RimShell| wraps && side == which;
         let mouth = if keeps(RimShell::Outer) {
             None
         } else {
@@ -1633,12 +1634,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             RimShell::Void => RingSource::Operand(body),
             RimShell::Outer => RingSource::Twins(&twins),
         };
-        // **A chart whose surviving side carries interior edges wraps
-        // its period**, and its rim is a SEAMED BAND rather than a ring:
-        // a ring on a periodic chart is a face whose domain closes with
-        // no wrap edge to close it across.
-        let seams = interior_edges(&out, &host_faces);
-        if !seams.is_empty() {
+        if wraps {
+            let seams = interior_edges(&out, &host_faces);
             let rim = seamed_band(
                 &mut out,
                 &host_faces,
@@ -1663,11 +1660,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             continue;
         }
         let [host] = host_faces[..] else {
-            return Err(ShellError::OpenFaceRimNotExpressible {
-                face: designated,
-                what: "the designated chart's faces neither meet along a seam nor merge into one \
-                       region",
-            });
+            unreachable!("a chart that does not wrap is reduced to one face on both sides")
         };
 
         // **The glue's roles.** `kfmrh(host, guest)` kills `guest` and
@@ -2134,9 +2127,10 @@ fn canonicalize_chart<T: Decide>(
         let chart = body
             .face_surface_linked(anchor, proven(&body.faces, anchor, EntityId::Face))
             .clone();
-        let ring_first = if encloses(&chart, &p1, &p2, band) {
+        let escalated = |source| ShellError::Escalated { source };
+        let ring_first = if encloses(&chart, &p1, &p2, band).map_err(escalated)? {
             true
-        } else if encloses(&chart, &p2, &p1, band) {
+        } else if encloses(&chart, &p2, &p1, band).map_err(escalated)? {
             false
         } else {
             return Err(not_expressible(
@@ -2156,13 +2150,94 @@ fn canonicalize_chart<T: Decide>(
             let outer = proven(&body.faces, anchor, EntityId::Face).outer;
             (loop_points(body, made.ring), loop_points(body, outer))
         };
-        if !encloses(&chart, &ring_pts, &outer_pts, band) {
+        if !encloses(&chart, &ring_pts, &outer_pts, band)
+            .map_err(|source| ShellError::Escalated { source })?
+        {
             return Err(not_expressible(
                 "the chart's slit loop split with the enclosing side as the ring",
             ));
         }
     }
     Ok(anchor)
+}
+
+/// Whether the chart `faces` wear WRAPS its period: some cycle of their
+/// common boundary — their loops' half-edges along edges not interior to
+/// them, chained end to start — winds the chart's `u` once, read through
+/// [`crate::chart::ChartRead`] and unwrapped step by step along the
+/// cycle. A pole cap's rim winds; a window, however wide, comes back to
+/// where it started. A plane has no period, and a spline chart no
+/// closed-form read, so neither wraps here.
+fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+) -> Result<bool, ShellError<T>> {
+    let surface = body.face_surface_linked(faces[0], proven(&body.faces, faces[0], EntityId::Face));
+    let (Some(_), Some(chart)) = (
+        crate::pcurves::chart_period(surface, band),
+        crate::chart::ChartRead::of(surface),
+    ) else {
+        return Ok(false);
+    };
+    let interior = interior_edges(body, faces);
+    let mut boundary: Vec<HeKey> = faces
+        .iter()
+        .flat_map(|&f| {
+            let data = proven(&body.faces, f, EntityId::Face);
+            core::iter::once(data.outer)
+                .chain(data.rings.iter().copied())
+                .flat_map(|lk| cycle_of(body, lk))
+                .collect::<Vec<_>>()
+        })
+        .filter(|&he| !interior.contains(&proven(&body.half_edges, he, EntityId::HalfEdge).edge))
+        .collect();
+    let escalated = |source| ShellError::Escalated { source };
+    while let Some(start) = boundary.pop() {
+        // One boundary cycle, as the points its half-edges run through.
+        let mut points = Vec::new();
+        let mut he = start;
+        loop {
+            let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let mut run = half_edge_points(body, &[he]);
+            if proven(&body.edges, edge, EntityId::Edge).he_plus != he {
+                run.reverse();
+            }
+            points.extend(run);
+            let end = body.proven_half_edge_end(he);
+            let Some(at) = boundary
+                .iter()
+                .position(|&h| proven(&body.half_edges, h, EntityId::HalfEdge).start == end)
+            else {
+                break;
+            };
+            he = boundary.swap_remove(at);
+        }
+        let Some(&first) = points.first() else {
+            continue;
+        };
+        points.push(first);
+        let lever = chart.radial(first);
+        if decide("shell_chart_lever", Margin::of(lever), band).map_err(escalated)?
+            != Sign::Positive
+        {
+            continue;
+        }
+        let mut winding = T::zero();
+        for pair in points.windows(2) {
+            let (sin, cos) = (chart.u_of(pair[1]) - chart.u_of(pair[0])).sin_cos();
+            winding = winding + sin.atan2(cos);
+        }
+        // Once round is `±τ` and a cycle that comes back is `0`: the
+        // margin is the distance from half a turn, in metres.
+        let past_half = (winding.abs() - T::pi()) * lever;
+        if decide("shell_chart_winds", Margin::of(past_half), band).map_err(escalated)?
+            == Sign::Positive
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// The edges both of whose sides bound faces of `faces` — the seams a
@@ -2192,19 +2267,19 @@ struct SeamedRim {
 /// its outer boundary, its seams cut short, and the dying side's
 /// boundary.
 ///
-/// `host_faces` are the surviving chart's faces, unreduced, and `seams`
-/// the edges they meet along: one seam a single face walks twice, or
-/// two seams between two branches. Both run from the host's boundary
-/// to one POLE, a vertex nothing else reaches, and the guest — reduced
-/// to one ring-free face — lies over the pole on the same surface.
+/// `host_faces` are the surviving chart's faces, unreduced: two
+/// branches, and `seams` the two edges they meet along. Both run from
+/// the host's boundary to one POLE, a vertex nothing else reaches, and
+/// the guest — reduced to one ring-free face — lies over the pole on the
+/// same surface.
 ///
 /// The surgery keeps every surviving edge: the glue (`kfmrh`) makes the
 /// guest's boundary a ring of the first host face, and each seam's pole
 /// end is then RE-ANCHORED on the ring vertex that corresponds to its
 /// boundary end, through a strut along the seam's own carrier that
 /// `kev` collapses. Two seams cannot both be re-anchored through one
-/// pole, so with two the second is first moved off it (`mev`) onto a
-/// station of its own, and the strut that would reach its ring vertex
+/// pole, so the second is first moved off it onto a copy of it
+/// (`mev_null`), and the strut that would reach its ring vertex
 /// splits the first face (`mef`) along the first seam; the piece that
 /// holds the pole dies into the second face (`kef`). What is left is
 /// each host face bounded by its own boundary, its seams' boundary
@@ -2250,9 +2325,13 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
                 })
         })
     };
-    let (Some(pole), 1 | 2) = (pole, seams.len()) else {
+    // Two seams, one per branch boundary. One seam ending at a pole
+    // would leave the pole a strut tip, which tier 2 refuses at rest,
+    // so no finished operand carries it.
+    let (Some(pole), 2) = (pole, seams.len()) else {
         return Err(not_expressible(
-            "the designated chart wraps its period, but its seams do not meet at one pole",
+            "the designated chart wraps its period, but it is not two branches whose seams \
+             meet at one pole",
         ));
     };
     let host = host_faces[0];
@@ -2304,50 +2383,47 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         )?;
         let (s0, s1) = (reach.param_start, reach.param_end);
         let scale = (p_pole - point(body, boundary)).norm() / (s1 - s0);
-        let inside = reach
+        let mut inside = false;
+        if let Some(s) = reach
             .carrier
             .param_near(corner, (s0 + s1) / T::from_f64(2.0))
-            .is_some_and(|s| {
-                [s - s0, s1 - s].into_iter().all(|gap| {
-                    matches!(
-                        decide("shell_seam_corner_inside", Margin::of(gap * scale), band),
-                        Ok(Sign::Positive)
-                    )
-                })
-            });
+        {
+            inside = true;
+            for gap in [s - s0, s1 - s] {
+                let sign = decide("shell_seam_corner_inside", Margin::of(gap * scale), band)
+                    .map_err(|source| ShellError::Escalated { source })?;
+                inside &= sign == Sign::Positive;
+            }
+        }
         if !inside {
             return Err(not_expressible(
-                "the cavity counterpart's corner does not lie on the designated chart's seam \
-                 between its boundary and the pole, so the rim is not a band of the \
+                "the cavity counterpart's corner does not project onto the designated chart's \
+                 seam between its boundary and the pole, so the rim is not a band of the \
                  designated face",
             ));
         }
     }
 
-    // Two seams: the second leaves the pole for a copy of it (a null
-    // edge), so the pole can be collapsed onto one ring vertex and the
-    // copy onto the other.
-    let second = if seams.len() == 2 {
-        let made = body
-            .mev_null(
-                crate::euler::MevSite::Fan {
-                    he1: out_of,
-                    he2: {
-                        let data = proven(&body.edges, ea, EntityId::Edge);
-                        if data.he_plus == into {
-                            data.he_minus
-                        } else {
-                            data.he_plus
-                        }
-                    },
+    // The second seam leaves the pole for a copy of it (a null edge), so
+    // the pole can be collapsed onto one ring vertex and the copy onto
+    // the other.
+    let made = body
+        .mev_null(
+            crate::euler::MevSite::Fan {
+                he1: out_of,
+                he2: {
+                    let data = proven(&body.edges, ea, EntityId::Edge);
+                    if data.he_plus == into {
+                        data.he_minus
+                    } else {
+                        data.he_plus
+                    }
                 },
-                crate::null::NewVertexSide::Above,
-            )
-            .map_err(rim_error)?;
-        Some((made.vertex, made.he_plus))
-    } else {
-        None
-    };
+            },
+            crate::null::NewVertexSide::Above,
+        )
+        .map_err(rim_error)?;
+    let (station, off_pole) = (made.vertex, made.he_plus);
 
     // The glue: the guest's boundary becomes a ring of the host face.
     let fused = body.kfmrh(host, guest).map_err(rim_error)?;
@@ -2382,55 +2458,36 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             minus
         }
     };
-    let to_pole = match second {
-        None => {
-            let made = body
-                .mekr(
-                    crate::euler_ring::MekrSite::Cycles {
-                        target: out_of,
-                        ring: ra,
-                    },
-                    along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
-                    tol,
-                )
-                .map_err(rim_error)?;
-            dead.loops.push(made.killed_ring);
-            collapse(body, made.he_plus, made.he_minus, pole)
-        }
-        Some((station, off_pole)) => {
-            let joined = body
-                .mekr(
-                    crate::euler_ring::MekrSite::Cycles {
-                        target: out_of,
-                        ring: rb,
-                    },
-                    along(body, eb, p_pole, p_gb, host_surface, band, designated)?,
-                    tol,
-                )
-                .map_err(rim_error)?;
-            dead.loops.push(joined.killed_ring);
-            let split = body
-                .mef(
-                    crate::euler::MefSite::Chords {
-                        he1: off_pole,
-                        he2: ra,
-                    },
-                    along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
-                    crate::euler::FaceSurface::Inherit,
-                    tol,
-                )
-                .map_err(rim_error)?;
-            // The new face holds the pole and the scaffold between the
-            // two seams; it dies into the second host face.
-            body.kef(off_pole).map_err(rim_error)?;
-            let to_station = collapse(body, joined.he_plus, joined.he_minus, station);
-            let to_pole = collapse(body, split.he_plus, split.he_minus, pole);
-            let moved = re_anchored(body, eb, station, p_gb, designated)?;
-            body.kev_describing(to_station, &[(eb, moved)], tol)
-                .map_err(rim_error)?;
-            to_pole
-        }
-    };
+    let joined = body
+        .mekr(
+            crate::euler_ring::MekrSite::Cycles {
+                target: out_of,
+                ring: rb,
+            },
+            along(body, eb, p_pole, p_gb, host_surface, band, designated)?,
+            tol,
+        )
+        .map_err(rim_error)?;
+    dead.loops.push(joined.killed_ring);
+    let split = body
+        .mef(
+            crate::euler::MefSite::Chords {
+                he1: off_pole,
+                he2: ra,
+            },
+            along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
+            crate::euler::FaceSurface::Inherit,
+            tol,
+        )
+        .map_err(rim_error)?;
+    // The new face holds the pole and the scaffold between the two
+    // seams; it dies into the second host face.
+    body.kef(off_pole).map_err(rim_error)?;
+    let to_station = collapse(body, joined.he_plus, joined.he_minus, station);
+    let to_pole = collapse(body, split.he_plus, split.he_minus, pole);
+    let moved = re_anchored(body, eb, station, p_gb, designated)?;
+    body.kev_describing(to_station, &[(eb, moved)], tol)
+        .map_err(rim_error)?;
     let moved = re_anchored(body, ea, pole, p_ga, designated)?;
     let killed = body
         .kev_describing(to_pole, &[(ea, moved)], tol)
@@ -2462,23 +2519,26 @@ fn along<T: Decide>(
     };
     let (t0, t1) = curve.params();
     let near = (t0 + t1) / T::from_f64(2.0);
-    let stretch = |carrier: &geom::Curve3<T>, near: T| -> Option<(T, T)> {
-        let a = carrier.param_near(from, near)?;
-        let b = carrier.param_near(to, near)?;
-        matches!(
-            decide("shell_seam_stretch", Margin::of(b - a), band),
-            Ok(Sign::Positive)
-        )
-        .then_some((a, b))
+    // Whether the carrier runs forward from `from` to `to`, metered as
+    // the chord between them signed by the parameter's direction.
+    let stretch = |carrier: &geom::Curve3<T>, near: T| -> Result<Option<(T, T)>, ShellError<T>> {
+        let (Some(a), Some(b)) = (carrier.param_near(from, near), carrier.param_near(to, near))
+        else {
+            return Ok(None);
+        };
+        let chord = (to - from).norm().copysign(b - a);
+        let sign = decide("shell_seam_stretch", Margin::of(chord), band)
+            .map_err(|source| ShellError::Escalated { source })?;
+        Ok((sign == Sign::Positive).then_some((a, b)))
     };
     let forward = curve.carrier().clone();
-    let found = stretch(&forward, near)
-        .map(|ab| (forward.clone(), ab))
-        .or_else(|| {
-            let reversed = forward.reversed()?;
-            let mid = reversed.param_near(forward.eval(near), T::zero())?;
-            stretch(&reversed, mid).map(|ab| (reversed, ab))
-        });
+    let mut found = stretch(&forward, near)?.map(|ab| (forward.clone(), ab));
+    if found.is_none()
+        && let Some(reversed) = forward.reversed()
+        && let Some(mid) = reversed.param_near(forward.eval(near), T::zero())
+    {
+        found = stretch(&reversed, mid)?.map(|ab| (reversed, ab));
+    }
     let Some((carrier, (param_start, param_end))) = found else {
         return Err(ShellError::OpenFaceRimNotExpressible {
             face: designated,
@@ -2496,7 +2556,10 @@ fn along<T: Decide>(
 
 /// `edge`'s own description with its end at `moved` carried to `onto`
 /// along its carrier: the spec a `kev` that merges `moved` away hands
-/// the merged seam.
+/// the merged seam. It is the child a split at `onto` keeps
+/// ([`geom_brep::EdgeCurve::split_specs`]), so the description is
+/// restricted to the shortened interval exactly as a split restricts
+/// it.
 fn re_anchored<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -2509,45 +2572,22 @@ fn re_anchored<T: Decide>(
         unreachable!("{edge:?} is a seam of a finished wall, which has no null edge")
     };
     let (t0, t1) = curve.params();
-    let carrier = curve.carrier();
     let starts_there = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start == moved;
-    let landed = carrier.param_near(onto, if starts_there { t0 } else { t1 });
-    let Some(landed) = landed else {
+    let Some(landed) = curve
+        .carrier()
+        .param_near(onto, if starts_there { t0 } else { t1 })
+    else {
         return Err(ShellError::OpenFaceRimNotExpressible {
             face: designated,
             what: "a seam of the designated chart has no carrier stretch to the counterpart's \
                    corner",
         });
     };
-    let (param_start, param_end) = if starts_there {
-        (landed, t1)
+    let (kept_before, kept_after) = curve.split_specs(landed);
+    Ok(if starts_there {
+        kept_after
     } else {
-        (t0, landed)
-    };
-    // A declared source is restricted with the interval, as a split
-    // restricts it; a chart image is a function of the carrier's own
-    // parameter and travels verbatim.
-    let span = t1 - t0;
-    let description = match curve.restated_description() {
-        geom_brep::EdgeDescriptionSpec::Chart {
-            surface,
-            image,
-            seam,
-            declared,
-        } => geom_brep::EdgeDescriptionSpec::Chart {
-            surface,
-            image,
-            seam,
-            declared: declared
-                .map(|mc| mc.restrict((param_start - t0) / span, (param_end - t0) / span)),
-        },
-        other => other,
-    };
-    Ok(geom_brep::EdgeCurveSpec {
-        description,
-        carrier: carrier.clone(),
-        param_start,
-        param_end,
+        kept_before
     })
 }
 
@@ -2590,6 +2630,7 @@ fn pair_rings<T: Decide>(
     let chart = body
         .face_surface_linked(rim, proven(&body.faces, rim, EntityId::Face))
         .clone();
+    let escalated = |source| ShellError::Escalated { source };
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
         ([rim_ring], [source_ring]) => {
@@ -2598,7 +2639,9 @@ fn pair_rings<T: Decide>(
                 &loop_points(body, *source_ring),
                 &loop_points(body, *rim_ring),
                 band,
-            ) {
+            )
+            .map_err(escalated)?
+            {
                 Err(not_expressible(
                     "the designated face's hole does not sit inside the cavity counterpart's",
                 ))
@@ -2607,7 +2650,9 @@ fn pair_rings<T: Decide>(
                 &loop_points(body, *rim_ring),
                 &loop_points(body, *source_ring),
                 band,
-            ) {
+            )
+            .map_err(escalated)?
+            {
                 Ok(vec![(*source_ring, *rim_ring)])
             } else {
                 Err(not_expressible(
@@ -2749,108 +2794,97 @@ fn loop_points<T: Decide>(
 /// are concentric by construction and the mean radius is their nesting
 /// order. Anything else refuses typed at the call site rather than
 /// being read off this. One margin, one decide, metered as the length
-/// it is.
+/// it is; a read that cannot be decided escalates rather than answering
+/// "not enclosed".
 fn encloses<T: Decide>(
     surface: &geom::Surface<T>,
     inner: &[geom_core::Point3<T>],
     outer: &[geom_core::Point3<T>],
     band: Band,
-) -> bool {
+) -> Result<bool, Indeterminate> {
     if inner.is_empty() || outer.is_empty() {
-        return false;
+        return Ok(false);
     }
-    let Some(read) = chart_read(surface, &[inner, outer], band) else {
-        return false;
+    let Some(read) = chart_read(surface, &[inner, outer], band)? else {
+        return Ok(false);
     };
     let (inner, outer) = read.split_at(inner.len());
     let centre = centroid_of(&[inner, outer]);
     let gap = mean_radius(outer, centre) - mean_radius(inner, centre);
-    matches!(
-        decide("shell_rim_nesting", Margin::of(gap), band),
-        Ok(Sign::Positive)
-    )
+    Ok(decide("shell_rim_nesting", Margin::of(gap), band)? == Sign::Positive)
 }
 
 /// Point runs read into `surface`'s chart, laid flat in metres: a
 /// plane's points as they are (its chart is the plane), a surface of
-/// revolution's as `(u·ρ, v·λ, 0)` — `u` unwrapped about the first
-/// point's, `ρ` that point's distance from the axis and `λ` the length
-/// one unit of `v` spans (`Chart::v_lever`'s). One scale for every
-/// point, so the two runs are compared in one flat picture. `None` on a
-/// chart with no closed-form read (a spline), or a first point on the
-/// axis, where `u` is not defined.
+/// revolution's as `(u·ρ, v·λ, 0)` through
+/// [`crate::chart::ChartRead`] — `ρ` the first point's distance from
+/// the axis and `λ` the length one unit of `v` spans. One scale for
+/// every point, so the runs are compared in one flat picture.
+///
+/// **`u` is unwrapped so a run is continuous** however wide it is,
+/// short of the period: each point is taken a branch-free step from the
+/// one before it in its run (the runs are sampled loops, so neighbours
+/// are close), and each later run is then moved by whole periods until
+/// its mean `u` is within half a period of the first run's — which a
+/// nested pair satisfies, since the inner's mean lies inside the
+/// outer's span. `Ok(None)` on a chart with no closed-form read (a
+/// spline), or a first point on the axis, where `u` is not defined.
 fn chart_read<T: Decide>(
     surface: &geom::Surface<T>,
     runs: &[&[geom_core::Point3<T>]],
     band: Band,
-) -> Option<Vec<geom_core::Point3<T>>> {
-    use geom::Surface as S;
-    let points = runs.iter().flat_map(|run| run.iter().copied());
-    let (anchor, axis, u_ref) = match surface {
-        S::Plane { .. } => return Some(points.collect()),
-        S::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => (*origin, *axis, *u_ref),
-        S::Cone {
-            apex, axis, u_ref, ..
-        } => (*apex, *axis, *u_ref),
-        S::Sphere {
-            center,
-            axis,
-            u_ref,
-            ..
-        }
-        | S::Torus {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => (*center, *axis, *u_ref),
-        S::Nurbs(_) | S::Approx(_) => return None,
-    };
-    let v_ref = axis.cross(u_ref);
-    let pi = T::from_f64(core::f64::consts::PI);
-    let sign = |name: &'static str, x: T| decide(name, Margin::of(x), band).ok();
-    let u_v = |p: geom_core::Point3<T>| -> Option<(T, T, T)> {
-        let w = p - anchor;
-        let h = w.dot(axis);
-        let (x, y) = (w.dot(u_ref), w.dot(v_ref));
-        let radial = (x.powi(2) + y.powi(2)).sqrt();
-        let mut u = y.atan2(x);
-        let v = match surface {
-            S::Cone { half_angle, .. } => {
-                // The mirror nappe's chart u sits half a turn round.
-                if sign("shell_chart_nappe", h)? == Sign::Negative {
-                    u = u + pi;
-                }
-                h / half_angle.cos()
-            }
-            S::Sphere { radius, .. } => *radius * (h / *radius).asin(),
-            S::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            } => *minor_radius * h.atan2(radial - *major_radius),
-            _ => h,
-        };
-        Some((u, v, radial))
-    };
-    let mut points = points.peekable();
-    let (u0, _, lever) = u_v(*points.peek()?)?;
-    if sign("shell_chart_lever", lever)? != Sign::Positive {
-        return None;
+) -> Result<Option<Vec<geom_core::Point3<T>>>, Indeterminate> {
+    if matches!(surface, geom::Surface::Plane { .. }) {
+        return Ok(Some(
+            runs.iter().flat_map(|run| run.iter().copied()).collect(),
+        ));
     }
-    points
-        .map(|p| {
-            let (u, v, _) = u_v(p)?;
-            // `u − u0` brought into (−π, π].
-            let (sin, cos) = (u - u0).sin_cos();
-            Some(geom_core::Point3::new(sin.atan2(cos) * lever, v, T::zero()))
-        })
-        .collect()
+    let Some(chart) = crate::chart::ChartRead::of(surface) else {
+        return Ok(None);
+    };
+    let Some(&first) = runs.iter().find_map(|run| run.first()) else {
+        return Ok(Some(Vec::new()));
+    };
+    let lever = chart.radial(first);
+    if decide("shell_chart_lever", Margin::of(lever), band)? != Sign::Positive {
+        return Ok(None);
+    }
+    let (tau, v_lever) = (T::tau(), chart.v_lever());
+    let mut out = Vec::new();
+    let mut reference: Option<T> = None;
+    for run in runs {
+        let mut us: Vec<T> = Vec::with_capacity(run.len());
+        for &p in *run {
+            let raw = chart.u_of(p);
+            us.push(match us.last() {
+                // The step from the previous point, brought into (−π, π].
+                Some(&prev) => {
+                    let (sin, cos) = (raw - prev).sin_cos();
+                    prev + sin.atan2(cos)
+                }
+                None => raw,
+            });
+        }
+        if us.is_empty() {
+            continue;
+        }
+        let mean = us.iter().fold(T::zero(), |sum, &u| sum + u) / T::from_f64(us.len() as f64);
+        let shift = match reference {
+            None => {
+                reference = Some(mean);
+                T::zero()
+            }
+            Some(at) => tau * ((at - mean) / tau + T::from_f64(0.5)).floor(),
+        };
+        for (&p, u) in run.iter().zip(us) {
+            out.push(geom_core::Point3::new(
+                (u + shift) * lever,
+                chart.v_of(p) * v_lever,
+                T::zero(),
+            ));
+        }
+    }
+    Ok(Some(out))
 }
 
 /// The centroid of several point runs, accumulated from the first
@@ -3535,13 +3569,17 @@ mod tests {
     #[allow(clippy::panic)]
     mod footprint_fuzz;
 
-    /// **Nesting on a curved chart is read in the chart.** Two windows
-    /// on a unit cylinder about `z`, both straddling `u = π`, where
-    /// the raw azimuth jumps a turn, so the read has to unwrap it: the
-    /// inner spans `π ± 0.2` rad and `z ∈ [0.2, 0.8]`, the outer `π ± 0.4` rad and `z ∈ [0, 1]`.
-    /// The inner is inside and the reverse question answers no. A run
-    /// whose first point is on the axis has no `u`, and the read refuses
-    /// rather than guessing.
+    /// **Nesting on a curved chart is read in the chart, at any width
+    /// short of the period.** Two nested windows on a unit cylinder about
+    /// `z`, each sampled as the loop it is (along its bottom, back along
+    /// its top): the inner spans `0.8·w` and `z ∈ [0.2, 0.8]`, the outer
+    /// `w` and `z ∈ [0, 1]`, about a centre `c`. Over widths from `0.4π`
+    /// to just short of `2π`, about centres that put the windows across
+    /// `u = π` (where the raw azimuth jumps a turn) and away from it, the
+    /// inner is inside and the reverse question answers no. So is a pair
+    /// whose outer reaches further past the inner on one side than the
+    /// other. A run whose first point is on the axis has no `u`, and the
+    /// read declines rather than guessing.
     #[test]
     fn nesting_on_a_cylinder_is_read_in_its_chart() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3551,23 +3589,48 @@ mod tests {
             radius: 1.0,
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
-        let window = |du: f64, z0: f64, z1: f64| -> Vec<geom_core::Point3<f64>> {
-            let mut out = Vec::new();
-            for i in 0..=8 {
-                let u = core::f64::consts::PI - du + 2.0 * du * f64::from(i) / 8.0;
-                out.push(geom_core::Point3::new(u.cos(), u.sin(), z0));
-                out.push(geom_core::Point3::new(u.cos(), u.sin(), z1));
-            }
+        let window = |u0: f64, u1: f64, z0: f64, z1: f64| -> Vec<geom_core::Point3<f64>> {
+            let at = |u: f64, z: f64| geom_core::Point3::new(u.cos(), u.sin(), z);
+            let n = 48;
+            let mut out: Vec<_> = (0..=n)
+                .map(|i| at(u0 + (u1 - u0) * f64::from(i) / f64::from(n), z0))
+                .collect();
+            out.extend((0..=n).map(|i| at(u1 - (u1 - u0) * f64::from(i) / f64::from(n), z1)));
             out
         };
-        let (inner, outer) = (window(0.2, 0.2, 0.8), window(0.4, 0.0, 1.0));
-        assert!(encloses(&cylinder, &inner, &outer, band), "inner in outer");
-        assert!(
-            !encloses(&cylinder, &outer, &inner, band),
-            "not the reverse"
-        );
+        let pi = core::f64::consts::PI;
+        let mut pairs = Vec::new();
+        for w in [0.4 * pi, 0.9 * pi, 1.4 * pi, 1.8 * pi, 1.95 * pi] {
+            for c in [1.0, pi, -2.5] {
+                pairs.push((
+                    window(c - 0.4 * w, c + 0.4 * w, 0.2, 0.8),
+                    window(c - 0.5 * w, c + 0.5 * w, 0.0, 1.0),
+                ));
+            }
+        }
+        for w in [2.0, 3.0, 4.0, 5.0] {
+            pairs.push((
+                window(0.5, 0.5 + w, 0.2, 0.8),
+                window(0.3, 0.7 + w, 0.0, 1.0),
+            ));
+        }
+        for (i, (inner, outer)) in pairs.iter().enumerate() {
+            assert_eq!(
+                encloses(&cylinder, inner, outer, band),
+                Ok(true),
+                "pair {i}: in"
+            );
+            assert_eq!(
+                encloses(&cylinder, outer, inner, band),
+                Ok(false),
+                "pair {i}: out"
+            );
+        }
         let on_axis = vec![geom_core::Point3::new(0.0, 0.0, 0.5)];
-        assert!(chart_read(&cylinder, &[&on_axis, &inner], band).is_none());
+        assert!(matches!(
+            chart_read(&cylinder, &[&on_axis, &pairs[0].0], band),
+            Ok(None)
+        ));
     }
 
     /// **The duplicate scan panics on a ring link that does not

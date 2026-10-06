@@ -4218,6 +4218,22 @@ fn chart_edge<T: Decide>(
     }
 }
 
+/// A chart's `u` period, decided by surface KIND: `τ` for every surface
+/// of revolution, a closed spline chart's own knot domain, and none for
+/// a plane. `chart_u_period` answers `τ` for a PLANE — it defaults every
+/// non-spline chart to the azimuth period — so it is asked only where
+/// its answer is about a spline chart's own knot domain.
+pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> Option<T> {
+    match *chart {
+        Surface::Plane { .. } => None,
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => Some(T::tau()),
+        Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
+    }
+}
+
 /// **The face's boundary in a chart the CALLER names** — the certified
 /// outer description a subdivision consumer intersects its carrier
 /// window with, and tests its cells against
@@ -4294,18 +4310,7 @@ pub fn chart_boundary<T: AtRestPolicy>(
     let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
         .chain(face_data.rings.iter().copied())
         .collect();
-    // The period is decided by surface KIND. `chart_u_period` answers
-    // `τ` for a PLANE — it defaults every non-spline chart to the
-    // azimuth period — so it is asked only where its answer is about a
-    // spline chart's own knot domain.
-    let period = match *chart {
-        Surface::Plane { .. } => None,
-        Surface::Cylinder { .. }
-        | Surface::Cone { .. }
-        | Surface::Sphere { .. }
-        | Surface::Torus { .. } => Some(T::tau()),
-        Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
-    };
+    let period = chart_period(chart, band);
     let mut outer: Option<ChartLoop<T>> = None;
     let mut rings: Vec<ChartLoop<T>> = Vec::new();
     for (index, lp) in loops.iter().enumerate() {
