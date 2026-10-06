@@ -5915,6 +5915,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "domain_not_unit",
             "fit",
             "knot_algebra",
+            "no_parameter_step",
             "path_tangent_reversal",
             "section_profile",
             "section_shape_mismatch",

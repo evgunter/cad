@@ -108,3 +108,14 @@ went to Ev.
 
 This row stays open as the door-certificate unit, parked on the three
 CLEAR prerequisites.
+
+## When the fold retires (from PR 4186's review, 2026-10-06)
+
+Whether two adjacent sections are apart is decided today as the Zero arm
+of the fold's centroid-along-the-base-normal margin (`stacking_fold`,
+called from `build` in `crates/sweep/src/loft.rs` after `validate_loft`
+and before `skin_validated`). It must stay BEFORE the skin, while the
+embedding certificate needs the walls and so runs after it. The unit
+that retires the fold therefore splits that arm out as its own decide at
+the same call site. Otherwise the skin's `NoParameterStep` becomes the
+coincidence door again, against its own doc.

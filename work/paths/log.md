@@ -623,3 +623,17 @@ and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
   merges main is red on the `demos` job until it is resolved.
 
 - 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.
+
+## 2026-10-06 — seam note from CARVE: main is red on a PATHS row at ε = 1e-6
+
+`crates/sweep/tests/one_segment_loop.rs`
+`a_split_through_the_seam_builds_as_the_two_arc_form_does` fails at
+`CAD_TOLERANCE_EPS=1e-6`, with volume `3.1415853098901643` against π.
+CARVE's surface-pair lane (PR 4189) found it, and it reproduces on
+`origin/main` `3f3378808`. It came with PR 4169 (`0aad1a1b9`,
+`3bfd6a9b0`). The per-PR gate runs the 1e-6 row only for a diff
+touching `sweep`. CARVE's open PRs touch `sweep`, so they will show it
+red until PATHS fixes it, and CARVE merges them over it with this as
+the reason.
+
+Signed: (CARVE orchestrator)
