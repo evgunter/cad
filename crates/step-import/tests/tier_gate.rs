@@ -154,9 +154,10 @@ const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
 /// compared in FULL: the whole census for a solid, the whole refusal
 /// message for a refusal, not the coarse [`Disposition`] class. Across
 /// the entire corpus **exactly one file's outcome moves with ε_in**,
-/// and it is `ftc11_uref_off` at all three bands (`file` refuses on the
-/// seam halfplane; `1e-6` and `1e-12` reach the intersection arm, the
-/// param span, or pass — see [`EPS_ROWS`]). The other 61 are invariant
+/// and it is `ftc11_uref_off` at all three bands (`file` imports, its
+/// generator a wrap edge at the rim vertices' azimuth; `1e-6` and
+/// `1e-12` reach the intersection arm, the param span, or pass — see
+/// [`EPS_ROWS`]). The other 61 are invariant
 /// to the byte.
 ///
 /// Comparing full messages rather than classes is what makes that
@@ -205,12 +206,17 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 /// was given, and the fragments below are each sub-reason's own live
 /// signature, never the shared preamble:
 ///
-/// * **`ftc11_uref_off`** is the deliberately-degenerate band fixture.
-///   Its seam residual is ~1.6e-6 m, so at ambient 1e-6 that margin
-///   lands INSIDE the ambiguity band (zero = ε, escalate = Kε) and the
-///   refusal is an ESCALATION rather than a definite verdict; at
-///   ambient 1e-12 the same margin is decisively outside every band, so
-///   the coincidence predicates that refused it at coarser ε ("tangent
+/// * **`ftc11_uref_off`** is the deliberately-degenerate band fixture:
+///   its rim vertices sit ~1.6e-6 m off the surface's `u_ref` azimuth.
+///   At its own ε_in the band's minted generator runs through them and
+///   is the wall's wrap edge there (D1: a wrap edge sits where the
+///   construction cut), so it imports at every ambient band. At the
+///   finer ε_in overrides the offset is past the mint's vertex budget,
+///   so the mint splits the rims at the `u_ref` azimuth and leaves a
+///   1.6e-6 m edge beside each rim vertex: at ambient 1e-6 that span
+///   lands INSIDE the ambiguity band and the refusal is an ESCALATION;
+///   at ambient 1e-12 it is decisively outside every band, so the
+///   coincidence predicates that refused it at coarser ε ("tangent
 ///   planes coincide", the Intersection transversality precondition)
 ///   no longer fire, and the file imports. A coincidence test refusing
 ///   what is TOO CLOSE must stop refusing as ε shrinks; that direction
@@ -247,15 +253,10 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     ),
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
-    (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
+    (FTC11, 1e-9, "file", Pass(1, 1, 6, 14, 10)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
     (FTC11, 1e-9, "1e-12", Refused(TANGENT_PLANES_COINCIDE)),
-    (
-        FTC11,
-        1e-6,
-        "file",
-        Escalated(SEAM_HALFPLANE_ESCALATED.0, SEAM_HALFPLANE_ESCALATED.1),
-    ),
+    (FTC11, 1e-6, "file", Pass(1, 1, 6, 14, 10)),
     (
         FTC11,
         1e-6,
@@ -268,7 +269,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         "1e-12",
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
-    (FTC11, 1e-12, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
+    (FTC11, 1e-12, "file", Pass(1, 1, 6, 14, 10)),
     (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 16, 12)),
     (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 16, 12)),
     // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
@@ -417,24 +418,10 @@ const QUAD_CONVERGED_ESCALATED: &str = "props_quad_converged";
 const ARC_RIM_MAP_RESIDUAL: &str = "MapResidual";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
-/// The seam carrier's residual is DECIDEDLY outside the band, ending as
-/// a definite refusal at adoption does: the file is named beside the
-/// kernel.
-const SEAM_HALFPLANE_DEFINITE: &str = concat!(
-    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band (the \
-     cache does not represent the description, D4 ¶2). ",
-    geom_core::kernel_or_file_defect_ending!()
-);
-/// The same residual, IN the band: escalate-never-guess, by name.
-const SEAM_HALFPLANE_ESCALATED: (&str, &str) = (
-    "the out-of-halfplane component at sample 0 escalated",
-    "carrier_in_seam_halfplane",
-);
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which. A zero
 /// verdict is band-decided — at a finer ambient band the coincidence
-/// predicates no longer fire here, and a different check refuses the
-/// file (`SEAM_HALFPLANE_DEFINITE` at 1e-12) — so at adoption it names
+/// predicates no longer fire here, and the file imports — so at adoption it names
 /// its decision's lever alone, and the attempt ends there (the `;`
 /// before the next rung).
 const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
