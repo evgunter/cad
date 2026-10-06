@@ -767,6 +767,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // the ring vertex faces the run's germ that the walk clockwise about
     // the pierced face's outward normal meets first from the next run's
     // start germ ([`super::insert::strut_order`]); the op does not enter.
+    // The reference is not load-bearing: with the wedges disjoint, any
+    // germ outside the run's wedge gives the same answer, and reading
+    // from the previous run's instead is a mutant no row tells apart.
     // Both readings assume the runs' Out wedges are disjoint about the
     // normal, which nothing here checks: runs on one side of the plane
     // may nest instead (`work/tang/nested-pierce-runs-have-no-ring-order.md`).

@@ -48,9 +48,16 @@ JOIN's open design question
 `work/join/two-representations-of-holes-meeting-at-a-point.md`.
 
 - k = 2, on main: [18, 41, 25].
-- k ≥ 3 is refused on PR 4129's head (`PinchOfManyHolesInOneRing`).
-  Only the gate-dropped mutant builds it: three wedges [27, 66, 40],
-  four [27, 72, 45], three notches past the plate's edge [21, 57, 34].
+- k ≥ 3: PR 4129 refuses a zip crossing at a point where a face of
+  one surface and sense passes three or more times
+  (`PinchOfManyHolesInOneRing`), counted over every vertex fused onto
+  the point. Its rows (five poses, and the P − U grids of 168
+  configurations at k = 3 and 560 at k = 4, at rest) build none of
+  them crossed. The gate-dropped mutant builds three wedges
+  [27, 66, 40], four [27, 72, 45], three notches past the plate's edge
+  [21, 57, 34]; fix pass 2's gate, which counted at the split vertex
+  alone, let 34 of the k = 3 grid build crossed, each with one notch.
+  This is measured over those fixtures, not shown for every pose.
 
 Tiers 3 and 3′ and the volume pass on every one of those bodies. A
 later boolean on such a body can refuse `ClassificationInvariant`.

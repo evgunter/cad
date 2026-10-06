@@ -200,6 +200,22 @@ pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
             ],
         ),
         (
+            "a notch and two wedges apart",
+            vec![
+                notch(80.0, 100.0, 0, 2.0),
+                wedge(200.0, 230.0, 1),
+                wedge(250.0, 280.0, 2),
+            ],
+        ),
+        (
+            "a wide notch and two wedges",
+            vec![
+                notch(30.0, 150.0, 0, 2.0),
+                wedge(200.0, 230.0, 1),
+                wedge(300.0, 330.0, 2),
+            ],
+        ),
+        (
             "a notch and two wedges",
             vec![
                 notch(80.0, 100.0, 0, 2.0),
@@ -218,8 +234,10 @@ pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
 /// vertex key, so coincident vertices are compared only as the
 /// topology joins them.
 ///
-/// It reads planar faces with straight edges of positive length, and
-/// refuses any other face rather than measure it.
+/// It reads planar faces with straight edges of positive length, an
+/// outer loop that is a cycle and corners whose two edges leave along
+/// different directions, and refuses any other face rather than
+/// measure it.
 pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
     use std::f64::consts::TAU;
     for (fk, f) in body.faces() {
@@ -231,7 +249,17 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
                 "{fk:?} is not planar: the check reads planar faces"
             ));
         }
+        if !matches!(
+            body.get_loop(f.outer).map(|l| &l.boundary),
+            Some(LoopBoundary::Cycle { .. })
+        ) {
+            return Err(format!("{fk:?}: its outer loop is not a cycle"));
+        }
         let cycles = cycles_of(body, f);
+        assert!(
+            !cycles.is_empty(),
+            "{fk:?}: a face with an outer cycle has no cycles"
+        );
         for &he in cycles.iter().flatten() {
             let straight = body
                 .get_half_edge(he)
@@ -289,6 +317,14 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
                 }
                 let from = angle(out);
                 let sweep = (angle(back) - from).rem_euclid(TAU);
+                // Both edges along one direction: a corner of 0 or of 2π,
+                // which the angles cannot tell apart.
+                if !(1e-9..=TAU - 1e-9).contains(&sweep) {
+                    return Err(format!(
+                        "{fk:?}: a corner at {:?} whose edges leave along one direction",
+                        cycle[i]
+                    ));
+                }
                 corners
                     .entry(start(cycle[i])?)
                     .or_default()

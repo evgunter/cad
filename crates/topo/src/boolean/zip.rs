@@ -221,6 +221,7 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     seams: &[(FaceKey, FaceKey)],
     vmap: &mut SeamCorrespondence,
+    copies: &[Vec<VertexKey>],
     tol: Tol,
 ) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
@@ -246,6 +247,56 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
             }
             v
         };
+        // Every vertex fused onto one point after the crossings: by the
+        // pairs of all the seams (the zips) and by one pierce's copies
+        // (`finish::weld_pierce_copies`, after the zips). The class a
+        // split's gate counts at.
+        let mut whole: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
+        let mut seen: BTreeSet<VertexKey> = BTreeSet::new();
+        for group in copies {
+            let live: Vec<VertexKey> = group
+                .iter()
+                .copied()
+                .filter(|&u| body.get_vertex(u).is_some())
+                .collect();
+            seen.extend(live.iter().copied());
+            for w in live.windows(2) {
+                let (ra, rb) = (find(&whole, w[0]), find(&whole, w[1]));
+                if ra != rb {
+                    whole.insert(rb, ra);
+                }
+            }
+        }
+        for &(a_face, b_face) in seams {
+            let ob = section_cycle(body, outer(body, a_face)?)?;
+            let rs = align(
+                body,
+                (a_face, b_face),
+                &ob,
+                &section_cycle(body, outer(body, b_face)?)?,
+                vmap,
+            )?;
+            for j in 0..ob.len() {
+                let (a, b) = (start_of(body, ob[j])?, start_of(body, rs[j])?);
+                seen.extend([a, b]);
+                let (ra, rb) = (find(&whole, a), find(&whole, b));
+                if ra != rb {
+                    whole.insert(rb, ra);
+                }
+            }
+        }
+        let class_of = |v: VertexKey| -> Vec<VertexKey> {
+            let r = find(&whole, v);
+            let mut c: Vec<VertexKey> = seen
+                .iter()
+                .copied()
+                .filter(|&u| find(&whole, u) == r)
+                .collect();
+            if !c.contains(&v) {
+                c.push(v);
+            }
+            c
+        };
         for &(a_face, b_face) in seams {
             let ob = section_cycle(body, outer(body, a_face)?)?;
             let rs = align(
@@ -268,7 +319,10 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
                 let mut fresh = None;
                 for (v, keep) in [(a, ob[j]), (b, rs[j])] {
                     let moving = fused.get(&v).unwrap_or(&empty);
-                    if let Some(split) = split_across(body, v, keep, moving, &sections, tol)? {
+                    let class = class_of(v);
+                    if let Some(split) =
+                        split_across(body, v, &class, keep, moving, &sections, tol)?
+                    {
                         absorbed.extend(split.absorbed);
                         fresh = Some((v, split.vertex));
                         break;
@@ -332,6 +386,7 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
 fn split_across<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     v: VertexKey,
+    class: &[VertexKey],
     keep: HalfEdgeKey,
     moving: &[HalfEdgeKey],
     sections: &BTreeSet<FaceKey>,
@@ -418,23 +473,28 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
     let Some((he1, he2, crossing)) = site else {
         return Ok(None);
     };
-    // How many times the boundary the crossing joins passes `v`: the
-    // ring's visits for one loop, and every visit of a non-section face
-    // of the crossing face's chart for two faces, whose `kef` merges
-    // them into one. Two visits is the crossing measured to build; three
-    // or more is not. A pierce of three or more Out runs reaches it;
-    // other routes are not known.
-    let (l1, _, fd1) = face_of(he1);
-    let holes = match crossing {
-        Crossing::OneLoop => orbit.iter().filter(|&&h| face_of(h).0 == l1).count(),
-        Crossing::TwoFaces { .. } => orbit
-            .iter()
-            .filter(|&&h| {
-                let (_, f, d) = face_of(h);
-                !sections.contains(&f) && chart_of(d) == chart_of(fd1)
-            })
-            .count(),
-    };
+    // How many times one boundary passes the point the zips fuse `v`
+    // onto: the most corners at the point, over `class` (the vertices
+    // fused onto it, `v` among them), of the non-section faces of one
+    // surface and sense. A `kemr` joins one ring and a `kef` merges such
+    // faces, and the fusions bring the class's corners onto one vertex,
+    // so a crossing here joins boundaries that, once fused, pass the
+    // point this many times; any face of the point is counted, as a
+    // crossing moves every corner on its side to the new vertex. Two
+    // is the crossing measured to build; three or more is refused.
+    let mut corners: BTreeMap<_, usize> = BTreeMap::new();
+    for &u in class {
+        if body.get_vertex(u).is_none() {
+            return Err(corr("a vertex the zips fuse no longer resolves"));
+        }
+        for h in body.vertex_orbit_linked(u) {
+            let (_, f, d) = face_of(h);
+            if !sections.contains(&f) {
+                *corners.entry(chart_of(d)).or_default() += 1;
+            }
+        }
+    }
+    let holes = corners.values().copied().max().unwrap_or(0);
     if holes > 2 {
         return Err(BooleanError::PinchOfManyHolesInOneRing { vertex: v, holes });
     }
@@ -667,14 +727,14 @@ mod torn_hop_rows {
         let (keep, moving) = (orbit[0], vec![orbit[1]]);
         let none = BTreeSet::new();
         assert!(
-            split_across(&mut body.clone(), v, keep, &moving, &none, tol).is_ok(),
+            split_across(&mut body.clone(), v, &[v], keep, &moving, &none, tol).is_ok(),
             "the sound corner answers"
         );
         let mut stale = body.clone();
         stale.vertices.remove(v);
         assert!(
             matches!(
-                split_across(&mut stale, v, keep, &moving, &none, tol),
+                split_across(&mut stale, v, &[v], keep, &moving, &none, tol),
                 Err(BooleanError::ZipCorrespondence { .. })
             ),
             "a pinch vertex that does not resolve refuses typed"
@@ -693,7 +753,7 @@ mod torn_hop_rows {
             "split_across (face)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| split_across(b, v, keep, &moving, &none, tol).map(|s| s.is_some()),
+            |b| split_across(b, v, &[v], keep, &moving, &none, tol).map(|s| s.is_some()),
         );
         let lost = body.get_half_edge(keep).unwrap().parent_loop;
         body.loops.remove(lost);
@@ -705,7 +765,7 @@ mod torn_hop_rows {
             "split_across",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| split_across(b, v, keep, &moving, &none, tol).map(|s| s.is_some()),
+            |b| split_across(b, v, &[v], keep, &moving, &none, tol).map(|s| s.is_some()),
         );
     }
 }

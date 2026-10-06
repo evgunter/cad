@@ -317,7 +317,13 @@ fn at(s: &Shape, p: Point) -> usize {
     s.vertices.get(&p).copied().unwrap_or(0)
 }
 
-const TOP: Point = (1_500_000, 1_000_000, 1_000_000);
+/// The pinch point on the plate's top, [`MEET`] in the shape's
+/// micrometre grid.
+const TOP: Point = (
+    (MEET[0] * 1e6) as i64,
+    (MEET[1] * 1e6) as i64,
+    (MEET[2] * 1e6) as i64,
+);
 
 /// Every order of `0..n`.
 fn orders(n: usize) -> Vec<Vec<usize>> {
@@ -787,7 +793,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
 }
 
 use topo::test_support::meeting::{
-    Hole, PLATE, ell_and_wedges, four_wedges, three_wedges, two_wedges, wedges_on_one_side,
+    Hole, MEET, PLATE, ell_and_wedges, four_wedges, three_wedges, two_wedges, wedges_on_one_side,
 };
 
 /// The plate and a prism per hole, each sketched on its tilted frame

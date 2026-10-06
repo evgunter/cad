@@ -27,34 +27,15 @@
 use crate::common;
 
 use common::meeting::{
-    Hole, MEET, PLATE, corners_disjoint, cycles_of, ell_and_wedges, four_wedges, inner_rows,
-    notch_rows, three_wedges, two_wedges, wedges_on_one_side,
+    Hole, MEET, PLATE, corners_disjoint, cycles_of, ell_and_wedges, four_wedges, inner_rows, notch,
+    notch_rows, three_wedges, two_wedges, wedge, wedges_on_one_side,
 };
-use common::{FaceGeometry, brick, describe_as_intersections, finished, prism_ops};
+use common::{FaceGeometry, describe_as_intersections, finished, prism_ops};
 use geom_core::{Point3, Tol};
 use topo::{AtRestBody, Body, BooleanResult, union, validate_geometric, validate_pseudomanifold};
 
 fn t() -> Tol {
     Tol::witness()
-}
-
-/// A hole's prism, built over its profile through the tilted frame.
-fn prism(h: &Hole) -> AtRestBody<f64> {
-    let [o, u, v, n] = h.frame();
-    let mut body = Body::<f64>::new();
-    prism_ops(
-        &mut body,
-        &h.profile(),
-        (0.0, h.length),
-        |x, y, z| {
-            let p = [0, 1, 2].map(|i| o[i] + x * u[i] + y * v[i] + z * n[i]);
-            Point3::new(p[0], p[1], p[2])
-        },
-        FaceGeometry::Certified,
-        t(),
-    );
-    describe_as_intersections(&mut body, t());
-    finished("a tilted prism", body, t())
 }
 
 type Point = (i64, i64, i64);
@@ -108,12 +89,9 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 /// Folds the plate (member 0) and `holes`' prisms by union in every
 /// order and asserts each result (module docs).
 fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
-    let mut members = vec![finished(
-        "the plate",
-        brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
-        t(),
-    )];
-    members.extend(holes.iter().map(prism));
+    let rest = Pose::rest();
+    let mut members = vec![posed_box("the plate", PLATE, &rest)];
+    members.extend(holes.iter().map(|h| posed_prism(h, &rest)));
     let volume = 6.0 + holes.iter().map(Hole::above).sum::<f64>();
     let c = at(Point3::new(MEET[0], MEET[1], MEET[2]));
     let mut first = None;
@@ -225,6 +203,13 @@ impl Pose {
     }
 }
 
+impl Pose {
+    /// The identity.
+    fn rest() -> Self {
+        Self::turn("at rest", [0.0, 0.0, 1.0], 0.0, [0.0, 0.0, 0.0])
+    }
+}
+
 /// The scene's poses: at rest, turned about the top's normal, turned in
 /// general, and flipped (the top facing −z) at rest and turned.
 fn poses() -> Vec<Pose> {
@@ -237,7 +222,7 @@ fn poses() -> Vec<Pose> {
         )
     };
     vec![
-        Pose::turn("at rest", [0.0, 0.0, 1.0], 0.0, [0.0, 0.0, 0.0]),
+        Pose::rest(),
         Pose::turn("turned about z", [0.0, 0.0, 1.0], 0.65, [0.0, 0.0, 0.0]),
         Pose::turn("turned", [1.0, 2.0, 3.0], 0.7, [0.3, -0.2, 0.5]),
         flip(),
@@ -327,9 +312,16 @@ fn sound(what: &str, b: &AtRestBody<f64>, want: f64, pose: &Pose) {
 ///   at-rest one for holes meeting at a point: two rings through one
 ///   vertex, whose corners there overlap, so it is not asserted sound
 ///   (`work/join/two-representations-of-holes-meeting-at-a-point.md`).
-///   With three or more the boundary passes the point three times or
-///   more, and it refuses `PinchOfManyHolesInOneRing`. A notch beside
-///   two inner holes leaves no crossing on offer (`PinchUncrossed`);
+///   With three or more holes some face passes the point three times or
+///   more once the copies fuse, and it refuses `PinchOfManyHolesInOneRing`,
+///   counted over every vertex fused onto the point: a crossing on any
+///   face there moves the top's corners to a vertex fused back later
+///   ("a notch and two wedges apart" and "a wide notch and two wedges",
+///   which a count at one vertex let through crossed). One geometry of
+///   that class,
+///   "a notch and two wedges", happens to offer no crossing at all and
+///   refuses `PinchUncrossed`; it is pinned as that one pose, and the
+///   grids below are the class;
 /// - the plate less each prism in turn builds the same volume sound,
 ///   the meeting point a vertex per hole.
 ///
@@ -368,9 +360,9 @@ fn the_plate_against_the_holes_union_builds_sound_or_refuses_typed_in_every_op()
                 sound(&format!("{label}: {what}"), &body(&label, r), inside, &pose);
             }
             match (holes.len(), subtract(&p, &u, t())) {
-                // One notch: the top is one face whose outer loop passes
-                // the point once and whose two rings pass it once each;
-                // no crossing joins an outer loop to a ring.
+                // This one geometry offers no crossing (no `kemr` or `kef`
+                // joins an outer loop to a ring there); most of its class
+                // reaches one and refuses as above (the grids).
                 (_, r) if fixture == "a notch and two wedges" => assert!(
                     matches!(r, Err(topo::BooleanError::PinchUncrossed { .. })),
                     "{label}: P − U refuses PinchUncrossed, got {:?}",
@@ -415,4 +407,106 @@ fn the_plate_against_the_holes_union_builds_sound_or_refuses_typed_in_every_op()
             );
         }
     }
+}
+
+/// The P − U grid at `k` holes (review 3's sweep, ported): 30° holes in `k` of eight 45° slots
+/// round the meeting point (the first slot always taken, as turning
+/// the scene about the top's normal moves no answer), each hole a
+/// wedge or a notch past the plate's edge, at rest. Every
+/// configuration builds sound (tiers 3 and 3′, `corners_disjoint`, the
+/// volume against P ∩ U) or refuses typed, the union of its prisms
+/// included. Returns how many built.
+fn grid(k: usize) -> usize {
+    use topo::{intersect, subtract};
+    fn slots(from: usize, k: usize, cur: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
+        if cur.len() == k {
+            out.push(cur.clone());
+            return;
+        }
+        for s in from..8 {
+            cur.push(s);
+            slots(s + 1, k, cur, out);
+            cur.pop();
+        }
+    }
+    let mut combos = Vec::new();
+    slots(1, k, &mut vec![0], &mut combos);
+    let rest = Pose::rest();
+    let p = posed_box("the plate", PLATE, &rest);
+    let mut built = 0;
+    for c in combos {
+        for mask in 0..1u32 << k {
+            let label = format!("slots {c:?}, notches {mask:0k$b}");
+            let holes: Vec<Hole> = c
+                .iter()
+                .enumerate()
+                .map(|(j, &s)| {
+                    let a = 45.0f64.mul_add(s as f64, 5.0);
+                    if mask >> j & 1 == 1 {
+                        notch(a, a + 30.0, j, 2.0)
+                    } else {
+                        wedge(a, a + 30.0, j)
+                    }
+                })
+                .collect();
+            let prisms: Vec<_> = holes.iter().map(|h| posed_prism(h, &rest)).collect();
+            let mut u = prisms[0].clone();
+            let mut refused = false;
+            for q in &prisms[1..] {
+                match union(&u, q, t()) {
+                    Ok(BooleanResult::Body(r)) => u = r.body,
+                    Ok(BooleanResult::Empty) => panic!("{label}: the prisms' union is empty"),
+                    Err(_) => {
+                        refused = true;
+                        break;
+                    }
+                }
+            }
+            if refused {
+                continue;
+            }
+            let inside = match intersect(&p, &u, t()) {
+                Ok(BooleanResult::Body(r)) => Some(volume(&r.body)),
+                Ok(BooleanResult::Empty) => panic!("{label}: P ∩ U is empty"),
+                Err(_) => None,
+            };
+            match subtract(&p, &u, t()) {
+                Ok(BooleanResult::Body(r)) => {
+                    built += 1;
+                    let b = r.body;
+                    assert_eq!(
+                        validate_geometric(&b, t()),
+                        Ok(()),
+                        "{label}: P − U, tier 3"
+                    );
+                    assert!(
+                        validate_pseudomanifold(&b, &r.contacts, t()).is_ok(),
+                        "{label}: P − U, tier 3′"
+                    );
+                    assert_eq!(corners_disjoint(&b), Ok(()), "{label}: P − U, corners");
+                    if let Some(i) = inside {
+                        let v = volume(&b);
+                        assert!((v - (6.0 - i)).abs() < 1e-8, "{label}: P − U, volume {v}");
+                    }
+                }
+                Ok(BooleanResult::Empty) => panic!("{label}: P − U is empty"),
+                Err(_) => {}
+            }
+        }
+    }
+    built
+}
+
+/// **Three holes in every slot pattern and every mix of wedges and
+/// notches build P − U sound or refuse typed** ([`grid`]).
+#[test]
+fn every_three_hole_grid_configuration_builds_sound_or_refuses_typed() {
+    grid(3);
+}
+
+/// **Four holes in every slot pattern and every mix of wedges and
+/// notches build P − U sound or refuse typed** ([`grid`]).
+#[test]
+fn every_four_hole_grid_configuration_builds_sound_or_refuses_typed() {
+    grid(4);
 }

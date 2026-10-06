@@ -90,11 +90,14 @@ vertex pierce the top with one Out run per prism. Two fixes:
   the meeting point twice, and the zip crosses two corners of the top's
   ring first. That is the zips' shape for two holes meeting at a point:
   k rings through one vertex. With k ≥ 3, which this PR's pierces newly
-  reach, that crossing refuses typed (`PinchOfManyHolesInOneRing`), and
-  two holes build as on main. Where the holes notch the top's edge, the
-  top is several faces of one plane, and the crossing that would merge
-  them by `kef` refuses the same way when their loops pass the point
-  three or more times. The union and the sequential subtract
+  reach, a crossing refuses typed (`PinchOfManyHolesInOneRing`) where a
+  face of one surface and sense has three or more corners at the point,
+  counted over every vertex fused onto it; two holes build as on main.
+  That covers the `kemr` across one ring and the `kef` across faces of
+  one plane where the holes notch the top's edge, and crossings on
+  other faces that move the top's corners to a vertex fused back later.
+  Measured over the plate row's nine fixtures in five poses and the
+  P − U grids at three and four holes. The union and the sequential subtract
   build the other shape, one ring through the point k times. Which shape
   is canonical is JOIN's design question,
   `work/join/two-representations-of-holes-meeting-at-a-point.md`.

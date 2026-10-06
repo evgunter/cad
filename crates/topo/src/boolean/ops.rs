@@ -595,7 +595,18 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // A pinch is one vertex on two seams: the first zip fuses it, so
     // each later zip reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
-    let crossed = super::zip::cross_pinches(&mut body, &fin.seams, &mut vertex_map, tol)?;
+    // The pierce copies `weld_pierce_copies` joins after the zips, in
+    // the keys the crossings read.
+    let copies: Vec<Vec<VertexKey>> = fin
+        .pierce_copies
+        .iter()
+        .map(|g| {
+            g.iter()
+                .map(|&v| super::zip::survivor(&vertex_merges, v))
+                .collect()
+        })
+        .collect();
+    let crossed = super::zip::cross_pinches(&mut body, &fin.seams, &mut vertex_map, &copies, tol)?;
     desc.absorb_faces(&crossed);
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;

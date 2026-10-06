@@ -2248,18 +2248,19 @@ pub enum BooleanError {
     },
     /// The result pinches at `vertex`, and the zips would fuse it to
     /// itself (`zip::cross_pinches`): both operands keep the point as
-    /// one vertex. The crossing on offer joins one boundary that passes
-    /// the point `holes` times (three or more): one ring of a kept face,
-    /// or the faces of one surface and sense that its `kef` would merge
-    /// into one. A pierce of three or more Out runs reaches it; other
-    /// routes are not known. Joining two such corners is the at-rest
-    /// shape for two holes meeting at a point, and three or more are not
-    /// measured to build. Which shape holes meeting at a point take is
+    /// one vertex. A crossing there would leave a boundary passing the
+    /// point `holes` times (three or more): the most corners at the
+    /// point, over every vertex fused onto it, of the kept faces of one
+    /// surface and sense, which a `kemr` or `kef` joins and the fusions
+    /// bring onto one vertex. A pierce of three or more Out runs reaches
+    /// it; other routes are not known. Joining two such corners is the
+    /// at-rest shape for two holes meeting at a point, and three or more
+    /// are not measured to build. Which shape holes meeting at a point take is
     /// open (`work/join/two-representations-of-holes-meeting-at-a-point.md`).
     PinchOfManyHolesInOneRing {
         /// The pinch vertex, in the joined body's keys.
         vertex: VertexKey,
-        /// How many times that boundary passes it.
+        /// How many times that boundary would pass it.
         holes: usize,
     },
     /// The result would hold a non-manifold vertex: both operands hold
@@ -3518,9 +3519,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::PinchOfManyHolesInOneRing { holes, .. } => write!(
                 f,
-                "the result would pinch at one point where {holes} holes in one face meet, and \
-                 the Boolean cannot yet join more than two holes there. There is no way \
-                 through this in the kernel yet"
+                "the result would pinch at one point where one face's boundary passes {holes} \
+                 times, between holes or notches in its edge that meet there, and the Boolean \
+                 cannot yet join more than two there. There is no way through this in the \
+                 kernel yet"
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,

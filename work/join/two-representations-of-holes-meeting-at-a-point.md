@@ -58,9 +58,14 @@ first fix-pass head 9af820e5, whose gate covered only the one-ring
 crossing, three leaning wedges whose footprints notch the plate's edge
 (`topo::test_support::meeting::notch_rows`) built P − U crossed through
 the `kef`, [21, 57, 34], the top's outer loops passing the point three
-times; two notches and a wedge built [18, 52, 32]. Both refuse typed on
-the PR's head. So the question is about the representation as a
-whole, not about one arm.
+times; two notches and a wedge built [18, 52, 32]. On fix pass 2's
+head 86ddf0ac, whose gate counted at the split vertex alone, a notch
+and two wedges built crossed [19, 55, 34]: two `kef` crossings, each
+at a vertex holding two of the top's corners, moved the corners to
+fresh vertices the zips then fused, and the top's loop passed the
+point three times. 34 of the 168 three-hole configurations of the
+review's grid built crossed that way. So the question is about the
+representation as a whole, not about one arm.
 
 **Tiers 3 and 3′ cannot see it.** The overlapping sectors pass both
 tiers and the volume. That is RESTFRONT's
@@ -74,12 +79,14 @@ k-rings form, [18, 41, 25]. A later boolean on that body can refuse
 along one direction in one sector entry" }`. The plate less each wedge
 in turn builds the other form, and further booleans build on it.
 
-**PR 4129's narrowing.** A crossing whose boundary passes the point
-three or more times, one ring or the faces of one plane its `kef` would
-merge, is refused typed at the zip (`PinchOfManyHolesInOneRing`)
-rather than crossed. The rows are in
-`crates/topo/tests/holes_meeting_at_a_vertex.rs`,
-`the_plate_against_the_holes_union_builds_sound_or_refuses_typed_in_every_op`.
+**PR 4129's narrowing.** The zip's crossing refuses typed
+(`PinchOfManyHolesInOneRing`) where a non-section face of one surface
+and sense has three or more corners at the point, counted over every
+vertex fused onto it (the seams' pairs and one pierce's copies). The
+rows are in `crates/topo/tests/holes_meeting_at_a_vertex.rs`: the plate
+against the union in five poses, and the P − U grids at three and four
+holes. `finish::pinch_site`'s welds are not gated; no row is known to
+reach three corners through them.
 
 ## A candidate
 
