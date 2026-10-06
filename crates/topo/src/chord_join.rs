@@ -3475,17 +3475,79 @@ mod tests {
         body.get_edge(made.edge).unwrap().he_plus
     }
 
+    /// **A wall's section reads at its base vertex, wherever the wall's
+    /// origin is stored.** Row C's unit wall and the plane `x = 1`
+    /// tangent to it along the base vertex's ruling, the axis tilted
+    /// half the zero band toward the plane and the wall's origin stored
+    /// 1000 m out along it either way. Read at the base vertex's foot,
+    /// the tilt is in the zero band at the face extent and the gap is the
+    /// radius: the tangent ruling. Read 1000 m away, the gap moved by
+    /// `1000·θ`, five hundred times the band: two rulings on one side, no
+    /// section on the other.
+    #[test]
+    fn a_walls_section_reads_at_its_base_vertex_wherever_the_origin_is_stored() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let base = Point3::new(1.0, 0.0, 0.0);
+        let sin_beta: f64 = 0.5 * band.zero();
+        let axis = Vec3::new(-sin_beta, 0.0, (1.0 - sin_beta * sin_beta).sqrt());
+        let normal = UnitVec3::new(Vec3::new(1.0, 0.0, 0.0), "stored-origin row", band).unwrap();
+        for along in [1000.0, -1000.0] {
+            let mut body = crate::Body::<f64>::new();
+            let seed = body.mvfs(base, true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Cylinder {
+                        origin: Point3::origin() + axis * along,
+                        axis,
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            body.mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(1.0, 0.0, 1.0),
+                Tol::witness(),
+            )
+            .unwrap();
+            let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+            assert!(
+                matches!(
+                    got,
+                    Ok(Some(WallSection {
+                        case: SectionCase::Tangent(_),
+                        ..
+                    }))
+                ),
+                "stored {along} m along: the tangent ruling, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
     /// **A wall's pose is levered at its face extent, not a ball about
     /// the base vertex** (row C). A unit cylinder face about `z` whose
     /// base vertex `(1, 0, 0)` lies on the ruling the plane `x = 1`
-    /// touches, its other vertex `(1, 0, 1)` a face extent of 1 away;
-    /// the plane through the base vertex tilted so the axis meets it at
-    /// `sin β = k·ε`. Levered at the face extent, `pc_axis_plane_parallel`
-    /// reads `k·ε`, in the band, and the table escalates. Levered at a
-    /// ball of that radius about the base vertex, the axis's foot stood
-    /// `r` inside it and the lever read `r + 1 = 2`: `2·k·ε`, a definite
-    /// tilt for `k ≥ 5`, and a tilted ellipse. `k = 1.2` is in the band
-    /// too, and reads Zero if the lever is cut below the face extent.
+    /// touches, its other vertex `(1, 0, 2)` a face extent of 2 away, past
+    /// the radius; the plane through the base vertex tilted so the axis
+    /// meets it at `sin β = k·ε/2`. Levered at the face extent,
+    /// `pc_axis_plane_parallel` reads `k·ε`, in the band, and the table
+    /// escalates. Levered at a ball of that radius about the base vertex,
+    /// the axis's foot stood `r` inside it and the lever read
+    /// `r + 2 = 3`: `1.5·k·ε`, a definite tilt for `k ≥ 7`, and a tilted
+    /// ellipse. `k = 1.2` is in the band too, and reads Zero if the lever
+    /// is cut below the face extent (the extent is past the radius, so the
+    /// pivot's distance from the vertex, the lever's floor, does not hide
+    /// the cut).
     #[test]
     fn a_walls_pose_is_levered_at_its_face_extent() {
         let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
@@ -3509,12 +3571,12 @@ mod tests {
             crate::MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 2.0),
             Tol::witness(),
         )
         .unwrap();
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
-            let sin_beta: f64 = k * band.zero();
+            let sin_beta: f64 = k * band.zero() / 2.0;
             let normal = UnitVec3::new(
                 Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
                 "row C",

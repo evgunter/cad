@@ -187,67 +187,30 @@ fn the_tilt_is_levered_from_the_nearer_foot() {
     }
 }
 
-/// **Crossing axes, wherever the origins are stored.** Two unit
-/// cylinders crossing about the origin, the second lifted `g` along
-/// `a1×a2`, `g` a quarter of the zero band clear of each band edge.
-/// Whether the axes meet (`cc_axes_coplanar`) is one verdict for each
-/// `g` at every stored origin, in both operand orders.
-///
-/// The gap is read between the axes' feet at the reach. That narrows
-/// how far the verdict moves with the stored origins, and by how much
-/// is particular to the geometry: on this fixture, at the default ε
-/// with origins stored up to 1e6 m out, the review measured the window
-/// in which the verdict moves at `≥ 0.31·zero` of a band edge for a
-/// stored-origin reading and `≤ 0.24·zero` at the feet, about a third
-/// narrower. The rest is the stored lines themselves: a far coordinate
-/// carries its own rounding, which no reading undoes. This row's `g`
-/// sit outside both windows, so it guards the reading against
-/// regressing to anything coarser than the stored coordinates rather
-/// than showing the stored-origin reading red.
-///
-/// The slides scale with the band (1e6 m at the default zero of 1e-9),
-/// so a slide's own rounding stands in one ratio to the band at every
-/// ε.
+/// **A measured lever reaches at least to the pivot's distance from
+/// where it was measured.** Two nearly coaxial unit cylinders (axes half
+/// a metre apart, the second tilted half the zero band), read at a
+/// point 10 m off both axes with a measured length of 1. The pivot, the
+/// point's foot on an axis, stands 10 m from where the length was
+/// measured, so the lever is 10: the tilt reads `5·zero`, in the band,
+/// and both orders escalate. Levered at the bare length, the tilt read
+/// Zero and the walls' two rulings were served.
 #[test]
-fn crossing_axes_read_one_verdict_at_every_stored_origin() {
-    let reach = ExtentBall::new(Point3::origin(), 1.0);
-    // Off every coordinate plane, so a stored origin's slide rounds in
-    // the component the gap reads.
-    let a1 = Vec3::new(1.0, 0.3, 0.7).normalize();
-    let a2 = Vec3::new(0.2, 1.0, -0.5).normalize();
-    let lift = a1.cross(a2).normalize();
-    let class = |r: Result<EqualCylinderSection<f64>, geom_brep::SectionError>| match r {
-        Ok(EqualCylinderSection::TwoEllipses { .. }) => "meet",
-        Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => "skew",
-        Err(geom_brep::SectionError::Escalated(_)) => "escalate",
-        other => panic!("crossing equal cylinders answer only meet, skew or escalate: {other:?}"),
+fn a_measured_lever_reaches_the_pivots_distance() {
+    let reach = Reach::Measured {
+        at: Point3::new(0.0, -10.0, 0.0),
+        lever: 1.0,
     };
-    for frac in [0.5, 0.75, 1.25, 2.0, 9.75, 10.25, 20.0] {
-        let g = frac * band().zero();
-        let mut seen: Option<&str> = None;
-        let far = 1e6 * band().zero() / 1e-9;
-        let slides = [0.0, far * 1e-3, -far * 1e-3, far, -far];
-        for s1 in slides {
-            for s2 in slides {
-                let c1 = cylinder(Point3::origin(), a1, s1);
-                let c2 = cylinder(Point3::origin() + lift * g, a2, s2);
-                for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-                    let got = class(cylinder_cylinder_section(
-                        a,
-                        b,
-                        RadiusEvidence::Declared,
-                        &Reach::Ball(reach),
-                        band(),
-                    ));
-                    match seen {
-                        None => seen = Some(got),
-                        Some(first) => assert_eq!(
-                            got, first,
-                            "g = {frac}·zero, stored ({s1}, {s2}), ({label}): one verdict"
-                        ),
-                    }
-                }
-            }
+    let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 0.0);
+    let c2 = cylinder(Point3::new(0.0, 0.5, 0.0), tilted(Vec3::unit_y()), 0.0);
+    for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
+        match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, &reach, band()) {
+            Err(geom_brep::SectionError::Escalated(d)) => assert_eq!(
+                d.predicate,
+                Some("cc_axes_parallel"),
+                "({label}): the section escalates on the axis row"
+            ),
+            other => panic!("({label}): the tilt levered at the pivot is in band: {other:?}"),
         }
     }
 }

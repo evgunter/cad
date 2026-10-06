@@ -16,7 +16,7 @@ second.
 
 chord_join's section reach (`section_reach`,
 `crates/topo/src/chord_join.rs`) hands the section table the base
-vertex and `face_extent` (`crates/topo/src/splitting/rules.rs:481`), the
+vertex and `face_extent` (`crates/topo/src/splitting/rules.rs:539`), the
 farthest boundary VERTEX of the face from it, as the tilt's lever. That
 is the lever this lane used before the table read its gap at an axis
 foot. It is wrong in both directions:
@@ -25,20 +25,24 @@ foot. It is wrong in both directions:
   example, an obliquely trimmed cylinder wall whose ellipse rim carries
   one seam vertex reaches about `2r` along the axis beyond it. An
   under-stated lever reads a tilt smaller than it is.
-- **Over, or misplaced:** the lever is measured from the base vertex,
-  but the table pivots at the vertex's FOOT on the axis, `r` away. The
-  consumed points stand up to `r + face_extent` from that foot.
-  Levering at a ball about the vertex (PR 4118's first head) read that
-  sum and decided an in-band tilt as an ellipse, so it is not the fix
-  either: on a two-sided row whose definite side is served, an
-  over-stated lever is as wrong as an under-stated one.
+- **Over:** the lever is measured from the base vertex, but the table
+  pivots at the vertex's FOOT on the axis, `r` away. A tilt of the axis
+  off the plane moves the section by the tilt times a consumed point's
+  AXIAL distance from that foot, so the exact `pc_axis_plane_parallel`
+  lever is `max |(p − at)·a|` over the consumed points `p`, the axis
+  `a`. That is at most `face_extent`, so the face extent over-states it
+  wherever a face reaches sideways round the wall farther than along it.
+  It was worse at a ball about the vertex (PR 4118's second head), which
+  read `r + face_extent` and decided an in-band tilt as an ellipse. On a
+  two-sided row whose definite side is served, an over-stated lever is
+  as wrong as an under-stated one.
 
 ## The shape of a fix
 
-Measure the lever as an EXACT distance from the table's pivot to the
-consumed points: each boundary edge's per-carrier farthest distance
-(`geom_brep::Reach::Span`'s rule) from the foot, rather than vertex
-distances from the base vertex. That needs the pivot before the lever,
+Measure the lever exactly: the consumed points' farthest axial distance
+from the base vertex, `max |(p − at)·a|`, with each boundary edge's
+per-carrier bound (`geom_brep::Reach::Span`'s rule) rather than vertex
+distances alone. That needs the pivot before the lever,
 so `Reach` would carry the consumed points (or the face's edges) rather
 than a measured length. `face_extent` has other callers (its lever arms
 in the split lane), so whether they move with it is part of the item.

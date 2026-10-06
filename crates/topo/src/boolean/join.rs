@@ -1437,20 +1437,6 @@ fn germ_section_frame<T: Decide>(
         germ.b_face,
         crate::param_source::SurfaceField::CylinderRadius,
     );
-    // **The frame reads at the curved face and levers as before.** The
-    // pair's axis rows read their gap at the foot of `at` on each axis:
-    // the centre of the curved face's boundary vertices (the first
-    // face's where both are curved), a point among those the section is
-    // consumed at. The levers are the ones this frame metered the table
-    // at before the table read at a foot ([`pair_section_frame`]): the
-    // radius for the plane×cylinder pair, and for the cylinder pair the
-    // span of both walls' boundary vertices, which a wall's axial extent
-    // ends at. A lever is an exact distance to consumed points, never
-    // a ball chosen around them (`geom_brep::Reach`'s module docs): a
-    // face's box ball levered a coin standing on edge on a table at
-    // more than its radius, and named a tilted ellipse 12 km away for a
-    // tilt the radius reads in the band.
-    //
     // `surf` resolved both faces above, and nothing writes between, so
     // `face_witnesses` reads each.
     let witnesses = |body: &Body<T>, f: FaceKey| {
@@ -1461,32 +1447,60 @@ fn germ_section_frame<T: Decide>(
             )
         })
     };
+    let (at, span) = frame_reading(
+        &sa,
+        &sb,
+        witnesses(&red.a, germ.a_face),
+        witnesses(&red.b, germ.b_face),
+    )
+    .map_err(desync)?;
+    pair_section_frame(&sa, &sb, evidence, at, span, band)
+        .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
+}
+
+/// **Where the germ frame reads its axis rows, and its span**: the
+/// centre of the curved face's boundary vertices (the first face's
+/// where both are curved), a point among those the section is consumed
+/// at, so the gap is read where the section is and not where a
+/// carrier's origin is stored; and, for the cylinder pair, the span of
+/// both walls' boundary vertices (the diameter of their ball), which a
+/// wall's axial extent ends at. [`pair_section_frame`] levers each pair
+/// as before the table read at a foot: the radius for plane×cylinder,
+/// the longer of the larger radius and this span for the cylinder pair.
+/// No lever is a ball chosen around the faces (`geom_brep::Reach`'s
+/// module docs); the radius under-states a long wall's, filed as
+/// `germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`.
+///
+/// # Errors
+///
+/// A face pair with no boundary vertices.
+#[allow(clippy::type_complexity)] // (reading point, span) — one reading
+fn frame_reading<T: Decide>(
+    sa: &geom::Surface<T>,
+    sb: &geom::Surface<T>,
+    on_a: Vec<geom_core::Point3<T>>,
+    on_b: Vec<geom_core::Point3<T>>,
+) -> Result<(geom_core::Point3<T>, Option<T>), &'static str> {
     let ball_of = |points: Vec<geom_core::Point3<T>>| {
         let points: Vec<geom_brep::ExtentBall<T>> = points
             .into_iter()
             .map(geom_brep::ExtentBall::point)
             .collect();
-        geom_brep::ExtentBall::enclosing(&points)
-            .ok_or(desync("a germ face pair has no boundary vertices"))
+        geom_brep::ExtentBall::enclosing(&points).ok_or("a germ face pair has no boundary vertices")
     };
-    let (on_a, on_b) = (
-        witnesses(&red.a, germ.a_face),
-        witnesses(&red.b, germ.b_face),
-    );
     let curved = match sa {
         geom::Surface::Plane { .. } => on_b.clone(),
         _ => on_a.clone(),
     };
     let at = ball_of(curved)?.center();
-    let span = match (&sa, &sb) {
+    let span = match (sa, sb) {
         (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) => {
             let both = ball_of(on_a.into_iter().chain(on_b).collect())?;
             Some(both.radius() + both.radius())
         }
         _ => None,
     };
-    pair_section_frame(&sa, &sb, evidence, at, span, band)
-        .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
+    Ok((at, span))
 }
 
 /// **The rulings lane's chords are rulings**: each wall's split lane,
@@ -2964,16 +2978,67 @@ mod frame_dispatch_tests {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
     }
 
+    /// **The germ frame reads at the curved face, wherever the wall's
+    /// origin is stored.** The plane `z = 0` and a unit cylinder along
+    /// `x` resting on it, tilted half the zero band, its face's boundary
+    /// vertices about the origin and its origin stored 1000 m out along
+    /// its axis either way. Read at the face ([`super::frame_reading`]),
+    /// the tilt is in the zero band at the radius's lever and the gap is
+    /// the radius: the tangent ruling, the straight chord's frame
+    /// (`Ok(None)`). Read at the stored origin, the gap moved by
+    /// `1000·θ`, five hundred times the band: the walls part on one side
+    /// (`Empty`, refused) and cross on the other.
+    #[test]
+    fn the_germ_frame_reads_at_the_face_wherever_the_origin_is_stored() {
+        let plane = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let table: Vec<Point3<f64>> = [(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)]
+            .iter()
+            .map(|&(x, y)| Point3::new(x, y, 0.0))
+            .collect();
+        let tilt = 0.5 * Tol::witness().eps();
+        let axis = Vec3::new(1.0, 0.0, tilt).normalize();
+        let wall: Vec<Point3<f64>> = [-0.5, 0.5]
+            .iter()
+            .flat_map(|&x| [Point3::new(x, 0.0, 0.0), Point3::new(x, 0.0, 2.0)])
+            .collect();
+        for along in [1000.0, -1000.0] {
+            let cyl = geom::Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 1.0) + axis * along,
+                axis,
+                radius: 1.0,
+                u_ref: Vec3::new(0.0, 1.0, 0.0),
+            };
+            for (label, a, b, on_a, on_b) in [
+                ("plane, wall", &plane, &cyl, table.clone(), wall.clone()),
+                ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
+            ] {
+                let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
+                let got =
+                    pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, span, band());
+                assert!(
+                    matches!(got, Ok(None)),
+                    "stored {along} m along ({label}): the tangent ruling's frame, got {:?}",
+                    got.as_ref().map_err(|e| match e {
+                        FrameError::Escalated(d) => d.predicate.unwrap_or("unnamed"),
+                        _ => "a refusal",
+                    })
+                );
+            }
+        }
+    }
+
     /// **A coin on edge on a table is levered at its radius, not its
     /// box** (row B). The plane `z = 0` and a coin of radius 0.01 on
     /// edge along `x`, its face 2 mm long, resting on the table at the
     /// origin and tilted so that `pc_axis_plane_parallel` levered at the
-    /// radius reads `k·ε`: in the band, so the frame escalates. Levered
-    /// at the coin face's box ball (radius 0.01418, which the smaller-
-    /// ball choice took over the table's), the same tilt read `k·ε·1.42`,
-    /// definite for `k ≥ 8`, and named a tilted ellipse centred about
-    /// 12 km away. `k = 1.2` is in the band too, and reads Zero if the
-    /// lever is cut below the radius.
+    /// radius reads `k·ε`: in the band, so the frame escalates at every
+    /// `k`, and at `k = 1.2` reads Zero if the lever is cut below the
+    /// radius. A lever past the radius (the coin face's box ball, 0.01418)
+    /// reads the same tilt as definite from `k = 8`.
     #[test]
     fn a_coin_on_edge_is_levered_at_its_radius() {
         let plane = geom::Surface::Plane {

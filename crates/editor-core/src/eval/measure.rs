@@ -502,37 +502,23 @@ pub(crate) fn reach_of<T: Decide>(
     Some(reach)
 }
 
-/// An upper bound on `‖c(t) − origin‖` over `t ∈ [t0, t1]`.
-///
-/// Exact for a line (the maximum of its two ends); the containing
-/// circle or ellipse for the conics, which bounds any TRIM of them; the
-/// control polygon for a NURBS, which contains the curve by the convex
-/// hull property (positive weights, the same assumption
-/// `geom::surfaces::boxes::nurbs_surface_aabb` states). `None` for a
-/// NURBS with an empty control net, which describes no locus to bound.
+/// An upper bound on `‖c(t) − origin‖` over `t ∈ [t0, t1]`: the edge
+/// span's per-carrier lever (`geom_brep::Reach::Span`'s, the one rule the
+/// section classifiers' callers lever an edge by) — exact for a line, the
+/// containing circle or ellipse for the conics, which bounds any TRIM of
+/// them, `R + r` about a spiric's torus, and the control polygon for a
+/// NURBS (the convex-hull property of positive weights). Always `Some`:
+/// a NURBS carrier's control net is never empty (`NurbsCurve3::new`).
+#[allow(clippy::unnecessary_wraps)] // the caller's `?` reads the bound as optional
 fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Option<T> {
-    let from = |p: Point3<T>| (p - origin).norm();
-    match c {
-        Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
-        Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
-        // The semi-axes carry no order and no sign (`geom_brep::Conic`):
-        // the reach is the larger MAGNITUDE.
-        Curve3::Ellipse {
-            center,
-            major,
-            minor,
-            ..
-        } => Some(from(*center) + major.abs().max(minor.abs())),
-        // Every point of the spiric lies on its torus, within `R + r` of
-        // the torus centre.
-        Curve3::Spiric {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(from(*center) + *major_radius + *minor_radius),
-        Curve3::Nurbs(n) => n.control().iter().map(|p| from(*p)).reduce(|a, b| a.max(b)),
-    }
+    Some(
+        geom_brep::Reach::Span {
+            carrier: c.clone(),
+            t0,
+            t1,
+        }
+        .lever_from(origin),
+    )
 }
 
 /// `distance(a, b)` -> Length. Unsigned throughout: a distance is a

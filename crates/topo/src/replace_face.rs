@@ -2738,7 +2738,9 @@ mod pose_reach_rows {
             t1: 4.0,
         };
         assert!((span.lever_from(Point3::origin()) - tight).abs() < 1e-12);
-        for k in [6.0, 8.0, 9.0, 9.9] {
+        // `k = 1.2` is in the band too, and reads Zero if the lever is
+        // cut below the endpoints' distance.
+        for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
             // `D = sin α·sin β − cos α·cos β = −cos(α + β)` for a normal
             // tilted `β` off the axis.
             let beta = (k * eps / tight).acos() - alpha;
@@ -2752,6 +2754,63 @@ mod pose_reach_rows {
                 matches!(got, Err(geom_brep::SectionError::Escalated(_))),
                 "k = {k}: an in-band near-parabola must escalate, got {got:?}"
             );
+        }
+    }
+
+    /// **A NURBS ruling's pose is read at its least-lever pivot.** Row
+    /// A's two cylinders and ruling, the edge a degree-1 NURBS carrier
+    /// on `(1, 0, z)` with UNEVEN control points: `z = (−1, 0.8, 1)`
+    /// (knots `[0, 0, 0.9, 1, 1]`) and `z = (−1, 0.9, 0.95, 1)`. Its lever
+    /// is the farthest control point, least at the axis point midway
+    /// along the net (`√2`, the stored origin's too). Read at the foot of
+    /// the control points' mean it was 1.6–1.8, and `cc_axes_parallel`
+    /// read a tilt the least lever leaves in the band as definite, and
+    /// served the meeting axes' ellipse pair (from `k = 8` or `9`).
+    #[test]
+    fn a_nurbs_rulings_pose_is_read_at_its_least_lever_pivot() {
+        let eps = band().zero();
+        let c1 = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let ruling = |zs: &[f64], knots: Vec<f64>| {
+            let control: Vec<Point3<f64>> = zs.iter().map(|&z| Point3::new(1.0, 0.0, z)).collect();
+            let weights = vec![1.0; control.len()];
+            let kv =
+                geom_core::spline::KnotVector::clamped(knots, 1).expect("a clamped knot vector");
+            Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(kv, control, weights).expect("a degree-1 net"),
+            ))
+        };
+        let edges = [
+            (
+                "nurbs3",
+                ruling(&[-1.0, 0.8, 1.0], vec![0.0, 0.0, 0.9, 1.0, 1.0]),
+            ),
+            (
+                "nurbs4",
+                ruling(&[-1.0, 0.9, 0.95, 1.0], vec![0.0, 0.0, 0.9, 0.95, 1.0, 1.0]),
+            ),
+        ];
+        for (name, edge) in &edges {
+            for k in [1.2, 8.0, 9.0, 9.9] {
+                let theta: f64 = k * eps / 2.0_f64.sqrt();
+                let c2 = Surface::Cylinder {
+                    origin: Point3::new(2.0, 0.0, 0.0),
+                    axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_y(),
+                };
+                for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
+                    let got = pose_route(a, b, edge, 0.0, 1.0, band());
+                    assert!(
+                        matches!(got, Err(geom_brep::SectionError::Escalated(_))),
+                        "{name}, k = {k} ({label}): an in-band tilt must escalate, got {got:?}"
+                    );
+                }
+            }
         }
     }
 

@@ -92,19 +92,22 @@ consumed on and read their gap where it is:
 `tangent_locus` calls the same helpers (`plane_cylinder_ruled`,
 `parallel_axes_at`, `lever_between`), so `pc_parallel_gap` and
 `cc_parallel_gap` are one reading whichever lane logs them. Callers now
-hand a `Reach`: a point to read the gap at the foot of, and a lever.
-A lever is an exact distance to consumed points, never an enclosing
-ball (two full reviews; each ball a caller tried decided an in-band
-tilt as served):
+hand a `Reach`: where to read the gap, and a lever. No lever is a ball
+chosen around the consumed region (two full reviews; each ball a caller
+tried decided an in-band tilt as served):
 
 - `route_pose` hands the edge's span (`Reach::Span`), levered by its
-  exact per-carrier distance from each pivot, for every arm.
+  per-carrier farthest distance from each pivot. On each axis the pivot
+  is the point that makes that distance least, so no lever is longer
+  than main's from the stored origin (a third review found a NURBS
+  ruling read at its control-point mean levered longer).
 - chord_join hands its base vertex and `face_extent`
-  (`Reach::Measured`), the lever it used before.
+  (`Reach::Measured`), the length it levered by before, floored at the
+  pivot's distance from the vertex.
 - The germ frame hands the centre of the curved face's boundary
-  vertices and the lever it used before: the radius for the
-  plane×cylinder pair, the larger radius or the walls' span for the
-  cylinder pair.
+  vertices and the length it levered by before: the radius for the
+  plane×cylinder pair (filed: it under-states a long wall), the larger
+  radius or the walls' span for the cylinder pair.
 - The tangent-locus witness reads the ball its callers hand it
   (`Reach::Ball`), as before.
 

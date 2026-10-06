@@ -476,11 +476,10 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// cylinder's origin), an upper bound on how far the consumed region
 /// stands from any of them (a tilt `θ` displaces the locus by
 /// `θ·extent` there). The cylinder pair reads it from its axes' feet
-/// ([`cylinder_cylinder_section`]). A lever is an exact distance to
-/// consumed points, never an enclosing ball: on a two-sided trilean
-/// whose definite side is the SERVED class, a lever past the consumed
-/// extent decides an in-band reading as served (a near-parabola read as
-/// an ellipse).
+/// ([`cylinder_cylinder_section`]). No lever is a ball around the edge:
+/// on a two-sided trilean whose definite side is the SERVED class, a
+/// lever past the consumed extent decides an in-band reading as served
+/// (a near-parabola read as an ellipse).
 ///
 /// # Errors
 ///
