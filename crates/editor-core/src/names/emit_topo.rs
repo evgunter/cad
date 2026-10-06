@@ -472,7 +472,7 @@ fn name_split_edges_vertices<T: Decide>(
     tie.flush(t)?;
     for ((slot, base), (from_tie, edges)) in edge_groups {
         let s = &sides[slot];
-        name_edge_pieces(t, tie, from_tie, &base, s.body, s.ix, &edges, true)?;
+        name_edge_pieces(t, tie, from_tie, &base, (s.body, s.ix), &edges, Lone::Whole)?;
     }
     Ok(())
 }
@@ -936,7 +936,13 @@ pub(crate) fn name_boolean<T: Decide>(
     tie.flush(&mut t)?;
     for g in &edge_groups {
         name_edge_pieces(
-            &mut t, &mut tie, g.from_tie, &g.base, body, 0, &g.edges, !g.in_set,
+            &mut t,
+            &mut tie,
+            g.from_tie,
+            &g.base,
+            (body, 0),
+            &g.edges,
+            g.lone,
         )?;
     }
     tie.flush(&mut t)?;
@@ -1319,7 +1325,7 @@ fn name_boolean_edges<T: Decide>(
             from_tie,
             edges,
             set,
-            in_set: false,
+            lone: Lone::Whole,
         });
     }
     for ((fa, fb), (from_tie, edges)) in seam_groups {
@@ -1334,7 +1340,7 @@ fn name_boolean_edges<T: Decide>(
             from_tie,
             edges,
             set: Vec::new(),
-            in_set: false,
+            lone: Lone::Whole,
         });
     }
     for (root, edges) in groups {
@@ -1351,7 +1357,11 @@ fn name_boolean_edges<T: Decide>(
             from_tie: inner.tied,
             edges,
             set: Vec::new(),
-            in_set: in_sets.contains(&root),
+            lone: if in_sets.contains(&root) {
+                Lone::Piece
+            } else {
+                Lone::Whole
+            },
         });
     }
     Ok(out)
@@ -1432,9 +1442,10 @@ fn joined_cover<T: Decide>(
     if let Some(&r) = cover.within.first() {
         return Ok(JoinedCover::One(r));
     }
-    Ok(match (cover.along.as_slice(), cover.covered) {
-        ([_, _, ..], true) => JoinedCover::Set(cover.along),
-        _ => JoinedCover::Faces,
+    Ok(if cover.covered {
+        JoinedCover::Set(cover.along)
+    } else {
+        JoinedCover::Faces
     })
 }
 
@@ -1448,26 +1459,15 @@ fn set_name<T: Decide>(
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
 ) -> Result<(StableName, bool), NamingError> {
-    let mut names = BTreeSet::new();
+    let mut names = Vec::with_capacity(set.len());
     let mut from_tie = false;
     for &r in set {
         let (op, k) = r.of(a, b);
         let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
         from_tie |= up.tied;
-        let wrapped = name1(EntityKind::Edge, node, r.wrap(up.name));
-        match merged::constituents_through_wrappers(&wrapped) {
-            Some(cs) => names.extend(cs),
-            None => {
-                names.insert(wrapped);
-            }
-        }
+        names.push(name1(EntityKind::Edge, node, r.wrap(up.name)));
     }
-    let name = name1(
-        EntityKind::Edge,
-        node,
-        RoleSeg::Merged(names.into_iter().collect()),
-    );
-    Ok((canonical::minted(name), from_tie))
+    Ok((merged::edge_set(node, names), from_tie))
 }
 
 /// The edges of a pair boolean's result that share one parent: its
@@ -1480,9 +1480,8 @@ struct EdgeGroup {
     edges: Vec<EdgeKey>,
     /// The operand edges a joined edge's set name lists, or empty.
     set: Vec<OpSide<EdgeKey>>,
-    /// Whether the parent operand edge is also in such a set, so a lone
-    /// piece of it is not the whole of it.
-    in_set: bool,
+    /// What a lone piece of the parent is named for.
+    lone: Lone,
 }
 
 /// Boolean vertices: operand pass-downs (`FromA`/`FromB`), and seam
@@ -2128,29 +2127,26 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
 }
 
 /// **Names the pieces of one parent edge** (N2): a lone piece is
-/// `base` when `lone_is_whole`, and otherwise, as each of several is,
-/// `base` + `Fragment(Ends)`, the sorted pair of its two end vertices'
-/// names as `t` publishes them, read off body `ix`. A lone piece is not
-/// the whole parent when a set-named edge holds the rest of it (N3: the
-/// set's constituents retire). Pieces with equal pairs are N4's tie.
-/// Every end vertex is named before this runs, so `t` holds its name.
+/// `base` when it is the whole parent ([`Lone::Whole`]), and otherwise,
+/// as each of several is, `base` + `Fragment(Ends)`, the sorted pair of
+/// its two end vertices' names as `t` publishes them, read off body
+/// `ix` of `at`. Pieces with equal pairs are N4's tie. Every end vertex
+/// is named before this runs, so `t` holds its name.
 ///
 /// # Errors
 ///
 /// [`NamingError::Emission`] for a piece ending at a vertex `t` does
 /// not name, and the insert doors' own refusals.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn name_edge_pieces<T: geom_core::Real>(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,
     base: &StableName,
-    body: &Body<T>,
-    ix: u32,
+    (body, ix): (&Body<T>, u32),
     edges: &[EdgeKey],
-    lone_is_whole: bool,
+    lone: Lone,
 ) -> Result<(), NamingError> {
-    if let ([one], true) = (edges, lone_is_whole) {
+    if let ([one], Lone::Whole) = (edges, lone) {
         return Ok(put(
             t,
             tie,
@@ -2176,6 +2172,15 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
         pieces.push((Qualifier::Ends(ends), ent(ix, EntityKey::Edge(e))));
     }
     mint_qualified(t, tie, from_tie, base, pieces)
+}
+
+/// What a lone piece of a parent edge is named for: the parent whole,
+/// or, where a set-named edge holds the rest of the parent, a piece of
+/// it by its ends (the parent is not the piece's cell; N3).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Lone {
+    Whole,
+    Piece,
 }
 
 /// Mints each piece as `base` + `Fragment(q)` over its qualifier, the

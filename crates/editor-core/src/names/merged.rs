@@ -65,6 +65,32 @@ pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<Sta
     )
 }
 
+/// **The name of an edge minted by `node` that lies along the edges
+/// `along`**: `Merged` of them, flat and in name order. An edge that is
+/// itself a set, read through its descent wrappers, stands for its
+/// constituents ([`constituents_through_wrappers`]), so a set of sets
+/// lists edges, never sets (N3's flatness). The one builder both the
+/// pair boolean and the union mint an edge set through.
+pub(crate) fn edge_set(
+    node: crate::node::RecipeNodeId,
+    along: impl IntoIterator<Item = StableName>,
+) -> StableName {
+    let mut names = std::collections::BTreeSet::new();
+    for n in along {
+        match constituents_through_wrappers(&n) {
+            Some(cs) => names.extend(cs),
+            None => {
+                names.insert(n);
+            }
+        }
+    }
+    super::canonical::minted(StableName {
+        kind: super::role::EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::Merged(names.into_iter().collect())],
+    })
+}
+
 /// The run-holding role of a name's foot: which sweep role holds the
 /// run (a meridian with its end), so two feet are the same role over
 /// two runs exactly when their [`RunRole`]s are equal.

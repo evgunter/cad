@@ -115,7 +115,7 @@ use crate::names::emit::{
     vertex_point,
 };
 use crate::names::emit_topo::{
-    Cover, CrossedEdge, FaceDescent, OnSegment, Segment, name_edge_pieces, name_parent_faces,
+    Cover, CrossedEdge, FaceDescent, Lone, OnSegment, Segment, name_edge_pieces, name_parent_faces,
     rank_crossings,
 };
 use crate::names::groups::Rederived;
@@ -225,7 +225,13 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     let mut tie = TieRows::default();
     for g in by_parents.seams.iter().chain(&member_edges) {
         name_edge_pieces(
-            &mut t, &mut tie, g.from_tie, &g.base, body, 0, &g.edges, !g.in_set,
+            &mut t,
+            &mut tie,
+            g.from_tie,
+            &g.base,
+            (body, 0),
+            &g.edges,
+            g.lone,
         )?;
     }
     tie.flush(&mut t)?;
@@ -242,7 +248,7 @@ struct PieceGroup {
     base: StableName,
     from_tie: bool,
     edges: Vec<topo::EdgeKey>,
-    in_set: bool,
+    lone: Lone,
 }
 
 /// One member of a union as [`name_union`] reads it: its node, its own
@@ -330,16 +336,16 @@ fn group_member_edges<T: geom_core::Decide>(
     let groups = groups
         .into_iter()
         .map(|(key, (from_tie, edges))| PieceGroup {
-            in_set: matches!(&key, Along::One(e) if in_sets.contains(e)),
+            lone: match &key {
+                Along::One(e) if in_sets.contains(e) => Lone::Piece,
+                _ => Lone::Whole,
+            },
             base: match key {
                 Along::One(e) => entity_name(flush.union, &e),
-                Along::Set(set) => canonical::minted(StableName {
-                    kind: EntityKind::Edge,
-                    node: flush.union,
-                    path: vec![RoleSeg::Merged(
-                        set.iter().map(|e| entity_name(flush.union, e)).collect(),
-                    )],
-                }),
+                Along::Set(set) => crate::names::merged::edge_set(
+                    flush.union,
+                    set.iter().map(|e| entity_name(flush.union, e)),
+                ),
             },
             from_tie,
             edges,
@@ -496,7 +502,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             let cover = flush.edge_cover(k, fs)?;
             if !cover.within.is_empty() {
                 edges.insert(k, cover.within.into_iter().collect());
-            } else if cover.covered && cover.along.len() >= 2 {
+            } else if cover.covered {
                 spans.insert(k, cover.along.into_iter().collect());
             }
         }
@@ -1555,7 +1561,7 @@ fn name_by_parents<T: geom_core::Decide>(
             base,
             from_tie: tied,
             edges: keys,
-            in_set: false,
+            lone: Lone::Whole,
         });
     }
 
