@@ -188,6 +188,119 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     assert!((volume(body, t) - 8.5).abs() < 1e-12, "{}", volume(body, t));
 }
 
+/// **A single-operand result has maximal edges.** The subdivided prism
+/// unioned with a cube strictly inside it: no boundary crosses, so the
+/// union is the prism's own material, answered by the single-operand
+/// fallback. The prism carries its station vertex on both cap rims, and
+/// the fallback's output stage joins both: the result is a 2 × 2 × 2
+/// box with 8 vertices and 12 edges. Red when the fallback skips the
+/// join.
+#[test]
+fn a_union_answered_by_one_operand_joins_its_station_vertices() {
+    let t = Tol::witness();
+    let prism = finished("the subdivided prism", subdivided_prism(t).body, t);
+    assert_eq!(
+        topo::joinable_vertices(&prism).len(),
+        2,
+        "the station on each cap rim"
+    );
+    let cube = cube_at(0.5, 0.5, 0.5, 1.0);
+    let r = union(&prism, &cube, t).expect("the cube lies inside the prism");
+    let out = r.body().expect("non-empty");
+    assert_eq!(out.kind, topo::BooleanResultKind::OperandA);
+    assert_eq!(out.naming.edge_joins.len(), 2, "both stations joined");
+    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(out.body.vertices().count(), 8);
+    assert_eq!(out.body.edges().count(), 12);
+    assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
+    assert!((volume(&out.body, t) - 8.0).abs() < 1e-12);
+}
+
+/// `[0,3] × [0,2]` whose bottom side is authored as `line(1)` and two
+/// straight continuations, to `(2, 0)` and `(3, 0)`, extruded by 2:
+/// each cap rim along the bottom side is three collinear edges.
+fn twice_subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
+    let lp: ProfileLoop<f64> = Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .continue_to(Point2::new(2.0, 0.0), t)
+        .unwrap()
+        .continue_to(Point2::new(3.0, 0.0), t)
+        .unwrap()
+        .turn(FRAC_PI_2, t)
+        .unwrap()
+        .line(2.0, t)
+        .unwrap()
+        .turn(FRAC_PI_2, t)
+        .unwrap()
+        .line(3.0, t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap()
+        .into();
+    assert_eq!(lp.vertices().len(), 6, "two continuations, two stations");
+    let v = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(t)
+        .unwrap();
+    extrude(
+        &v,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .unwrap()
+}
+
+/// **A seam joined twice reads through both joins.** The twice
+/// subdivided prism unioned with a cube strictly inside it: the
+/// fallback's output stage joins each cap rim's three collinear edges
+/// into one, two joins per rim, the second's `gone` the first's `kept`.
+/// `BooleanNaming::joined_edge` takes every edge any join killed to the
+/// live edge holding it, through both joins. Red when `joined_edge`
+/// stops after one hop.
+#[test]
+fn a_rim_joined_twice_reads_through_both_joins() {
+    let t = Tol::witness();
+    let prism = finished(
+        "the twice subdivided prism",
+        twice_subdivided_prism(t).body,
+        t,
+    );
+    assert_eq!(
+        topo::joinable_vertices(&prism).len(),
+        4,
+        "two stations per cap rim"
+    );
+    let cube = cube_at(0.5, 0.5, 0.5, 1.0);
+    let r = union(&prism, &cube, t).expect("the cube lies inside the prism");
+    let out = r.body().expect("non-empty");
+    let joins = &out.naming.edge_joins;
+    assert_eq!(joins.len(), 4, "every station joined");
+    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(out.body.edges().count(), 12, "a box");
+    assert!(
+        joins
+            .iter()
+            .enumerate()
+            .any(|(i, j)| joins[..i].iter().any(|earlier| earlier.kept == j.gone)),
+        "some rim is joined twice through one edge: {joins:?}"
+    );
+    for j in joins {
+        for e in [j.gone, j.kept] {
+            let live = out.naming.joined_edge(e);
+            assert!(
+                out.body.get_edge(live).is_some(),
+                "{e:?} reads to a dead edge {live:?} through {joins:?}"
+            );
+        }
+    }
+}
+
 /// **Revolve, full and partial: the same branch.** The subdivided
 /// square at `x ∈ [1, 3]` revolved about the sketch's y axis: its
 /// subdivided bottom side sweeps to ONE annulus wall, its subdivided
@@ -388,15 +501,69 @@ fn subdivided_rim_blends_as_one_band_as_built() {
     );
 }
 
-/// **A boolean's merged faces carry the same joint.** Two flush unit
-/// cubes unioned into a `2 × 1 × 1` box, their touching faces and
-/// coplanar sides declared: each long side is one face, but the merge
-/// keeps the vertices where the operands' rims met, so
-/// each of the four long edges is two collinear links on the same two
-/// faces. Every edge fillets, each long edge as one band, at the
+/// **A joint and two cut-offs on one band**: only the split rim's two
+/// halves on the top cap. They join through the continuation vertex as
+/// one band, and each end, where the rim meets an unrequested side
+/// edge, is cut off at the side wall, at the prism closed form over the
+/// rim's whole length `2`.
+#[test]
+fn a_joined_band_is_cut_off_at_both_ends() {
+    let t = Tol::witness();
+    let body = subdivided_prism(t).body;
+    let half = |a: f64, b: f64| {
+        body.edges()
+            .map(|(k, _)| k)
+            .find(|&e| {
+                let he = body.get_edge(e).unwrap().he_plus;
+                let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                let (s, f) = (
+                    p(body.get_half_edge(he).unwrap().start),
+                    p(body.half_edge_end(he).unwrap()),
+                );
+                let on = |q: Point3<f64>, x: f64| (q - Point3::new(x, 0.0, 2.0)).norm() < 1e-12;
+                (on(s, a) && on(f, b)) || (on(s, b) && on(f, a))
+            })
+            .expect("a half of the split top rim")
+    };
+    let req = [half(0.0, 1.0), half(1.0, 2.0)];
+    for (verb, section) in [
+        ("fillet", (1.0 - core::f64::consts::FRAC_PI_4) * R * R),
+        ("chamfer", R * R / 2.0),
+    ] {
+        let out = match verb {
+            "fillet" => sweep::fillet::fillet_edges(&body, &req, R, t),
+            _ => sweep::chamfer::chamfer_edges(&body, &req, R, t),
+        }
+        .unwrap_or_else(|e| panic!("{verb}: the joined band builds, got {}", e.error));
+        assert_eq!(
+            topo::validate_geometric(&out.body, t),
+            Ok(()),
+            "{verb}: tier 3"
+        );
+        let rec = out.naming.as_ref().expect("birth records");
+        assert_eq!(
+            rec.joined_blends.len(),
+            1,
+            "{verb}: one band over both halves"
+        );
+        sweep::test_support::assert_naming_totality(&body, &out, &req, verb);
+        let removed = volume(&body, t) - volume(&out.body, t);
+        assert!(
+            (removed - 2.0 * section).abs() < 1e-12,
+            "{verb}: ΔV {removed} vs {}",
+            2.0 * section
+        );
+    }
+}
+
+/// **A boolean's merged faces leave no joint.** Two flush unit cubes
+/// unioned into a `2 × 1 × 1` box, their touching faces and coplanar
+/// sides declared: each long side is one face, and the output stage
+/// joins the vertices where the operands' rims met (maximal edges), so
+/// the box has its 12 edges. Every edge fillets as its own band, at the
 /// rounded box's closed form.
 #[test]
-fn a_union_of_flush_cubes_fillets_its_split_rims_as_one_band() {
+fn a_union_of_flush_cubes_is_a_box_that_fillets_edge_by_edge() {
     let t = Tol::witness();
     let (ca, cb) = (cube_at(0.0, 0.0, 0.0, 1.0), cube_at(1.0, 0.0, 0.0, 1.0));
     // The touching pair (`Rest`), and the four pairs of coplanar sides
@@ -425,13 +592,13 @@ fn a_union_of_flush_cubes_fillets_its_split_rims_as_one_band() {
     let body = &r.body().expect("non-empty").body;
     assert_eq!(body.faces().count(), 6, "the merged box has six faces");
     let req: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    assert_eq!(req.len(), 16, "12 box edges, the four long ones split");
+    assert_eq!(req.len(), 12, "the box's 12 edges, the long ones whole");
 
     let f = sweep::fillet::fillet_edges(body, &req, R, t).expect("the union fillets");
     assert_eq!(topo::validate_geometric(&f.body, t), Ok(()), "tier 3");
     assert_eq!(f.blend_faces.len(), 12, "one band per box edge");
     let rec = f.naming.as_ref().expect("birth records");
-    assert_eq!(rec.joined_blends.len(), 4, "the four long edges");
+    assert_eq!(rec.joined_blends.len(), 0, "no edge is split");
     sweep::test_support::assert_naming_totality(body, &f, &req, "union fillet");
     // The shrunk box `a × b × c` swept by the ball: core, six slabs,
     // twelve quarter-cylinders summing to `π r² (a + b + c)`, and one

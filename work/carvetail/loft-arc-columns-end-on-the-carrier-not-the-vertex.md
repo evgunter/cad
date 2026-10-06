@@ -4,6 +4,8 @@ kind: issue
 title: an arc's NURBS column (skin::segment_curve) starts and ends on the carrier, not on the stored vertices; pinning them flips step-import's seam rung
 status: open
 opened: 2026-09-25
+priority: P2
+cost: M
 ---
 
 

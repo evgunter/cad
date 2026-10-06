@@ -117,11 +117,15 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     );
     // Four Merged faces total (both caps + both flush y-walls); the
     // x-extreme walls survive under their FromX wraps unmerged.
-    let merged_rows = t
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-        .count();
-    assert_eq!(merged_rows, 4);
+    let merged = |kind| {
+        t.iter()
+            .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .count()
+    };
+    assert_eq!(merged(EntityKind::Face), 4);
+    // The four flush rims along x are each one edge across both
+    // blocks, named for the two rims it spans.
+    assert_eq!(merged(EntityKind::Edge), 4);
     for (node, seg, wrap_a) in [(a, 3u32, true), (b, 1u32, false)] {
         let inner = minted(
             EntityKind::Face,
@@ -141,9 +145,31 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
             "missing surviving x-wall of {node:?}"
         );
     }
-    // Every piece of a cut rim, a lone one included, is named by its
-    // ends (never bare indices).
-    let pieces = t
+    // The flush rims are joined, not cut: no edge is a piece.
+    assert!(
+        t.iter()
+            .all(|(n, _)| !matches!(n.path.last(), Some(RoleSeg::Fragment(_)))),
+        "no rim of the flush union is held in pieces"
+    );
+    assert!(t.iter().all(|(_, e)| matches!(e, Entry::Unique(_))));
+
+    // A notch through `a`'s rim at y = 0, z = 1 cuts it at two genuine
+    // valence-3 vertices, where the notch's x-walls cross it.
+    let (doc, n) = block(doc, (0.4, 0.6), (-0.5, 0.5), 0.5, 1.0);
+    let (doc, u2) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b: n,
+            declare: Vec::new(),
+        },
+    );
+    let ev = run(&doc);
+    let t = table(&ev, u2);
+    // Cut rims are told apart by their ends (never bare indices), and so
+    // is a lone piece: each of the notch's edges the cap cuts.
+    let pieces: Vec<_> = t
         .iter()
         .filter(|(n, _)| {
             matches!(
@@ -151,16 +177,32 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
                 Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
             )
         })
-        .count();
-    assert_eq!(
-        pieces, 12,
-        "rim pieces named by their ends (four rims cut in two, four cut to one piece)"
+        .map(|(n, _)| n.path[..n.path.len() - 1].to_vec())
+        .collect();
+    let (of_a, of_n): (Vec<_>, Vec<_>) = pieces
+        .iter()
+        .partition(|p| matches!(p.as_slice(), [RoleSeg::FromA(_)]));
+    assert_eq!(of_a.len(), 2, "`a`'s cut rim in two pieces: {pieces:?}");
+    assert_eq!(of_a[0], of_a[1], "both pieces of one rim");
+    assert!(
+        of_n.iter()
+            .all(|p| matches!(p.as_slice(), [RoleSeg::FromB(_)]))
+            && of_n.windows(2).all(|w| w[0] != w[1]),
+        "every other piece is the notch's, one of each edge: {pieces:?}"
     );
     // Seam vertices exist, with operand-name arguments.
     let seams = t
         .iter()
         .filter(|(n, _)| {
-            n.kind == EntityKind::Vertex && matches!(n.path.first(), Some(RoleSeg::Seam { .. }))
+            n.kind == EntityKind::Vertex
+                && matches!(
+                    n.path.first(),
+                    Some(
+                        RoleSeg::Seam { .. }
+                            | RoleSeg::Crossing { .. }
+                            | RoleSeg::EdgeCrossing { .. }
+                    )
+                )
         })
         .count();
     assert!(seams >= 4, "expected seam vertices, got {seams}");

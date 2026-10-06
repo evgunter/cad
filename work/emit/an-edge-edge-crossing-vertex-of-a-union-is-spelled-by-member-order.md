@@ -28,6 +28,16 @@ Found by a designer lane while weighing the covered-member fork (fork-log row 37
 
 1. Give `Flush` an order-free spelling for an edge–edge crossing, for example the two member edges' `Ends`-style pair sorted in name order. Check that against N2's vertex rules first: if N2 does not decide it, it is a design question.
 
+## After PR 4134 (2026-10-06)
+
+Ev's ruling on PR 4134 names every crossing by its sense. Only crossings
+of one edge by one face with the same sense are still ranked along the
+edge (`OrderAlong`), and a vertex where two edges cross carries each
+edge's sense against the other operand's closed body. Once the sense is
+built (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`,
+branch `emit/crossing-sense`), re-measure this row against the narrower
+case that is left.
+
 ## Since the crossing's sense
 
 Crossings now carry their sense (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`),

@@ -51,10 +51,10 @@
 //! 1. one clone, every boundary face moved to its inward offset — the
 //!    result is the material to remove, a positively oriented closed
 //!    body. **Two doors do that, and which one runs is decided by the
-//!    SOLID** — a box beside a vessel is neither all-planar nor axial
-//!    while each of the two is one of those, so a whole-body reading
-//!    would refuse the vessel's corners it solves alone: an
-//!    ALL-PLANAR solid goes through
+//!    SOLID** — a vessel beside a box tilted off its axis is neither
+//!    all-planar nor axial while each of the two is one of those, so a
+//!    whole-body reading would refuse the vessel's corners it solves
+//!    alone: an ALL-PLANAR solid goes through
 //!    [`crate::offset_planes_together`], which moves every chart at
 //!    once and solves each corner against all the moved planes meeting
 //!    it; anything with a curved face goes chart by chart through
@@ -390,21 +390,18 @@ pub enum ShellError<T: Real> {
         /// The sort's typed refusal, verbatim.
         error: crate::pieces::PieceSortError,
     },
-    /// One of the operand's solids, once sorted into pieces, does not
-    /// classify to exactly one outer shell. Not a shape this verb
-    /// thickens. Two ways reach it: no outer shell at all (only
-    /// cavities, which bound no material), or more than one where the
-    /// sort's role reader ([`crate::validate::shell_role`]) left a shell
-    /// undecided — silent beside one decided `Outer` — and this verb's
-    /// classifier ([`crate::props::classify_shells_of`]) decided it
-    /// `Outer`: two readers of one sign that can part in band
-    /// (`work/fuse/one-home-for-where-a-shell-stands.md`). The roles are
-    /// read per solid, so the refusal names which solid it is about.
+    /// One of the operand's solids, once sorted into pieces, has no
+    /// outer shell: only cavities, which bound no material. Not a shape
+    /// this verb thickens. More than one cannot reach here: the sort
+    /// reads roles through [`crate::props::shell_role`], and this verb
+    /// classifies through the same lane at the reporting target, which
+    /// reads a role only where that walk read the same one
+    /// (`props::role_at_target`). So the sort leaves no solid with a
+    /// second decided `Outer`, and a shell the sort left undecided
+    /// refuses [`Self::Roles`].
     OperandOuterShells {
-        /// The solid whose shells did not classify to one boundary.
+        /// The solid with no outer shell.
         solid: SolidKey,
-        /// How many of ITS shells classified as outer boundaries.
-        outer: usize,
     },
     /// The re-partition of an operand void and its dilated twin into a
     /// solid of their own refused. The keys are the shell op's own —
@@ -595,10 +592,10 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 f,
                 "the body could not be sorted into solids before it is thickened: {error}"
             ),
-            Self::OperandOuterShells { outer, .. } => write!(
+            Self::OperandOuterShells { .. } => write!(
                 f,
-                "a solid of the body has {outer} outer shells once sorted into pieces, not \
-                 one, which the shell op cannot thicken"
+                "a solid of the body has no outer shell, only cavities, which bound no \
+                 material to thicken"
             ),
             Self::Partition { shell, error } => write!(
                 f,
@@ -1038,11 +1035,15 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         if shells.len() == 1 {
             continue;
         }
-        let roles = crate::props::classify_shells_of(body, shells, tol)
+        let roles = crate::props::classify_shells_through(body, shells, tol, T::quad_lane())
             .map_err(|error| ShellError::Roles { error })?;
-        let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
-        if outer != 1 {
-            return Err(ShellError::OperandOuterShells { solid, outer });
+        match roles.iter().filter(|c| c.role == ShellRole::Outer).count() {
+            0 => return Err(ShellError::OperandOuterShells { solid }),
+            1 => {}
+            outer => unreachable!(
+                "{outer} decided outer shells under one solid after the sort, whose \
+                 sign walk reads every role the classification reads"
+            ),
         }
         voids.extend(
             roles
@@ -1128,13 +1129,20 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // `offset_charts_together` solves those in the meridian
     // half-plane, and the branch below picks it.
     //
-    // **The door is ONE decision PER SOLID.** A body with a box beside
-    // a vessel is neither all-planar nor a body of revolution, and a
+    // **The door is ONE decision PER SOLID.** A body with a box tilted
+    // off a vessel's axis beside it is neither all-planar nor axial, and a
     // whole-body reading would put both on the per-chart door — which
     // refuses the vessel's corners it solves alone. The ladder is
     // unchanged; what it reads is the solid's own faces. The cavity
-    // and the rim lift read the same ladder over the same solid, so a
-    // solid is on the same door on the way in and on the way back out.
+    // and the rim lift read the same ladder over the same solid, and
+    // the lift reads it on the body the cavity's door BUILT — so the
+    // two answer alike because the axial gate's roster is closed under
+    // that door's output: an offset keeps a coaxial wall coaxial, a
+    // plane normal to the axis normal to it, and a plane parallel to
+    // the axis parallel to it at any stand-off (`offset_axial::classify`),
+    // and the planar ladder's all-planes answer is closed the same way.
+    // A solid is therefore on the same door on the way in and on the
+    // way back out.
     // The operand's partition serves every solid: `cavity` is a clone,
     // so it carries the same keys, and re-aiming the scope at one solid
     // is a `Vec` swap rather than another walk over the whole body.
@@ -2199,7 +2207,9 @@ enum OffsetDoor {
     /// Every face is a plane: [`crate::offset_planes_together`], every
     /// chart at once, each corner solved against all the moved planes.
     PlanesTogether,
-    /// A body of revolution: [`crate::offset_charts_together`], each
+    /// An axial body — every face of revolution about one axis, or a
+    /// plane normal or parallel to it (a bored box and a D-shaft as
+    /// much as a vessel): [`crate::offset_charts_together`], each
     /// corner solved in the meridian half-plane.
     ChartsTogether,
     /// Anything else: [`crate::replace_faces_offset`] chart by chart,
@@ -2208,8 +2218,9 @@ enum OffsetDoor {
 }
 
 /// The door for the solids `scope` names. A door is a property of a
-/// SOLID — a box beside a vessel is neither all-planar nor axial while
-/// each of the two is one of those — so the ladder reads that solid's
+/// SOLID — a vessel beside a box tilted off its axis is neither
+/// all-planar nor axial while each of the two is one of those — so the
+/// ladder reads that solid's
 /// own faces and nothing else. An UNDECIDED axis gate is not
 /// `PerChart`: it escalates typed, and the caller refuses with it
 /// rather than taking the other branch (`is_axial`'s docs).

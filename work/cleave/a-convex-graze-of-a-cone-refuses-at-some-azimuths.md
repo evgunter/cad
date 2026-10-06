@@ -73,7 +73,12 @@ arc at the inserted graze vertex (`splitting/neighborhood.rs`,
 in the band rather than at exactly zero, which would hand it to the
 second-order descent. That is likely rounding in the inserted root's
 position and the arc tangent there; this is a hypothesis, not traced.
-`sector_straight` at a cone's apex vertex is a separate door.
+`sector_straight` at a cone's apex vertex is a separate door. It refuses secants as well as
+grazes: `cleave/seam-ruling-split`'s sweep put the full cone (base r = 1, apex at y = 1) through
+the plane holding its ruling at θ ∈ {0, 0.3, 2}, turned t ∈ {1e-3, 0.05, 0.4, 1, π/2, 2, 3, −0.4,
+−1.2} off tangency, both normals. Every pose refused `Reduce(SliverSector)` at the apex vertex, at
+ε 1e-6, 1e-9 and 1e-12, on main at 78bee3ac68. Each such plane holds the apex, so each side is a
+cone over a base segment, with closed-form volumes.
 
 ## Found by
 

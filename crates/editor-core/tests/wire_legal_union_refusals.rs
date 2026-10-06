@@ -150,10 +150,6 @@ fn a_rim_in_several_pieces_is_named_not_refused() {
 enum Seen {
     /// One body, at the volume the geometry says.
     Fused,
-    /// `NamingError::SeamVertexParentage`: the seam-vertex pass has no
-    /// parentage rule for a vertex
-    /// (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule`).
-    SeamVertex,
     /// `NamingError::MergedChordConstituents`, the same row's chord rule.
     MergedChord,
     /// A declared face a later member split before its pair's step
@@ -224,13 +220,10 @@ fn every_order(
                     );
                     Seen::Fused
                 }
-                Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
-                    Seen::SeamVertex
-                }
                 Some(NodeErrorKind::Naming(NamingError::MergedChordConstituents { .. })) => {
                     Seen::MergedChord
                 }
-                Some(NodeErrorKind::DeclareResolve { error })
+                Some(NodeErrorKind::DeclareResolve { error, .. })
                     if matches!(
                         &**error,
                         ResolveError::Vanished {
@@ -285,9 +278,11 @@ const AREA_OVERLAP_VOLUME: f64 = 13.4;
 
 #[test]
 fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold_contact() {
-    use Seen::{Fused, SeamVertex};
+    use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_3", Tol::witness());
     let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
+    // Every order fuses: the vertex whose half-decided parentage refused
+    // two of them was a cut vertex the output stage now joins away.
     every_order(
         &doc,
         &[("a", a), ("s", s), ("big", big)],
@@ -295,10 +290,10 @@ fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold
         AREA_OVERLAP_VOLUME,
         &[
             ("a,s,big", Fused),
-            ("a,big,s", SeamVertex),
+            ("a,big,s", Fused),
             ("s,a,big", Fused),
             ("s,big,a", Fused),
-            ("big,a,s", SeamVertex),
+            ("big,a,s", Fused),
             ("big,s,a", Fused),
         ],
     );
@@ -308,7 +303,7 @@ fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold
 /// declared against that cap.
 #[test]
 fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contact() {
-    use Seen::{Fused, SeamVertex, Split};
+    use Seen::{Fused, Split};
     let doc = ProfileDoc::empty_derived("wire_fold_contact_4", Tol::witness());
     let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
     let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
@@ -330,27 +325,27 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
         &[
             ("a,s,big,p", Fused),
             ("a,s,p,big", Split),
-            ("a,big,s,p", SeamVertex),
-            ("a,big,p,s", SeamVertex),
+            ("a,big,s,p", Fused),
+            ("a,big,p,s", Fused),
             ("a,p,s,big", Fused),
-            ("a,p,big,s", SeamVertex),
+            ("a,p,big,s", Fused),
             ("s,a,big,p", Fused),
             ("s,a,p,big", Split),
             ("s,big,a,p", Fused),
             ("s,big,p,a", Fused),
             ("s,p,a,big", Fused),
             ("s,p,big,a", Fused),
-            ("big,a,s,p", SeamVertex),
-            ("big,a,p,s", SeamVertex),
+            ("big,a,s,p", Fused),
+            ("big,a,p,s", Fused),
             ("big,s,a,p", Fused),
             ("big,s,p,a", Fused),
-            ("big,p,a,s", SeamVertex),
+            ("big,p,a,s", Fused),
             ("big,p,s,a", Fused),
             ("p,a,s,big", Fused),
-            ("p,a,big,s", SeamVertex),
+            ("p,a,big,s", Fused),
             ("p,s,a,big", Fused),
             ("p,s,big,a", Fused),
-            ("p,big,a,s", SeamVertex),
+            ("p,big,a,s", Fused),
             ("p,big,s,a", Fused),
         ],
     );
@@ -361,7 +356,7 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
 /// member over the same area-overlap declaration.
 #[test]
 fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact() {
-    use Seen::{Fused, MergedChord, SeamVertex, Split};
+    use Seen::{Fused, MergedChord, Split};
     let doc = ProfileDoc::empty_derived("wire_fold_contact_split", Tol::witness());
     let (doc, [a, c, s], pairs) = split_fixture(doc);
     let (doc, big) = block(doc, (-0.5, 1.2), (-0.5, 1.5), 0.8, 1.2);
@@ -373,116 +368,29 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
         5.34,
         &[
             ("a,c,s,big", Fused),
-            ("a,c,big,s", SeamVertex),
+            ("a,c,big,s", Fused),
             ("a,s,c,big", Split),
-            ("a,s,big,c", SeamVertex),
-            ("a,big,c,s", SeamVertex),
-            ("a,big,s,c", SeamVertex),
+            ("a,s,big,c", Fused),
+            ("a,big,c,s", Fused),
+            ("a,big,s,c", Fused),
             ("c,a,s,big", Fused),
-            ("c,a,big,s", SeamVertex),
+            ("c,a,big,s", Fused),
             ("c,s,a,big", MergedChord),
-            ("c,s,big,a", SeamVertex),
-            ("c,big,a,s", SeamVertex),
-            ("c,big,s,a", SeamVertex),
+            ("c,s,big,a", Fused),
+            ("c,big,a,s", Fused),
+            ("c,big,s,a", Fused),
             ("s,a,c,big", Split),
-            ("s,a,big,c", SeamVertex),
+            ("s,a,big,c", Fused),
             ("s,c,a,big", MergedChord),
-            ("s,c,big,a", SeamVertex),
-            ("s,big,a,c", SeamVertex),
-            ("s,big,c,a", SeamVertex),
-            ("big,a,c,s", SeamVertex),
-            ("big,a,s,c", SeamVertex),
-            ("big,c,a,s", SeamVertex),
-            ("big,c,s,a", SeamVertex),
-            ("big,s,a,c", SeamVertex),
-            ("big,s,c,a", SeamVertex),
+            ("s,c,big,a", Fused),
+            ("s,big,a,c", Fused),
+            ("s,big,c,a", Fused),
+            ("big,a,c,s", Fused),
+            ("big,a,s,c", Fused),
+            ("big,c,a,s", Fused),
+            ("big,c,s,a", Fused),
+            ("big,s,a,c", Fused),
+            ("big,s,c,a", Fused),
         ],
     );
-}
-
-/// **The in-face vertices of the area-overlap union carry opposite
-/// senses** (N2's end-touch). At the fold step that mints them, `s ∪
-/// big`'s seam along `y = 0, z = 0.8` runs from `x = 0.2` to `x = 0.4`
-/// inside `a`'s `y = 0` wall: each of its ends is where the edge, lying
-/// in the wall, ends in it, and a side of the end with no edge counts as
-/// outside `a`. So one end is where the edge enters `a` and the other
-/// where it leaves, and the two vertices are told apart by that, with no
-/// rank and one spelling in every member order that leaves them: the two
-/// that fold `a` last.
-#[test]
-fn the_area_overlap_unions_in_face_vertices_carry_opposite_senses() {
-    use editor_core::{EntityKey, Entry, StableName};
-
-    let doc = ProfileDoc::empty_derived("wire_fold_contact_3", Tol::witness());
-    let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
-    let pairs = continuations(&pairs);
-    let mut published: Vec<(Vec<usize>, [StableName; 2])> = Vec::new();
-    for order in orders(3) {
-        let members: Vec<RecipeNodeId> = order.iter().map(|&k| [a, s, big][k]).collect();
-        let (docx, union) = declared_union_classed(doc.clone(), &members, pairs.clone());
-        let ev = run(&docx);
-        if failure(&ev, union).is_some() {
-            continue;
-        }
-        let body = body_of(&ev, union);
-        let mut at = [None, None];
-        for (name, entry) in crate::fixture::table(&ev, union).iter() {
-            let Entry::Unique(r) = entry else { continue };
-            let EntityKey::Vertex(v) = r.key else {
-                continue;
-            };
-            let p = crate::fixture::point(body, v);
-            if p.y.abs() > 1e-9 || (p.z - 0.8).abs() > 1e-9 {
-                continue;
-            }
-            for (slot, x) in [(0, 0.2), (1, 0.4)] {
-                if (p.x - x).abs() < 1e-9 {
-                    assert!(at[slot].is_none(), "{order:?}: one vertex at x = {x}");
-                    at[slot] = Some(name.clone());
-                }
-            }
-        }
-        let [low, high] = match at {
-            [Some(low), Some(high)] => [low, high],
-            // An order that folds `a` before `s ∪ big` exists meets no
-            // such seam and leaves no vertex there.
-            [None, None] => continue,
-            _ => panic!("{order:?}: a vertex at each end of the seam or at neither: {at:?}"),
-        };
-        match (low.path.as_slice(), high.path.as_slice()) {
-            (
-                [
-                    RoleSeg::Crossing {
-                        edge: e0,
-                        face: f0,
-                        sense: s0,
-                    },
-                ],
-                [
-                    RoleSeg::Crossing {
-                        edge: e1,
-                        face: f1,
-                        sense: s1,
-                    },
-                ],
-            ) => {
-                assert_eq!((e0, f0), (e1, f1), "{order:?}: one edge in one face");
-                assert_eq!(*s1, s0.flipped(), "{order:?}: opposite senses");
-            }
-            _ => panic!("{order:?}: two crossings, unranked: {low:?} {high:?}"),
-        }
-        published.push((order, [low, high]));
-    }
-    assert_eq!(
-        published.iter().map(|(o, _)| o.clone()).collect::<Vec<_>>(),
-        vec![vec![1, 2, 0], vec![2, 1, 0]],
-        "the orders that fold `a` into `s ∪ big` leave the two vertices"
-    );
-    for (order, names) in &published {
-        assert_eq!(
-            names, &published[0].1,
-            "{order:?} spells the two vertices as {:?} does",
-            published[0].0
-        );
-    }
 }

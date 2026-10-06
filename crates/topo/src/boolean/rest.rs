@@ -7,11 +7,17 @@
 //! face patches — on ANY carrier the ladder certifies (plane, sphere,
 //! cylinder, torus; the C4 `Rest` inventory) — and its boundary ∂R — the
 //! seam — runs along operand edges or across single faces, never
-//! through material. The chord joining ([`super::join`]) matches the
-//! germs into segments that name one cell per solid at both of their
-//! ends (germs carry their loci; a segment along an edge of a solid is
-//! that edge, and at an edge-edge site each solid folds it by its own
-//! membership), and its surgery refuses typed where it cannot build a
+//! through material. The lane reads that premise off the section, not
+//! the interiors: every segment the join matched must bound a contact
+//! patch on both solids (step 5), so an edge-in-face contact beside
+//! the patch that leaves no segment (a dip into the patch, a line
+//! kiss) passes it unseen
+//! (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
+//! The chord joining ([`super::join`]) matches the germs into segments
+//! that name one cell per solid at both of their ends (germs carry
+//! their loci; a segment along an edge of a solid is that edge, and at
+//! an edge-edge site each solid folds it by its own membership), and
+//! its surgery refuses typed where it cannot build a
 //! segment's chord — for a seam the join has no section arm for, its
 //! per-kind refusal. This lane takes over those refusals, on the
 //! join's own segments.
@@ -64,7 +70,10 @@
 //!    chord splits keep the license). Patches pair across the mate
 //!    by exact vertex-cycle congruence (antiparallel, through the
 //!    contact-record vertex correspondence) — verified, never
-//!    assumed.
+//!    assumed. The seam must be the patches' boundary on both solids:
+//!    a segment with no patch face beside it is a section through
+//!    material, a crossing the disjoint interiors of step 6 cannot
+//!    have, and the lane is not this frontier.
 //! 6. **The zip**: operand B grafts whole through the combine door
 //!    (interiors are disjoint — nothing is discarded, vol(A∪B) =
 //!    vol(A)+vol(B) exactly), then each patch pair is glued: the
@@ -74,7 +83,10 @@
 //!    along already-fused seam runs — ONE run or several: a closed
 //!    cosurface band's last panel shares a run on each side, and the
 //!    band closure kills the later runs by the configuration each is
-//!    found in). Glue order is a BFS over the patch adjacency.
+//!    found in). Glue order is a BFS over the patch adjacency. The
+//!    disjointness is step 5's reading of the section, so an
+//!    edge-in-face contact with no segment is zipped unseen (the row
+//!    named above).
 //!
 //! The result passes the same output stages as every seamed boolean:
 //! declared coplanar merge, D6 edge descriptions, contact remapping
@@ -88,6 +100,7 @@ use slotmap::SecondaryMap;
 use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
+use super::edge_join::join_stage;
 use super::fragments::{Lineage, sole_common_face};
 use super::ops::{
     Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
@@ -402,13 +415,13 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let reduction_contacts = red.contacts;
     let covered = red.covered;
     let edge_classes = red.edge_classes;
-    let divided_edges = super::divided_edges(&red.edge_splits);
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
+    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
     let contacts = carry(
         &body,
         &contacts,
@@ -438,7 +451,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discards,
         covered,
         edge_classes,
-        divided_edges,
+        edge_joins,
     };
     Ok(Some(BooleanResult::Body(BooleanBody {
         body,
@@ -1422,7 +1435,8 @@ fn halves_at<T: Decide>(
 /// The contact-patch faces of one solid: the seam partitions the
 /// face-adjacency graph; a region qualifies iff every face's surface
 /// is a verified REST-contact surface AND the region touches the
-/// seam. `Ok(None)`: no qualifying region — not this frontier.
+/// seam. `Ok(None)`: no qualifying region, or a seam edge with no
+/// patch face beside it — not this frontier.
 fn patch_faces<T: Decide>(
     body: &Body<T>,
     seam: &SeamSet,
@@ -1430,7 +1444,6 @@ fn patch_faces<T: Decide>(
 ) -> Result<Option<Vec<FaceKey>>, BooleanError> {
     let mut assigned: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
     let mut patch: Vec<FaceKey> = Vec::new();
-    let mut found = false;
     let all_faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     for &root in &all_faces {
         if assigned.contains_key(root) {
@@ -1470,11 +1483,21 @@ fn patch_faces<T: Decide>(
             .iter()
             .all(|&f| rest.contains_key(proven(&body.faces, f, EntityId::Face).surface));
         if qualified && touches_seam {
-            found = true;
             patch.extend(region);
         }
     }
-    if !found {
+    // The seam is the patch's boundary: every seam edge has a patch face
+    // on one side at least. One with none is a section through material
+    // beside the contact, which the zip, discarding only the patches,
+    // would leave in the result with both solids' material across it.
+    let in_patch: SecondaryMap<FaceKey, ()> = patch.iter().map(|&f| (f, ())).collect();
+    let bounds_patch = |e: EdgeKey| {
+        let edge = proven(&body.edges, e, EntityId::Edge);
+        [edge.he_plus, edge.he_minus]
+            .into_iter()
+            .any(|he| in_patch.contains_key(body.face_of_linked(he)))
+    };
+    if patch.is_empty() || !seam.per_segment.iter().all(|&e| bounds_patch(e)) {
         return Ok(None);
     }
     Ok(Some(patch))

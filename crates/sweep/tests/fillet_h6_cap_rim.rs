@@ -418,7 +418,7 @@ fn the_direction_gates_refuse_before_the_arm() {
 ///
 /// The tilt is half the worst the gates admit, at unit height: at the
 /// full `ε` in-plane the obround's arc walls do not build at all
-/// (`work/carve/extrude-arc-walls-are-ruled-in-n-not-w.md`).
+/// (`work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md`).
 #[test]
 fn only_line_walls_carry_the_admitted_tilt() {
     let tol = Tol::witness();

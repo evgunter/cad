@@ -232,14 +232,16 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         topo::validate::validate_geometric(body, Tol::witness()),
         Ok(())
     );
-    let merged_rows = ev
-        .value(u)
-        .unwrap()
-        .name_table
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-        .count();
-    assert_eq!(merged_rows, 4, "caps + flush y-walls glue");
+    let merged = |kind| {
+        ev.value(u)
+            .unwrap()
+            .name_table
+            .iter()
+            .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .count()
+    };
+    assert_eq!(merged(EntityKind::Face), 4, "caps + flush y-walls glue");
+    assert_eq!(merged(EntityKind::Edge), 4, "the rims between them join");
 
     // Decoupled variant (no coincident planes): untouched — nothing
     // to declare, transversal union works as before.
@@ -391,7 +393,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let ev = run(&doc);
     match ev.nodes.get(&u) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::DeclareResolve { error } => match error.as_ref() {
+            NodeErrorKind::DeclareResolve { error, .. } => match error.as_ref() {
                 editor_core::resolve::ResolveError::Vanished {
                     name,
                     diagnosis,
@@ -635,7 +637,7 @@ fn declare_doors_node_gone_and_ambiguous() {
     let ev = run(&doc);
     match ev.nodes.get(&u2) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::DeclareResolve { error } => match error.as_ref() {
+            NodeErrorKind::DeclareResolve { error, .. } => match error.as_ref() {
                 editor_core::resolve::ResolveError::Ambiguous {
                     name,
                     candidates,
@@ -933,7 +935,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
         use editor_core::resolve::ResolveError;
         match ev.nodes.get(&node) {
             Some(NodeResult::Failed(e)) => match &e.kind {
-                NodeErrorKind::DeclareResolve { error } => match &**error {
+                NodeErrorKind::DeclareResolve { error, .. } => match &**error {
                     ResolveError::NodeGone { .. } => "node_gone",
                     ResolveError::Vanished { .. } => "vanished",
                     ResolveError::Ambiguous { .. } => "ambiguous",

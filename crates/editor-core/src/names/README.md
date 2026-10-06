@@ -71,9 +71,14 @@ DM4) follow this rule, and so do profile pieces:
   states it, which holds its inputs' and names' ids but not its own; the
   insert then extends the chain once more and takes the node's
   `RecipeNodeId` from it. The steps one edit mints take the chain's next
-  digests, one per step in authored order; an id is the first 64 bits of
-  its digest. So a node's or a step's id is a function of the edit
-  sequence that minted it:
+  digests, one per step in authored order. An id is a pair: its mint
+  ordinal (the mint log's length when it was drawn, plus one; a `u32`) and
+  the first 64 bits of its digest. Ids order by ordinal first, so they order
+  as they were minted: of two nodes or steps in one document, the one minted
+  first has the lesser id, and the document keeps no separate record of the
+  order its nodes were placed in.
+  So a node's or a step's id is a function of the edit sequence that
+  minted it:
   - the same sequence of edits from one value mints the same ids (D9);
   - two documents that branch from one value — an undo followed by a
     different edit, or two edits applied to one base — mint different ids
@@ -83,8 +88,9 @@ DM4) follow this rule, and so do profile pieces:
     parent's name on a step one such version minted, held across a pin
     update to the other, resolves `Vanished`.
 
-  Like a `RecipeNodeId`, a step id is never positional and never reused,
-  and it is unique across the whole document. The document keeps every
+  Like a `RecipeNodeId`, a step id is never reused and is unique across the
+  whole document; its order is mint order, which is the order the author
+  placed things in, and nothing else. The document keeps every
   id it has minted, node and step, in one mint log, deleted nodes' and
   dropped steps' included, and a mint whose id is already in the log is
   refused. The load door checks what minting makes true: every node's id
@@ -246,15 +252,42 @@ The qualifier depends on what was split:
   ties.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
-name order changes nothing.
+name order changes nothing. Name order spells a set; the flush rule below is
+the one place it chooses an entity.
 
-**Flush edges at a union.** An edge that lies along several members' edges,
-where they run flush, is a piece of the least of them in name order, and an
-edge lying along a member edge is a piece of it whatever the fold named it
-(`emit_union::Flush`). A seam vertex cites such an edge whole,
-`FromMember(m, e)`, never a piece; a vertex at a member vertex is that vertex,
-and one where a single face crosses a member edge is the `Crossing` of that
-edge and that face.
+**Flush edges at a union.** Each union edge is named for the member edges it
+lies on, read off the finished body and the members' own bodies
+(`emit_union::Flush`), so the name is the same in every member order:
+
+- An edge that lies within one or more member edges, where they run flush, is
+  a piece of the first minted of them (the least in name order, since name
+  order compares the minting node's id first and ids order as minted), so a
+  member added later never takes a stretch from an earlier one, whatever the
+  fold named it.
+- An edge that lies within none, but runs along several member edges that
+  together cover it, is named for that set: `Merged` of those member edges,
+  flat and in name order, the shape faces have (N3). Such an edge is a flush
+  rim the output stage joined across members (maximal edges, `docs/DESIGN.md`).
+  "Along" means on the edge's line and overlapping it over a length, so a rim
+  that only partly overlaps an edge is in its set. Several pieces of one set
+  are told apart by their ends (N2).
+- An edge that runs along member edges for part of its length and along a seam
+  for the rest is named from its two faces, as a seam is.
+
+The set does not retire its constituents the way N3 retires a merged face's.
+A member edge a set lists can also hold a stretch outside it, and that
+stretch keeps its piece name, the member edge qualified by its ends (N2),
+never the bare member edge. Unlike two coplanar faces, the stretch and the set
+are different cells on the line, and a name cites only what its cell lies on.
+
+A pair boolean names a joined edge by the same reading over its two operands'
+edges. A seam vertex cites a member edge whole, `FromMember(m, e)`, never a
+piece and never a set: the one it lies on, the least where several do. In a
+pair boolean, where an A edge and a B edge both hold it, A's is cited. A
+vertex at a member vertex is that vertex, and one where a single face crosses
+a member edge is the `Crossing` of that edge and that face. A reference to a
+member edge, or to a piece of one, that no longer resolves is offered every
+set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
 all of these hold: their members are declared coincident on them, or share a

@@ -647,14 +647,19 @@ class SelectRefusal(PncadError):
     `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
     `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
-    inapplicable: `name` (the candidate's opaque name text),
-    `predicate` (the funnel site), `matched`/`candidates` (a tied
+    inapplicable: `name` (the candidate's opaque name text, a flush
+    pair's first face), `other` (a flush pair's second face), `at` and
+    `other_at` (the nodes holding a flush pair's two faces, which tell
+    two copies of one body apart), `predicate` (the funnel site), `matched`/`candidates` (a tied
     name's disagreement counts), `datum` (the non-datum reference, or
     the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
 
     reason: str
     name: Optional[str]
+    other: Optional[str]
+    at: Optional[NodeId]
+    other_at: Optional[NodeId]
     predicate: Optional[str]
     matched: Optional[int]
     candidates: Optional[int]
@@ -2484,7 +2489,7 @@ class Node:
 
         `selection` is edge names as TEXT — the strings
         `Evaluation.all_edges` answers with, or the ones a role-name
-        door mints (`band_rim` and its four siblings) for a node no
+        door mints (`band_rim` and its five siblings) for a node no
         evaluation has reached yet. The set FREEZES at
         authoring time; an empty one, an unresolvable name, or an edge
         the roller cannot enter refuses typed at `evaluate`. `radius`
@@ -4539,7 +4544,7 @@ class GeomPred:
         writes one refuses here: `EvalError`, `unlowered_name`."""
 
 
-# Minting a revolve's role name: the five doors that ANSWER a name
+# Minting a revolve's role name: the six doors that ANSWER a name
 # rather than selecting one. `select` answers names FROM an
 # evaluation; a selection that is AUTHORED — `Node.fillet`'s frozen
 # selection, `Node.shell`'s open list — is written before any
@@ -4570,6 +4575,14 @@ def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts
     at — the edge between the band of the piece ending there and the
     piece's own. An edge."""
+
+def band_rim_pi(node: NodeId, piece: Piece) -> str:
+    """The `[pi, 2pi)` latitude rim at the vertex the profile piece
+    `piece` starts at — `band_rim`'s twin, where a full revolve of a
+    profile touching the axis emits each rim as two half-arcs between
+    the seam vertices, so a blend over the whole rim names both. An
+    annular profile's rim is one edge, its `band_rim`. An edge, as
+    `band_rim` is."""
 
 def meridian_vertex(end: MeridianEnd, node: NodeId, piece: Piece) -> str:
     """The meridian vertex at `end`: the copy of the vertex the profile

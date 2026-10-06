@@ -11,22 +11,23 @@
 //! **Stop 1 is what a user gets today, and E12 turned it from a
 //! refusal into an ANSWER.** ±0.05 mm on the hole spacing and σ =
 //! 0.01 mm on each radius — a real study — and the driver now certifies
-//! it. At the cell's 512-leaf budget (release, default ε): 193 leaves
-//! certified, 319 refused at the budget and none for any other reason,
-//! 83.4% of the study's mass certified; the certified worst case on the
-//! web is `[0.419, 0.845]` mm against the asserted floor of 0.500 mm,
+//! it. At the cell's 512-leaf budget (default ε): 211 leaves
+//! certified, 301 refused at the budget and none for any other reason,
+//! 94.9% of the study's mass certified; the certified worst case on the
+//! web is `[0.440, 0.760]` mm against the asserted floor of 0.500 mm,
 //! the nominal 0.600 mm sits in a certified chamber, and the
 //! requirement — read off the ASSERTION NODE over each certified leaf,
 //! the way stop 2 reads it — is MIXED, with its masses: it HOLDS on
-//! 0.8337 of the study's mass and is VIOLATED on 0.0002, certified —
+//! 0.9387 of the study's mass and is VIOLATED on 0.0104, certified —
 //! the corner where the spacing is short and both holes are large —
-//! with 0.1661 in leaves the budget left unresolved. That is the
-//! study's answer, and it is a gating one: "with probability 2·10⁻⁴
+//! with 0.0509 in leaves the budget left unresolved. That is the
+//! study's answer, and it is a gating one: "with probability 1·10⁻²
 //! the web is under the floor" is now a sentence the kernel says.
-//! The hull `[0.4188, 0.8450]` mm pads the exact affine range over the
-//! certified leaves, `[0.4400, 0.7600]` mm, by 0.021 mm below and
-//! 0.085 mm above — the interval lane's dependency widening, pinned
-//! at both ends by the cell's row. Every sensitivity is
+//! The hull is the exact affine range over the certified leaves,
+//! `[0.4400, 0.7600]` mm, to rounding: its padding was 0.021 mm below
+//! and 0.085 mm above at 193 certified leaves, and since the PATHS
+//! lattice stores the carriers it builds (PR 3774) it is ~1e-18 m at
+//! both ends, which the cell's row pins as a ceiling. Every sensitivity is
 //! chamber-certified (`∂web/∂spacing = 2`, `∂web/∂r = −1` each).
 //!
 //! The symbolic identity tier (`geom_core::sym`, ERROR-DESIGN E12)
@@ -195,13 +196,14 @@ use pncad::geom_core::Tol;
 use crate::plate::{Plate, RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB, WEB_BOUND, plate};
 
 /// The hull's padding below and above the true range over the
-/// certified leaves at stop 1's budget (512 leaves, 193 certified),
-/// MEASURED at the default ε in metres — `2.125e-5` below and
-/// `8.500e-5` above the exact affine range `[4.400e-4, 7.600e-4]`
-/// — and pinned at BOTH ends within 2% at the CI row (a hull that
-/// padded more would fail, and so would one whose leaves narrowed:
-/// the widening is proportional to the leaf's width), as a ceiling
-/// at the other ε rows.
+/// certified leaves at stop 1's budget (512 leaves, 211 certified),
+/// MEASURED at the default ε in metres: `9.76e-19` below and `8.67e-19`
+/// above the exact affine range `[4.400e-4, 7.600e-4]`, rounding of a
+/// sub-millimetre length. Pinned at the CI row as a ceiling at
+/// rounding, so a hull that padded again would fail. Before PR 3774 it
+/// was `2.125e-5` and `8.500e-5` at 193 certified leaves, which stay
+/// the ceiling at the other ε rows.
+const HULL_SLACK_AT_ROUNDING: f64 = 1e-15;
 const HULL_SLACK_BELOW: f64 = 2.125e-5;
 const HULL_SLACK_ABOVE: f64 = 8.500e-5;
 
@@ -392,7 +394,7 @@ fn real_study(tol: Tol) {
             if at_the_ci_row(tol) {
                 assert_eq!(
                     (verdict.certified().len(), verdict.refused().len()),
-                    (193, 319),
+                    (211, 301),
                     "the header's leaf counts at 512 leaves: {:?}",
                     verdict.receipt()
                 );
@@ -439,7 +441,7 @@ fn real_study(tol: Tol) {
             );
             let within = |got: f64, want: f64| {
                 if at_the_ci_row(tol) {
-                    (got - want).abs() <= 0.02 * want
+                    got <= HULL_SLACK_AT_ROUNDING
                 } else {
                     got <= 1.05 * want
                 }
@@ -453,7 +455,7 @@ fn real_study(tol: Tol) {
                 "   the certified hull [{:.4e}, {:.4e}] m against the TRUE range over the \
                  certified leaves [{:.4e}, {:.4e}] m (the web is affine in the parameters, \
                  so that range is exact): padding {:.2e} m below and {:.2e} m above — the \
-                 interval lane's dependency widening, proportional to the leaf's width \
+                 interval lane's dependency widening, at rounding on these leaves \
                  (work/stack/certified-hull-padding-is-the-leaf-width-not-the-lane)",
                 report.worst_case.lo,
                 report.worst_case.hi,
