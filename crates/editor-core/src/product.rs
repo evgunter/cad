@@ -453,8 +453,9 @@ impl ProductError {
                     let sep = if i == 0 { "" } else { ";" };
                     write!(
                         f,
-                        "{sep} the group rooted at {}, because {cause}",
-                        by.node(*group)
+                        "{sep} the group rooted at {}, because {}",
+                        by.node(*group),
+                        crate::spoken::Said(cause, by)
                     )?;
                 }
                 write!(

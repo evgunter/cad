@@ -6564,9 +6564,10 @@ mod the_hollowed_box_through_the_facade {
 /// naming the group, the route it arrived by and its cause — rather
 /// than write the sub-assembly's world without it. Spoken from the outer
 /// document, the route's first instance is said as that document holds
-/// it, and the group, a node of the sub-assembly, by its tag — though
-/// the outer document's first two nodes are the sub-assembly's twins,
-/// so it holds the group's id as its own labelled instance.
+/// it, and the group, a node of the sub-assembly, as the sub-assembly
+/// holds it — though the outer document's first two nodes are the
+/// sub-assembly's twins, so it holds the group's id as its own
+/// labelled instance.
 #[test]
 fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     use pncad::document::DocEdit;
@@ -6584,6 +6585,7 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     )
     .expect("an offset clears")
     .doc;
+    let sub = asm2a_label(&sub, ids[1], "lost bracket");
     let sub_ref = asm2a_save(&dir, "sub.pncad", &sub);
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let opts = StepOptions::default();
@@ -6599,15 +6601,14 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     let (outer, through) = asm2a_placed_instance(outer, sub_ref, 30.0);
     let outer = asm2a_label(&outer, through, "left bracket");
     let ev = asm2a_eval(&outer, &ws);
-    let expected = pncad::document::CarriedUnplaced {
-        route: pncad::document::Route {
-            through,
-            of: sub.id(),
-            via: Vec::new(),
-        },
-        group: ids[1],
-        cause: pncad::document::Unplaced::NoOffset,
-    };
+    let expected = (
+        through,
+        sub.id(),
+        Vec::new(),
+        ids[1],
+        pncad::document::Unplaced::NoOffset,
+    );
+    let group = format!("rooted at InstantiatePart \"lost bracket\" ({})", ids[1]);
     match pncad::export::export_document_step(&ev, &outer, &opts, Tol::witness()) {
         Err(e @ pncad::export::ExportError::UnplacedBelow { .. }) => {
             let said = e.to_string();
@@ -6615,17 +6616,17 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
             let pncad::export::ExportError::UnplacedBelow { groups } = e else {
                 unreachable!()
             };
-            assert_eq!(groups, vec![expected]);
+            assert_eq!(asm2a_unplaced_rows(&groups), vec![expected]);
             let by_tag = format!("through instance {}", through);
             assert!(
-                said.contains("Recourse:") && said.contains(&by_tag),
-                "with no document at hand the instance is said by its tag: {said}"
+                said.contains("Recourse:") && said.contains(&by_tag) && said.contains(&group),
+                "with no document at hand the instance is said by its tag, and the group as \
+                 the sub-assembly holds it: {said}"
             );
             let instance = format!("through InstantiatePart \"left bracket\" ({})", through);
-            let group = format!("rooted at node {}", ids[1]);
             assert!(
                 spoken.contains(&instance) && spoken.contains(&group),
-                "the outer document says its instance and the sub-assembly's group by tag: \
+                "the outer document says its instance, and the sub-assembly its group: \
                  {spoken}"
             );
             assert!(
@@ -6641,16 +6642,18 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     }
 }
 
-/// **A route two documents deep says its deeper hop by tag**: a part,
-/// a sub-assembly leaving its second instance unplaced, a middle
-/// document instancing the sub-assembly, and an outer document whose
-/// first node is the middle document's twin — an instance of the
-/// sub-assembly, labelled — and whose second instances the middle
-/// document. The second row's `via` hop is the middle document's
-/// instance, whose id the outer document holds as that labelled twin;
-/// spoken from the outer document the hop keeps its tag.
+/// **A route two documents deep says its deeper hop as its own
+/// document holds it**: a part, a sub-assembly leaving its second
+/// instance unplaced, a middle document instancing the sub-assembly,
+/// and an outer document whose first node is the middle document's
+/// twin — an instance of the sub-assembly, labelled apart — and whose
+/// second instances the middle document. The second row's `via` hop is
+/// the middle document's instance, whose id the outer document holds as
+/// that labelled twin; spoken from the outer document the hop is said
+/// as the middle document labels it, and the twin's label only where
+/// the outer document's own instance is meant.
 #[test]
-fn step_export_says_a_deeper_route_hop_by_tag_where_the_outer_document_holds_its_id() {
+fn step_export_says_a_deeper_route_hop_as_its_document_holds_it_where_the_outer_holds_its_id() {
     let dir = WsDir::new("r2-step-via");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "r2-step-via-part");
     let (sub, ids) = asm2a_assembly("r2-step-via-asm", doc_ref, 2);
@@ -6665,8 +6668,10 @@ fn step_export_says_a_deeper_route_hop_by_tag_where_the_outer_document_holds_its
     )
     .expect("an offset clears")
     .doc;
+    let sub = asm2a_label(&sub, ids[1], "lost bracket");
     let sub_ref = asm2a_save(&dir, "sub.pncad", &sub);
     let (mid, mid_ids) = asm2a_assembly("r2-step-via-mid", sub_ref, 1);
+    let mid = asm2a_label(&mid, mid_ids[0], "mid seat");
     let mid_ref = asm2a_save(&dir, "mid.pncad", &mid);
     let (outer, twin) = asm2a_assembly("r2-step-via-outer", sub_ref, 1);
     assert_eq!(twin, mid_ids, "both documents mint from the zero chain");
@@ -6675,14 +6680,14 @@ fn step_export_says_a_deeper_route_hop_by_tag_where_the_outer_document_holds_its
     let outer = asm2a_label(&outer, through, "left bracket");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let ev = asm2a_eval(&outer, &ws);
-    let row = |through, via| pncad::document::CarriedUnplaced {
-        route: pncad::document::Route {
+    let row = |through, via| {
+        (
             through,
-            of: sub.id(),
+            sub.id(),
             via,
-        },
-        group: ids[1],
-        cause: pncad::document::Unplaced::NoOffset,
+            ids[1],
+            pncad::document::Unplaced::NoOffset,
+        )
     };
     let expected = vec![row(twin[0], Vec::new()), row(through, vec![mid_ids[0]])];
     let opts = StepOptions::default();
@@ -6693,16 +6698,19 @@ fn step_export_says_a_deeper_route_hop_by_tag_where_the_outer_document_holds_its
                 unreachable!()
             };
             assert_eq!(
-                groups, expected,
+                asm2a_unplaced_rows(&groups),
+                expected,
                 "one row by each instance of the sub-assembly, in the outer document's order"
             );
             let hops = format!(
-                "through InstantiatePart \"left bracket\" ({through}) → instance {}",
+                "through InstantiatePart \"left bracket\" ({through}) → InstantiatePart \
+                 \"mid seat\" ({})",
                 mid_ids[0]
             );
             assert!(
                 spoken.contains(&hops),
-                "the first hop is the outer document's, the second keeps its tag: {spoken}"
+                "the first hop is the outer document's, the second the middle document's: \
+                 {spoken}"
             );
             assert_eq!(
                 spoken.matches("spare seat").count(),
@@ -6710,9 +6718,43 @@ fn step_export_says_a_deeper_route_hop_by_tag_where_the_outer_document_holds_its
                 "only the outer document's own instance is said by its label, never a deeper \
                  hop of its id: {spoken}"
             );
+            assert_eq!(
+                spoken.matches("\"lost bracket\"").count(),
+                2,
+                "each row says its group as the sub-assembly holds it: {spoken}"
+            );
         }
         other => panic!("the outer document refuses naming the group two below: {other:?}"),
     }
+}
+
+/// Each group below by its ids: its route's instance, its document,
+/// its deeper hops, its root and its cause.
+fn asm2a_unplaced_rows(
+    groups: &[pncad::document::CarriedUnplaced],
+) -> Vec<(
+    pncad::document::RecipeNodeId,
+    pncad::document::DocumentId,
+    Vec<pncad::document::RecipeNodeId>,
+    pncad::document::RecipeNodeId,
+    pncad::document::Unplaced,
+)> {
+    groups
+        .iter()
+        .map(|row| {
+            (
+                row.route.through,
+                row.route.of,
+                row.route
+                    .via
+                    .iter()
+                    .map(pncad::document::SpokenNode::id)
+                    .collect(),
+                row.group,
+                row.cause,
+            )
+        })
+        .collect()
 }
 
 /// `doc` with `node` labelled `label`.
@@ -6832,25 +6874,18 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
 
     let ev = asm2a_eval(&outer, &ws);
     let of = sub.id();
-    let expected: Vec<pncad::document::CarriedUnplaced> = outer_ids
+    let expected: Vec<_> = outer_ids
         .iter()
         .flat_map(|&through| {
             unplaced
                 .iter()
-                .map(move |&group| pncad::document::CarriedUnplaced {
-                    route: pncad::document::Route {
-                        through,
-                        of,
-                        via: Vec::new(),
-                    },
-                    group,
-                    cause: Unplaced::NoOffset,
-                })
+                .map(move |&group| (through, of, Vec::new(), group, Unplaced::NoOffset))
         })
         .collect();
     match pncad::export::export_document_step(&ev, &outer, &opts, Tol::witness()) {
         Err(pncad::export::ExportError::UnplacedBelow { groups }) => assert_eq!(
-            groups, expected,
+            asm2a_unplaced_rows(&groups),
+            expected,
             "the groups below, by the outer instance, then as the sub-assembly holds them"
         ),
         other => panic!("the outer document refuses naming the groups below: {other:?}"),

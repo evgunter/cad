@@ -4,8 +4,9 @@ kind: issue
 title: shell's closing pcurve mint clears the map first, so a stale or missing row on the OPERAND is laundered into a valid result — the verb does not gate its operand's rows, and neither does any of the thirteen producers spelling the same mint
 status: open
 opened: 2026-09-08
-priority: P0
-cost: H
+priority: P1
+cost: M
+rides_with: shell-answers-for-the-complement-of-an-inside-out-operand
 ---
 
 Measured by the SHELL-9 R2 review lane, by execution
@@ -58,3 +59,17 @@ reports `Pcurve { MissingCache }` (pinned:
 `r1_the_door_no_longer_launders_a_half_minted_out_of_scope_face`).
 Eleven producers, not thirteen, and the laundering they do is still
 this item's.
+
+## Re-scoped (SHELL orchestrator, 2026-10-06)
+
+This row is now the shell DOOR's half only: `shell`/`shell_open` take
+an `&Body<T>` with no operand gate, and the two R2 pins
+(`shell9_r2_probes::r2_the_closing_mint_launders_*`) still read `Ok`.
+The boolean (REACH) and split (CLEAVE) doors settled the shape: the
+operand is an `AtRestBody`, whose validation includes the pcurve pass.
+It rides `shell-answers-for-the-complement-of-an-inside-out-operand`,
+which needs the same door change. The cross-producer class (eleven
+producers, the posture-table question) is WALKS'
+`producer-closing-mint-is-a-convention-with-thirteen-copies`.
+Re-banded P0 → P1: no UI route hands `shell` a stale-row operand,
+and a guard does not inherit the band of what it guards.
