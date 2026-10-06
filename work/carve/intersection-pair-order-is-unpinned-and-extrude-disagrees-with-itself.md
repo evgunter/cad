@@ -186,3 +186,40 @@ is built (`memories/orchestration-model.md`).
   always equals `(s1, s2)`, so it goes with the change. Stale "`Seam`
   description" prose in `topo/src/attach.rs` (`set_edge_curve`) and
   `topo/src/boolean/ops.rs` is fixed in passing.
+
+## Built (2026-10-06)
+
+PR 4189 builds the weighed design.
+
+- `geom_brep::SurfacePair` holds the pair in key order behind one
+  infallible constructor. `Intersection` and `TangentIntersection` are
+  now `{ pair, witness }`, and `Body::cites_pair` and every both-ways
+  check are gone.
+- The position-named checks are `SurfaceResidual { surface }` and
+  `WitnessSurfaceResidual { surface }`. The refusal text names no
+  arena key; the key travels in the typed field.
+- One order for one tangent reading: every constructor reads the
+  must-carry rule through `SurfacePair::sorted`, the certificate's key
+  order. `contact_edge_must_carry` pins that the rule reads every corpus
+  contact the same in both orders at `Interval`.
+- The issue's 8/12 measurement is a test:
+  `extrude_acceptance::an_extruded_box_and_an_euler_box_describe_every_edge_alike`.
+
+What moved:
+
+- Body digests moved, because the description's `Debug` changed. No
+  body moved.
+- The `_1`/`_2` per-slot tallies split evenly across the pair, with
+  every sum conserved.
+- Frozen-form counts rose where the transversality wedge's
+  `n1.cross(n2)` is now read in key order against the extrude's
+  builder order. That changes the form, not the value, and no decision
+  moved.
+
+Residue:
+
+- `certify-residual-predicates-still-name-a-slot` (P4).
+- `material-jet-readings-take-plus-minus-order` (tier 3, `rim_wedge`
+  and `contact_verify` read the jet's signed κ_rel in (plus, minus)
+  order, which carries material-side meaning, so they are not a
+  mechanical change).
