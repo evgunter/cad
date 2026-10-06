@@ -180,7 +180,7 @@ impl fmt::Display for QuantityOpMismatch {
 
 impl core::error::Error for QuantityOpMismatch {}
 
-// The binding carries no literal pre-check of its own: `Expr::literal`'s
+// The binding carries no literal pre-check of its own: `Formula::literal`'s
 // own error type (`pncad::document::DimensionError`) is curated, so the
 // binding matches the kernel's refusal instead of predicting it; the tag
 // mapping is `crate::tags::expr_dimension_error_tag`.
@@ -264,7 +264,7 @@ pub enum ErrorClass {
     /// sublanguage's arithmetic constructors do, arriving on THIS
     /// class with the mismatch's own tag as `kind` — they are the same
     /// kernel type refusing at the same layer, because that language
-    /// asks `Expr`'s own constructors for its dimensions rather than
+    /// asks `Formula`'s own constructors for its dimensions rather than
     /// restating the F1 table. The full roster is on
     /// [`DIMENSION_DOORS`] — SIX doors under four class names, each
     /// naming the DOOR — and every one of them carries the failing
@@ -278,7 +278,7 @@ pub enum ErrorClass {
     /// constructor refuses over two operands' DIMENSIONS, and there is
     /// no single float to name.
     Literal,
-    /// The expression TEXT door refused: `parse_expr` could not read
+    /// The expression TEXT door refused: `parse_formula` could not read
     /// the source as an expression. The Python class keeps the Rust
     /// type's own name, `ParseError`.
     ///
@@ -525,7 +525,7 @@ pub enum ErrorClass {
 /// | literal construction | `LiteralError` | `kind` |
 /// | measurement arithmetic | `LiteralError` | `kind` |
 /// | the recorded-program lift | `LiteralError` | `variant` |
-/// | `Doc.parse_expr` | `ParseError` | `kind` |
+/// | `Doc.parse_formula` | `ParseError` | `kind` |
 /// | `Doc.apply` | `EditError` | `inner_variant` |
 /// | `load` | `PersistError` | `inner_variant` |
 ///
@@ -807,7 +807,7 @@ pub enum BoundaryEdit<'a> {
     /// one rule for one — an identifier an expression reads back — is
     /// held by the constructor there, so the binding answers with the
     /// constructor's own refusal at the call that offered the text.
-    ParamName(&'a pncad::document::ParamNameFault),
+    ParamName(&'a pncad::document::VarNameFault),
     /// A text that is not a label. A label crosses as text, and the
     /// document layer's rule for one — non-blank, one line, no control
     /// character — is held by `Label::new`, so the binding answers with

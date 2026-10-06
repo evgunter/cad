@@ -34,8 +34,10 @@
 //! accepted iff the in-plane displacement it commands at the loop's
 //! own scale — `(|r_k − n(n·r_k)| / |r_k|) · extent`, not the bare
 //! projected length — is definitely positive (**`point_in_loop_arm`**;
-//! a near-parallel `r_k` is skipped, and a loop collapsed onto `q`
-//! zeroes the arm for *every* member and ends in `RayExhausted`).
+//! a near-parallel `r_k` is skipped, an in-band one abandoned like any
+//! ray-level reading ([`ray_parity::Abandoned`]), and a loop collapsed
+//! onto `q` zeroes the arm for *every* member and ends in
+//! `RayExhausted`).
 //!
 //! # Predicates (all K-tagged, meters)
 //!
@@ -122,10 +124,12 @@
 //! **`point_in_arc_loop_boundary_disagreement`**, the walk meeting on an
 //! edge a point its caller's pass placed off it.
 
+use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, LoopBoundary, LoopKey};
+use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
+use crate::live::{linked, proven};
 use crate::ray_parity::{self, ParityRows};
 use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRows};
 use crate::validate::decide;
@@ -155,7 +159,13 @@ pub enum LoopContainment {
 }
 
 /// Typed failure of [`point_in_loop`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PointInLoopErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PointInLoopError {
     /// A predicate escalated (in-band margin).
     Escalated {
@@ -423,13 +433,14 @@ fn polygon_walk<T: Decide>(
     // A ray-level margin in band abandons the ray
     // ([`ray_parity::Abandoned`]).
     let mut abandoned = ray_parity::Abandoned::new();
+    let mut skipped = ray_parity::Abandoned::new();
     let walked = walk_schedule(
         r#loop,
         normal,
         extent,
         "point_in_loop_arm",
-        ArmBand::Escalate,
         band,
+        &mut skipped,
         |d, side_axis| match ray_parity::ray_verdict(points, q, d, side_axis, &ROWS, band) {
             Ok(verdict) => Ok(verdict),
             Err(diag) => {
@@ -440,7 +451,7 @@ fn polygon_walk<T: Decide>(
     );
     match walked {
         Err(exhausted @ PointInLoopError::RayExhausted { .. }) => {
-            Err(abandoned.refusal(|| exhausted))
+            Err(abandoned.refusal(|| skipped.refusal(|| exhausted)))
         }
         walked => walked,
     }
@@ -451,14 +462,16 @@ fn polygon_walk<T: Decide>(
 /// the plane, gated on the in-plane displacement it commands at the
 /// loop's own `extent` (`arm_row`), and handed to `ray` as the in-plane
 /// frame `(d, n̂ × d)`. `ray` answers `Some(inside)` or `None` for a
-/// graze; exhaustion is the loop's typed `RayExhausted`.
+/// graze; exhaustion is the loop's typed `RayExhausted`. An in-band arm
+/// is a reading about one schedule member, not about `q`: the member is
+/// abandoned into `skipped`, as a ray is.
 fn walk_schedule<T: Decide>(
     r#loop: LoopKey,
     normal: Vec3<T>,
     extent: T,
     arm_row: &'static str,
-    arm_band: ArmBand,
     band: Band,
+    skipped: &mut ray_parity::Abandoned<PointInLoopError>,
     mut ray: impl FnMut(Vec3<T>, Vec3<T>) -> Result<Option<bool>, PointInLoopError>,
 ) -> Result<LoopContainment, PointInLoopError> {
     for r in &SCHEDULE {
@@ -476,8 +489,10 @@ fn walk_schedule<T: Decide>(
         match decide(arm_row, arm, band) {
             Ok(Sign::Positive) => {}
             Ok(_) => continue, // near-parallel schedule member: skip
-            Err(_) if arm_band == ArmBand::Retry => continue,
-            Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
+            Err(diag) => {
+                skipped.abandon(PointInLoopError::Escalated { r#loop, diag });
+                continue;
+            }
         }
         let d = d_raw.normalize();
         let side_axis = normal.cross(d); // in-plane ⟂, unit
@@ -490,16 +505,6 @@ fn walk_schedule<T: Decide>(
         }
     }
     Err(PointInLoopError::RayExhausted { r#loop })
-}
-
-/// What [`walk_schedule`] does with an in-band margin on its arm row,
-/// which is about one schedule MEMBER and not about the point.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ArmBand {
-    /// Escalate — [`point_in_vertex_polygon`]'s posture.
-    Escalate,
-    /// Skip that member, as a near-parallel one is skipped.
-    Retry,
 }
 
 /// The arc-bearing walk's K rows over a loop's STRAIGHT edges — the
@@ -803,10 +808,8 @@ impl<T: Decide> ConicArc<T> {
         if self.kind == ConicKind::Circle {
             let rho = (x.powi(2) + y.powi(2)).sqrt();
             let miss = circle_miss(q, self.center, self.axis, self.lever);
-            match decide(rows.on, Margin::of(miss), band)? {
-                Sign::Zero => {}
-                Sign::Positive => return Ok(ConicHit::Off),
-                Sign::Negative => return Err(crate::invalid_margin::invalid(band, rows.on)),
+            if decide_magnitude(rows.on, Margin::of(miss), band)? == Magnitude::Positive {
+                return Ok(ConicHit::Off);
             }
             let trim = ArcTrimRows {
                 end: rows.end,
@@ -839,11 +842,9 @@ impl<T: Decide> ConicArc<T> {
         // a definite OFF needs nothing else.
         let lower = two * f.abs() / (g + (g2 + T::from_f64(4.0) * f.abs() / b.powi(2)).sqrt());
         let lower = (lower.powi(2) + axial.powi(2)).sqrt();
-        let far = decide(rows.on, Margin::of(lower), band);
-        match far {
-            Ok(Sign::Positive) => return Ok(ConicHit::Off),
-            Ok(Sign::Negative) => return Err(crate::invalid_margin::invalid(band, rows.on)),
-            Ok(Sign::Zero) | Err(_) => {}
+        let far = decide_magnitude(rows.on, Margin::of(lower), band);
+        if far == Ok(Magnitude::Positive) {
+            return Ok(ConicHit::Off);
         }
         // Within the escalation band of the conic by the lower bound, so
         // `∇F` is nonzero here and the Newton foot is defined.
@@ -858,33 +859,28 @@ impl<T: Decide> ConicArc<T> {
         // the band — the two bounds agree to within the band's own ratio
         // there — and is wrong on one that bends tighter
         // (`tests::an_ellipse_tighter_than_the_band_straddles_it`).
-        match (decide(rows.on, Margin::of(upper), band), far) {
-            (Ok(Sign::Zero), _) => {}
-            (Ok(Sign::Negative), _) => return Err(crate::invalid_margin::invalid(band, rows.on)),
+        match (decide_magnitude(rows.on, Margin::of(upper), band), far) {
+            (Ok(Magnitude::Zero), _) => {}
             (_, Err(diag)) | (Err(diag), _) => return Err(diag),
             // The lower bound within the zero band, the upper definitely
             // beyond it: the two straddle the whole band, which only an
             // ellipse bending tighter than the band resolves (`b²/a`
             // within a few `ε`) allows.
-            (Ok(Sign::Positive), _) => {
+            (Ok(Magnitude::Positive), _) => {
                 return Err(crate::invalid_margin::invalid(band, rows.straddle));
             }
         }
         let (t0, t1) = self.span;
         let at = [
-            decide(rows.end, Margin::norm3(q - self.point(t0)), band),
-            decide(rows.end, Margin::norm3(q - self.point(t1)), band),
+            decide_magnitude(rows.end, Margin::norm3(q - self.point(t0)), band),
+            decide_magnitude(rows.end, Margin::norm3(q - self.point(t1)), band),
         ];
-        if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+        if at.contains(&Ok(Magnitude::Zero)) {
             return Ok(ConicHit::End);
         }
+        // Past the end check, each is `Positive` or escalated.
         for end in at {
-            match end? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => {
-                    return Err(crate::invalid_margin::invalid(band, rows.end));
-                }
-            }
+            end?;
         }
         let side = arc_trim_margin(Self::lift(foot), ends[0], apex, anti);
         Ok(
@@ -1142,30 +1138,30 @@ struct LoopStep<'b, T: geom_core::Real> {
     curve: Option<&'b geom_brep::EdgeCurve<T>>,
 }
 
-/// The steps of `loop`'s cycle from its half-edge `first`.
+/// The steps of a loop's cycle from its half-edge `first`, which the
+/// caller read out of the loop: every hop is a link, and a miss panics.
 fn cycle_steps<T: Decide>(
     body: &Body<T>,
-    r#loop: LoopKey,
     first: crate::entity::HalfEdgeKey,
-) -> Result<Vec<LoopStep<'_, T>>, PointInLoopError> {
-    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
+) -> Vec<LoopStep<'_, T>> {
     let mut steps = Vec::new();
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
-        let point = body.get_vertex(h.start).ok_or_else(corrupt)?.point;
-        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-        // A curve key that does not resolve is corruption; a resolved
-        // entry that is null scaffolding is a zero-length chord.
+    for he in body.loop_walk(first).closed("loop", first) {
+        let h = proven(&body.half_edges, he, EntityId::HalfEdge);
+        let edge = linked(
+            &body.edges,
+            h.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        // A null-scaffolding curve is a zero-length chord.
         steps.push(LoopStep {
-            point: *body.get_point(point).ok_or_else(corrupt)?,
+            point: body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"),
             edge: h.edge,
-            curve: body
-                .get_curve_geom(edge.curve)
-                .ok_or_else(corrupt)?
-                .certified(),
+            curve: body.edge_curve_linked(h.edge, edge).certified(),
         });
     }
-    Ok(steps)
+    steps
 }
 
 /// The ball holding a step's edge beyond its end vertices: `None` for
@@ -1208,7 +1204,7 @@ pub(crate) fn carrier_loop<T: Decide>(
     let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
         return Err(corrupt());
     };
-    let steps = cycle_steps(body, r#loop, first)?;
+    let steps = cycle_steps(body, first);
     let mut verts = Vec::new();
     let mut keys = Vec::new();
     let mut edges = Vec::new();
@@ -1374,14 +1370,11 @@ pub(crate) fn loop_hull<T: Decide>(
     let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
         LoopBoundary::Cycle { first } => first,
         LoopBoundary::Empty { vertex } => {
-            let point = body.get_vertex(vertex).ok_or_else(corrupt)?.point;
-            return Ok((
-                vec![*body.get_point(point).ok_or_else(corrupt)?],
-                Vec::new(),
-            ));
+            let point = body.linked_vertex_point(vertex, EntityId::Loop(r#loop), "boundary");
+            return Ok((vec![point], Vec::new()));
         }
     };
-    let steps = cycle_steps(body, r#loop, first)?;
+    let steps = cycle_steps(body, first);
     let mut balls = Vec::new();
     for step in &steps {
         balls.extend(step_ball(r#loop, step)?);
@@ -1590,7 +1583,7 @@ fn certify_plane<T: Decide>(
     let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
         return Err(corrupt());
     };
-    let steps = cycle_steps(body, r#loop, first)?;
+    let steps = cycle_steps(body, first);
     let origin = steps.first().ok_or_else(corrupt)?.point;
     let (_, reach) = loop_reach(body, r#loop)?;
     let unit = Margin::levered(normal.norm() - T::one(), reach);
@@ -1755,13 +1748,14 @@ fn carrier_walk<T: Decide>(
     // `blocked`, which outranks an abandoned reading as the refusal.
     let mut blocked: Option<Uncrossable> = None;
     let mut abandoned = ray_parity::Abandoned::new();
+    let mut skipped = ray_parity::Abandoned::new();
     let walked = walk_schedule(
         r#loop,
         normal,
         extent,
         "point_in_arc_loop_arm",
-        ArmBand::Retry,
         band,
+        &mut skipped,
         |d, side_axis| {
             // A ray that could meet an uncrossable edge's ball answers
             // nothing: `|w − d·max(w·d, 0)|` is the ray's distance from
@@ -1826,7 +1820,9 @@ fn carrier_walk<T: Decide>(
         // could not be read there, which is not an exhausted schedule.
         Err(PointInLoopError::RayExhausted { .. }) => Err(match blocked {
             Some(u) => PointInLoopError::Uncrossable(u),
-            None => abandoned.refusal(|| PointInLoopError::RayExhausted { r#loop }),
+            None => {
+                abandoned.refusal(|| skipped.refusal(|| PointInLoopError::RayExhausted { r#loop }))
+            }
         }),
         Err(e) => Err(e),
     }

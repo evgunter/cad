@@ -108,7 +108,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
             &EvalOptions::default(),
             tol,
         );
-        let env = d.doc.param_env::<f64>();
+        let env = d.doc.var_env::<f64>();
         for &id in &ev.order {
             let Some(Node::Profile(program)) = d.doc.node(id) else {
                 continue;

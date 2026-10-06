@@ -1,7 +1,7 @@
-//! **A `FromFace` mate side across the seam, and under `Rebind`**
+//! **A face-based mate side across the seam, and under `Rebind`**
 //! (ASSEMBLY.md A3, A4, A11 (5); the spec's `## P2-split` face rows).
 //!
-//! A `FromFace` side names no face: its frame is its own head's face,
+//! A face-based side names no face: its frame is its own head's face,
 //! the head with the member walk's qualifiers stripped
 //! (`head_face`), read in the member's part. So whatever carries the
 //! head carries the frame. Split and inline re-anchor the head, and
@@ -16,6 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -36,14 +37,14 @@ use geom_core::Tol;
 
 /// A declaring `Rest` coincidence between two heads, both sides framed
 /// on their own head faces, outward normals opposed.
-fn face_mate(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn face_mate(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
         a,
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::FromFace,
-            b: MateFrame::FromFace,
+            a: MateFrame::from_face(),
+            b: MateFrame::from_face(),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -54,7 +55,7 @@ fn face_mate(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
 /// `node` (a mate) with its `a` side authored at the part's origin
 /// instead: the authored twin the frame rule holds to all three
 /// conditions.
-fn authored_a(node: Node<editor_core::ProfileProgram>) -> Node<editor_core::ProfileProgram> {
+fn authored_a(node: AuthoredNode) -> AuthoredNode {
     let Node::Mate {
         a,
         b,
@@ -64,7 +65,13 @@ fn authored_a(node: Node<editor_core::ProfileProgram>) -> Node<editor_core::Prof
     else {
         panic!("a mate");
     };
-    alignment.a = MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    alignment.a = MateFrame::authored(
+        [0.0; 3],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame");
     Node::Mate {
         a,
         b,
@@ -75,11 +82,7 @@ fn authored_a(node: Node<editor_core::ProfileProgram>) -> Node<editor_core::Prof
 
 /// Inserts a mate through the store's reach, which resolves its face
 /// sides at the door.
-fn insert_mate(
-    doc: ProfileDoc,
-    node: Node<editor_core::ProfileProgram>,
-    o: &EvalOptions,
-) -> (ProfileDoc, RecipeNodeId) {
+fn insert_mate(doc: ProfileDoc, node: AuthoredNode, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
     let reach = editor_core::mate_reach::<f64>(o, Tol::witness());
     let (doc, id) = step_with(
         doc,
@@ -117,18 +120,15 @@ fn side_world(
     };
     assert_eq!(
         *frame,
-        MateFrame::FromFace,
+        MateFrame::from_face(),
         "side {} is a face side",
         side.name()
     );
     let member = editor_core::member_of(doc, head).expect("the head reads a member");
     if copy_shift == [0.0; 3] {
-        assert!(
-            member.copy.is_empty() && member.at == member.instance,
-            "a plain read: {member:?}"
-        );
+        assert!(member.chain.is_empty(), "a plain read: {member:?}");
     } else {
-        assert_eq!(member.copy.len(), 1, "a copy read: {member:?}");
+        assert_eq!(member.copy().len(), 1, "a copy read: {member:?}");
     }
     let face = editor_core::head_face(doc, head).expect("the head names a part face");
     let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(member.instance) else {
@@ -251,7 +251,7 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
     let Some(Node::Mate { a, alignment, .. }) = out.remainder.node(m) else {
         panic!("the kept mate");
     };
-    assert_eq!(alignment.a, MateFrame::FromFace);
+    assert_eq!(alignment.a, MateFrame::from_face());
     assert_eq!(
         a.name.node, out.instance,
         "the head re-anchors through the instance"
@@ -279,7 +279,7 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a), (b) and (c): the top is no root.
-    let Some(face_side) = doc.node(m).cloned() else {
+    let Some(face_side) = doc.node(m).map(Node::authored) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -317,7 +317,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
         doc,
         Node::Pattern {
             input: leg,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -368,7 +368,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a): it reads a copy.
-    let Some(face_side) = doc.node(m).cloned() else {
+    let Some(face_side) = doc.node(m).map(Node::authored) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -480,7 +480,7 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         doc,
         Node::Pattern {
             input: leg,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -494,8 +494,14 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         b: head(copy_cap.clone()),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::FromFace,
+            a: MateFrame::authored(
+                [0.0; 3],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::from_face(),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -508,7 +514,7 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         panic!("the mate");
     };
     let member = editor_core::member_of(&doc, b).expect("a copy is a member");
-    assert_eq!(member.copy, vec![(pattern, 2)]);
+    assert_eq!(member.copy(), vec![(pattern, 2)]);
     let master = editor_core::head_face(&doc, b).expect("the strip");
     assert_eq!(
         master.clone().into_name(),
@@ -602,14 +608,20 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
 
 /// The top seated on the base's upper cap, the base side framed on its
 /// head: the top's origin lands on the cap's canonical origin.
-fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> AuthoredNode {
     Node::Mate {
         a: top,
         b: base_cap,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::FromFace,
+            a: MateFrame::authored(
+                [0.0; 3],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::from_face(),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,

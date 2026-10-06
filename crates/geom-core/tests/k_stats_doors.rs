@@ -40,11 +40,11 @@
 
 use geom_core::Tol;
 use geom_core::k_stats::{
-    Bracket, Escalation, NonzeroSign, Verdict, decide, decide_flagged, decide_invariant,
-    decide_negative, decide_nonzero, decide_nonzero_reported, decide_positive, decide_reported,
+    Bracket, Escalation, Magnitude, NonzeroSign, Verdict, decide, decide_flagged, decide_invariant,
+    decide_magnitude, decide_negative, decide_nonzero, decide_positive, decide_reported,
     gate_measured,
 };
-use geom_core::{Band, Decided, Margin, MarginDiag, Sign};
+use geom_core::{Band, Decided, ErrorTextReading, Interval, Margin, MarginDiag, Sign};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -158,8 +158,8 @@ fn every_door_names_its_own_sample_for_the_recording_scalar() {
 /// holds `decide`'s answer long enough to reject it in private. The
 /// observable consequence is this: one gated rejection puts the
 /// classifier's definite verdict on the verdict channel AND the gate's
-/// `Invalid` escalation on the escalation channel, in decision order,
-/// under the same name.
+/// escalation on the escalation channel, in decision order, under the
+/// same name, carrying the margin the classifier decided.
 #[test]
 fn a_rejected_gate_records_both_channels_under_its_own_name() {
     let b = band();
@@ -174,12 +174,33 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
     assert_eq!(decide_negative("gate_e", Margin::of(-1.0f64), b), Ok(()));
     let unsigned = decide_negative("gate_f", Margin::of(1.0f64), b).unwrap_err();
     let recorded = bracket.finish();
-    assert_eq!(unsigned.margin, MarginDiag::INVALID);
+    assert_eq!(
+        (
+            unsigned.margin.diagnostic_f64_for_error_text(),
+            unsigned.margin.rejected_sign()
+        ),
+        (ErrorTextReading::Value(1.0), Some(Sign::Positive)),
+        "decided positive"
+    );
     assert_eq!(unsigned.predicate, Some("gate_f"));
 
-    assert_eq!(rejected.margin, MarginDiag::INVALID);
+    assert_eq!(
+        (
+            rejected.margin.diagnostic_f64_for_error_text(),
+            rejected.margin.rejected_sign()
+        ),
+        (ErrorTextReading::Value(-1.0), Some(Sign::Negative)),
+        "decided negative"
+    );
     assert_eq!(rejected.predicate, Some("gate_b"));
-    assert_eq!(zeroed.margin, MarginDiag::INVALID);
+    assert_eq!(
+        (
+            zeroed.margin.diagnostic_f64_for_error_text(),
+            zeroed.margin.rejected_sign()
+        ),
+        (ErrorTextReading::Value(0.0), Some(Sign::Zero)),
+        "decided zero"
+    );
     assert_eq!(zeroed.predicate, Some("gate_d"));
     assert_eq!(
         recorded.verdicts,
@@ -221,42 +242,84 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
     );
 }
 
-/// **A band-decided zero keeps its margin through the nonzero gate**:
-/// `decide_nonzero_reported` passes either definite side, and its
-/// decided zero escalates with the margin the funnel decided (not
-/// `Invalid`), on the frame's escalation log beside the `Zero` verdict,
-/// as `decide_nonzero`'s rejection is.
+/// **A rejection's text says what was decided.** A decided zero reads
+/// as within the zero band and offers the tolerance its margin gives
+/// (D4 ¶1 (i)); a decided sign on the rejected side reads as past the
+/// band, at both scalars, with no tolerance arm and no subdivision arm:
+/// it is sign-certain, and a sub-box keeps its sign.
 #[test]
-fn a_reported_nonzero_gate_escalates_its_decided_zero_with_its_margin() {
+fn a_rejection_tells_the_decided_margin_it_carries() {
     let b = band();
     let small = 0.5 * b.zero();
+    let zeroed = decide_positive("gate_zero", Margin::of(small), b)
+        .unwrap_err()
+        .to_string();
+    assert!(zeroed.contains("lies within the zero band"), "{zeroed}");
+    assert!(zeroed.contains("tighten the tolerance below"), "{zeroed}");
+
+    let negative = decide_positive("gate_negative", Margin::of(-1.0f64), b)
+        .unwrap_err()
+        .to_string();
+    let enclosed = decide_positive(
+        "gate_enclosed",
+        Margin::of(Interval::from_bounds(-2.0, -1.0)),
+        b,
+    )
+    .unwrap_err()
+    .to_string();
+    for text in [&negative, &enclosed] {
+        assert!(text.contains("lies past the ambiguity band"), "{text}");
+        assert!(
+            text.contains("a decided sign this decision cannot use"),
+            "{text}"
+        );
+        assert!(!text.contains("tighten"), "sign-certain: {text}");
+        assert!(!text.contains("subdivide"), "decided: {text}");
+        assert!(!text.contains("invalid"), "nothing was poisoned: {text}");
+    }
+}
+
+/// **The magnitude door** answers `Zero` or `Positive` and records the
+/// verdict as `decide` does; a margin it cannot call escalates through
+/// the funnel, once.
+#[test]
+fn the_magnitude_door_reads_zero_and_positive() {
+    let b = band();
+    let mid = f64::midpoint(b.zero(), b.escalate());
     let bracket = Bracket::open();
     assert_eq!(
-        decide_nonzero_reported("gate_e", Margin::of(-1.0f64), b),
-        Ok(NonzeroSign::Negative)
+        decide_magnitude("mag_a", Margin::of(0.0f64), b),
+        Ok(Magnitude::Zero)
     );
-    let zeroed = decide_nonzero_reported("gate_f", Margin::of(small), b).unwrap_err();
-    let recorded = bracket.finish();
     assert_eq!(
-        zeroed.margin,
-        MarginDiag::value(small),
-        "the decided margin"
+        decide_magnitude("mag_b", Margin::of(1.0f64), b),
+        Ok(Magnitude::Positive)
     );
-    assert_eq!(zeroed.predicate, Some("gate_f"));
+    let escalated = decide_magnitude("mag_c", Margin::of(mid), b).unwrap_err();
+    let recorded = bracket.finish();
+    assert_eq!(escalated.margin, MarginDiag::value(mid));
     assert_eq!(
         recorded.verdicts,
         [
             Verdict {
-                predicate: "gate_e",
-                sign: Sign::Negative,
+                predicate: "mag_a",
+                sign: Sign::Zero,
             },
             Verdict {
-                predicate: "gate_f",
-                sign: Sign::Zero,
+                predicate: "mag_b",
+                sign: Sign::Positive,
             },
         ]
     );
-    assert_eq!(recorded.escalations, [Escalation { source: zeroed }]);
+    assert_eq!(recorded.escalations, [Escalation { source: escalated }]);
+}
+
+/// A decided `Negative` breaks the door's precondition, and the panic
+/// names the predicate and the margin a reader debugging it wants.
+#[test]
+#[should_panic(expected = "`mag_negative` decided a magnitude Negative (margin -1e0")]
+fn the_magnitude_door_panics_on_a_decided_negative() {
+    let _ = decide_magnitude("mag_negative", Margin::of(-1.0f64), band());
 }
 
 /// An IN-BAND margin escalates through `classify` itself, and the gate
@@ -392,4 +455,87 @@ fn every_discharge_kind_retags_its_sample_with_a_token_of_its_own() {
             }
         );
     }
+}
+
+/// **A decided zero enclosure offers no subdivision.** A gate's
+/// rejection of an enclosure decided zero is a decided reading: a
+/// sub-box keeps its sign, so the refusal reads within the zero band
+/// and names no subdivision.
+#[test]
+fn a_decided_zero_enclosure_rejection_offers_no_subdivision() {
+    let b = band();
+    let half = 0.5 * b.zero();
+    let text = decide_positive(
+        "gate_zero_enclosure",
+        Margin::of(Interval::from_bounds(-half, half)),
+        b,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(text.contains("lies within the zero band"), "{text}");
+    assert!(!text.contains("subdivide"), "decided: {text}");
+    assert!(!text.contains("cannot be classified"), "decided: {text}");
+}
+
+/// **The text places a margin where the classifier does, at the band's
+/// edge**: a margin of exactly `escalate` on the rejected side is
+/// decided, so it reads past the band and offers no tolerance.
+#[test]
+fn a_rejection_at_the_escalation_edge_reads_past_the_band() {
+    let b = band();
+    for text in [
+        decide_positive("gate_edge", Margin::of(-b.escalate()), b)
+            .unwrap_err()
+            .to_string(),
+        decide_negative("gate_edge", Margin::of(b.escalate()), b)
+            .unwrap_err()
+            .to_string(),
+    ] {
+        assert!(text.contains("lies past the ambiguity band"), "{text}");
+        assert!(!text.contains("tighten"), "sign-certain: {text}");
+    }
+}
+
+/// **A zero on the side a gate rejects offers no tolerance.** A smaller
+/// tolerance decides such a margin onto the rejected sign, so no
+/// tolerance is offered (D4 ¶1 (i)) and the text says the zero stays
+/// rejected — at both scalars, for both one-sided gates. The same zero
+/// on the passing side keeps its offer.
+#[test]
+fn a_zero_on_the_rejected_side_offers_no_tolerance() {
+    let b = band();
+    let small = 0.5 * b.zero();
+    let rejected = [
+        decide_positive("gate_neg_zero", Margin::of(-small), b),
+        decide_positive(
+            "gate_neg_zero_enclosure",
+            Margin::of(Interval::from_bounds(-small, -0.5 * small)),
+            b,
+        ),
+        decide_negative("gate_pos_zero", Margin::of(small), b),
+    ];
+    for refusal in rejected {
+        let text = refusal.unwrap_err().to_string();
+        assert!(!text.contains("tighten"), "{text}");
+        assert!(
+            text.contains("a decided zero no smaller tolerance moves onto a side"),
+            "{text}"
+        );
+    }
+    let passing = decide_positive("gate_pos_zero", Margin::of(small), b).unwrap_err();
+    assert_eq!(passing.margin.rejected_sign(), Some(Sign::Zero));
+    let text = passing.to_string();
+    assert!(text.contains("tighten the tolerance below"), "{text}");
+}
+
+/// **A sign-certain rejection offers no declaration.** A margin decided
+/// past the band is no coincidence, and no declaration changes it, so
+/// its refusal names the geometry alone (D4 ¶1 (i)).
+#[test]
+fn a_past_band_rejection_offers_no_declaration() {
+    let rejected = decide_positive("gate_certain", Margin::of(-1.0f64), band()).unwrap_err();
+    assert_eq!(rejected.margin.rejected_sign(), Some(Sign::Negative));
+    let text = rejected.to_string();
+    assert!(!text.contains("declare the coincidence"), "{text}");
+    assert!(text.contains("move the geometry"), "{text}");
 }

@@ -1649,3 +1649,136 @@ The rule is now stated in the viewer README.
 - `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
 - the part design row (needs a designer pair)
 - earlier P3/P4 rows
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — PR 3839 ([ev]): a part's nodes are said by label, carried on the fault from the seam
+
+Designer pair (fork-log row 71, A = Fable, B = Opus) converged on option
+(d): the fault records the part's nodes while the pinned part is in hand
+and carries them, and the uncalled doors go. Ev approved the mechanism
+but asked for the Band 1 bullet to state the general principle instead
+of a part exception. It now reads "a value the evaluation memo reuses
+holds a label only when its memo key fixes that label", with host and
+part as its two consequences. The row
+`a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` stays open
+for the build, with a Ruled section naming it. Fork-log row renumbered
+from 45 to 71 on merging main (main had taken 45–70).
+
+## 2026-10-06 — PR 3841: a carried row's route says this document's instance by label
+
+`Route::say` reads `route.through` off the speaking document (kind,
+label and tag) when the sentence is made. The `via` hops belong to
+deeper documents and stay said by tag. The same goes for the mate, the
+group and the cause, which are spelled in the part (that is the separate
+part-at-the-seam row). Covered: `AssemblyError::CarriedMintRefusal`,
+`Attribution::Carried`, `ExportError::UnplacedBelow`, and Python
+`CarriedRefusal.__str__`. The viewer badge and Python `export_err`
+already spoke through `spoken(doc)`. The review found nothing blocking.
+Two twin-id tests were folded in, each mutation-checked:
+- a four-document route whose `via` hop shares an id with an outer node
+  labelled "spare seat";
+- an unplaced group whose id the outer document holds as "twin group".
+The two-nouns-per-route reading (kind noun for the first hop,
+"instance" for later ones) stays as `NodeAs` makes it.
+
+## 2026-10-06 — PR 4086: a deleted selection says the last label its node had
+
+The selection keeps its nodes as they were said (`Derived::said`,
+written by `Select`). After every operation, `DocSession::perform`
+re-speaks them from the shown document under the `respoken` keep rule.
+`Speaker::or_held` says a node from the document while the document
+holds it, then from the kept nodes, then by tag. Picks are spoken from
+the shown document first and the landed run's second (`spoken_now`).
+The row asked each door to name its document instead. The review judged
+this better: it picks up a rename made after the landing.
+
+The datum face form keeps its own kept nodes (`Drafts::datum_face_said`),
+so it no longer reads a snapshot that belongs to a later selection. That
+fault was filed and folded in the same PR.
+
+Review folds, each mutation-checked:
+- the per-op re-speak;
+- the shown-first test;
+- the datum face test.
+
+Filed:
+- `a-verdicts-other-nodes-are-said-by-tag-once-deleted`;
+- `the-tools-pick-time-snapshots-never-follow-a-rename`.
+
+## 2026-10-06 — PR 4090: a part's fault and carried levels say the part's labels as its pin fixes them
+
+Built to the Ruled section of #3839. `product_fault` records the part's
+nodes (`held_by` over the fault's sentence and its in-part carried
+levels) while the evaluated pinned part is in hand. The four `PartFault`
+arms that name part nodes keep them as `held: Arc<HeldNodes>`.
+`CarriedIn::Part` carries them too. `PartFault`'s `Display` speaks only
+through its own snapshot, so a host speaker can never lend a twin id its
+label. The viewer tree, `str(err)` and `__cause__` say part labels.
+Deleted: `CarriedLevel::line_in_part`, `PartFault::spoken`,
+`assert_pinned` (no resolver/pin cross-check remains on the speaking
+path; labels come from the evaluated document).
+
+Equality now also compares the labels the pin fixed. Equal ids from
+differently-labelled pins compare unequal, which is deliberate and
+reaches `ReachRefusal` and `FacePoseRefusal`.
+
+Review folds:
+- the `Eq` prose;
+- arms built with their snapshot, with `held_mut` gone;
+- the `spoken.rs` module doc leads with the general rule;
+- a direct match in `line_in`/`line`.
+
+Twin-id tests in editor-core, the viewer and Python, mutation-checked
+before the refactor.
+
+Filed: `carried-rows-say-a-parts-nodes-by-tag`. The success-path rows
+(`Route` via hops, `CarriedRefusal`, `CarriedUnplaced`, carried
+declarations) never pass `product_fault`.
+
+**Main was red.** `review_pick_r2`'s corpus tally moved at the merge of
+#4081 (ae873ecb6b; b804bcc1c9 still at the old pin), from
+`(442782, 141968, 12774, 6870)` to `(442782, 141890, 13932, 7110)`.
+Only the pin moved: no genuine crossing is refused and there are no wide
+winners. #4081's CI passed on a head that predates #4088/#4086, and
+main runs no test job on push. Re-pinned here.

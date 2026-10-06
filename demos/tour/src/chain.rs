@@ -104,12 +104,13 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, DocumentId,
-    EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
+    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
+use pncad::prelude::AuthoredNode;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
 use pncad::topo::{Body, SurfaceKey};
 
@@ -176,16 +177,15 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).
 pub const CERTIFIABLE_FRACTION: f64 = 6.751e-8;
 
-/// **The same measurement at 1, 2, 3 and 4 links** — one number in
-/// four spellings.
+/// **The same measurement at 1, 2, 3 and 4 links.**
 ///
 /// The tip's certified lateral half-width, `L · 3σ · f · n(n+1)/2` at
-/// `n` links, is one number at two, three and four links alike, and
-/// [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it over the pin radius. Since
-/// the extrude closes with the pcurve mint it is set by the placed
-/// rows' angular comparisons, whose enclosure grows with the same tip
-/// box: `3.016e-7` of the pin radius. The one-link row sits a little
-/// under it (its lever sum is the joint's own).
+/// `n` links, is what each fraction allows. The wall that sets it is
+/// check 5's escape enclosure on the placed rows, which does NOT grow in
+/// step with the tip's lever sum: the half-width rises with link count
+/// and flattens ([`CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS`]), so the
+/// four fractions are four measurements, not one number spelled four
+/// ways.
 ///
 /// (Before the mint the wall was `dihedral_wedge` and the number was
 /// HALF the pin radius, a property of this document's geometry: with
@@ -200,19 +200,19 @@ pub const CERTIFIABLE_FRACTION: f64 = 6.751e-8;
 /// the last row of it.
 pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [6.510e-7, 2.216e-7, 1.117e-7, 6.751e-8];
 
-/// **The tip's certified lateral half-width, over the pin radius** —
-/// the same at every link count whose box the WALL sets, and the
-/// number [`CERTIFIABLE_FRACTION_BY_LINKS`] is four spellings of.
+/// **The tip's certified lateral half-width, over the pin radius**, at
+/// 1, 2, 3 and 4 links.
 ///
-/// MEASURED by [`crate::chaintol`] at 2, 3 and 4 links and pinned
-/// there with a paste-ready re-baseline (`2.992e-7 / 3.016e-7 /
-/// 3.038e-7`); it is not derived from the two constants beside it,
-/// because what it asserts is that those two stand in this ratio AT
-/// EVERY LINK COUNT, which neither of them says. It was `4.995e-1`,
-/// half the pin radius, before the extrude closed with the pcurve mint.
+/// MEASURED by [`crate::chaintol`] and pinned there. It rises at every
+/// step, and each step is smaller than the one before (2.1%, 0.81%,
+/// 0.73%). Whether it converges is not established. Before the
+/// extrude closed with the pcurve mint the wall was `dihedral_wedge`
+/// and this was one number, `4.995e-1`, half the pin radius, past one
+/// link.
 ///
 /// Read only by that cell.
-pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 3.016e-7;
+pub const CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS: [f64; LINKS] =
+    [2.929e-7, 2.992e-7, 3.016e-7, 3.038e-7];
 
 /// **The certified enclosure of each joint pin's centre at that box**
 /// — `(half-width along the chain, half-width across it)`, in metres,
@@ -289,19 +289,19 @@ pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
 /// certified table alike.
-pub fn joint_name(k: usize) -> ParamName {
-    ParamName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
+pub fn joint_name(k: usize) -> VarName {
+    VarName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
 }
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("finite length")
 }
 
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -315,18 +315,16 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(
-    doc: &mut ProfileDoc,
-    name: ParamName,
-    value: f64,
-    distribution: Distribution,
-    tol: Tol,
-) {
+fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distribution, tol: Tol) {
     let applied = apply(
         doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name,
-            value: DocParam::continuous_with(Dimension::Angle, value, distribution),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous_with(
+                Dimension::Angle,
+                value,
+                distribution,
+            )),
         },
         tol,
         &RefusingReach,
@@ -467,7 +465,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     pncad::document::Step::Rigid {
                         translation: [len(step), len(0.0), len(0.0)],
                         axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: Expr::param(joint_name(j), Dimension::Angle),
+                        angle: Formula::named(joint_name(j), Dimension::Angle),
                     },
                 ),
                 tol,
@@ -506,7 +504,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
                 pncad::prelude::SurfaceKind::Cylinder,
             ))],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             tol,
         )
         .expect("the surface-kind atom is exact");

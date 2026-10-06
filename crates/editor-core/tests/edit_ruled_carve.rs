@@ -67,6 +67,7 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
@@ -159,7 +160,7 @@ struct Ruled {
 fn carve(
     what: &'static str,
     side: Side,
-    lp: LoopProgram,
+    lp: LoopProgram<Formula>,
     height: f64,
     creases: &'static [(u32, [u32; 2])],
     rims: &'static [(u32, [RimEnd; 2])],

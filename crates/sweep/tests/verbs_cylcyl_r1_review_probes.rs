@@ -12,9 +12,10 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
+use crate::common::differential::outcome;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -51,10 +52,16 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
 /// Every crossing pose this reviewer could author must refuse TYPED —
 /// and if any ever answers, the answer must not be the operand-volume
 /// sum (the D10 double-count). Varied radii, axes, heights, offsets.
+/// A pose whose answer is audited carries the volume its solids share,
+/// and an answer there is held to `differential::outcome`'s SOUND (tiers
+/// 2 and 3′, the certificate, a legal operand, the closed form): two
+/// upright cylinders whose walls cross with parallel axes, which the join
+/// splits along their rulings, share the lens of their discs over the
+/// heights they share ([`parallel_shared`]).
 #[test]
 fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     let tol = Tol::witness();
-    let poses: Vec<(&str, Body<f64>, Body<f64>)> = vec![
+    let poses: Vec<Audited> = vec![
         (
             "perpendicular unequal radii",
             cyl(0.0, 0.0, 2.0, -3.0, 3.0),
@@ -66,6 +73,7 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                 ),
                 Vec3::new(0.0, 0.0, 0.0),
             ),
+            None,
         ),
         (
             "skew axes, crossing walls",
@@ -78,6 +86,7 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                 ),
                 Vec3::new(0.9, 0.0, 3.0),
             ),
+            None,
         ),
         (
             "no-edge-event lens, unequal radii",
@@ -90,16 +99,19 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                 ),
                 Vec3::new(0.0, 1.2, 5.0),
             ),
+            None,
         ),
         (
             "parallel axes, shallow overlap",
             cyl(0.0, 0.0, 1.5, 0.0, 4.0),
             cyl(2.9, 0.0, 1.5, 1.0, 5.0),
+            parallel_shared((0.0, 1.5, (0.0, 4.0)), (2.9, 1.5, (1.0, 5.0))),
         ),
         (
             "externally tangent walls",
             cyl(0.0, 0.0, 1.0, 0.0, 2.0),
             cyl(2.0, 0.0, 1.0, 0.0, 2.0),
+            parallel_shared((0.0, 1.0, (0.0, 2.0)), (2.0, 1.0, (0.0, 2.0))),
         ),
         (
             "tall thin through short fat",
@@ -112,16 +124,31 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                 ),
                 Vec3::new(0.0, 0.0, 0.0),
             ),
+            None,
         ),
     ];
-    for (name, a, b) in &poses {
-        let va = topo::mass_properties(a, tol).unwrap().volume;
-        let vb = topo::mass_properties(b, tol).unwrap().volume;
+    for (name, a, b, shared) in &poses {
+        let (a, b) = (
+            finished(name, a.clone(), tol),
+            finished(name, b.clone(), tol),
+        );
+        let va = topo::mass_properties(&a, tol).unwrap().volume;
+        let vb = topo::mass_properties(&b, tol).unwrap().volume;
         for (op_name, out) in [
-            ("union", topo::union(a, b, tol)),
-            ("subtract", topo::subtract(a, b, tol)),
-            ("intersect", topo::intersect(a, b, tol)),
+            ("union", topo::union(&a, &b, tol)),
+            ("subtract", topo::subtract(&a, &b, tol)),
+            ("intersect", topo::intersect(&a, &b, tol)),
         ] {
+            if let (Some(shared), Ok(_)) = (shared, &out) {
+                let want = match op_name {
+                    "union" => va + vb - shared,
+                    "subtract" => va - shared,
+                    _ => *shared,
+                };
+                let line = outcome(out, want, tol);
+                assert!(line.starts_with("OK SOUND"), "{name}/{op_name}: {line}");
+                continue;
+            }
             match out {
                 Err(_) => {} // a typed refusal is an honest outcome
                 Ok(topo::BooleanResult::Body(body)) => {
@@ -136,14 +163,37 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                         );
                     }
                     panic!(
-                        "{name}/{op_name}: answered OK (volume {v}) — no cyl×cyl arm is \
-                         wired in PR-A, so an answer here needs its own audit"
+                        "{name}/{op_name}: answered OK (volume {v}) — no join arm is \
+                         audited for this pose, so an answer here needs its own audit"
                     );
                 }
                 Ok(other) => panic!("{name}/{op_name}: unexpected non-body result {other:?}"),
             }
         }
     }
+}
+
+/// A pose: its name, its two operands, and the volume they share where
+/// an answer is audited ([`parallel_shared`]).
+type Audited = (&'static str, Body<f64>, Body<f64>, Option<f64>);
+
+/// The volume two upright cylinders `(centre x, radius, z span)` share
+/// where their walls cross with parallel axes: the lens of their discs
+/// times their shared height. `None` where the walls do not cross (apart,
+/// tangent, or nested).
+fn parallel_shared(
+    (x1, r1, z1): (f64, f64, (f64, f64)),
+    (x2, r2, z2): (f64, f64, (f64, f64)),
+) -> Option<f64> {
+    let d = (x2 - x1).abs();
+    if d >= r1 + r2 || d <= (r1 - r2).abs() {
+        return None;
+    }
+    let h1 = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
+    let h2 = d - h1;
+    let seg = |r: f64, h: f64| r * r * (h / r).acos() - h * (r * r - h * h).sqrt();
+    let height = z1.1.min(z2.1) - z1.0.max(z2.0);
+    Some((seg(r1, h1) + seg(r2, h2)) * height.max(0.0))
 }
 
 /// **A coaxial NESTED pair answers** (the retired wall-pair gate
@@ -156,8 +206,8 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
 #[test]
 fn the_nested_coaxial_pair_answers_the_nested_closed_forms() {
     let tol = Tol::witness();
-    let inner = cyl(0.0, 0.0, 1.0, 1.0, 3.0);
-    let outer = cyl(0.0, 0.0, 2.0, 0.0, 4.0);
+    let inner = finished("the inner cylinder", cyl(0.0, 0.0, 1.0, 1.0, 3.0), tol);
+    let outer = finished("the outer cylinder", cyl(0.0, 0.0, 2.0, 0.0, 4.0), tol);
     let volume = |r: Result<topo::BooleanResult<f64>, BooleanError>| {
         let r = r.unwrap_or_else(|e| panic!("the nested pair: {e:?}"));
         let b = &r.body().expect("non-empty").body;
@@ -186,8 +236,8 @@ fn the_nested_coaxial_pair_answers_the_nested_closed_forms() {
 #[test]
 fn a_diagonally_offset_disjoint_pair_answers_two_units() {
     let tol = Tol::witness();
-    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let b = cyl(1.9, 1.9, 1.0, 0.0, 2.0);
+    let a = finished("A", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol);
+    let b = finished("B", cyl(1.9, 1.9, 1.0, 0.0, 2.0), tol);
     let r = topo::union(&a, &b, tol).unwrap_or_else(|e| panic!("the diagonal pair: {e:?}"));
     let body = &r.body().expect("non-empty").body;
     let v = topo::mass_properties(body, tol).unwrap().volume;
@@ -239,6 +289,7 @@ fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 2.0, 0.0, 6.0);
+    let post = sweep::test_support::finished("the post", post, tol);
     let phi = 0.9_f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 3.0),
@@ -307,11 +358,12 @@ fn revolved_cyl(r: f64, h: f64) -> Body<f64> {
 #[test]
 fn revolve_minted_walls_meet_the_same_gate() {
     let tol = Tol::witness();
-    let a = revolved_cyl(1.0, 10.0); // wall about y, r = 1, y in [0, 10]
+    let a = finished("A", revolved_cyl(1.0, 10.0), tol); // wall about y, r = 1, y in [0, 10]
     let b = moved(
         &turned(&revolved_cyl(1.0, 20.0), Vec3::new(0.0, 0.0, 1.0), PI / 2.0),
         Vec3::new(1.5, 5.0, 0.0),
     );
+    let b = finished("B", b, tol);
     match topo::union(&a, &b, tol) {
         Err(_) => {} // typed refusal: honest
         Ok(topo::BooleanResult::Body(body)) => {
@@ -393,10 +445,14 @@ fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
 #[test]
 fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     let tol = Tol::witness();
-    let plate = rounded_plate(80.0, 40.0, 6.0, 8.0);
+    let plate = finished("the plate", rounded_plate(80.0, 40.0, 6.0, 8.0), tol);
     // `bracket.py`'s pocket, in millimetres — the other half of
     // the corpus `rounded_plate` above carries.
-    let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
+    let pocket = finished(
+        "the pocket",
+        brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        tol,
+    );
 
     // The cut runs at all — the door this row used to name is shut.
     topo::subtract(&plate, &pocket, tol).expect("r = 6 cuts since the boxes were trim-scoped");
@@ -512,6 +568,7 @@ fn the_no_edge_event_pair_refuses_at_the_gate_not_the_frame() {
     let rod = cyl(0.0, 0.0, 1.0, -10.0, 10.0);
     let lie = turned(&rod, Vec3::new(0.0, 1.0, 0.0), PI / 2.0);
     let b = moved(&lie, Vec3::new(0.0, 1.5, 5.0));
+    let (a, b) = (finished("A", a, tol), finished("B", b, tol));
     let err = topo::union(&a, &b, tol).expect_err("no cyl×cyl arm exists");
     assert!(
         matches!(err, BooleanError::FallbackExtentUnsupported { .. }),

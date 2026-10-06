@@ -1266,3 +1266,45 @@ class of 65 sites is PRED's row.
     - `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12`: `topo::fixtures::bowed_patch`'s net at `d = ±0.05`, target 1e-12, re-deriving the certificate on 96 rigid images (4 axes x 24 angles), at the shipped budget (runs 36701471437 and 36701373637). Lerp: seed fits in 3 rounds over 64 cells at `3.6541e-13` / `3.6519e-13` (ENCL: 3 rounds, 64 cells, 3.652e-13), **10 of 96 maps refuse the re-derivation and 4 of those have a re-fit that also refuses** (ENCL: 4 maps whose re-fit stalls), worst drift x2.711 (ENCL: up to x3.10 over their 93). Convex: seed `8.3379e-14` (ENCL: 8.34e-14), **0 of 96 refuse and 0 re-fits stall, worst drift x1.014** (ENCL: 0 of 93, worst drift x1.014), and the fixture's own `hull_sup` drops 4.38x (ENCL: 4.4x). **This measurement reproduces exactly, including the frame-invariance figure.**
   - Filed on PROPS by the same sweep, for ENCL's awareness since it is one applier below `patch_bound`: `the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice`.
 - 2026-10-01 — **PROPS, addendum to the 2026-09-30 seam note (PR 3524).** A nightly dispatched on the branch (run 36820204785, full SHA as the `ref` input) caught four rows the default-eps gate could not: the plane-NURBS declare-and-check seam's certified between-samples sup also rides the Bézier decomposition, and it fell about two orders, moving that seam's ε boundary from 1e-9 to 1e-13 in `crates/sweep/tests/m8_4_intersection_iso.rs`, `crates/sweep/tests/review_probes_m8_4.rs` and `crates/step-import/tests/recognize_pins.rs`. Seam notes posted to `tint`, `tcost` and `exch`; residue filed as `work/tint/the-plane-nurbs-seam-refusal-cell-is-below-every-gated-eps-row.md`. Nothing in ENCL's territory moved beyond the 2026-09-30 list. `k-lint (dev-probe)` is red on that nightly and was already red on main's own last scheduled nightly (36707053778), same failing step — reported to the orchestrator, not touched here.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.

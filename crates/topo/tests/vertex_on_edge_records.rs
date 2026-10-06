@@ -69,7 +69,7 @@ fn edge_touch_records(body: &Body<f64>) -> [VeContact; 2] {
     ]
 }
 
-/// **Undeclared direction.** With no records, both resting vertices
+/// **Unrecorded direction.** With no records, both resting vertices
 /// and the overlap between them refuse; with both records the body
 /// certifies; with one, its own event and the overlap it bounds refuse
 /// and the other event does not. Red when pass 2, or the overlap's
@@ -256,15 +256,22 @@ fn an_edge_on_face_overlap_ending_on_the_faces_edge_is_bounded_by_the_record() {
 /// rim where the other's corner rests, and the join makes each rim one
 /// edge again, so its two v-v records become `(vertex, edge)` records.
 fn joined_edge_touch(tol: Tol) -> topo::BooleanBody<f64> {
-    let a = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let c = common::brick((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), tol);
-    let topo::BooleanResult::Body(mut y) =
+    let a = common::finished(
+        "a",
+        common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let c = common::finished(
+        "c",
+        common::brick((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), tol),
+        tol,
+    );
+    let topo::BooleanResult::Body(y) =
         topo::union_with(&a, &c, &topo::BooleanDeclarations::none(), tol).expect("a ∪ c")
     else {
         panic!("a ∪ c came back empty");
     };
-    y.join_edges(tol).expect("the join");
-    y
+    y.join_edges(tol).expect("the join").0
 }
 
 /// The two end points of `edge`.
@@ -287,7 +294,7 @@ fn ends(body: &Body<f64>, edge: EdgeKey) -> [[f64; 3]; 2] {
 /// records. Red when the record stays on the edge's original key, or
 /// moves to the wrong side of a split: the piece it names does not
 /// hold the corner (`StaleContactDeclaration`), and the corner's event
-/// is undeclared.
+/// is unrecorded.
 #[test]
 fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
     let tol = Tol::witness();
@@ -302,15 +309,7 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
                 class: topo::ContactClass::Rest,
             })
             .collect(),
-        ve: y
-            .contacts
-            .ve
-            .iter()
-            .map(|&rest| topo::CarriedVe {
-                rest,
-                class: topo::ContactClass::Rest,
-            })
-            .collect(),
+        ve: y.contacts.ve.clone(),
         ..topo::CarriedContacts::default()
     };
     for (at, rim, slab, piece) in [
@@ -335,7 +334,11 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
             .find(|r| r.vertex == corner)
             .expect("the join leaves the corner's (vertex, edge) record");
         assert_eq!(ends(&y.body, joined.edge), rim, "the joined rim");
-        let s = common::brick(slab, (-0.5, 0.5), (-0.5, 0.5), tol);
+        let s = common::finished(
+            "slab",
+            common::brick(slab, (-0.5, 0.5), (-0.5, 0.5), tol),
+            tol,
+        );
         let decls = topo::BooleanDeclarations {
             carried_a: carried.clone(),
             ..topo::BooleanDeclarations::none()

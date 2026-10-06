@@ -17,9 +17,9 @@
 //!   sphere, so a seam edge crosses a CURVED face and the circle ×
 //!   sphere roots pierce it. The pair reaches the join, which hands each
 //!   side the pair's radical plane. Offset along Y (the polar axis) the
-//!   section is polar for both operands and the azimuth-window rule
-//!   selects its arcs; offset along X it is tilted against both charts
-//!   and the run-side rule does. Either way the union builds, because
+//!   section is polar for both operands; offset along X it is tilted
+//!   against both charts. Either way each chord takes the arc its
+//!   paired germs leave along, and the union builds, because
 //!   both balls are revolved from the same seam — each seam meridian
 //!   pierces the other sphere ON the other's seam. Spin either ball
 //!   about Y and the pierce lands inside a half-band: the pierce-ring
@@ -32,17 +32,18 @@
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanError};
+use topo::{AtRestBody, BooleanError};
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart).
-fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
+fn ball_at(r: f64, centre: Vec3<f64>) -> AtRestBody<f64> {
     ball_at_tol(r, centre, Tol::witness())
 }
 
 /// [`ball_at`], built at `tol`.
-fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> Body<f64> {
+fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -r), 1.0),
         (Point2::new(0.0, r), 0.0),
@@ -55,10 +56,11 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> Body<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let ball = revolve(&vp, axis, Revolution::Full, tol).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), tol).unwrap()
+    let ball = topo::transform_rigid(&ball, &Affine3::translation(centre), tol).unwrap();
+    finished("the ball", ball, tol)
 }
 
-fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
+fn union_err(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("the pair is refused")
 }
 
@@ -167,8 +169,8 @@ fn z_offset_pairs_refuse_at_the_curved_extent_scan() {
 
 /// An in-seam-plane or polar-axis offset drives a seam meridian through
 /// the other ball's sphere face, and the circle × sphere roots pierce
-/// it. Both offsets build, the polar one through the azimuth window and
-/// the in-seam-plane one through the run side, to one lens.
+/// it. Both offsets build, each chord on the arc its germs leave along,
+/// to one lens.
 #[test]
 fn seam_crossing_pairs_build() {
     let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));

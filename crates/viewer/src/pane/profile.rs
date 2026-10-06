@@ -1246,7 +1246,7 @@ mod tests {
             "the named step moved down a row, id and all"
         );
         let drawn = program
-            .pieces(&session.committed_doc().param_env::<f64>(), Tol::witness())
+            .pieces(&session.committed_doc().var_env::<f64>(), Tol::witness())
             .expect("the reshaped program replays");
         assert!(
             drawn.edges.iter().flatten().any(|edge| *edge == piece),

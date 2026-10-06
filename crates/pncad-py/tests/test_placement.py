@@ -13,7 +13,7 @@ import unittest
 from pncad import (
     Doc,
     EditError,
-    Expr,
+    Formula,
     Frame,
     FrameError,
     Node,
@@ -30,27 +30,27 @@ def cube(doc):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(0.0, m), Expr.length_in(0.0, m)),
-                (Expr.length_in(1.0, m), Expr.length_in(0.0, m)),
-                (Expr.length_in(1.0, m), Expr.length_in(1.0, m)),
-                (Expr.length_in(0.0, m), Expr.length_in(1.0, m)),
+                (Formula.length_in(0.0, m), Formula.length_in(0.0, m)),
+                (Formula.length_in(1.0, m), Formula.length_in(0.0, m)),
+                (Formula.length_in(1.0, m), Formula.length_in(1.0, m)),
+                (Formula.length_in(0.0, m), Formula.length_in(1.0, m)),
             ],
             plane=doc.sketch_frame(),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.length_in(1.0, m)))
+    return doc.insert(Node.extrude(profile, Formula.length_in(1.0, m)))
 
 
 def lengths(x, y, z):
-    return (Expr.length_in(x, m), Expr.length_in(y, m), Expr.length_in(z, m))
+    return (Formula.length_in(x, m), Formula.length_in(y, m), Formula.length_in(z, m))
 
 
 def z_axis():
-    return (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0))
+    return (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0))
 
 
 def about_z(t, angle):
-    return Placement.rigid(translation=lengths(*t), axis=z_axis(), angle=Expr.angle_in(angle, rad))
+    return Placement.rigid(translation=lengths(*t), axis=z_axis(), angle=Formula.angle_in(angle, rad))
 
 
 def low_corner(placement):
@@ -74,7 +74,7 @@ class TestPlacement(unittest.TestCase):
                 node = Node.transform_by(body, about_z((2.0, 0.0, 0.0), 0.5))
             else:
                 node = Node.transform(
-                    body, lengths(2.0, 0.0, 0.0), z_axis(), Expr.angle_in(0.5, rad)
+                    body, lengths(2.0, 0.0, 0.0), z_axis(), Formula.angle_in(0.5, rad)
                 )
             placed = doc.insert(node)
             ev = evaluate(doc)
@@ -86,7 +86,7 @@ class TestPlacement(unittest.TestCase):
     def test_rigid_takes_its_components_by_name(self):
         """Two vectors of one shape cannot trade places unread."""
         with self.assertRaises(TypeError):
-            Placement.rigid(lengths(0.0, 0.0, 0.0), z_axis(), Expr.angle_in(0.0, rad))
+            Placement.rigid(lengths(0.0, 0.0, 0.0), z_axis(), Formula.angle_in(0.0, rad))
 
     def test_compose_puts_the_inner_placement_first(self):
         """`a.compose(b)` is `a ∘ b`: `b` acts first. A quarter turn
@@ -128,11 +128,11 @@ class TestPlacement(unittest.TestCase):
         doc = Doc()
         body = cube(doc)
         with self.assertRaises(EditError) as caught:
-            Node.transform(body, lengths(0.0, 0.0, 0.0), z_axis(), Expr.length_in(1.0, m))
+            Node.transform(body, lengths(0.0, 0.0, 0.0), z_axis(), Formula.length_in(1.0, m))
         self.assertEqual(caught.exception.variant, "slot_dimension_mismatch")
         self.assertEqual(caught.exception.slot, "rotation_angle")
         late = Placement.rigid(
-            translation=lengths(0.0, 0.0, 0.0), axis=z_axis(), angle=Expr.length_in(1.0, m)
+            translation=lengths(0.0, 0.0, 0.0), axis=z_axis(), angle=Formula.length_in(1.0, m)
         )
         chain = Placement.literal(Frame.translation((0 * m, 0 * m, 1 * m))).compose(late)
         with self.assertRaises(EditError) as caught:

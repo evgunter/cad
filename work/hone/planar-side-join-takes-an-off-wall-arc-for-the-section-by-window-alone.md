@@ -16,11 +16,11 @@ fixed, on the same function.)
 
 The arm is gone. The boolean lanes' adjacency skip no longer asks the
 between edge's geometry: it fires only when the between edge IS the edge
-the matched germs' locus names on that solid (`SegmentEdge::Is`), and a
-segment inside a face names none, so a foreign arc can never be taken
-for the section. `between_edge_is_section` answers the split lane alone;
-asked on a boolean lane it refuses `SectionInvariant`. The text below is
-the record of the defect as it stood.
+the matched germs' locus names on that solid (`chord_join::Chords::Segment`),
+and a segment inside a face names none, so a foreign arc can never be
+taken for the section. `between_edge_is_section` answers the split lane
+alone: it takes the split's `SectionCtx`, so a boolean lane cannot ask
+it (JOIN-3). The text below is the record of the defect as it stood.
 
 ## What
 

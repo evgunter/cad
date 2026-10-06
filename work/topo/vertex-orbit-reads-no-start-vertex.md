@@ -2,11 +2,14 @@
 id: vertex-orbit-reads-no-start-vertex
 kind: issue
 title: vertex_orbit's walk reads no start vertex, so every read-side orbit walk answers for a torn orbit as if it were the vertex's
-status: open
+status: closed
 opened: 2026-09-29
 refs: [mev-fan-plan-trusts-the-orbits-start-vertices, kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
 priority: P3
 cost: E
+pr: 3972
+branch: topo/vertex-orbit-proves-its-start
+closed: 2026-10-03
 ---
 
 ## What
@@ -33,7 +36,7 @@ panics on it.
 | `corner_arms` (`offset_axial.rs`, `offset_together.rs`) | arm lengths along another vertex's edges |
 | `valence` (`shell.rs`) | a wrong valence |
 | `crates/sweep/src/blend/admit.rs` (`faces_of_vertex`, the admission's face fan) | another vertex's faces among the corner's |
-| `crates/sweep/src/blend/battery.rs` (two `edges_of_vertex` reads) | another vertex's edges among the corner's |
+| `crates/sweep/src/blend/battery.rs` (three `edges_of_vertex` reads: `cap_incidence`, `corner_at`, `joint_verdict`) | another vertex's edges among the corner's |
 | `crates/sweep/src/blend/surgery.rs` (five `edges_of_vertex` reads: the chain-end corners, three corner and rim fans, and the cap's meridian split) | the same; the last picks the meridian edge the surgery then splits, so it plans a write |
 
 The first sweep, for the symbols `vertex_orbit(` and `orbit_walk(`,
@@ -68,3 +71,20 @@ makes the two plan checks redundant. It changes what `orbit_walk`
 returns on a torn body, and pass 6 reads the `Closed` members to name
 each foreign one, so the validator would need its own walk or a
 `Walk` arm that carries them.
+
+## Resolution (PR 3972)
+
+The walk proves the start once: `Body::orbit_walk` answers `Broken`
+at a member that does not start at the first member's vertex. The
+validator's pass 6 walks `Body::orbit_walk_reading_no_start` and names
+each foreign member as it did before. Measured over 1,056,000 torn
+bodies, its reports are identical at base and head. `kev_plan`'s and
+`mev_fan_plan`'s own checks are retired. A torn fan walk now refuses
+`FanOrbitBroken`. `shell`'s `valence` refuses a broken orbit instead of
+answering 0.
+
+The rho residue is re-measured at head (965 of 1,103,470 `Ok` calls)
+and filed as `a-fan-split-at-a-vertex-another-vertexs-torn-walk-merges-into`.
+The receipt filed two rows on cleave:
+`null-site-reads-a-refused-vertex-orbit-as-no-edges` and
+`boolean-strut-anchor-splices-at-an-unproven-next-mate-step`.

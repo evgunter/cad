@@ -26,8 +26,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, DocParam, EntityKind, Expr, Node, ParamName, PartSelect,
-    PatternKind, RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym,
+    BooleanOp, Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind,
+    RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
 };
 
 use crate::fixture::{ang, desc, len, scl, xy_frame};
@@ -63,14 +63,14 @@ pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
 /// The part-select corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static(H),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static(H),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: BOX_H,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: None,
-        },
+        }),
     });
 
     // ---- the box, [-1, 1]² × [0, h] ----
@@ -86,7 +86,7 @@ pub fn document() -> CorpusDoc {
     )));
     let cube = r.insert(Node::Extrude {
         profile: box_p,
-        distance: Expr::param(ParamName::from_static(H), Dimension::Length),
+        distance: Formula::named(VarName::from_static(H), Dimension::Length),
         side: ExtrudeSide::Along,
     });
 
@@ -121,7 +121,7 @@ pub fn document() -> CorpusDoc {
     // ---- three boxes along x, and the middle one lifted ----
     let pattern = r.insert(Node::Pattern {
         input: cube,
-        count: Expr::count(COUNT),
+        count: Formula::count(COUNT),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(PITCH),
@@ -129,7 +129,7 @@ pub fn document() -> CorpusDoc {
     });
     let middle = r.insert(Node::Part {
         of: pattern,
-        select: PartSelect::Instance(Expr::count(1)),
+        select: PartSelect::Instance(Formula::count(1)),
     });
     let lifted = r.insert(Node::transform(
         middle,

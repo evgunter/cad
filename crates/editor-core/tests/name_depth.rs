@@ -50,7 +50,7 @@ fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>)
             doc,
             Node::Pattern {
                 input,
-                count: editor_core::Expr::count(1),
+                count: editor_core::Formula::count(1),
                 kind: PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                     spacing: len(2.0),
@@ -206,7 +206,7 @@ fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
         DocEdit::SetAppearanceMeta {
             name: in_parts(cap, levels),
             key: "probe".to_owned(),
-            value: MetaValue::map([("v".to_owned(), MetaValue::Int(1))].into())
+            value: MetaValue::map([("v".to_owned(), MetaValue::Int(1.into()))].into())
                 .expect("a shallow value"),
         },
     );
@@ -293,7 +293,7 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
         doc,
         Node::Pattern {
             input: extrude,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                 spacing: len(2.0),
@@ -307,7 +307,7 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
             key: "probe".to_owned(),
             value: MetaValue::map(
                 [
-                    ("v".to_owned(), MetaValue::Int(1)),
+                    ("v".to_owned(), MetaValue::Int(1.into())),
                     ("kind".to_owned(), MetaValue::Str("mine".to_owned())),
                 ]
                 .into(),

@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 
 use geom_core::{Band, Decide, Real, Tol};
 
-use super::ops::{Descendants, carry_in_place, describe_minted_edges};
+use super::ops::{Descendants, carry_in_place, describe_minted_edges, gate};
 use super::{BooleanBody, BooleanError, Cell};
 use crate::body::Body;
 use crate::entity::{EdgeKey, HalfEdgeKey, VertexKey};
@@ -106,25 +106,26 @@ pub fn joinable_vertices<T: Real>(body: &Body<T>) -> Vec<VertexKey> {
         .collect()
 }
 
-impl<T: Decide + crate::props::AtRestPolicy> BooleanBody<T> {
+impl<T: Decide + geom_core::Bounds + crate::props::AtRestPolicy> BooleanBody<T> {
     /// Joins every joinable vertex ([`joinable_vertices`]), one at a
     /// time in vertex-arena order, and carries the contact records by
     /// substitution: a record naming a joined vertex or a killed edge
     /// names the joined edge. The joined edge is described from its two
-    /// faces, as the boolean describes the edges it mints, and the
-    /// pcurve map is re-minted, as the boolean re-mints its own. Returns
-    /// the joins in the order made, a later one's `gone` or `kept`
-    /// possibly an earlier one's `kept`.
+    /// faces, as the boolean describes the edges it mints, the pcurve
+    /// map is re-minted, and the joined body passes the boolean's own
+    /// result gate. Returns the result and the joins in the order made,
+    /// a later one's `gone` or `kept` possibly an earlier one's `kept`.
     ///
     /// # Errors
     ///
     /// The kill's own refusal ([`BooleanError::Euler`]), the
-    /// description's, the pcurve mint's, or the door's.
-    pub fn join_edges(&mut self, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
+    /// description's, the pcurve mint's, the door's, or the gate's.
+    pub fn join_edges(self, tol: Tol) -> Result<(Self, Vec<EdgeJoin>), BooleanError> {
         let band = Band::linear(tol)?;
         let mut joined = Vec::new();
         let mut desc = Descendants::default();
-        let mut body = self.body.begin_surgery();
+        let mut finished = self.body.into_body();
+        let mut body = finished.begin_surgery();
         loop {
             let starts = starts(&body);
             let Some((w, join)) = body
@@ -148,10 +149,17 @@ impl<T: Decide + crate::props::AtRestPolicy> BooleanBody<T> {
                 .map_err(|source| BooleanError::Pcurves { source })?;
         }
         body.sweep_and_close();
-        if !joined.is_empty() {
-            self.contacts = carry_in_place(&self.body, &self.contacts, &desc)?;
-        }
-        Ok(joined)
+        let contacts = if joined.is_empty() {
+            self.contacts
+        } else {
+            carry_in_place(&finished, &self.contacts, &desc)?
+        };
+        let out = Self {
+            body: gate(finished, band, tol)?,
+            contacts,
+            ..self
+        };
+        Ok((out, joined))
     }
 }
 

@@ -116,7 +116,7 @@
 //! order-independent. The row that pins the reading is `geom-core`'s
 //! `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`
 //! and the residue is
-//! `work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`;
+//! `work/rules/a-taint-induced-freeze-under-a-hit-still-reads-by-order`;
 //! the branch itself reads zero over every drive measured (the
 //! profile's `FreezeCause::Unrecorded` count, five drives), because a
 //! drive mints every node inside its own session.

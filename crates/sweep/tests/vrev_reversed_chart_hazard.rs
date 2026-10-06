@@ -15,7 +15,7 @@
 //! certifies it on the reversed chart.
 //!
 //! This row is the hazard those refusals stand in front of, built on
-//! purpose through the test-only stranding door: structural validation
+//! purpose through the test-only unvouched door: structural validation
 //! stays green over the surgery, no pcurve survives to be stranded, and
 //! the geometric-structural tier reports the stranded description on
 //! every reversed wall, and the rowless wall's re-derivation refusing. It exists so that a caller who reads
@@ -65,8 +65,8 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
         let Ok(r) = n.reversed_v() else {
             continue;
         };
-        // Lifts both refusals: the reversed chart under its face is the hazard the row measures.
-        body.set_face_surface_stranding_for_tests(
+        // Lifts RechartStrandsDescriptions: the reversed chart under its face is the hazard the row measures.
+        body.set_face_surface_unvouched_for_tests(
             fk,
             FaceSurface::New {
                 surface: Surface::Nurbs(Arc::new(r)),

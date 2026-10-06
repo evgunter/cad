@@ -26,8 +26,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
-    GeomPred, NamePat, Node, NodeStanding, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
-    SelectRefusal, Selector, SurfaceKindSet, evaluate, select, select_where,
+    GeomPred, NamePat, Node, NodeStanding, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal,
+    Selector, SurfaceKindSet, VarEnv, evaluate, select, select_where,
 };
 use geom::SurfaceKind;
 
@@ -73,8 +73,8 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, cube, datum)
 }
 
-fn no_params() -> ParamEnv<f64> {
-    ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()).param_env::<f64>()
+fn no_params() -> VarEnv<f64> {
+    ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()).var_env::<f64>()
 }
 
 fn all(kind: EntityKind) -> Selector {
@@ -284,7 +284,7 @@ fn at(datum: RecipeNodeId, cmp: Cmp, v: f64) -> [GeomPred; 1] {
     [GeomPred::DatumDistance {
         datum,
         cmp,
-        value: len(v),
+        value: editor_core::test_support::stored_expr(&len(v)),
     }]
 }
 
@@ -404,7 +404,7 @@ fn a_non_length_value_refuses() {
     let bad = [GeomPred::DatumDistance {
         datum,
         cmp: Cmp::Approx,
-        value: ang(1.0),
+        value: editor_core::test_support::stored_expr(&ang(1.0)),
     }];
     assert!(matches!(
         select_where(

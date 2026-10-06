@@ -23,7 +23,7 @@ use profile::test_support::bulge_loop;
 use profile::{Open, Profile, ProfileLoop, Start};
 use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
-use sweep::test_support::{brick, sketch_at};
+use sweep::test_support::{brick, finished, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
 use topo::{
     Body, BooleanErrorKind, ContactMark, EdgeKey, ShellError, SplitError, SplitFinishError,
@@ -132,6 +132,7 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
 #[test]
 fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
     let body = plate_with_hole();
+    let body = sweep::test_support::finished("the body", body, tol());
     for normal in [1.0, -1.0] {
         let plane = topo::test_support::split_plane(
             Point3::new(1.0, 0.0, 0.0),
@@ -156,7 +157,12 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&plate_with_hole(), &through, tol()).expect("a transverse cut");
+    let halves = topo::split(
+        &sweep::test_support::finished("the operand", plate_with_hole(), tol()),
+        &through,
+        tol(),
+    )
+    .expect("a transverse cut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of x = 0.5");
         assert_eq!(
@@ -171,12 +177,13 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
     }
 
     let cusp = extruded(vec![lune()], 0.0, 1.0);
+    let operand = sweep::test_support::finished("the fixture", cusp.body.clone(), tol());
     let mid = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
         Vec3::new(0.0, 0.0, 1.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&cusp.body, &mid, tol()).expect("a cut across the strut");
+    let halves = topo::split(&operand, &mid, tol()).expect("a cut across the strut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of z = 0.5");
         let tangent = tangent_edges(body);
@@ -207,6 +214,7 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
         (Point2::new(0.0, 1.0), bulge),
     ]);
     let body = extruded(vec![shoulder], 0.0, 1.0).body;
+    let body = sweep::test_support::finished("the body", body, tol());
     let on_the_ruling = |p: &Point3<f64>| p.x.abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9;
     // Normal `+y` refuses earlier, at the reduction
     // (`ConsecutiveOnSectors`), for a reason of its own:
@@ -252,11 +260,18 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
 /// has to land the undeclared refusal in the same change.
 #[test]
 fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
-    let big = extruded(vec![circle(0.0, 2.0, 2.0)], 0.0, 1.0).body;
-    let small = extruded(vec![circle(0.0, 1.0, 1.0)], -1.0, 3.0).body;
-    let left = extruded(vec![circle(0.0, 0.0, 1.0)], 0.0, 1.0).body;
-    let right = extruded(vec![circle(2.0, 0.0, 1.0)], 0.0, 1.0).body;
-    let cutter = brick::<f64>((1.0, 4.0), (-4.0, 4.0), (-1.0, 2.0), tol());
+    let disc = |what: &str, c: ProfileLoop<f64>, z0: f64, z1: f64| {
+        finished(what, extruded(vec![c], z0, z1).body, tol())
+    };
+    let big = disc("the big disc", circle(0.0, 2.0, 2.0), 0.0, 1.0);
+    let small = disc("the small disc", circle(0.0, 1.0, 1.0), -1.0, 3.0);
+    let left = disc("the left disc", circle(0.0, 0.0, 1.0), 0.0, 1.0);
+    let right = disc("the right disc", circle(2.0, 0.0, 1.0), 0.0, 1.0);
+    let cutter = finished(
+        "the cutter",
+        brick::<f64>((1.0, 4.0), (-4.0, 4.0), (-1.0, 2.0), tol()),
+        tol(),
+    );
     let rows = [
         (
             "internal kiss, subtract",
@@ -270,7 +285,11 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
         ),
         (
             "plane tangent to a hole, subtract",
-            topo::subtract(&plate_with_hole(), &cutter, tol()),
+            topo::subtract(
+                &finished("the holed plate", plate_with_hole(), tol()),
+                &cutter,
+                tol(),
+            ),
             BooleanErrorKind::CurvedBooleanUnsupported,
         ),
     ];

@@ -265,7 +265,7 @@ fn m10_9_the_revolve_carriers_state_their_rim_identity() {
             let lit = |v: f64| S::from_f64(v);
             let eps = Tol::witness().eps();
             let r0: S = Sym::param(
-                ParamSymbol::of("r0"),
+                ParamSymbol::new(test_utils::symbol_id("r0")),
                 Interval::from_bounds(1.0 - eps / 64.0, 1.0 + eps / 64.0),
             );
             let (zero, one, two) = (lit(0.0), lit(1.0), lit(2.0));

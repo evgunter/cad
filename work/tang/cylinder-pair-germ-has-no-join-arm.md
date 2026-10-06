@@ -2,8 +2,11 @@
 id: cylinder-pair-germ-has-no-join-arm
 kind: issue
 title: A wall × wall germ pair has no join arm: parallel cylinders that pierce stop at CurvedBooleanUnsupported
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-04
+pr: 4031
+refs: [parallel-cylinder-germ-pair-has-no-join-arm]
 ---
 
 
@@ -30,3 +33,13 @@ moved them here. Pinned by
 goes red when the arm lands and should then become builds at the
 closed form (the lens of two unit discs `d` apart, times the 1.5 m of
 shared height, added to and subtracted from the two cylinders).
+
+## Closed
+
+The join's cylinder × cylinder arm (JOIN,
+`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`, PR 4031)
+splits both walls against the pair's radical plane, which holds both
+rulings, so each side's chord is its own wall's ruling. The rows here
+build at the closed form under ∪, ∩ and both differences:
+`tang_circle_cylinder.rs`,
+`parallel_cylinders_that_pierce_build_at_the_closed_form`.

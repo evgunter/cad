@@ -914,3 +914,75 @@ the measured documents: filed as
 read's doc now says "behind every value-free fold at its node". The
 `Form::mul` class row (P3) names `Form::mul`, `powi_form` and
 `algebra::apply`. Spec deleted (`docs/doc-ledger/decide-9-spec.md`).
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — Ev's answers: the derived-frame row closes, the two P2s stay open
+
+- `the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
+  (P1) is **closed**. The question put to Ev on 2026-10-02 (re-aim the
+  `none` rung?) had been answered in code by DECIDE-3 (`b07a01b8b6`,
+  2026-09-21); the row asserts what the `none` tier now does.
+- `rule-g-trades-sixteen-…` and `the-exact-quotient-re-keys-…` (P2, H)
+  are not gated; the orchestrator's 2026-10-02 summary called them
+  "gated" in error. Ev (in chat, 2026-10-06): defer them only if DECIDE
+  also has live P0 or P1 rows. It has none: its P1s are the parked
+  declared tangency and the deferred revolve carriers. So they stay
+  `open`, behind DECIDE-9's successor
+  `the-read-at-its-node-relabels-a-cancellation-above-it` (P2), which
+  is the next DECIDE unit.
+
+## 2026-10-06 — DECIDE-10 spec'd: the read behind its parent; single FULL review
+
+DECIDE-9's review showed the class its spec suspected is real in the
+tier: the read answers a `min`/`max`/`Select` node before its parent
+can cancel it against an equal node. No measured document carries it
+today, so this unit restores the read's contract for the class.
+
+**Review tier: single FULL review**, as DECIDE-9's. Candidate 2 (read
+at the decision form only) withdraws what DECIDE-3 ratified, so it is
+measured as a comparison and never shipped from this unit; a Phase 1
+that finds only it working stops and goes to Ev.
+
+Spec `docs/DECIDE-10-SPEC.md`. Branch `decide/10-read-behind-the-parent`
+from `main`.

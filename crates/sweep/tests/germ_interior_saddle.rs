@@ -21,6 +21,7 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
+use sweep::test_support::finished;
 use topo::{Body, BooleanOp};
 
 /// A profile in the `yz` plane at `x = x0`, extruded `dist` along `x`.
@@ -78,12 +79,16 @@ fn bracket() -> Body<f64> {
 
 /// The arc prism and the bracket, one solid.
 fn arc_bracket() -> Body<f64> {
-    topo::union(&arc_prism(), &bracket(), Tol::witness())
+    let t = Tol::witness();
+    let prism = finished("the arc prism", arc_prism(), t);
+    let bracket = finished("the bracket", bracket(), t);
+    topo::union(&prism, &bracket, t)
         .expect("the fixture's union answers")
         .body()
         .expect("non-empty")
         .body
         .clone()
+        .into_body()
 }
 
 fn volume(b: &Body<f64>) -> f64 {
@@ -99,8 +104,11 @@ type OpRow = (
     Result<topo::BooleanResult<f64>, topo::BooleanError>,
 );
 
+/// Every op on `a` and `b`, each finished once as an operand.
 fn every_op(a: &Body<f64>, b: &Body<f64>) -> [OpRow; 4] {
     let t = Tol::witness();
+    let a = &finished("operand A", a.clone(), t);
+    let b = &finished("operand B", b.clone(), t);
     [
         (BooleanOp::Union, "A ∪ B", topo::union(a, b, t)),
         (BooleanOp::Intersect, "A ∩ B", topo::intersect(a, b, t)),

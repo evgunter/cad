@@ -27,7 +27,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use test_utils::refusal::tagged;
 
 use editor_core::{
@@ -102,8 +104,9 @@ fn kiss_part(label: &str) -> ProfileDoc {
     doc
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// A `Rest` mate declaring instance `a`'s TOP cap against instance
@@ -117,12 +120,7 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// solved mate DECLARES, not about re-testing the coset fold.
 /// `seat = 1.0` puts `b`'s bottom exactly on `a`'s top (the unit cube
 /// is z ∈ [0,1]); anything larger leaves a definite gap.
-fn rest_mate(
-    body: RecipeNodeId,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-    seat: f64,
-) -> Node<editor_core::ProfileProgram> {
+fn rest_mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, seat: f64) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(in_part(a, body, CapEnd::End)),
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
@@ -146,7 +144,7 @@ fn rest_mate_at(
     a: RecipeNodeId,
     b: RecipeNodeId,
     origin: [f64; 3],
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(in_part(a, body, CapEnd::End)),
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
@@ -1659,7 +1657,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
             [MintRefusal::Reference { why, .. }] => {
-                assert_eq!(*why, editor_core::RefusedRef::Vanished);
+                assert_eq!(*why, editor_core::RefusedRef::Vanished { by: None });
             }
             rows => panic!("one mate refused, so one row: {rows:?}"),
         },

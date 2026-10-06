@@ -194,7 +194,7 @@ const OLDER_SHAPED: &str = concat!(
     "calar\",\"unit\":\"\"}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Li",
     "teral\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Sc",
     "alar\",\"unit\":\"\"}}]}}}},\"order\":[16481222604345390933,11240919837605776152,147306",
-    "74704444354654],\"roots\":[14730674704444354654],\"params\":{},\"epsilon\":1e-09,\"witne",
+    "74704444354654],\"roots\":[14730674704444354654],\"vars\":{},\"epsilon\":1e-09,\"witne",
     "sses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
@@ -254,15 +254,17 @@ fn bytes_that_are_not_json_stay_parse() {
 }
 
 /// **A document saved before an extrude carried its side refuses
-/// typed, naming `side`.** The bytes are `crates/pncad/tests/
-/// plate_param.pncad` exactly as main held it before the side became
-/// structural (Ev, #3551), frozen here so the row reads real history
-/// rather than a mutation of today's save: the field is required, so
-/// the refusal names it and carries the regenerate recourse once. It
-/// is kept as `.cad`, as `bool13_goldens/`' older bytes are: refusal
-/// evidence, not a member of the `*.pncad` corpus the load rows walk.
+/// typed, naming the first thing this build cannot read.** The bytes
+/// are `crates/pncad/tests/plate_param.pncad` exactly as main held it
+/// before the side became structural (Ev, #3551), frozen here so the
+/// row reads real history rather than a mutation of today's save. They
+/// predate readers by id too, and a reader by name is the first thing
+/// the parser meets that this build cannot read, so the refusal names
+/// it (`Param`) and carries the regenerate recourse once. It is kept as
+/// `.cad`, as `bool13_goldens/`' older bytes are: refusal evidence, not
+/// a member of the `*.pncad` corpus the load rows walk.
 #[test]
-fn a_document_from_before_the_extrude_side_refuses_naming_side() {
+fn a_document_from_before_the_extrude_side_refuses_unreadable() {
     let text = include_str!("before_extrude_side/plate_param.cad");
     assert!(
         !text.contains("\"side\""),
@@ -271,9 +273,12 @@ fn a_document_from_before_the_extrude_side_refuses_naming_side() {
     let err = load(text, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, PersistError::Unreadable { .. }),
-        "a missing required field is Unreadable: {err:?}"
+        "an unknown variant is Unreadable: {err:?}"
     );
     let msg = err.to_string();
-    assert!(msg.contains("`side`"), "the refusal names the field: {msg}");
+    assert!(
+        msg.contains("unknown variant `Param`"),
+        "the refusal names what it cannot read: {msg}"
+    );
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
 }

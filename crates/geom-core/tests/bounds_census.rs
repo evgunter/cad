@@ -304,16 +304,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/battery.rs",
-        subject: "short_arm",
-        why: Payload(
-            "the chain-arm refusal's constructor: the arm `fillet3_chain_arm` already \
-             decided non-positive goes through `measured` into the `Indeterminate` \
-             payload and stops. It reads no bracket itself and nothing downstream \
-             branches on it",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/battery.rs",
         subject: "measured",
         why: Payload(
             "the one bracket read behind every blend refusal payload: both ends into a \
@@ -423,6 +413,14 @@ const ROSTER: &[Site] = &[
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracketed",
         why: Payload("as `bracket_vector`, over a decided unit direction (`UnitSpanBox`)"),
+    },
+    Site {
+        path: "crates/topo/src/boolean/ops.rs",
+        subject: "centred_box",
+        why: Payload(
+            "the extent scan's ball box: a centre's and a radius's brackets into an f64 \
+             `bvh::Aabb`, padded, and stop",
+        ),
     },
     Site {
         path: "crates/topo/src/chart_region.rs",

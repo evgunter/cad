@@ -11,6 +11,7 @@ use geom_core::{Affine3, Band, Decide, Point3, Sign, UnitVec3, Vec3};
 use super::{PATTERN_DIRECTION_ROLE, escalated, turns_off, unit};
 use crate::eval::{NodeErrorKind, StepTurns};
 use crate::expr::Expr;
+use crate::formula::Formula;
 
 /// The funnel name of a linear pattern's spacing sign.
 pub(crate) const PATTERN_SPACING: &str = "pattern_spacing";
@@ -111,12 +112,12 @@ impl<T: Decide> SteppedOperands<T> {
             Sign::Zero => StepTurns::Whole,
             Sign::Positive => match turns_held(step, band)? {
                 Held::Whole => StepTurns::Whole,
-                Held::Turns(held) => StepTurns::Within(within_turn(authored, positive, held)),
+                Held::Turns(held) => within_turn(authored, positive, held),
                 Held::Beyond => StepTurns::Unresolved,
             },
         };
         Err(NodeErrorKind::FullRangeStep {
-            step: crate::expr::unparse(authored),
+            step: authored.clone(),
             evaluated: authored.literal_value().is_none().then_some(seen.margin),
             turns,
         })
@@ -164,8 +165,9 @@ fn turns_held<T: Decide>(step: T, band: Band) -> Result<Held, NodeErrorKind> {
 /// `authored`, `held` turns nearer zero, in the grammar a user types:
 /// a literal as one literal in its own unit, anything else less (or,
 /// for a negative step, plus) the turns in degrees. Either lands
-/// every copy where `authored` does, up to rounding.
-fn within_turn(authored: &Expr, positive: bool, held: u64) -> String {
+/// every copy where `authored` does, up to rounding. A formula the
+/// expression bound refuses is [`StepTurns::Over`].
+fn within_turn(authored: &Expr, positive: bool, held: u64) -> StepTurns {
     let sign = if positive { 1.0 } else { -1.0 };
     let literal = authored.literal_value().zip(
         authored
@@ -175,38 +177,30 @@ fn within_turn(authored: &Expr, positive: bool, held: u64) -> String {
     let within = match literal {
         Some((radians, unit)) => {
             let turn = std::f64::consts::TAU / unit.factor();
-            Expr::angle_in(radians / unit.factor() - sign * turn * held as f64, unit)
+            Formula::angle_in(radians / unit.factor() - sign * turn * held as f64, unit)
         }
-        None => Expr::angle_in(360.0 * held as f64, quantity::DEG).and_then(|turns| {
+        None => Formula::angle_in(360.0 * held as f64, quantity::DEG).and_then(|turns| {
             if positive {
-                Expr::sub(authored.clone(), turns)
+                Formula::sub(Formula::from(authored), turns)
             } else {
-                Expr::add(authored.clone(), turns)
+                Formula::add(Formula::from(authored), turns)
             }
         }),
     };
-    within.map_or_else(
-        |_| {
-            let op = if positive { '-' } else { '+' };
-            format!("{} {op} {} deg", crate::expr::unparse(authored), 360 * held)
-        },
-        |e| crate::expr::unparse(&e),
-    )
+    within.map_or(StepTurns::Over(held), StepTurns::Within)
 }
 
 /// `authored`, negated, in the grammar a user types: a literal's own
 /// value negated (a zero stays `0.0`), anything else under a unary
 /// minus. Either evaluates to the exact negation, so the direction it
-/// spells steps the copies where the negative spacing did.
-fn negated(authored: &Expr) -> String {
-    let flipped = match authored.literal_value() {
-        Some(v) => Expr::literal(-v + 0.0, authored.dim()),
-        None => Expr::neg(authored.clone()),
-    };
-    flipped.map_or_else(
-        |_| format!("-({})", crate::expr::unparse(authored)),
-        |e| crate::expr::unparse(&e),
-    )
+/// spells steps the copies where the negative spacing did. `None`
+/// when the expression bound refuses the negation.
+fn negated(authored: &Expr) -> Option<Formula> {
+    match authored.literal_value() {
+        Some(v) => Formula::literal(-v + 0.0, authored.dim()),
+        None => Formula::neg(Formula::from(authored)),
+    }
+    .ok()
 }
 
 /// The rigid map of placement `i ≥ 1` under a STEPPED rule (linear or

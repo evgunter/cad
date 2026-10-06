@@ -13,6 +13,7 @@ use geom_core::{Band, ErrorTextReading, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
@@ -225,8 +226,8 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     .unwrap();
     let clipped = boolean_op_with(
         BooleanOp::Intersect,
-        &c1,
-        &c2,
+        &finished("the unit cube", c1, Tol::witness()),
+        &finished("the tilted cube", c2, Tol::witness()),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         Tol::witness(),

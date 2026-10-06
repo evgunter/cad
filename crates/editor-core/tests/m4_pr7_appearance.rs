@@ -11,8 +11,8 @@ use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
-    DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, evaluate,
+    EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -260,7 +260,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     // diff: appearance-only change is reported, and only it.
     let d = doc2.diff(&doc3);
     assert!(d.appearance_changed);
-    assert!(d.nodes.is_empty() && d.params.is_empty() && !d.metadata_changed);
+    assert!(d.nodes.is_empty() && d.vars.is_empty() && !d.metadata_changed);
     assert!(!d.is_empty());
 
     // Replay from empty reproduces the appearance bit-identically.
@@ -268,13 +268,13 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(plane).unwrap().clone()),
+            node: Box::new(doc3.node(plane).unwrap().authored()),
         },
         DocEdit::InsertNode {
             node: Box::new(crate::fixture::as_authored(doc3.node(p).unwrap())),
         },
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(ext).unwrap().clone()),
+            node: Box::new(doc3.node(ext).unwrap().authored()),
         },
         DocEdit::SetAppearance {
             name: cap,
@@ -328,9 +328,9 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     // dyadic, still-shallow pip depth).
     let (doc2, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
+        DocEdit::DefineVar {
+            var: VarName::from_static("pip_depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
         },
     );
     let ev2 = rerun(&doc2, &ev1);
@@ -546,7 +546,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         doc,
         Node::Pattern {
             input: ext,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -576,7 +576,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     let ev = run(&doc);
@@ -596,7 +596,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(3),
+            expr: Formula::count(3),
         },
     );
     assert!(run(&doc).appearance.is_lossless());

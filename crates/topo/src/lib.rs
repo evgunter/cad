@@ -172,6 +172,7 @@ pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
+pub mod joint;
 pub(crate) mod live;
 // The one statement of a stored planar loop's signed winding, shared by
 // the merge's role assigner and tier 3's check 6. Non-doc comment for
@@ -214,6 +215,8 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 pub(crate) mod review_m1_pr5_internal;
+#[cfg(test)]
+mod row_walk_proofs;
 // The shared vertex-neighborhood sector modules — top-level siblings
 // of `boolean/` and `splitting/` on purpose: both lanes ask these
 // questions, so neither hosts them. Each module's own docs carry
@@ -285,13 +288,33 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::test_support_fixtures::{
-        CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
-        assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
-        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
-        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_ring_face,
-        prism, prism_ops, prism_z, split_plane, straddle_seat,
+        CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
+        StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
+        cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube,
+        describe_as_intersections, drill_hole, flush_declarations, geometric_cube, holed_block,
+        identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
+        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// `body` finished for a door that takes finished bodies (the
+    /// boolean's): through the scalar's at-rest gate
+    /// ([`crate::AtRestPolicy::gate_at_rest_kept`]).
+    ///
+    /// # Panics
+    ///
+    /// Naming `what` and the validator's findings, where the gate
+    /// refuses it — a fixture that is not a finished body.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn finished<T: crate::AtRestPolicy>(
+        what: &str,
+        body: Body<T>,
+        tol: geom_core::Tol,
+    ) -> crate::AtRestBody<T> {
+        T::gate_at_rest_kept(body, tol)
+            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    }
 
     /// Which bridge a graft ran ([`take_graft_bridges`]).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -355,6 +378,56 @@ pub mod test_support {
         crate::boolean::through_the_join(op, a, b, tol)
     }
 
+    /// The join's own refusal of `op` under `decls`, before the
+    /// declared-REST door may take it over (`boolean::join_refusal`):
+    /// `None` where the join connects. A declared union that builds
+    /// while this is `Some` was built by the zip.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal.
+    pub fn boolean_join_refusal(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        decls: &crate::BooleanDeclarations,
+        tol: geom_core::Tol,
+    ) -> Result<Option<crate::BooleanError>, crate::BooleanError> {
+        crate::boolean::join_refusal(op, a, b, decls, tol)
+    }
+
+    /// The operand's maximal-faces gate (F7) alone, at `tol`'s band —
+    /// for a body below tier 3, which no boolean door takes, so the
+    /// gate's own reading of it stays measurable
+    /// (`boolean::maximal_faces_gate`).
+    ///
+    /// # Errors
+    ///
+    /// The gate's refusal.
+    pub fn maximal_faces_gate(
+        body: &Body<f64>,
+        operand: crate::Operand,
+        tol: geom_core::Tol,
+    ) -> Result<(), crate::BooleanError> {
+        crate::boolean::maximal_faces_gate(body, operand, tol)
+    }
+
+    /// The join's section segments of `op`: the pair-record count and
+    /// each segment's two germ sites (`boolean::section_segment_sites`).
+    /// `None` where the reduction registers no pair.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal, or the matcher's.
+    pub fn boolean_segment_sites(
+        op: crate::BooleanOp,
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Option<crate::boolean::SegmentSites>, crate::BooleanError> {
+        crate::boolean::section_segment_sites(op, a, b, tol)
+    }
+
     /// The direct split run through its join: the scratch body with
     /// every null edge killed, before the finish and the closing mint
     /// (`splitting::through_the_join`).
@@ -363,11 +436,67 @@ pub mod test_support {
     ///
     /// The reduction's or the join's refusal.
     pub fn split_through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
-        operand: &Body<T>,
+        operand: &crate::AtRestBody<T>,
         plane: &crate::SplitPlane<T>,
         tol: geom_core::Tol,
     ) -> Result<Body<T>, crate::SplitError> {
         crate::splitting::through_the_join(operand, plane, tol)
+    }
+
+    /// The split's reduction over a closed body tier 3 does not finish
+    /// (`splitting::reduce`, [`crate::split_reduce`] past its
+    /// finished-body gate). For the rows whose pose no finished body
+    /// realizes — a prism with a straight profile corner keeps the edge
+    /// between its coplanar walls a scaffold — and which pin that
+    /// refusal themselves. It reads tier 2 itself: the pipeline past the
+    /// gate holds a null edge unreachable, so a body tier 2 refuses
+    /// panics here, naming its findings.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal.
+    pub fn split_reduce_unfinished<T: geom_core::Decide + crate::props::AtRestPolicy>(
+        body: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::SplitReduction<T>, crate::SplitReduceError> {
+        tier_two_clean("split_reduce_unfinished", body);
+        crate::splitting::reduce(body, plane, tol)
+    }
+
+    /// The premise of the doors past the split's finished-body gate:
+    /// `body` passes tier 2.
+    #[allow(clippy::panic)]
+    fn tier_two_clean<T: geom_core::Real>(door: &str, body: &Body<T>) {
+        if let Err(errors) = crate::validate_closed(body) {
+            panic!("{door}: tier 2 refuses the body, outside the door's premise: {errors:?}");
+        }
+    }
+
+    /// The split's carrier gate and vertex sweep over a closed body tier
+    /// 3 does not finish ([`crate::vertex_sides`] past its finished-body
+    /// gate), for the rows whose fixture relabels a face to a kind the
+    /// carrier gate reads, which strands the face's edges below tier 3.
+    /// It reads tier 2 itself, as [`split_reduce_unfinished`] does: a
+    /// body tier 2 refuses panics here, naming its findings.
+    ///
+    /// # Errors
+    ///
+    /// The carrier gate's or the sweep's refusal.
+    #[allow(clippy::type_complexity)]
+    pub fn split_carrier_gate<T: geom_core::Decide>(
+        body: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<
+        (
+            slotmap::SecondaryMap<crate::VertexKey, crate::PlaneSide>,
+            Vec<crate::VertexKey>,
+        ),
+        crate::SplitReduceError,
+    > {
+        tier_two_clean("split_carrier_gate", body);
+        crate::splitting::carrier_gate_and_sides(body, plane, tol)
     }
 
     /// **Which decision a Boolean refusal came from**, as the executed-
@@ -394,9 +523,7 @@ pub mod test_support {
         let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
             || matches!(
                 err.kind(),
-                BooleanErrorKind::ClassificationInvariant
-                    | BooleanErrorKind::CorruptOperand
-                    | BooleanErrorKind::JoinDesync
+                BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
             );
         (key, defect)
     }
@@ -606,9 +733,9 @@ pub use body::Body;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
-    CarriedContacts, CarriedVe, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation,
-    Cell, Coincide, CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError,
-    Contradiction, Corruption, CurveContact, DeclarationRead, DiscardRow, EdgeJoin,
+    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
+    Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
+    ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow, EdgeJoin,
     FaceContainment, FacePairDeclaration, HeldEdge, LeverArm, NeighbourOffset, NullEdgePairRecord,
     Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
@@ -621,6 +748,7 @@ pub use boolean::{
     oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
     subtract_with, tangent_pair_relation, union, union_with,
 };
+pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -643,7 +771,10 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-pub use euler::{EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+pub use euler::{
+    BadArgument, EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
+    RechartDoor,
+};
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
@@ -671,8 +802,8 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
-    OutlineVerdict, SkippedMerge,
+    DihedralReading, EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision,
+    MergeKind, MergedGroup, OutlineVerdict, SkippedMerge,
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
@@ -684,7 +815,7 @@ pub use pcurves::{
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
     ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
-    TargetUnreached, VolumeEnclosure, classify_shells, classify_shells_of,
+    TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
     classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
@@ -697,9 +828,7 @@ pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
     SurfaceKind, SurfaceKindSet,
 };
-pub use readback::{
-    DanglingRef, EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError,
-};
+pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
@@ -712,12 +841,12 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ArcSideCase, ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision,
-    LoopContainment, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
-    SectionEdge, SectionError, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind,
-    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
-    SplitReduction, SplitResult, Uncrossable, UncrossableCarrier, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ConicCrossingsCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord,
+    OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionError,
+    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
+    SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,
+    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
+    split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

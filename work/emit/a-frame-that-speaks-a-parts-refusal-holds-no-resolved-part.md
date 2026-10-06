@@ -2,11 +2,13 @@
 id: a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part
 kind: unit
 title: No frame holds a resolved part, so a part's carried level and fault keep their tags (line_in_part and PartFault::spoken have no caller)
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-06
 priority: P3
 cost: M
-design: true
+pr: 4090
+branch: emit/part-labels-at-the-seam
 parent: node-labels-are-document-data
 refs: [viewer-panes-speak-the-kernel-refusals-they-draw]
 ---
@@ -39,3 +41,14 @@ So `tree::carried_lines` says a part's level by tag through `CarriedLevel::line_
 **Under (a), (b) or (d)**, the instance row's own message needs a kernel door that speaks the `Part` arm's fault from the part (or from its snapshot). Without one, the row says its fault by tag while the level under it says labels. `tests/part_root_carried.rs` asserts each carried line equals `error.to_string()` (by tag) and calls that "as its part's own tree draws it". The part's own tree draws `error.spoken(part)`, so that row moves with this one.
 
 **Why P3.** It reaches only an instance whose part fails, and only the part's node labels. The tag line still names the file (`CarriedLine::document`) and the repair ("open the part and repair node …"), and opening the part shows the labels. Nothing is mis-said: the tag is the honest spelling where no document is held. The parent's P2 was for host-document nodes said by tag, which a reader of this document cannot look up.
+
+## Ruled (Ev, PR 3839, 2026-10-06)
+
+Ev approved option (d) at the seam, and asked that Band 1's clause state the general rule rather than a part exception. It now reads: a value the evaluation memo reuses holds a label only when its memo key fixes that label. A part's labels are in its pin and the pin is in the instance's key, so the rule allows them on the fault (`docs/DESIGN.md` Band 1 "Node labels", fork-log row 71).
+
+**What to build:**
+- In `product_fault` (`editor-core/src/eval/parts.rs`), record the part's nodes the fault names as a `HeldNodes` (`held_by`), while the pinned part is in hand. Carry them on `PartFault` and on `CarriedIn::Part`.
+- Say them with `Speaker::held` everywhere a part's fault or carried level is spoken: `NodeErrorKind`'s `Part` arm, `CarriedLevel::line_in`, `tree::carried_lines`, `tree::status_of`, and the Python `__cause__` chain. `PartFault`'s `Eq` derive says why the snapshot is harmless to equality (equal pins mean equal labels).
+- Delete `CarriedLevel::line_in_part`, `PartFault::spoken` and `assert_pinned`.
+- Move `tests/part_root_carried.rs`'s carried-line assertions to the labelled spelling.
+- Update `spoken.rs`'s module doc, where it restates the memo rule, to the general wording.

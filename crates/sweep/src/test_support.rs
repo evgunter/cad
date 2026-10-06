@@ -190,12 +190,7 @@ pub fn pocket_die_parts(x0: f64, y0: f64, z0: f64, tol: Tol) -> (Body<f64>, Body
 /// spell.
 pub fn pocket_die(x0: f64, y0: f64, z0: f64, tol: Tol) -> Body<f64> {
     let (block, cutter) = pocket_die_parts(x0, y0, z0, tol);
-    topo::subtract(&block, &cutter, tol)
-        .expect("the die's pocket cuts")
-        .body()
-        .expect("the die is a body")
-        .body
-        .clone()
+    realized(BooleanOp::Subtract, &block, &cutter, tol)
 }
 
 /// An axis-aligned box spanning `x` x `y` x `z`, as the half-open
@@ -217,18 +212,26 @@ pub fn brick<T: Decide + topo::AtRestPolicy>(
 }
 
 /// **Every boolean output is a legal boolean operand** (DESIGN,
-/// "Maximal faces"): asserts that `body` passes the next boolean's
-/// operand gates, by uniting it with a unit brick at `[50, 51]³` that it
-/// does not touch, so nothing but those gates runs on it. Panics naming
-/// `what` and the gate's refusal. The suites' bodies lie well inside
-/// `|x| < 50`; a body that reached the brick would be read as an
-/// overlap, not as a gate.
+/// "Maximal faces"): asserts that `body` is a finished body and passes
+/// the next boolean's operand gates, by uniting it with a unit brick at
+/// `[50, 51]³` that it does not touch, so nothing but those gates runs
+/// on it. Panics naming `what` and the refusal. The suites' bodies lie
+/// well inside `|x| < 50`; a body that reached the brick would be read
+/// as an overlap, not as a gate.
 pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
-    let far = brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol);
-    if let Err(e) = topo::union(body, &far, tol) {
+    let body = topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("{what}: the result is no finished body: {e:?}"));
+    let far = finished(
+        "the far brick",
+        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        tol,
+    );
+    if let Err(e) = topo::union(&body, &far, tol) {
         panic!("{what}: the result is no legal operand: {e:?}");
     }
 }
+
+pub use topo::test_support::finished;
 
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
@@ -1775,12 +1778,17 @@ pub fn rod_with_flat_at(
         .collect(),
     );
     let cutter = extruded(sketch_at(-0.5 * len), vec![square], 2.0 * len, tol);
+    let rod = topo::AtRestBody::validate(rod, tol)
+        .map_err(|e| format!("the rod is not a finished body: {e:?}"))?;
+    let cutter = topo::AtRestBody::validate(cutter, tol)
+        .map_err(|e| format!("the cutter is not a finished body: {e:?}"))?;
     Ok(topo::subtract(&rod, &cutter, tol)
         .map_err(|e| format!("the flat does not mill: {e:?}"))?
         .body()
         .expect("a body remains")
         .body
-        .clone())
+        .clone()
+        .into_body())
 }
 
 /// **The `+y` crease of a rod with a flat** (or of any body whose
@@ -1993,21 +2001,23 @@ pub fn pocket_of_arcs(n: usize, l: f64, r: f64, floor: f64, tol: Tol) -> Body<f6
     realized(BooleanOp::Subtract, &cube(l, tol), &tool, tol)
 }
 
-/// **The realized boolean of two fixtures, as a body** — `op` through
-/// the public door with no declarations and `SweepStrategy::Realized`,
-/// the body unwrapped. The one spelling: a suite that builds a boss, a
-/// pip or a bore calls this rather than the eleven lines it replaces.
+/// **The realized boolean of two fixtures, as a body** — each operand
+/// finished ([`finished`]), then `op` through the public door with no
+/// declarations and `SweepStrategy::Realized`, the body unwrapped. The
+/// one spelling: a suite that builds a boss, a pip or a bore calls this
+/// rather than the eleven lines it replaces.
 ///
 /// # Panics
 ///
-/// If the boolean refuses or leaves no body — a fixture bug, louder as
-/// a panic than as an empty answer.
+/// If an operand is not a finished body, or the boolean refuses or
+/// leaves no body — a fixture bug, louder as a panic than as an empty
+/// answer.
 #[must_use]
 pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f64> {
     boolean_op_with(
         op,
-        a,
-        b,
+        &finished("the fixture's operand A", a.clone(), tol),
+        &finished("the fixture's operand B", b.clone(), tol),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         tol,
@@ -2017,6 +2027,7 @@ pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f
     .expect("the fixture's boolean is a body")
     .body
     .clone()
+    .into_body()
 }
 
 /// The `n` bulged vertices of a circle of radius `r` about `c`,

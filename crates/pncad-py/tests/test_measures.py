@@ -42,18 +42,18 @@ from pncad import (
     AssertionDir,
     Doc,
     DocEdit,
-    DocParam,
-    DocParamValue,
+    FreeVar,
+    FreeValue,
     EditError,
     EntityKind,
     EvaluationError,
-    Expr,
+    Formula,
     GeomPred,
     MeasureExpr,
     MeasurePrimitive,
     NamePat,
     Node,
-    ParamName,
+    VarName,
     Selector,
     SurfaceKind,
     circle,
@@ -65,18 +65,18 @@ from pncad import (
 )
 
 SQUARE = [
-    (Expr.length_in(0, m), Expr.length_in(0, m)),
-    (Expr.length_in(1, m), Expr.length_in(0, m)),
-    (Expr.length_in(1, m), Expr.length_in(1, m)),
-    (Expr.length_in(0, m), Expr.length_in(1, m)),
+    (Formula.length_in(0, m), Formula.length_in(0, m)),
+    (Formula.length_in(1, m), Formula.length_in(0, m)),
+    (Formula.length_in(1, m), Formula.length_in(1, m)),
+    (Formula.length_in(0, m), Formula.length_in(1, m)),
 ]
 
 
 def slab(doc, elevation, height=1.0):
     """A 1 m x 1 m x `height` prism whose base sits at `elevation`."""
-    plane = doc.sketch_frame(elevation=Expr.length_in(elevation, m))
+    plane = doc.sketch_frame(elevation=Formula.length_in(elevation, m))
     outline = doc.insert(Node.polygon(SQUARE, plane=plane))
-    return doc.insert(Node.extrude(outline, Expr.length_in(height, m)))
+    return doc.insert(Node.extrude(outline, Formula.length_in(height, m)))
 
 
 def cylinder(doc, centre_x, radius, height=0.5):
@@ -84,7 +84,7 @@ def cylinder(doc, centre_x, radius, height=0.5):
     outline = doc.insert(
         Node.profile(circle((centre_x * m, 0 * m), radius * m), doc.sketch_frame())
     )
-    return doc.insert(Node.extrude(outline, Expr.length_in(height, m)))
+    return doc.insert(Node.extrude(outline, Formula.length_in(height, m)))
 
 
 def wall(ev, node):
@@ -187,12 +187,12 @@ class TestTheExpressionLanguage(unittest.TestCase):
         self.assertEqual(MeasureExpr.add(length, length).dimension, "length")
 
     def test_a_document_expression_enters_as_a_leaf(self):
-        """The only door inward is the TEXT one: `Doc.parse_expr` runs
+        """The only door inward is the TEXT one: `Doc.parse_formula` runs
         the checking parser, and a `MeasureExpr` leaf carries what it
         answered."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("pad"), DocParam.length(1 * mm)))
-        leaf = MeasureExpr.value(doc.parse_expr("pad"))
+        doc.apply(DocEdit.declare_var(VarName("pad"), FreeVar.length(1 * mm)))
+        leaf = MeasureExpr.value(doc.parse_formula("pad"))
         self.assertEqual(leaf.dimension, "length")
         # A value leaf holds no primitive: it reaches out of the
         # document's arithmetic, never into geometry.
@@ -203,7 +203,7 @@ class TestTheExpressionLanguage(unittest.TestCase):
 
         The refusal is `LiteralError` carrying the kernel's own
         mismatch tag — the same refusal a document expression earns,
-        because this language asks `Expr`'s constructors rather than
+        because this language asks `Formula`'s constructors rather than
         restating the table. `value` is `None`: the door refuses over
         two operands' DIMENSIONS and has no single number to name.
         """
@@ -216,9 +216,9 @@ class TestTheExpressionLanguage(unittest.TestCase):
 
     def test_the_product_and_quotient_rules_are_the_kernels(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("half"), DocParam.scalar(0.5)))
+        doc.apply(DocEdit.declare_var(VarName("half"), FreeVar.scalar(0.5)))
         length = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
-        scalar = MeasureExpr.value(doc.parse_expr("half"))
+        scalar = MeasureExpr.value(doc.parse_formula("half"))
         self.assertEqual(MeasureExpr.mul(length, scalar).dimension, "length")
         self.assertEqual(MeasureExpr.div(length, scalar).dimension, "length")
         # Two lengths multiplied is not a length, and this language has
@@ -353,12 +353,12 @@ class TestTheClosedForms(unittest.TestCase):
         doc = Doc()
         offset, radius = 0.30, 0.2
         doc.apply(
-            DocEdit.set_doc_param(ParamName("hole_r"), DocParam.length(radius * m))
+            DocEdit.declare_var(VarName("hole_r"), FreeVar.length(radius * m))
         )
         left = cylinder(doc, -offset, radius)
         right = cylinder(doc, offset, radius)
         ev = evaluate(doc)
-        r = MeasureExpr.value(doc.parse_expr("hole_r"))
+        r = MeasureExpr.value(doc.parse_formula("hole_r"))
         web = MeasureExpr.sub(
             MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
             MeasureExpr.add(r, r),
@@ -387,14 +387,14 @@ class TestTheClosedForms(unittest.TestCase):
         prism = slab(doc, 0.0)
         moved = doc.insert(
             Node.transform(prism, (
-                Expr.length_in(travel, m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(travel, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ), Expr.angle_in(0, rad))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
+            ), Formula.angle_in(0, rad))
         )
         ev = evaluate(doc)
         corner = sorted(ev.all_vertices(moved))[0]
@@ -472,7 +472,7 @@ class TestTheFourthVerb(unittest.TestCase):
         hidden. NOT a poisoning — the measure did not fail."""
         doc, node = self.clearance_document()
         assertion = doc.insert(
-            Node.assertion(node, AssertionDir.AtLeast, doc.parse_expr("1 mm"))
+            Node.assertion(node, AssertionDir.AtLeast, doc.parse_formula("1 mm"))
         )
         answer = verdict(doc, assertion)
         self.assertEqual(answer.status, "Unevaluated")
@@ -509,7 +509,7 @@ class TestTheAssertion(unittest.TestCase):
         walls, and an assertion whose bound is a PARAMETER."""
         doc = Doc()
         doc.apply(
-            DocEdit.set_doc_param(ParamName("bound"), DocParam.length(bound_mm * mm))
+            DocEdit.declare_var(VarName("bound"), FreeVar.length(bound_mm * mm))
         )
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
@@ -523,12 +523,12 @@ class TestTheAssertion(unittest.TestCase):
         return doc, measure
 
     def test_one_parameter_edit_flips_the_verdict(self):
-        """The bound is an `Expr`, so it reaches a document parameter —
+        """The bound is a `Formula`, so it reaches a document parameter —
         which is what makes a recorded requirement re-decidable without
         re-authoring the node."""
         doc, measure = self.web_document(500.0)
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_expr("bound"))
+            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula("bound"))
         )
         self.assertEqual(doc.node_kind(assertion), "assertion")
 
@@ -541,8 +541,8 @@ class TestTheAssertion(unittest.TestCase):
         self.assertAlmostEqual(holds.bound, 0.5, places=12)
 
         doc.apply(
-            DocEdit.set_doc_param_value(
-                ParamName("bound"), DocParamValue.length(700 * mm)
+            DocEdit.set_var_value(
+                VarName("bound"), FreeValue.length(700 * mm)
             )
         )
         violated = verdict(doc, assertion)
@@ -555,12 +555,12 @@ class TestTheAssertion(unittest.TestCase):
     def test_the_other_direction_gates_the_other_way(self):
         doc, measure = self.web_document(700.0)
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtMost, doc.parse_expr("bound"))
+            Node.assertion(measure, AssertionDir.AtMost, doc.parse_formula("bound"))
         )
         self.assertEqual(verdict(doc, assertion).status, "Holds")
         doc.apply(
-            DocEdit.set_doc_param_value(
-                ParamName("bound"), DocParamValue.length(500 * mm)
+            DocEdit.set_var_value(
+                VarName("bound"), FreeValue.length(500 * mm)
             )
         )
         self.assertEqual(verdict(doc, assertion).status, "Violated")
@@ -572,7 +572,7 @@ class TestTheAssertion(unittest.TestCase):
         doc, measure = self.web_document(700.0)
         without = doc.save()
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_expr("bound"))
+            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula("bound"))
         )
         self.assertEqual(verdict(doc, assertion).status, "Violated")
         # Every node that existed before the assertion still evaluates
@@ -588,17 +588,17 @@ class TestTheAssertion(unittest.TestCase):
         nothing, so the assertion is poisoned rather than
         `Unevaluated`."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("s"), DocParam.scalar(0.0)))
+        doc.apply(DocEdit.declare_var(VarName("s"), FreeVar.scalar(0.0)))
         # `13 m / s` with `s` bound to zero — the DIVISION is the
         # measure language's, so each leaf evaluates fine and the
         # measure arithmetic is what goes non-finite.
         over_zero = MeasureExpr.div(
-            MeasureExpr.value(doc.parse_expr("13 m")),
-            MeasureExpr.value(doc.parse_expr("s")),
+            MeasureExpr.value(doc.parse_formula("13 m")),
+            MeasureExpr.value(doc.parse_formula("s")),
         )
         measure = doc.insert(Node.measure(over_zero, []))
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_expr("1 m"))
+            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula("1 m"))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(measure)
@@ -671,7 +671,7 @@ class TestTheRefusals(unittest.TestCase):
     def test_an_assertion_must_reference_a_measure(self):
         doc, node, _ = self.one_face()
         with self.assertRaises(EditError) as caught:
-            doc.insert(Node.assertion(node, AssertionDir.AtLeast, doc.parse_expr("1 m")))
+            doc.insert(Node.assertion(node, AssertionDir.AtLeast, doc.parse_formula("1 m")))
         self.assertEqual(caught.exception.variant, "assertion_target")
 
     def test_an_assertion_compares_like_with_like_or_not_at_all(self):
@@ -692,12 +692,12 @@ class TestTheRefusals(unittest.TestCase):
         )
         with self.assertRaises(EditError) as caught:
             doc.insert(
-                Node.assertion(measure, AssertionDir.AtMost, doc.parse_expr("1 m"))
+                Node.assertion(measure, AssertionDir.AtMost, doc.parse_formula("1 m"))
             )
         self.assertEqual(caught.exception.variant, "assertion_dimension")
         # And the matching dimension is accepted, so the row above is
         # about the mismatch rather than about assertions on angles.
-        doc.insert(Node.assertion(measure, AssertionDir.AtMost, doc.parse_expr("4 rad")))
+        doc.insert(Node.assertion(measure, AssertionDir.AtMost, doc.parse_formula("4 rad")))
 
     def test_deleting_a_referenced_node_is_refused(self):
         """A measure CONSUMES the values it names, so its references
@@ -825,19 +825,19 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
 
     def authored(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("bound"), DocParam.length(1 * mm)))
+        doc.apply(DocEdit.declare_var(VarName("bound"), FreeVar.length(1 * mm)))
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
         ev = evaluate(doc)
         web = MeasureExpr.sub(
             MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-            MeasureExpr.value(doc.parse_expr("bound")),
+            MeasureExpr.value(doc.parse_formula("bound")),
         )
         measure = doc.insert(
             Node.measure(web, [(left, wall(ev, left)), (right, wall(ev, right))])
         )
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_expr("0.1 m"))
+            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula("0.1 m"))
         )
         return doc, measure, assertion
 
