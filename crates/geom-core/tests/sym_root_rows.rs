@@ -960,3 +960,184 @@ fn a_registered_zero_times_a_read_factor_is_registered() {
         );
     }
 }
+
+// ------------------------------------------------------------------
+// DECIDE-10 review probes (decide/10-review; not for merge)
+// ------------------------------------------------------------------
+
+mod decide10_review {
+    use super::*;
+
+    type Shape = (&'static str, fn() -> Sym<Interval>);
+
+    fn w(x: Sym<Interval>) -> Sym<Interval> {
+        (x + z(x)).max(lit(3.0)) - x.max(lit(3.0))
+    }
+
+    fn table(shapes: &[Shape], sets: &[(&str, SymRules)]) {
+        for (what, build) in shapes {
+            let mut line = format!("REVIEW {what}:");
+            for (name, rules) in sets {
+                let l = row(what, how(*rules, *build));
+                line.push_str(&format!(" | {name} {l}"));
+            }
+            println!("{line}");
+        }
+    }
+
+    /// Claim 2 + "build one the implementer did not": further atoms over
+    /// a form the read leaves gated and non-zero.
+    #[test]
+    fn review_class_through_other_atoms() {
+        let shapes: [Shape; 9] = [
+            ("atan2(W + x, y) - atan2(x, y)", || {
+                let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+                (w(x) + x).atan2(y) - x.atan2(y)
+            }),
+            ("floor(W + x) - floor(x)", || {
+                let x = over("x", 1.0, 2.0);
+                (w(x) + x).floor() - x.floor()
+            }),
+            ("tan(W + x) - tan(x), x in [1, 1.1]", || {
+                let x = over("x", 1.0, 1.1);
+                (w(x) + x).tan() - x.tan()
+            }),
+            ("sin(W + x) - sin(x)", || {
+                let x = over("x", 1.0, 2.0);
+                (w(x) + x).sin() - x.sin()
+            }),
+            ("sqrt(W + x) - sqrt(x)", || {
+                let x = over("x", 1.0, 2.0);
+                (w(x) + x).sqrt() - x.sqrt()
+            }),
+            ("1/(W + x) - 1/x", || {
+                let x = over("x", 1.0, 2.0);
+                lit(1.0) / (w(x) + x) - lit(1.0) / x
+            }),
+            ("copysign(y, W + x) - copysign(y, x)", || {
+                let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+                y.copysign(w(x) + x) - y.copysign(x)
+            }),
+            ("atan(atan(W + x)) - atan(atan(x))", || {
+                let x = over("x", 1.0, 2.0);
+                (w(x) + x).atan().atan() - x.atan().atan()
+            }),
+            (
+                "W * atan(W + x)  [zero factor gated, other factor gated atom]",
+                || {
+                    let x = over("x", 1.0, 2.0);
+                    w(x) * (w(x) + x).atan()
+                },
+            ),
+        ];
+        table(
+            &shapes,
+            &[
+                ("shipped", SymRules::shipped()),
+                ("read-shut", SymRules::without_the_reads()),
+            ],
+        );
+    }
+
+    /// Claim 1: rule C on. The trig closed-form cache
+    /// (`Session::trig_closed`) is keyed by the argument's digest only,
+    /// so a closed form the read-on walk built under rule C's read is
+    /// handed to the shut walk.
+    #[test]
+    fn review_rule_c_on_and_the_trig_cache() {
+        let shapes: [Shape; 6] = [
+            (
+                "sin(atan(1/(x + Z - 3))) - sin(atan(1/(x - 3))), x in [1, 1.1]",
+                || {
+                    let x = over("x", 1.0, 1.1);
+                    (lit(1.0) / (x + z(x) - lit(3.0))).atan().sin()
+                        - (lit(1.0) / (x - lit(3.0))).atan().sin()
+                },
+            ),
+            (
+                "sin(atan(1/(x - 3))) + * sqrt(x*x - 6x + 10) + 1  [does the closed form read?]",
+                || {
+                    let x = over("x", 1.0, 1.1);
+                    (lit(1.0) / (x - lit(3.0))).atan().sin()
+                        * (x * x - lit(6.0) * x + lit(10.0)).sqrt()
+                        + lit(1.0)
+                },
+            ),
+            (
+                "sin(atan((t*t - 1)/(2t))) - (t*t - 1)/(t*t + 1)  [closed form reads |t|]",
+                || {
+                    let t = over("t", 1.0, 1.1);
+                    ((t * t - lit(1.0)) / (lit(2.0) * t)).atan().sin()
+                        - (t * t - lit(1.0)) / (t * t + lit(1.0))
+                },
+            ),
+            (
+                "sin(atan((t*t + Z - 1)/(2t))) - sin(atan((t*t - 1)/(2t)))  [the leak]",
+                || {
+                    let t = over("t", 1.0, 1.1);
+                    ((t * t + z(t) - lit(1.0)) / (lit(2.0) * t)).atan().sin()
+                        - ((t * t - lit(1.0)) / (lit(2.0) * t)).atan().sin()
+                },
+            ),
+            (
+                "sin(atan(x + Z)) - sin(atan(x))  [control: no read in the root]",
+                || {
+                    let x = over("x", 1.0, 2.0);
+                    (x + z(x)).atan().sin() - x.atan().sin()
+                },
+            ),
+            ("max(x + Z, 3) - max(x, 3)  [S1]", || {
+                let x = over("x", 1.0, 2.0);
+                w(x)
+            }),
+        ];
+        table(
+            &shapes,
+            &[
+                ("shipped", SymRules::shipped()),
+                (
+                    "shipped+C",
+                    SymRules {
+                        signed_root: true,
+                        ..SymRules::shipped()
+                    },
+                ),
+                (
+                    "shipped+C, reads shut",
+                    SymRules {
+                        signed_root: true,
+                        ..SymRules::shipped()
+                    }
+                    .without_value_reads(),
+                ),
+                ("all", SymRules::all()),
+                ("all, reads shut", SymRules::all().without_value_reads()),
+            ],
+        );
+    }
+
+    /// Claim 2 at the door: the read-on DOOR form is NON-zero (an atom over
+    /// a gated argument), and the shut door walk settles it.
+    #[test]
+    fn review_door_through_an_atom() {
+        for (dial, rules) in [
+            ("shipped", SymRules::shipped()),
+            ("read shut", SymRules::without_the_reads()),
+        ] {
+            let ((out, value), counts) = with_session_rules(budget(), rules, || {
+                let x = over("x", 0.9, 1.1);
+                let sq = x * x;
+                let reg = sq.register_equal(x, Tol::witness());
+                assert!(matches!(reg, geom_core::sym::SymRegistration::Recorded));
+                let m = ((sq.max(lit(3.0)) - x.max(lit(3.0))) + sq).atan() - x.atan();
+                (
+                    geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
+                    m.value,
+                )
+            });
+            let what = format!("[x·x = x, {dial}] atan((max(x·x,3) - max(x,3)) + x·x) - atan(x)");
+            let l = row(&what, (label(out, counts), value.enclosure_probe()));
+            println!("REVIEW {what}: {l} {counts:?}");
+        }
+    }
+}
