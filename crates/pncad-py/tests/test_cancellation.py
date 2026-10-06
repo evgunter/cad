@@ -44,7 +44,7 @@ from pncad import (
     CancelToken,
     Doc,
     EvaluationError,
-    Expr,
+    Formula,
     Node,
     evaluate,
     m,
@@ -59,15 +59,15 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.literal(x0), Expr.literal(y0)),
-                (Expr.literal(x1), Expr.literal(y0)),
-                (Expr.literal(x1), Expr.literal(y1)),
-                (Expr.literal(x0), Expr.literal(y1)),
+                (Formula.literal(x0), Formula.literal(y0)),
+                (Formula.literal(x1), Formula.literal(y0)),
+                (Formula.literal(x1), Formula.literal(y1)),
+                (Formula.literal(x0), Formula.literal(y1)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
+            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
+    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
 
 
 def stack(count):
@@ -334,11 +334,11 @@ class TestCancelingARunUnderWay(unittest.TestCase):
                 doc.insert(
                     Node.polygon(
                         [
-                            (Expr.length_in(0, m), Expr.length_in(0, m)),
-                            (Expr.length_in(1, m), Expr.length_in(0, m)),
-                            (Expr.length_in(1, m), Expr.length_in(1, m)),
+                            (Formula.length_in(0, m), Formula.length_in(0, m)),
+                            (Formula.length_in(1, m), Formula.length_in(0, m)),
+                            (Formula.length_in(1, m), Formula.length_in(1, m)),
                         ],
-                        plane=doc.sketch_frame(elevation=Expr.length_in(0, m)),
+                        plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
                     )
                 )
                 outcome.append(None)

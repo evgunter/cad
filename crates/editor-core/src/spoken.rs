@@ -232,7 +232,7 @@ impl SpokenNode {
 
     /// The node an insert is minting, before the document holds it:
     /// its kind and tag. An insert carries no label, so it has none.
-    pub(crate) fn entering<P>(id: RecipeNodeId, node: &Node<P>) -> Self {
+    pub(crate) fn entering<P, S: crate::Slot>(id: RecipeNodeId, node: &Node<P, S>) -> Self {
         Self {
             id,
             kind: Some(node_kind_noun(node)),
@@ -578,7 +578,7 @@ impl<'a> Speaker<'a> {
     /// formula as an [`crate::Expr`], so a rename — which recomputes
     /// nothing — still reads in the sentence.
     #[must_use]
-    pub fn formula(self, expr: &crate::expr::Expr) -> String {
+    pub fn formula<L: crate::expr::LeafSet>(self, expr: &crate::expr::ExprTree<L>) -> String {
         let mut reads = Vec::new();
         expr.var_reads(&mut reads);
         let names: Vec<(crate::var::VarId, crate::doc::VarName)> = match self.doc {
@@ -714,7 +714,7 @@ pub(crate) fn assert_pinned(
 /// in whether the spin about the normal is pinned, so a sentence that
 /// called both "Datum" would ask a reader to tell them apart by
 /// looking.
-pub fn node_kind_noun<P>(node: &Node<P>) -> &'static str {
+pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
     match node {
         Node::Profile(_) => "Profile",
         Node::Extrude { .. } => "Extrude",

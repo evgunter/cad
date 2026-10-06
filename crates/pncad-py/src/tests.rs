@@ -40,19 +40,19 @@ use test_utils::source::{
 // that file fails on any drift, so edit both copies together.
 // BEGIN box-document fixture twin
 /// A length literal, in canonical metres, through the façade.
-fn len(metres: f64) -> pncad::document::Expr {
-    use pncad::document::{Dimension, Expr};
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
+fn len(metres: f64) -> pncad::document::Formula {
+    use pncad::document::{Dimension, Formula};
+    Formula::literal(metres, Dimension::Length).expect("a finite length")
 }
 
 /// A dimensionless literal — a direction component — as [`len`].
-fn scl(value: f64) -> pncad::document::Expr {
-    use pncad::document::{Dimension, Expr};
-    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+fn scl(value: f64) -> pncad::document::Formula {
+    use pncad::document::{Dimension, Formula};
+    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
 }
 
 /// The world xy frame — the plane the box document sketches on.
-fn xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
+fn xy_frame() -> pncad::document::AuthoredNode {
     use pncad::document::{Datum, Node};
     Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
@@ -62,10 +62,7 @@ fn xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
 }
 
 /// A square profile-program node, `[0,s]²` on `plane`.
-fn square(
-    plane: pncad::document::RecipeNodeId,
-    s: f64,
-) -> pncad::document::Node<pncad::document::ProfileProgram> {
+fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
         plane,
@@ -83,7 +80,7 @@ fn square(
 /// Insert a node, returning the (document, minted id) pair.
 fn insert(
     doc: pncad::document::ProfileDoc,
-    node: pncad::document::Node<pncad::document::ProfileProgram>,
+    node: pncad::document::AuthoredNode,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
@@ -1681,7 +1678,7 @@ fn declare_error_tags_are_stable() {
     assert_eq!(declare_error_tag(&empty), "no_findings");
 }
 
-/// The binding matches `Expr::literal`'s OWN refusals rather than
+/// The binding matches `Formula::literal`'s OWN refusals rather than
 /// pre-checking them, and the tags Python sees are stable.
 ///
 /// **Scope: the literal-construction door only.** It is one of TWO
@@ -1692,12 +1689,12 @@ fn declare_error_tags_are_stable() {
 /// premise that excludes the mode the other covers.
 #[test]
 fn literal_refusals_come_from_the_kernel_with_stable_tags() {
-    use pncad::document::Expr;
-    let non_finite = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
+    use pncad::document::Formula;
+    let non_finite = Formula::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert_eq!(expr_dimension_error_tag(&non_finite), "non_finite");
-    let count = Expr::literal(3.0, Dimension::Count).expect_err("a continuous count refuses");
+    let count = Formula::literal(3.0, Dimension::Count).expect_err("a continuous count refuses");
     assert_eq!(expr_dimension_error_tag(&count), "count_is_integer");
-    assert!(Expr::literal(1.5, Dimension::Length).is_ok());
+    assert!(Formula::literal(1.5, Dimension::Length).is_ok());
 
     // The reachable set, exhaustively: every dimension the kernel
     // names (`Dimension::ALL`, so "exhaustively" is a claim about the
@@ -1707,7 +1704,7 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     let mut reachable = std::collections::BTreeSet::new();
     for dim in Dimension::ALL {
         for value in [0.0, 1.5, 3.0, -2.0, f64::NAN, f64::INFINITY] {
-            if let Err(err) = Expr::literal(value, dim) {
+            if let Err(err) = Formula::literal(value, dim) {
                 reachable.insert(expr_dimension_error_tag(&err));
             }
         }
@@ -1757,7 +1754,7 @@ fn display_formatter_refusals_carry_the_shared_non_finite_tag() {
 
     // Same fact, same tag, different class — the paragraph above, as
     // an assertion rather than as a claim about what someone meant.
-    let into_a_recipe = pncad::document::Expr::literal(f64::NAN, Dimension::Length)
+    let into_a_recipe = pncad::document::Formula::literal(f64::NAN, Dimension::Length)
         .expect_err("a non-finite literal refuses");
     assert_eq!(expr_dimension_error_tag(&into_a_recipe), "non_finite");
     assert_eq!(ErrorClass::Literal.class_name(), "LiteralError");
@@ -1772,7 +1769,7 @@ fn display_formatter_refusals_carry_the_shared_non_finite_tag() {
 }
 
 /// LIB-B-EXPR-READ: the text door's tag map, arm by arm, driven
-/// through `parse_expr` itself rather than by constructing arms.
+/// through `parse_formula` itself rather than by constructing arms.
 ///
 /// Every case here is a SOURCE STRING, which is the honest fixture: a
 /// hand-built `ParseError` would pin the map against a value the
@@ -1803,12 +1800,12 @@ fn display_formatter_refusals_carry_the_shared_non_finite_tag() {
 #[test]
 fn expression_text_door_tags_are_stable() {
     use crate::tags::parse_error_tag as tag;
-    use pncad::document::{VarName, parse_expr};
+    use pncad::document::{VarName, parse_formula};
 
     let mut declared = BTreeMap::new();
     declared.insert(VarName::from_static("width"), Dimension::Length);
     let refuse = |src: &str| {
-        parse_expr(src, &declared).expect_err("this source is not a well-formed expression")
+        parse_formula(src, &declared).expect_err("this source is not a well-formed expression")
     };
 
     assert_eq!(tag(&refuse("1 m $ 2")), "unexpected_char");
@@ -1840,7 +1837,7 @@ fn expression_text_door_tags_are_stable() {
     // A well-formed source is not refused, so the assertions above
     // are about the grammar and not about a door that refuses
     // everything.
-    assert!(parse_expr("width / 2.0 + 3 mm", &declared).is_ok());
+    assert!(parse_formula("width / 2.0 + 3 mm", &declared).is_ok());
 }
 
 /// LIB-B-EXPR-READ: the evaluator's tag map, arm by arm.
@@ -1868,7 +1865,7 @@ fn expression_text_door_tags_are_stable() {
 fn expression_evaluation_tags_are_stable() {
     use crate::tags::eval_error_tag as tag;
     use pncad::document::{
-        DocEdit, EvalError, Expr, FreeVar, ProfileDoc, VarName, apply, eval, eval_count, parse_expr,
+        DocEdit, EvalError, FreeVar, ProfileDoc, VarName, apply, eval, eval_count, parse_formula,
     };
 
     let tol = Tol::witness();
@@ -1894,13 +1891,13 @@ fn expression_evaluation_tags_are_stable() {
 
     let mut declared = BTreeMap::new();
     declared.insert(width.clone(), Dimension::Length);
-    let parse = |src: &str| parse_expr(src, &declared).expect("a well-formed expression");
+    let parse = |src: &str| parse_formula(src, &declared).expect("a well-formed expression");
 
     let bound = lengths.var_env::<f64>();
     // The names are read against the document, as `Document.eval` reads
     // them.
     let parse_in = |doc: &ProfileDoc, src: &str| doc.lowered(&parse(src));
-    let parse = |src: &str| parse_in(&lengths, src);
+    let parse = |src: &str| parse_in(&lengths, src).expect("the names lower");
 
     // The value the whole family exists for: an expression a caller
     // could not otherwise evaluate without re-implementing the
@@ -1915,17 +1912,20 @@ fn expression_evaluation_tags_are_stable() {
         0.1 / 2.0 + 0.003
     );
 
+    // A name no variable holds does not lower: the refusal is the
+    // lowering's, before any evaluation.
     assert_eq!(
-        tag(&eval(&parse_in(&empty, "width"), &empty.var_env::<f64>()).expect_err("no binding")),
+        crate::tags::name_fault_tag(&parse_in(&empty, "width").expect_err("no binding")),
         "unlowered_name"
     );
 
     // The expression reads a length; this document holds the same name
-    // as a count, so the name does not lower.
+    // as a count, so the name does not lower, and the fault says why.
     assert_eq!(
-        tag(&eval(&parse_in(&counts, "width"), &counts.var_env::<f64>())
-            .expect_err("the dimensions disagree")),
-        "unlowered_name"
+        crate::tags::name_fault_tag(
+            &parse_in(&counts, "width").expect_err("the dimensions disagree")
+        ),
+        "var_kind_mismatch"
     );
 
     // A reader by id the document does not bind, and one at the wrong
@@ -1969,7 +1969,9 @@ fn expression_evaluation_tags_are_stable() {
     // caught at the boundary.
     let zero = scl(0.0);
     let one = len(1.0);
-    let pole = Expr::div(one, zero).expect("a scalar divisor is legal");
+    let pole = lengths
+        .lowered(&pncad::document::Formula::div(one, zero).expect("a scalar divisor is legal"))
+        .expect("a literal lowers");
     assert_eq!(
         tag(&eval(&pole, &bound).expect_err("the pole refuses at the boundary")),
         "non_finite_result"
@@ -2959,13 +2961,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::PayloadUnresolvedVar {
             var: spv(),
             node: sp(1),
-        },
-        &["node", "param"],
-    );
-    carries(
-        &E::NameLeafWritten {
-            node: sp(1),
-            name: param(),
         },
         &["node", "param"],
     );
@@ -4969,7 +4964,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_non_finite",
             "meta_not_set",
             "meta_unversioned",
-            "name_leaf_written",
             "name_step_never_minted",
             "name_unresolved_in_evaluation",
             "node_id_collides",
@@ -5077,7 +5071,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "count_to_scalar_out_of_range",
             "definition_refused",
             "non_finite_result",
-            "unlowered_name",
             "unresolved_var",
             "var_kind_mismatch",
         ],
@@ -5312,6 +5305,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "mint_refusal_tag",
         values: &["mate_reference_refused", "no_at_rest_record"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "name_fault_tag",
+        values: &["unlowered_name", "var_kind_mismatch"],
         delegates: &[],
     },
     TagEntry {
@@ -5976,8 +5974,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mint_log_order",
             "name_on_missing_var",
             "name_step_not_minted",
-            "named_reader_in_definition",
-            "named_reader_in_snapshot",
             "node_not_minted",
             "not_a_gauge",
             "order_mismatch",
@@ -6499,6 +6495,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // variable its document no longer holds (VR7).
     ("unresolved_var_crosses_cut", 2),
     ("validate", 2),
+    // One fact at two doors: a variable read at a dimension its kind
+    // does not have, refused by the lowering of a written name and by
+    // the evaluator of a stored reader alike —
+    // `expression_evaluation_tags_are_stable` pins both.
+    ("var_kind_mismatch", 2),
     ("vertex", 2),
     ("vertex_on_edge", 2),
     ("vertex_on_face", 2),

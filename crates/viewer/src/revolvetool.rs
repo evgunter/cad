@@ -24,7 +24,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Expr, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Formula, ProfileProgram, RecipeNodeId};
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
 use crate::session::SessionOp;
@@ -91,7 +91,7 @@ impl RevolveTool {
     /// [`SeatError::Empty`] until both seats are filled. Node KINDS are
     /// not judged here — the session door refuses a wrong-kind pick
     /// typed.
-    pub fn op(&self, angle: Expr) -> Result<SessionOp, SeatError> {
+    pub fn op(&self, angle: Formula) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddRevolve {
             profile: self.seats.require(0)?,
             axis: self.seats.require(1)?,

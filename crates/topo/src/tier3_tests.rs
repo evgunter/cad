@@ -2518,6 +2518,78 @@ fn a_solid_with_a_genuine_cavity_certifies() {
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
 
+/// **The carve drops only records no kept record names.** Carving the
+/// cavity off a two-shell solid keeps the outer wall; where a kept
+/// half-edge or lone-vertex loop names a cavity vertex, or a kept edge
+/// a cavity half-edge, the carve refuses rather than leave the link dangling.
+#[test]
+fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
+    use crate::entity::LoopBoundary;
+    use crate::splitting::SplitFinishError;
+    use crate::splitting::finish::carve;
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (0.2, 0.2, 0.2), 0.5, true, tol);
+    let [keeper, cavity] = solids_of(&body)[..] else {
+        panic!("two cubes are two solids");
+    };
+    refile_shells(&mut body, cavity, keeper);
+    let shells = body.shells_of_solid(keeper).unwrap().to_vec();
+    let carved = carve(&body, keeper, &shells[..1]).expect("the cavity carves off");
+    assert_eq!(
+        carved.shells_of_solid(keeper).unwrap().len(),
+        1,
+        "one shell kept"
+    );
+    // A member of each shell's first face's outer loop.
+    let member = |shell| {
+        let face = body.get_shell(shell).unwrap().faces[0];
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("a cube face's outer loop is a cycle");
+        };
+        first
+    };
+    let (kept, dropped) = (member(shells[0]), member(shells[1]));
+    let mut shared_vertex = body.clone();
+    shared_vertex.half_edges[kept].start = body.get_half_edge(dropped).unwrap().start;
+    assert!(
+        matches!(
+            carve(&shared_vertex, keeper, &shells[..1]),
+            Err(SplitFinishError::Corrupt)
+        ),
+        "a kept half-edge starting at a dropped vertex"
+    );
+    let mut shared_edge = body.clone();
+    let edge = body.get_half_edge(kept).unwrap().edge;
+    let e = &mut shared_edge.edges[edge];
+    if e.he_plus == kept {
+        e.he_minus = dropped;
+    } else {
+        e.he_plus = dropped;
+    }
+    assert!(
+        matches!(
+            carve(&shared_edge, keeper, &shells[..1]),
+            Err(SplitFinishError::Corrupt)
+        ),
+        "a kept edge naming a dropped half-edge"
+    );
+    let mut shared_lone = body.clone();
+    let lone = body.get_half_edge(kept).unwrap().parent_loop;
+    shared_lone.loops[lone].boundary = LoopBoundary::Empty {
+        vertex: body.get_half_edge(dropped).unwrap().start,
+    };
+    assert!(
+        matches!(
+            carve(&shared_lone, keeper, &shells[..1]),
+            Err(SplitFinishError::Corrupt)
+        ),
+        "a kept lone-vertex loop holding a dropped vertex"
+    );
+}
+
 /// **Check 10's per-shell contribution, both arms.** The point-in-solid
 /// walk over ONE shell's faces answers whether a point is in the
 /// material that shell alone bounds. For the outer wall that is its
