@@ -2,10 +2,11 @@
 id: the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op
 kind: issue
 title: vtxfac's admission probe drops the Tangent offer for an undeclared pair whose face has a null-scaffold edge mid-op
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
