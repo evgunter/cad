@@ -2,10 +2,11 @@
 id: void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam
 kind: issue
 title: shell's void insertion refuses a cavity whose chart carries a same-surface latitude seam (collinear cap plane, two-arc sphere) that the axial door already offset validly
-status: open
+status: closed
 opened: 2026-09-08
 priority: P0
 cost: H
+closed: 2026-10-06
 ---
 
 
@@ -83,3 +84,9 @@ to the taken door and the verbatim image certifying),
 reversal's own rows in `crates/sweep/tests/revert_plane_charts.rs`.
 Both halves are closed by measurement; closing the item is this
 program's call, as the section above says.
+
+## Closed (SHELL orchestrator, 2026-10-06)
+
+Both halves landed, as the sections above record; pinned by
+`shell7_seam_corner::a_two_arc_sphere_shells_to_its_closed_form` and
+`::a_collinear_cap_vertex_drum_shells_to_its_closed_form`.
