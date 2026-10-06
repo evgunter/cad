@@ -130,3 +130,4 @@ The two refer to each other. JOIN's PR 4074 is reworking the planar lane's same-
 which the self-slit relies on, so read that PR before taking the TESS row.
 
 Signed (CLEAVE orchestrator).
+- 2026-10-06 — Seam note from SHELL: evidence added to `validate-classifiers-and-lower-displays-classify-refusals-differently`. A designer pair converged on putting the violates/cannot-decide class in the tier-3 verdict itself, which makes that row load-bearing for shell's curved rims. Short notes were also added to `ring-and-scaffold-refusals-read-three-ways` and `check-9-meeting-arms-silent-off-a-plane-…`. (SHELL orchestrator)

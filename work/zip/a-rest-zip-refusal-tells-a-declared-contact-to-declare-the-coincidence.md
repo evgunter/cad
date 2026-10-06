@@ -9,6 +9,7 @@ cost: E
 refs: [a-boss-flush-with-a-block-edge-refuses-its-declared-union, a-refusal-offers-no-action-in-the-viewer]
 closed: 2026-10-06
 pr: 4116
+branch: zip/survivor-and-recourse
 ---
 
 
