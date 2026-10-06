@@ -2,11 +2,12 @@
 id: SYM-16
 kind: unit
 title: "the ignored receipt rows drifted red: attribute the drift, re-take, and give them a schedule"
-status: dispatched
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
 branch: sym/16-receipt-drift
+pr: 4155
 refs: [ignored-sym-receipt-rows-drifted-red-on-main-unattributed]
 ---
 
