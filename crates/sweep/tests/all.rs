@@ -400,6 +400,8 @@ mod reach_wall_chord_rows;
 mod readback_doors;
 #[path = "recourse_roster.rs"]
 mod recourse_roster;
+#[path = "review_4173_probes.rs"]
+mod review_4173_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
