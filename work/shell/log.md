@@ -1074,3 +1074,19 @@ so the lane added evidence there instead of filing a duplicate. Merged
 over the inherited `pinch_faces_tessellate` ε = 1e-6 red, which is
 JOIN's `pinch-tessellate-row-escalates-at-eps-1e-6` (filed here), as
 the merge rules allow.
+
+## Unit 2 MERGED (2026-10-06, PR 4112)
+
+The shell doors take an `AtRestBody`. Single full review:
+NOT-MERGEABLE-AS-IS on one MAJOR. `AtRestBody` derefs to `Body`, so
+reverting the doors still compiled, and every "refused at the gate"
+row tested `validate`, not the door. The fix pass:
+- pins the three doors' operand types at compile time, verified by
+  planting the revert (E0308 at all three);
+- rewrites the gate rows' docs to say what they prove;
+- records that no document reaches `UnfinishedOperand` through a Shell
+  node;
+- corrects the stale docs;
+- files S7 as `shelf/shelled-result-discards-its-own-closing-verdict`.
+S6 (finished fixtures) was skipped because it grows. Merged over the
+inherited pinch ε = 1e-6 red.

@@ -20,6 +20,7 @@ use geom_core::Tol;
 use topo::{FaceKey, ReplaceFaceError, ShellError};
 
 use crate::common::approx::{nurbs_walls, twisted_loft};
+use sweep::test_support::finished;
 
 /// The wall thickness this row shells at, in metres: 2.5%
 /// of the 2 m section, a thickness a user would ask for.
@@ -35,8 +36,12 @@ fn is_spline_wall(walls: &[(FaceKey, impl Sized)], face: FaceKey) -> bool {
 fn shelling_the_curved_loft_refuses_at_a_wall_seam_before_any_fit() {
     let body = twisted_loft(0.3);
     let walls = nurbs_walls(&body);
-    let e = topo::shell(&body, THICKNESS, Tol::witness())
-        .expect_err("a spline-walled body does not shell today");
+    let e = topo::shell(
+        &finished("the operand", body.clone(), Tol::witness()),
+        THICKNESS,
+        Tol::witness(),
+    )
+    .expect_err("a spline-walled body does not shell today");
     let ShellError::Face { face, error } = &e else {
         panic!("expected a per-face offset refusal, got {e}");
     };

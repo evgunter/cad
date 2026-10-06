@@ -415,10 +415,9 @@ fn split_missing_at_a_dual(
 }
 
 /// **Each verb refuses a body whose pieces cannot be read, typed**: at
-/// `f64` the boolean and the split never take it, because two outer
-/// shells under one solid is not a finished body (the at-rest gate
-/// refuses `SolidOuterShells`); `shell` (which sorts its operand first)
-/// refuses `Pieces(Crossing)`. At a dual, whose gate runs nothing and
+/// `f64` the boolean, the split and the shell never take it, because two
+/// outer shells under one solid is not a finished body (the at-rest gate
+/// refuses `SolidOuterShells`). At a dual, whose gate runs nothing and
 /// whose door reads tier 2 and orientation but not the piece count, the
 /// split (a plane missing the body, so one side is all of it) sorts it
 /// and refuses `Pieces(Crossing)` too.
@@ -429,12 +428,6 @@ fn every_verb_refuses_a_body_whose_pieces_cannot_be_read() {
     match split_missing_at_a_dual(crossing_body_at()) {
         Err(topo::SplitError::Pieces(topo::PieceSortError::Crossing { .. })) => {}
         other => panic!("the split at a dual: {:?}", other.map(|_| ())),
-    }
-    match topo::shell(&body, 0.05, tol()) {
-        Err(topo::ShellError::Pieces {
-            error: topo::PieceSortError::Crossing { .. },
-        }) => {}
-        other => panic!("the shell: {:?}", other.map(|_| ())),
     }
 }
 
