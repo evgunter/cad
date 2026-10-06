@@ -2,10 +2,11 @@
 id: a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge
 kind: issue
 title: a concave graze of a curved wall refuses as a corrupt body, a degenerate cone or a join invariant instead of its knife edge
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P2
 cost: M
+branch: cleave/concave-graze
 ---
 
 

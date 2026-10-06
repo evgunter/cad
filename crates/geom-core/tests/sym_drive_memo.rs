@@ -656,7 +656,7 @@ fn an_inherited_form_does_not_move_the_leafs_need() {
 }
 
 /// **The one reading the order still moves**: a freeze the TAINT
-/// caused, under a hit — `work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`.
+/// caused, under a hit — `work/rules/a-taint-induced-freeze-under-a-hit-still-reads-by-order`.
 ///
 /// `outside` is `0.0` and minted outside the session. A leaf that
 /// RECORDS it folds it away, so `0 + a + b` is two terms and fits, and
