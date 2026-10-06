@@ -1210,11 +1210,15 @@ fn face_boundary_meets<T: Decide + Bounds>(
     pad: f64,
 ) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
-    body.face_boundary_linked(face, fd)
-        .any(|member| match member {
-            BoundaryMember::Isolated { .. } => false,
-            BoundaryMember::Edge { ek, .. } => boxes::edge_box(body, ek, pad).overlaps(region),
-        })
+    for member in body.face_boundary_linked(face, fd) {
+        let BoundaryMember::Edge { ek, .. } = member else {
+            continue;
+        };
+        if boxes::edge_box(body, ek, pad).overlaps(region) {
+            return true;
+        }
+    }
+    false
 }
 
 /// **The section certificate over pairs of rows**: every `(A row, B

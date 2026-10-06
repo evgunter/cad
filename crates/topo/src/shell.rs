@@ -1998,13 +1998,13 @@ fn duplicate_in_loop<T: Real>(
 ) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
     let data = proven(&body.faces, face, EntityId::Face);
     for (r#loop, members) in body.face_boundary_by_loop(face, data) {
-        let cycle: Vec<(HeKey, crate::entity::EdgeKey)> = members
-            .into_iter()
-            .filter_map(|member| match member {
-                BoundaryMember::Edge { he, ek, .. } => Some((he, ek)),
-                BoundaryMember::Isolated { .. } => None,
-            })
-            .collect();
+        let mut cycle = Vec::new();
+        for member in members {
+            let BoundaryMember::Edge { he, ek, .. } = member else {
+                continue;
+            };
+            cycle.push((he, ek));
+        }
         for (i, &(he1, e1)) in cycle.iter().enumerate() {
             for &(he2, e2) in &cycle[i + 1..] {
                 if e2 == e1 {

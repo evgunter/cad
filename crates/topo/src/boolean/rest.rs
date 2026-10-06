@@ -1402,13 +1402,16 @@ fn halves_at<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or_else(|| desync("REST lane: chord host face vanished"))?;
-    Ok(body
-        .face_boundary_linked(face, f)
-        .filter_map(|member| match member {
-            BoundaryMember::Edge { he, half, .. } if half.start == u => Some(he),
-            _ => None,
-        })
-        .collect())
+    let mut out = Vec::new();
+    for member in body.face_boundary_linked(face, f) {
+        let BoundaryMember::Edge { he, half, .. } = member else {
+            continue;
+        };
+        if half.start == u {
+            out.push(he);
+        }
+    }
+    Ok(out)
 }
 
 // ---------------------------------------------------------------

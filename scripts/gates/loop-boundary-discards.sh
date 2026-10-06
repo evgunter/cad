@@ -117,6 +117,11 @@
 #     counted. None exists; it would arrive as an unregistered site, not
 #     as a silent pass.
 #
+# `BoundaryMember::(Isolated|Edge)` IS MATCHED: it is the same boundary
+# a member at a time (`Body::face_boundary_linked`), so a let-else on
+# `Edge` or a no-binding `Isolated` arm discards a lone-vertex loop
+# exactly as one on `Cycle` or `Empty` does.
+#
 # OUT OF SCOPE BY DEFINITION, so absent rather than missed: a `continue`
 # taken for a different reason (an arena miss), the same class over any
 # other enum, and the aborting branches named above.
@@ -247,7 +252,7 @@ REGISTER=(
 # escape processing at all, and a bracket expression is then correct
 # under either route and under every awk.
 PATH_PREFIX='([A-Za-z_][A-Za-z0-9_]*::)*'
-ENUM="(${PATH_PREFIX}LoopBoundary|Self)::(Cycle|Empty)"
+ENUM="((${PATH_PREFIX}LoopBoundary|Self)::(Cycle|Empty)|${PATH_PREFIX}BoundaryMember::(Isolated|Edge))"
 NO_BINDING='[{] *([.][.]|[A-Za-z_][A-Za-z0-9_]* *: *_[A-Za-z0-9_]*) *[}]'
 DEFER='(continue|break|return)([^A-Za-z0-9_]|$)'
 LET_RE="^let (${ENUM} [{][^;{}]*[}]|[A-Za-z_][A-Za-z0-9_:]*[(]${ENUM} [{][^;{}]*[}][)]) = [^;]*else *[{] *${DEFER}"
