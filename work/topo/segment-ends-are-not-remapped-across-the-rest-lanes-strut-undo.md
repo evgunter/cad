@@ -2,11 +2,14 @@
 id: segment-ends-are-not-remapped-across-the-rest-lanes-strut-undo
 kind: issue
 title: The REST lane's segment ends are not remapped to the surviving vertex across undo_struts
-status: dispatched
+status: closed
 opened: 2026-10-05
 priority: P3
 cost: M
-refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate]
+refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, the-rest-lane-zips-no-pinch-apex, the-rest-lanes-glue-reads-its-correspondence-unfused, completed-null-faces-are-carried-unremapped-across-later-cuts]
+pr: 4067
+branch: topo/rest-segment-end-remap
+closed: 2026-10-05
 ---
 
 ## What
@@ -47,3 +50,19 @@ vertex), so a segment end is live by `realize_seam`; then a stale end
 there is a kernel bug, and the desync can become a panic on a proven
 key. Build a nested-strut REST union that reaches it first, to show the
 remap is load-bearing.
+
+## Closed
+
+PR 4067. `undo_struts` logs each kill's `(copy, site)` (checking the
+site is the strut's start), `read_segments` reads every end through
+that log (`zip::survivor_checked`), and `realize_seam` panics on an end
+that does not resolve, naming the premise (`SEGMENT_ENDS_SURVIVE`).
+Witnesses: `rest::tests::the_segment_ends_read_through_the_undo_to_standing_vertices`
+and `every_strut_site_reads_through_the_undo_to_a_standing_vertex`, the
+nest in either operand. The one public pose that nests a strut on this
+lane, `crates/sweep/tests/rest_nested_strut.rs` (a pinch apex under a
+resting prism), refuses `PinchApex` at the correspondence in either
+order, before the seam is realized, filed as
+`work/zip/the-rest-lane-zips-no-pinch-apex.md`. Residues filed:
+`work/zip/the-rest-lanes-glue-reads-its-correspondence-unfused.md`,
+`work/join/completed-null-faces-are-carried-unremapped-across-later-cuts.md`.

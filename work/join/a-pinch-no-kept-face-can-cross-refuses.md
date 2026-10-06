@@ -83,32 +83,33 @@ the class with PR 4036.
 
 ## The shape to give
 
-**This is a design fork.** The cones at the point are really two:
-gluing the two seams at one vertex, the second fusion splits that
-vertex's orbit in two whatever the order (the cone link is two
-circles), and the notched face lies in both cones. The current
-invariants admit none of the bodies that would hold that:
+**A pinch is one vertex per cone** (Ev, PR 4057, 2026-10-05). At a
+pinch the result holds several vertices on one point key, each a
+manifold cone, and no face crosses between cones:
+- The notched face keeps one outer loop through both vertices.
+- An island stays its own face, and a bow-tie is two faces.
+- The crossing pre-pass (`zip::split_across`'s `kemr`/`kef`), the
+  pinch welds (`finish::weld_pinches`, `weld_pierce_copies`) and
+  `BooleanError::PinchUncrossed` retire. PR 4051's island `kef` goes
+  with them.
+- Check 9 can then refuse every meeting of two loops of one face.
 
-1. **One vertex, the face crossed:** an outer loop and a ring meeting
-   at the point. The gate refuses this (`RingMeetsOuter`, check 9), and
-   a ring touching its outer loop states no hole.
-2. **One vertex, the face's one loop through it twice** (r2's
-   proposal, the shape a `kef` crossing ships). Measured: splicing the
-   crossed face's two loops back into one at the shared vertex
-   (pointer surgery, instrumented) leaves `Merge(InputNotClosed {
-   SplitVertexOrbit })` on all 43 staircase lines. A splice that joins
-   two loops of one face changes `V − E + F − R` by one, while every
-   Euler operator changes it by 0 or ±2, so no composition of them
-   makes it.
-3. **Two vertices on the point, the face through both.** The
-   shared-point ruling (PR 3813) keeps copies apart only where no face
-   meets both (`a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point`).
-4. **Two vertices on the point, the face divided** by a new edge so
-   that each part meets one vertex. That edge runs across a planar face
-   for topology alone, and where it goes has to be chosen.
+Why: a crossing reads one handle more than the solid has. D1 already
+calls touching via two vertices at one point representable.
 
-Each needs a change to an at-rest invariant, or a new kind of edge, so
-it goes to the designers before a lane builds it.
+The construction route is the lane's to choose. The designers named two
+routes:
+- a zero-length seam edge, minted at each operand's section-face
+  corners at the pinch and consumed by the zip's second pass;
+- splitting each operand vertex per result cone (the cycles of seam-pair
+  fusions `cross_pinches` already computes) before the zips.
+
+This ruling also decides two rows:
+- `a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point`:
+  its bodies are right, and its check becomes "every corner is a slice
+  of its own face".
+- `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face`:
+  dissolved.
 
 ## Built (branch `join/pinch-uncrossed-residue`)
 
