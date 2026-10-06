@@ -2,12 +2,14 @@
 id: split-lane-second-chord-recomputes-the-first-chords-arc
 kind: issue
 title: The split lane's second chord recomputes its segment's section arc from another run, and from no run at all after a cross-loop join
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [JOIN-3, pierce-ring-has-no-join-arm]
 branch: cleave/split-segment-curve
+closed: 2026-10-06
+pr: 4081
 ---
 
 
@@ -88,3 +90,10 @@ pads
 (red on main). Probed alongside, all building on both: the pocket and a
 through-bar, under ∖ and ∪, cut at `y = 0.1`, `y = 0`, `x = 0.1`
 (rulings), the tilt and `z = 0.95`.
+
+## Closed (PR 4081, 2026-10-06)
+
+Review tier: single FULL. Verdict APPROVE-WITH-FIXES, no MAJOR; all seven claims held. The fix pass
+planned a join's chords once (`JoinPlan`), made the ringed-wall row assert that it reaches the ring,
+and corrected the PR body's numbers. The conservation residual is its own row,
+`split-halves-volumes-sum-to-the-whole-only-within-their-pads`.
