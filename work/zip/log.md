@@ -145,3 +145,19 @@ FUSE's `fuse/cell-pair-contacts` (PR 3955, open) edits `rest.rs` and
 `zip.rs` and files `a-rest-lane-slit-zip-kills-seam-edges-with-no-substitution-row`
 (P3/E) here; it goes to ZIPTAIL once it lands. TOPO's
 `topo/face-boundary-walks-one-home` (PR 4099, open) edits `rest.rs`.
+
+## 2026-10-06 — dispatched
+
+- **Measure first, no code**: the seam-chord cluster (`zip/chord-probe`:
+  the four `mint_chord` rows, the straight-chord fallback on a curved
+  host, and whether the join's in-face insertion is the same job);
+  the round tube (`zip/tube-seam-orientation`, with JOIN's engraved
+  annular sector beside it); the reflex wrong volume and the rabbet's
+  fold order (`zip/rest-admission`: what `try_rest_union` verifies
+  before it admits a union). Each lane stops at its measurement.
+- **Built**: `survivor-folds-a-corrupt-fusion-list-onto-a-dead-key-outside-the-contact-remap`
+  and `a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence`
+  as one unit (`zip/survivor-and-recourse`). Review tier: **single,
+  style**. Both are small, and they can be read and believed: one
+  closes a debug-only guard, the other checks prose against
+  `RestZipFrontier`'s endings, which postdate the row.
