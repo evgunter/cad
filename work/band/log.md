@@ -433,6 +433,26 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-06 — `swept-cocircular-arc-runs-build-one-wall` closed (PR #3826)
+
+Extrude and the full revolve build one wall per run of adjacent cocircular
+same-turn arcs (`swept::joins` → `Join::{Corner, Run, Cut}`; the full
+revolve's `collapse_runs` sums the arc sweeps); a circle cut into arcs keeps
+its C12.5 cut, one wall per arc on one key (the orchestrator accepted that
+reading: a curved run closing its full period refuses to merge). The partial
+revolve still builds an arc run one wall per arc — the props meridian fold
+groups pieces by split lineage — parked as
+`partial-revolve-arc-runs-wait-on-the-meridian-fold` and stated at the README
+claim site. `offset_axial::reauthor` reads a re-authored arc's sweep nearest
+the old one (an atan2-cut fix a collapsed meridian exposed). Full review
+(APPROVE-WITH-FIXES, no MAJOR): the fix pass made the arc boolean rows answer,
+corrected stale station prose, guarded `wall_runs`' one-corner loop, adopted
+the probes (Vector, hole loop, k = 5, Interval, π-summing runs, the hollow
+sweep across the atan2 cut, f64/Interval names) and folded duplicate helpers.
+Merged up to main over ~3000 commits; main's split-ball row
+(`pi_seam_and_kiss_through_the_boolean`) re-pointed to a hand-cut equator. No
+re-baseline moved. Merged over main's own red at 1e-6
+(`pocket_ring_steep_ellipse`, filed on JOIN).
 ## 2026-10-06 — the plane–plane run-out fork goes to Ev (`[ev]` PR #4085)
 
 `a-plane-plane-blend-cannot-end-at-an-unrequested-corner` (P0) put

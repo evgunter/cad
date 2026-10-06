@@ -153,8 +153,12 @@ fn rod_z(r: f64, z0: f64, len: f64) -> AtRestBody<f64> {
 /// lifted, and its base disc's two revolve halves merged (the boolean
 /// refuses a non-maximal operand).
 fn cap_on_the_tube(profile: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
+    placed_on_the_tube(revolved_about_y(profile, Revolution::Full, Tol::witness()))
+}
+
+/// [`cap_on_the_tube`]'s placement of a cap built about `+y`.
+fn placed_on_the_tube(at0: Body<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let at0 = revolved_about_y(profile, Revolution::Full, tol);
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
     let turned = topo::transform_rigid(&at0, &turn, tol).unwrap();
     let mut cap =
@@ -992,7 +996,8 @@ fn a_d_bar_on_the_slab_builds_with_its_line_seams_declared() {
 
 /// **The same rim, the same aligned normals, and no seam: a cusp.** A
 /// lower half ball hanging in the tube's mouth (the bowl), and a whole
-/// ball split at its equator on the rim, each meet the tube's wall G1
+/// ball split at its equator on the rim (the split cut by hand: the
+/// revolve builds a run of arcs as one wall), each meet the tube's wall G1
 /// along the rim with outward normals aligned. But the bowl and the
 /// ball's lower half leave the rim DOWNWARD, as the tube's wall does,
 /// so both materials lie on one side: a nested touch, wedge 0, not the
@@ -1010,11 +1015,33 @@ fn a_bowl_or_a_split_ball_in_the_tubes_mouth_is_a_cusp_not_a_seam() {
         (Point2::new(0.0, -R), q),
         (Point2::new(R, 0.0), 0.0),
     ]);
-    let split = cap_on_the_tube(vec![
-        (Point2::new(0.0, -R), q),
-        (Point2::new(R, 0.0), q),
-        (Point2::new(0.0, R), 0.0),
-    ]);
+    // The two quarter arcs are one run, so the revolve builds one
+    // sphere wall; the equator the split puts on the rim is cut through
+    // the Euler door as the revolve declares a latitude rim.
+    let split = {
+        let mut at0 = revolved_about_y(
+            vec![
+                (Point2::new(0.0, -R), q),
+                (Point2::new(R, 0.0), q),
+                (Point2::new(0.0, R), 0.0),
+            ],
+            Revolution::Full,
+            tol,
+        );
+        let sphere = at0
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    at0.get_surface(f.surface),
+                    Some(geom::Surface::Sphere { .. })
+                )
+            })
+            .expect("the ball's sphere")
+            .1
+            .surface;
+        crate::common::latitude_seam::latitude_on_full_wall(&mut at0, sphere, Point2::new(R, 0.0));
+        placed_on_the_tube(at0)
+    };
     let half_ball = 2.0 / 3.0 * PI * R.powi(3);
     for (label, cap, want, faces) in [
         ("bowl", &bowl, half_ball, 3),

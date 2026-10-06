@@ -2,10 +2,11 @@
 id: a-two-pinch-union-ships-a-pinch-its-records-do-not-declare
 kind: issue
 title: A union that welds two pinches ships a touching its contact records do not declare, so the tier-3′ pass refuses it UndeclaredContact
-status: open
+status: parked
 opened: 2026-10-02
 priority: P2
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
