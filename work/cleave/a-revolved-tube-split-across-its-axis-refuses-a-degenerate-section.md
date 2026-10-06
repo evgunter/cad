@@ -2,10 +2,11 @@
 id: a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section
 kind: issue
 title: a revolved tube split across its axis refuses DegenerateSection: its bore's section is a one-vertex loop
-status: open
+status: dispatched
 opened: 2026-10-06
-priority: P1
+priority: P0
 cost: M
+branch: cleave/tube-across-axis
 ---
 
 
