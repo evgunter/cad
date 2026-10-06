@@ -1298,10 +1298,22 @@ impl<T: SpanLocate> Curve3<T> {
     ///   preconditions verbatim. It answers the point's minor angle on
     ///   EITHER oval: which oval the carrier names is the mint's
     ///   decision, not this arithmetic's.
-    /// - **`Ellipse`, `Nurbs`**: `None`. The eccentric anomaly is not
-    ///   the polar angle of the point, and a spline's inversion is
-    ///   Newton on the foot-point condition (`project`) — a different
-    ///   machine with a different refusal, not a branch policy.
+    /// - **`Ellipse`**: the circle arm's anchored difference on the
+    ///   eccentric anomaly θ, which is the polar angle of the point
+    ///   AFTER each frame coordinate is divided by its semi-axis:
+    ///   `x = (w·u_ref)·minor`, `y = (w·v_ref)·major` are
+    ///   `major·minor·(cos θ, sin θ)` on the carrier, and
+    ///   `near + atan2(y·cos near − x·sin near, x·cos near + y·sin near)`
+    ///   is θ on the branch within half a turn of `near`. Scaling both
+    ///   coordinates by `major·minor` rather than dividing keeps a zero
+    ///   semi-axis from entering a quotient; the circle arm's tie and
+    ///   midpoint-anchor preconditions hold verbatim. Off the carrier it
+    ///   answers about the point's scaled polar angle, which is not its
+    ///   foot: the on-carrier precondition below is what makes it the
+    ///   point's parameter.
+    /// - **`Nurbs`**: `None`. A spline's inversion is Newton on the
+    ///   foot-point condition (`project`) — a different machine with a
+    ///   different refusal, not a branch policy.
     ///
     /// **Anchoring at `near` is what removes the branch cut.** `atan2`
     /// returns its principal value in `(−π, π]`, so `near + δ` is by
@@ -1415,7 +1427,20 @@ impl<T: SpanLocate> Curve3<T> {
                 let across = w_rho * (-s) + w_h * c;
                 Some(near + across.atan2(along))
             }
-            Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => {
+                let w = p - *center;
+                let x = w.dot(*u_ref) * *minor;
+                let y = w.dot(axis.cross(*u_ref)) * *major;
+                let (s, c) = near.sin_cos();
+                Some(near + (y * c - x * s).atan2(x * c + y * s))
+            }
+            Curve3::Nurbs(_) => None,
         }
     }
 }

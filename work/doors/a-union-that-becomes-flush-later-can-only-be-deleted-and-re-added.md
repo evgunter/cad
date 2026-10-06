@@ -105,3 +105,17 @@ is downstream of it, so it keeps its fins sunk 1/16 into the plate
 instead and waits on `declared-pairs-are-a-booleans-own-payload`.
 
 PR 3902 deleted `Node::Declare` and renamed `declare_node` to `declared_pairs`: the pairs are a boolean's or union's `declare` payload, set on a live node by `DocEdit::SetDeclare`.
+
+## Note from EMIT (2026-10-06): the refusal reads position, not membership
+
+Found by the designer pair on `work/emit/name-order-was-insertion-order-under-the-counter.md`
+(`[ev]` PR 4156). `declared_side_fault` (`crates/editor-core/src/node.rs`)
+refuses a declared side whose node is not before the union in document
+order (`DeclaredNameNotUpstream`). What it means is "an operand of this
+union can hold this name". A member that `SetMembers` adds after the
+union is an operand, so declaring its flush faces is refused, though
+they are legitimate. Measured: draw `b2`, `SetMembers` over it, then
+`SetDeclare` naming `b2`'s faces is refused. Any recourse this row lands
+for declaring a contact on a live union needs that check to read
+membership. The PR 4156 ruling decides how a flush stretch's holder is
+chosen once such a member can be declared.

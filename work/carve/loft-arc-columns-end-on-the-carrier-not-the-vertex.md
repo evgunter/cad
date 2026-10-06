@@ -53,3 +53,28 @@ A decision on whether the column's ends are the vertices (the
 he_plus / vertex-authority reading) or the carrier's (today's), made
 with the step-import posture change in view, and the re-baselines that
 follow from it.
+
+## After PATHS 5b (#3774)
+
+5b put `segment_curve`'s arc column on the circle `SketchSegment::eval`
+describes, so that the curve and the certification meters read the same
+circle (`work/paths/store-constructed-carriers.md`, item 3). Its first
+control point is now `world(a)` verbatim and each on-arc control is
+`Arc2::point_from(a, k/m)`. The last one is `eval`'s end, which is `b` only
+as far as `eval` is exact there (`sketch-segment-eval-could-be-exact-at-both-ends`).
+
+That moved the postures this item predicted (each confirmed by restoring
+main's `segment_curve` and watching the row go back):
+- `step-import`'s mixed arc prism now imports first-class at ε 1e-9, 1e-6,
+  1e-12 and 1e-14. Both arc-wall seams take the bitwise `IsoCurve` rung,
+  so no seam is left for declare-and-check. The row is re-baselined in
+  #3774. The importer's declare-and-check is still exercised there by
+  `a_displaced_seam_carrier_refuses_with_the_measured_residual`, and in
+  geom-brep by `m7_8_plane_nurbs_edge`.
+- `swept_elbow.step` reads `3.0` at the corner, and its `KERNEL_VOLUME_*`
+  sidecar moves.
+- `mesh`'s `d9_mesh_goldens` swept_elbow digests move at both δ.
+- `sweep`'s thread-count digests move by ulps, and every verdict is unchanged.
+
+What is left of this item is the end column. It is the vertex only when
+`eval(1)` is `b`, so it reduces to the eval issue named above.
