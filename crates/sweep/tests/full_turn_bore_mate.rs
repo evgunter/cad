@@ -44,13 +44,13 @@ const BORE: f64 = 0.5;
 const OUTER: f64 = 1.5;
 const COLLAR: (f64, f64) = (1.0, 2.0);
 
-fn collar() -> Body<f64> {
+pub(crate) fn collar() -> Body<f64> {
     full_turn_collar(BORE, OUTER, COLLAR)
 }
 
 /// The three-arc peg, first ruling at azimuth `deg` (from `+x`, the
 /// collar's seam), spanning `y ∈ [y0, y0 + h]`.
-fn shaft(deg: f64, y0: f64, h: f64) -> Body<f64> {
+pub(crate) fn shaft(deg: f64, y0: f64, h: f64) -> Body<f64> {
     onto_y(&peg_at(deg, y0, h))
 }
 
@@ -180,7 +180,7 @@ fn a_shaft_off_the_bores_seam_is_built_by_the_zip() {
 /// The collar with its bore split into two full-turn faces by the
 /// circle at `y = 1.5`: the circle is an edge between two faces of ONE
 /// carrier, so no other face of the collar meets it.
-fn split_collar() -> Body<f64> {
+pub(crate) fn split_collar() -> Body<f64> {
     let tol = Tol::witness();
     let mut c = collar();
     let bore = crate::mate2_common::walls_at(&c, BORE)[0];

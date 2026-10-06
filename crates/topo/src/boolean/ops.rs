@@ -809,7 +809,17 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             Some((sa, sb)) => {
                 red.a = sa;
                 red.b = sb;
-                return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
+                super::rest::chord_probe::emit(&format!("JOIN_REFUSED {err:?}"));
+                let rest = super::rest::try_rest_union(red, a, b, decls, band, tol);
+                super::rest::chord_probe::emit(&format!(
+                    "REST_LANE {}",
+                    match &rest {
+                        Ok(Some(_)) => "Some(body)".to_owned(),
+                        Ok(None) => "None (join refusal stands)".to_owned(),
+                        Err(e) => format!("Err({e:?})"),
+                    }
+                ));
+                return match rest? {
                     Some(result) => {
                         interior_loops?;
                         Ok(Joined::Answered(Box::new(result)))

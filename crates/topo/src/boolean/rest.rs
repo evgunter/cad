@@ -1067,9 +1067,25 @@ fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
                     None => None,
                 };
                 let Some(host) = fragment_holding(body, face, fragments, u, v, rings)? else {
+                    chord_probe::emit(&format!(
+                        "NO_HOST realize_seam face={face:?} u={u:?} v={v:?}"
+                    ));
                     return Ok(None);
                 };
-                mint_chord(body, host, u, v, twin.as_ref(), fragments, tol)?
+                chord_probe::span(
+                    "realize_seam",
+                    body,
+                    Some(span.cell),
+                    face,
+                    host,
+                    (u, v),
+                    span.twin,
+                    twin.as_ref(),
+                    rings,
+                );
+                let r = mint_chord(body, host, u, v, twin.as_ref(), fragments, tol);
+                chord_probe::outcome(&r);
+                r?
             }
         });
     }
@@ -1166,9 +1182,22 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
     let mut patch = patch.to_vec();
     for &(edge, ou, ov) in other_interior {
         let (Some(&u), Some(&v)) = (here.get(ou), here.get(ov)) else {
+            chord_probe::emit(&format!(
+                "MIRROR_NONE no-counterpart other_edge={edge:?} other_curve={:?} ou={ou:?}@{:?}->{:?} ov={ov:?}@{:?}->{:?}",
+                other
+                    .get_edge(edge)
+                    .and_then(|e| other.get_curve_geom(e.curve))
+                    .and_then(crate::null::CurveGeom::certified)
+                    .map(|g| g.carrier().kind()),
+                other.get_vertex(ou).and_then(|x| other.get_point(x.point)),
+                here.get(ou),
+                other.get_vertex(ov).and_then(|x| other.get_point(x.point)),
+                here.get(ov)
+            ));
             return Ok(None);
         };
         if u == v {
+            chord_probe::emit(&format!("MIRROR_NONE closed other_edge={edge:?} u=v={u:?}"));
             return Ok(None);
         }
         if joined(body, u, v)? {
@@ -1178,14 +1207,33 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
             &incident_faces(body, u, rings)?,
             &incident_faces(body, v, rings)?,
         ) else {
+            chord_probe::emit(&format!(
+                "MIRROR_NONE no-sole-host other_edge={edge:?} u={u:?} v={v:?}"
+            ));
             return Ok(None);
         };
         if !patch.contains(&host) {
+            chord_probe::emit(&format!(
+                "MIRROR_NONE host-off-patch other_edge={edge:?} host={host:?}"
+            ));
             return Ok(None);
         }
         let minted = fragments.len();
         let twin = Twin::of(other, edge, (ou, ov), (u, v))?;
-        mint_chord(body, host, u, v, twin.as_ref(), fragments, tol)?;
+        chord_probe::span(
+            "mirror_edges",
+            body,
+            None,
+            host,
+            host,
+            (u, v),
+            Some(edge),
+            twin.as_ref(),
+            rings,
+        );
+        let r = mint_chord(body, host, u, v, twin.as_ref(), fragments, tol);
+        chord_probe::outcome(&r);
+        r?;
         patch.extend(fragments[minted..].iter().map(|&(new, _)| new));
     }
     Ok(Some(patch))
@@ -2109,6 +2157,105 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
     Ok(())
+}
+
+/// LANE-PRIVATE PROBE (zip-chord, branch `zip/chord-probe`; never for
+/// main). With `ZIP_CHORD_PROBE=<file>` set, every `mint_chord` call
+/// appends one line describing its span, and one with its outcome.
+pub(crate) mod chord_probe {
+    use super::*;
+    use std::io::Write;
+
+    pub(crate) fn emit(line: &str) {
+        let Ok(path) = std::env::var("ZIP_CHORD_PROBE") else {
+            return;
+        };
+        let test = std::thread::current()
+            .name()
+            .unwrap_or("<unnamed>")
+            .to_owned();
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(f, "[{test}] {line}");
+        }
+    }
+
+    pub(crate) fn on() -> bool {
+        std::env::var("ZIP_CHORD_PROBE").is_ok()
+    }
+
+    fn end<T: Decide>(
+        body: &Body<T>,
+        face: FaceKey,
+        w: VertexKey,
+        rings: &SecondaryMap<VertexKey, FaceKey>,
+    ) -> String {
+        let Some(vx) = body.get_vertex(w) else {
+            return format!("{w:?}=<dead>");
+        };
+        let p = body.get_point(vx.point).map(|p| format!("{p:?}"));
+        let visits = super::halves_at(body, face, w).map(|h| h.len());
+        let faces = super::super::sectors::faces_at(body, w)
+            .map(|f| f.len())
+            .ok();
+        format!(
+            "{w:?}@{} edges={} ring={:?} visits_in_host={:?} faces_at={:?}",
+            p.unwrap_or_default(),
+            vx.emanating.is_some(),
+            rings.get(w),
+            visits.ok(),
+            faces,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn span<T: Decide>(
+        caller: &str,
+        body: &Body<T>,
+        cell: Option<Locus>,
+        named_face: FaceKey,
+        host: FaceKey,
+        (u, v): (VertexKey, VertexKey),
+        twin_edge: Option<EdgeKey>,
+        twin: Option<&Twin<T>>,
+        rings: &SecondaryMap<VertexKey, FaceKey>,
+    ) {
+        if !on() {
+            return;
+        }
+        let surf = body
+            .get_face(host)
+            .and_then(|f| body.get_surface(f.surface))
+            .map(|s| format!("{:?}", s.kind()));
+        let twin_kind = match twin {
+            None => "None",
+            Some(Twin::Line) => "Line",
+            Some(Twin::Circle { .. }) => "Circle",
+        };
+        emit(&format!(
+            "SPAN caller={caller} cell={cell:?} named_face={named_face:?} host={host:?} host_surface={} twin_edge={twin_edge:?} twin_kind={twin_kind} u=[{}] v=[{}]",
+            surf.clone().unwrap_or_default(),
+            end(body, host, u, rings),
+            end(body, host, v, rings),
+        ));
+        let plane = surf.as_deref() == Some("Plane");
+        let straight = !matches!(twin, Some(Twin::Circle { .. }));
+        if straight && !plane {
+            emit(&format!(
+                "STRAIGHT_ON_CURVED caller={caller} host={host:?} host_surface={} twin_kind={twin_kind}",
+                surf.unwrap_or_default()
+            ));
+        }
+    }
+
+    pub(crate) fn outcome(r: &Result<EdgeKey, BooleanError>) {
+        if on() {
+            emit(&format!("OUTCOME {r:?}"));
+        }
+    }
 }
 
 #[cfg(test)]
