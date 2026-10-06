@@ -484,3 +484,15 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — the section classifiers read their gap at the reach (TANG implementer)
+
+`plane_cylinder_section` and `cylinder_cylinder_section` take an
+`ExtentBall` and read their gap at the feet of its centre, the tilt
+levered from the foot nearer it, so a verdict no longer moves with a
+cylinder's stored origin or with operand order, and the witness reads
+the same rows through the same helpers. Every caller hands a ball. One
+issue filed: three sibling offset rows that read a cylinder's stored
+origin against another carrier's axis.
+
+**Closed in the PR.** `plane-cylinder-section-reads-its-gap-at-the-stored-origin`.

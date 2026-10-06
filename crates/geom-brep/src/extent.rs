@@ -96,6 +96,18 @@ impl<T: Real> ExtentBall<T> {
         origin + axis * (self.center - origin).dot(axis)
     }
 
+    /// The lever of a relative tilt between two lines `oᵢ + s·aᵢ`
+    /// (`aᵢ` unit) whose gap is read between their feet
+    /// ([`Self::foot_on`]): the lesser of the two feet's levers. Holding
+    /// either line and turning the other about its own foot bounds the
+    /// same displacement across the ball, so the lesser bound holds as
+    /// well, and it does not depend on which line is named first.
+    #[must_use]
+    pub fn lever_between(self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {
+        let lever = |(origin, axis)| self.lever_from(self.foot_on(origin, axis));
+        lever(line1).min(lever(line2))
+    }
+
     /// The ball, if it reads: `None` where its centre or radius is
     /// poison or infinite (a box with no claim to make), whose lever
     /// would meter nothing.

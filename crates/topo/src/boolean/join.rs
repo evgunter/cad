@@ -1433,32 +1433,25 @@ fn germ_section_frame<T: Decide>(
         germ.b_face,
         crate::param_source::SurfaceField::CylinderRadius,
     );
-    // A cylinder pair's parallelism is consumed along both walls: the
-    // reach is the span of their boundary vertices, which a wall's
-    // axial extent ends at.
-    let reach = match (&sa, &sb) {
-        (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) => {
-            // `surf` resolved both faces above, and nothing writes
-            // between, so `face_witnesses` reads each.
-            let witnesses = |body: &Body<T>, f: FaceKey| {
-                super::rest::face_witnesses(body, f).unwrap_or_else(|| {
-                    unreachable!(
-                        "{}, which `surf` resolved, does not resolve",
-                        crate::entity::EntityId::Face(f)
-                    )
-                })
-            };
-            let points: Vec<geom_brep::ExtentBall<T>> = witnesses(&red.a, germ.a_face)
-                .into_iter()
-                .chain(witnesses(&red.b, germ.b_face))
-                .map(geom_brep::ExtentBall::point)
-                .collect();
-            let ball = geom_brep::ExtentBall::enclosing(&points)
-                .ok_or(desync("a germ wall pair has no boundary vertices"))?;
-            Some(ball.radius() + ball.radius())
-        }
-        _ => None,
+    // The pair's section is consumed on both faces: the reach is the
+    // ball of their boundary vertices, which a wall's axial extent ends
+    // at. `surf` resolved both faces above, and nothing writes between,
+    // so `face_witnesses` reads each.
+    let witnesses = |body: &Body<T>, f: FaceKey| {
+        super::rest::face_witnesses(body, f).unwrap_or_else(|| {
+            unreachable!(
+                "{}, which `surf` resolved, does not resolve",
+                crate::entity::EntityId::Face(f)
+            )
+        })
     };
+    let points: Vec<geom_brep::ExtentBall<T>> = witnesses(&red.a, germ.a_face)
+        .into_iter()
+        .chain(witnesses(&red.b, germ.b_face))
+        .map(geom_brep::ExtentBall::point)
+        .collect();
+    let reach = geom_brep::ExtentBall::enclosing(&points)
+        .ok_or(desync("a germ face pair has no boundary vertices"))?;
     pair_section_frame(&sa, &sb, evidence, reach, band)
         .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
 }
@@ -1661,23 +1654,23 @@ pub(super) enum FrameError {
 /// reads `None` as "run the straight-chord facing test" and would mint
 /// a wrong chord from it.
 ///
-/// `reach` is the length the pair's section is consumed over, where
-/// the caller knows it (the germ faces' span, [`germ_section_frame`]):
-/// the cylinder pair's parallelism is levered by it, since two axes a
-/// sine θ apart drift θ·reach apart over the walls. `None` levers by
-/// the radii alone.
+/// `reach` encloses the faces the pair's section is consumed on (the
+/// germ faces' boundary, [`germ_section_frame`]): the plane×cylinder
+/// and cylinder pairs read their axis rows across it, as the section
+/// table does, since two axes a sine θ apart drift θ·lever apart over
+/// the walls.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn pair_section_frame<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     evidence: geom_brep::RadiusEvidence,
-    reach: Option<T>,
+    reach: geom_brep::ExtentBall<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
     use geom::Surface as Sf;
-    let (plane_s, cyl_s, radius) = match (sa, sb) {
-        (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (sa, sb, *radius),
-        (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (sb, sa, *radius),
+    let (plane_s, cyl_s) = match (sa, sb) {
+        (Sf::Plane { .. }, Sf::Cylinder { .. }) => (sa, sb),
+        (Sf::Cylinder { .. }, Sf::Plane { .. }) => (sb, sa),
         // The sphere germ pair (M5 S13): the C5 Circle's frame,
         // through THE table — same escalation plumbing.
         (Sf::Plane { .. }, Sf::Sphere { .. }) | (Sf::Sphere { .. }, Sf::Plane { .. }) => {
@@ -1764,26 +1757,24 @@ pub(super) fn pair_section_frame<T: Decide>(
         // (below): skew keeps the general rung's `NoArm`, intersecting
         // axes take their own named door.
         //
-        // Metered at the larger radius or the section's reach, whichever
-        // is longer: the axes drift apart by the sine times the length
-        // they run together, and a bigger lever makes the parallelism
-        // margin harder to call Zero, so the error runs toward the
-        // refusal, never toward a wrong straight chord.
+        // Metered at the section table's own lever across `reach`
+        // ([`geom_brep::ExtentBall::lever_between`]): the axes drift
+        // apart by the sine times the length they run together, and the
+        // table re-decides this margin on the intersecting half below,
+        // so the two read one lever.
         (
             Sf::Cylinder {
                 origin: o1,
                 axis: a1,
-                radius: r1,
                 ..
             },
             Sf::Cylinder {
                 origin: o2,
                 axis: a2,
-                radius: r2,
                 ..
             },
         ) => {
-            let lever = reach.map_or(r1.max(*r2), |l| l.max(r1.max(*r2)));
+            let lever = reach.lever_between((*o1, *a1), (*o2, *a2));
             match decide(
                 "bool_germ_frame_axes_parallel",
                 Margin::levered(a1.cross(*a2).norm(), lever),
@@ -1826,14 +1817,14 @@ pub(super) fn pair_section_frame<T: Decide>(
                 Margin::of(w0.dot(cross) / cross.norm()),
                 band,
             ) {
-                Ok(Sign::Zero) => Err(intersecting_cylinder_axes(sa, sb, evidence, lever, band)),
+                Ok(Sign::Zero) => Err(intersecting_cylinder_axes(sa, sb, evidence, reach, band)),
                 Ok(Sign::Positive | Sign::Negative) => Err(FrameError::NoArm),
                 Err(diag) => Err(FrameError::Escalated(diag)),
             };
         }
         _ => return Err(FrameError::NoArm),
     };
-    match geom_brep::plane_cylinder_section(plane_s, cyl_s, radius, band) {
+    match geom_brep::plane_cylinder_section(plane_s, cyl_s, reach, band) {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
         | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse {
             center,
@@ -1882,22 +1873,22 @@ fn intersecting_cylinder_axes<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     evidence: geom_brep::RadiusEvidence,
-    lever: T,
+    reach: geom_brep::ExtentBall<T>,
     band: Band,
 ) -> FrameError {
     if evidence == geom_brep::RadiusEvidence::None {
         return FrameError::IntersectingCylinderAxes { evidence };
     }
     // The radii are NEVER compared here — equality is the channel's
-    // answer, not this function's. `lever` sets the section table's
-    // EXTENT: the same lever the parallelism gate above used, because
-    // the table re-decides the two axis margins this dispatch just
-    // decided and must reach the same verdicts from the same margins.
+    // answer, not this function's. The table reads the same `reach`
+    // the parallelism gate above levered from, because it re-decides
+    // the two axis margins this dispatch just decided and must reach
+    // the same verdicts from the same margins.
     //
     // Both matches are CLOSED (VERB-SEAT-DESIGN §0, D3): every section
     // outcome and every refusal is named, so a variant added to either
     // enum is a compile-time visit here rather than a silent desync.
-    match geom_brep::cylinder_cylinder_section(sa, sb, evidence, lever, band) {
+    match geom_brep::cylinder_cylinder_section(sa, sb, evidence, reach, band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { .. }) => {
             FrameError::IntersectingCylinderAxes { evidence }
         }
@@ -2930,6 +2921,11 @@ mod frame_dispatch_tests {
 
     use super::{FrameError, cs_pair_frame, frame_refusal, pair_section_frame};
 
+    /// The germ faces' reach the rows read the frame across.
+    fn reach() -> geom_brep::ExtentBall<f64> {
+        geom_brep::ExtentBall::new(Point3::new(0.0, 0.0, 0.0), 1.0)
+    }
+
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
     }
@@ -3088,7 +3084,7 @@ mod frame_dispatch_tests {
             (sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
         ];
         for (a, b, cylinder_pair) in curved_pairs {
-            let got = pair_section_frame(&a, &b, geom_brep::RadiusEvidence::None, None, band());
+            let got = pair_section_frame(&a, &b, geom_brep::RadiusEvidence::None, reach(), band());
             if cylinder_pair {
                 assert!(
                     matches!(
@@ -3124,7 +3120,7 @@ mod frame_dispatch_tests {
                 &cylinder(z),
                 &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, r),
                 geom_brep::RadiusEvidence::None,
-                None,
+                reach(),
                 band(),
             );
             assert!(
@@ -3140,7 +3136,7 @@ mod frame_dispatch_tests {
                 &cylinder(z),
                 &cylinder_at(Point3::new(0.0, 0.5, 0.0), x, r),
                 geom_brep::RadiusEvidence::None,
-                None,
+                reach(),
                 band(),
             );
             assert!(
@@ -3156,7 +3152,7 @@ mod frame_dispatch_tests {
                     &cylinder(z),
                     &cylinder_at(Point3::new(1.3, 0.0, 0.0), z, 0.4),
                     geom_brep::RadiusEvidence::None,
-                    None,
+                    reach(),
                     band()
                 ),
                 Ok(None)
@@ -3190,7 +3186,7 @@ mod frame_dispatch_tests {
             geom_brep::RadiusEvidence::Declared,
         ] {
             let (a, b) = pair();
-            let got = pair_section_frame(&a, &b, evidence, None, band());
+            let got = pair_section_frame(&a, &b, evidence, reach(), band());
             match got {
                 Err(FrameError::IntersectingCylinderAxes { evidence: carried }) => assert_eq!(
                     carried, evidence,
@@ -3222,7 +3218,7 @@ mod frame_dispatch_tests {
             &cylinder(z),
             &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, 0.4),
             geom_brep::RadiusEvidence::Declared,
-            None,
+            reach(),
             band(),
         );
         assert!(
@@ -3265,8 +3261,9 @@ mod frame_dispatch_tests {
                 radius: r,
                 u_ref: a2.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
             };
-            let sec = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, 1.0, band())
-                .expect("intersecting equal-radius axes have a section");
+            let sec =
+                cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, reach(), band())
+                    .expect("intersecting equal-radius axes have a section");
             let EqualCylinderSection::TwoEllipses { e1, e2 } = sec else {
                 panic!("{deg}°: the intersecting equal-radius section is the ellipse pair");
             };
@@ -3313,7 +3310,7 @@ mod frame_dispatch_tests {
                     &plane(),
                     &plane(),
                     geom_brep::RadiusEvidence::None,
-                    None,
+                    reach(),
                     band()
                 ),
                 Ok(None)
@@ -3328,7 +3325,7 @@ mod frame_dispatch_tests {
                     &plane(),
                     &cylinder(Vec3::new(0.0, 0.0, 1.0)),
                     geom_brep::RadiusEvidence::None,
-                    None,
+                    reach(),
                     band()
                 ),
                 Ok(Some(_))
@@ -3343,7 +3340,7 @@ mod frame_dispatch_tests {
                     &plane(),
                     &cylinder(Vec3::new(1.0, 0.0, 0.0)),
                     geom_brep::RadiusEvidence::None,
-                    None,
+                    reach(),
                     band()
                 ),
                 Ok(None)
@@ -3356,7 +3353,7 @@ mod frame_dispatch_tests {
                     &plane(),
                     &sphere(),
                     geom_brep::RadiusEvidence::None,
-                    None,
+                    reach(),
                     band()
                 ),
                 Ok(Some(_))
@@ -3372,7 +3369,7 @@ mod frame_dispatch_tests {
                     &cylinder(Vec3::new(0.0, 0.0, 1.0)),
                     &cylinder(Vec3::new(0.0, 0.0, 1.0)),
                     geom_brep::RadiusEvidence::None,
-                    None,
+                    reach(),
                     band()
                 ),
                 Ok(None)
@@ -3403,7 +3400,7 @@ mod frame_dispatch_tests {
                 &ball(Point3::new(0.0, 0.0, 0.0), 2.0, a_axis),
                 &ball(Point3::new(2.5, 0.0, 0.0), 2.0, b_axis),
                 geom_brep::RadiusEvidence::None,
-                None,
+                reach(),
                 band(),
             );
             let Ok(Some((center, axis))) = got else {
@@ -3424,7 +3421,7 @@ mod frame_dispatch_tests {
                 &ball(Point3::new(0.0, 0.0, 0.0), 2.0, z),
                 &b,
                 geom_brep::RadiusEvidence::None,
-                None,
+                reach(),
                 band(),
             );
             assert!(
@@ -3601,14 +3598,26 @@ mod frame_dispatch_tests {
             // both operand orders.
             assert!(
                 matches!(
-                    pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, None, band()),
+                    pair_section_frame(
+                        &cyl,
+                        &sph,
+                        geom_brep::RadiusEvidence::None,
+                        reach(),
+                        band()
+                    ),
                     Err(FrameError::NoArm)
                 ),
                 "{label}: dispatch, cylinder first"
             );
             assert!(
                 matches!(
-                    pair_section_frame(&sph, &cyl, geom_brep::RadiusEvidence::None, None, band()),
+                    pair_section_frame(
+                        &sph,
+                        &cyl,
+                        geom_brep::RadiusEvidence::None,
+                        reach(),
+                        band()
+                    ),
                     Err(FrameError::NoArm)
                 ),
                 "{label}: dispatch, sphere first"
@@ -3714,6 +3723,11 @@ mod frame_dispatch_interval_tests {
         Interval::from_f64(x)
     }
 
+    /// The germ faces' reach the rows read the frame across.
+    fn reach() -> geom_brep::ExtentBall<Interval> {
+        geom_brep::ExtentBall::new(p3(0.0, 0.0, 0.0), iv(1.0))
+    }
+
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
     }
@@ -3768,7 +3782,7 @@ mod frame_dispatch_interval_tests {
                 &about_z(p3(0.0, 0.0, 0.0), 1.0),
                 &about_x(p3(0.0, 0.0, 0.0), r),
                 geom_brep::RadiusEvidence::None,
-                None,
+                reach(),
                 band(),
             );
             assert!(
@@ -3796,7 +3810,7 @@ mod frame_dispatch_interval_tests {
                 &about_z(p3(0.0, 0.0, 0.0), 1.0),
                 &about_x(p3(0.0, 0.375, 0.0), r),
                 geom_brep::RadiusEvidence::None,
-                None,
+                reach(),
                 band(),
             );
             assert!(
@@ -3814,7 +3828,7 @@ mod frame_dispatch_interval_tests {
                 &about_z(p3(0.0, 0.0, 0.0), 1.0),
                 &about_x(along, 1.0),
                 geom_brep::RadiusEvidence::None,
-                None,
+                reach(),
                 band(),
             );
             assert!(
@@ -3836,7 +3850,7 @@ mod frame_dispatch_interval_tests {
                     &about_z(p3(0.0, 0.0, 0.0), 1.0),
                     &about_z(p3(1.25, 0.0, 0.0), 0.5),
                     geom_brep::RadiusEvidence::None,
-                    None,
+                    reach(),
                     band()
                 ),
                 Ok(None)
@@ -3859,6 +3873,11 @@ mod transverse_cs_frame_rows {
     use geom_core::{Affine3, Point3, Tol, Vec3};
 
     use super::{FrameError, pair_section_frame};
+
+    /// The germ faces' reach the rows read the frame across.
+    fn reach() -> geom_brep::ExtentBall<f64> {
+        geom_brep::ExtentBall::new(Point3::new(0.0, 0.0, 0.0), 1.0)
+    }
 
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
@@ -3994,11 +4013,23 @@ mod transverse_cs_frame_rows {
             for (order, got) in [
                 (
                     "cylinder first",
-                    pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, None, band()),
+                    pair_section_frame(
+                        &cyl,
+                        &sph,
+                        geom_brep::RadiusEvidence::None,
+                        reach(),
+                        band(),
+                    ),
                 ),
                 (
                     "sphere first",
-                    pair_section_frame(&sph, &cyl, geom_brep::RadiusEvidence::None, None, band()),
+                    pair_section_frame(
+                        &sph,
+                        &cyl,
+                        geom_brep::RadiusEvidence::None,
+                        reach(),
+                        band(),
+                    ),
                 ),
             ] {
                 let Ok(Some((c, axis))) = got else {
@@ -4043,7 +4074,7 @@ mod transverse_cs_frame_rows {
         for (label, pose) in poses() {
             let (cyl, sph) = pose.surfaces();
             let Ok(Some((c, axis))) =
-                pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, None, band())
+                pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, reach(), band())
             else {
                 panic!("{label}: a frame");
             };
@@ -4084,7 +4115,8 @@ mod transverse_cs_frame_rows {
             ),
         ] {
             let (cyl, sph) = pose.surfaces();
-            let got = pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, None, band());
+            let got =
+                pair_section_frame(&cyl, &sph, geom_brep::RadiusEvidence::None, reach(), band());
             let read = match got {
                 Err(FrameError::NoArm) => "NoArm",
                 Err(FrameError::Escalated(diag)) => diag.predicate.unwrap_or("unnamed"),

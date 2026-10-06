@@ -9,8 +9,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 use crate::dihedral::decide;
 use crate::extent::ExtentBall;
 use crate::intersect::{
-    PlaneCylinder, RuledSection, cylinder_axes_parallel, parallel_cylinder_gap,
-    plane_cylinder_ruled,
+    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel, parallel_axes_at,
+    parallel_cylinder_gap, plane_cylinder_ruled,
 };
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
@@ -64,11 +64,11 @@ pub enum TangentLocusError {
 /// the section classifiers' verdict, read through their own rows:
 ///
 /// - **plane×cylinder** is [`crate::plane_cylinder_section`]'s
-///   axis-in-plane lane, run on the cylinder re-based to the foot of
-///   `reach`'s centre on its axis, its axis row levered by `reach`'s
-///   extent from there: `pc_axis_plane_parallel` (a definite tilt is
-///   `Unsupported`) then `pc_parallel_gap` (`TangentLine` mints its
-///   ruling, `ParallelLines` crosses, `Empty` clears). A tilt moves
+///   axis-in-plane lane at `reach`, read at the foot of its centre on
+///   the axis and levered from there: `pc_axis_plane_parallel` (a
+///   definite tilt is `Unsupported`) then `pc_parallel_gap`
+///   (`TangentLine` mints its ruling, `ParallelLines` crosses, `Empty`
+///   clears). A tilt moves
 ///   the ruling by its angle times the distance from the foot, so the
 ///   axis row reads the displacement it induces across the faces the
 ///   locus is consumed on; with the gap row it mints only where each
@@ -76,7 +76,7 @@ pub enum TangentLocusError {
 ///   carriers across the faces, and the `Tangent` table then verifies
 ///   it sample by sample.
 /// - **parallel cylinders** read [`crate::cylinder_cylinder_section`]'s
-///   rows at the same lever from the second cylinder's foot:
+///   rows at `reach` as it does, in either order:
 ///   `cc_axes_parallel`, then `cc_parallel_gap`, the external margin
 ///   `r1 + r2 − d` (Zero mints the ruling, Negative clears). Where the
 ///   walls cross that margin's way, `tangent_locus_internal_gap` reads
@@ -151,19 +151,15 @@ pub fn tangent_locus<T: Decide>(
                 ..
             },
         ) => {
-            // The cylinder's origin moved along its axis to the foot of
-            // the extent's centre: the gap is read there, where the
-            // tilt's lever is least.
-            let foot = reach.foot_on(origin, axis);
             let pc = PlaneCylinder {
                 q,
                 n,
-                o: foot,
+                o: origin,
                 a: axis,
                 r: radius,
             };
             let gap = "pc_parallel_gap";
-            match plane_cylinder_ruled(&pc, reach.lever_from(foot), band).map_err(escalate)? {
+            match plane_cylinder_ruled(&pc, reach, band).map_err(escalate)? {
                 Some(RuledSection::TangentLine { origin, dir }) => {
                     Ok(TangentLocus::Line { origin, dir })
                 }
@@ -195,10 +191,8 @@ pub fn tangent_locus<T: Decide>(
                 ..
             },
         ) => {
-            let o2 = &reach.foot_on(*o2, *a2);
-            match cylinder_axes_parallel(a1.cross(*a2).norm(), reach.lever_from(*o2), band)
-                .map_err(escalate)?
-            {
+            let lever = reach.lever_between((*o1, *a1), (*o2, *a2));
+            match cylinder_axes_parallel(a1.cross(*a2).norm(), lever, band).map_err(escalate)? {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(TangentLocusError::Unsupported {
@@ -208,11 +202,11 @@ pub fn tangent_locus<T: Decide>(
                     });
                 }
             }
-            // Perpendicular axis-to-axis offset (the axis LINE datum,
-            // the carrier ladder's own construction).
-            let delta = *o2 - *o1;
-            let w = delta - *a1 * delta.dot(*a1);
-            let dist = w.norm();
+            let ParallelAxes {
+                foot1,
+                d_vec: w,
+                d: dist,
+            } = parallel_axes_at(reach, (*o1, *a1), (*o2, *a2));
             // External tangency first (|w| = r1 + r2): the common case
             // and the flush detector's; internal (|w| = |r1 − r2|)
             // second. Fixed probe order (D9).
@@ -220,7 +214,7 @@ pub fn tangent_locus<T: Decide>(
                 Sign::Zero => {
                     let w_hat = w.normalize();
                     return Ok(TangentLocus::Line {
-                        origin: *o1 + w_hat * *r1,
+                        origin: foot1 + w_hat * *r1,
                         dir: *a1,
                     });
                 }
@@ -273,7 +267,7 @@ pub fn tangent_locus<T: Decide>(
                         }
                     };
                     Ok(TangentLocus::Line {
-                        origin: *o1 + w_hat * (sign * *r1),
+                        origin: foot1 + w_hat * (sign * *r1),
                         dir: *a1,
                     })
                 }
@@ -398,7 +392,7 @@ mod tests {
                 Ok(TangentLocus::Line { .. }) => {}
                 other => panic!("{label}: the witness mints the ruling: {other:?}"),
             }
-            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, 1.0, band) {
+            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, metre, band) {
                 Ok(EqualCylinderSection::TangentLine(_)) => {}
                 other => panic!("{label}: the section classifies the same tangency: {other:?}"),
             }

@@ -99,7 +99,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopK
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
@@ -553,6 +553,20 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
+/// The ball about `at` that [`face_extent`] says encloses `face`'s
+/// boundary: the reach the section table reads a wall's pose across.
+fn face_reach<T: Decide>(
+    body: &Body<T>,
+    at: VertexKey,
+    face: FaceKey,
+) -> Result<geom_brep::ExtentBall<T>, SplitJoinError> {
+    let extent = face_extent(body, at, face).map_err(unbounded)?;
+    Ok(geom_brep::ExtentBall::new(
+        body.resolve_vertex_point(at, Proven),
+        extent,
+    ))
+}
+
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
 /// no outer boundary has no extent to meter a section across.
 fn unbounded(e: crate::splitting::rules::UnboundedFace) -> SplitJoinError {
@@ -779,7 +793,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    extent: T,
+    reach: geom_brep::ExtentBall<T>,
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -863,7 +877,9 @@ fn section_case<T: Decide>(
     // generator pair is the ruling case, its tangent generator the
     // tangent one — the cylinder's parallel-axis lane, one kind over.
     if let geom::Surface::Cone { .. } = wall {
-        return match geom_brep::plane_cone_section(plane_s, wall, extent, band).map_err(table)? {
+        return match geom_brep::plane_cone_section(plane_s, wall, reach.radius(), band)
+            .map_err(table)?
+        {
             geom_brep::PlaneConeSection::TiltedEllipse(c)
             | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
             geom_brep::PlaneConeSection::ApexLinePair { .. } => Ok(SectionCase::Straight),
@@ -874,7 +890,7 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let sec = geom_brep::plane_cylinder_section(plane_s, wall, extent, band).map_err(table)?;
+    let sec = geom_brep::plane_cylinder_section(plane_s, wall, reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
         | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
@@ -1286,8 +1302,7 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let extent = face_extent(body, at, face).map_err(unbounded)?;
-    let case = section_case(face, band, &plane_s, &wall, extent)?;
+    let case = section_case(face, band, &plane_s, &wall, face_reach(body, at, face)?)?;
     Ok(Some(WallSection { wall, case }))
 }
 
@@ -1399,8 +1414,7 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let extent = face_extent(body, u1, face).map_err(unbounded)?;
-    let conic = match section_case(face, band, &plane_s, wall, extent)? {
+    let conic = match section_case(face, band, &plane_s, wall, face_reach(body, u1, face)?)? {
         // Ruling seams are straight chords on the plane too.
         SectionCase::Straight => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING
@@ -3530,6 +3544,10 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
+    fn reach() -> geom_brep::ExtentBall<f64> {
+        geom_brep::ExtentBall::new(Point3::origin(), 4.0)
+    }
+
     fn plane() -> geom::Surface<f64> {
         geom::Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.5),
@@ -3563,7 +3581,7 @@ mod section_case_pair_tests {
     fn the_pair_is_order_free() {
         let f = FaceKey::default();
         for (a, b) in [(plane(), cylinder()), (cylinder(), plane())] {
-            let got = section_case(f, band(), &a, &b, 4.0).expect("the rim arm is wired");
+            let got = section_case(f, band(), &a, &b, reach()).expect("the rim arm is wired");
             let SectionCase::Conic(c) = got else {
                 panic!("a square cut names a rim circle");
             };
@@ -3581,13 +3599,13 @@ mod section_case_pair_tests {
             (cylinder(), sphere()),
             (sphere(), sphere()),
         ] {
-            match section_case(f, band(), &a, &b, 4.0) {
+            match section_case(f, band(), &a, &b, reach()) {
                 Err(SplitJoinError::SectionInvariant { .. }) => {}
                 Err(e) => panic!("a curved pair must refuse SectionInvariant, got {e:?}"),
                 Ok(_) => panic!("a curved pair must refuse typed, never classify"),
             }
         }
-        match section_case(f, band(), &plane(), &plane(), 4.0) {
+        match section_case(f, band(), &plane(), &plane(), reach()) {
             Err(SplitJoinError::SectionInvariant { .. }) => {}
             Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
             Ok(_) => panic!("a planar pair must refuse typed here, never classify"),

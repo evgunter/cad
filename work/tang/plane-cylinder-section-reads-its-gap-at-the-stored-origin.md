@@ -2,10 +2,11 @@
 id: plane-cylinder-section-reads-its-gap-at-the-stored-origin
 kind: issue
 title: the plane×cylinder and equal-cylinder sections read their gaps at a stored origin their tilt lever does not reach
-status: open
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
+closed: 2026-10-06
 ---
 
 
@@ -65,3 +66,38 @@ construction, moved into the classifiers so every caller, the witness
 included, gets one reading. The plane×cylinder half was found reading only, by the
 `tangent-locus-re-meters-the-section-classifiers-tangency` lane; the
 cylinder half was measured as above.
+
+## Review tier
+
+SINGLE, FULL: the classifiers' pivot moves every caller's band reading;
+one full review with a differential.
+
+## Closed
+
+Both classifiers take an `ExtentBall` for the faces their verdict is
+consumed on and read their gap where it is:
+
+- `plane_cylinder_section` reads `pc_parallel_gap` at the foot of the
+  ball's centre on the axis and levers `pc_axis_plane_parallel` from
+  that foot (`ExtentBall::lever_from`), the witness lane's construction
+  moved into `plane_cylinder_ruled`.
+- `cylinder_cylinder_section` reads `cc_coaxial` and `cc_parallel_gap`
+  as the distance between the two axes' feet, which is the same number
+  in either order, and levers `cc_axes_parallel` from the foot nearer
+  the ball's centre (`ExtentBall::lever_between`). Holding either axis
+  and turning the other about its own foot bounds the same
+  displacement, so the lesser bound holds; the pivot is a property of
+  the pair and the ball, not of which operand is named first.
+
+`tangent_locus` calls the same helpers (`plane_cylinder_ruled`,
+`parallel_axes_at`, `lever_between`), so `pc_parallel_gap` and
+`cc_parallel_gap` are one reading whichever lane logs them. Callers now
+hand a ball: chord_join the ball about its base vertex that
+`face_extent` measures, the germ frame the ball of both germ faces'
+boundary vertices (for the plane×cylinder pair too, which was levered
+at the radius), `route_pose` the ball enclosing the edge (its
+scalar-extent arms take the ball's lever from the pair's anchors).
+
+The class sweep's three siblings (cone×cylinder's `coc_coaxial`, the
+join's parallel radical plane, `chart_region_cyl_offset`) are filed as
+`cylinder-offsets-read-at-a-stored-origin-off-the-reach`.
