@@ -478,42 +478,47 @@ where
     // and the identity fast path clones keys verbatim. Re-deriving them
     // from the placed geometry is the scan-to-bless move F1 bans. The
     // bookkeeping rows ride unchanged for the same reason; what is
-    // added here is each row's ROUTE ([`carry_up`]).
+    // added here is each row's first hop, this instance
+    // ([`crate::assembly::PartRow::through`]).
     let carried = crate::assembly::CarriedDeclarations {
-        minted: carry_up(
-            &part.minted,
-            part.carried
-                .iter()
-                .map(|r| (&r.route, r.declaration.clone())),
-            id,
-            doc_ref.id,
-        )
-        .map(|(route, declaration)| crate::assembly::CarriedDeclaration { route, declaration })
-        .collect(),
-        unminted: carry_up(
-            &part.unminted,
-            part.carried_unminted
-                .iter()
-                .map(|r| (&r.route, r.refusal.clone())),
-            id,
-            doc_ref.id,
-        )
-        .map(|(route, refusal)| crate::assembly::CarriedRefusal { route, refusal })
-        .collect(),
-        unplaced: carry_up(
-            &part.unplaced,
-            part.carried_unplaced
-                .iter()
-                .map(|r| (&r.route, (r.group, r.cause))),
-            id,
-            doc_ref.id,
-        )
-        .map(|(route, (group, cause))| crate::assembly::CarriedUnplaced {
-            route,
-            group,
-            cause,
-        })
-        .collect(),
+        minted: part
+            .minted
+            .iter()
+            .map(|row| {
+                let (route, declaration, held) = row.through(id);
+                crate::assembly::CarriedDeclaration {
+                    route,
+                    declaration,
+                    held,
+                }
+            })
+            .collect(),
+        unminted: part
+            .unminted
+            .iter()
+            .map(|row| {
+                let (route, refusal, held) = row.through(id);
+                crate::assembly::CarriedRefusal {
+                    route,
+                    refusal,
+                    held,
+                }
+            })
+            .collect(),
+        unplaced: part
+            .unplaced
+            .iter()
+            .map(|row| {
+                let (route, crate::assembly::UnplacedGroup { group, cause }, held) =
+                    row.through(id);
+                crate::assembly::CarriedUnplaced {
+                    route,
+                    group,
+                    cause,
+                    held,
+                }
+            })
+            .collect(),
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
@@ -523,34 +528,6 @@ where
         carried: Arc::new(carried),
         parts: part.parts,
     })
-}
-
-/// One instantiation's worth of routed rows, over one payload kind:
-/// the pinned document's OWN rows first — reached through `node`, `of`
-/// that document, nothing in between — then the rows it carried up
-/// itself, each re-routed through `node`
-/// ([`crate::assembly::Route::through_instance`]).
-///
-/// Generic over the payload so a declaration and a mint refusal share
-/// one route rule.
-fn carry_up<'a, P: Clone + 'a>(
-    own: &'a [P],
-    below: impl Iterator<Item = (&'a crate::assembly::Route, P)> + 'a,
-    node: RecipeNodeId,
-    of: crate::ident::DocumentId,
-) -> impl Iterator<Item = (crate::assembly::Route, P)> + 'a {
-    own.iter()
-        .map(move |payload| {
-            (
-                crate::assembly::Route {
-                    through: node,
-                    of,
-                    via: Vec::new(),
-                },
-                payload.clone(),
-            )
-        })
-        .chain(below.map(move |(route, payload)| (route.through_instance(node), payload)))
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's
@@ -845,7 +822,8 @@ fn body_operand<T: Decide>(
 }
 
 /// **A body operand, finished** for a door that takes finished bodies
-/// (the Boolean's and the split's): [`body_operand`]'s body through the at-rest gate
+/// (the Boolean's, the split's and the shell's): [`body_operand`]'s
+/// body through the at-rest gate
 /// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
 /// node. The evaluator holds the bodies its nodes built with no verdict
 /// kept beside them, so the consuming node pays the gate here.
@@ -2095,7 +2073,11 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// hollow, not a refusal. Failure of the op itself is
 /// [`NodeErrorKind::Shell`]; the input body is never passed through. A
 /// scalar that cannot form the door's call at all — a dual — refuses
-/// [`NodeErrorKind::ShellLaneUnsupported`].
+/// [`NodeErrorKind::ShellLaneUnsupported`]. An operand the at-rest gate
+/// refuses is [`NodeErrorKind::UnfinishedOperand`]
+/// ([`finished_operand`]), which no document reaches (every node's door
+/// gates what it ships) and which never meets the lane refusal: a dual's
+/// gate refuses nothing, and a certifying scalar has the door.
 ///
 /// # Naming
 ///
@@ -2113,7 +2095,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, target)?;
+    let body = finished_operand(results, target, tol)?;
     let thickness = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let faces = resolve_open_faces(open, doc, &target_table)?;

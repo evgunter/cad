@@ -2670,7 +2670,7 @@ impl Node {
     ///
     /// `selection` is edge names as text: the strings
     /// `Evaluation.all_edges` answers with, or the ones a role-name
-    /// door mints ([`super::select::band_rim`] and its four siblings)
+    /// door mints ([`super::select::band_rim`] and its five siblings)
     /// for a node no evaluation has reached yet. A name is CARRIED,
     /// never assembled and never read: the text is an opaque
     /// identifier whose internal structure is not API (see

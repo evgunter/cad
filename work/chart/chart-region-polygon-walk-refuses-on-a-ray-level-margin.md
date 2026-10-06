@@ -36,3 +36,13 @@ common case). That query refuses where the next member would decide.
 
 `chart_bound::parity` maps the same `Err` to `None`, which is
 conservative there, and needs no change.
+
+## Fixed on branch `cleave/ray-walk`
+
+CLEAVE's ray-walk driver unit put `point_in_polygon` on
+`ray_walk::walk`: an in-band `chart_region_side` or
+`chart_region_advance` now sets the ray aside, and the first such
+reading is the refusal only if no ray decides. `chart_bound::parity`
+went onto the same driver, so it retries such a ray too rather than
+reading the cell as unanswered. Closing the row is CHART's call once
+that branch merges.

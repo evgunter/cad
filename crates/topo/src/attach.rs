@@ -73,6 +73,20 @@ use crate::live::{Arg, dangling_link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
 
+/// Which described edges' faces [`Body::description_rows`] re-mints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Remints {
+    /// A null edge's alone: its description is its first, and the first
+    /// door that can derive its halves' rows. A certified edge's
+    /// description moves no key and keeps its rows
+    /// ([`Body::set_edge_curve`]).
+    FirstDescription,
+    /// Every described edge's: the door moves a certified edge's end
+    /// as well as its carrier, and the rows it keeps would span the
+    /// interval the end moved from ([`Body::kev_describing`]).
+    Every,
+}
+
 impl<T: Decide> Body<T> {
     /// Replaces `face`'s surface per the [`FaceSurface`] spec,
     /// returning the face's (possibly unchanged) surface key.
@@ -370,10 +384,8 @@ impl<T: Decide> Body<T> {
 
         // ---- No unlisted edge stranded. ----
         let undescribed: Vec<EdgeKey> = self
-            .rechart_edges(self.edges.keys(), moved, Spelling::Stored)
-            .stranded
+            .stranded(&faces)
             .into_iter()
-            .map(|(e, _)| e)
             .filter(|e| !written.iter().any(|(w, ..)| w == e))
             .collect();
         if !undescribed.is_empty() {
@@ -478,6 +490,30 @@ impl<T: Decide> Body<T> {
             out.push((edge, self.carried_spec(edge, sides, charts)));
         }
         Ok(out)
+    }
+
+    /// **The edges a re-chart strands**: those whose stored description
+    /// is adjacency-coherent now and is not once `charts` have moved,
+    /// each of which [`Body::set_face_surfaces_describing`] refuses
+    /// unlisted ([`EulerOpError::RechartUndescribed`]), in edge-arena
+    /// order. Pure.
+    ///
+    /// # Errors
+    ///
+    /// `charts`' per-face preconditions, as that door checks them.
+    pub(crate) fn stranded_by(&self, charts: &[Rechart<T>]) -> Result<Vec<EdgeKey>, EulerOpError> {
+        let faces = self.plan_recharts(charts)?;
+        Ok(self.stranded(&faces))
+    }
+
+    /// [`Body::stranded_by`] over planned faces.
+    fn stranded(&self, faces: &[MovedFace]) -> Vec<EdgeKey> {
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(faces, f);
+        self.rechart_edges(self.edges.keys(), moved, Spelling::Stored)
+            .stranded
+            .into_iter()
+            .map(|(e, _)| e)
+            .collect()
     }
 
     /// The faces `charts` move, each resolved once with its moved sense,
@@ -993,7 +1029,12 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
-        let rows = self.null_description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
+        let rows = self.description_rows(
+            &[(edge, &certified)],
+            Remints::FirstDescription,
+            |_| Ok(Vec::new()),
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.replace_edge_curve(edge, certified);
@@ -1062,37 +1103,39 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// **The rows a null edge's first description writes**, decided
-    /// before its door mutates: one plan per face the halves of a null
-    /// edge in `described` are on, for [`crate::pcurves::apply_site_rows`].
-    /// `described` is every edge the door describes, with the curve it
-    /// installs; `rewired` reads every loop the door's own surgery
-    /// rewires, as the door leaves it (none for [`Body::set_edge_curve`],
-    /// whose description moves no key; the loops the kill unsplices for
-    /// [`Body::kev_describing`]), and runs only where a null edge is
-    /// described. Every other loop is read as found. Every edge in
-    /// `described` is one the caller resolved.
+    /// **The rows a description writes**, decided before its door
+    /// mutates: one plan per face the halves of an edge in `described`
+    /// whose faces it re-mints ([`Remints`]) are on, for
+    /// [`crate::pcurves::apply_site_rows`]. `described` is every edge the
+    /// door describes, with the curve it installs; `rewired` reads every
+    /// loop the door's own surgery rewires, as the door leaves it (none
+    /// for [`Body::set_edge_curve`], whose description moves no key; the
+    /// loops the kill unsplices for [`Body::kev_describing`]), and runs
+    /// only where a face is re-minted. Every other loop is read as found.
+    /// Every edge in `described` is one the caller resolved.
     ///
-    /// Empty unless an edge in `described` is a null edge
-    /// ([`crate::CurveGeom::NullScaffold`]): a certified edge's
-    /// description moves no key, so no row goes missing (the door's
-    /// docs), and a face it finds half-minted is left as found. A null
-    /// edge's description is the first door that can derive its halves'
-    /// rows, so on each face they are on that the site mint selects it
+    /// Empty unless an edge in `described` re-mints: a null edge
+    /// ([`crate::CurveGeom::NullScaffold`]) always, whose description is
+    /// the first door that can derive its halves' rows, and under
+    /// [`Remints::Every`] a certified one too, whose rows the door moves.
+    /// On each face their halves are on that the site mint selects it
     /// walks every loop, through the Euler operators' site mint
     /// ([`Body::plan_site_mint`]), each half of a described edge under
-    /// the curve the door installs, and on each loop no other null edge
-    /// runs through mints what is missing, those halves' rows among it;
-    /// on a spline chart the face is left as found.
+    /// the curve the door installs, and on each loop no null edge runs
+    /// through after the door mints what is missing, those halves' rows
+    /// among it. A face it finds half-minted is left as found, and so is
+    /// one on a spline chart: a null edge holds it open, and a certified
+    /// edge's face is left where the closed-form lane does not reach.
     ///
     /// # Errors
     ///
     /// What `rewired` raises; [`EulerOpError::Certification`] where
     /// `tol` builds no band; [`EulerOpError::PcurveMint`] naming the face a half-edge of which
     /// did not resolve.
-    pub(crate) fn null_description_rows(
+    pub(crate) fn description_rows(
         &self,
         described: &[(EdgeKey, &EdgeCurve<T>)],
+        remints: Remints,
         rewired: impl FnOnce(&Self) -> Result<Vec<(LoopKey, Vec<HalfEdgeKey>)>, EulerOpError>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
@@ -1105,19 +1148,16 @@ impl<T: Decide> Body<T> {
                 (edge_data.he_minus, "he_minus"),
             ];
             halves.extend(pair.map(|(he, _)| he));
-            if self
-                .edge_curve(edge, edge_data.curve)
-                .null_scaffold()
-                .is_some()
-            {
-                for (he, field) in pair {
-                    let he_data = linked(
-                        &self.half_edges,
-                        he,
-                        EntityId::HalfEdge,
-                        EntityId::Edge(edge),
-                        field,
-                    );
+            for (he, field) in pair {
+                let he_data = linked(
+                    &self.half_edges,
+                    he,
+                    EntityId::HalfEdge,
+                    EntityId::Edge(edge),
+                    field,
+                );
+                let face = crate::pcurves::half_edge_face(self, he).0;
+                if self.description_remints(edge, remints, face) {
                     touched.push(he_data.parent_loop);
                 }
             }
@@ -1158,6 +1198,43 @@ impl<T: Decide> Body<T> {
             SiteCarriers::Described(described),
             tol,
         )
+    }
+
+    /// Whether [`Body::description_rows`], under `remints`, plans
+    /// `face` for `edge`: one of `edge`'s halves is on it, and the
+    /// description re-mints it. The one home of that decision: the
+    /// description plans a half's face by it, and
+    /// [`Body::kev_describing`]'s released-loop plan leaves such a face
+    /// to the description's. `edge` and `face` are ones the caller
+    /// resolved.
+    pub(crate) fn description_remints(
+        &self,
+        edge: EdgeKey,
+        remints: Remints,
+        face: FaceKey,
+    ) -> bool {
+        let edge_data = proven(&self.edges, edge, EntityId::Edge);
+        let null = self
+            .edge_curve_linked(edge, edge_data)
+            .null_scaffold()
+            .is_some();
+        (null || remints == Remints::Every)
+            && [edge_data.he_plus, edge_data.he_minus]
+                .into_iter()
+                .any(|h| {
+                    crate::pcurves::half_edge_face(self, h).0 == face
+                        && (null || !self.face_on_spline_chart(face))
+                })
+    }
+
+    /// Whether `face`'s chart is a spline one, where the site mint's
+    /// closed-form lane does not reach. `face` is one the caller
+    /// resolved.
+    fn face_on_spline_chart(&self, face: FaceKey) -> bool {
+        let face_data = proven(&self.faces, face, EntityId::Face);
+        self.face_surface_linked(face, face_data)
+            .spline_chart()
+            .is_some()
     }
 
     /// The mutation half of every door that re-describes an existing

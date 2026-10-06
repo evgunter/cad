@@ -388,10 +388,11 @@ fn every_fixture_shell_is_edge_use_coherent() {
         ("cut_cylinder", &[6]),
         ("boss_union", &[21]),
         ("notched", &[12]),
-        // The washer's two full-2π walls each use their seam edge
+        // The washer's two full-2π cylinders each use their seam edge
         // twice inside ONE loop — the coherence rule is blind to which
-        // loop the two uses come from, which is exactly right.
-        ("washer", &[8]),
+        // loop the two uses come from, which is exactly right — and its
+        // two plane annuli carry no seam.
+        ("washer", &[6]),
         ("ball", &[2]),
         ("cone", &[4]),
         ("donut", &[4]),

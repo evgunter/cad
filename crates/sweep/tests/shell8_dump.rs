@@ -17,6 +17,7 @@ use topo::{Body, FaceKey};
 
 use crate::common::shell_operands::{hollow_box, outer_and_void, two_void_box, vessel};
 use crate::shell8_common::{cap, tol};
+use sweep::test_support::finished;
 
 fn dump(label: &str, body: &Body<f64>) {
     println!(
@@ -84,7 +85,12 @@ fn dump(label: &str, body: &Body<f64>) {
 }
 
 fn opened(label: &str, body: &Body<f64>, t: f64, faces: &[FaceKey]) {
-    match topo::shell_open(body, t, faces, tol()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), tol()),
+        t,
+        faces,
+        tol(),
+    ) {
         Ok(s) => dump(label, &s.body),
         Err(e) => println!("[dump8] {label}: shell_open Err {e}"),
     }
@@ -135,9 +141,13 @@ fn shell8_dump_hollow_and_opened_corpus() {
     // ---- The hollow vessel: `ChartsTogether` on the way in, and a
     // lift whose door was read over the whole result body and is now
     // read over the designated face's own solid. ----
-    let hollow_vessel = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
-        .expect("the vessel hollows")
-        .body;
+    let hollow_vessel = topo::shell(
+        &finished("the operand", vessel(1.0, 2.0), tol()),
+        0.1,
+        tol(),
+    )
+    .expect("the vessel hollows")
+    .body;
     dump("hollow vessel operand", &hollow_vessel);
     let (outer, void) = outer_and_void(&hollow_vessel);
     opened("hollow vessel sealed", &hollow_vessel, 0.02, &[]);

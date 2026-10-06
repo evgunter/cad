@@ -11,13 +11,13 @@ use crate::{ArcData, ArcSide, ProfileLoop, Step, Target, TipState, Verb};
 /// It forwards to the lowering the lattice's emission layer uses for
 /// `arc_to(Bulge)` and computes nothing of its own, so a loop written
 /// here stores the same vertices and segments, bit for bit, as the same
-/// chain emitted by the lattice. It holds no run tolerance, so unlike
-/// the lattice it registers none of the lowered arcs' endpoint facts
-/// (`crate::lower_arc`). A bulge of exactly zero
+/// chain of `arc_to(Bulge)` legs emitted by the lattice. It holds no
+/// run tolerance, so unlike the lattice it registers none of the
+/// lowered arcs' endpoint facts (`crate::lower_arc`). A bulge of exactly zero
 /// (either sign) is a line; any other bulge is an arc, finite or not,
 /// and [`crate::Profile::validate`] decides what the table is.
 pub fn bulge_loop<T: Real>(chain: Vec<(Point2<T>, T)>) -> ProfileLoop<T> {
-    ProfileLoop::from_chain(crate::lower_chain(&chain, None), Vec::new())
+    ProfileLoop::from_chain(crate::lower_chain(&chain), Vec::new())
 }
 
 /// **Every tip state some verb has a row at, plus `Closed`** (which

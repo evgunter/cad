@@ -360,22 +360,17 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// material pairing ([`classify_material_pairing`]) and the
 /// second-order jet margin the tier-3 validator decides.
 ///
-/// "One home" is **aspiration, not fact**, and the gap is filed as
-/// issue 1439. Two hand-rolled siblings of this fold remain across
-/// the workspace — `topo::boolean::contact_verify` (the fold's own
-/// stated origin) and `topo::boolean::ops` — down from the six that
-/// issue counted: `crate::certify` reaches the fold through
-/// [`tangent_second_order`], `sweep::extrude` and
-/// `sweep::revolve::upgrade` through [`must_carry_over_edge`], which
-/// composes it, and `crate::ssi` through `pair_lever_arm`. The two
-/// hand-rolled siblings of the second-order MARGIN are a different
-/// pair and are counted on [`tangent_second_order`].
-/// `contact_tangent_opposed` is also [`classify_material_pairing`]'s
-/// own twin — the same C1 lemma between bodies rather than within one.
-/// Consolidating the rest is that issue's work, deliberately NOT
-/// absorbed here; until it lands, a new site levering against its own
-/// fold is a silent non-comparability, so route new callers through
-/// this function.
+/// `crate::certify` reaches it through [`tangent_second_order`], the
+/// smooth-join constructors through [`must_carry_over_edge`], which
+/// composes it, and `topo::boolean::contact_verify` directly. One
+/// copy is still spelled in place: `crate::ssi::march`'s transversality
+/// gate folds the extent onto its system's arm
+/// (`Real::min(sys.lever_arm(x), extent)`, the arm itself
+/// `pair_lever_arm`'s). `contact_verify`'s `contact_tangent_opposed` is
+/// also [`classify_material_pairing`]'s own twin — the same C1 lemma
+/// between bodies rather than within one. Both are issue 1439's work.
+/// A new site levering against its own fold is a silent
+/// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
     pair_lever_arm(s1, s2, p).min(extent)
 }
@@ -415,14 +410,17 @@ pub(crate) fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point
 /// the SAME predicate name, or the demanded set and the stored set are
 /// two sets and every disagreement is a spurious
 /// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs,
-/// and the boolean rebuild's smooth seams, route here through
-/// [`must_carry_over_edge`], which is where the gate, the stations and
-/// the verdict policy live; `Intersection`-tangency certification and
-/// the boolean rim wedge fold this reading into walks of their own. The
-/// one remaining hand-rolled sibling is the tier-3
-/// validator's (`topo::validate`), which folds this margin into a
-/// per-sample walk it already runs — issue 1439's work. A new site
-/// spelling its own is a silent non-comparability.
+/// the boolean rebuild's smooth seams and the split's section boundary
+/// route here through [`must_carry_over_edge`], which is where the
+/// gate, the stations and the verdict policy live;
+/// `Intersection`-tangency certification and the boolean rim wedge fold
+/// this reading into walks of their own. Two hand-rolled siblings
+/// remain, both issue 1439's work: the tier-3 validator's
+/// (`topo::validate`), which folds this margin into a per-sample walk
+/// it already runs, and `topo::boolean::contact_verify`'s, which meters
+/// `Margin::sagitta(|κ_rel| − drift, arm)` under its own predicate
+/// (`"contact_tangent_second_order"`). A new site spelling its own is a
+/// silent non-comparability.
 ///
 /// The [`SecondOrder`] return carries the jet and the arm beside the
 /// verdict, because the two callers that fold this into a longer walk
@@ -565,12 +563,11 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// for the pairs ONE caller mints, while this walk must hold for every
 /// pair it is handed, so none licenses reading one station.
 ///
-/// **The one home** [`folded_lever_arm`]'s doc calls aspirational, one
-/// level up: the fold has a single spelling and so does the metered
-/// margin, but the EDGE-level rule — gate, stations, verdict policy
-/// — was spelled once per caller, and the spellings disagreed on the
-/// in-band case. A new constructor spelling its own is that
-/// disagreement again.
+/// **The one home of the EDGE-level rule** — gate, stations, verdict
+/// policy — as [`folded_lever_arm`] is of the fold and
+/// [`tangent_second_order`] of the metered margin. A constructor
+/// spelling its own is a second verdict policy, and the in-band case
+/// is where such spellings have disagreed.
 pub fn must_carry_over_edge<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -699,7 +696,11 @@ pub enum MustCarryVerdict {
     /// smooth, so the second-order question was never posed there and
     /// the rule has no description to choose. The edge is a corner at
     /// that station, and a caller whose premise was a smooth join has
-    /// had that premise refuted.
+    /// had that premise refuted: [`MustCarryVerdict::description`]
+    /// refuses it ([`MustCarryRefusal::Refuted`]). The one caller that
+    /// keeps such an edge conventional is the boolean rebuild's seams
+    /// (`topo::boolean::ops`), which read the verdict rather than its
+    /// description, because tier 3 holds a mixed edge to neither.
     Transverse,
 }
 
