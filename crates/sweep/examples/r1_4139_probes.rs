@@ -497,6 +497,9 @@ fn mesh_col(body: &Body<f64>) -> String {
 /// Every op in both orders; `points` the pinch points to count at;
 /// `cyl` substitutes the second solid's link pieces (a curved operand).
 fn run_all(tag: &str, x: &Solid, y: &Solid, common: f64, points: &[V3], link_y: Option<&Pieces>) {
+    if std::env::var("R1_PICK").is_ok_and(|p| p != tag) {
+        return;
+    }
     let decls = BooleanDeclarations::default();
     let ly = link_y.unwrap_or(&y.pieces);
     for (order, p, q, lp, lq, vp) in [("xy", x, y, &x.pieces, ly, x.vol), ("yx", y, x, ly, &x.pieces, y.vol)] {
@@ -520,6 +523,16 @@ fn run_all(tag: &str, x: &Solid, y: &Solid, common: f64, points: &[V3], link_y: 
                                     Ok((c, fl)) => s.push(format!("c{c}f{fl}v{nv}!CONEMISMATCH")),
                                     Err(e) => s.push(format!("c?{e}v{nv}")),
                                 }
+                            }
+                            if std::env::var("R1_OPERR").is_ok() {
+                                let far = AtRestBody::validate(sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()), tol()).unwrap();
+                                if let Err(e) = topo::union(&bb.body, &far, tol()) {
+                                    eprintln!("{tag} {order} {op} OPERAND-ERR {e:?}");
+                                }
+                                if let Err(e) = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()) {
+                                    eprintln!("{tag} {order} {op} T3P-ERR {e:?}");
+                                }
+                                eprintln!("{tag} {order} {op} SOLIDS {} SHELLS {}", bb.body.solids().count(), bb.body.solids().map(|(_, s)| s.shells.len()).sum::<usize>());
                             }
                             format!("{} {}", s.join(","), mesh_col(&bb.body))
                         })
@@ -627,6 +640,126 @@ fn main() {
                         let Some(y) = corner_posed(b, rotation(k + 1), a.v) else { continue };
                         let common = common_volume(&x.pieces, &y.pieces);
                         run_all(&format!("{} {} k={k}", a.name, b.name), &x, &y, common, &[a.v], None);
+                    }
+                }
+            }
+        }
+        // A corner on a cube's edge, the cube turned by seeded rotations;
+        // only poses the oracle gives three or more cones in some op run
+        // (an edge's lune crosses the corner's sector up to six times).
+        "e3" => {
+            let lo = [0.0, -2.0, 0.0];
+            let cap: usize = std::env::var("R1_CAP").ok().map_or(150, |s| s.parse().unwrap());
+            for c in corners().into_iter().filter(|c| c.name != "w60") {
+                let Some(x) = corner_at_rest(&c) else { continue };
+                let mut found = 0;
+                for seed in 0..200_000u64 {
+                    if found >= cap {
+                        break;
+                    }
+                    let f = rotation(seed + 7);
+                    let mut planes = Vec::new();
+                    for (axis, dir) in f.into_iter().enumerate() {
+                        let base = dot(dir, c.v);
+                        planes.push((scale(dir, -1.0), -(base + lo[axis])));
+                        planes.push((dir, base + lo[axis] + 4.0));
+                    }
+                    let yp = vec![planes];
+                    let most = [OpK::U, OpK::I, OpK::S]
+                        .into_iter()
+                        .flat_map(|k| [cones(c.v, &x.pieces, &yp, k), cones(c.v, &yp, &x.pieces, k)])
+                        .filter_map(Result::ok)
+                        .map(|(n, _)| n)
+                        .max()
+                        .unwrap_or(0);
+                    if most < 3 {
+                        continue;
+                    }
+                    found += 1;
+                    if !mine() {
+                        continue;
+                    }
+                    let Some(y) = cube(c.v, f, lo, 4.0) else { continue };
+                    let common = common_volume(&x.pieces, &y.pieces);
+                    run_all(&format!("{} e3 seed={seed}", c.name), &x, &y, common, &[c.v], None);
+                }
+            }
+        }
+        // An operand that is itself pinched: two reflex corners touching
+        // only at `v` (the kernel's union, two vertices on one key), cut
+        // by a cube whose near face holds `v`. Each corner's link can
+        // cross the face's circle four times, so the face's one pierce
+        // vertex can hold runs in three or four cones. Only poses the
+        // oracle gives three or more cones run.
+        "dbl" => {
+            let cs = corners();
+            let cap: usize = std::env::var("R1_CAP").ok().map_or(40, |s| s.parse().unwrap());
+            let decls = BooleanDeclarations::default();
+            for a in cs.iter().filter(|c| c.name != "w60") {
+                for b in cs.iter().filter(|c| c.name != "w60") {
+                    let Some(x1) = corner_at_rest(a) else { continue };
+                    let mut pairs_found = 0;
+                    for seed in 0..4000u64 {
+                        if pairs_found >= 6 {
+                            break;
+                        }
+                        let rot = rotation(seed * 31 + 5);
+                        let posed_pieces: Pieces = corner_pieces(b)
+                            .into_iter()
+                            .map(|q| {
+                                let t = |n: V3| add(scale(rot[0], n[0]), add(scale(rot[1], n[1]), scale(rot[2], n[2])));
+                                q.into_iter().map(|(n, d)| (t(n), d - dot(n, b.v) + dot(t(n), a.v))).collect()
+                            })
+                            .collect();
+                        // Interiors disjoint near v, and apart away from it.
+                        if !matches!(cones(a.v, &x1.pieces, &posed_pieces, OpK::I), Ok((0, _))) {
+                            continue;
+                        }
+                        if common_volume(&x1.pieces, &posed_pieces) > 1e-12 {
+                            continue;
+                        }
+                        let Some(x2) = corner_posed(b, rot, a.v) else { continue };
+                        let Ok(u) = topo::union_with(&x1.body, &x2.body, &decls, tol()) else { continue };
+                        let Some(ub) = u.body() else { continue };
+                        if verts_at(&ub.body, a.v) != 2 {
+                            continue;
+                        }
+                        let mut pieces = x1.pieces.clone();
+                        pieces.extend(posed_pieces);
+                        let ax = Solid { body: ub.body.clone(), pieces, vol: x1.vol + x2.vol };
+                        pairs_found += 1;
+                        let mut found = 0;
+                        for (dn, m) in directions(600) {
+                            if found >= cap {
+                                break;
+                            }
+                            let f = frame_of(m, 0.4);
+                            let lo = [-2.0, -2.0, 0.0];
+                            let mut planes = Vec::new();
+                            for (axis, dir) in f.into_iter().enumerate() {
+                                let base = dot(dir, a.v);
+                                planes.push((scale(dir, -1.0), -(base + lo[axis])));
+                                planes.push((dir, base + lo[axis] + 4.0));
+                            }
+                            let yp = vec![planes];
+                            let most = [OpK::U, OpK::I, OpK::S]
+                                .into_iter()
+                                .flat_map(|k| [cones(a.v, &ax.pieces, &yp, k), cones(a.v, &yp, &ax.pieces, k)])
+                                .filter_map(Result::ok)
+                                .map(|(n, fl)| n - fl)
+                                .max()
+                                .unwrap_or(0);
+                            if most < 3 {
+                                continue;
+                            }
+                            found += 1;
+                            if !mine() {
+                                continue;
+                            }
+                            let Some(y) = cube(a.v, f, lo, 4.0) else { continue };
+                            let common = common_volume(&ax.pieces, &y.pieces);
+                            run_all(&format!("dbl {} {} seed={seed} {dn}", a.name, b.name), &ax, &y, common, &[a.v], None);
+                        }
                     }
                 }
             }
