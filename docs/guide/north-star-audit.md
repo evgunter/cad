@@ -136,7 +136,7 @@ that is sayable: the bulb has no closed form, so the row asserts the
 scene's own discriminating pin — twelve faces, of which exactly four
 are cylinders. `budfillet` has no closed form either and
 the row carries the scene's three checkable proofs: the census before
-and after (5/10/5 → 8/16/8, three annulus bands), three torus faces,
+and after (5/8/5 → 8/14/8, three annulus bands), three torus faces,
 and the volume drop inside the scene's own Pappus bracket.
 `twopeg_apart` asserts the two parts' volumes, which are the numbers
 the scene's own union ladder checks as it builds them.
