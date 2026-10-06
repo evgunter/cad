@@ -17,12 +17,13 @@
 //! this unit's item records.
 //!
 //! **Two rows here GATE** — [`sym_9_the_drive_writes_the_ladders_receipt`],
-//! which drives one whole-box leaf of the bracket at the drive's default
-//! dials and reads both receipts' ladder clauses, and
+//! which drives one whole-box leaf of the rounded pad at the drive's
+//! default dials and reads both receipts' ladder clauses against the
+//! same leaf without the ladder, and
 //! [`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`],
 //! which pins what the measured ladder (`SymRetry::kept_atom`) recovers
-//! on the two documents that gain from it and pins ZERO on the three
-//! that do not. Together they cost about four minutes in a dev build
+//! at the nominal on the five measured documents — zero on each, since
+//! the constructions store the carriers they build. Together they cost about four minutes in a dev build
 //! and they are `gated_to!` the tier, its dials and those
 //! documents' fixture doors, so a change elsewhere does not pay them. The
 //! rest are `#[ignore]`d evidence probes that print and assert nothing
@@ -506,14 +507,15 @@ fn sym_9_what_each_retry_recovers() {
 /// (`decide_3_split_rows_interval` holds the same trade without the
 /// ladder).
 ///
-/// It pins the two things the acceptance asks for and nothing else. On
-/// the two documents that gain, the whole split with the ladder against
-/// the same replay without it, so a decision that moved DOWN reds; and
-/// the `retried` column at its measured count, so a retry that stops
-/// carrying them reds even if something else picks them up. On the
-/// three that do not gain, `retried` is pinned at ZERO — which is the
+/// It pins the whole split with the ladder against the same replay
+/// without it, so a decision that moved DOWN reds, and the `retried`
+/// column at its measured count — ZERO on all five now, which is the
 /// claim that the ladder is not quietly paying for itself somewhere
-/// unmeasured.
+/// unmeasured. No document here gains from the ladder at the nominal
+/// any more, so the half that shows the ladder RECOVERING something is
+/// [`sym_9_the_drive_writes_the_ladders_receipt`]'s: on the pad's leaf
+/// at `1e1·ε` the ladder takes four decisions the first attempt left
+/// numeric (1340 → 1344 theorems, `retried` 4 against 0).
 ///
 /// The `numeric` column can only FALL and the other three can only
 /// rise: a retry is asked only into the first attempt's silence
