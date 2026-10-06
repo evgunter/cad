@@ -38,18 +38,18 @@
 // carries two units and a dimensionless axis in the same recipe.
 //
 // It also shows the OTHER authoring door. `ring` types its numbers in
-// the unit it means (`Expr::length_in(300.0, MM)`); every length
+// the unit it means (`Formula::length_in(300.0, MM)`); every length
 // here is DERIVED from the die's geometry, already in canonical metres,
 // and only its notation is being chosen — which is `canonical_in`, and
 // is exactly the shape a GUI form has, where the draft is canonical
 // whatever the picker shows.
 
-use core::f64::consts::PI;
-
+use pncad::document::ExtrudeSide;
 use pncad::document::{BooleanOp, BooleanValue, RefusingReach, save};
+use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
-    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
+    EvalOptions, Evaluation, Formula, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
     SurfaceKindSet, ValuePayload, WrittenLength, all_edges, apply, evaluate, select_where,
 };
@@ -73,16 +73,16 @@ const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 
 /// A length, written in the millimetres this document is authored in.
-fn len(v: f64) -> Expr {
-    Expr::written_length(WrittenLength::canonical_in(v, MM)).expect("a length")
+fn len(v: f64) -> Formula {
+    Formula::written_length(WrittenLength::canonical_in(v, MM)).expect("a length")
 }
 /// An angle the face table states IN DEGREES — a quarter turn is `90`,
 /// and the recipe says so.
-fn ang(degrees: f64) -> Expr {
-    Expr::angle_in(degrees, DEG).expect("an angle")
+fn ang(degrees: f64) -> Formula {
+    Formula::angle_in(degrees, DEG).expect("an angle")
 }
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("a scalar")
 }
 
 fn layout(n: u32) -> Vec<(f64, f64)> {
@@ -163,7 +163,7 @@ fn placements() -> Vec<Placement> {
 /// axis, which is what a sphere's meridian IS — the revolve names its
 /// poles from the sweep's construction record (M9-D1), so the natural
 /// three-step program is what the document authors.
-fn half_disc() -> LoopProgram {
+fn half_disc() -> LoopProgram<Formula> {
     let p = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(p(0.0, -PIP_R)),
@@ -191,7 +191,7 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -235,6 +235,7 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
         Node::Extrude {
             profile: cube_p,
             distance: len(L),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -324,7 +325,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         doc,
         Node::Union {
             members,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -334,7 +335,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             op: BooleanOp::Subtract,
             a: cube,
             b: tool,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     )
@@ -385,7 +386,7 @@ fn build(tol: Tol) -> Die {
     // CALLS (SELECT-DESIGN §§1-2). Both atoms are EXACT — they read the
     // carrier's enum tag — so they are total: no funnel, no margin, and
     // `expect` here is a statement about the atoms, not optimism.
-    let params = doc.param_env::<f64>();
+    let params = doc.var_env::<f64>();
 
     // The twelve box edges: the only LINES in the pipped cube. Every
     // pip cavity contributes circles (two rim arcs, two meridian
@@ -452,16 +453,6 @@ fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
     }
 }
 
-/// The blank's closed-form volume: core + 6 slabs + 12
-/// quarter-cylinders + 8 octants (which sum to one whole ball).
-fn blank_volume() -> f64 {
-    let core = L - 2.0 * R;
-    core.powi(3)
-        + 6.0 * R * core.powi(2)
-        + 12.0 * (PI * R * R / 4.0) * core
-        + (4.0 / 3.0) * PI * R.powi(3)
-}
-
 /// The document label [`build`] authors under, and therefore the
 /// identity the exported save file replays from.
 const DOC_LABEL: &str = "die";
@@ -508,7 +499,11 @@ pub fn corpus_text(tol: Tol) -> String {
         .order()
         .iter()
         .map(|id| {
-            let mut node = die.doc.node(*id).expect("an ordered node exists").clone();
+            let mut node = die
+                .doc
+                .node(*id)
+                .expect("an ordered node exists")
+                .authored();
             // A program enters the document without step ids: the
             // insert door mints them, in the same order it did here.
             if let Node::Profile(program) = &mut node {
@@ -627,7 +622,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     let blank = body_at(&ev, die.blank);
     let vol = pncad::topo::mass_properties(&blank, tol).unwrap().volume;
-    let want = blank_volume();
+    let want = crate::oracles::rounded_box_volume([L; 3], R);
     assert!(
         (vol - want).abs() < 1e-9 * want,
         "the blank's volume is a closed form: {vol} vs {want}"

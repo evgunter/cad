@@ -6,12 +6,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
-    DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, evaluate,
+    EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -64,6 +65,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -249,6 +251,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -257,7 +260,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     // diff: appearance-only change is reported, and only it.
     let d = doc2.diff(&doc3);
     assert!(d.appearance_changed);
-    assert!(d.nodes.is_empty() && d.params.is_empty() && !d.metadata_changed);
+    assert!(d.nodes.is_empty() && d.vars.is_empty() && !d.metadata_changed);
     assert!(!d.is_empty());
 
     // Replay from empty reproduces the appearance bit-identically.
@@ -265,13 +268,13 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(plane).unwrap().clone()),
+            node: Box::new(doc3.node(plane).unwrap().authored()),
         },
         DocEdit::InsertNode {
             node: Box::new(crate::fixture::as_authored(doc3.node(p).unwrap())),
         },
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(ext).unwrap().clone()),
+            node: Box::new(doc3.node(ext).unwrap().authored()),
         },
         DocEdit::SetAppearance {
             name: cap,
@@ -325,9 +328,9 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     // dyadic, still-shallow pip depth).
     let (doc2, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
+        DocEdit::DefineVar {
+            var: VarName::from_static("pip_depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
         },
     );
     let ev2 = rerun(&doc2, &ev1);
@@ -491,7 +494,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Attribute a UNION-minted face name (node = the boolean).
@@ -543,7 +546,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         doc,
         Node::Pattern {
             input: ext,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -573,7 +576,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     let ev = run(&doc);
@@ -593,7 +596,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(3),
+            expr: Formula::count(3),
         },
     );
     assert!(run(&doc).appearance.is_lossless());
@@ -626,6 +629,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -634,7 +638,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, sub)
@@ -676,10 +680,10 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // Review A2 (adapted from the reviewer's transform-duplicate
     // probe): a tied name passed through a Transform appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
-    // row, `at` = the first carrying node in id order, the rest
+    // row, `at` = the first carrying node in evaluation order, the rest
     // derivable by table lookup.
     let (doc, sub) = tie_fixture();
-    let (doc, moved) = insert(
+    let (doc, _moved) = insert(
         doc,
         Node::transform(
             sub,
@@ -703,10 +707,7 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     assert_eq!(ev.appearance.losses[0].name, tied);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::Ambiguous {
-            at: sub.min(moved),
-            width: 2
-        }
+        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
     );
     assert!(ev.appearance.resolved.is_empty(), "ties are never painted");
 }
@@ -735,7 +736,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));

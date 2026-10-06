@@ -16,7 +16,7 @@
 use geom_core::{Point2, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::build::{Filleted, fillet_edges};
-use sweep::test_support::{one_edge_rim_at, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{finished, one_edge_rim_at, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -279,7 +279,7 @@ fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
 #[test]
 fn r2_p5_the_pip_on_a_revolve_cap_builds() {
     use topo::boolean::subtract;
-    let zone_body = zone();
+    let zone_body = finished("the zone", zone(), tol());
     // A pole-touching ball of radius 0.12, revolved at the origin then
     // translated onto the cap: center (1.15, 1.07, 0), so it dips
     // 0.05 below the cap plane y = 1 — a die pip's shape.
@@ -291,6 +291,7 @@ fn r2_p5_the_pip_on_a_revolve_cap_builds() {
     );
     let map = geom_core::Affine3::translation(Vec3::new(1.15, 1.0 + rb - dip, 0.0));
     let placed = topo::transform_rigid(&ball, &map, tol()).expect("a rigid translate");
+    let placed = finished("the placed ball", placed, tol());
     let out = subtract(&zone_body, &placed, tol())
         .unwrap_or_else(|e| panic!("the pip-on-a-revolve-cap subtract builds, got {e:?}"));
     let body = &out.body().expect("material remains").body;

@@ -293,54 +293,63 @@ fn merge_coplanar_same_key_pair() {
     assert_eq!(format!("{:?}", cube.body), before);
 }
 
+/// The geometric cube with its top face split along a diagonal chord:
+/// the seed top face and its chord twin, on the twin's own chart from
+/// `surface_for_split`. Returns (body, top, twin).
+fn cube_with_split_top(
+    surface_for_split: impl FnOnce(&Body<f64>) -> FaceSurface<f64>,
+) -> (Body<f64>, topo::FaceKey, topo::FaceKey) {
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    let a1 = cube.mevs[3].vertex;
+    let c1 = cube.mevs[5].vertex;
+    let top = cube.seed.face;
+    let f = cube.body.get_face(top).unwrap();
+    let topo::LoopBoundary::Cycle { first } = cube.body.get_loop(f.outer).unwrap().boundary else {
+        panic!("cycle");
+    };
+    let he1 = cube
+        .body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .find(|&he| cube.body.get_half_edge(he).unwrap().start == a1)
+        .unwrap();
+    let he2 = cube
+        .body
+        .loop_cycle(he1)
+        .unwrap()
+        .into_iter()
+        .find(|&he| cube.body.get_half_edge(he).unwrap().start == c1)
+        .unwrap();
+    let pa = *cube
+        .body
+        .get_point(cube.body.get_vertex(a1).unwrap().point)
+        .unwrap();
+    let pc = *cube
+        .body
+        .get_point(cube.body.get_vertex(c1).unwrap().point)
+        .unwrap();
+    let twin = cube
+        .body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            line(pa, pc),
+            surface_for_split(&cube.body),
+            Tol::witness(),
+        )
+        .unwrap()
+        .face;
+    (cube.body, top, twin)
+}
+
 /// The declared rung (bit-identical plane, distinct keys) merges; a
 /// merely numerically-coincident plane (same geometry, different
 /// origin field) does NOT — coincidence is never inferred from values.
 #[test]
 fn merge_coplanar_declared_vs_numeric() {
     use common::plane;
-    let build = |surface_for_split: fn(&topo::Body<f64>) -> FaceSurface<f64>| {
-        let mut cube = geometric_cube::<f64>(Tol::witness());
-        let a1 = cube.mevs[3].vertex;
-        let c1 = cube.mevs[5].vertex;
-        let top = cube.seed.face;
-        let f = cube.body.get_face(top).unwrap();
-        let topo::LoopBoundary::Cycle { first } = cube.body.get_loop(f.outer).unwrap().boundary
-        else {
-            panic!("cycle");
-        };
-        let he1 = cube
-            .body
-            .loop_cycle(first)
-            .unwrap()
-            .into_iter()
-            .find(|&he| cube.body.get_half_edge(he).unwrap().start == a1)
-            .unwrap();
-        let he2 = cube
-            .body
-            .loop_cycle(he1)
-            .unwrap()
-            .into_iter()
-            .find(|&he| cube.body.get_half_edge(he).unwrap().start == c1)
-            .unwrap();
-        let pa = *cube
-            .body
-            .get_point(cube.body.get_vertex(a1).unwrap().point)
-            .unwrap();
-        let pc = *cube
-            .body
-            .get_point(cube.body.get_vertex(c1).unwrap().point)
-            .unwrap();
-        let surface = surface_for_split(&cube.body);
-        cube.body
-            .mef(
-                MefSite::Chords { he1, he2 },
-                line(pa, pc),
-                surface,
-                Tol::witness(),
-            )
-            .unwrap();
-        cube.body
+    let build = |surface_for_split: fn(&Body<f64>) -> FaceSurface<f64>| {
+        cube_with_split_top(surface_for_split).0
     };
     // Bit-identical description on a fresh key, NO source and NO
     // declaration: stays unmerged post-retirement (M4 PR 5, ladder
@@ -481,6 +490,90 @@ fn merge_coplanar_declared_vs_numeric() {
 }
 
 /// merge_coplanar_faces refuses non-tier-2 input, typed and untouched.
+/// The plane z = 1 charted with its normal along `normal_z` (±1).
+fn top_plane(normal_z: f64) -> geom::Surface<f64> {
+    geom::Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1.0),
+        normal: Point3::new(0.0, 0.0, normal_z) - Point3::new(0.0, 0.0, 0.0),
+        u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+    }
+}
+
+/// The split top's two faces as a declared surface pair.
+fn declared_top_pair(
+    body: &Body<f64>,
+    top: topo::FaceKey,
+    twin: topo::FaceKey,
+) -> (topo::SurfaceKey, topo::SurfaceKey) {
+    let surface = |f| body.get_face(f).unwrap().surface;
+    (surface(top), surface(twin))
+}
+
+/// **A declared coplanar pair whose faces carry opposite senses is
+/// refused by name.** The twin is charted on z = 1 facing +z, as the
+/// top is, and then reversed through `Body::set_face_sense`, so the
+/// two outward normals are opposite while the charts agree. The merge
+/// door's gate is topological and admits the body; the declared rung
+/// reads the pair through the planar door, and the sense bit is the
+/// only thing that makes its verdict `SameOpposite`. A door that drops
+/// the bit reads two same-facing faces and glues them.
+#[test]
+fn a_declared_pair_with_opposite_senses_refuses_as_opposite_orientation() {
+    let (mut body, top, twin) = cube_with_split_top(|_| FaceSurface::New {
+        surface: top_plane(1.0),
+        sense: true,
+    });
+    body.set_face_sense(twin, false).unwrap();
+    assert_eq!(
+        validate_closed(&body),
+        Ok(()),
+        "the merge door's gate admits the reversed face"
+    );
+    let pair = declared_top_pair(&body, top, twin);
+    let before = format!("{body:?}");
+    let err = body
+        .merge_coplanar_faces_declared(&[pair], Tol::witness())
+        .expect_err("a declared pair facing opposite ways must not glue");
+    match err {
+        topo::MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 } => {
+            let mut named = [f1, f2];
+            let mut pair_faces = [top, twin];
+            named.sort();
+            pair_faces.sort();
+            assert_eq!(named, pair_faces, "the refusal names the declared pair");
+        }
+        other => panic!("expected DeclaredOppositeOrientation, got {other:?}"),
+    }
+    assert_eq!(format!("{body:?}"), before, "the body is untouched");
+}
+
+/// **A face reversed on a reversed chart glues to its coplanar
+/// neighbour.** The twin's chart faces -z and its sense is `false`, so
+/// its OUTWARD normal is +z like the top's, and the declared pair
+/// faces one way. The senses differ, so no hard
+/// rung takes the pair and the declared rung decides it on the two
+/// outward normals; a door that drops the bit reads the twin facing -z
+/// and refuses the pair as opposite.
+#[test]
+fn a_declared_pair_on_opposite_charts_with_opposite_senses_glues() {
+    let (mut body, top, twin) = cube_with_split_top(|_| FaceSurface::New {
+        surface: top_plane(-1.0),
+        sense: false,
+    });
+    assert_ne!(
+        body.get_face(top).unwrap().sense,
+        body.get_face(twin).unwrap().sense,
+        "the fixture puts different sense bits on the pair"
+    );
+    let pair = declared_top_pair(&body, top, twin);
+    let outcome = body
+        .merge_coplanar_faces_declared(&[pair], Tol::witness())
+        .expect("a declared pair facing one way glues");
+    assert_eq!(outcome.groups.len(), 1, "{:?}", outcome.groups);
+    assert_eq!(body.faces().count(), 6);
+    assert_eq!(validate_closed(&body), Ok(()));
+}
+
 #[test]
 fn merge_coplanar_refuses_open_input() {
     let mut body = Body::<f64>::new();

@@ -10,6 +10,7 @@ use crate::common::interval::p2;
 use geom::Surface;
 use geom_core::{Band, Bounds, Interval, Real, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, ChartMove};
 
@@ -24,7 +25,10 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<Interval> {
         .expect("a polygon is a valid profile");
     extrude(
         &profile,
-        Extrusion::Distance(Interval::from_f64(h)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(h),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("a polygon extrudes")

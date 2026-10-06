@@ -204,3 +204,20 @@ the edge one.
 
 Recorded by the orchestrator whose merge was the one being held back,
 so the incentive runs against the conclusion.
+
+## 2026-10-02: the render premise is gone (SHOW, PR 3791)
+
+The render half of this issue no longer has a mechanism. A push to main
+runs only `cache-prime` in `ci.yml` (`gate ok` and `filter` are
+`github.event_name != 'push'`; no job calls `render.yml`), so a
+cancelled main run drops no re-baseline. Main's render lanes run in
+`nightly.yml` (its `render` job, `uses: ./.github/workflows/render.yml`),
+which re-baselines whatever differs from the committed cells, whoever
+caused it: the "owed by state rather than by event" option above, which
+is what the latency cut gave. The drift-check text quoted under "Why
+nothing reds" (3.) was rewritten in PR 3791
+(`.github/actions/rebaseline-lane`, report-only mode) and no longer
+claims main's own run commits after a merge. Whether `cancel-in-progress`
+on main still drops other main-only work (`cache-prime` is a cache warm,
+so losing one is a slower next run, not lost data) is left to this
+issue's owner.

@@ -424,7 +424,7 @@ fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(0.0, 0.0, 3.0));
     let edge = EdgeCurve::certify(EdgeCurveSpec::line_between(q0, q1), q0, q1, &lookup, band())
         .expect("scaffolding needs no chart");
-    assert!(matches!(edge.description(), EdgeDescription::Scaffold(_)));
+    assert!(edge.description().is_scaffold());
     assert!(
         matches!(
             edge.authority(),

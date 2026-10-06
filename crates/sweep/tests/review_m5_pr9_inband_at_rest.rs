@@ -12,6 +12,7 @@ use geom_core::Point2;
 use geom_core::Tol;
 use profile::RawLoop;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 
 use crate::common::contact_edges::intrinsic_edges;
@@ -44,7 +45,14 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
             return;
         }
     };
-    match extrude(&profile, Extrusion::Distance(1.0), Tol::witness()) {
+    match extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    ) {
         Err(e) => {
             // Loud at construction: acceptable per F6. The error must
             // not be a panic and should speak.

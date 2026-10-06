@@ -42,6 +42,8 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::Formula;
 
 use core::f64::consts::PI;
 
@@ -78,7 +80,7 @@ fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
 /// it — the two-node shape every tube recipe has.
 fn spine_doc(
     axis_dir: [f64; 3],
-    build: impl FnOnce(RecipeNodeId) -> Node<ProfileProgram>,
+    build: impl FnOnce(RecipeNodeId) -> AuthoredNode,
 ) -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("lib_tube_node", Tol::witness());
     doc = push(
@@ -132,7 +134,12 @@ fn both_radii(outer: f64, inner: f64) -> Vec<u64> {
     w
 }
 
-fn solid_node(u_ref: [f64; 3], major: f64, window: TubeWindow, minor: f64) -> Node<ProfileProgram> {
+fn solid_node(
+    u_ref: [f64; 3],
+    major: f64,
+    window: TubeWindow<Formula>,
+    minor: f64,
+) -> AuthoredNode {
     Node::Tube {
         spine: RecipeNodeId(0),
         u_ref: u_ref.map(scl),
@@ -145,10 +152,10 @@ fn solid_node(u_ref: [f64; 3], major: f64, window: TubeWindow, minor: f64) -> No
 fn hollow_node(
     u_ref: [f64; 3],
     major: f64,
-    window: TubeWindow,
+    window: TubeWindow<Formula>,
     minor: f64,
     wall: f64,
-) -> Node<ProfileProgram> {
+) -> AuthoredNode {
     Node::HollowTube {
         spine: RecipeNodeId(0),
         u_ref: u_ref.map(scl),
@@ -159,7 +166,7 @@ fn hollow_node(
     }
 }
 
-fn arc(t0: f64, t1: f64) -> TubeWindow {
+fn arc(t0: f64, t1: f64) -> TubeWindow<Formula> {
     TubeWindow::Arc {
         t0: ang(t0),
         t1: ang(t1),
@@ -203,8 +210,14 @@ fn the_two_kinds_share_every_slot_but_the_wall() {
     assert_eq!(full.slots().len() + 2, s.len());
 
     // One DAG edge each: the spine. A tube has no profile operand.
-    assert_eq!(solid.inputs(), vec![RecipeNodeId(0)]);
-    assert_eq!(hollow.inputs(), vec![RecipeNodeId(0)]);
+    assert_eq!(
+        editor_core::test_support::stored(&solid).inputs(),
+        vec![RecipeNodeId(0)]
+    );
+    assert_eq!(
+        editor_core::test_support::stored(&hollow).inputs(),
+        vec![RecipeNodeId(0)]
+    );
     // And no payload names: a tube references no stable name, so a
     // `Rebind` cannot reach one.
     assert!(solid.payload_names().is_empty());
@@ -492,7 +505,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
 /// count: re-authoring a full ring as an arc moves the key.
 #[test]
 fn the_window_variant_feeds_the_content_key() {
-    let mk = |window: TubeWindow| {
+    let mk = |window: TubeWindow<Formula>| {
         let (doc, tube) = spine_doc([0.0, 0.0, 1.0], |spine| Node::Tube {
             spine,
             u_ref: [scl(1.0), scl(0.0), scl(0.0)],
@@ -518,7 +531,7 @@ fn the_window_variant_feeds_the_content_key() {
 /// Reached through the recipe NODE, never by calling the kernel door:
 /// the claim is that the node wires these refusals, and a direct
 /// kernel call would prove only that the kernel still has them.
-fn tube_refusal(node: Node<ProfileProgram>, axis: [f64; 3]) -> Option<String> {
+fn tube_refusal(node: AuthoredNode, axis: [f64; 3]) -> Option<String> {
     let (doc, tube) = spine_doc(axis, |spine| match node {
         Node::Tube {
             u_ref,

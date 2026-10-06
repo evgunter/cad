@@ -205,7 +205,7 @@ pub enum AdmissionFault {
         /// held it.
         root: SpokenNode,
         /// The other instances fused into the same root, as the
-        /// document held them.
+        /// document held them, in its order.
         others: Vec<SpokenNode>,
     },
 }
@@ -546,10 +546,11 @@ pub fn drawn_targets(
             return Err(AdmissionFault::FusedGeometry {
                 instance: doc.spoken(instance),
                 root: doc.spoken(root),
-                others: instances
-                    .into_iter()
-                    .filter(|&i| i != instance)
-                    .map(|i| doc.spoken(i))
+                others: doc
+                    .order()
+                    .iter()
+                    .filter(|&&i| i != instance && instances.contains(&i))
+                    .map(|&i| doc.spoken(i))
                     .collect(),
             });
         }

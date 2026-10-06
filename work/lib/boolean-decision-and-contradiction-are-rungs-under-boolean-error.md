@@ -87,3 +87,15 @@ Its third fix pass adds `SphereQuestion` (under
 `DeclarationRead::Settles`), each one rung under `BooleanDecision`, and
 `PlaneRung::Norm`; `BooleanError::SpheresMeet { verdict }` carries
 `geom_brep::recourse::Refused`, as `CurvedSectorSideUnsupported` does.
+
+`Corruption` and `BooleanError::CorruptOperand` are gone: a tier-1
+operand at the gate, and a traversal that fails at a vertex, panic
+naming the record (D2 row 4), so neither is a rung to place.
+
+TOPO's PR 4055 adds `BooleanError::PointInFaceRefused { operand, face,
+refusal }`, which carries the face door's `ContainError` whole (the
+containment reads' lone-vertex loop, unreadable loop, exhausted ray
+schedule and curved chart refusal, which the boolean answered as
+`ClassificationInvariant` before). `ContainError` is itself an error
+type, so the sweep's narrowing does not count it a payload rung, and
+this row gains no name.

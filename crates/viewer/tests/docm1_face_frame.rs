@@ -24,9 +24,10 @@
 
 use crate::common;
 use common::{inserted, len, session_insert};
+use pncad::document::ExtrudeSide;
 
 use pncad::document::NodeStanding;
-use pncad::document::{Datum, Doc, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Datum, Doc, Formula, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, SurfaceKind, attribute};
 use pncad::select::{InterrogateError, all_faces, face_carrier_kind};
@@ -47,6 +48,7 @@ fn boxed(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -428,7 +430,7 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
         &doc,
         Node::Pattern {
             input: cube,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: pncad::document::PatternKind::Linear {
                 direction: common::scl3([1.0, 0.0, 0.0]),
                 spacing: len(0.05),

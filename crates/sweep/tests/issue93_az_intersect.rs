@@ -32,9 +32,11 @@ use geom_core::Tol;
 use geom_core::{Decide, OrthoFrame, Point2, Point3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{
-    Body, BooleanBody, BooleanResult, mass_properties, validate, validate_closed,
+    AtRestBody, Body, BooleanBody, BooleanResult, mass_properties, validate, validate_closed,
     validate_pseudomanifold,
 };
 
@@ -99,26 +101,30 @@ fn validated<T: Decide>(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Va
 
 /// The A prism: profile on world xy, extruded z ∈ [-1/16, 2 + 1/16]
 /// (strictly covers Z's z-extent [0, 2]).
-fn a_prism<T: Decide>(loops: Vec<ProfileLoop<T>>) -> Body<T> {
+fn a_prism<T: Decide + topo::AtRestPolicy>(loops: Vec<ProfileLoop<T>>) -> AtRestBody<T> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(
         T::from_f64(0.0),
         T::from_f64(0.0),
         T::from_f64(-0.0625),
     )));
-    extrude(
+    let a = extrude(
         &validated(plane, loops),
-        Extrusion::Distance(T::from_f64(2.125)),
+        Extrusion::Distance {
+            depth: T::from_f64(2.125),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude A")
-    .body
+    .body;
+    finished("the A prism", a, Tol::witness())
 }
 
 /// The Z prism: profile in (u, v) = (y, z) — bars z ∈ [0, 0.4375] and
 /// [1.5625, 2] spanning y ∈ [-0.0625, 2.5625] (strictly covers A's
 /// y-extent), diagonal at slope 3/5 — extruded x ∈ [-1/16, 2 + 1/16]
 /// (strictly covers A's x-extent).
-fn z_prism<T: Decide>() -> Body<T> {
+fn z_prism<T: Decide + topo::AtRestPolicy>() -> AtRestBody<T> {
     let z_poly = [
         (-0.0625, 0.0),
         (2.5625, 0.0),
@@ -136,13 +142,17 @@ fn z_prism<T: Decide>() -> Body<T> {
         T::from_f64(0.0),
         T::from_f64(0.0),
     )));
-    extrude(
+    let z = extrude(
         &validated(plane, vec![lp(&z_poly)]),
-        Extrusion::Distance(T::from_f64(2.125)),
+        Extrusion::Distance {
+            depth: T::from_f64(2.125),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude Z")
-    .body
+    .body;
+    finished("the Z prism", z, Tol::witness())
 }
 
 /// Tiers 1/2/3′ + exact-oracle volume (1e-12: the oracles are exact
@@ -164,7 +174,7 @@ fn check_success(bb: &BooleanBody<f64>, oracle: f64, label: &str) {
     );
 }
 
-fn intersect_success(a: &Body<f64>, oracle: f64, label: &str) -> BooleanBody<f64> {
+fn intersect_success(a: &AtRestBody<f64>, oracle: f64, label: &str) -> BooleanBody<f64> {
     match topo::intersect(a, &z_prism(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             check_success(&bb, oracle, label);
@@ -232,11 +242,15 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(0.0_f64, 0.0, 0.0)));
     let z_flush = extrude(
         &validated(plane, vec![lp(&z_poly_flush)]),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude flush Z")
     .body;
+    let z_flush = finished("the flush Z prism", z_flush, Tol::witness());
     let a = a_prism(vec![lp(&A_OUTLINE)]);
     // Undeclared: the N6 coincidence door refuses typed.
     match topo::intersect(&a, &z_flush, Tol::witness()) {

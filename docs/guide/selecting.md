@@ -62,8 +62,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 
 // The frame the square is drawn on. A profile names a frame
 // NODE, so the plane is an authoring step of its own.
@@ -81,7 +81,7 @@ let (next, profile) = insert(
     Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
-let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0) });
+let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along });
 doc = next;
 // The datum the position rule is written against — one argument,
 // and the rule now moves WITH the part.
@@ -95,7 +95,7 @@ let (next, ground) = insert(
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-let params = doc.param_env::<f64>();
+let params = doc.var_env::<f64>();
 let edges = Selector::of(NamePat::of_kind(EntityKind::Edge));
 let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
 
@@ -126,7 +126,13 @@ assert!(select_where(
 // POSITION — and it is the same face the role path names.
 let top = select_where(
     &ev, cube, &faces,
-    &[GeomPred::DatumDistance { datum: ground, cmp: Cmp::Approx, value: len(1.0) }],
+    // The comparand is a query's, not a slot's: stored, so a written
+    // formula lowers to it with no document in scope.
+    &[GeomPred::DatumDistance {
+        datum: ground,
+        cmp: Cmp::Approx,
+        value: Expr::try_from(len(1.0)).expect("a literal reads no name"),
+    }],
     &params,
     tol,
 ).expect("no candidate is in-band here");
@@ -145,7 +151,8 @@ assert!(matches!(
         &[GeomPred::DatumDistance {
             datum: ground,
             cmp: Cmp::Approx,
-            value: Expr::literal(1.0, Dimension::Angle).expect("an angle"),
+            value: Expr::try_from(Formula::literal(1.0, Dimension::Angle).expect("an angle"))
+                .expect("a literal reads no name"),
         }],
         &params,
         tol,
@@ -164,7 +171,7 @@ use pncad::prelude::*;
 
 let tol = Tol::witness();
 // A unit box, authored through the document layer (v4: the
-// profile payload is its PROGRAM — a chain of Expr-bearing steps).
+// profile payload is its PROGRAM — a chain of Formula-bearing steps).
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
@@ -173,8 +180,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 // The frame the square is drawn on. A profile names a frame
 // NODE, so the plane is an authoring step of its own.
 let (next, frame) = insert(
@@ -195,7 +202,8 @@ let (next, cube) = insert(
     &doc,
     Node::Extrude {
         profile,
-        distance: Expr::literal(1.0, Dimension::Length).expect("a length"),
+        distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
+        side: ExtrudeSide::Along,
     },
 );
 doc = next;
@@ -333,7 +341,7 @@ use pncad::prelude::*;
 
 let tol = Tol::witness();
 // v4: the profile payload is its PROGRAM — a chain
-// of Expr-bearing steps.
+// of Formula-bearing steps.
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
@@ -342,8 +350,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 // The frame the square is drawn on. A profile names a frame
 // NODE, so the plane is an authoring step of its own.
 let (next, frame) = insert(
@@ -364,7 +372,8 @@ let (next, cube) = insert(
     &doc,
     Node::Extrude {
         profile,
-        distance: Expr::literal(1.0, Dimension::Length).expect("a length"),
+        distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
+        side: ExtrudeSide::Along,
     },
 );
 doc = next;
@@ -418,8 +427,9 @@ geometry. This is the declare arm's protocol:
 `FlushFinding` values — the contact verifier itself run in
 candidate-generation mode, so a finding can never disagree with
 the boolean's own verify-at-use — and `declare` /
-`declare_all` turn findings the caller has INSPECTED into the
-shipped `Node::Declare` vocabulary. Detection and declaration are
+`declare_all` set findings the caller has INSPECTED as a live
+boolean's or union's declared pairs (the `SetDeclare` edit; a new
+node takes them as its `declare` list). Detection and declaration are
 separate doors on purpose (the ruled no-fusion boundary): findings
 pass through your hands as values, never straight into a recipe.
 
@@ -432,8 +442,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 // The frame a footprint is drawn on: the xy directions, at height z.
 let frame_at = |z: f64| {
     Node::Datum(Datum::Frame {
@@ -458,18 +468,18 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let (doc, ground) = insert(&doc, frame_at(0.0));
 let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, ground)));
-let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0) });
+let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0), side: ExtrudeSide::Along });
 let (doc, cap) = insert(&doc, frame_at(1.0));
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
-let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5) });
+let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5), side: ExtrudeSide::Along });
 
 // Undeclared, the union refuses — coincidence is never inferred
 // from values (the coincidence ladder).
-let (undeclared, uni) = insert(
+let (doc, uni) = insert(
     &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: None },
+    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Vec::new() },
 );
-let ev = evaluate::<f64>(&undeclared, None, &CancelToken::new(), &EvalOptions::default(), tol);
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
     panic!("the undeclared union must refuse");
 };
@@ -481,23 +491,19 @@ let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
 };
 assert_eq!(finding.class, BooleanCoincidence::REST);
 
-// The declare arm: detect, INSPECT, declare, and the SAME doors
-// that refused now verify the declared contact. (Declaring the
-// menu's own finding — `declare(&doc, finding)` — is the same
-// door; the detector shows the full inventory.)
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+// The declare arm: detect, INSPECT, declare on the live union,
+// and the SAME node that refused now verifies the declared contact.
+// (Declaring the menu's own finding — `declare(&doc, uni, finding)`
+// — is the same door; the detector shows the full inventory.)
 let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, BooleanCoincidence::REST);
-let (applied, decl) = declare_all(&doc, &findings, tol).expect("declarable");
+let applied = declare_all(&doc, uni, &findings, tol).expect("declarable");
 // `applied` is the accepted edit whole: the document, and the
-// maintenance the insert performed. A caller that keeps
-// a mirror of that record takes both together; this one keeps none.
+// maintenance the edit performed (none — a declaration moves no
+// group). A caller that keeps a mirror of that record takes both
+// together; this one keeps none.
 let doc = applied.doc;
-let (doc, uni) = insert(
-    &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Some(decl) },
-);
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
     &ev.value(uni).expect("the declared union evaluates").payload

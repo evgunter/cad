@@ -18,8 +18,12 @@ from pncad import (
     CapEnd,
     Cmp,
     Doc,
+    DocEdit,
     EntityKind,
-    Expr,
+    EvalError,
+    Formula,
+    FreeVar,
+    VarName,
     GeomPred,
     NamePat,
     Node,
@@ -35,13 +39,13 @@ from pncad import (
 def unit_cube(doc):
     square = doc.insert(
         Node.polygon([
-            (Expr.length_in(0, m), Expr.length_in(0, m)),
-            (Expr.length_in(1, m), Expr.length_in(0, m)),
-            (Expr.length_in(1, m), Expr.length_in(1, m)),
-            (Expr.length_in(0, m), Expr.length_in(1, m)),
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(1, m)),
+            (Formula.length_in(0, m), Formula.length_in(1, m)),
         ], plane=doc.sketch_frame())
     )
-    return doc.insert(Node.extrude(square, Expr.length_in(1, m)))
+    return doc.insert(Node.extrude(square, Formula.length_in(1, m)))
 
 
 class TestDatumDistance(unittest.TestCase):
@@ -54,19 +58,19 @@ class TestDatumDistance(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         ground = doc.insert(Node.datum_plane((
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
         )))
         ev = evaluate(doc)
 
         faces = Selector.of(NamePat.of_kind(EntityKind.Face))
         by_position = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Approx, Expr.length_in(1, m))]
+            cube, faces, [GeomPred.datum_distance(ground, Cmp.Approx, Formula.length_in(1, m))]
         )
         by_role = ev.select(
             cube,
@@ -83,11 +87,11 @@ class TestDatumDistance(unittest.TestCase):
         # stated metre (their carrier origins are on the walls'
         # centroids), and none sits definitely above.
         below = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Less, Expr.length_in(1, m))]
+            cube, faces, [GeomPred.datum_distance(ground, Cmp.Less, Formula.length_in(1, m))]
         )
         self.assertEqual(len(below), 5)
         above = ev.select_where(
-            cube, faces, [GeomPred.datum_distance(ground, Cmp.Greater, Expr.length_in(1, m))]
+            cube, faces, [GeomPred.datum_distance(ground, Cmp.Greater, Formula.length_in(1, m))]
         )
         self.assertEqual(above, [])
 
@@ -102,7 +106,7 @@ class TestDatumDistance(unittest.TestCase):
             ev.select_where(
                 cube,
                 Selector.of(NamePat.of_kind(EntityKind.Face)),
-                [GeomPred.datum_distance(cube, Cmp.Approx, Expr.length_in(1, m))],
+                [GeomPred.datum_distance(cube, Cmp.Approx, Formula.length_in(1, m))],
             )
         refusal = caught.exception
         self.assertEqual(refusal.reason, "not_a_datum")
@@ -112,6 +116,19 @@ class TestDatumDistance(unittest.TestCase):
         # missing (the over-promising-stub rule).
         self.assertIsNone(refusal.name)
         self.assertIsNone(refusal.predicate)
+
+    def test_a_named_comparand_refuses_at_the_predicate(self):
+        """The comparand is lowered where the predicate is built, and
+        no document is in scope there: a formula that writes a name
+        refuses at once, typed, rather than reaching a selection that
+        could not read it."""
+        doc = Doc()
+        doc.apply(DocEdit.declare_var(VarName("gap"), FreeVar.length(1 * m)))
+        cube = unit_cube(doc)
+        with self.assertRaises(EvalError) as caught:
+            GeomPred.datum_distance(cube, Cmp.Approx, doc.parse_formula("gap"))
+        self.assertEqual(caught.exception.variant, "unlowered_name")
+        self.assertEqual(caught.exception.name, "gap")
 
     def test_an_in_band_margin_refuses_rather_than_guessing(self):
         """The decided trilean's REFUSAL arm, end to end: a candidate
@@ -128,13 +145,13 @@ class TestDatumDistance(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         ground = doc.insert(Node.datum_plane((
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
         )))
         ev = evaluate(doc)
 
@@ -143,7 +160,7 @@ class TestDatumDistance(unittest.TestCase):
             ev.select_where(
                 cube,
                 Selector.of(NamePat.of_kind(EntityKind.Face)),
-                [GeomPred.datum_distance(ground, Cmp.Approx, Expr.length_in(1.0 + sliver, m))],
+                [GeomPred.datum_distance(ground, Cmp.Approx, Formula.length_in(1.0 + sliver, m))],
             )
         refusal = caught.exception
         self.assertEqual(refusal.reason, "in_band")
@@ -208,7 +225,7 @@ import json
 import sys
 import threading
 
-from pncad import Doc, Expr, NamePat, Node, PatternKind, SegPat, evaluate, m
+from pncad import Doc, Formula, NamePat, Node, PatternKind, SegPat, evaluate, m
 
 copies, wraps = int(sys.argv[1]), int(sys.argv[2])
 said = {}
@@ -222,7 +239,7 @@ def nest(pat, levels):
 
 def run():
     doc = Doc()
-    zero, one = Expr.length_in(0, m), Expr.length_in(1, m)
+    zero, one = Formula.length_in(0, m), Formula.length_in(1, m)
     square = doc.insert(
         Node.polygon(
             [(zero, zero), (one, zero), (one, one), (zero, one)],
@@ -231,11 +248,11 @@ def run():
     )
     node = doc.insert(Node.extrude(square, one))
     step = PatternKind.linear(
-        (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-        Expr.length_in(2, m),
+        (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        Formula.length_in(2, m),
     )
     for _ in range(copies):
-        node = doc.insert(Node.pattern(node, Expr.count(1), step))
+        node = doc.insert(Node.pattern(node, Formula.count(1), step))
     face = evaluate(doc).all_faces(node)[0]
     try:
         said["as_deep"] = nest(NamePat.any(), copies).matches(face)

@@ -125,10 +125,52 @@ pub enum Extrusion<T: Real> {
     /// [`ExtrudeError::DegenerateExtrusion`]; either in the band is
     /// [`ExtrudeError::ExtrusionEscalated`].
     Vector(Vec3<T>),
-    /// A signed distance along the sketch plane's normal `n = u × v`
-    /// (meters): the extrusion vector is `n · d`. Positive extrudes
-    /// along `+n`, negative along `−n`.
-    Distance(T),
+    /// A depth along one side of the sketch plane (meters): the
+    /// extrusion vector is `n · depth` along [`ExtrudeSide::Along`] and
+    /// `−n · depth` against it, `n = u × v`. A size is positive and its
+    /// direction has one home, `side`: a depth that is not definitely
+    /// positive refuses — [`ExtrudeError::DegenerateExtrusion`] near
+    /// zero, [`ExtrudeError::NegativeDepth`] below it.
+    Distance {
+        /// How far the profile is swept.
+        depth: T,
+        /// Which side of the sketch plane it is swept toward.
+        side: ExtrudeSide,
+    },
+}
+
+/// **Which side of its sketch plane an extrude goes toward**, against
+/// the plane's normal `n = u × v`. A structural choice: no value of the
+/// depth selects it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ExtrudeSide {
+    /// Along `+n`.
+    Along,
+    /// Along `−n`.
+    Against,
+}
+
+impl ExtrudeSide {
+    /// Both sides.
+    pub const ALL: [Self; 2] = [Self::Along, Self::Against];
+
+    /// The other side.
+    #[must_use]
+    pub fn flipped(self) -> Self {
+        match self {
+            Self::Along => Self::Against,
+            Self::Against => Self::Along,
+        }
+    }
+
+    /// How a refusal names this side.
+    #[must_use]
+    pub fn noun(self) -> &'static str {
+        match self {
+            Self::Along => "along the sketch normal",
+            Self::Against => "against the sketch normal",
+        }
+    }
 }
 
 /// Everything [`extrude`] built, keyed: the body plus the handles tests
@@ -159,8 +201,8 @@ pub struct Extruded<T: Real> {
     /// The cap at the **far end of the sweep**: the swept face, on
     /// the sketch plane translated by the extrusion vector `w`, its
     /// outward normal along `w`. The name is an end of the sweep, not
-    /// a height — `w` is signed against the sketch normal (`n · d` for
-    /// [`Extrusion::Distance`]), so under `w · n < 0` this cap lies on
+    /// a height — `w` is signed against the sketch normal (`−n · depth`
+    /// for [`ExtrudeSide::Against`]), so under `w · n < 0` this cap lies on
     /// the `−n` side of the sketch plane. Which cap carries the
     /// profile's canonical winding is a direction convention, stated
     /// once in the [crate docs](crate).
@@ -306,9 +348,22 @@ pub enum ExtrudeError {
     /// [`BandError`]).
     Band(BandError),
     /// The extrusion is definitely degenerate: the vector's normal
-    /// component (or the signed distance) is coincident with zero at
-    /// tolerance — an in-plane vector or a sliver-thin extrusion.
+    /// component (or the depth) is coincident with zero at tolerance —
+    /// an in-plane vector or a sliver-thin extrusion.
     DegenerateExtrusion,
+    /// The depth of an [`Extrusion::Distance`] is definitely negative.
+    /// A depth is a size; which way it goes is `side`, so the recourse
+    /// is a depth that evaluates positive and the other side. The door
+    /// sees the VALUE, not what drove it — a literal, a parameter, an
+    /// expression — so the sentence names neither a sign to delete nor
+    /// a body the recourse promises.
+    NegativeDepth {
+        /// The side the refused extrude was written with.
+        side: ExtrudeSide,
+        /// The depth as the classifier saw it, in metres (an enclosure
+        /// at the interval lane), for the sentence only.
+        depth: geom_core::MarginDiag,
+    },
     /// The extrusion vector has a definite in-plane component: oblique
     /// extrusion is deferred past M2 (under shear, arc segments sweep
     /// elliptic cylinders, which the D3 surface set does not carry) and
@@ -415,6 +470,9 @@ pub enum ExtrudeError {
         /// The operator-layer failure.
         source: EulerOpError,
     },
+    /// The final whole-body pcurve mint refused: every curved wall
+    /// leaves the door storing its certified rows (C4).
+    Pcurve(topo::PcurveMintError),
 }
 
 impl fmt::Display for ExtrudeError {
@@ -426,6 +484,14 @@ impl fmt::Display for ExtrudeError {
                 "the extrusion has no definite length across the sketch plane (it is \
                  in-plane or sliver-thin). Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
+            ),
+            Self::NegativeDepth { side, depth } => write!(
+                f,
+                "the extrusion depth evaluated to {depth} m, below zero, and a depth is a size: \
+                 which side of the sketch plane the extrude goes toward is its side, not a sign. \
+                 Recourse: make the depth evaluate positive (its sign comes from whatever drives \
+                 it, a literal, a parameter or an expression) and set the side to {}",
+                side.flipped().noun()
             ),
             Self::ObliqueExtrusion => f.write_str(
                 "the extrusion leans definitely off the sketch plane's normal, and an \
@@ -479,6 +545,7 @@ impl fmt::Display for ExtrudeError {
                 "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
             ),
             Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
+            Self::Pcurve(source) => write!(f, "{source}"),
         }
     }
 }
@@ -487,7 +554,9 @@ impl std::error::Error for ExtrudeError {}
 
 impl From<EulerOpError> for ExtrudeError {
     fn from(source: EulerOpError) -> Self {
-        Self::Op { source }
+        Self::Op {
+            source: source.from_driver(),
+        }
     }
 }
 
@@ -622,7 +691,7 @@ struct LoopBase {
 /// Extrudes a validated profile into a closed solid.
 ///
 /// The sketch placement is the profile's own
-/// ([`profile::SketchPlane`]); the extrusion vector or signed distance
+/// ([`profile::SketchPlane`]); the extrusion vector or depth
 /// is classified against the plane normal per the crate docs' direction
 /// conventions. On success the returned body is closed and passes
 /// tiers 1–2 (`topo::validate`, `validate_closed`) by construction —
@@ -631,8 +700,10 @@ struct LoopBase {
 /// tier-2 debug assertion on the finished body, which subsumes it, is
 /// what this door pays — and passes tier 3
 /// (`topo::validate_geometric`) except at the smooth cap rim
-/// [`Extruded::body`] names. The caller re-validates at rest per the
-/// workspace convention.
+/// [`Extruded::body`] names. It closes with the whole-body pcurve mint
+/// (`topo::mint_pcurves`), so every curved wall stores its certified
+/// rows at rest. The caller re-validates at rest per the workspace
+/// convention.
 ///
 /// # Errors
 ///
@@ -641,7 +712,7 @@ struct LoopBase {
 /// decisions, Newell failures, and every operator/certification
 /// refusal (D4 ¶2 reports surface inside
 /// [`EulerOpError::Certification`]).
-pub fn extrude<T: Decide>(
+pub fn extrude<T: Decide + topo::AtRestPolicy>(
     profile: &ValidatedProfile<T>,
     extrusion: Extrusion<T>,
     tol: Tol,
@@ -652,13 +723,20 @@ pub fn extrude<T: Decide>(
 
     // ---- Direction classification (crate docs; named predicates). ----
     let (w, reverse) = match extrusion {
-        Extrusion::Distance(d) => {
-            let sign = decide("extrusion_normal_component", Margin::of(d), band)
-                .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?;
-            match sign {
-                Sign::Zero => return Err(ExtrudeError::DegenerateExtrusion),
-                Sign::Positive => (normal * d, false),
-                Sign::Negative => (normal * d, true),
+        Extrusion::Distance { depth, side } => {
+            let decided =
+                swept::decide_reported("extrusion_normal_component", Margin::of(depth), band)
+                    .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?;
+            match (decided.sign, side) {
+                (Sign::Zero, _) => return Err(ExtrudeError::DegenerateExtrusion),
+                (Sign::Negative, _) => {
+                    return Err(ExtrudeError::NegativeDepth {
+                        side,
+                        depth: decided.margin,
+                    });
+                }
+                (Sign::Positive, ExtrudeSide::Along) => (normal * depth, false),
+                (Sign::Positive, ExtrudeSide::Against) => (normal * (-depth), true),
             }
         }
         Extrusion::Vector(v) => {
@@ -763,7 +841,7 @@ pub fn extrude<T: Decide>(
     hes.push(close.he_plus);
     let top_face = seed.face;
     let bottom_face = close.face;
-    let bottom_surface = face_surface_key(&body, bottom_face)?;
+    let bottom_surface = face_surface_key(&body, bottom_face);
     let mut bases = Vec::with_capacity(loops.len());
     bases.push(LoopBase { hes });
 
@@ -883,14 +961,17 @@ pub fn extrude<T: Decide>(
         let qs = &points[li];
         let n = segs.len();
         for j in 0..n {
-            let wall = face_surface_key(&body, side_faces[li][j])?;
+            let wall = face_surface_key(&body, side_faces[li][j]);
             let q_from = qs[j];
             let q_to = qs[(j + 1) % n];
             let bottom_rim = body
                 .get_half_edge(base.hes[j])
-                .ok_or(EulerOpError::StaleKey {
-                    key: topo::EntityId::HalfEdge(base.hes[j]),
-                })?
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "base half-edge {:?} was minted by this driver and nothing kills it",
+                        base.hes[j]
+                    )
+                })
                 .edge;
             upgrade_rim(
                 &mut body,
@@ -926,6 +1007,7 @@ pub fn extrude<T: Decide>(
         Ok(()),
         "extrude postcondition: result is not tier-2 valid (kernel bug)",
     );
+    topo::mint_pcurves(&mut built, tol).map_err(ExtrudeError::Pcurve)?;
 
     Ok(Extruded {
         body: built,
@@ -943,7 +1025,7 @@ pub fn extrude<T: Decide>(
 /// faces and top rims in swept order, and the walls.
 #[allow(clippy::too_many_arguments)] // one internal call site; the
 // arguments are the sweep's fixed context, not a configuration surface.
-fn sweep_loop<T: Decide>(
+fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     loop_index: usize,
     segs: &[WallSeg<T>],
@@ -1046,14 +1128,12 @@ fn sweep_loop<T: Decide>(
         let Some(strut) = struts[j] else { continue };
         let f_prev = faces[(j + n - 1) % n];
         let f_next = faces[j];
-        let k_prev = face_surface_key(body, f_prev)?;
-        let k_next = face_surface_key(body, f_next)?;
+        let k_prev = face_surface_key(body, f_prev);
+        let k_next = face_surface_key(body, f_next);
         let s_prev = body
             .get_surface(k_prev)
             .cloned()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: topo::GeomRef::Surface(k_prev),
-            })?;
+            .unwrap_or_else(|| unreachable!("surface {k_prev:?} is held by live face {f_prev:?}"));
         if k_prev == k_next {
             // ONE surface on both sides: a conventional locus the
             // surfaces under-determine (a cocircular split, or the
@@ -1082,9 +1162,7 @@ fn sweep_loop<T: Decide>(
         let s_next = body
             .get_surface(k_next)
             .cloned()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: topo::GeomRef::Surface(k_next),
-            })?;
+            .unwrap_or_else(|| unreachable!("surface {k_next:?} is held by live face {f_next:?}"));
         let mid = qs[j] + w * T::from_f64(0.5);
         match classify_dihedral(&s_prev, &s_next, mid, w_norm, band) {
             Ok(DihedralClass::Transverse) => {
@@ -1126,7 +1204,7 @@ fn sweep_loop<T: Decide>(
                     geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverJoin {
                         loop_index,
                         vertex_index: segs[j].chord.canonical_vertex,
-                        source,
+                        source: source.diag(),
                     },
                     geom_brep::MustCarryRefusal::Refuted => {
                         ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
@@ -1225,14 +1303,16 @@ fn sweep_loop<T: Decide>(
         let bottom_rims = segments
             .iter()
             .map(|&j| {
-                Ok(body
-                    .get_half_edge(hes[j])
-                    .ok_or(EulerOpError::StaleKey {
-                        key: topo::EntityId::HalfEdge(hes[j]),
-                    })?
-                    .edge)
+                body.get_half_edge(hes[j])
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "base half-edge {:?} was minted by this driver and nothing kills it",
+                            hes[j]
+                        )
+                    })
+                    .edge
             })
-            .collect::<Result<_, EulerOpError>>()?;
+            .collect();
         walls.push(SideWall {
             face: faces[run.first],
             strut: lead.edge,
@@ -1293,7 +1373,7 @@ fn side_surface<T: Decide>(
     let j = run.first;
     let sense = segs[j].wall_sense;
     if let Some(f) = swept::shared_wall(pair, faces, j, origin) {
-        let key = face_surface_key(body, f)?;
+        let key = face_surface_key(body, f);
         return Ok(FaceSurface::Shared { key, sense });
     }
     let end = run.end(n);
@@ -1359,7 +1439,7 @@ fn side_surface<T: Decide>(
 #[allow(clippy::too_many_arguments)] // two call sites in one loop; the
 // arguments are the upgrade's fixed context, not a configuration
 // surface.
-fn upgrade_rim<T: Decide>(
+fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     cap: SurfaceKey,
@@ -1373,33 +1453,25 @@ fn upgrade_rim<T: Decide>(
 ) -> Result<(), ExtrudeError> {
     let curve_key = body
         .get_edge(edge)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Edge(edge),
-        })?
+        .unwrap_or_else(|| {
+            unreachable!("rim edge {edge:?} was read off a live half-edge this driver minted")
+        })
         .curve;
     let curve = body
         .get_curve_geom(curve_key)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Curve(curve_key),
-        })?
+        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
         .certified()
         .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
     let witness = carrier.mid_point(t0, t1);
     let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
-    let s_cap = body
-        .get_surface(cap)
-        .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(cap),
-        })?;
-    let s_wall = body
-        .get_surface(wall)
-        .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(wall),
-        })?;
+    let s_cap = body.get_surface(cap).cloned().unwrap_or_else(|| {
+        unreachable!("cap surface {cap:?} is held by a live cap face of this driver")
+    });
+    let s_wall = body.get_surface(wall).cloned().unwrap_or_else(|| {
+        unreachable!("wall surface {wall:?} is held by a live wall face of this driver")
+    });
     match classify_dihedral(&s_cap, &s_wall, witness, extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
@@ -1441,7 +1513,7 @@ fn upgrade_rim<T: Decide>(
                 geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverRim {
                     loop_index,
                     segment_index,
-                    source,
+                    source: source.diag(),
                 },
                 geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
             };

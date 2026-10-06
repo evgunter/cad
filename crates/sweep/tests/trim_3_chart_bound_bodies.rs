@@ -33,6 +33,7 @@
 )]
 
 use std::f64::consts::{PI, TAU};
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use crate::common::interval::{iv, p2, v2};
@@ -633,7 +634,15 @@ fn revolve_oracles(
 fn run_extrude(name: &str, loops: &[Vec<((f64, f64), f64)>], h: f64) -> Vec<GridStats> {
     eprintln!("=== extrude fixture: {name} (h = {h}) ===");
     let vp = profile_of(loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(h)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(h),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let mut all = Vec::new();
     for (face, oracle, fname) in extrude_oracles(&t.body, &t, loops, h) {
         let s = face_surface(&t.body, face);
@@ -915,7 +924,15 @@ fn p12_wide_slab_with_hole_is_sound() {
     // The pointed version: the hole's centre lifted by τ in u is material.
     let loops = wide_slab_with_hole();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let s = face_surface(&t.body, t.bottom);
     let b = chart_boundary(&t.body, t.bottom, &s, band()).unwrap();
     eprintln!(
@@ -1042,7 +1059,15 @@ fn widen(b: &ChartBound<Interval>, w: f64) -> ChartBound<Interval> {
 fn p14_fat_intervals_only_lose_cells() {
     let loops = bumped_block();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let b = band();
     let mut lost_total = 0usize;
     let mut gained_total = 0usize;
@@ -1250,7 +1275,15 @@ fn describe_census(
 fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
     for (name, loops) in [("bumped", bumped_block()), ("notched", notched_block())] {
         let vp = profile_of(&loops);
-        let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+        let t = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: iv(1.0),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
         let faces: Vec<FaceKey> = t.body.faces().map(|(k, _)| k).collect();
         let (described, envelopes, _, _, _) = describe_census(&t.body, &faces);
         eprintln!("{name}: described={described} envelope edges={envelopes}");
@@ -1282,7 +1315,15 @@ fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
 fn r2_a_vertical_planar_wall_describes_on_its_stored_chart() {
     let loops = l_profile();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.5)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.5),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let faces: Vec<FaceKey> = t.body.faces().map(|(k, _)| k).collect();
     let (_, _, vertical, via_rechart, via_stored) = describe_census(&t.body, &faces);
     eprintln!(

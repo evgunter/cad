@@ -284,7 +284,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
                 assert!(
                     matches!(
                         &door,
-                        Err(PropsError::Escalated { cause })
+                        Err(PropsError::Escalated { cause, .. })
                             if cause.predicate == Some("props_rim_side")
                     ),
                     "the gap is undecidable at the door too: {door:?}"
@@ -292,7 +292,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
                 assert!(
                     matches!(
                         &flux,
-                        Err(PropsError::Escalated { cause })
+                        Err(PropsError::Escalated { cause, .. })
                             if cause.predicate == Some("props_rim_only_extent")
                     ),
                     "{flux:?}"
@@ -355,7 +355,7 @@ fn the_mesh_lane_refuses_the_rim_only_cap_typed_at_zero_gap_and_in_the_band() {
             &answered,
             Err(mesh::TessellateError::UnsupportedCurvedShape {
                 face,
-                source: PropsError::Escalated { cause },
+                source: PropsError::Escalated { cause, .. },
             }) if *face == first_face(&in_band) && cause.predicate == Some("props_rim_side")
         ),
         "{answered:?}"

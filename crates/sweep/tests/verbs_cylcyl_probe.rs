@@ -29,10 +29,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -43,13 +44,25 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("this pair has no arm yet")
+    let tol = Tol::witness();
+    let (a, b) = (
+        finished("operand A", a.clone(), tol),
+        finished("operand B", b.clone(), tol),
+    );
+    topo::union(&a, &b, tol).expect_err("this pair has no arm yet")
 }
 
 /// The carrier kind of the edge a refusal names — the datum that says
@@ -91,7 +104,7 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 ///    the caps: an undeclared continuation, refused at the same door
 ///    for the same reason.
 /// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall,
-///    and the circle × cylinder root lane (`topo::boolean::circle_cylinder`)
+///    and the conic × quadric root door (`topo::boolean::conic_quadric`)
 ///    certifies where. Both operands span one height, so their cap
 ///    discs overlap in the planes `z = 0` and `z = 2`: an undeclared
 ///    coincidence, refused at `UndeclaredCoincidence` and moved by a
@@ -227,8 +240,8 @@ fn cylinder_unions_refuse_before_the_join_each_at_its_own_door() {
 fn the_coaxial_boss_unions_and_meters_at_the_closed_form() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) = topo::union(
-        &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
-        &cyl(0.0, 0.0, 0.5, 1.0, 3.0),
+        &finished("the shaft", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol),
+        &finished("the boss", cyl(0.0, 0.0, 0.5, 1.0, 3.0), tol),
         tol,
     )
     .expect("the boss unions") else {
@@ -260,10 +273,14 @@ fn the_coaxial_boss_unions_and_meters_at_the_closed_form() {
 fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
     let tol = Tol::witness();
     for r in [3.0_f64, 4.0, 5.0, 6.0] {
-        let plate = rounded_plate(80.0, 40.0, r, 8.0);
+        let plate = finished("the plate", rounded_plate(80.0, 40.0, r, 8.0), tol);
         // `bracket.py`'s pocket, in millimetres — the other half of
         // the corpus `rounded_plate` above carries.
-        let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
+        let pocket = finished(
+            "the pocket",
+            brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+            tol,
+        );
         let out = topo::subtract(&plate, &pocket, tol)
             .unwrap_or_else(|e| panic!("r = {r} mm must cut: {e:?}"));
         let topo::BooleanResult::Body(bb) = out else {
@@ -287,10 +304,14 @@ fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
 fn the_bracket_rounds_at_six_millimetres() {
     let tol = Tol::witness();
     let out = topo::subtract(
-        &rounded_plate(80.0, 40.0, 6.0, 8.0),
+        &finished("the plate", rounded_plate(80.0, 40.0, 6.0, 8.0), tol),
         // `bracket.py`'s pocket, in millimetres — the other half of
         // the corpus `rounded_plate` above carries.
-        &brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        &finished(
+            "the pocket",
+            brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+            tol,
+        ),
         tol,
     )
     .expect("#347's requested radius cuts");
@@ -331,6 +352,7 @@ fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     // The wrong answer the silence used to give, kept as the row's own
     // yardstick: 10π + 20π, the lens counted twice.
     assert!((va + vb - 30.0 * core::f64::consts::PI).abs() < 1e-9);
+    let (a, b) = (finished("A", a, tol), finished("B", b, tol));
     let err = topo::union(&a, &b, tol).expect_err("the silence never re-opens");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the fallback's section pass, got {err:?}");
@@ -348,8 +370,8 @@ fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
 #[test]
 fn cylinders_standing_clear_of_each_other_still_answer() {
     let tol = Tol::witness();
-    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let b = cyl(5.0, 0.0, 1.0, 0.0, 2.0);
+    let a = finished("A", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol);
+    let b = finished("B", cyl(5.0, 0.0, 1.0, 0.0, 2.0), tol);
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).unwrap() else {
         panic!("two disjoint solids union into a two-shell body");
     };
@@ -412,9 +434,16 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let prof = Profile::new(plane, vec![outline.into()])
         .validate(tol)
         .unwrap();
-    extrude(&prof, Extrusion::Distance(thick), tol)
-        .unwrap()
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: thick,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 // ---------------------------------------------------------------- D3 --
@@ -550,13 +579,16 @@ fn the_containment_door_reports_the_trim_boundary_rather_than_guessing() {
     }
 }
 
-/// The class gate: a wall the chart trim CANNOT express answers `None`,
-/// never a verdict. A tilted cut leaves the wall bounded by a section
+/// The class gate: a wall the chart trim's RECTANGLE cannot express is
+/// never read as one. A tilted cut leaves the wall bounded by a section
 /// ELLIPSE, whose height extreme is interior to an edge, so the
 /// rectangle the boundary vertices pin misstates the face in both
-/// directions — and the door refuses to speak rather than read it.
+/// directions. The door reads such a wall by its chart outline's parity
+/// along the point's ruling instead, so a point on the carrier is `In`
+/// exactly one wall face below the cut and in none above it — the
+/// rectangle would put both of the points below inside the face.
 #[test]
-fn a_wall_the_trim_cannot_express_gets_no_verdict() {
+fn a_wall_closed_by_a_tilted_section_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
@@ -572,16 +604,37 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
     };
     let walls = wall_faces(below);
     assert!(!walls.is_empty(), "the cut post still has wall faces");
-    // On the carrier, well inside the surviving stub: an iso-bounded
-    // wall answers In or Out here; an ellipse-bounded one must not.
-    let verdicts: Vec<_> = walls
-        .iter()
-        .map(|&f| topo::curved_face_containment(below, f, on_wall(0.4, 0.5), band).unwrap())
-        .collect();
-    assert!(
-        verdicts.iter().all(Option::is_none),
-        "a wall closed by a tilted section must get no verdict, got {verdicts:?}"
-    );
+    // The cut is at `z = 1 − x·tan φ`: 0.715 over θ = 0.4, 1.285 over
+    // θ = π − 0.4. Each point is 0.2 off it.
+    for (theta, h, inside) in [
+        (0.4, 0.515, true),
+        (0.4, 0.915, false),
+        (core::f64::consts::PI - 0.4, 1.085, true),
+        (core::f64::consts::PI - 0.4, 1.485, false),
+    ] {
+        let q = on_wall(theta, h);
+        assert!(
+            ((1.0 - q.x * phi.tan()) - h).abs() > 0.19,
+            "θ = {theta}, h = {h}: off the cut"
+        );
+        let verdicts: Vec<_> = walls
+            .iter()
+            .map(|&f| topo::curved_face_containment(below, f, q, band).unwrap())
+            .collect();
+        let ins = verdicts
+            .iter()
+            .filter(|v| matches!(v, Some(topo::FaceContainment::In)))
+            .count();
+        assert!(
+            verdicts.iter().all(Option::is_some),
+            "θ = {theta}, h = {h}: a verdict on every wall, got {verdicts:?}"
+        );
+        assert_eq!(
+            ins,
+            usize::from(inside),
+            "θ = {theta}, h = {h}: {verdicts:?}"
+        );
+    }
 }
 
 /// **The dip clamp's own row.** The blinded review found the clamp
@@ -609,7 +662,7 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
 #[test]
 fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
     let tol = Tol::witness();
-    let wall = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let wall = finished("the wall", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol);
     let lp = profile::ProfileLoop::polygon([
         Point2::new(0.5, 0.999),
         Point2::new(2.5, 0.999),
@@ -619,11 +672,15 @@ fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.9)));
     let brick = extrude(
         &Profile::new(plane, vec![lp]).validate(tol).unwrap(),
-        Extrusion::Distance(0.2),
+        Extrusion::Distance {
+            depth: 0.2,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .unwrap()
     .body;
+    let brick = finished("the brick", brick, tol);
     let out = topo::union(&wall, &brick, tol)
         .expect("the radial edge clears the wall; only the clamp proves it");
     let topo::BooleanResult::Body(bb) = out else {

@@ -8,6 +8,7 @@
 //! reproduce the probe's QUESTION. This one runs the probe.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::common;
@@ -15,8 +16,8 @@ use crate::common;
 use editor_core::drive::DriveConfig;
 use editor_core::range::{RangeField, RangeSeed, certified_range};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocParamValue, EvalOptions, Evaluation, Expr, Node,
-    NodeResult, ParamName, ProfileDoc, RecipeNodeId, evaluate,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, Node,
+    NodeResult, ProfileDoc, RecipeNodeId, VarName, evaluate,
 };
 use geom_core::Tol;
 use viewer::bounds::{Bound, BoundsProbe, probe};
@@ -25,8 +26,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// A unit square extruded by a document parameter — the same branch
@@ -36,9 +37,9 @@ fn slab(depth: f64) -> ProfileDoc {
     let mut doc = ProfileDoc::empty_derived("docm9", tol());
     common::edit_into(
         &mut doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name("depth"),
-            value: DocParam::continuous(Dimension::Length, depth),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, depth)),
         },
         tol(),
     );
@@ -48,7 +49,8 @@ fn slab(depth: f64) -> ProfileDoc {
         &mut doc,
         Node::Extrude {
             profile: p,
-            distance: Expr::param(name("depth"), Dimension::Length),
+            distance: Formula::named(name("depth"), Dimension::Length),
+            side: ExtrudeSide::Along,
         },
         tol(),
     );
@@ -70,11 +72,19 @@ fn failing(doc: &ProfileDoc) -> BTreeSet<RecipeNodeId> {
         .collect()
 }
 
+/// The seed's low offset: just past the crossing at depth zero. Every
+/// depth below zero refuses, and the drive bisects a refusing leaf to
+/// its floor and prices it `Budget`
+/// (`work/verdict/coincidence-zone-priced-budget-at-the-floor.md`), so
+/// a seed reaching far below zero spends its leaves there; one that
+/// barely crosses reaches the driver's floor at the crossing.
+const SEED_LO: f64 = -1.0 - 1.0 / 1_048_576.0;
+
 /// **The certificate is inside the LOCALLY-VALID range, and is not
 /// comparable to the probe's reported bracket.**
 ///
-/// Two different claims, on one document with a real boundary (the
-/// extrusion runs the other way through zero):
+/// Two different claims, on one document with a real boundary (a depth
+/// is a size, so the slab refuses at zero and below):
 ///
 /// 1. every value the certificate covers is one the probe's OWN
 ///    validity test calls valid — the subset claim, and the one that
@@ -93,9 +103,9 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
     let valid = |v: f64| {
         let (moved, _) = common::edited(
             &doc,
-            DocEdit::SetDocParamValue {
-                name: name("depth"),
-                value: DocParamValue::Continuous(v),
+            DocEdit::SetVarValue {
+                var: name("depth").into(),
+                value: FreeValue::Continuous(v),
             },
             tol(),
         );
@@ -105,8 +115,11 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
     let bounds = probe(BoundsProbe::new(1.0, 1.0, false), valid);
     let range = certified_range(
         &doc,
-        &RangeField::Param(name("depth")),
-        RangeSeed { lo: -1.05, hi: 0.5 },
+        &RangeField::Param(doc.var_named("depth").expect("declared")),
+        RangeSeed {
+            lo: SEED_LO,
+            hi: 0.5,
+        },
         &DriveConfig {
             max_depth: 24,
             max_leaves: 2048,
@@ -152,7 +165,7 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
     // The certificate's frontier is the DRIVER's floor, bounded by the
     // two mechanisms that set it — the run's ambiguity band and the
     // drive's resolution over this seed — rather than by a number.
-    let resolution = (1.05 + 0.5) / 2f64.powi(24);
+    let resolution = (0.5 - SEED_LO) / 2f64.powi(24);
     assert!(
         clo < 100.0 * resolution.max(tol().eps()),
         "the frontier is the driver's stopping point, not the boundary: {clo}"

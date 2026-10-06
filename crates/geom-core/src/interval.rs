@@ -369,6 +369,13 @@ pub fn max_bound(a: f64, b: f64) -> f64 {
     <f64 as Real>::max(a, b)
 }
 
+/// The smaller of two `f64` bounds, `NaN` if either is: the meet of two
+/// upper bounds on one quantity, which keeps a refused side refused.
+#[must_use]
+pub fn min_bound(a: f64, b: f64) -> f64 {
+    -max_bound(-a, -b)
+}
+
 /// `num / den` rounded UP — an upper bound on the real quotient, which
 /// is what an upper bound divided by a positive lower bound has to
 /// stay. Refusals fall back to the bare quotient exactly as

@@ -17,8 +17,9 @@
 //!   into a wall and a cavity in one solid. Drawn see-through, because
 //!   a cavity is invisible in an opaque render at every camera (the
 //!   hollow ring's founding reason, on this verb's own shape).
-//! - **the lid** — a second `revolve`, its knob's top rim rolled
-//!   through the one-edge annulus band. Rendered LIFTED above the
+//! - **the lid** — a second `revolve` of a solid profile, its three
+//!   rims rolled in one request, each band carved over the rim's two
+//!   half-arcs. Rendered LIFTED above the
 //!   mouth: an exploded view. No mate is authored and none is implied
 //!   — declared contact is M9's territory, and a scene that faked one
 //!   here would be claiming a certification nothing issued.
@@ -115,19 +116,16 @@
 //!    checks all three. **The pot ships OPENED**, one annular rim,
 //!    genus 0, meshing — and it also LEAVES AS STEP, which the sealed
 //!    two-shell body could not.
-//! 3. **A steam vent is what makes the lid's knob filletable.** The
-//!    one-edge annulus band carves a CLOSED latitude rim, and a full
-//!    revolve mints one only from an ANNULAR profile; a profile that
-//!    touches the axis mints half-walls whose rims are two open arcs.
-//!    So the lid is bored — a vent through the finial, which is a real
-//!    teapot's answer as well as the kernel's. What is measured HERE is
-//!    the positive half: the bored lid's knob rim is a closed edge and
-//!    it rolls, with the band's census and its two tangency lines
-//!    checked below. The bound the vent was bored around is gone:
-//!    `verbs_arms1_r1_probes::the_unbored_hemisphere_equator_carves_as_one_band`
-//!    is the axis-touching profile's own row and it now builds, so the
-//!    vent is a choice this scene has not yet revisited
-//!    (`work/show/teapot-lid-unbored.md`).
+//! 3. **The lid is solid, and its rims roll whole.** A full revolve
+//!    of a profile that touches the axis mints half-walls, and each
+//!    latitude rim is two open arcs meeting at two seam vertices. One
+//!    arc alone refuses `UnsupportedCorner` at a seam vertex; the pair
+//!    carves as ONE torus band
+//!    (`verbs_arms1_r1_probes::the_unbored_hemisphere_equator_carves_as_one_band`).
+//!    So the lid is what a potter turns — a solid knob and no vent —
+//!    and its three rims are asked for whole, two names each. A vent
+//!    through the finial would buy nothing a lid wants: a real lid's
+//!    steam hole sits off the axis, which no revolve reaches.
 //! 4. **The teapot is four solids because both joins refuse — at TWO
 //!    DIFFERENT DOORS, each of which has moved.**
 //!
@@ -193,8 +191,9 @@
 //!    cannot be said in a document and a loft of enough sections is an
 //!    approximation of that rather than the thing. The U-turn itself
 //!    is no longer the obstacle — the library's `sweep_body` rounds
-//!    one (the loft's stacking statement is per-slab; klein wall 5
-//!    carries the retired row) — so what a recipe door would buy here
+//!    one (the loft's stacking statement is per-slab; the klein
+//!    scene's top loop is one such sweep) — so what a recipe door
+//!    would buy here
 //!    is the spine in the document, not a shape the kernel cannot
 //!    build.
 //!
@@ -279,9 +278,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr,
+    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
 };
@@ -290,7 +290,7 @@ use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::query;
 use pncad::prelude::{
-    CapEnd, EntityKind, MeridianEnd, NamePat, SegPat, SegTag, Selector, StableName,
+    CapEnd, EntityKind, MeridianEnd, NamePat, RoleSeg, SegPat, SegTag, Selector, StableName,
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
@@ -372,10 +372,6 @@ const R_KNOB: f64 = 5.0 / 256.0;
 const Y_KNOB: f64 = LID_BASE + 13.0 / 256.0;
 /// The knob's top.
 const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
-/// The steam vent bored through the finial — which is also what makes
-/// the lid's profile ANNULAR, and therefore what makes its latitude
-/// rims closed edges. See the module docs' finding 3.
-const R_VENT: f64 = 1.0 / 256.0;
 /// The roll, one radius for all three of the lid's rims — per
 /// REQUEST rather than per edge, and the lid rolls in one request.
 const ROLL: f64 = 2.0 / 256.0;
@@ -403,6 +399,8 @@ const SPOUT_R1: f64 = 3.0 / 256.0;
 const SPOUT_BORE: f64 = 3.0 / 4.0;
 /// How many sections the spout's skin is fitted through.
 const SPOUT_STATIONS: usize = 7;
+// The stop's `ops` line is a `&'static str` and spells this count.
+const _: () = assert!(SPOUT_STATIONS == 7);
 /// **How many arcs each circular section is authored as.**
 ///
 /// FOUR, not a plain `LoopProgram::Circle`: a `Circle` loop is two
@@ -508,38 +506,38 @@ const DELTA: f64 = 2e-4;
 // Construction — ONE recipe document, and the scene's bodies are its
 // values. Every station below is still the `const` it was; what the
 // document changes is the SEAT: a meridian is a `LoopProgram` over
-// `Expr::literal`, the mouth and the lid's rims are named by ROLE
+// `Formula::literal`, the mouth and the lid's rims are named by ROLE
 // rather than found by a numeric scan, and the two unions the scene
 // cannot compose are nodes that refuse at `evaluate`.
 // ---------------------------------------------------------------------
 
 /// A length in the canonical metres this document is authored in.
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("a finite length")
 }
 
 /// A dimensionless component — the spelling a direction takes.
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 
 /// An angle in radians, the unit this scene's turns are written in.
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("a finite angle")
+fn ang(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Angle).expect("a finite angle")
 }
 
 /// One authored point of a meridian, in the sketch's own coordinates.
-fn lpt(x: f64, y: f64) -> [Expr; 2] {
+fn lpt(x: f64, y: f64) -> [Formula; 2] {
     [len(x), len(y)]
 }
 
 /// A straight meridian step to `(x, y)`.
-fn line_to(x: f64, y: f64) -> ProgramStep {
+fn line_to(x: f64, y: f64) -> ProgramStep<Formula> {
     ProgramStep::LineTo(ProgramTarget::Point(lpt(x, y)))
 }
 
 /// A meridian arc about `(cx, cy)` to `(x, y)`.
-fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep {
+fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep<Formula> {
     ProgramStep::ArcTo(ProgramArcData::Center {
         c: lpt(cx, cy),
         winding,
@@ -567,7 +565,7 @@ fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep {
 /// Station for station the corpus document `vessel`'s meridian
 /// (`crates/editor-core/tests/corpus/vessel.rs`), which is the
 /// document spelling of this shape.
-fn vessel_meridian() -> LoopProgram {
+fn vessel_meridian() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         line_to(R_FOOT, 0.0),
@@ -587,7 +585,7 @@ const SEG_MOUTH: u32 = 3;
 /// the step that runs to the axis at the mouth's own station — and it
 /// has to be the only one, or the index would be a choice rather than
 /// the program's answer.
-fn mouth_segment(program: &LoopProgram) -> u32 {
+fn mouth_segment(program: &LoopProgram<Formula>) -> u32 {
     let LoopProgram::Chain(steps) = program else {
         panic!("the meridian is a chain program");
     };
@@ -610,7 +608,7 @@ fn mouth_segment(program: &LoopProgram) -> u32 {
 /// centre on their perpendicular bisector — `(7/64, 5/64)`, off the
 /// axis, so the revolve mints a TORUS. Both residuals are still
 /// exactly zero (3-4-5 twice again).
-fn torus_belly_meridian() -> LoopProgram {
+fn torus_belly_meridian() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         line_to(R_FOOT, 0.0),
@@ -621,11 +619,11 @@ fn torus_belly_meridian() -> LoopProgram {
     ])
 }
 
-/// **The lid's meridian**: underside annulus, conical flange, dome,
-/// knob wall, knob top annulus, vent bore.
+/// **The lid's meridian**: underside disc, conical flange, dome, knob
+/// wall, knob top disc, closed down the axis — a solid knob.
 ///
 /// The flange is what a lid has and is also what puts the CURVED-support
-/// fillet family on this part: it mints two closed latitude rims whose
+/// fillet family on this part: it mints two latitude rims whose
 /// supports are a plane and a cone, and a cone and a sphere. With the
 /// knob's cylinder × plane rim that is three DIFFERENT coaxial arms on
 /// one body — the three `bud` records, on a part rather than on a study.
@@ -635,14 +633,14 @@ fn torus_belly_meridian() -> LoopProgram {
 /// over `40/256 → 46/256`, and the dome's centre sits at `41/256` so
 /// its two junctions are still the sphere's own 5-12-13 points —
 /// `(12, 46)` is `(12, 5)` from the centre and `(5, 53)` is `(5, 12)`.
-fn lid_meridian() -> LoopProgram {
+fn lid_meridian() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(R_VENT, LID_BASE)),
+        ProgramStep::At(lpt(0.0, LID_BASE)),
         line_to(R_FLANGE, LID_BASE),
         line_to(R_NECK, Y_FLANGE),
         arc_to(0.0, DOME_C, ArcSweep::Ccw, R_KNOB, Y_KNOB),
         line_to(R_KNOB, Y_TOP),
-        line_to(R_VENT, Y_TOP),
+        line_to(0.0, Y_TOP),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }
@@ -741,7 +739,7 @@ fn spout_loft(
         doc,
         Node::Loft {
             profiles,
-            v_degree: Expr::count(3),
+            v_degree: Formula::count(3),
         },
         tol,
     )
@@ -788,7 +786,7 @@ struct Recipe {
     spout_union: RecipeNodeId,
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -808,7 +806,7 @@ fn revolved(
     doc: &mut Doc<ProfileProgram>,
     plane: RecipeNodeId,
     axis: RecipeNodeId,
-    loop_: LoopProgram,
+    loop_: LoopProgram<Formula>,
     tol: Tol,
 ) -> RecipeNodeId {
     let profile = insert(
@@ -842,7 +840,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, tol: Tol) -> Profil
         panic!("a revolve's operand is a profile");
     };
     program
-        .pieces(&doc.param_env::<f64>(), tol)
+        .pieces(&doc.var_env::<f64>(), tol)
         .expect("the meridian replays")
 }
 
@@ -858,6 +856,26 @@ fn vertex_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, v: u32, tol: Tol) -
     pieces_of(doc, sweep, tol)
         .vertex(0, v as usize)
         .expect("the vertex is the meridian's")
+}
+
+/// **The latitude rim at `vertex`, WHOLE**: on a full revolve of a
+/// profile that touches the axis, a rim is two half-arcs meeting at
+/// two seam vertices, named `BandRim` (`[0, π)`) and `BandRimPi`
+/// (`[π, 2π)`). The fillet takes the pair; either arc alone ends at a
+/// seam vertex and refuses `UnsupportedCorner`.
+///
+/// The second name is spelled by hand: `pncad::select` has `band_rim`
+/// and `band_pi` but no `band_rim_pi` (filed,
+/// `work/emit/band-rim-pi-has-no-minting-builder.md`).
+fn rim_arcs(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 2] {
+    [
+        band_rim(node, vertex),
+        StableName {
+            kind: EntityKind::Edge,
+            node,
+            path: vec![RoleSeg::BandRimPi(vertex)],
+        },
+    ]
 }
 
 /// **The sketch frame and the axis every meridian here turns about.**
@@ -911,22 +929,17 @@ fn build_doc(tol: Tol) -> Recipe {
     // seam-piece identities are re-read against the partially-carved
     // body, so the convenient spelling is the door's grain.
     //
-    // Each rim is ONE name because the lid's profile is ANNULAR: it
-    // touches the axis nowhere, so the full revolve mints one whole
-    // wall per segment and one CLOSED latitude rim per vertex, where
-    // the pot's axis-touching profile mints half-walls and a `Band` /
-    // `BandPi` pair.
+    // The lid's profile touches the axis, so each rim is two half-arcs
+    // and is asked for whole ([`rim_arcs`]); the band carves over both.
     //
     // The flange's rim and the dome's foot stand at the two ends of the
-    // flange cone, so both bands slit and cross THAT segment's seam
-    // meridian; their names tell the two apart by the band that made
-    // each (`tests/teapot_document.rs`).
-    let rims = LID_RIMS.map(|(v, ..)| band_rim(plain_lid, vertex_at(&doc, plain_lid, v, tol)));
-    let lid = insert(
-        &mut doc,
-        Node::fillet(plain_lid, len(ROLL), rims.to_vec()),
-        tol,
-    );
+    // flange cone, so both bands slit and cross THAT segment's meridians;
+    // their names tell the two apart by the band that made each.
+    let rims: Vec<StableName> = LID_RIMS
+        .iter()
+        .flat_map(|&(v, ..)| rim_arcs(plain_lid, vertex_at(&doc, plain_lid, v, tol)))
+        .collect();
+    let lid = insert(&mut doc, Node::fillet(plain_lid, len(ROLL), rims), tol);
 
     // ---- the spout: a CANAL lofted about its own bent spine, then
     // placed. The placement is unchanged from when this was a revolved
@@ -979,7 +992,7 @@ fn build_doc(tol: Tol) -> Recipe {
                 op: BooleanOp::Union,
                 a: cup,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         )
@@ -1093,25 +1106,28 @@ fn band_faces(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
     faces_where(ev, node, SegPat::tag(SegTag::BandFace))
 }
 
-/// **A named rim's own circle, read back OFF THE EDGE THE NAME
+/// **A named rim's own circle, read back OFF THE EDGES THE NAME
 /// DENOTES**: its centre station and its radius.
 ///
 /// The direction matters and is the whole strength of the row. A
 /// numeric scan matched a DESCRIPTION — station and radius — and
 /// answered a key; this goes the other way, from the name to the one
 /// edge that carries it (`edge_name` over the body's edges is the
-/// only door the façade has for that direction), and then reads the
-/// circle off THAT edge's own certified carrier. So a name that
-/// resolved to a different rim standing at the same station cannot
-/// answer the right radius: the radius is the edge's, not a
-/// neighbouring vertex's.
+/// only door the façade has for that direction), out to the whole rim
+/// through `query::rim_of`, and then reads the circle off each of
+/// THOSE edges' own certified carriers. So a name that resolved to a
+/// different rim standing at the same station cannot answer the right
+/// radius: the radius is the edges', not a neighbouring vertex's.
 ///
-/// Three things are asserted and each is a way the tie could be
-/// false: the name denotes EXACTLY ONE edge, that edge's circle is
-/// centred on the axis, and the meridian VERTEX of the same profile
-/// vertex lies ON that circle — which is what makes the rim and the
-/// vertex two names for one place rather than two independent reads
-/// that happen to agree.
+/// The same read serves an annular profile (a rim of one closed edge)
+/// and an axis-touching one (two half-arcs, `BandRim` and
+/// `BandRimPi`). What is asserted, each a way the tie could be false:
+/// the `BandRim` name denotes EXACTLY ONE edge; the rim through it is
+/// named by this vertex's rim names and no others; every edge of it
+/// stands on one circle centred on the axis; and the meridian VERTEX of
+/// the same profile vertex lies ON that circle — which is what makes
+/// the rim and the vertex two names for one place rather than two
+/// independent reads that happen to agree.
 fn rim_circle(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
@@ -1120,11 +1136,25 @@ fn rim_circle(
     vertex: u32,
 ) -> (f64, f64) {
     let start = vertex_at(doc, node, vertex, Tol::witness());
-    let want = band_rim(node, start);
-    let carried: Vec<(f64, f64)> = query::all_edges(body)
+    let names = rim_arcs(node, start);
+    let seeds: Vec<_> = query::all_edges(body)
         .into_iter()
-        .filter(|&k| edge_name(ev, node, 0, k).ok() == Some(&want))
-        .map(|k| {
+        .filter(|&k| edge_name(ev, node, 0, k).ok() == Some(&names[0]))
+        .collect();
+    let [seed] = seeds[..] else {
+        panic!("the rim's BandRim name denotes exactly one edge, got {seeds:?}");
+    };
+    let rim = query::rim_of(body, seed).expect("a latitude rim chains into one closed rim");
+    let circles: Vec<(f64, f64)> = rim
+        .iter()
+        .map(|&k| {
+            let name = edge_name(ev, node, 0, k).expect("every rim edge is named");
+            assert!(
+                names.contains(name),
+                "the rim through {:?} carries an edge named {name:?}, not one of this \
+                 vertex's rim names",
+                names[0]
+            );
             let c = body
                 .get_edge(k)
                 .and_then(|e| body.get_curve_geom(e.curve))
@@ -1142,9 +1172,11 @@ fn rim_circle(
             }
         })
         .collect();
-    let [(station, radius)] = carried[..] else {
-        panic!("the rim's name denotes exactly one edge, got {carried:?}");
-    };
+    let (station, radius) = circles[0];
+    assert!(
+        circles.iter().all(|&c| c == (station, radius)),
+        "every edge of one rim stands on one circle: {circles:?}"
+    );
     let p = vertex_position(ev, node, &meridian_vertex(MeridianEnd::Seam, node, start))
         .expect("the meridian vertex's name denotes a vertex");
     assert!(
@@ -1295,8 +1327,12 @@ fn pot_area(d: f64) -> f64 {
 // The scene
 // ---------------------------------------------------------------------
 
+/// A body's `(vertices, edges, faces)`.
+type Census = (usize, usize, usize);
+
 /// **Each of the lid's three rims asked for ON ITS OWN**, in a
-/// document of its own, and the answer printed.
+/// document of its own: the answer printed, and its census returned
+/// for the scene to hold each band to its own delta.
 ///
 /// A one-call refusal names ONE edge, and on a body where three rims
 /// are new that is not enough to say which arm the door turned away —
@@ -1304,13 +1340,13 @@ fn pot_area(d: f64) -> f64 {
 /// rim. They are asked on a SEPARATE document because the scene's own
 /// recipe is what the gallery opens, and three extra half-rolled lids
 /// in it would be three bodies the scene does not model.
-fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
+fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
     let (plane, axis) = frame_and_axis(&mut doc, tol);
     let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
-    let rims: Vec<StableName> = LID_RIMS
+    let rims: Vec<[StableName; 2]> = LID_RIMS
         .iter()
-        .map(|&(v, ..)| band_rim(lid, vertex_at(&doc, lid, v, tol)))
+        .map(|&(v, ..)| rim_arcs(lid, vertex_at(&doc, lid, v, tol)))
         .collect();
     let asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
         .iter()
@@ -1318,11 +1354,7 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
         .map(|(&(_, _, _, what), rim)| {
             (
                 what,
-                insert(
-                    &mut doc,
-                    Node::fillet(lid, len(ROLL), vec![rim.clone()]),
-                    tol,
-                ),
+                insert(&mut doc, Node::fillet(lid, len(ROLL), rim.to_vec()), tol),
             )
         })
         .collect();
@@ -1335,7 +1367,15 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
     );
     asked
         .into_iter()
-        .map(|(what, node)| (what, describe(&ev, node)))
+        .map(|(what, node)| {
+            let census = ev.value(node).and_then(|v| match &v.payload {
+                ValuePayload::Body(b) => {
+                    Some((b.vertices().count(), b.edges().count(), b.faces().count()))
+                }
+                _ => None,
+            });
+            (what, describe(&ev, node), census)
+        })
         .collect()
 }
 
@@ -1658,10 +1698,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             plain_lid.edges().count(),
             plain_lid.faces().count(),
         ),
-        (6, 12, 6),
-        "an ANNULAR profile mints ONE full wall per segment — six walls, six closed \
-         latitude rims and six seam meridians — where the pot's axis-touching profile \
-         mints half-walls and open arcs"
+        (8, 14, 8),
+        "an axis-touching profile mints half-walls: the two discs whole, the cone, sphere \
+         and cylinder as two faces each; four latitude rims of two half-arcs each, and two \
+         meridians per curved wall"
     );
     // THE THREE RIMS, BY NAME — and the name checked against the
     // DESCRIPTION a scan would have matched on, which is the station
@@ -1681,20 +1721,29 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // are new that is not enough to say which arm the door turned away
     // — so the scene asks three questions whose answers are each about
     // one rim.
-    for (what, answer) in per_rim_answers(tol) {
+    //
+    // Each band's own census delta is asserted here, one rim at a
+    // time, so the one-request total below is three of THIS delta and
+    // not a mix that happens to sum to it.
+    for (what, answer, census) in per_rim_answers(tol) {
         println!("   {what}: {answer}");
+        assert_eq!(
+            census,
+            Some((10, 17, 9)),
+            "{what}, rolled alone, is one band over its two half-arcs: the sharp 8/14/8 \
+             plus (+2, +3, +1)"
+        );
     }
     // THREE rims, THREE DIFFERENT coaxial arms. The lid is
     // the tour's carrier of the curved-support fillet family now that
     // `bud` is off the sheet: the flange rim is cone × plane(⊥), the
     // dome's foot is sphere × cone, and the knob's top is
-    // cylinder × plane. All three are closed latitude circles because
-    // the profile is ANNULAR — which is what the steam vent buys, and
-    // the reason an axis-touching profile has no candidate at all.
+    // cylinder × plane. Each is a latitude circle of two half-arcs, and
+    // each band carves over both.
     //
-    // The radius is per REQUEST rather than per edge, as `bud`
-    // establishes, and #935 re-reads each later rim's seam-piece
-    // identities against the partially-carved body.
+    // The radius is per REQUEST rather than per edge, and each later
+    // rim's seam-piece identities are re-read against the
+    // partially-carved body.
     let rolled = body_at(&ev, r.lid);
     assert_eq!(
         (
@@ -1702,8 +1751,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             rolled.edges().count(),
             rolled.faces().count(),
         ),
-        (9, 18, 9),
-        "three annulus bands, each the same census delta: +1 vertex, +2 edges, +1 face"
+        (14, 23, 11),
+        "three bands, each over a rim's two half-arcs and each the same census delta: \
+         +2 vertices, +3 edges, +1 face"
     );
     let bands = band_faces(&ev, r.lid);
     assert_eq!(bands.len(), 3, "three rims, three bands");
@@ -1746,7 +1796,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             }
             assert!(
                 f.rings.is_empty(),
-                "a curved band is ring-free: one cycle, two closed trim circles and a slit"
+                "a band is ring-free: one cycle over its two half-arcs' trims and the \
+                 meridians between them"
             );
         }
         hit.unwrap_or_else(|| panic!("no band has its spine at {y}"))
@@ -1814,14 +1865,21 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (v_dome, a_dome) = zone(DOME_R, DOME_C, Y_FLANGE, Y_KNOB);
     let v_lid = v_dome
         + frustum_volume(R_FLANGE, R_NECK, flange_h)
-        + stack_volume(&[(R_KNOB, Y_TOP - Y_KNOB)])
-        - stack_volume(&[(R_VENT, Y_TOP - LID_BASE)]);
+        + stack_volume(&[(R_KNOB, Y_TOP - Y_KNOB)]);
     let a_lid = a_dome
         + frustum_lateral(R_FLANGE, R_NECK, flange_h)
         + 2.0 * PI * R_KNOB * (Y_TOP - Y_KNOB)
-        + annulus(R_KNOB, R_VENT)
-        + annulus(R_FLANGE, R_VENT)
-        + 2.0 * PI * R_VENT * (Y_TOP - LID_BASE);
+        + PI * (R_KNOB * R_KNOB + R_FLANGE * R_FLANGE);
+    let unit = 1.0_f64 / 256.0;
+    let (v_note, a_note) = (
+        5369.0 * PI / 3.0 * unit.powi(3),
+        (453.0 + 52.0 * 10f64.sqrt()) * PI * unit * unit,
+    );
+    assert!(
+        ((v_lid - v_note) / v_note).abs() < 1e-14 && ((a_lid - a_note) / a_note).abs() < 1e-14,
+        "the note narrates V = 5369π/3·256⁻³ = {v_note} and A = (453 + 52√10)π·256⁻² = \
+         {a_note}; the stations now give {v_lid} and {a_lid}"
+    );
     let sharp_lid_props = pncad::topo::mass_properties(&plain_lid, tol).expect("the lid's props");
     assert!(
         ((sharp_lid_props.volume - v_lid) / v_lid).abs() < 1e-12,
@@ -2285,9 +2343,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 sit, not a teapot",
         ops: "ONE recipe document: Profile -> Revolve -> Node::Shell(t = 7.8125 mm, the \
               mouth disc BY NAME) for the vessel; Profile -> Revolve -> \
-              Node::Fillet twice (the flange rim, then the dome foot + the knob top, all \
-              by name) for the lid; Datum::Frame x{SPOUT_STATIONS} -> Profile(2 circle loops) \
-              x{SPOUT_STATIONS} -> Node::Loft(v_degree 3) -> Node::Transform for the \
+              ONE Node::Fillet over the flange rim, the dome foot and the knob top, \
+              each by its two half-arcs' names, for the lid; Datum::Frame x7 -> Profile(2 circle loops) \
+              x7 -> Node::Loft(v_degree 3) -> Node::Transform for the \
               spout, with the same frames lofted a second time WITHOUT the bore as its \
               volume's denominator; \
               Datum::Axis -> Node::Tube for the handle. Two walls pinned: both unions, \
@@ -2343,16 +2401,19 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              live probes (klein's wall 6, the `ring` scene's and `hollowtorus`'s); this \
              scene is no longer one of them, because the body it ships no longer \
              reaches it. THE LID, which is where the CURVED-SUPPORT fillet family \
-             lives on this tour. 6/12/6 sharp — an ANNULAR profile mints one FULL wall \
-             per segment where the pot's axis-touching profile mints half-walls — and \
-             9/18/9 rolled, three annulus bands each carrying the same (+1, +2, +1). \
-             THREE closed latitude rims roll in ONE request. The flange's rim and the \
+             lives on this tour. It is what a potter turns: a SOLID knob, no vent — \
+             the profile closes down the axis, so the revolve mints half-walls like \
+             the pot's: 8/14/8 sharp (two whole discs, the cone, sphere and cylinder \
+             as two faces each, four latitude rims of two half-arcs each), \
+             V = 5369*pi/3 / 256^3 m^3 and A = (453 + 52*sqrt(10))*pi / 256^2 m^2 \
+             by Archimedes' zone and the stack, both met to 1e-12. THREE rims roll \
+             in ONE request, each asked for WHOLE — both its half-arcs, BandRim and \
+             BandRimPi, the second spelled by hand because the select façade mints \
+             no builder for it — and each band carves over both arcs: 14/23/11 \
+             rolled, every band the same (+2, +3, +1). The flange's rim and the \
              dome's foot are the two ends of ONE meridian segment, so both bands slit \
-             and cross THAT segment's seam, and their names tell the two apart by the \
-             band that made each; `tests/teapot_document.rs` holds every rim pair to \
-             one request and the body to the kernel door's — same census, the same \
-             three bands bit for bit, the same mass, the same face order. \
-             Their supports are three \
+             and cross THAT segment's meridians, and their names tell the two apart \
+             by the band that made each. Their supports are three \
              DIFFERENT coaxial arms: the flange's rim is cone x plane(perp), the dome's \
              foot is SPHERE x CONE — the arm no plane-supported scene reaches — and the \
              knob's top is cylinder x plane. Every band is a ring-free TORUS, which is \
@@ -2361,14 +2422,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              lines for the knob ({knob_major}, {ROLL}), two lines for the flange \
              ({flange_major}, {ROLL}), and for the dome's foot a line meeting a circle \
              ({foot_major}, {ROLL}) at the crossing y = {foot_y}. ΔV = {dv_lid:.9} m³, \
-             inside the three corner squares' bound {pappus_cap:.9}. The steam vent is \
-             what makes those rims CLOSED edges at all: bore the finial and the profile \
-             is annular; leave it solid and each rim is two arcs, \
-             which the annulus band does not carve — and it is also why each of these \
-             three rims is ONE name: an annular profile touches the axis nowhere, so \
-             the full revolve mints one whole wall per segment and one CLOSED rim per \
-             meridian vertex, where the pot's axis-touching profile mints the half-wall \
-             pair the mouth is named as. NO MATE IS AUTHORED — the lid renders {LIFT} m above the mouth and \
+             inside the three corner squares' bound {pappus_cap:.9}. NO MATE IS AUTHORED — the lid renders {LIFT} m above the mouth and \
              the two bodies are strangers to the kernel; declared contact is M9's. THE \
              SPOUT AND THE HANDLE. The spout is a CANAL — {SPOUT_STATIONS} annular \
              sections standing on the tangent frames of a circular arc, skinned by ONE \
@@ -2493,8 +2547,7 @@ mod wall_probes_run_here {
     //!
     //! It has to be an in-bin test: `demo-tour` is bin-only (no
     //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
-    //! can name `teapot::wall_probes` at all. `lily` and `klein` carry
-    //! theirs for the same reason and in the same shape.
+    //! can name `teapot::wall_probes` at all.
     //!
     //! There is nothing here to assert that the probes do not already
     //! assert: `crate::walls::wall` panics on BOTH off-nominal

@@ -144,7 +144,7 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
+pub fn cube<T: Decide + topo::AtRestPolicy>(l: f64, tol: Tol) -> Body<T> {
     block(l, l, l, tol)
 }
 
@@ -155,7 +155,7 @@ pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
 /// written in two vocabularies for one box — by bounds (`brick`) and
 /// by extent from the origin (this, and [`cube`] with one extent) —
 /// and both reach the same construction through the same door.
-pub fn block<T: Decide>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
+pub fn block<T: Decide + topo::AtRestPolicy>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
     brick((0.0, w), (0.0, d), (0.0, h), tol)
 }
 
@@ -190,12 +190,7 @@ pub fn pocket_die_parts(x0: f64, y0: f64, z0: f64, tol: Tol) -> (Body<f64>, Body
 /// spell.
 pub fn pocket_die(x0: f64, y0: f64, z0: f64, tol: Tol) -> Body<f64> {
     let (block, cutter) = pocket_die_parts(x0, y0, z0, tol);
-    topo::subtract(&block, &cutter, tol)
-        .expect("the die's pocket cuts")
-        .body()
-        .expect("the die is a body")
-        .body
-        .clone()
+    realized(BooleanOp::Subtract, &block, &cutter, tol)
 }
 
 /// An axis-aligned box spanning `x` x `y` x `z`, as the half-open
@@ -207,9 +202,36 @@ pub fn pocket_die(x0: f64, y0: f64, z0: f64, tol: Tol) -> Body<f64> {
 /// module's extrusion primitive; this door exists so that a suite
 /// which already depends on `sweep` does not reach past it for the
 /// plainest body there is.
-pub fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<T> {
+pub fn brick<T: Decide + topo::AtRestPolicy>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+    tol: Tol,
+) -> Body<T> {
     topo::test_support::brick(x, y, z, tol)
 }
+
+/// **Every boolean output is a legal boolean operand** (DESIGN,
+/// "Maximal faces"): asserts that `body` is a finished body and passes
+/// the next boolean's operand gates, by uniting it with a unit brick at
+/// `[50, 51]³` that it does not touch, so nothing but those gates runs
+/// on it. Panics naming `what` and the refusal. The suites' bodies lie
+/// well inside `|x| < 50`; a body that reached the brick would be read
+/// as an overlap, not as a gate.
+pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
+    let body = topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("{what}: the result is no finished body: {e:?}"));
+    let far = finished(
+        "the far brick",
+        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        tol,
+    );
+    if let Err(e) = topo::union(&body, &far, tol) {
+        panic!("{what}: the result is no legal operand: {e:?}");
+    }
+}
+
+pub use topo::test_support::finished;
 
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
@@ -528,11 +550,11 @@ pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: To
 /// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
 ///
 /// The axis matters: `revolve` puts the ball's poles on the sketch
-/// axis, and a plane×sphere section taken against a chart whose polar
-/// axis is TILTED to the plane is a typed frontier of the split-join
-/// (`SplitJoinError::SectionNotPolar`). A pip
-/// is cut by a face plane, so its ball is charted with the pole along
-/// that face's normal and the section stays polar by construction.
+/// axis, and a plane×sphere section is polar for the ball's chart only
+/// when the plane is normal to that axis. A pip is cut by a face plane,
+/// so its ball is charted with the pole along that face's normal and
+/// the section stays polar by construction, which keeps its faces
+/// inside the iso-rectangle inventory the tessellator walks.
 /// [`ball_poled_y`] and [`ball_poled_z`] name the two poles suites use
 /// most; this door takes any.
 pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> {
@@ -615,7 +637,7 @@ pub fn spool(rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
 /// own loops; nothing about it is specific to a shape, a scalar or a
 /// crate, so a shape that is not in this module today needs no
 /// redesign to move here, only a name.
-pub fn extruded<T: Decide>(
+pub fn extruded<T: Decide + topo::AtRestPolicy>(
     plane: SketchPlane<T>,
     loops: Vec<ProfileLoop<T>>,
     h: T,
@@ -624,9 +646,16 @@ pub fn extruded<T: Decide>(
     let pf = Profile::new(plane, loops)
         .validate(tol)
         .expect("the fixture's profile is a valid loop set");
-    extrude(&pf, Extrusion::Distance(h), tol)
-        .expect("the fixture's profile extrudes")
-        .body
+    extrude(
+        &pf,
+        Extrusion::Distance {
+            depth: h,
+            side: crate::ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the fixture's profile extrudes")
+    .body
 }
 
 /// The K funnel name a FIXTURE's authored frame axes are decided
@@ -702,7 +731,7 @@ pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
 
 /// **A prism on an arbitrary sketch plane**: one closed loop of
 /// `verts`, extruded `h` along that plane's normal.
-pub fn prism_on<T: Decide>(
+pub fn prism_on<T: Decide + topo::AtRestPolicy>(
     plane: SketchPlane<T>,
     verts: Vec<(Point2<T>, T)>,
     h: T,
@@ -716,7 +745,11 @@ pub fn prism_on<T: Decide>(
 /// Takes the vertices rather than a shape so the L-prism, the
 /// arc-sided prism and the turned box are all one door;
 /// panics on an invalid loop, which is a fixture bug, not an outcome.
-pub fn prism<T: Decide>(verts: Vec<(Point2<T>, T)>, h: T, tol: Tol) -> Body<T> {
+pub fn prism<T: Decide + topo::AtRestPolicy>(
+    verts: Vec<(Point2<T>, T)>,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
     prism_at(verts, T::zero(), h, tol)
 }
 
@@ -724,7 +757,12 @@ pub fn prism<T: Decide>(verts: Vec<(Point2<T>, T)>, h: T, tol: Tol) -> Body<T> {
 /// is extruded from `z0` up by `h`. The one home of the lifted
 /// extrusion, so a fixture that stacks a prism on or into another body
 /// does not re-spell the plane.
-pub fn prism_at<T: Decide>(verts: Vec<(Point2<T>, T)>, z0: T, h: T, tol: Tol) -> Body<T> {
+pub fn prism_at<T: Decide + topo::AtRestPolicy>(
+    verts: Vec<(Point2<T>, T)>,
+    z0: T,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
     prism_on(sketch_at(z0), verts, h, tol)
 }
 
@@ -1740,12 +1778,17 @@ pub fn rod_with_flat_at(
         .collect(),
     );
     let cutter = extruded(sketch_at(-0.5 * len), vec![square], 2.0 * len, tol);
+    let rod = topo::AtRestBody::validate(rod, tol)
+        .map_err(|e| format!("the rod is not a finished body: {e:?}"))?;
+    let cutter = topo::AtRestBody::validate(cutter, tol)
+        .map_err(|e| format!("the cutter is not a finished body: {e:?}"))?;
     Ok(topo::subtract(&rod, &cutter, tol)
         .map_err(|e| format!("the flat does not mill: {e:?}"))?
         .body()
         .expect("a body remains")
         .body
-        .clone())
+        .clone()
+        .into_body())
 }
 
 /// **The `+y` crease of a rod with a flat** (or of any body whose
@@ -1958,21 +2001,23 @@ pub fn pocket_of_arcs(n: usize, l: f64, r: f64, floor: f64, tol: Tol) -> Body<f6
     realized(BooleanOp::Subtract, &cube(l, tol), &tool, tol)
 }
 
-/// **The realized boolean of two fixtures, as a body** — `op` through
-/// the public door with no declarations and `SweepStrategy::Realized`,
-/// the body unwrapped. The one spelling: a suite that builds a boss, a
-/// pip or a bore calls this rather than the eleven lines it replaces.
+/// **The realized boolean of two fixtures, as a body** — each operand
+/// finished ([`finished`]), then `op` through the public door with no
+/// declarations and `SweepStrategy::Realized`, the body unwrapped. The
+/// one spelling: a suite that builds a boss, a pip or a bore calls this
+/// rather than the eleven lines it replaces.
 ///
 /// # Panics
 ///
-/// If the boolean refuses or leaves no body — a fixture bug, louder as
-/// a panic than as an empty answer.
+/// If an operand is not a finished body, or the boolean refuses or
+/// leaves no body — a fixture bug, louder as a panic than as an empty
+/// answer.
 #[must_use]
 pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f64> {
     boolean_op_with(
         op,
-        a,
-        b,
+        &finished("the fixture's operand A", a.clone(), tol),
+        &finished("the fixture's operand B", b.clone(), tol),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         tol,
@@ -1982,6 +2027,7 @@ pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f
     .expect("the fixture's boolean is a body")
     .body
     .clone()
+    .into_body()
 }
 
 /// The `n` bulged vertices of a circle of radius `r` about `c`,

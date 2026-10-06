@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use bvh::test_support::ray;
 use editor_core::NodeStanding;
@@ -47,6 +48,7 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -240,7 +242,8 @@ fn unusable_nodes_surface_typed_errors() {
         doc,
         Node::Extrude {
             profile,
-            distance: len(0.0), // degenerate: the extrude fails
+            distance: len(0.0), // degenerate: the extrude fails,
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = insert(
@@ -249,7 +252,7 @@ fn unusable_nodes_surface_typed_errors() {
             op: editor_core::BooleanOp::Union,
             a: bad,
             b: good,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -417,7 +420,8 @@ fn node_pick_door_is_prepaired_and_typed() {
         doc,
         Node::Extrude {
             profile: lone_profile,
-            distance: len(0.0), // degenerate: fails
+            distance: len(0.0), // degenerate: fails,
+            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);

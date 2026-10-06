@@ -2,13 +2,15 @@
 id: pcurve-certificate-states-incidence-and-fidelity
 kind: unit
 title: the Harmonic pcurve certificate states the carrier's incidence and the image's fidelity, so a minted row's identity is a theorem over a parameter box
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
 design: true
 refs: [3759]
 branch: pcert/certificate-incidence-fidelity
+closed: 2026-10-02
+pr: 3812
 ---
 
 **Why.** Once `sweep::extrude` mints its rows (PR 3759), the
@@ -88,3 +90,7 @@ wall. They are a follow-on row once this lands. Trim containment's
 **Sequencing.** PR 3759 does not merge with the widening regression,
 so this unit lands before it or with it. `pcurve_cache.rs` is in
 PCTAIL's territory too; announce the seam at dispatch.
+
+## Closed
+
+Closed by PR 3812 (merged into 3759 as 1710a0d34, on main with 82b52c36c): a `Harmonic` row's certificate is its closed-form envelope (frame defects + incidence + fidelity), the schedule a witness-lane cross-check, and the walk pins a literal branch. Residue: `fillet-meridian-radius-term-is-registered-only` (P0), `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin` (chaintol's wall), `whole-periods-caps-a-branch-at-four-periods`, `periodic-branch-floor-remains-at-three-sites`, and pctail's `pcurve-envelope-escalates-at-interval-on-a-wide-arc`.

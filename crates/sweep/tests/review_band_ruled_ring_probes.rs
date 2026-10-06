@@ -3,6 +3,7 @@
 
 use geom_core::{Point2, Sign, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, Convexity, fillet_edges};
 use sweep::test_support::rod_creases;
 use sweep::{Extrusion, extrude};
@@ -53,9 +54,16 @@ fn keyhole_block_with(extra: Vec<ProfileLoop<f64>>) -> Body<f64> {
     let p = Profile::new(SketchPlane::xy(), loops)
         .validate(tol())
         .expect("the keyholed profile validates");
-    extrude(&p, Extrusion::Distance(1.0), tol())
-        .expect("the keyholed profile extrudes")
-        .body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the keyholed profile extrudes")
+    .body
 }
 
 /// The area the convex band removes at one keyhole junction, per unit

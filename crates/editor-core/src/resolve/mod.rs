@@ -2260,6 +2260,9 @@ pub fn apply_with_names<T: Decide>(
     match edit {
         DocEdit::InsertNode { node } => names.extend(node.payload_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
+        DocEdit::SetDeclare { pairs, .. } => {
+            names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
+        }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is
@@ -2274,23 +2277,28 @@ pub fn apply_with_names<T: Decide>(
         DocEdit::DeleteNode { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
-        // A program and its provenance carry no name; the names a
-        // reshaping moves are the document's own, rewritten at the
-        // door.
+        // A program and its step ids carry no name, and the door
+        // rewrites none of the document's.
         | DocEdit::SetProgram { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
+        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
-        | DocEdit::SetDocParam { .. }
-        | DocEdit::SetDocParamValue { .. }
-        | DocEdit::SetDocParamUnit { .. }
-        | DocEdit::SetDocParamDistribution { .. }
+        | DocEdit::DeclareVar { .. }
+        | DocEdit::DefineVar { .. }
+        | DocEdit::SetVarValue { .. }
+        | DocEdit::SetVarUnit { .. }
+        | DocEdit::SetVarDistribution { .. }
+        | DocEdit::RenameVar { .. }
+        | DocEdit::DeleteVar { .. }
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
         | DocEdit::SetGauge { .. }
+        | DocEdit::Promote { .. }
+        | DocEdit::Fold { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
@@ -2520,7 +2528,7 @@ fn structural_param_change(
     ddiff: &crate::diff::DocDiff,
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<(RecipeNodeId, SlotId)> {
-    let changed_params: Vec<&crate::doc::ParamName> = ddiff.params.iter().collect();
+    let changed_vars = &ddiff.vars;
     // In document order: a node both runs hold is in `new`'s order.
     let candidates: Vec<RecipeNodeId> = new
         .order()
@@ -2545,11 +2553,11 @@ fn structural_param_change(
             if expr_changed {
                 return Some((id, slot));
             }
-            // A changed Count doc-param the slot references.
+            // A changed Count variable the slot reads.
             if let Some(expr) = eb {
-                let mut refs = Vec::new();
-                expr.param_refs(&mut refs);
-                if refs.iter().any(|(name, _)| changed_params.contains(&name)) {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                if reads.iter().any(|(var, _)| changed_vars.contains(var)) {
                     return Some((id, slot));
                 }
             }

@@ -2,10 +2,11 @@
 id: a-placer-row-states-what-a-poisoned-row-cannot
 kind: issue
 title: A Part's index and a pattern's count refuse with PlacerRow::States over a node that may be poisoned, so the cause is stated on no row
-status: open
+status: parked
 opened: 2026-10-01
 priority: P2
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

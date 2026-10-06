@@ -58,7 +58,7 @@ from pncad import (
     BooleanOp,
     Doc,
     DocEdit,
-    Expr,
+    Formula,
     Node,
     Open,
     Start,
@@ -82,24 +82,24 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.literal(x[0]), Expr.literal(y[0])),
-                (Expr.literal(x[1]), Expr.literal(y[0])),
-                (Expr.literal(x[1]), Expr.literal(y[1])),
-                (Expr.literal(x[0]), Expr.literal(y[1])),
+                (Formula.literal(x[0]), Formula.literal(y[0])),
+                (Formula.literal(x[1]), Formula.literal(y[0])),
+                (Formula.literal(x[1]), Formula.literal(y[1])),
+                (Formula.literal(x[0]), Formula.literal(y[1])),
             ],
-            plane=doc.sketch_frame(elevation=Expr.literal(z[0])),
+            plane=doc.sketch_frame(elevation=Formula.literal(z[0])),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(z[1] - z[0])))
+    return doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
 
 
 def cylinder(doc, centre, radius, z0, height):
     """A right circular cylinder — the curved carrier the census has an
     opinion about that a box does not."""
     profile = doc.insert(
-        Node.profile(circle(centre, radius), doc.sketch_frame(elevation=Expr.literal(z0)))
+        Node.profile(circle(centre, radius), doc.sketch_frame(elevation=Formula.literal(z0)))
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(height)))
+    return doc.insert(Node.extrude(profile, Formula.literal(height)))
 
 
 def two_slabs_resting():
@@ -107,8 +107,8 @@ def two_slabs_resting():
 
     The upper slab's four bottom corners land strictly inside the
     lower's top face, so the coincidence is real and its class is a
-    REST — the shape `find_flush_candidates` reports and `Node.declare`
-    records.
+    REST — the shape `find_flush_candidates` reports and a boolean's
+    `declare=` records.
     """
     doc = Doc()
     lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
@@ -182,8 +182,9 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc, lower, upper = two_slabs_resting()
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         self.assertEqual(len(findings), 1)
-        decl = doc.declare_all(findings)
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
+        glued = doc.insert(
+            Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+        )
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
         # The glue is a glue: the exact dyadic volume of the two parts.
@@ -527,10 +528,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc, lower, upper = two_slabs_resting()
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         self.assertEqual(len(findings), 1)
-        declaration = doc.declare(findings[0])
-        glued = doc.insert(
-            Node.boolean(BooleanOp.Union, lower, upper, declare=declaration)
-        )
+        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+        doc.declare(glued, findings[0])
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()  # raises if a record went stale
 
@@ -549,16 +548,16 @@ def stacked_loft(doc, sections, length, radius):
         plane = doc.insert(
             Node.datum_frame(
                 (
-                    Expr.length_in(0.0, m),
-                    Expr.length_in(length * t, m),
-                    Expr.length_in(0.0, m),
+                    Formula.length_in(0.0, m),
+                    Formula.length_in(length * t, m),
+                    Formula.length_in(0.0, m),
                 ),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
             )
         )
         profiles.append(doc.insert(Node.profile(radius(t), plane=plane)))
-    node = doc.insert(Node.loft(profiles, Expr.count(1)))
+    node = doc.insert(Node.loft(profiles, Formula.count(1)))
     run = evaluate(doc)
     assert run.succeeded(node), "the loft fixture evaluates"
     return run.value(node).body()

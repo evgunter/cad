@@ -30,12 +30,13 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use corpus::{body_of, eval, failures};
 use editor_core::param_source;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr, Node,
-    ParamName, ProfileDoc, RecipeNodeId, SlotId, evaluate,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeVar, Node,
+    ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{
@@ -51,8 +52,8 @@ const R: f64 = 0.125;
 /// The offset a wall is thinned by, meters (dyadic).
 const T: f64 = 0.03125;
 
-fn param(name: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(name), Dimension::Length)
+fn param(name: &'static str) -> Formula {
+    Formula::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A cube of side 1 at `cx`, with every edge blended by `radius`.
@@ -60,7 +61,7 @@ fn param(name: &'static str) -> Expr {
 fn filleted_cube(
     doc: ProfileDoc,
     cx: f64,
-    radius: Expr,
+    radius: Formula,
 ) -> (ProfileDoc, editor_core::RecipeNodeId) {
     // A frame node and the square drawn on it — the profile names the
     // plane it is sketched on.
@@ -76,6 +77,7 @@ fn filleted_cube(
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let node = Node::fillet(cube, radius, prism_edges(&doc, cube, 4));
@@ -85,20 +87,20 @@ fn filleted_cube(
 
 /// A document declaring `r` and `t`, with one filleted cube per entry
 /// of `radii` laid out along x so the bodies never meet.
-fn document(radii: &[Expr]) -> (ProfileDoc, Vec<editor_core::RecipeNodeId>) {
+fn document(radii: &[Formula]) -> (ProfileDoc, Vec<editor_core::RecipeNodeId>) {
     let doc = ProfileDoc::empty(DocumentId::derive("seat6-param-source"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, R),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     );
     let (mut doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("t"),
-            value: DocParam::continuous(Dimension::Length, T),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("t"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, T)),
         },
     );
     let mut blends = Vec::new();
@@ -219,9 +221,16 @@ fn the_same_geometry_without_the_channel_refuses() {
         let sketch = profile::Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
             .expect("a unit square is a valid profile");
-        let cube = sweep::extrude(&sketch, sweep::Extrusion::Distance(1.0), Tol::witness())
-            .expect("the kernel extrudes it")
-            .body;
+        let cube = sweep::extrude(
+            &sketch,
+            sweep::Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("the kernel extrudes it")
+        .body;
         let edges = topo::query::all_edges(&cube);
         sweep::blend::build::fillet_edges(&cube, &edges, R, Tol::witness())
             .expect("the kernel door blends the same cube")
@@ -248,7 +257,7 @@ fn the_same_geometry_without_the_channel_refuses() {
 /// syntax.
 #[test]
 fn the_same_declared_offset_agrees_and_a_different_one_does_not() {
-    let thinned = || Expr::sub(param("r"), param("t")).unwrap();
+    let thinned = || Formula::sub(param("r"), param("t")).unwrap();
     let (doc, blends) = document(&[param("r"), thinned(), thinned()]);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
@@ -303,9 +312,9 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
     let doc = ProfileDoc::empty(DocumentId::derive("seat6-chamfer"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, R),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     );
     let (doc, profile) = on_frame(
@@ -320,6 +329,7 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let node1 = Node::chamfer(cube, param("r"), prism_edges(&doc, cube, 4));
@@ -413,8 +423,8 @@ fn cylinder_radius(body: &Body<f64>) -> f64 {
 /// reading the constant table.
 #[test]
 fn two_different_operators_are_two_tokens() {
-    let plus = || Expr::add(param("r"), param("t")).unwrap();
-    let minus = || Expr::sub(param("r"), param("t")).unwrap();
+    let plus = || Formula::add(param("r"), param("t")).unwrap();
+    let minus = || Formula::sub(param("r"), param("t")).unwrap();
     let (doc, blends) = document(&[plus(), minus(), plus()]);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
@@ -437,7 +447,7 @@ fn two_different_operators_are_two_tokens() {
 /// configuration that mints a torus BAND — the carrier
 /// `FieldRole::BandCarrierMinorRadius` names and nothing else in this
 /// suite reaches.
-fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Expr) -> (ProfileDoc, RecipeNodeId) {
+fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     let (doc, plane, profile) = on_frame_keeping(
         doc,
         [cx, 0.0, 0.0],
@@ -497,9 +507,9 @@ fn a_closed_chain_fillet_declares_its_torus_minor_radius() {
     let doc = ProfileDoc::empty(DocumentId::derive("seat6-band"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, 0.05),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.05)),
         },
     );
     let (doc, a) = filleted_lantern(doc, 0.0, param("r"));
@@ -553,9 +563,9 @@ fn own_document(label: &str, value: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, value),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     );
     filleted_cube(doc, 0.0, param("r"))
@@ -715,9 +725,9 @@ fn the_memo_never_serves_a_stale_token() {
     // a token that claims r.
     let (doc3, _) = step(
         doc2,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, 2.0 * R),
+        DocEdit::DefineVar {
+            var: VarName::from_static("r").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
         },
     );
     let ev3 = memo_eval(&doc3, Some(&ev2));
@@ -749,7 +759,7 @@ fn a_memo_served_body_compares_correctly_with_a_re_run_sibling() {
         DocEdit::SetParam {
             node: blends[0],
             slot: SlotId::Radius,
-            expr: Expr::add(param("r"), param("t")).unwrap(),
+            expr: Formula::add(param("r"), param("t")).unwrap(),
         },
     );
     let ev2 = memo_eval(&doc2, Some(&ev1));
