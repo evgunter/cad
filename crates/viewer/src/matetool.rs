@@ -416,8 +416,8 @@ pub enum MateToolEvent {
         side: MateSide,
         /// The pick that was held.
         pick: FaceSelection,
-        /// The pick's node as the document spoke it when the pick was
-        /// dropped.
+        /// The pick's node by the last label the tool kept for it
+        /// ([`MateTool::respeak`]).
         node: SpokenNode,
         /// The resolution machinery's own verdict, read as the feature
         /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
@@ -536,13 +536,14 @@ impl MateTool {
     /// node `doc` holds takes its label now, and one it no longer holds
     /// keeps the last it had.
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        for node in self.said.iter_mut().flatten() {
-            *node = node.respoken(doc);
-        }
+        crate::seats::respeak_each(&mut self.said, doc);
     }
 
-    /// **`side`'s pick's node as a refusal about `doc` says it**: as
-    /// `doc` holds it, else by the last label the tool kept for it.
+    /// **`side`'s pick's node as a refusal says it**: by the label the
+    /// tool kept, which is re-spoken from the shown document after every
+    /// operation and so never older than `doc`, the landed document a
+    /// proposal reads; as `doc` holds it only when nothing named was
+    /// kept.
     fn spoken(
         &self,
         doc: &Doc<ProfileProgram>,
@@ -554,7 +555,7 @@ impl MateTool {
             MateSide::B => &self.said[1],
         };
         match kept {
-            Some(kept) if doc.node(pick.node).is_none() => kept.clone(),
+            Some(kept) if kept.kind().is_some() => kept.clone(),
             _ => doc.spoken(pick.node),
         }
     }

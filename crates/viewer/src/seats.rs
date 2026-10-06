@@ -353,9 +353,7 @@ impl Seats {
     /// node `doc` holds takes its label now, and one it no longer holds
     /// keeps the last it had, which is what a drop names it by.
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        for node in self.held.iter_mut().flatten() {
-            *node = node.respoken(doc);
-        }
+        respeak_each(&mut self.held, doc);
     }
 
     /// Re-read the held picks against the document, dropping any whose
@@ -387,6 +385,14 @@ impl Seats {
         self.held(i).ok_or(SeatError::Empty {
             seat: self.roles[i],
         })
+    }
+}
+
+/// **Each held node spoken again from `doc`** ([`SpokenNode::respoken`]):
+/// the seats' picks and the mate tool's.
+pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfileProgram>) {
+    for node in held.iter_mut().flatten() {
+        *node = node.respoken(doc);
     }
 }
 

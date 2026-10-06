@@ -504,6 +504,16 @@ impl Tools {
         self.open_kind().is_some_and(|kind| kind.commits(op))
     }
 
+    /// **A document replaced this one**: the open tool starts over,
+    /// open, holding nothing ([`Tools::open`]). Its picks are ids of the
+    /// document they were made in, and the next document may hold a
+    /// node of the same id (`SpokenNode::respoken`'s premise).
+    pub fn document_replaced(&mut self) {
+        if let Some(kind) = self.open_kind() {
+            self.open(kind);
+        }
+    }
+
     /// **Feed one frame's operations to the open tool.**
     ///
     /// A selection is the only op a tool consumes, and the two

@@ -3104,7 +3104,6 @@ mod tools_respeak {
     use pncad::document::{Label, MateSide, RecipeNodeId};
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
-    use crate::matetool::{MateChoice, MateToolError};
     use crate::session::{DocSession, EdgeSelection, FaceSelection, Selection, SessionOp};
     use crate::tools::{ToolKind, ToolNotice, Tools};
 
@@ -3225,35 +3224,14 @@ mod tools_respeak {
         assert_eq!(said, [last], "the target is named by its last label");
     }
 
-    /// Both doors the mate tool names a lost pick through: the
-    /// instance-pick refusal its commit answers with, and the drop.
+    /// The instance-pick refusal is `app`'s
+    /// `the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed`,
+    /// where the survival step has not dropped the pick.
     #[test]
     fn the_mate_tool_says_its_lost_pick_by_its_last_label() {
         let (session, mut tools, last) = picked_renamed_deleted(ToolKind::Mate, |block, boss| {
             vec![Selection::Face(face(block)), Selection::Face(face(boss))]
         });
-        let (landed, eval) = session.landed_pair().expect("landed");
-        let choice = MateChoice {
-            class: pncad::select::ContactClass::Rest,
-            primitive: pncad::document::MatePrimitive::FrameCoincidence,
-            sense: pncad::document::AxisSense::Opposed,
-            clocking: None,
-        };
-        let refused = tools
-            .mate()
-            .expect("the mate tool is open")
-            .proposal(landed, eval, choice);
-        match refused {
-            Err(MateToolError::NotAnInstancePick {
-                side: MateSide::A,
-                node,
-            }) => assert_eq!(
-                node.to_string(),
-                last,
-                "the refusal names the block by its last label"
-            ),
-            other => panic!("pick a is not an instance pick, not {other:?}"),
-        }
         let said: Vec<String> = dropped(&session, &mut tools)
             .into_iter()
             .filter_map(|notice| match notice {

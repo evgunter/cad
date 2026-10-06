@@ -914,10 +914,14 @@ selection speaks its nodes when it is made and again from the shown
 document after every operation, so a deleted node keeps the last label
 it had. The face-frame form's held face keeps its own
 (`Drafts::datum_face_said`), since it outlives the selection, and so
-does the open tool for each node it holds (`Tools::respeak`, beside
-`Drafts::respeak` after every operation): a seat's drop, the blend
-tool's lost target, and the mate tool's drop and instance-pick refusal
-say a node the document no longer holds by the last label it had.
+does the open tool for each node it holds (`ViewerApp::respeak_held`
+after every operation): a seat's drop, the blend tool's lost target,
+and the mate tool's drop say a node the document no longer holds by the
+last label it had. The mate tool's instance-pick refusal says the label
+the tool kept even while the landed document it is judged against
+still holds the node, since what the tool kept is never older. A
+document that replaces this one drops what both hold
+(`ViewerApp::document_replaced`): their ids are the old document's.
 So is the Checks window: its report is the landed run's, and
 `ViewerApp::checks_window` hands `frame::check_rows` that run's
 document, from which each finding's root is said on its button and in
