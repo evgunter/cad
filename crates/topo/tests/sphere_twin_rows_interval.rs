@@ -340,6 +340,8 @@ fn a_split_at_the_pole_carries_a_reset() {
 /// winding it cannot trust.** The half cap's meridian split `c·K·ε` off
 /// the pole puts a joint there, and `chart_boundary` reads each face's
 /// loops at the split body:
+/// - `c = 0`: on the pole, refused as a singular joint (the room fence
+///   behind it would refuse too, as a different finding);
 /// - `c = 0.5`: within the band of the pole (`singular_at` undecided),
 ///   refused as a singular joint, never let through to the winding;
 /// - `c = 2`: off the pole, but the quarter-period room at the vertex's
@@ -354,7 +356,12 @@ fn near_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let k_eps = tol.k() * tol.eps();
-    for (c, want) in [(0.5, "singular"), (2.0, "room"), (4.0, "wraps")] {
+    for (c, want) in [
+        (0.0, "singular"),
+        (0.5, "singular"),
+        (2.0, "room"),
+        (4.0, "wraps"),
+    ] {
         let (body, _) = split_meridian::<T>(lane, core::f64::consts::FRAC_PI_3 + c * k_eps);
         assert_eq!(
             topo::pcurves::validate_pcurves(&body, band),
