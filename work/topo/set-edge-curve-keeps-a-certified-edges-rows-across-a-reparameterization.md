@@ -7,6 +7,7 @@ opened: 2026-10-06
 closed: 2026-10-06
 priority: P3
 refs: [kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale]
+cost: E
 ---
 
 

@@ -62,7 +62,7 @@ use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, FaceKey};
+use pncad::topo::{AtRestBody, Body, FaceKey};
 
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::validated;
@@ -232,11 +232,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         want_solid,
         "the meridian mints every analytic kind once, the plane and the cylinder twice"
     );
-    assert_eq!(
-        pncad::topo::validate_geometric(&solid, tol),
-        Ok(()),
-        "the operand: tier 3"
-    );
+    let solid = AtRestBody::validate(solid, tol).expect("the operand: tier 3");
 
     // ---- the hollow ----
     let sealed = pncad::topo::shell(&solid, WALL, tol)
