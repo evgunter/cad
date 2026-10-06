@@ -1011,7 +1011,7 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
-        let remints = if self.description_moves(edge, &certified, tol)? {
+        let remints = if self.description_moves(edge, &certified, (p_start, p_end), tol)? {
             Remints::Every
         } else {
             Remints::FirstDescription
@@ -1088,12 +1088,14 @@ impl<T: Decide> Body<T> {
 
     /// **Whether installing `new` on certified `edge` moves its carrier
     /// or its interval**, measured: the rows its halves store are images
-    /// of the carrier over the interval, so they stand exactly where the
-    /// new carrier traces the old one over the old interval. Read at the
-    /// interval's ends and three interior parameters, each pair of points
-    /// in metres at the band; a reading the band cannot settle counts as
-    /// a move. A null edge has no carrier to keep, and moves. `edge` is
-    /// one the caller resolved.
+    /// of the old carrier over the old interval, so they stand exactly
+    /// where the new carrier, over that interval, starts and ends on the
+    /// edge's vertices (`p_start`, `p_end`; the reading tier 3's
+    /// `RowInterval` takes) and traces the old one between, read at three
+    /// interior parameters. Each pair of points is read in metres at the
+    /// band, and a reading the band cannot settle counts as a move. A
+    /// null edge has no carrier to keep, and moves. `edge` is one the
+    /// caller resolved.
     ///
     /// # Errors
     ///
@@ -1102,6 +1104,7 @@ impl<T: Decide> Body<T> {
         &self,
         edge: EdgeKey,
         new: &EdgeCurve<T>,
+        (p_start, p_end): (Point3<T>, Point3<T>),
         tol: Tol,
     ) -> Result<bool, EulerOpError> {
         let edge_data = proven(&self.edges, edge, EntityId::Edge);
@@ -1112,11 +1115,14 @@ impl<T: Decide> Body<T> {
             error: CertifyError::Band(e),
         })?;
         let (t0, t1) = old.params();
-        Ok([0.0, 0.25, 0.5, 0.75, 1.0].into_iter().any(|k| {
+        let ends = [(t0, p_start), (t1, p_end)].map(|(t, p)| (new.carrier().eval(t), p));
+        let between = [0.25, 0.5, 0.75].map(|k| {
             let t = t0 + (t1 - t0) * T::from_f64(k);
-            let gap = old.carrier().eval(t).distance(new.carrier().eval(t));
+            (new.carrier().eval(t), old.carrier().eval(t))
+        });
+        Ok(ends.into_iter().chain(between).any(|(a, b)| {
             !matches!(
-                decide("description_moves_carrier", Margin::of(gap), band),
+                decide("description_moves_carrier", Margin::of(a.distance(b)), band),
                 Ok(Sign::Zero)
             )
         }))
