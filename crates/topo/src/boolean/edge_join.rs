@@ -16,8 +16,13 @@
 //! are never joined. A valence-2 vertex between curved faces is outside
 //! this door: whether its two edges share a carrier is a question of
 //! the intersection branch, which no key answers yet.
+//!
+//! A vertex that shares its point key with another vertex is not
+//! joinable either: it is one cone of a pinch (Ev, PR 4057), and the
+//! joined edge would run through the other cone's vertex on that point,
+//! a vertex-on-edge contact no record names.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::{Band, Decide, Real, Tol};
 
@@ -25,6 +30,7 @@ use super::ops::{Descendants, describe_minted_edges};
 use super::{BooleanError, Cell};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
+use crate::geometry::PointKey;
 use crate::live::{linked, proven};
 use crate::readback::edge_sides_of;
 
@@ -62,25 +68,45 @@ pub(super) fn certified_line<'a, T: Real>(
         .filter(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
 }
 
-/// Every half-edge starting at each vertex.
-fn starts<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<HalfEdgeKey>> {
-    let mut out: BTreeMap<VertexKey, Vec<HalfEdgeKey>> = BTreeMap::new();
-    for (k, h) in body.half_edges() {
-        out.entry(h.start).or_default().push(k);
+/// What one pass reads off the body before it asks any vertex: every
+/// half-edge starting at each vertex, and the point keys more than one
+/// vertex sits on (a pinch's cones).
+struct Pass {
+    starts: BTreeMap<VertexKey, Vec<HalfEdgeKey>>,
+    shared: BTreeSet<PointKey>,
+}
+
+impl Pass {
+    fn of<T: Real>(body: &Body<T>) -> Self {
+        let mut starts: BTreeMap<VertexKey, Vec<HalfEdgeKey>> = BTreeMap::new();
+        for (k, h) in body.half_edges() {
+            starts.entry(h.start).or_default().push(k);
+        }
+        let mut seen = BTreeSet::new();
+        let mut shared = BTreeSet::new();
+        for (_, v) in body.vertices() {
+            if !seen.insert(v.point) {
+                shared.insert(v.point);
+            }
+        }
+        Self { starts, shared }
     }
-    out
 }
 
 /// `w`'s join, if `w` is joinable (module docs). The half-edges in
-/// `starts` were read out of the arena, so every hop past them is a link.
-fn joinable<T: Real>(
-    body: &Body<T>,
-    w: VertexKey,
-    starts: &BTreeMap<VertexKey, Vec<HalfEdgeKey>>,
-) -> Option<Join> {
-    let [h1, h2] = starts.get(&w)?.as_slice() else {
+/// `pass` were read out of the arena, so every hop past them is a link.
+fn joinable<T: Real>(body: &Body<T>, w: VertexKey, pass: &Pass) -> Option<Join> {
+    let [h1, h2] = pass.starts.get(&w)?.as_slice() else {
         return None;
     };
+    // One cone of a pinch: the joined edge would run through another
+    // vertex on this point (module docs).
+    if pass
+        .shared
+        .contains(&proven(&body.vertices, w, EntityId::Vertex).point)
+    {
+        return None;
+    }
     let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
     let (e1, e2) = (edge(*h1), edge(*h2));
     if e1 == e2 {
@@ -147,10 +173,10 @@ fn joinable<T: Real>(
 /// valence-2 vertex between curved faces is neither listed nor joined
 /// (`work/fuse/curved-joinable-vertices-are-left-unjoined.md`).
 pub fn joinable_vertices<T: Real>(body: &Body<T>) -> Vec<VertexKey> {
-    let starts = starts(body);
+    let pass = Pass::of(body);
     body.vertices()
         .map(|(k, _)| k)
-        .filter(|&w| joinable(body, w, &starts).is_some())
+        .filter(|&w| joinable(body, w, &pass).is_some())
         .collect()
 }
 
@@ -179,11 +205,11 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Vec<EdgeJoin>, BooleanError> {
     let mut joined = Vec::new();
     loop {
-        let starts = starts(body);
+        let pass = Pass::of(body);
         let Some((w, join)) = body
             .vertices()
             .map(|(k, _)| k)
-            .find_map(|w| joinable(body, w, &starts).map(|j| (w, j)))
+            .find_map(|w| joinable(body, w, &pass).map(|j| (w, j)))
         else {
             return Ok(joined);
         };
