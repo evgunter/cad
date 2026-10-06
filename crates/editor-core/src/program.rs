@@ -2947,7 +2947,7 @@ impl core::error::Error for RecordedProgramError {}
 /// [`StepArg::dimension`] requires**, at the door where the caller
 /// writes it, so a lift can never meet a mismatched pairing. It is
 /// one predicate asked in one place: [`Self::set`] asks
-/// `UnitSym::checked_for` — the same predicate `Expr::literal_with_unit`
+/// `UnitSym::checked_for` — the same predicate `Formula::literal_with_unit`
 /// asks, asked here because a notation is written before any literal
 /// exists to refuse it — and [`Self::set_after`] delegates to
 /// [`Self::set`] once it has derived the index, so the two doors
@@ -3311,7 +3311,7 @@ impl LoopProgram<Formula> {
             // D2 addendum row 4. A recorded program is literal by
             // construction: every argument of the program this line
             // reads was minted by `from_recorded` through
-            // `Expr::literal`. So a non-literal here is a kernel bug
+            // `Formula::literal`. So a non-literal here is a kernel bug
             // rather than a caller's input, and a typed refusal would
             // be a guard for a state the construction excludes.
             let Some(value) = slot.literal_value() else {
@@ -3349,7 +3349,7 @@ impl LoopProgram<Formula> {
     /// This door is not the check its `Result` makes it look like, so
     /// writing the variant out gives nothing up:
     ///
-    /// - FINITENESS belongs to [`Expr::literal`], which is the only
+    /// - FINITENESS belongs to [`crate::Formula::literal`], which is the only
     ///   way to mint a literal expression at all and refuses a
     ///   non-finite value there. That refusal is the sole error this
     ///   constructor can return.

@@ -107,7 +107,7 @@ fn mismatched_display_unit_refuses_at_construction() {
         other => panic!("deg on a Scalar literal must refuse, got {other:?}"),
     }
     // The dimensionless row is the one a Scalar literal MAY name, and
-    // it is the one `Expr::literal` gives it.
+    // it is the one `Formula::literal` gives it.
     assert_eq!(
         Formula::literal_with_unit(0.5, Dimension::Scalar, table_row(""))
             .expect("the dimensionless row suits a Scalar")
@@ -461,7 +461,7 @@ fn a_display_unit_is_accepted_exactly_on_its_own_dimension() {
     );
 }
 
-/// `Expr::length_in` and `Expr::angle_in` ARE the composition they
+/// `Formula::length_in` and `Formula::angle_in` ARE the composition they
 /// document — same stored bits, same display unit, same refusal — so
 /// the sugar cannot drift from the two doors underneath it.
 #[test]

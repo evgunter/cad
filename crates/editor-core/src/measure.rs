@@ -265,7 +265,7 @@ enum Binop {
 /// language's, and whatever [`DimensionError`] comes out is this
 /// language's refusal, in the same words a document expression would
 /// have earned. Probe construction is total for every `Dimension` —
-/// `Expr::literal` refuses only `Count` (which takes `Expr::count`)
+/// `Formula::literal` refuses only `Count` (which takes `Formula::count`)
 /// and non-finite values (1.0 is finite) — so the impossible branch is
 /// announced as the kernel bug it would be rather than carried as a
 /// refusal a caller could believe in.

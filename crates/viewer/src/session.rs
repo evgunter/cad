@@ -150,7 +150,7 @@ impl GestureTarget {
     ///
     /// # Errors
     ///
-    /// [`SlotValue::of`]'s, which is `Expr::literal`'s own
+    /// [`SlotValue::of`]'s, which is `Formula::literal`'s own
     /// finiteness refusal reached for a `Count` target, where the
     /// literal door is not on the path.
     fn value_of(&self, value: f64) -> Result<SlotValue, pncad::document::DimensionError> {

@@ -173,7 +173,7 @@ impl ProfilePlane {
     /// # Errors
     ///
     /// Never, in practice: every component is `0.0` or `1.0`, and
-    /// [`Expr::literal`] refuses only a non-finite one. It is a
+    /// `Formula::literal` refuses only a non-finite one. It is a
     /// `Result` so that "is this number authorable" keeps ONE home,
     /// the expression door, rather than an `unwrap` here.
     pub fn world_xy() -> Result<DatumSpec, DimensionError> {
@@ -250,7 +250,7 @@ pub enum PatternRuleSpec {
 /// `SetStructuralParam` and never through the continuous door, so an
 /// authoring door that carried an `Expr` would be the one place a
 /// structural slot could be written continuously. The session mints
-/// the `Expr::count` literal ([`crate::combine::part_node`]), which is
+/// the `Formula::count` literal ([`crate::combine::part_node`]), which is
 /// the same division of labour [`super::SessionOp::AddPattern`]'s
 /// count already takes.
 ///

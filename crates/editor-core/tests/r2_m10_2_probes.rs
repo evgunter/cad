@@ -1353,7 +1353,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     // Length, so `measured: Length` against `bound: Angle`. BOTH
     // halves of the literal move — the notation with the dimension —
     // because a literal whose unit measures something else is refused
-    // one door earlier, by the wire's `Expr::literal_with_unit`
+    // one door earlier, by the wire's `Formula::literal_with_unit`
     // rebuild, and would never reach the snapshot walk this row is
     // about.
     let dim_corrupt = doctored(&text, |wire| {

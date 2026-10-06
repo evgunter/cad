@@ -1,4 +1,4 @@
-//! The expression READ side: `Expr`, and the two typed refusals the
+//! The expression READ side: `Formula`, and the two typed refusals the
 //! doors that make and read one raise.
 //!
 //! The document layer's fourth vocabulary, after nodes, names and
@@ -54,13 +54,13 @@
 //! The LITERAL constructors are the other door, and they are not a
 //! second spelling of the parser: they are what an authoring caller
 //! holding a `Length` has, where the parser wants a string it would
-//! have to build. `Expr.literal` stores the canonical row for the
-//! value's own dimension, `Expr.written_length` / `Expr.written_angle`
-//! store the notation the author wrote, and `Expr.count` is the exact
+//! have to build. `Formula.literal` stores the canonical row for the
+//! value's own dimension, `Formula.written_length` / `Formula.written_angle`
+//! store the notation the author wrote, and `Formula.count` is the exact
 //! integer a structural slot takes. They are the four kernel
 //! constructors a Rust author reaches for, mirrored — and since every
-//! dimensioned slot door takes an `Expr`, they are how a slot is
-//! given a number at all. `Expr.length_in` and `Expr.angle_in` are
+//! dimensioned slot door takes a `Formula`, they are how a slot is
+//! given a number at all. `Formula.length_in` and `Formula.angle_in` are
 //! the kernel's sugar over the written pair, mirrored too: one call
 //! at an authored number, and exactly the composition they spell.
 
@@ -163,14 +163,14 @@ pub(crate) struct Formula(pub(crate) d::Formula);
 #[pymethods]
 impl Formula {
     /// A continuous literal in the CANONICAL unit for its dimension
-    /// — `Expr::literal`, and the door a slot takes a computed
+    /// — `Formula::literal`, and the door a slot takes a computed
     /// quantity through.
     ///
     /// `value` is a `Length`, an `Angle` or a bare `float`, and the
     /// argument's own type is the literal's dimension: there is no
     /// second fact to keep in step and no dimension to spell. What it
     /// stores is the canonical row — metres, radians, the
-    /// dimensionless one — so `Expr.literal(25 * mm)` reads back
+    /// dimensionless one — so `Formula.literal(25 * mm)` reads back
     /// `0.025 m`. A value written in a unit the document should
     /// remember is [`Self::written_length`]'s or
     /// [`Self::written_angle`]'s, not this door's.
@@ -179,7 +179,7 @@ impl Formula {
     /// not a narrowing: a count is an exact integer, so it has its
     /// own door ([`Self::count`]).
     ///
-    /// The refusal is `Expr::literal`'s OWN error type, matched — not
+    /// The refusal is `Formula::literal`'s OWN error type, matched — not
     /// predicted: the binding carries no pre-check of its own, so it
     /// cannot drift from what the kernel refuses. The exception
     /// carries `kind` (the stable tag) AND `value`, the offending
@@ -193,7 +193,7 @@ impl Formula {
 
     /// A continuous literal from an AUTHORED length — the value and
     /// the notation it was written in, together
-    /// (`Expr::written_length`).
+    /// (`Formula::written_length`).
     ///
     /// The door a recipe records `25 mm` through rather than the
     /// canonical `0.025 m`: the unit is presentation metadata, it
@@ -223,8 +223,8 @@ impl Formula {
     }
 
     /// A length authored as `value` in `unit`, in ONE call — exactly
-    /// `Expr.written_length(WrittenLength.in_unit(value, unit))`
-    /// (`Expr::length_in`).
+    /// `Formula.written_length(WrittenLength.in_unit(value, unit))`
+    /// (`Formula::length_in`).
     ///
     /// Sugar over the two doors and nothing besides: the same stored
     /// notation, the same `LiteralError` for a non-finite value, no
@@ -241,7 +241,7 @@ impl Formula {
 
     /// An angle authored as `value` in `unit`, in one call —
     /// [`Self::length_in`]'s mirror, exactly
-    /// `Expr.written_angle(WrittenAngle.in_unit(value, unit))`.
+    /// `Formula.written_angle(WrittenAngle.in_unit(value, unit))`.
     #[staticmethod]
     fn angle_in(py: Python<'_>, value: f64, unit: &super::quantity::AngleUnit) -> PyResult<Self> {
         d::Formula::angle_in(value, unit.0)
@@ -250,7 +250,7 @@ impl Formula {
     }
 
     /// A `Count` literal — an exact integer, and the door every
-    /// structural slot takes its value through (`Expr::count`).
+    /// structural slot takes its value through (`Formula::count`).
     ///
     /// Total: a count is an integer and every integer is a count, so
     /// there is nothing to refuse. It is a separate door from
@@ -386,44 +386,41 @@ impl Expr {
     }
 }
 
-/// Raise `EvalError` for a name a formula reads that the document it
-/// is evaluated against does not answer ([`d::NameFault`]): a name no
-/// variable holds (`unlowered_name`, naming it), or one held at
-/// another kind (`var_kind_mismatch`, the evaluator's own arm, naming
-/// both kinds).
-pub(crate) fn name_fault_err(
-    py: Python<'_>,
-    fault: &d::NameFault,
-    doc: Option<&pncad::document::ProfileDoc>,
-) -> PyErr {
-    match fault.why {
-        d::Unlowered::Kind { var, declared } => eval_err(
-            py,
-            &d::EvalError::VarKindMismatch {
-                var,
-                bound: declared,
-                read: fault.dim,
-            },
-            doc,
-        ),
-        d::Unlowered::Unheld => {
-            let none = || py.None();
-            let text = |s: &str| PyString::new(py, s).unbind().into_any();
-            let fields = [
-                ("variant", text(crate::tags::name_fault_tag(fault))),
-                ("name", text(fault.name.as_str())),
-                ("expected", none()),
-                ("found", none()),
-                ("count", none()),
-            ];
-            let message = format!(
+/// Raise `EvalError` for a name a formula reads that the document's
+/// lowering does not answer ([`d::NameFault`]): a name no variable
+/// holds, or one a variable holds at another kind. The word is
+/// [`crate::tags::name_fault_tag`]'s, the one map: `unlowered_name`
+/// is the edit door's lowering refusal, which no kernel `EvalError`
+/// spells, and `var_kind_mismatch` the word the evaluator's own arm
+/// speaks for the same fact. It rides `EvalError` because the doors
+/// that raise it (`Doc.eval`, `Doc.eval_count`,
+/// `GeomPred.datum_distance`) are the evaluation surface's, with
+/// `name` the name as written and, for a kind, `expected` the dimension
+/// it is read at and `found` the one its variable holds.
+pub(crate) fn name_fault_err(py: Python<'_>, fault: &d::NameFault) -> PyErr {
+    let none = || py.None();
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    let dim = |d: d::Dimension| text(dimension_tag(d));
+    let (expected, found, message) = match fault.why {
+        d::Unlowered::Unheld => (
+            none(),
+            none(),
+            format!(
                 "the name {} reads no variable — no variable holds it at the dimension it is \
                  read at; declare it, or read a declared variable",
                 fault.name
-            );
-            typed_err(py, ErrorClass::Eval, message, &fields)
-        }
-    }
+            ),
+        ),
+        d::Unlowered::Kind { declared, .. } => (dim(fault.dim), dim(declared), fault.to_string()),
+    };
+    let fields = [
+        ("variant", text(crate::tags::name_fault_tag(fault))),
+        ("name", text(fault.name.as_str())),
+        ("expected", expected),
+        ("found", found),
+        ("count", none()),
+    ];
+    typed_err(py, ErrorClass::Eval, message, &fields)
 }
 
 /// Raise `ParseError` carrying the refusal's stable tag, its byte
@@ -602,7 +599,7 @@ pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
 /// payload is `variant` plus the fields, on the shape [`parse_err`]
 /// uses. The dimension fields cross as the tag strings
 /// `crate::errors::dimension_tag` names, which is the spelling
-/// `Expr.dimension` and `Measurement.dimension` already answer in —
+/// `Formula.dimension` and `Measurement.dimension` already answer in —
 /// the kernel's `Dimension` type itself does not cross, by the
 /// census's own reading of it.
 ///

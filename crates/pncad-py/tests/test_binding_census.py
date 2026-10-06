@@ -2076,18 +2076,22 @@ FAMILIES: dict[str, str] = {
 #: What closing it bound: `WrittenLength` / `WrittenAngle`,
 #: `FreeVar.written_length` / `written_angle`, `FreeVar.unit`,
 #: `Doc.params`, and equality and hashing on `LengthUnit` /
-#: `AngleUnit`. `Formula::written_length` needed nothing THERE:
-#: `Doc.parse_formula("25 mm")` already reaches `literal_with_unit` and
-#: `Formula.text` reads the notation back. It is bound now all the same
-#: — `Formula.written_length`, beside `literal`, `written_angle` and
-#: `count` — because a node SLOT takes an `Formula` and a caller
-#: authoring one through the typed doors has no string to parse. The
-#: positive form is `tests/test_notation.py`.
+#: `AngleUnit`. `Expr::written_length` needed nothing THERE:
+#: `Doc.parse_expr("25 mm")` already reached `literal_with_unit` and
+#: `Expr.text` read the notation back. It was bound all the same —
+#: `Expr.written_length`, beside `literal`, `written_angle` and
+#: `count` — because a node SLOT took an `Expr` and a caller
+#: authoring one through the typed doors had no string to parse. The
+#: positive form is `tests/test_notation.py`. (The closing notes in
+#: this block keep the names of their day: INTENT-LITERALS PR B renamed
+#: the authored `Expr` class `Formula`, `Doc.parse_expr`
+#: `Doc.parse_formula`, and `DocParam`, `DocParamValue` and `ParamName`
+#: `FreeVar`, `FreeValue` and `VarName`.)
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could
 #: not be reached without the four the roster filed under `G1`
-#: (`Formula`, `ParseError`, `parse_formula`, `unparse`) plus the
+#: (`Expr`, `ParseError`, `parse_expr`, `unparse`) plus the
 #: environment (`VarEnv`) and the second refusal class. That is the
 #: measurement the closing paid for and the one worth keeping: **the
 #: entries an id owns are not always the entries a unit must move.**
@@ -2110,7 +2114,7 @@ FAMILIES: dict[str, str] = {
 #: `GeomPred.datum_distance`'s comparand waits on. What changed is
 #: that THAT residue is now a SIGNATURE rather than a missing name,
 #: so this census cannot see it and does not pretend to;
-#: `tests/test_north_star.py` executes an `Formula` against the arc and
+#: `tests/test_north_star.py` executes a `Formula` against the arc and
 #: parameter doors that refuse it, which is the shape every other
 #: signature gap on that page is watched in. G1 keeps a citation
 #: here regardless, on a different residue of the same row:
@@ -3284,19 +3288,21 @@ NOT_BOUND = {
     # methods, because the environment they read is the document's.
     #
     # The FIVE G1 entries left with them, and that is the decay rule
-    # rather than a re-assignment: `Formula`, `ParseError`, `parse_formula`
-    # and `unparse` are names Python now spells, and a `gap:` entry
-    # Python binds is stale whatever id it cites. `VarEnv` moved
+    # rather than a re-assignment: `Expr`, `ParseError`, `parse_expr`
+    # and `unparse` were names Python then spelled (`Expr` and
+    # `parse_expr` are `Formula` and `parse_formula` since
+    # INTENT-LITERALS PR B), and a `gap:` entry Python binds is stale
+    # whatever id it cites. `VarEnv` moved
     # for the OTHER reason — it is `INTERIOR` now, below, because
     # both doors that take one build it from the document in hand.
     # **G1 is not closed by any of that**, and it did not stop being
     # cited here either: `ArrivesTangent` above carries the id now,
     # for a residue of the SAME row that has nothing to do with
     # expressions. What the expression half's residue became is a
-    # SIGNATURE rather than a missing name — no door takes an `Formula`
-    # INTO a document — so this census structurally cannot watch that
+    # SIGNATURE rather than a missing name — no door then took an
+    # `Expr` INTO a document — so this census structurally cannot watch that
     # half and does not pretend to; `tests/test_north_star.py` does,
-    # by executing an `Formula` against the arc and parameter doors that
+    # by executing a `Formula` against the arc and parameter doors that
     # still refuse it. The positive form is
     # `tests/test_expressions.py`.
     # --- gap: geometry read-back doors (census-owned) -------------

@@ -506,7 +506,7 @@ const DELTA: f64 = 2e-4;
 // Construction — ONE recipe document, and the scene's bodies are its
 // values. Every station below is still the `const` it was; what the
 // document changes is the SEAT: a meridian is a `LoopProgram` over
-// `Expr::literal`, the mouth and the lid's rims are named by ROLE
+// `Formula::literal`, the mouth and the lid's rims are named by ROLE
 // rather than found by a numeric scan, and the two unions the scene
 // cannot compose are nodes that refuse at `evaluate`.
 // ---------------------------------------------------------------------

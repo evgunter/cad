@@ -1016,7 +1016,7 @@ impl Drafts {
 /// Three dimensionless literals — a normal, a direction, a rotation
 /// axis. Not a [`Drafts`] method, because there is no notation to
 /// carry from the form: a dimensionless number has one spelling, and
-/// `Expr::literal` stores that row itself.
+/// `Formula::literal` stores that row itself.
 ///
 /// # Errors
 ///

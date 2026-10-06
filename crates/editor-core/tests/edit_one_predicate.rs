@@ -210,7 +210,7 @@ fn repoint_measure(
 
 /// Retypes the assertion's BOUND literal from a length to an angle,
 /// unit and all — both halves, so the literal is still one the load
-/// door's `Expr::literal_with_unit` rebuild accepts and the refusal
+/// door's `Formula::literal_with_unit` rebuild accepts and the refusal
 /// read is the DIMENSION rule's.
 fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
     doctored(text, |wire| {

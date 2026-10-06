@@ -228,7 +228,7 @@ macro_rules! continuous_quantity {
 /// NaN length is equal to nothing including itself and orders against
 /// nothing, and `-0.0 * m` equals `0.0 * m`. Nothing here refuses a
 /// non-finite value — the doors where a value enters recipe data do
-/// that. Unhashable for the reason `Expr` is, one layer up: a
+/// that. Unhashable for the reason `Formula` is, one layer up: a
 /// magnitude is not a key, and the value that keys is the authored
 /// record, `WrittenLength`.
 #[pyclass(frozen, module = "pncad", from_py_object)]

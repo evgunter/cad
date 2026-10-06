@@ -303,7 +303,7 @@ class TestTheEvaluatorAnswersValues(unittest.TestCase):
         self.assertEqual(self.doc.eval(expr).in_unit(m), 0.1)
 
     def test_an_expression_parsed_elsewhere_evaluates_here(self):
-        """An `Formula` is a plain value carrying the dimensions its refs
+        """A `Formula` is a plain value carrying the dimensions its refs
         were declared with, so it travels between documents that agree
         about them."""
         other = plate(width=0.4 * m, margin=1 * mm, holes=2)

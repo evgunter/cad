@@ -707,7 +707,7 @@ impl GeomPred {
     #[staticmethod]
     fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: &Formula) -> PyResult<Self> {
         let value = pncad::document::Expr::try_from(&value.0)
-            .map_err(|fault| name_fault_err(py, &fault, None))?;
+            .map_err(|fault| name_fault_err(py, &fault))?;
         Ok(Self(s::GeomPred::DatumDistance {
             datum: datum.0,
             cmp: cmp.to_kernel(),

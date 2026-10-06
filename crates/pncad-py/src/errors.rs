@@ -180,7 +180,7 @@ impl fmt::Display for QuantityOpMismatch {
 
 impl core::error::Error for QuantityOpMismatch {}
 
-// The binding carries no literal pre-check of its own: `Expr::literal`'s
+// The binding carries no literal pre-check of its own: `Formula::literal`'s
 // own error type (`pncad::document::DimensionError`) is curated, so the
 // binding matches the kernel's refusal instead of predicting it; the tag
 // mapping is `crate::tags::expr_dimension_error_tag`.
@@ -264,7 +264,7 @@ pub enum ErrorClass {
     /// sublanguage's arithmetic constructors do, arriving on THIS
     /// class with the mismatch's own tag as `kind` — they are the same
     /// kernel type refusing at the same layer, because that language
-    /// asks `Expr`'s own constructors for its dimensions rather than
+    /// asks `Formula`'s own constructors for its dimensions rather than
     /// restating the F1 table. The full roster is on
     /// [`DIMENSION_DOORS`] — SIX doors under four class names, each
     /// naming the DOOR — and every one of them carries the failing

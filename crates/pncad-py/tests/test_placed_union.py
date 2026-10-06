@@ -446,6 +446,22 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
         self.assertEqual(caught.exception.inner_variant, "listed_with_count")
 
+    def test_a_listed_pattern_whose_count_is_an_unheld_name_refuses_typed(self):
+        """The count beside a listed rule is held by no slot, and when it
+        is a name the document does not hold the edit door still
+        refuses the RULE, typed, rather than crashing on the name it
+        cannot address (INTENT-LITERALS PR B's review, p1)."""
+        named = Doc()
+        named.apply(DocEdit.declare_var(VarName("n"), FreeVar.count(2)))
+        count = named.parse_formula("n")
+        doc = Doc()
+        fin = fin_only(doc)
+        rule = PatternKind.explicit([Frame.translation((0 * m, 0 * m, 0 * m))])
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.pattern(fin, count, rule))
+        self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
+        self.assertEqual(caught.exception.inner_variant, "listed_on_pattern")
+
     def test_an_empty_placement_list_refuses(self):
         doc = Doc()
         box = slab(doc, (0, 1), (0, 1), (0, 1))

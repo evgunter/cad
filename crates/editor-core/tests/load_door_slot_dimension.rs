@@ -65,7 +65,7 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// Retypes one literal from `Length`/`m` to `Angle`/`rad`. BOTH halves
 /// move, so the literal stays well-formed through
-/// `Expr::literal_with_unit` and the display-unit walk has nothing to
+/// `Formula::literal_with_unit` and the display-unit walk has nothing to
 /// say — the only rule left to refuse it is the slot's own.
 fn retype_to_angle(literal: &mut serde_json::Value) {
     let lit = &mut literal["Literal"];

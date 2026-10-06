@@ -523,7 +523,7 @@ class TestTheAssertion(unittest.TestCase):
         return doc, measure
 
     def test_one_parameter_edit_flips_the_verdict(self):
-        """The bound is an `Formula`, so it reaches a document parameter —
+        """The bound is a `Formula`, so it reaches a document parameter —
         which is what makes a recorded requirement re-decidable without
         re-authoring the node."""
         doc, measure = self.web_document(500.0)
