@@ -32,6 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
@@ -39,9 +40,9 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, AxisSense, BoxAxis, CancelToken, CapEnd, ContactClass, Dimension, DocEdit, DocRef,
-    DocumentId, EvalOptions, Evaluation, Expr, FreeVar, MateFrame, MatePrimitive, Node, NodeResult,
-    ParamBox, PatternKind, Placement, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId,
-    SitedFace, StableName, Step, ValuePayload, VarName, all_vertices, evaluate, vertex_position,
+    DocumentId, EvalOptions, Evaluation, Formula, FreeVar, MateFrame, MatePrimitive, Node,
+    NodeResult, ParamBox, PatternKind, Placement, ProfileDoc, ProfileLift, RecipeNodeId, SitedFace,
+    StableName, Step, ValuePayload, VarName, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, head_at, in_copy, insert, len, on_frame, scl, solve, step};
@@ -144,7 +145,7 @@ impl Parts {
     }
 }
 
-fn authored(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn authored(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], Tol::witness()).expect("a frame")
 }
 
@@ -152,7 +153,7 @@ fn authored(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// with `onto`'s, axes opposed — the mover stands ON the other part.
 /// `onto_frame` is the frame on the seat's receiving side: authored at
 /// a point of its top cap, or the cap face's own pose.
-fn seat(mover: SitedFace, onto: SitedFace, onto_frame: MateFrame) -> Node<ProfileProgram> {
+fn seat(mover: SitedFace, onto: SitedFace, onto_frame: MateFrame<Formula>) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -168,7 +169,7 @@ fn seat(mover: SitedFace, onto: SitedFace, onto_frame: MateFrame) -> Node<Profil
 }
 
 /// The receiving frame authored at `(x, y)` of the slab's top.
-fn slab_at(x: f64, y: f64) -> MateFrame {
+fn slab_at(x: f64, y: f64) -> MateFrame<Formula> {
     authored([x, y, SLAB_HEIGHT], [0.0, 0.0, 1.0])
 }
 
@@ -194,7 +195,11 @@ fn set_value(doc: ProfileDoc, name: VarName, v: f64) -> ProfileDoc {
     .0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement<Formula>>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
@@ -224,7 +229,7 @@ fn slab_and_bolts(
 /// side's insert needs, since its admission reads the part's face.
 fn insert_through(
     doc: ProfileDoc,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     opts: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let reach = editor_core::mate_reach::<f64>(opts, Tol::witness());
@@ -255,7 +260,7 @@ struct Bolted {
     mate: RecipeNodeId,
 }
 
-fn bolted(label: &str, slab_frame: MateFrame) -> Bolted {
+fn bolted(label: &str, slab_frame: MateFrame<Formula>) -> Bolted {
     let p = parts(label);
     let (doc, slab, bolts) = slab_and_bolts(&p, label, 1);
     let bolt = bolts[0];
@@ -264,10 +269,10 @@ fn bolted(label: &str, slab_frame: MateFrame) -> Bolted {
         doc,
         Node::Pattern {
             input: bolt,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [1.0, 0.0, 0.0].map(scl),
-                spacing: Expr::named(spacing(), Dimension::Length),
+                spacing: Formula::named(spacing(), Dimension::Length),
             },
         },
     );
@@ -313,7 +318,7 @@ fn lifted(label: &str) -> Lifted {
         Node::transform(
             bolt,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(gap(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Formula::named(gap(), Dimension::Length)],
                 axis: [1.0, 0.0, 0.0].map(scl),
                 angle: ang(0.4),
             },
@@ -405,7 +410,11 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
             b: MateFrame::on_part(Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(rise(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(rise(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             }),
@@ -572,9 +581,13 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::named(turn(), Dimension::Angle),
+                angle: Formula::named(turn(), Dimension::Angle),
             },
         ),
     );
@@ -627,13 +640,14 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let opts = p.opts();
     let poses = solve(&doc, &opts, Tol::witness());
     let world = |id| poses.placement(&doc, id).expect("posed").affine::<f64>();
-    let root_offset = editor_core::Placement::from(Step::Rigid {
-        translation: [1.0, 2.0, 0.0].map(len),
-        axis: [0.0, 1.0, 0.0].map(scl),
-        angle: ang(0.2),
-    })
-    .eval(&doc.var_env::<f64>(), fixture::band())
-    .expect("a literal offset evaluates");
+    let root_offset =
+        editor_core::test_support::stored_placement(&editor_core::Placement::from(Step::Rigid {
+            translation: [1.0, 2.0, 0.0].map(len),
+            axis: [0.0, 1.0, 0.0].map(scl),
+            angle: ang(0.2),
+        }))
+        .eval(&doc.var_env::<f64>(), fixture::band())
+        .expect("a literal offset evaluates");
     let stated = root_offset * world(slab).inverse() * world(third);
     let doc = set_offset(
         doc,
@@ -1396,12 +1410,12 @@ fn slid(label: &str) -> Slid {
     let doc = declare(doc, spin(), SPIN, Dimension::Angle);
     let frame = MateFrame::on_part(Step::Rigid {
         translation: [
-            Expr::named(slide(), Dimension::Length),
+            Formula::named(slide(), Dimension::Length),
             len(3.0),
             len(SLAB_HEIGHT),
         ],
         axis: [0.0, 0.0, 1.0].map(scl),
-        angle: Expr::named(spin(), Dimension::Angle),
+        angle: Formula::named(spin(), Dimension::Angle),
     });
     let (doc, mate) = insert(
         doc,

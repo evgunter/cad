@@ -11,6 +11,7 @@ use geom_core::{Affine3, Band, Decide, Point3, Sign, UnitVec3, Vec3};
 use super::{PATTERN_DIRECTION_ROLE, escalated, turns_off, unit};
 use crate::eval::{NodeErrorKind, StepTurns};
 use crate::expr::Expr;
+use crate::formula::Formula;
 
 /// The funnel name of a linear pattern's spacing sign.
 pub(crate) const PATTERN_SPACING: &str = "pattern_spacing";
@@ -176,13 +177,13 @@ fn within_turn(authored: &Expr, positive: bool, held: u64) -> StepTurns {
     let within = match literal {
         Some((radians, unit)) => {
             let turn = std::f64::consts::TAU / unit.factor();
-            Expr::angle_in(radians / unit.factor() - sign * turn * held as f64, unit)
+            Formula::angle_in(radians / unit.factor() - sign * turn * held as f64, unit)
         }
-        None => Expr::angle_in(360.0 * held as f64, quantity::DEG).and_then(|turns| {
+        None => Formula::angle_in(360.0 * held as f64, quantity::DEG).and_then(|turns| {
             if positive {
-                Expr::sub(authored.clone(), turns)
+                Formula::sub(Formula::from(authored), turns)
             } else {
-                Expr::add(authored.clone(), turns)
+                Formula::add(Formula::from(authored), turns)
             }
         }),
     };
@@ -194,10 +195,10 @@ fn within_turn(authored: &Expr, positive: bool, held: u64) -> StepTurns {
 /// minus. Either evaluates to the exact negation, so the direction it
 /// spells steps the copies where the negative spacing did. `None`
 /// when the expression bound refuses the negation.
-fn negated(authored: &Expr) -> Option<Expr> {
+fn negated(authored: &Expr) -> Option<Formula> {
     match authored.literal_value() {
-        Some(v) => Expr::literal(-v + 0.0, authored.dim()),
-        None => Expr::neg(authored.clone()),
+        Some(v) => Formula::literal(-v + 0.0, authored.dim()),
+        None => Formula::neg(Formula::from(authored)),
     }
     .ok()
 }

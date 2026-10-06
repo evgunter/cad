@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use pncad::document::Formula;
 
 use common::asm;
 use pncad::document::Node;
@@ -92,7 +93,7 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
         *doc = applied.doc;
         applied.record.minted
     };
-    let seat = |post, alignment: Alignment| Node::Mate {
+    let seat = |post, alignment: Alignment<Formula>| Node::Mate {
         a: common::head(asm::in_part(post, &bench.post_top)),
         b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,

@@ -228,10 +228,7 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
             out.push(T_VAR);
             out.extend_from_slice(&var.0.to_be_bytes());
         }
-        ExprKind::Name(name) => unreachable!(
-            "the name {name} reached a coincidence token: the edit door lowers every name \
-             leaf, and the load door refuses a snapshot holding one"
-        ),
+        ExprKind::Leaf(own) => match *own {},
         ExprKind::Add(a, b) => binary(T_ADD, a, b, defs, out),
         ExprKind::Sub(a, b) => binary(T_SUB, a, b, defs, out),
         ExprKind::Mul(a, b) => binary(T_MUL, a, b, defs, out),
@@ -712,7 +709,11 @@ mod tests {
     use geom_core::{Point3, Vec3};
 
     use super::*;
-    use crate::test_support::len;
+
+    /// A stored length literal, in metres.
+    fn len(metres: f64) -> Expr {
+        Expr::literal(metres, Dimension::Length).expect("a finite length")
+    }
 
     /// A table of free variables only: every reader lowers as its id.
     fn free(_: VarId) -> Option<&'static Expr> {
@@ -797,9 +798,8 @@ mod tests {
             | ExprKind::Cos(_)
             | ExprKind::Tan(_)
             | ExprKind::CountToScalar(_) => 15,
-            // No row: a name leaf never reaches the encoder, which
-            // refuses it (the edit door lowers every one).
-            ExprKind::Name(_) => 15,
+            // The stored form adds no leaf of its own.
+            ExprKind::Leaf(own) => match own {},
         };
         assert_eq!(
             ALPHABET.len(),
@@ -930,8 +930,13 @@ mod tests {
     fn a_display_unit_is_not_identity() {
         let mm = quantity::unit_by_symbol("mm").unwrap();
         let cm = quantity::unit_by_symbol("cm").unwrap();
-        let a = Expr::literal_with_unit(0.125, Dimension::Length, mm).unwrap();
-        let b = Expr::literal_with_unit(0.125, Dimension::Length, cm).unwrap();
+        let stored = |unit| {
+            Expr::try_from(
+                crate::Formula::literal_with_unit(0.125, Dimension::Length, unit).unwrap(),
+            )
+            .unwrap()
+        };
+        let (a, b) = (stored(mm), stored(cm));
         assert!(a.bit_eq(&b));
         assert_eq!(lower(root(), &free, &a), lower(root(), &free, &b));
     }

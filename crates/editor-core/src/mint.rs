@@ -116,19 +116,19 @@ pub(crate) struct VarIdCollides {
 /// display unit is never part of an expression's identity (DESIGN.md
 /// D6), so two edits `bit_eq` cannot tell apart mint the same ids.
 #[derive(Serialize)]
-#[serde(bound(serialize = "P: Serialize"))]
-pub(crate) enum MintingEdit<'a, P> {
+#[serde(bound(serialize = "P: Serialize, Node<P, S>: Serialize"))]
+pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::Expr> {
     /// A node inserted, as the edit states it.
     InsertNode {
         /// The node.
-        node: Box<Node<P>>,
+        node: Box<Node<P, S>>,
     },
     /// A profile's program replaced.
     SetProgram {
         /// The profile.
         node: RecipeNodeId,
         /// The new loops.
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<S>>,
         /// The kept ids.
         ids: &'a [Vec<Option<StepId>>],
     },
@@ -146,9 +146,11 @@ pub(crate) enum MintingEdit<'a, P> {
     },
 }
 
-impl<'a, P: Serialize + Clone + crate::ProfilePayload> MintingEdit<'a, P> {
+impl<'a, P: Serialize + Clone + crate::program::SlotPayload<S>, S: crate::Slot>
+    MintingEdit<'a, P, S>
+{
     /// The insert of `node`, display units erased.
-    fn insert(node: &Node<P>) -> Self {
+    fn insert(node: &Node<P, S>) -> Self {
         let mut node = Box::new(node.clone());
         node.erase_display_units();
         Self::InsertNode { node }
@@ -170,7 +172,10 @@ impl<'a> MintingEdit<'a, crate::program::ProfileProgram> {
     }
 }
 
-impl<P: Serialize> MintingEdit<'_, P> {
+impl<P: Serialize, S: crate::Slot> MintingEdit<'_, P, S>
+where
+    Node<P, S>: Serialize,
+{
     /// The bytes the chain is extended by: this statement's serde form.
     fn canonical_bytes(&self) -> Vec<u8> {
         // Every field is a derived-`Serialize` struct, enum, integer,
@@ -317,7 +322,10 @@ impl Mint {
     }
 
     /// The chain extended by `edit`'s canonical bytes.
-    fn extended<P: Serialize>(&self, edit: &MintingEdit<'_, P>) -> [u8; 32] {
+    fn extended<P: Serialize, S: crate::Slot>(&self, edit: &MintingEdit<'_, P, S>) -> [u8; 32]
+    where
+        Node<P, S>: Serialize,
+    {
         Sha256::new()
             .chain_update(EDIT_TAG)
             .chain_update(self.chain)
@@ -358,10 +366,13 @@ impl Mint {
     /// # Errors
     ///
     /// [`NodeIdCollides`] where the log already holds the id.
-    pub(crate) fn insert<P: Serialize + Clone + crate::ProfilePayload>(
+    pub(crate) fn insert<P: Serialize + Clone + crate::program::SlotPayload<S>, S: crate::Slot>(
         &mut self,
-        node: &Node<P>,
-    ) -> Result<RecipeNodeId, NodeIdCollides> {
+        node: &Node<P, S>,
+    ) -> Result<RecipeNodeId, NodeIdCollides>
+    where
+        Node<P, S>: Serialize,
+    {
         let (chain, bits) = Self::draw(NODE_TAG, self.extended(&MintingEdit::insert(node)));
         let id = RecipeNodeId(bits);
         let mut log = self.log.clone();
@@ -529,7 +540,9 @@ mod tests {
 
     #[test]
     fn the_display_unit_is_not_part_of_what_an_insert_hashes() {
-        let written = Expr::length_in(2.0, quantity::MM).unwrap();
+        let written = crate::test_support::stored_expr(
+            &crate::Formula::length_in(2.0, quantity::MM).unwrap(),
+        );
         let canonical = Expr::literal(written.literal_value().unwrap(), Dimension::Length).unwrap();
         let mm = Node::<ProfileProgram>::Extrude {
             profile: RecipeNodeId(1),

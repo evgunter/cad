@@ -18,6 +18,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture::{self, insert, tol};
+use editor_core::Formula;
 use editor_core::{
     AuthoredStep, DocEdit, EditError, LoopProgram, Node, PieceRole, ProfileDoc, ProfileEdgeRef,
     ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, VarEnv, keep_grid,
@@ -63,12 +64,12 @@ fn authored(s: f64) -> Authored {
     }
 }
 
-fn lifted(program: &[Step<f64>]) -> LoopProgram {
+fn lifted(program: &[Step<f64>]) -> LoopProgram<Formula> {
     LoopProgram::from_recorded(program).unwrap()
 }
 
 /// A document holding the chain placed as two profiles on one frame.
-fn placed_twice(loop_: &LoopProgram) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn placed_twice(loop_: &LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("step-handle-binding", tol());
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let profile = |doc| {

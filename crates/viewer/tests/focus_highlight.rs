@@ -309,13 +309,15 @@ fn die(tol: Tol) -> Die {
             .copied()
             .expect("the die's chain is unbroken")
     };
-    let first = |doc: &DieDoc, want: fn(&Node<pncad::document::ProfileProgram>) -> bool| {
-        doc.order()
-            .iter()
-            .copied()
-            .find(|&id| want(doc.node(id).expect("an ordered node exists")))
-            .expect("the die has this node kind")
-    };
+    let first =
+        |doc: &DieDoc,
+         want: fn(&pncad::document::Node<pncad::document::ProfileProgram>) -> bool| {
+            doc.order()
+                .iter()
+                .copied()
+                .find(|&id| want(doc.node(id).expect("an ordered node exists")))
+                .expect("the die has this node kind")
+        };
     let composed = *doc.order().last().expect("the die has nodes");
     let box_blend = input_of(&doc, composed);
     let cut = input_of(&doc, box_blend);

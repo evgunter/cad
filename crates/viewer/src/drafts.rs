@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
-    Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
+    BooleanOp, Dimension, DimensionError, Doc, Formula, Label, LabelFault, LoopProgram,
+    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
@@ -375,7 +375,7 @@ pub(crate) struct ProfileEdit {
 #[derive(Debug)]
 struct HeldReport {
     at: HistoryId,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: Vec<Vec<Option<StepId>>>,
     rows: Vec<Maintenance>,
 }
@@ -475,7 +475,7 @@ impl ProfileEdit {
     pub(crate) fn report(
         &mut self,
         at: HistoryId,
-        door: impl FnOnce(Vec<LoopProgram>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
+        door: impl FnOnce(Vec<LoopProgram<Formula>>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
     ) -> &[Maintenance] {
         let Ok(loops) = self.programs(Notation::CANONICAL) else {
             return &[];
@@ -511,7 +511,7 @@ impl ProfileEdit {
     pub(crate) fn programs(
         &self,
         notation: Notation,
-    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
         sketch::loop_programs(&self.shapes(), notation)
     }
 
@@ -920,7 +920,7 @@ impl Drafts {
     pub(crate) fn profile_programs(
         &self,
         notation: Notation,
-    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
         sketch::loop_programs(&self.profile_loops(), notation)
     }
 
@@ -1016,16 +1016,16 @@ impl Drafts {
 /// Three dimensionless literals — a normal, a direction, a rotation
 /// axis. Not a [`Drafts`] method, because there is no notation to
 /// carry from the form: a dimensionless number has one spelling, and
-/// `Expr::literal` stores that row itself.
+/// `Formula::literal` stores that row itself.
 ///
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
-        Expr::literal(v[2], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[2], Dimension::Scalar)?,
     ])
 }
 
@@ -1035,10 +1035,10 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
     ])
 }
 
@@ -1085,7 +1085,8 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        CancelToken, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram, RecipeNodeId, evaluate,
+        CancelToken, Doc, DocEdit, EvalOptions, Formula, Node, ProfileProgram, RecipeNodeId,
+        evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{ArcData, Step, Target};
@@ -1379,7 +1380,9 @@ mod tests {
                 | NodeKindWanted::Frame => {}
             }
             assert!(
-                authorable.iter().any(|node| admits(Some(node), wanted)),
+                authorable
+                    .iter()
+                    .any(|node| admits(Some(&editor_core::test_support::stored(node)), wanted)),
                 "the {} seat wants {} and no add-datum choice authors one",
                 seat.name(),
                 wanted.name(),
@@ -1550,7 +1553,7 @@ mod tests {
         assert_ne!(at, held.node, "and not the node the form is displaying");
         assert_ne!(at, held.feature(), "nor the feature that minted the name");
         assert_eq!(name, seat.1);
-        let want = Expr::written_angle(pncad::quantity::WrittenAngle::canonical_in(
+        let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,
             pncad::quantity::DEG,
         ))

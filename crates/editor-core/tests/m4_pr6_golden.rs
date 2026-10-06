@@ -27,7 +27,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    Attr, CancelToken, Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Expr, FreeVar,
+    Attr, CancelToken, Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar,
     LoopProgram, MetaValue, Node, NodeResult, PersistError, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, VarName, WitnessDatum,
     apply, evaluate, load, save,
@@ -127,7 +127,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: arc_profile,
-                distance: Expr::named(VarName::from_static("depth"), Dimension::Length),
+                distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -303,7 +303,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(
                 Node::measure(
                     editor_core::MeasureExpr::sub(
-                        editor_core::MeasureExpr::value(Expr::named(
+                        editor_core::MeasureExpr::value(Formula::named(
                             VarName::from_static("depth"),
                             Dimension::Length,
                         )),
@@ -436,7 +436,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let edits = vec![DocEdit::SetParam {
         node: bulged,
         slot: editor_core::SlotId::Distance,
-        expr: editor_core::parse_expr("500 mm", &std::collections::BTreeMap::new())
+        expr: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
             .expect("golden unit literal"),
     }];
     (doc, edits)
