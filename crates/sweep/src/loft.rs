@@ -65,7 +65,7 @@ use std::sync::Arc;
 
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, NewellError};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::SplineError;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
@@ -78,8 +78,8 @@ use topo::{
 
 use crate::skin::{LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, sweep_places};
 use crate::swept::{
-    CapEnd, SweptSeg, cap_plane, cap_points, describe_face_rim_at_rest, face_surface_key,
-    placed_segment_spec, swept_segments,
+    CapEnd, CapPlaneError, SweptSeg, cap_plane, cap_points, describe_face_rim_at_rest,
+    face_surface_key, placed_segment_spec, swept_segments,
 };
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
@@ -132,8 +132,9 @@ pub enum LoftError {
     /// (D4 ¶2 reports surface inside
     /// [`EulerOpError::Certification`]).
     Euler(EulerOpError),
-    /// A cap plane could not be certified from its boundary points.
-    CapPlane(NewellError),
+    /// A cap plane could not be certified or oriented from its boundary
+    /// points.
+    CapPlane(CapPlaneError),
     /// The whole-body pcurve mint pass refused: a wall boundary's
     /// exact line-in-UV image failed its certification.
     Pcurve(PcurveMintError),
@@ -197,7 +198,7 @@ impl fmt::Display for LoftError {
             Self::Band(e) => write!(f, "{e}"),
             Self::Skin(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation of the assembly refused: {e}"),
-            Self::CapPlane(e) => write!(f, "an end cap is not planar: {e}"),
+            Self::CapPlane(e) => write!(f, "{e}"),
             Self::Pcurve(e) => write!(f, "{e}"),
             Self::SeamStructure { source } => write!(
                 f,

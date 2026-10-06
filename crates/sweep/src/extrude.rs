@@ -99,8 +99,8 @@ use topo::{
 
 use crate::swept;
 use crate::swept::{
-    CapEnd, CosurfaceNames, SweptChord, cap_plane, cap_points, decide, face_surface_key,
-    placed_segment_spec, turn_axis,
+    CapEnd, CapPlaneError, CosurfaceNames, SweptChord, cap_plane, cap_points, decide,
+    face_surface_key, placed_segment_spec, turn_axis,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -441,12 +441,12 @@ pub enum ExtrudeError {
         /// The strut or rim edge whose station refuted the smooth premise.
         edge: EdgeKey,
     },
-    /// A cap plane failed Newell certification (non-planar or
+    /// A cap plane could not be certified or oriented (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
     /// surfaced rather than trusted).
     CapPlane {
-        /// The Newell failure.
-        source: NewellError,
+        /// The cap-plane failure.
+        source: CapPlaneError,
     },
     /// A side-wall plane failed Newell certification.
     ///
@@ -535,7 +535,7 @@ impl fmt::Display for ExtrudeError {
                  but definitely a corner at a certification station, so the construction \
                  refuses rather than choose a description for it"
             ),
-            Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
+            Self::CapPlane { source } => write!(f, "{source}"),
             Self::SidePlane {
                 loop_index,
                 segment_index,

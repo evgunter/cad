@@ -1272,7 +1272,12 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
                 source: diag(),
             },
         ),
-        ("CapPlane", E::CapPlane { source: newell() }),
+        (
+            "CapPlane",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Newell(newell()),
+            },
+        ),
         (
             "SidePlane",
             E::SidePlane {
@@ -1379,7 +1384,12 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
                 source: diag(),
             },
         ),
-        ("CapPlane", E::CapPlane { source: newell() }),
+        (
+            "CapPlane",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Newell(newell()),
+            },
+        ),
         ("Op", E::Op { source: euler() }),
         ("Pcurve", E::Pcurve(pcurve())),
     ]
@@ -2163,7 +2173,10 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
         ),
         ("Euler", E::Euler(euler())),
-        ("CapPlane", E::CapPlane(newell())),
+        (
+            "CapPlane",
+            E::CapPlane(sweep::CapPlaneError::Newell(newell())),
+        ),
         ("Pcurve", E::Pcurve(pcurve())),
         (
             "SeamStructure",

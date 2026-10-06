@@ -127,11 +127,11 @@
 //!   it). Smooth joins across genuinely distinct surfaces (line–arc
 //!   tangency: plane–cylinder) keep distinct surfaces and a
 //!   conventional join edge.
-//! - **Caps** via `swept::cap_plane`: positioned by
-//!   `geom_brep::newell_plane` over the loop vertices and arc apexes,
-//!   oriented by the profile's validated winding (an outer loop runs
-//!   counterclockwise about the sketch normal), never by the inscribed
-//!   polygon's own winding, which a large convex arc can reverse.
+//! - **Caps** via `swept::cap_plane`: `geom_brep::newell_plane` over
+//!   the loop vertices and arc apexes, flipped where it disagrees with
+//!   the profile's validated winding (an outer loop runs
+//!   counterclockwise about the sketch normal) — the inscribed polygon's
+//!   own winding, which a large convex arc can reverse, never decides.
 //!
 //! # Holes
 //!
@@ -174,6 +174,7 @@ pub use revolve::{
     BandWall, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, WedgeCapsError,
     WedgeFrames, revolve, revolved_caps,
 };
+pub use swept::CapPlaneError;
 // `SketchSegment` is re-exported for `segment_curve`, the retained
 // 2-D-segment → 3-D-curve door (step-export builds exact arc path
 // legs through it — the LIB-U4 exact-path territory): a caller must
