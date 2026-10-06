@@ -2,8 +2,11 @@
 id: a-turned-lens-keeps-the-door
 kind: issue
 title: A lens of two domes turned on each other keeps the crossing layer's door
-status: open
+status: parked
 opened: 2026-10-02
+priority: P1
+cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What

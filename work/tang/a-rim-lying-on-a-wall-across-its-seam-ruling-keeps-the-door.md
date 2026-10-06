@@ -4,6 +4,8 @@ kind: issue
 title: A rim lying on a wall across that wall's seam ruling keeps the crossing layer's door
 status: open
 opened: 2026-10-02
+priority: P1
+cost: M
 ---
 
 ## What
