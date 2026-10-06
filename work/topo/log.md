@@ -7082,3 +7082,116 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - **Dispatched** `segment-ends-are-not-remapped-across-the-rest-lanes-strut-undo` (P3, M; `rest.rs`) → `session_01KMJUBZvcozeoq7D8PdbVHd`. A nested-strut witness comes first; a panic only on a proven premise.
 - `kef-minting-clears-…` stays open: its "describing door for kills across keys" shape is PR 3970's question.
 - Torn-hops boolean lane: no PR yet. Nothing new on PR 3970.
+
+## 16:51 and 17:37 check-ins (2026-10-05)
+
+- PR 4064 (sync) merged at `1120a0e7`.
+- **PR 4060:** the fix lane's pass (`9ebef695`) answered every item:
+  - `stranded` arm → `unreachable!` with its premise;
+  - a second listed-repoint witness (a sphere), red under `listed_kept`;
+  - a `Spelling { Listed, Stored }` helper owns repoint-or-kept;
+  - NITs;
+  - the cap-inlay witness recorded as an instance of the no-recourse row.
+- But its MINOR-1 fixture turned the reviewer's "reachable in principle" into a **confirmed regression on a public sequence**. A drum's rim is re-described in the cap's chart via `set_edge_curve`, then `offset_charts_together` moves the wall: `Ok(())` on main, `RechartUnvouched` on the PR, and the move is sound.
+  - The lane filed it P2 (`an-offset-door-restates-a-neighbour-chart-rim-the-describing-door-cannot-vouch-for`) and left the PR mergeable.
+  - Adjudicated BLOCKING per the standing rule (a user-visible new refusal on a sound input). Fix lane `session_01NHgrNydjuzjBJAt1XAWw1z` makes the offset restate name the post-move intersection, turns the fixture into a passing witness, and re-runs the probes.
+  - First fix lane archived (about $4.6).
+- **The torn-hops boolean lane opened PR 4066** (+1223/-297, 20 files).
+  - 18 sites converted, each tabled with at rest / mid-op and premise. Declared-pair and coincidence sites (mod, ops, recl, reduce, rim_wedge, vtxfac) are left for D10 and listed on the row, which stays open.
+  - Mutations: M3 and M7 are green, "shadowed" by a later read in the same call. `flush_pair_relation` joined `review_d18`.
+  - Reviewer `session_011odueoNyit5A7otetjoDfo` dispatched (FULL). Implementer archived (about $16.7).
+- **The segment-end lane opened PR 4067** (+569/-97, 8 files).
+  - `undo_struts` logs its fusions; `read_segments` reads ends through them. `realize_seam`'s stale end becomes a panic, backed by a four-step proof.
+  - A public nested-strut witness (pinch ∪ prism): main falls back with `NotSameFace`, head refuses `SeamOrientation` at the glue. A pinch-apex gap and `ChordEndpointRevisited` were filed.
+  - Batteries: 84 + 49, 0 moved.
+  - Reviewer `session_015vTj4CuFMXSJPwehrjaB68` dispatched (FULL); it attacks the proof first. Implementer archived.
+- Nothing new on PR 3970. PR 4065 (INTENT-LITERALS) is not ours.
+
+## 18:41 check-in (2026-10-05)
+
+- **PR 4066 review: fix first, no BLOCKING soundness defect.**
+  - Every mid-op read rests on a link that holds. Per-op-postcondition: 4405 passed. Batteries: 84 shards + 49 tests, 0 moved. At-rest claims confirmed.
+  - MINORs:
+    - mid-op walk and `proven` panics name the at-rest premise (`WALKS_CLOSE`, "nothing removes a record during a plan"), so the panic names the wrong premise against Ev's ruling;
+    - `pinch_site` reads the carve's raw arena surgery, which `OPERATORS_KEEP_LINKS` does not cover;
+    - two converted helpers are reached only through HOLD-listed arms;
+    - M3 and M7 do have load-bearing fixtures (cone slab; Smooth arm);
+    - five more conversions have no witness (OA/OB/OC/OF/OG green).
+  - Style: the outer-then-rings link iteration is written eight times; `face_outward_normal` still reads a torn surface as `None`; `sphere_chart_trim` gives two answers in one walk.
+  - Fix lane `session_01NhpzzjUwVex29u8eQXxTfi` takes all of it.
+  - My HOLD ruling: generic geometric helpers reached through declared arms stay converted; sites whose own logic reads a declaration are left.
+  - Reviewer archived (about $7.8).
+- PR 4060: the second fix lane is still running its probes (`9a3f463e` pushed, CI green).
+- PR 4067: the reviewer is still running.
+- Nothing new on PR 3970.
+
+## 19:43 check-in (2026-10-05)
+
+- **PR 4067 review: merge, no BLOCKING.**
+  - The proof holds; its load-bearing step is the undo's new site check, which would refuse typed a site that is a later strut's copy. The mint order holds independently.
+  - Per-op-postcondition 4388 passed; batteries 12 shards + 49, 0 moved; 11 of 12 mutations red.
+  - MINOR-1: A's fusion log has no witness (M7 green).
+  - MINOR-2: a sound public union (pinch first) now answers `SeamOrientation`, documented as a kernel bug, while prism-first declines the same pair at `correspond` (non-injective `vcorr`).
+  - Fix lane `session_01MUNo6ucXgZ6bfeDQJa6BXD`:
+    - an A-side witness;
+    - decline a non-injective correspondence typed in both orders, before the seam;
+    - `survivor_checked`;
+    - one home for the copy rule (or a row);
+    - the split's one-hop `copy_to_original` checked;
+    - NITs.
+  - Reviewer archived (about $5.1).
+- PR 4060: the second fix lane is running batteries. PR 4066: its fix lane is running.
+- Nothing new on PR 3970.
+
+## 20:46 check-in (2026-10-05)
+
+- **PR 4060 merged** at `d86bccdd` (head `9a3f463e`).
+  - The second fix pass cleared the blocker: the offset doors restate a held neighbour's chart edge as `Intersection(moving, held)`, or as the moving face's own chart for a declared edge, so the declaration is not dropped.
+  - `replace_faces_offset` now also takes two sound moves it refused on main (`ChartResidual`).
+  - Four witnesses, three mutations red. Probes: native 348 lines and step-import 1536 lines, 0 diffs. Workspace: 11766 passed.
+  - Closed the P2 offset row. Filed `the-planar-offset-door-keeps-a-held-neighbours-chart-image-the-moved-edge-has-left` (P3, pre-existing on main).
+  - Fix lane archived (about $8.2).
+- **PR 4066:** the fix lane's pass (`738c07df`) answered everything:
+  - walk and `proven` panics name `OPERATORS_KEEP_LINKS`;
+  - `carve` now checks it drops only records no kept record names (`SplitFinishError::Corrupt`), with three mutations red;
+  - the HOLD criterion is stated (`face_boundary_arcs` moved to converted);
+  - M3/M7 are on load-bearing fixtures; OA/OB/OC′/OF/OG are red;
+  - `face_loops_linked` is the one home;
+  - `face_outward_normal` now panics on a torn surface;
+  - `sphere_chart_trim`'s split is noted as the families row's.
+  - Its CI run was cancelled (superseded), so I merged main (with PR 4060) into it at `d288f84f` (clean; `cargo check` ok). Waiting for CI.
+- PR 4067: its fix lane is still running. Nothing new on PR 3970.
+
+## 21:35 check-in (2026-10-05)
+
+- **PR 4066:** CI on `d288f84f` failed only because jobs were never acquired by a hosted runner ("The job was not acquired by Runner of type hosted even after multiple attempts"; `test` and `mesh budget` cancelled at 15 min). That is runner loss before any test body ran.
+  - Re-running failed jobs was refused (403: resource not accessible by integration), and I will not push an empty commit.
+  - Plan: the next real main movement with code (PR 4067's merge, which also touches `rest.rs`) is merged into PR 4066, which re-runs CI on the combined code.
+  - The fixes are already checked. `gate ok` and `lint` were green on `d288f84f`.
+- PR 4067: the fix lane is pushing (`66532eff`), with no "fixes pushed" comment yet.
+- Nothing new on PR 3970.
+
+## 22:14 check-in (2026-10-05)
+
+- **PR 4067:** the fix lane's pass (`66532ef`) answered everything.
+  - M7 is red: the nest is witnessed in A and in B.
+  - New `RestZipFrontier::PinchApex`: a non-injective correspondence refuses typed while `correspond` builds both directions, before any chord, in both orders. The public witness now pins `PinchApex` in both orders, and the remap's load-bearing witness moved to a unit row on the real reduction.
+  - `Fused::end` uses `survivor_checked`; M5/M8 are red in release.
+  - `NullEdge::copy_at` is the one home for the copy rule.
+  - The split cannot nest a strut, so `copy_to_original` is exact.
+  - Batteries: 12 shards + 49 tests, 0 moved.
+  - Its CI lost runners too (`change filter` cancelled). Main now carries real code (PR 4071), so I merged it in at `452bb74b` (`cargo check` ok) for a fresh run. Fix lane archived.
+- PR 4066 waits for PR 4067's merge, then the same main merge.
+
+## 22:55 (2026-10-05)
+
+- **PR 4067 merged** at `5f857de4` (head `452bb74b`, with main merged in; CI green).
+- **PR 4066 merged** at `f5284cca`. Head `ed9dd914` carries main including PR 4067; both touch `rest.rs` and `splitting/finish.rs`, merged clean, `cargo check` ok, CI green. Fix lane archived (about $8.8).
+- **Dispatched** `torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules` (P3, M) → `session_01Fmjz4kUeUw92mx4pftwUUm`. The brief carries the precedents' review lessons up front:
+  - a per-site premise table;
+  - load-bearing witnesses and a mutation table, including out-of-table mutations;
+  - premise text asserted;
+  - `face_loops_linked`;
+  - the HOLD criterion;
+  - the `solid_contain` chord-join folds and the shadowed M12.
+- Running: one lane. Nothing new on PR 3970.
