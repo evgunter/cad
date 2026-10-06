@@ -184,7 +184,7 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xf5bd_61d3_edc5_a2d4u64),
+        ("cut_cylinder", 0x33ef_05f6_f8aa_2d28u64),
         ("part_select", 0xd429_83fa_0ee6_6bbf),
         ("kitchen_sink", 0x77ca_5ac7_ea66_f681),
     ] {

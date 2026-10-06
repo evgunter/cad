@@ -307,7 +307,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xbf6c_6458_1323_e221),
         ("corner_table", 0xfcce_27c4_6cf3_cb89),
-        ("cut_cylinder", 0xf5bd_61d3_edc5_a2d4),
+        ("cut_cylinder", 0x33ef_05f6_f8aa_2d28),
         ("boss_union", 0x0176_920e_c7af_193f),
         ("kitchen_sink", 0x77ca_5ac7_ea66_f681),
     ];

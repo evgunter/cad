@@ -6656,6 +6656,7 @@ fn step_export_says_a_deeper_route_hop_by_tag_where_the_outer_document_holds_its
         &pncad::document::DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6745,6 +6746,7 @@ fn asm2a_placed_instance(
             offset: Some(pncad::document::Placement::literal(
                 &pncad::document::Frame::translation([dx, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,

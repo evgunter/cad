@@ -869,6 +869,7 @@ mod tests {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(test_support::xy_frame()),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &RefusingReach,
