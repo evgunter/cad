@@ -3577,10 +3577,21 @@ impl AzimuthRule {
 /// sheet (`m` odd: the twin) and the period (`⌊m/2⌋`). Each orbit point
 /// then has a quarter period of room, `(π/2)·d` in metres at the
 /// vertex's distance `d` from the axis: half the separation of the two
-/// nearest orbit points in the chart metric. It collapses only at the
-/// poles, where the 3-D incidence decides instead. A margin that
-/// small is a decided sign or an escalation, never a wrong sheet,
-/// whatever the band's `K`.
+/// nearest orbit points in the chart metric.
+///
+/// **What that room buys, and where it is not enough.** Where it exceeds
+/// the joint bound below (the chart ends `≤ 4ε` apart in metres), the
+/// decided integer is the joint's true deck element. It does not exceed
+/// it everywhere [`singular_at`] reads `Off`: `Off` only puts the vertex
+/// `K·ε` from a pole, so near a pole at a small `K` the lever `d` is
+/// about `K·ε`, and near a narrow cone's apex it is `p·sin α` at slant
+/// `p`, small even at `K = 10`. There a mark may decide an orbit point
+/// other than the true one, but only one equally near the joint: every
+/// orbit point is a lift of the SAME 3-D point, and two that are both
+/// within the joint bound are within it of each other, so the lift
+/// stays continuous in metres to that bound. Otherwise a mark decides
+/// Zero (the gap is on it: a refusal) or escalates. No branch is ever
+/// decided that names a different point.
 ///
 /// **The joint's 3-D coincidence is not decided again here**, and needs
 /// no chart margin: it follows from two certified bounds. Each row's
@@ -5407,7 +5418,7 @@ mod lift_rows {
     use super::{DescribedChart, Lift, PinMiss, Singular, lift_joint};
     use geom::Surface;
     use geom_brep::Pcurve;
-    use geom_core::{Band, Decide, Interval, Point2, Point3, Vec2, Vec3};
+    use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Vec2, Vec3};
 
     const EPS: f64 = 1e-9;
 
@@ -5484,27 +5495,38 @@ mod lift_rows {
     /// azimuth then decides a branch half a period off and never
     /// reaches the twin; read as half periods, the twin has a quarter
     /// period of room. A twin is never the identity.
-    fn twin_at_every_k<T: Decide>(lane: &str) {
+    fn twin_at_every_k<T: Decide + Bounds>(lane: &str) {
         let s = unit_sphere::<T>();
         let (u, v): (f64, f64) = (0.3, 0.4);
+        // The twin either side: half a period over (`m = 1`, no period)
+        // or half a period back (`m = −1`: the twin, one period back).
+        let sides = [(core::f64::consts::PI, 0), (-core::f64::consts::PI, -1)];
         for k in [10.0, 3.0, 2.0] {
             for delta in [-3.5 * EPS, 3.5 * EPS] {
-                let du = delta / v.cos();
-                let prev = (u + core::f64::consts::PI + du, core::f64::consts::PI - v);
-                let Ok(lift) = lift(&s, (u, v), prev, on_sphere(u, v), k) else {
-                    panic!("{lane} K = {k} δ = {delta:e}: the joint lifts");
-                };
-                assert!(
-                    lift.twin && lift.ku == 0 && lift.kv == 0,
-                    "{lane} K = {k} δ = {delta:e}: the twin, no period ({}, {}, {})",
-                    lift.twin,
-                    lift.ku,
-                    lift.kv
-                );
-                assert!(
-                    !lift.identity(),
-                    "{lane} K = {k}: a twin is never the identity"
-                );
+                for (side, ku) in sides {
+                    let du = delta / v.cos();
+                    let prev = (u + side + du, core::f64::consts::PI - v);
+                    let Ok(lift) = lift(&s, (u, v), prev, on_sphere(u, v), k) else {
+                        panic!("{lane} K = {k} δ = {delta:e} side {side}: the joint lifts");
+                    };
+                    assert!(
+                        lift.twin && lift.ku == ku && lift.kv == 0,
+                        "{lane} K = {k} δ = {delta:e} side {side}: the twin, {ku} periods \
+                         ({}, {}, {})",
+                        lift.twin,
+                        lift.ku,
+                        lift.kv
+                    );
+                    let entry = lift.pcurve.eval(T::from_f64(0.0));
+                    assert!(
+                        (entry.x - T::from_f64(prev.0)).abs().hi() < 1e-6,
+                        "{lane} K = {k} side {side}: the lifted entry lands on the predecessor"
+                    );
+                    assert!(
+                        !lift.identity(),
+                        "{lane} K = {k}: a twin is never the identity"
+                    );
+                }
             }
         }
     }
