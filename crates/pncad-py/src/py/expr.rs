@@ -423,6 +423,33 @@ pub(crate) fn name_fault_err(py: Python<'_>, fault: &d::NameFault) -> PyErr {
     typed_err(py, ErrorClass::Eval, message, &fields)
 }
 
+/// Raise the refusal of a formula that does not lower against a
+/// document: a name, as [`name_fault_err`] raises it, or a fresh-table
+/// read, which only an edit's own table resolves (a formula Python
+/// builds holds none).
+pub(crate) fn lower_fault_err(py: Python<'_>, fault: &d::LowerFault) -> PyErr {
+    match fault {
+        d::LowerFault::Name(fault) => name_fault_err(py, fault),
+        d::LowerFault::Fresh(fault) => {
+            let none = || py.None();
+            let text = |s: &str| PyString::new(py, s).unbind().into_any();
+            let fields = [
+                ("variant", text(crate::tags::fresh_fault_tag(fault))),
+                ("name", none()),
+                ("expected", text(dimension_tag(fault.dim))),
+                (
+                    "found",
+                    fault
+                        .held
+                        .map_or_else(none, |held| text(dimension_tag(held))),
+                ),
+                ("count", none()),
+            ];
+            typed_err(py, ErrorClass::Eval, fault.to_string(), &fields)
+        }
+    }
+}
+
 /// Raise `ParseError` carrying the refusal's stable tag, its byte
 /// offset, and the arm's payload.
 ///

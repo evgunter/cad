@@ -71,7 +71,7 @@ fn retype_to_angle(
     wire: &mut serde_json::Value,
     slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
 ) {
-    fixture::retype_slot_var(wire, slot, "Angle", "rad");
+    crate::wire::retype_slot_var(wire, slot, "Angle", "rad");
 }
 
 /// **An extrude's distance — both doors.** The measured asymmetry this

@@ -256,17 +256,17 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
     let node = RecipeNodeId(1);
     for step in steps {
         let verb = step.verb();
-        let program = editor_core::test_support::stored_program(&ProfileProgram {
-            plane: RecipeNodeId(0),
-            loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
-            ids: Vec::new(),
-        });
-        let held = sketch::held_program(
-            pncad::document::SpokenNode::absent(node),
-            &program,
-            &pncad::document::Doc::empty_derived("held-program", Tol::witness()),
-        )
-        .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
+        let mut doc = pncad::document::Doc::empty_derived("held-program", Tol::witness());
+        let program = editor_core::test_support::stored_program(
+            &mut doc,
+            &ProfileProgram {
+                plane: RecipeNodeId(0),
+                loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
+                ids: Vec::new(),
+            },
+        );
+        let held = sketch::held_program(pncad::document::SpokenNode::absent(node), &program, &doc)
+            .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
         let back = lowered(&held, MM);
         assert!(
             sketch::is_committed(&program, &back, &program.kept_in_place()),
@@ -279,9 +279,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
 fn committed_expr(session: &DocSession, node: RecipeNodeId, slot: SlotId) -> pncad::document::Expr {
     session
         .committed_doc()
-        .node(node)
-        .and_then(|held| held.expr(slot))
-        .cloned()
+        .slot_expansion(node, slot)
         .unwrap_or_else(|| panic!("node {node} has no {}", slot.label()))
 }
 
@@ -620,6 +618,7 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
             arg: StepArg::PointX,
         },
         expr: common::len(0.02),
+        fresh: Vec::new(),
     };
     assert!(
         matches!(

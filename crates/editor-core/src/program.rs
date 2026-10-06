@@ -1736,6 +1736,53 @@ pub fn resolve_loops<T: Decide>(
         .collect()
 }
 
+/// **Why written loops did not resolve with no document**
+/// ([`resolve_written_loops`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum WrittenLoopFault {
+    /// A formula the scratch document refuses, as the edit door
+    /// refuses it: one that reads a variable by name or a fresh-table
+    /// entry, with no document to read.
+    Refused(Box<crate::EditError>),
+    /// An argument that lowered and did not resolve, at its slot.
+    Resolve {
+        /// The argument's address.
+        slot: SlotId,
+        /// The evaluator's refusal.
+        source: EvalError,
+    },
+}
+
+/// **Loops as written, resolved with no document**: each argument
+/// lowered to the variable the insert door would mint for it, in a
+/// scratch document of its own, and the loops resolved at `f64` in that
+/// document's environment. For a caller holding loops it is about to
+/// author and no document — a form previewing a sketch.
+///
+/// # Errors
+///
+/// [`WrittenLoopFault`]: a formula the scratch document refuses, or an
+/// argument that does not resolve.
+pub fn resolve_written_loops(
+    loops: &[LoopProgram<crate::Formula>],
+) -> Result<Vec<Vec<Step<f64>>>, WrittenLoopFault> {
+    let mut scratch: crate::ProfileDoc = crate::Doc::empty(
+        crate::DocumentId::derive("written-loops"),
+        geom_core::Tol::witness(),
+    );
+    let stored = loops
+        .iter()
+        .map(|lp| {
+            lp.try_map_slots(&mut |formula| {
+                crate::edit::lower_slot_into(&mut scratch, formula)
+                    .map_err(|refusal| WrittenLoopFault::Refused(Box::new(refusal)))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    resolve_loops(&stored, &scratch.var_env::<f64>())
+        .map_err(|(slot, source)| WrittenLoopFault::Resolve { slot, source })
+}
+
 impl ProfileProgram {
     /// Whether any expression of this program reads the variable
     /// `var` — the question a C6/D9-pinned consumer of the program (a

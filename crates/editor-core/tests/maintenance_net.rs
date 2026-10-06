@@ -258,7 +258,14 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         Recorded {
             doc: third.doc,
             edits: vec![delete, insert, clear],
-            maintenance: Vec::new(),
+            // The delete's retired anonymous variables stand: nothing
+            // later takes them back.
+            maintenance: first
+                .maintenance
+                .iter()
+                .filter(|m| matches!(m, Maintenance::AnonymousVarRemoved { .. }))
+                .cloned()
+                .collect(),
             minted: vec![None, Some(inserted), None],
         },
         "the edits as applied, the strands the cleared declaration held netted out"

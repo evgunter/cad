@@ -82,7 +82,7 @@ fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
     let text = save(&doc, &[], Tol::witness()).expect("the square saves");
     let bowtie = doctored(&text, |v| {
         for (step, from, to) in [(1, 0.0, 1.0), (2, 1.0, 0.0)] {
-            let y = &mut crate::fixture::slot_var_def(v, |v| {
+            let y = &mut crate::wire::slot_var_def(v, |v| {
                 &v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["loops"][0]["Chain"][step]
                     ["LineTo"]["Point"][1]
             })["value"];

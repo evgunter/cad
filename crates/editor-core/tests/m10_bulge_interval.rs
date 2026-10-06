@@ -213,6 +213,12 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// factor alone), merged in after PR 3812, makes the six gated
 /// `pcurve_envelope` decisions theorems: 6/6/0/0 -> 12/0/0/0. They are
 /// the six `sym_9` counts on the boss (`sign_gated` 26 -> 20).
+///
+/// **INTENT-LITERALS PR C** (a slot holds a variable): a formula
+/// written at a slot — the boss's `−chord_half` — lowers to an
+/// anonymous defined variable, which the environment binds through the
+/// non-finite door like every definition, so `expr_non_finite` gains
+/// those bindings' theorems: 29/0/0/0 -> 33/0/0/0. Nothing else moves.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -237,7 +243,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("datum_unit_norm", [0, 0, 0, 2]),
             ("dihedral_arm", [0, 0, 0, 80]),
             ("dihedral_wedge", [0, 0, 0, 80]),
-            ("expr_non_finite", [29, 0, 0, 0]),
+            ("expr_non_finite", [33, 0, 0, 0]),
             ("extrusion_normal_component", [0, 0, 0, 2]),
             ("interval_span_forward", [0, 0, 0, 24]),
             ("interval_span_winding", [0, 0, 0, 12]),

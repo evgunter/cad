@@ -135,7 +135,7 @@ fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     let corrupt = doctored(&text, |wire| {
         // (a) a non-profile slot retyped: spacing Length -> Angle.
-        crate::fixture::retype_slot_var(
+        crate::wire::retype_slot_var(
             wire,
             |wire| &wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["kind"]["Linear"]["spacing"],
             "Angle",

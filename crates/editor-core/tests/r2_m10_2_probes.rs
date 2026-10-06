@@ -1380,7 +1380,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     // rebuild, and would never reach the snapshot walk this row is
     // about.
     let dim_corrupt = doctored(&text, |wire| {
-        crate::fixture::retype_slot_var(
+        crate::wire::retype_slot_var(
             wire,
             |wire| &wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"],
             "Angle",

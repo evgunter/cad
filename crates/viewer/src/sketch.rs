@@ -49,9 +49,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Formula, LoopProgram, Node,
-    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
-    StepId, ValuePayload, VarEnv, resolve_loops,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram,
+    Node, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
+    StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -1075,23 +1075,20 @@ pub fn preview(
         // is presentation metadata that no evaluation reads, and this
         // program is built to be replayed and drawn, never committed.
         let program = loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?;
-        // A form writes numbers, never a name, so its program is
-        // already the stored one.
-        match program.try_map_slots(&mut |formula| pncad::document::Expr::try_from(formula)) {
-            Ok(stored) => programs.push(stored),
-            Err(fault) => unreachable!("a form's program reads no name, yet {fault}"),
-        }
+        programs.push(program);
     }
-    // Literals only reach this door, so an empty environment binds
-    // everything it can be asked about. It is passed rather than
-    // assumed because resolution is the document layer's one door and
-    // a form is not a special case of it. The LOOPS resolve, not a
-    // program: a preview has no plane node and does not need one — the
-    // plane it draws on arrives as a placement, from the frame the
-    // form is pointed at.
-    let env = VarEnv::default();
-    let resolved = resolve_loops(&programs, &env)
-        .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
+    // The LOOPS resolve, not a program: a preview has no plane node and
+    // does not need one — the plane it draws on arrives as a placement,
+    // from the frame the form is pointed at. Nor a document: each
+    // number the form wrote is the variable the insert door would mint
+    // for it, in a scratch document of the resolver's own.
+    let resolved = resolve_written_loops(&programs).map_err(|fault| match fault {
+        WrittenLoopFault::Resolve { slot, source } => PreviewError::Resolve { slot, source },
+        // A form writes numbers, never a name.
+        WrittenLoopFault::Refused(refusal) => {
+            unreachable!("a form's program reads no name, yet {refusal}")
+        }
+    })?;
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());
     let mut ends: Vec<LoopEnd> = Vec::with_capacity(resolved.len());
     // Every refusal met, in loop order: the refused loops' and the

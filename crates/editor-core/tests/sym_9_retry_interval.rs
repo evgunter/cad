@@ -483,6 +483,14 @@ fn sym_9_what_each_retry_recovers() {
 /// bracket +17 to 1087 and 1081, the link +13 to 748 and 734).
 /// Theorems, `sign_gated`, `registered` and `retried` do not move.
 ///
+/// A slot that holds a variable (INTENT-LITERALS PR C) lowers a formula
+/// written at a slot to an anonymous defined variable, which the
+/// environment binds through the non-finite door as it binds every
+/// definition: `symbolic_zero` gains those bindings' theorems on every
+/// document (the plate +1, the annulus +2, the boss +4, the bracket
+/// +3, the link +2), and no other column moves. The untoleranced
+/// variables bind as constants (VR8), as the literals they were did.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -502,21 +510,21 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [955, 0, 148, 704], [955, 0, 148, 704], 0),
-        ("r1_annulus", [440, 32, 148, 451], [440, 32, 148, 451], 0),
+        ("two_hole_plate", [956, 0, 148, 704], [956, 0, 148, 704], 0),
+        ("r1_annulus", [442, 32, 148, 451], [442, 32, 148, 451], 0),
         (
             "r1_segment_boss",
-            [459, 26, 102, 414],
-            [459, 26, 102, 414],
+            [463, 26, 102, 414],
+            [463, 26, 102, 414],
             0,
         ),
         (
             "r2_filleted_bracket",
-            [1259, 45, 154, 1087],
-            [1259, 45, 160, 1081],
+            [1262, 45, 154, 1087],
+            [1262, 45, 160, 1081],
             6,
         ),
-        ("r2_link", [689, 0, 118, 748], [691, 0, 130, 734], 14),
+        ("r2_link", [691, 0, 118, 748], [693, 0, 130, 734], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -633,7 +641,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1259, 45, 160, 1081, 6],
+        [1262, 45, 160, 1081, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -653,7 +661,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1259, 45, 154, 1087, 0]
+        [1262, 45, 154, 1087, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

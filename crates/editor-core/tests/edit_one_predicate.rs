@@ -217,7 +217,7 @@ fn repoint_measure(
 /// read is the DIMENSION rule's.
 fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
     doctored(text, |wire| {
-        crate::fixture::retype_slot_var(
+        crate::wire::retype_slot_var(
             wire,
             |wire| &wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"],
             "Angle",

@@ -86,6 +86,7 @@ fn insert(
         &doc,
         &pncad::document::DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
@@ -1896,7 +1897,12 @@ fn expression_evaluation_tags_are_stable() {
     let bound = lengths.var_env::<f64>();
     // The names are read against the document, as `Document.eval` reads
     // them.
-    let parse_in = |doc: &ProfileDoc, src: &str| doc.lowered(&parse(src));
+    let parse_in = |doc: &ProfileDoc, src: &str| {
+        doc.lowered(&parse(src)).map_err(|fault| match fault {
+            pncad::document::LowerFault::Name(fault) => fault,
+            other => panic!("a parsed formula reads no fresh entry: {other}"),
+        })
+    };
     let parse = |src: &str| parse_in(&lengths, src).expect("the names lower");
 
     // The value the whole family exists for: an expression a caller
@@ -2011,6 +2017,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(xy_frame()),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -2025,6 +2032,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
                 loops: vec![square],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,

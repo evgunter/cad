@@ -1864,44 +1864,6 @@ pub fn same_as_written(a: &ProfileDoc, b: &ProfileDoc) -> bool {
         && named(a) == named(b)
 }
 
-/// **Retypes, in a saved document's wire, the free variable a slot
-/// reads**: the slot at `slot`'s JSON holds its variable's id, and the
-/// variable's kind, dimension and display unit all move to `dim` and
-/// `unit`, so the variable stays well-formed and only a rule about
-/// what reads it can refuse it.
-pub fn retype_slot_var(
-    wire: &mut serde_json::Value,
-    slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
-    dim: &str,
-    unit: &str,
-) {
-    let var = slot(wire)
-        .as_u64()
-        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)));
-    let held = &mut wire["snapshot"]["vars"][var.to_string()];
-    let def = &mut held["def"]["Free"]["Continuous"];
-    assert!(
-        def.is_object(),
-        "the surgery is aimed at a free continuous variable: {held}"
-    );
-    def["dim"] = serde_json::json!(dim);
-    def["display_unit"] = serde_json::json!(unit);
-    held["kind"] = serde_json::json!(dim);
-}
-
-/// **The free continuous definition, in a saved document's wire, of
-/// the variable a slot reads** — the slot at `slot`'s JSON holds the
-/// variable's id — for a row that doctors a written value.
-pub fn slot_var_def<'w>(
-    wire: &'w mut serde_json::Value,
-    slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
-) -> &'w mut serde_json::Value {
-    let var = slot(wire)
-        .as_u64()
-        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)));
-    &mut wire["snapshot"]["vars"][var.to_string()]["def"]["Free"]["Continuous"]
-}
-
 /// **A stored placement as it was written** in `doc`: each rigid step's
 /// components the formulas their variables were written as
 /// (`Doc::written`), for a row comparing it with the placement it

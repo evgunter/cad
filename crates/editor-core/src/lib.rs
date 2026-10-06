@@ -211,7 +211,7 @@ pub use product::{
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault,
-    StepSegmentsError, resolve_loops,
+    StepSegmentsError, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,

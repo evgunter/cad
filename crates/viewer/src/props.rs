@@ -1368,9 +1368,9 @@ pub fn slot_literal(
     let expr = doc
         .slot_expansion(node, slot)
         .ok_or_else(|| SlotUnitFault::NoExpression {
-                node: doc.spoken(node),
-                slot,
-            })?;
+            node: doc.spoken(node),
+            slot,
+        })?;
     // A display unit belongs to a LITERAL. An expression's value is
     // computed, so there is no authored notation to change — refused
     // rather than silently flattened to the computed number, which is

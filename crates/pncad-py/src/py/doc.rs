@@ -875,7 +875,7 @@ impl Doc {
     fn authored(&self, py: Python<'_>, formula: &d::Formula) -> PyResult<d::Expr> {
         self.inner
             .lowered(formula)
-            .map_err(|fault| super::expr::name_fault_err(py, &fault))
+            .map_err(|fault| super::expr::lower_fault_err(py, &fault))
     }
 
     /// A single edit's door onto **the swap point**, [`Doc::take_up`],

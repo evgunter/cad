@@ -356,10 +356,8 @@ fn carry_unmoved(
         // its identity and its distribution survive the reshaping
         // (`Node::authored`'s rule).
         let reader = Formula::var(committed, arg.dimension());
-        let written = Formula::from(doc.written(&pncad::document::Expr::var(
-            committed,
-            arg.dimension(),
-        )));
+        let written =
+            Formula::from(doc.written(&pncad::document::Expr::var(committed, arg.dimension())));
         match new.expr_mut(moved) {
             Some(held) if held.bit_eq(&reader) || held.bit_eq(&written) => *held = reader,
             _ if doc.var_name(committed).is_none() && doc.free(committed).is_some() => {}
@@ -1524,6 +1522,7 @@ impl DocSession {
                     class,
                     alignment,
                 }),
+                fresh: Vec::new(),
             }),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
@@ -1749,6 +1748,7 @@ impl DocSession {
         };
         self.commit(DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(DocRef { id, pin })),
+            fresh: Vec::new(),
         })
     }
 
@@ -1870,9 +1870,19 @@ impl DocSession {
         // literal one — the refusal is about writing a number over a
         // computation, not about the slot being off limits.
         let edit = if slot.is_structural() {
-            DocEdit::SetStructuralParam { node, slot, expr }
+            DocEdit::SetStructuralParam {
+                node,
+                slot,
+                expr,
+                fresh: Vec::new(),
+            }
         } else {
-            DocEdit::SetParam { node, slot, expr }
+            DocEdit::SetParam {
+                node,
+                slot,
+                expr,
+                fresh: Vec::new(),
+            }
         };
         // **Through the written door**, like every other door that
         // writes a panel field's value. The field's own guard cannot
@@ -1953,6 +1963,7 @@ impl DocSession {
             return self.commit(DocEdit::DefineVar {
                 var: var.into(),
                 def: pncad::document::VarDecl::defined(expr),
+                fresh: Vec::new(),
             });
         };
         // Constant text is a value, folded as a written quantity is, so
@@ -2000,6 +2011,7 @@ impl DocSession {
             let free_again = DocEdit::DefineVar {
                 var: var.into(),
                 def: pncad::document::VarDecl::Free(freed),
+                fresh: Vec::new(),
             };
             return self.commit_action(
                 std::iter::once(free_again)
@@ -2387,6 +2399,7 @@ impl DocSession {
         }
         self.commit(DocEdit::InsertNode {
             node: Box::new(datum_node(datum)),
+            fresh: Vec::new(),
         })
     }
 
@@ -2424,6 +2437,7 @@ impl DocSession {
                 loops,
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         })
     }
 
@@ -2526,7 +2540,12 @@ impl DocSession {
         }
         let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
         let unchanged = sketch::is_committed(current, &loops, &ids);
-        Ok((!unchanged).then_some(DocEdit::SetProgram { node, loops, ids }))
+        Ok((!unchanged).then_some(DocEdit::SetProgram {
+            node,
+            loops,
+            ids,
+            fresh: Vec::new(),
+        }))
     }
 
     /// Insert one extrude of an existing profile
@@ -2541,6 +2560,7 @@ impl DocSession {
                 distance,
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         })
     }
 
@@ -2564,6 +2584,7 @@ impl DocSession {
                 axis,
                 angle,
             }),
+            fresh: Vec::new(),
         })
     }
 
@@ -2634,6 +2655,7 @@ impl DocSession {
         }
         self.commit(DocEdit::InsertNode {
             node: Box::new(Node::Split { target, tool }),
+            fresh: Vec::new(),
         })
     }
 
@@ -2660,6 +2682,7 @@ impl DocSession {
                     angle: rotation_angle,
                 },
             )),
+            fresh: Vec::new(),
         })
     }
 
@@ -2692,6 +2715,7 @@ impl DocSession {
         };
         self.commit(DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         })
     }
 
@@ -2714,6 +2738,7 @@ impl DocSession {
         }
         self.commit(DocEdit::InsertNode {
             node: Box::new(combine::part_node(of, select)),
+            fresh: Vec::new(),
         })
     }
 
@@ -2806,6 +2831,7 @@ impl DocSession {
         };
         self.commit(DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         })
     }
 

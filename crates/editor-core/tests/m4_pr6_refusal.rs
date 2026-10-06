@@ -661,7 +661,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     // notation, so leaving `"m"` beside an `Angle` dim would be caught
     // one door earlier as a display-unit mismatch, and this row is
     // about the SLOT's role dimension, not the literal's own coherence.
-    crate::fixture::retype_slot_var(
+    crate::wire::retype_slot_var(
         &mut v,
         |v| {
             &v["snapshot"]["nodes"][circle.0.to_string()]["Profile"]["loops"][0]["Circle"]["centre"]

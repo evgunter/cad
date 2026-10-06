@@ -373,6 +373,7 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
             node: extrude,
             slot: SlotId::Distance,
             expr: len(v),
+            fresh: Vec::new(),
         })
         .collect();
     let mut history = History::replayed(doc, &edits, tol).expect("the log replays");

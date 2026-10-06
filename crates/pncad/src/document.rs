@@ -160,9 +160,10 @@ pub use editor_core::{
 // Expressions and their text door.
 // `Formula` is what a caller writes (VARIABLES-DESIGN VR6) and `Expr`
 // what a document stores; the edit door lowers the one to the other, so
-// a node an edit carries is an `AuthoredNode`. `NameFault` is the
+// a node an edit carries is an `AuthoredNode`. `LowerFault` is the
 // lowering's refusal, for a caller that lowers a formula itself
-// (`Doc::lowered`), and `Unlowered` says why; `Slot` is the bound a
+// (`Doc::lowered`): a `NameFault` (`Unlowered` says why) or a
+// `FreshFault`, a read of an edit's fresh table outside that edit; `Slot` is the bound a
 // reader generic over the two node forms states, and `ExprTree` over
 // `LeafSet` (`StoredLeaf`, `AuthoredLeaf`) the tree both forms share.
 // `VarEnv` joins them because `select_where` takes one, so a
@@ -178,7 +179,8 @@ pub use editor_core::{
 // which expression the edit replaces.
 pub use editor_core::{
     AuthoredLeaf, AuthoredNode, Dimension, DimensionError, Expr, ExprPath, ExprTree, Formula,
-    LeafSet, NameFault, ParseError, Slot, StoredLeaf, Unlowered, VarEnv, parse_formula, unparse,
+    FreshFault, LeafSet, LowerFault, NameFault, ParseError, Slot, StoredLeaf, Unlowered, VarEnv,
+    parse_formula, unparse,
 };
 
 // The expression READ side: an expression's current value under a
@@ -572,5 +574,5 @@ pub use topo::ShellClassifyError;
 pub use editor_core::{
     CanonicalSegment, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError,
-    resolve_loops,
+    WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
