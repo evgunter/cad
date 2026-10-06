@@ -151,7 +151,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     // Reverted twins.
     let reverted: Vec<(String, Body<T>)> = out
         .iter()
-        .filter_map(|(n, b)| b.revert().ok().map(|r| (format!("{n}~reverted"), r)))
+        .map(|(n, b)| (format!("{n}~reverted"), b.revert()))
         .collect();
     out.extend(reverted);
     out
@@ -200,9 +200,7 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).unwrap();
         }
-        if let Ok(r) = sealed.revert() {
-            out.push((format!("{what}~reverted"), r));
-        }
+        out.push((format!("{what}~reverted"), sealed.revert()));
         out.push((what.to_string(), sealed));
     }
     // Diagonal chord split of a quarter washer wall (check 2 + check 8).
@@ -242,9 +240,7 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         tol,
     )
     .unwrap();
-    if let Ok(r) = body.revert() {
-        out.push(("chord_split~reverted".into(), r));
-    }
+    out.push(("chord_split~reverted".into(), body.revert()));
     out.push(("chord_split".into(), body));
     out
 }

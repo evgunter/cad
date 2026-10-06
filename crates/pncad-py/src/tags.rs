@@ -1642,7 +1642,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::CoincidentShell => "coincident_shell",
         BooleanErrorKind::Containment => "containment",
-        BooleanErrorKind::Revert => "revert",
         BooleanErrorKind::SeamOrientation => "seam_orientation",
         BooleanErrorKind::ZipCorrespondence => "zip_correspondence",
         BooleanErrorKind::Merge => "merge",

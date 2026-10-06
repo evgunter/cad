@@ -75,22 +75,15 @@
 //!   designation and survives; null-entity sides refer to the
 //!   splitting surface, not the body's orientation).
 //!
-//! **No longer planar-only (M5 S12).** Originally (F5) non-`Plane`
-//! surfaces could not represent their orientation-reversed side at
-//! all: D3's enum is closed and the analytic variants' chart normals
-//! have a fixed parity, so there was nothing for this function to
-//! write, and it refused `RevertError::UnsupportedSurface`. S10 closed
-//! that by moving the reversal onto the FACE —
-//! [`crate::entity::Face::sense`] — where flipping it is exact
-//! structure; S11's constructors made the incoming bits honest (a
-//! concave wall already reads `false`, so there is a real bit to
-//! flip rather than a uniform lie); S12 (here) writes it. The refusal
-//! is **retired**: the sense flip is uniform over every non-plane
-//! surface class, so there is no per-class residue left inside this
-//! operator. What remains gated is downstream and belongs to the
-//! *boolean*, not to `revert` — a curved subtract still needs a join
-//! lane for its seam, and the classes that lack one refuse typed at
-//! their own doors naming their own blocker.
+//! **Every surface class reverts, and `revert` refuses nothing.** The
+//! sense flip is uniform over every non-plane surface class, so no
+//! per-class residue is left inside this operator. What remains gated
+//! is downstream and belongs to the *boolean* — a curved subtract still
+//! needs a join lane for its seam, and the classes that lack one refuse
+//! typed at their own doors naming their own blocker. The operand is a
+//! body some door left, at rest or mid-operation, so a link the map
+//! cannot follow is a kernel bug and panics naming its record (D2
+//! row 4).
 //!
 //! Functional style (the plan's assumption, made concrete): `revert`
 //! takes `&self` and returns a **new body value** — the operand is
@@ -119,127 +112,16 @@
 //! Serves ch. 15 `setopfinish` (difference reverts `B`'s kept
 //! component) and the `A ∖ B ≡ A ∩ revert(B)` oracle (M3 PR 5).
 
-use core::fmt;
 use std::collections::BTreeSet;
 
 use geom::Surface;
 use geom_core::Real;
 
 use crate::body::Body;
-use crate::entity::{HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, HalfEdgeKey};
 use crate::geometry::SurfaceKey;
+use crate::live::{OPERATORS_KEEP_LINKS, Proven, link, proven};
 use crate::null::CurveGeom;
-
-/// A failed [`Body::revert`] precondition (closed enum, D3 style); the
-/// source body is never touched (revert is `&self`).
-///
-/// **Retired variant — `UnsupportedSurface`** (M3 PR 1 → M5 S12).
-/// Retired, not left unreachable: a closed enum that can no longer
-/// produce one of its variants is a lie about the frontier. The record
-/// is kept here, and the refusal pin it carried is re-pinned as a
-/// CONSTRUCTION row (the S9 pattern) in
-/// `crates/sweep/tests/m5_s12_curved_ops.rs` (the curved arm needs the
-/// sweep constructors to build a curved body at all).
-///
-/// - **What it said**: a surface is not a `Plane`, so this operator has
-///   no representation to write for the reversed side of a curved face.
-/// - **Why it is gone**: the reversal moved onto the FACE.
-///   [`Body::revert`] flips [`crate::entity::Face::sense`] on every face
-///   carried by a non-plane surface — exact structure, uniform over
-///   cylinder, cone, sphere, torus and NURBS alike — so no per-class
-///   residue is left *inside* `revert`. What is still gated is
-///   downstream and belongs to the boolean: a curved subtract needs a
-///   JOIN lane for its seam, and the classes lacking one refuse typed at
-///   their own doors, naming their own blocker.
-/// - **The parity finding it carried** (M5 PR 9c, executed 2026-08-01;
-///   scoped per kind by that review's F1), retained because it is the
-///   reason no surface-side fix ever existed, and hence why D1's S10
-///   amendment had to be *ratified* rather than coded around:
-///   - **Cylinder, cone, torus**: the chart normal is ODD in the radius
-///     (`∂u × ∂v = r·radial(u)` for the cylinder, analogously for the
-///     other two), so it is OUTWARD for either sign — a negative radius
-///     moves the point to `radial(u + π)` and the normal with it, and
-///     negating `axis` merely reparameterizes `u ↦ −u`. Nothing to
-///     write.
-///   - **Sphere**: `∂u × ∂v = r²·cos v·n̂` is EVEN in the radius, so the
-///     chart normal is outward exactly under the ratified `radius > 0`
-///     convention. A negative-radius sphere is therefore a de facto
-///     reversed sphere — REJECTED as a representation, not adopted: it
-///     breaks that convention, and every consumer metering a sphere
-///     residual by `2r` reads the sign backwards, this build's own
-///     `point_in_solid` sphere arm included.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RevertError {
-    /// A link the reversal map follows does not resolve, or resolves to
-    /// a start or an anchor the reversed body could not keep: a
-    /// half-edge's new start that is not its mate's start, or a vertex's
-    /// new `emanating` that would start elsewhere. Tier-1-invalid input,
-    /// surfaced typed (D9: never a panic); the variant names the link.
-    Corrupt {
-        /// Which link.
-        link: RevertLink,
-    },
-}
-
-/// The link of a tier-1-invalid body that [`Body::revert`]'s
-/// precondition pass could not follow, or followed to a start or an
-/// anchor the reversed body could not keep.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RevertLink {
-    /// `he`'s derived end (`start` of its `next`) does not resolve.
-    End {
-        /// The half-edge whose `next` chain is broken.
-        he: HalfEdgeKey,
-    },
-    /// `he`, a half-edge or a vertex's emanating half-edge, has no
-    /// mate: it does not resolve, or its edge does not resolve or does
-    /// not claim it.
-    Mate {
-        /// The half-edge.
-        he: HalfEdgeKey,
-    },
-    /// `he`'s end, which becomes its start once reversed, is not the
-    /// start of `mate`, the other half of its edge, or `mate` does not
-    /// resolve: its `next` or its mate's `start` is foreign.
-    Start {
-        /// The half-edge.
-        he: HalfEdgeKey,
-        /// Its mate.
-        mate: HalfEdgeKey,
-    },
-    /// `he`, the mate of `vertex`'s emanating half-edge and so its
-    /// anchor once reversed, would not start at `vertex`: its end,
-    /// which becomes its start, is another vertex.
-    Emanating {
-        /// The vertex.
-        vertex: VertexKey,
-        /// The new anchor.
-        he: HalfEdgeKey,
-    },
-}
-
-impl fmt::Display for RevertError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self::Corrupt { link } = self;
-        write!(f, "revert: ")?;
-        match link {
-            RevertLink::End { he } => write!(f, "half-edge {he:?}'s end does not resolve"),
-            RevertLink::Mate { he } => write!(f, "half-edge {he:?} has no mate"),
-            RevertLink::Start { he, mate } => write!(
-                f,
-                "half-edge {he:?}'s end, its start once reversed, is not its mate {mate:?}'s start"
-            ),
-            RevertLink::Emanating { vertex, he } => write!(
-                f,
-                "vertex {vertex:?}'s new anchor {he:?} (its emanating half-edge's mate) \
-                 would not start at it"
-            ),
-        }?;
-        write!(f, " (malformed body)")
-    }
-}
-
-impl std::error::Error for RevertError {}
 
 impl<T: Real> Body<T> {
     /// The orientation-reversed body value (module docs: the per-entity
@@ -247,20 +129,14 @@ impl<T: Real> Body<T> {
     /// involution/determinism contract). Every surface class is
     /// supported as of M5 S12. The source is untouched.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// [`RevertError::Corrupt`] on tier-1-invalid input, naming the link
-    /// ([`RevertLink`]). Every check precedes construction of the
-    /// result, and they run in this order, each arena in arena order,
-    /// the first failure reported:
-    ///
-    /// 1. per half-edge: its end resolves (`End`), it has a mate
-    ///    (`Mate`), and its end, its start once reversed, is its mate's
-    ///    start (`Start`);
-    /// 2. per vertex with an anchor: its `emanating` has a mate (`Mate`),
-    ///    and that mate, its anchor once reversed, ends at the vertex, so
-    ///    starts there once reversed (`Emanating`).
-    pub fn revert(&self) -> Result<Self, RevertError> {
+    /// Where a link the map follows does not resolve, naming the record
+    /// that holds it, or resolves to a start or an anchor the reversed
+    /// body could not keep (D2 row 4): a body no public door leaves.
+    /// Every such read precedes construction of the result.
+    #[track_caller]
+    pub fn revert(&self) -> Self {
         // ---- Preconditions (read-only). ----
         // Which surfaces carry their own reversal (`Plane`: the normal
         // is negated in the surface — the M3 encoding) and which push it
@@ -282,32 +158,30 @@ impl<T: Real> Body<T> {
         // through it.
         let mut new_starts = Vec::with_capacity(self.half_edges.len());
         for (he_key, _) in self.half_edges.iter() {
-            let end = self.half_edge_end(he_key).ok_or(RevertError::Corrupt {
-                link: RevertLink::End { he: he_key },
-            })?;
-            let mate = self.mate(he_key).ok_or(RevertError::Corrupt {
-                link: RevertLink::Mate { he: he_key },
-            })?;
-            if self.get_half_edge(mate).map(|m| m.start) != Some(end) {
-                return Err(RevertError::Corrupt {
-                    link: RevertLink::Start { he: he_key, mate },
-                });
+            let end = self.proven_half_edge_end(he_key);
+            let proof = self.proven_mate(he_key, Proven);
+            let (mate, mate_start) = (proof.mate, proof.mate_data.start);
+            if mate_start != end {
+                unreachable!(
+                    "{he_key:?}'s end {end:?}, its start once reversed, is not its mate \
+                     {mate:?}'s start {mate_start:?}: on a tier-1-valid body an edge's halves \
+                     run between its two ends in opposite directions; {OPERATORS_KEEP_LINKS}"
+                );
             }
             new_starts.push((he_key, end));
         }
         let mut new_anchors = Vec::new();
         for (vertex_key, vertex) in self.vertices.iter() {
             if let Some(emanating) = vertex.emanating {
-                let mate = self.mate(emanating).ok_or(RevertError::Corrupt {
-                    link: RevertLink::Mate { he: emanating },
-                })?;
-                if self.half_edge_end(mate) != Some(vertex_key) {
-                    return Err(RevertError::Corrupt {
-                        link: RevertLink::Emanating {
-                            vertex: vertex_key,
-                            he: mate,
-                        },
-                    });
+                let holder = link(EntityId::Vertex(vertex_key), "emanating");
+                let mate = self.proven_mate(emanating, holder).mate;
+                let anchor_start = self.proven_half_edge_end(mate);
+                if anchor_start != vertex_key {
+                    unreachable!(
+                        "{vertex_key:?}'s new anchor {mate:?} (its emanating half-edge's mate) \
+                         would start at {anchor_start:?}: on a tier-1-valid body a vertex's \
+                         emanating half-edge starts at it; {OPERATORS_KEEP_LINKS}"
+                    );
                 }
                 new_anchors.push((vertex_key, mate));
             }
@@ -393,10 +267,10 @@ impl<T: Real> Body<T> {
             }
         }
         for (he_key, row) in out.pcurves.iter_mut() {
-            let on_plane = self
-                .face_of_half_edge(he_key)
-                .and_then(|f| self.get_face(f))
-                .is_some_and(|face| plane_surfaces.contains(&face.surface));
+            let on_plane = self.half_edges.contains_key(he_key)
+                && plane_surfaces.contains(
+                    &proven(&self.faces, self.face_of_linked(he_key), EntityId::Face).surface,
+                );
             if on_plane && let Some(mirrored) = row.mirrored_v() {
                 *row = mirrored;
             }
@@ -442,22 +316,19 @@ impl<T: Real> Body<T> {
             Ok(()),
             "revert postcondition: result is not tier-1 valid (kernel bug)",
         );
-        Ok(out)
+        out
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{RevertError, RevertLink};
     use crate::test_support_fixtures::declined_cube;
     use geom_core::Tol;
 
-    /// **CONSTRUCTION row, flipped from the M3 refusal pin** (S9
-    /// pattern; the retired `UnsupportedSurface` record is on
-    /// [`RevertError`]). `declined_cube`'s faces all share the `mvfs`
-    /// `Nurbs` placeholder surface — the exact shape that refused
-    /// before S12 — and now revert: every face's `sense` flips, and
+    /// **A non-plane face reverts on its `sense` bit.**
+    /// `declined_cube`'s faces all share the `mvfs` `Nurbs` placeholder
+    /// surface, and revert: every face's `sense` flips, and
     /// nothing else about a non-plane surface moves. (The full
     /// involution/determinism/tier pins run on the geometric cube in
     /// `tests/m3_pr1_surgery.rs` and on real analytic surfaces in
@@ -470,7 +341,7 @@ mod tests {
             before.iter().all(|s| *s),
             "the seed states sense: true and every mef derives it"
         );
-        let reverted = cube.body.revert().expect("S12: curved revert is wired");
+        let reverted = cube.body.revert();
         let after: Vec<bool> = reverted.faces().map(|(_, f)| f.sense).collect();
         assert!(after.iter().all(|s| !*s), "every non-plane face flipped");
         // The surfaces themselves are untouched (the reversal is on the
@@ -480,7 +351,7 @@ mod tests {
             format!("{:?}", cube.body.surfaces().collect::<Vec<_>>()),
         );
         assert_eq!(
-            format!("{:?}", reverted.revert().unwrap()),
+            format!("{:?}", reverted.revert()),
             format!("{:?}", cube.body),
         );
     }
@@ -504,17 +375,17 @@ mod tests {
                 kept += 1;
             }
             assert_eq!(
-                format!("{:?}", reverted.revert().unwrap()),
+                format!("{:?}", reverted.revert()),
                 format!("{body:?}"),
                 "bitwise involution"
             );
             kept
         };
         let cube = declined_cube::<f64>(Tol::witness());
-        assert_eq!(assert_kept(&cube.body, &cube.body.revert().unwrap()), 6);
+        assert_eq!(assert_kept(&cube.body, &cube.body.revert()), 6);
 
         let plane = lone_plane_face();
-        assert_eq!(assert_kept(&plane, &plane.revert().unwrap()), 1);
+        assert_eq!(assert_kept(&plane, &plane.revert()), 1);
     }
 
     /// One plane face bounded by a single line edge (a two-half-edge
@@ -549,15 +420,15 @@ mod tests {
         plane
     }
 
-    /// **Each refusal cause, typed.** One tear of `declined_cube` per
-    /// cause, placed where no earlier check in `revert`'s order fires:
-    /// the refusal names the link, and its `Display` names the keys.
-    /// A tear that faults two
-    /// half-edges of the first pass is refused at whichever comes
-    /// first in arena order. In a debug build a refusal that came
-    /// after the build would panic at its tier-1 postcondition first.
+    /// **Each torn link panics naming its record.** One tear of
+    /// `declined_cube` per link the map follows: every read precedes the
+    /// build, so the panic is the plan's (debug or release), names the
+    /// tier-1 premise, and names the keys every arena order of the tear
+    /// shares — a tear that faults two half-edges panics at whichever
+    /// comes first.
     #[test]
-    fn revert_refuses_each_corrupt_link_typed() {
+    fn revert_panics_naming_each_torn_link() {
+        use crate::review_d18::ROW_FOUR;
         use crate::{EdgeKey, HalfEdgeKey};
         let cube = declined_cube::<f64>(Tol::witness());
         let body = &cube.body;
@@ -565,17 +436,13 @@ mod tests {
         let (v, vertex) = body.vertices().next().unwrap();
         let e = vertex.emanating.unwrap();
         let m = body.mate(e).unwrap();
-        let before_m = |at: HalfEdgeKey| {
-            let order: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
-            order.iter().position(|&k| k == at) < order.iter().position(|&k| k == m)
-        };
+        let edge = body.get_half_edge(e).unwrap().edge;
         let foreign = body
             .half_edges()
             .find(|(_, h)| h.start != v)
             .map(|(k, _)| k)
             .unwrap();
         let w = body.get_half_edge(foreign).unwrap().start;
-        let pred = body.get_half_edge(e).unwrap().prev;
         let unanchored = body
             .half_edges()
             .map(|(k, _)| k)
@@ -586,43 +453,38 @@ mod tests {
             tear(&mut torn);
             torn
         };
-        let rows = [
+        let rows: [(&str, crate::Body<f64>, Vec<String>); 7] = [
             (
                 "a dead `next`",
                 torn(&|b| b.get_half_edge_mut(e).unwrap().next = dead),
-                RevertLink::End { he: e },
+                vec![format!("{e:?}'s next names"), format!("{dead:?}")],
             ),
             (
                 "a half-edge on a dead edge",
                 torn(&|b| b.get_half_edge_mut(unanchored).unwrap().edge = EdgeKey::default()),
-                RevertLink::Mate { he: unanchored },
+                vec![
+                    format!("{unanchored:?}"),
+                    format!("{:?}", EdgeKey::default()),
+                ],
             ),
             (
                 "a dead emanating half-edge",
                 torn(&|b| b.get_vertex_mut(v).unwrap().emanating = Some(dead)),
-                RevertLink::Mate { he: dead },
+                vec![format!("{v:?}'s emanating names"), format!("{dead:?}")],
             ),
             (
                 "a foreign `next`",
                 torn(&|b| b.get_half_edge_mut(m).unwrap().next = foreign),
-                RevertLink::Start { he: m, mate: e },
+                vec![format!("{m:?}'s end"), format!("mate {e:?}'s start")],
             ),
             (
                 "a foreign `start`, read as its predecessor's end and its mate's mate's start",
                 torn(&|b| b.get_half_edge_mut(e).unwrap().start = w),
-                if before_m(pred) {
-                    RevertLink::Start {
-                        he: pred,
-                        mate: body.mate(pred).unwrap(),
-                    }
-                } else {
-                    RevertLink::Start { he: m, mate: e }
-                },
+                vec!["its start once reversed".to_owned(), format!("{w:?}")],
             ),
             (
                 "a dead mate slot",
                 torn(&|b| {
-                    let edge = b.get_half_edge(e).unwrap().edge;
                     let edge = b.get_edge_mut(edge).unwrap();
                     if edge.he_plus == m {
                         edge.he_plus = dead;
@@ -630,34 +492,26 @@ mod tests {
                         edge.he_minus = dead;
                     }
                 }),
-                if before_m(e) {
-                    RevertLink::Start { he: e, mate: dead }
-                } else {
-                    RevertLink::Mate { he: m }
-                },
+                vec![format!("{edge:?}")],
             ),
             (
                 "an emanating half-edge that starts elsewhere",
                 torn(&|b| b.get_vertex_mut(v).unwrap().emanating = Some(foreign)),
-                RevertLink::Emanating {
-                    vertex: v,
-                    he: body.mate(foreign).unwrap(),
-                },
+                vec![
+                    format!("{v:?}'s new anchor {:?}", body.mate(foreign).unwrap()),
+                    format!("would start at {w:?}"),
+                ],
             ),
         ];
-        for (cause, torn, link) in rows {
-            let err = torn.revert().expect_err(cause);
-            assert_eq!(err, RevertError::Corrupt { link }, "{cause}");
-            let shown = err.to_string();
-            let keys = match link {
-                RevertLink::End { he } | RevertLink::Mate { he } => vec![format!("{he:?}")],
-                RevertLink::Start { he, mate } => vec![format!("{he:?}"), format!("{mate:?}")],
-                RevertLink::Emanating { vertex, he } => {
-                    vec![format!("{vertex:?}"), format!("{he:?}")]
-                }
-            };
-            for key in keys {
-                assert!(shown.contains(&key), "{cause}: `{shown}` names {key}");
+        for (cause, torn, fragments) in rows {
+            let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+                drop(torn.revert());
+            }));
+            for fragment in fragments.iter().map(String::as_str).chain([ROW_FOUR]) {
+                assert!(
+                    report.contains(fragment),
+                    "{cause}: want {fragment:?} in: {report}"
+                );
             }
         }
     }
@@ -738,7 +592,7 @@ mod tests {
             "the image has a v channel (sin t · 1): pb = {pb:?}"
         );
 
-        let reverted = body.revert().unwrap();
+        let reverted = body.revert();
         let mirrored = curve_of(&reverted);
         let Pcurve::Harmonic {
             p0: q0,
@@ -785,7 +639,7 @@ mod tests {
             "the certificate that travelled verbatim is the fresh run's"
         );
         assert_eq!(
-            format!("{:?}", reverted.revert().unwrap()),
+            format!("{:?}", reverted.revert()),
             format!("{body:?}"),
             "bitwise involution"
         );

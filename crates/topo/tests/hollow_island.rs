@@ -393,7 +393,7 @@ fn crossing_body_at<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolic
         &brick::<T>((0.5, 1.5), (-1.0, 3.0), (0.5, 1.5), tol()),
     )
     .unwrap();
-    topo::graft_disjoint_all_keyed(&mut body, &cube(0.8, 1.2).revert().unwrap()).unwrap();
+    topo::graft_disjoint_all_keyed(&mut body, &cube(0.8, 1.2).revert()).unwrap();
     body.with_solids_merged_for_tests()
 }
 
