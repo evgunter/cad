@@ -423,10 +423,12 @@ pub enum ReplaceFaceError<T: Real> {
     /// moved face ends at a moved vertex, and the re-anchored end
     /// reaches or passes the edge's other end — an inward move as deep
     /// as the wall beside it is tall, say. The attach door's span check
-    /// decides it on a line or a conic
+    /// decides it on a line or a spline
     /// ([`geom_brep::CertifyError::IntervalNotForward`]), and a spline
-    /// carrier's clamp at its far end does on a spline; either way it
-    /// is the move's length, not a span the kernel minted wrong.
+    /// carrier's clamp at its far end decides a move past it; either
+    /// way it is the move's length, not a span the kernel minted wrong.
+    /// A periodic carrier's non-forward span may be a turn chosen
+    /// wrongly, so it stays the attach door's [`ReplaceFaceError::Op`].
     ReanchorCollapse {
         /// The edge the move collapses or reverses.
         edge: EdgeKey,
@@ -692,8 +694,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "the offset {} face would meet a {} neighbour along a curve the kernel cannot \
                  describe yet, so the edge between them cannot follow. {NOT_YET_ENDING}",
-                kind.name(),
-                other_kind.name()
+                kind.adjective(),
+                other_kind.adjective()
             ),
             Self::NeighborPoseUnroutable {
                 kind, other_kind, ..
@@ -702,8 +704,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 "the offset {} face would stand against a {} neighbour in a position whose \
                  meeting curve the kernel cannot describe yet, so the edge between them cannot \
                  follow. {NOT_YET_ENDING}",
-                kind.name(),
-                other_kind.name()
+                kind.adjective(),
+                other_kind.adjective()
             ),
             Self::FittedBoundaryUnsupported { what, .. } => write!(
                 f,
@@ -757,7 +759,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "a face of this body of revolution lies on a {} surface, whose offset has no \
                  profile curve to move. {NOT_YET_ENDING}",
-                kind.name()
+                kind.adjective()
             ),
             Self::TogetherNotAxial { what, .. } => write!(
                 f,
@@ -811,14 +813,14 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::TogetherEdgeDisagreement { gap, .. } => write!(
                 f,
                 "an edge's new curve is {gap:?} m out of agreement with the moved faces: a \
-                 solved endpoint stands off its carrier, or the carrier's midpoint stands off a \
-                 moved surface. {NOT_YET_ENDING}"
+                 solved endpoint stands off its curve, or the curve's midpoint stands off a moved \
+                 surface. {NOT_YET_ENDING}"
             ),
             Self::TogetherNonPlanar { kind, .. } => write!(
                 f,
-                "a face to move lies on a {}, and moving the corners together needs every face \
-                 to be a plane. {NOT_YET_ENDING}",
-                kind.name()
+                "a face to move lies on a {} surface, and moving the corners together needs \
+                 every face to be flat. {NOT_YET_ENDING}",
+                kind.adjective()
             ),
             Self::TogetherPartialSet { .. } => write!(
                 f,
@@ -833,15 +835,23 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::ResultNotClosed { errors } => write!(
                 f,
-                "the offset body is not valid ({} errors), so it is discarded. \
-                 {KERNEL_DEFECT_ENDING}",
-                errors.len()
+                "the offset body is not valid ({}), so it is discarded. {KERNEL_DEFECT_ENDING}",
+                error_count(errors.len())
             ),
         }
     }
 }
 
 impl<T: Real> std::error::Error for ReplaceFaceError<T> {}
+
+/// "1 error", "3 errors": a validator report's size, as a refusal says it.
+pub(crate) fn error_count(n: usize) -> String {
+    if n == 1 {
+        "1 error".to_owned()
+    } else {
+        format!("{n} errors")
+    }
+}
 
 // ---------------------------------------------------------------------
 // The transport lanes
@@ -1457,14 +1467,15 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
         .map(|plan| (plan.edge, plan.spec))
         .collect();
     move_points_then_rechart(&mut work, &groups, vec![chart], &specs, tol)?;
-    for (edge, spec) in anchored {
+    for (edge, spec, unwound) in anchored {
         work.set_edge_curve(edge, spec, tol)
             .map_err(|error| match error {
-                // The edge was forward before the re-anchor, so a span
-                // that is not is the move's length.
+                // The edge was forward before the re-anchor and its
+                // carrier has no turn to choose, so a span that is not
+                // forward is the move's length.
                 EulerOpError::Certification {
                     error: geom_brep::CertifyError::IntervalNotForward { .. },
-                } => ReplaceFaceError::ReanchorCollapse { edge, offset: d },
+                } if unwound => ReplaceFaceError::ReanchorCollapse { edge, offset: d },
                 error => ReplaceFaceError::Op {
                     edge: Some(edge),
                     error: error.from_driver(),
@@ -1747,7 +1758,7 @@ fn plan_edge<T: Decide>(
     let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
         return Err(ReplaceFaceError::CarrierLaneUnsupported {
             edge,
-            what: "a null edge, which carries no curve to transport",
+            what: "it has no curve to move",
         });
     };
     let (t0, t1) = curve.params();
@@ -1785,7 +1796,7 @@ fn plan_edge<T: Decide>(
         {
             return Err(ReplaceFaceError::FittedBoundaryUnsupported {
                 edge,
-                what: "a seam shared with another bounded chart",
+                what: "a seam shared with another fitted face",
             });
         }
         // The extraction itself lives in `geom_brep::nurbs_iso`, beside
@@ -1812,9 +1823,8 @@ fn plan_edge<T: Decide>(
         if curve.authority().is_declared() {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
-                what: "a declared chart image whose surface's offset is not a rigid \
-                       translation (the image transports, its declaring pushforward \
-                       cannot)",
+                what: "its declared sketch record cannot follow the face, whose offset is not a \
+                       rigid shift",
             });
         }
         let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), u, band)
@@ -1851,14 +1861,14 @@ fn plan_edge<T: Decide>(
             // — rather than on which variant the description was.
             what: match description {
                 EdgeDescription::Chart(ref c) if c.surface == old_key => {
-                    "a chart image of this face's own fit that is not one of its u-const rows"
+                    "a curve on this face's fit that does not run along its fitted rows"
                 }
-                EdgeDescription::Chart(_) => "a chart image of a neighbour's chart",
+                EdgeDescription::Chart(_) => "a curve drawn on a neighbour's surface",
                 EdgeDescription::Intersection { .. }
                 | EdgeDescription::TangentIntersection { .. } => {
-                    "an intrinsic intersection with an untouched neighbour"
+                    "the meeting curve with an untouched neighbour"
                 }
-                EdgeDescription::Scaffold(_) => "scaffolding that never came to rest",
+                EdgeDescription::Scaffold(_) => "a curve still under construction",
             },
         });
     }
@@ -1870,7 +1880,7 @@ fn plan_edge<T: Decide>(
         })?
         .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
             edge,
-            what: "this (surface kind, carrier kind) pair has no closed-form offset action",
+            what: "its kind of curve has no exact offset on this kind of surface",
         })?;
     let new_mid = carrier.mid_point(t0, t1);
 
@@ -1909,15 +1919,14 @@ fn plan_edge<T: Decide>(
                 geom_brep::EdgeAuthority::Declared(mc) => {
                     let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
                         edge,
-                        what: "a declared chart image whose surface's offset is not a rigid \
-                           translation (the image transports, its declaring pushforward \
-                           cannot)",
+                        what: "its declared sketch record cannot follow the face, whose offset \
+                               is not a rigid shift",
                     })?;
                     Ok(Some(translate_mapped(mc, delta).ok_or(
                         ReplaceFaceError::CarrierLaneUnsupported {
                             edge,
-                            what: "a rotation-family declaring pushforward (its trajectory \
-                               does not translate)",
+                            what: "it was swept by a rotation, and its sweep does not shift with \
+                                   the face",
                         },
                     )?))
                 }
@@ -2001,9 +2010,8 @@ fn plan_edge<T: Decide>(
             image: Some(shift_chart_v(&c.pcurve, shift).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
-                    what: "a chart image with no closed-form parameter shift: a fitted \
-                           image's v channel is a control net, and an offset cone section \
-                           is no plane section of the offset cone",
+                    what: "it is drawn on a fitted or cone surface, where the offset has no \
+                           exact shift for it",
                 },
             )?),
             seam: false,
@@ -2080,12 +2088,12 @@ fn plan_edge<T: Decide>(
         EdgeDescription::Scaffold(mapped) => {
             let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
-                what: "a mapped description whose surface's offset is not a rigid translation",
+                what: "its sketch record cannot follow the face, whose offset is not a rigid shift",
             })?;
             EdgeDescriptionSpec::Scaffold(translate_mapped(mapped, delta).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
-                    what: "a rotation-family mapped description (its trajectory does not translate)",
+                    what: "it was swept by a rotation, and its sweep does not shift with the face",
                 },
             )?)
         }
@@ -2334,6 +2342,10 @@ pub(crate) fn remap_description<T: Real>(
     }
 }
 
+/// One re-anchored edge: its key, its new spec, and whether its carrier
+/// is unwound ([`plan_reanchors`]).
+type Reanchored<T> = (EdgeKey, EdgeCurveSpec<T>, bool);
+
 /// The edges that end at a moved vertex without lying on the replaced
 /// face's boundary: their carriers are unchanged (the surfaces that
 /// hold them did not move) and only the parameter at the moved end —
@@ -2344,7 +2356,10 @@ pub(crate) fn remap_description<T: Real>(
 /// `nurbs_lane` ([`crate::AtRestPolicy::nurbs_lane`]); a scalar holding
 /// none refuses with [`ReplaceFaceError::NurbsLaneUnsupported`]. `d`
 /// is the offset, which a move through an edge's far end is refused
-/// with ([`ReplaceFaceError::ReanchorCollapse`]).
+/// with ([`ReplaceFaceError::ReanchorCollapse`]). Each spec carries
+/// whether its carrier is unwound (a line or a spline, with no turn to
+/// choose), the carriers whose non-forward span the attach door is
+/// read as that collapse.
 fn plan_reanchors<T: Decide>(
     body: &Body<T>,
     boundary: &[EdgeKey],
@@ -2353,7 +2368,7 @@ fn plan_reanchors<T: Decide>(
     band: Band,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<T>>,
-) -> Result<Vec<(EdgeKey, EdgeCurveSpec<T>)>, ReplaceFaceError<T>> {
+) -> Result<Vec<Reanchored<T>>, ReplaceFaceError<T>> {
     let mut out = Vec::new();
     let keys: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for edge in keys {
@@ -2379,8 +2394,7 @@ fn plan_reanchors<T: Decide>(
         let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
-                what: "a null edge ending at a moved vertex, which carries no curve to \
-                       re-anchor",
+                what: "it has no curve to re-attach",
             });
         };
         let carrier = curve.carrier().clone();
@@ -2532,9 +2546,8 @@ fn plan_reanchors<T: Decide>(
                 move_mapped_endpoint(m, point, is_start).ok_or(
                     ReplaceFaceError::CarrierLaneUnsupported {
                         edge,
-                        what: "a re-anchored mapped description that is not a placed line \
-                               segment (an arc's carrier and a trajectory's family are sketch \
-                               data this door does not author)",
+                        what: "it is drawn from a sketch arc or sweep, which the offset cannot \
+                               redraw",
                     },
                 )
             };
@@ -2582,6 +2595,9 @@ fn plan_reanchors<T: Decide>(
             }
             other => other,
         };
+        // A line or a clamped spline has no turn to choose, so a span
+        // that stops being forward on it is the move's length alone.
+        let unwound = matches!(carrier, Curve3::Line { .. } | Curve3::Nurbs(_));
         out.push((
             edge,
             EdgeCurveSpec {
@@ -2590,6 +2606,7 @@ fn plan_reanchors<T: Decide>(
                 param_start: t0,
                 param_end: t1,
             },
+            unwound,
         ));
     }
     Ok(out)

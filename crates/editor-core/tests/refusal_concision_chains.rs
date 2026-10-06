@@ -77,8 +77,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
-    "Shell/Pcurve",
-    "Shell/Face/Pcurve",
 ];
 
 /// The clause labels a surface legitimately opens with that read, by
@@ -624,6 +622,8 @@ const DRIVER_CARRIED: &[&str] = &[
     "Extrude/Op",
     "Loft/Euler",
     "Revolve/Op",
+    "Shell/Face/Op",
+    "Shell/Face/Op(rechart)",
     "Shell/Partition",
     "Shell/Rim",
     "Split/Finish/Euler",
@@ -4034,8 +4034,8 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     face,
                     station_min: -0.5,
                     station_max: 1.5,
-                    what: "a chart whose faces do not all lie on one nappe, so one offset \
-                           distance cannot be turned for all of them",
+                    what: "faces of one cone that do not all lie on the same side of its apex, so \
+                           one offset cannot move them all the same way",
                 },
             ),
             ("ApexWindowUnknown", R::ApexWindowUnknown { face }),
@@ -4060,16 +4060,15 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "FittedBoundaryUnsupported",
                 R::FittedBoundaryUnsupported {
                     edge,
-                    what: "a seam shared with another bounded chart",
+                    what: "a seam shared with another fitted face",
                 },
             ),
             (
                 "CarrierLaneUnsupported",
                 R::CarrierLaneUnsupported {
                     edge,
-                    what: "a re-anchored mapped description that is not a placed line \
-                           segment (an arc's carrier and a trajectory's family are sketch data \
-                           this door does not author)",
+                    what: "it is drawn on a fitted or cone surface, where the offset has no exact \
+                           shift for it",
                 },
             ),
             (
@@ -4204,8 +4203,107 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
         ]
         .map(|(n, e)| (n.to_owned(), e)),
     );
+    // `Fit` is `offset_fit_routes`'s; every other arm is rendered here.
+    let rendered: std::collections::BTreeSet<&str> =
+        rows.iter().map(|(_, e)| replace_face_arm(e)).collect();
+    let missing: Vec<&str> = REPLACE_FACE_ARMS
+        .into_iter()
+        .filter(|arm| *arm != "Fit" && !rendered.contains(arm))
+        .collect();
+    assert!(missing.is_empty(), "the census renders no {missing:?} row");
     rows
 }
+
+/// `ReplaceFaceError`'s variant name. An exhaustive match, so an arm
+/// added to the enum does not compile until it is named here; named
+/// here and in [`REPLACE_FACE_ARMS`], [`replace_face`]'s census is red
+/// until it renders the arm.
+fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
+    use topo::ReplaceFaceError as R;
+    match error {
+        R::Band { .. } => "Band",
+        R::StaleFace { .. } => "StaleFace",
+        R::Offset { .. } => "Offset",
+        R::Fit { .. } => "Fit",
+        R::ApproxLaneUnsupported { .. } => "ApproxLaneUnsupported",
+        R::SharedSurfaceKey { .. } => "SharedSurfaceKey",
+        R::EmptyGroup => "EmptyGroup",
+        R::GroupChartsDiffer { .. } => "GroupChartsDiffer",
+        R::PlaceholderSurface { .. } => "PlaceholderSurface",
+        R::ApexWindow { .. } => "ApexWindow",
+        R::NappeStraddles { .. } => "NappeStraddles",
+        R::ApexWindowUnknown { .. } => "ApexWindowUnknown",
+        R::NeighborPairUnroutable { .. } => "NeighborPairUnroutable",
+        R::NeighborPoseUnroutable { .. } => "NeighborPoseUnroutable",
+        R::FittedBoundaryUnsupported { .. } => "FittedBoundaryUnsupported",
+        R::CarrierLaneUnsupported { .. } => "CarrierLaneUnsupported",
+        R::IsoRow { .. } => "IsoRow",
+        R::Structure { .. } => "Structure",
+        R::VertexDisagreement { .. } => "VertexDisagreement",
+        R::ReanchorOffCarrier { .. } => "ReanchorOffCarrier",
+        R::ReanchorPastCarrierEnd { .. } => "ReanchorPastCarrierEnd",
+        R::ReanchorCollapse { .. } => "ReanchorCollapse",
+        R::ReanchorInconclusive { .. } => "ReanchorInconclusive",
+        R::NurbsLaneUnsupported { .. } => "NurbsLaneUnsupported",
+        R::TogetherNonPlanar { .. } => "TogetherNonPlanar",
+        R::TogetherPartialSet { .. } => "TogetherPartialSet",
+        R::TogetherCorner { .. } => "TogetherCorner",
+        R::TogetherChartMixed { .. } => "TogetherChartMixed",
+        R::TogetherFaceRepeated { .. } => "TogetherFaceRepeated",
+        R::TogetherEdgeDisagreement { .. } => "TogetherEdgeDisagreement",
+        R::TogetherAxialUnsupported { .. } => "TogetherAxialUnsupported",
+        R::TogetherNotAxial { .. } => "TogetherNotAxial",
+        R::TogetherAxialCorner { .. } => "TogetherAxialCorner",
+        R::TogetherAxialEdge { .. } => "TogetherAxialEdge",
+        R::Escalated { .. } => "Escalated",
+        R::Op { .. } => "Op",
+        R::Pcurve { .. } => "Pcurve",
+        R::ResultNotClosed { .. } => "ResultNotClosed",
+    }
+}
+
+/// Every `ReplaceFaceError` variant, in declaration order: the names
+/// [`replace_face_arm`] answers.
+const REPLACE_FACE_ARMS: [&str; 38] = [
+    "Band",
+    "StaleFace",
+    "Offset",
+    "Fit",
+    "ApproxLaneUnsupported",
+    "SharedSurfaceKey",
+    "EmptyGroup",
+    "GroupChartsDiffer",
+    "PlaceholderSurface",
+    "ApexWindow",
+    "NappeStraddles",
+    "ApexWindowUnknown",
+    "NeighborPairUnroutable",
+    "NeighborPoseUnroutable",
+    "FittedBoundaryUnsupported",
+    "CarrierLaneUnsupported",
+    "IsoRow",
+    "Structure",
+    "VertexDisagreement",
+    "ReanchorOffCarrier",
+    "ReanchorPastCarrierEnd",
+    "ReanchorCollapse",
+    "ReanchorInconclusive",
+    "NurbsLaneUnsupported",
+    "TogetherNonPlanar",
+    "TogetherPartialSet",
+    "TogetherCorner",
+    "TogetherChartMixed",
+    "TogetherFaceRepeated",
+    "TogetherEdgeDisagreement",
+    "TogetherAxialUnsupported",
+    "TogetherNotAxial",
+    "TogetherAxialCorner",
+    "TogetherAxialEdge",
+    "Escalated",
+    "Op",
+    "Pcurve",
+    "ResultNotClosed",
+];
 
 /// The four arms that say what a designation turned out to be carry a
 /// `Found` only the entity door can mint, so they are raised through

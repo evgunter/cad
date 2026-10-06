@@ -421,13 +421,13 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
         (
             "planar prism",
             prism(),
-            "a chart image of a neighbour's chart",
+            "a curve drawn on a neighbour's surface",
             false,
         ),
         (
             "twisted loft",
             twisted_loft(0.3),
-            "a chart image of a neighbour's chart",
+            "a curve drawn on a neighbour's surface",
             true,
         ),
     ] {

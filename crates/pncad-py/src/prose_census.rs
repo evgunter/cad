@@ -1839,6 +1839,29 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     ),
     (
         "crates/topo/src/shell.rs",
+        "AsShelled",
+        POSITIONAL,
+        1,
+        "a positional `{:?}` over an expression this census does not type",
+    ),
+    (
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        "realized",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
+         this renders a brace at `Interval` and prose at `f64`",
+    ),
+    (
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        "realized_minor",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
+         this renders a brace at `Interval` and prose at `f64`",
+    ),
+    (
+        "crates/topo/src/shell.rs",
         "ShellError",
         "gap",
         1,

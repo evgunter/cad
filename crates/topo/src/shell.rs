@@ -631,10 +631,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             ),
             Self::Lift { error, .. } => write!(
                 f,
-                "the rim could not be lifted back onto a designated open face: {error}"
+                "the rim could not be lifted back onto a designated open face: {}",
+                AsShelled(error)
             ),
             Self::Face { error, .. } => {
-                write!(f, "a face could not be offset inward: {error}")
+                write!(f, "a face could not be offset inward: {}", AsShelled(error))
             }
             Self::OpenFaceStale { .. } => {
                 write!(
@@ -660,9 +661,10 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             ),
             Self::OpenFaceRingUnsupported { kind, .. } => write!(
                 f,
-                "a designated open face lies on a {}, and its rim would be a curved face with \
-                 a ring loop, which the shell op cannot build yet. There is no way through yet",
-                kind.name()
+                "a designated open face lies on a {} surface, and its rim would be a curved \
+                 face with a ring loop, which the shell op cannot build yet. There is no way \
+                 through yet",
+                kind.adjective()
             ),
             // The shell op certifies its own cavities, so the door
             // refusing one is the op's defect.
@@ -681,21 +683,95 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                  to call: {}",
                 source.under("change the wall thickness, or move the geometry")
             ),
-            Self::Pcurve { source } => write!(
+            // Every gate before the closing mint accepted the body, so
+            // its refusal (in `Debug`) is the kernel's.
+            Self::Pcurve { .. } => write!(
                 f,
-                "the finished thin solid could not be parametrized (kernel finding): {source}"
+                "the finished thin solid's edges could not be parametrized on its faces. \
+                 {KERNEL_DEFECT_ENDING}"
             ),
             Self::NotValid { errors } => write!(
                 f,
-                "the assembled thin solid is not valid ({} errors) and is discarded. \
+                "the assembled thin solid is not valid ({}) and is discarded. \
                  {KERNEL_DEFECT_ENDING}",
-                errors.len()
+                crate::replace_face::error_count(errors.len())
             ),
         }
     }
 }
 
 impl<T: Real> std::error::Error for ShellError<T> {}
+
+/// **A face-replacement refusal as the shell op's user reads it.** The
+/// shell op makes every offset-door call itself, so an arm that asks
+/// the caller to fix the call is the op's own defect here; and it
+/// moves each face by the wall thickness, signed by the face's sense,
+/// so an arm about the offset's length speaks of the wall. Every other
+/// arm reads as the door's own refusal.
+struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
+
+impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use ReplaceFaceError as R;
+        use geom_brep::OffsetError as O;
+        let asked = match self.0 {
+            R::StaleFace { .. } => Some("a face that is not in the body"),
+            R::EmptyGroup => Some("no face"),
+            R::GroupChartsDiffer { .. } | R::TogetherChartMixed { .. } => {
+                Some("faces of different surfaces as one")
+            }
+            R::SharedSurfaceKey { .. } => Some("part of one surface's faces"),
+            R::TogetherFaceRepeated { .. } => Some("one face twice"),
+            R::TogetherPartialSet { .. } => Some("part of a solid's faces"),
+            _ => None,
+        };
+        if let Some(asked) = asked {
+            return write!(
+                f,
+                "the shell op asked to offset {asked}, which it never does. \
+                 {KERNEL_DEFECT_ENDING}"
+            );
+        }
+        match self.0 {
+            R::ReanchorCollapse { offset, .. } => write!(
+                f,
+                "a wall {:?} m thick reaches or passes the far end of an edge beside the face, \
+                 which would leave that edge no length. Recourse: use a wall thinner than that \
+                 edge is long",
+                offset.abs()
+            ),
+            R::ApexWindow { .. } => write!(
+                f,
+                "the wall is thick enough to carry part of the cone face to or past the cone's \
+                 apex. Recourse: use a thinner wall"
+            ),
+            R::Offset {
+                error: O::RadiusFloor { kind, realized },
+                ..
+            } => write!(
+                f,
+                "a wall this thick leaves the {} face a radius of {realized:?} m, at or below \
+                 zero. Recourse: use a wall thinner than the face's radius",
+                kind.adjective()
+            ),
+            R::Offset {
+                error: O::TorusRing { realized_minor },
+                ..
+            } => write!(
+                f,
+                "a wall this thick grows the toroidal face's tube radius to {realized_minor:?} \
+                 m, as large as its ring radius, so the face would cross itself. Recourse: use \
+                 a thinner wall"
+            ),
+            R::Pcurve { .. } => write!(
+                f,
+                "the offset body's edges could not be parametrized on their faces. \
+                 {KERNEL_DEFECT_ENDING}"
+            ),
+            error => write!(f, "{error}"),
+        }
+    }
+}
 
 // ---------------------------------------------------------------------
 // The birth record

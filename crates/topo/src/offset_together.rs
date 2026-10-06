@@ -314,7 +314,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
         let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
-                what: "a null edge, which carries no curve to transport",
+                what: "it has no curve to move",
             });
         };
         let old_carrier = curve.carrier().clone();
@@ -348,7 +348,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             let Curve3::Line { origin, dir } = old_carrier else {
                 return Err(ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
-                    what: "an edge between two distinct planes whose carrier is not a line",
+                    what: "it joins two flat faces but is not straight",
                 });
             };
             let shift = p_start - old_start;
@@ -391,8 +391,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             crate::replace_face::translate_mapped(mc, displacement).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
-                    what: "a rotation-family mapped description (its trajectory does not \
-                           translate)",
+                    what: "it was swept by a rotation, and its sweep does not shift with the face",
                 },
             )
         };
