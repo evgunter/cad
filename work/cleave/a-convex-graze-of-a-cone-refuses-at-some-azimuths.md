@@ -64,6 +64,21 @@ At the apex itself the margin is exactly 0, so no in-band recourse (a finer ε, 
 rereading) can settle which ruling an apex half lies on; it has to be read off the half's
 direction of departure, not its position.
 
+A frustum's convex graze at its seam ruling refuses where the same graze off the seam lands
+whole (branch `cleave/frustum-apex` on main's #4179). Frusta of radii 1 → ½ and ½ → 1 about y,
+cut through the ruling at azimuth a turned t ∈ {1e-3, 1e-4, 1e-5} off tangency, both normals, at
+ε 1e-6. The sliver's depth is 0.559·t², within ε at every tilt. At a ∈ {0.3, 1, 2, 3, 4, 5.5}
+every pose lands whole on its material side. At the seam ruling, a = 0, all 12 refuse in the
+reduction at the seam vertex:
+
+- `ConsecutiveOnSectors` (frustum t ∈ {1e-3, 1e-4}, flared t = 1e-4);
+- `SliverSector` (flared t = 1e-3);
+- `CrossingEscalated` / `CrossingInsertion` (t = 1e-5).
+
+At ε 1e-9 the four a = 0, t = 1e-5 poses refuse `ConsecutiveOnSectors` while the off-seam ones
+land whole. Probe: `zz_probe_near` in the lane's scratch (not committed); the poses are those of
+`a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly`.
+
 ## Found by
 
 CLEAVE DR-51's review of PR 3892, `review-tests/dr51` (74e151b6).

@@ -124,9 +124,20 @@ at the apex vertex, margin exactly 0.0, in the reduction, before any pairing; ev
 `a-convex-graze-of-a-cone-refuses-at-some-azimuths`.
 
 **Near tangency, measured** (t ∈ {1e-3, 1e-4, 1e-5}, the seven azimuths, both normals, both
-frusta: 84 poses per ε). At 1e-6 none answers. At 1e-9, 28 answer, all clean at tiers 1–3′. At
-1e-12, 56 answer; every certified volume is right, and on ten poses a side escalates at tier 3
-or 3′:
+frusta: 84 poses per ε), on main's in-band graze decision (#4179). The sliver's depth off the
+plane is `big·(|n⊥| − |n·r̂|)` ≈ 0.559·t² (5.59e-7, 5.59e-9 and 5.59e-11 m at the three tilts);
+where it is within ε the graze lands the frustum whole on its material side.
+
+- At 1e-6, 72 poses land whole (every off-seam azimuth, every tilt), each holding tiers 1–3′ and
+  the whole volume. The 12 at the seam azimuth a = 0 refuse in the reduction instead
+  (`ConsecutiveOnSectors`, `SliverSector`, `CrossingEscalated`, `CrossingInsertion`); evidence
+  added to `a-convex-graze-of-a-cone-refuses-at-some-azimuths`.
+- At 1e-9, 24 land whole (t = 1e-5 off the seam), 28 cut clean at tiers 1–3′ (t = 1e-3), 28
+  refuse `CrossingEscalated` (t = 1e-4, depth 5.59e-9 in the escalation band) and 4 refuse
+  `ConsecutiveOnSectors` (a = 0, t = 1e-5).
+- No pose lands whole with its depth beyond ε.
+- At 1e-12, none lands whole and 56 cut. Every certified volume is right, and on ten poses a side
+  escalates at tier 3 or 3′:
 
 - tier 3 `VolumeUncomputable` on `props_du_consistent`, margin 1.986e-12, on the sliver side,
   where `mass_properties` refuses typed: the frustum at a = 5.5, t = 1e-4, both normals; the

@@ -416,7 +416,10 @@ const NEAR_AZIMUTHS: [f64; 7] = [0.0, 0.3, 1.0, 2.0, 3.0, 4.0, 5.5];
 /// the larger disc's thin segment at the floor the cylinder's
 /// near-tangent rows read. A side whose volume the band cannot certify
 /// refuses typed at `mass_properties`; it never reads a wrong number.
-/// Returns how many poses answered.
+/// A sliver whose depth off the plane is within ε is a graze at this ε,
+/// and the frustum may land whole on its material side instead: that
+/// side holds every tier and the whole volume. Returns how many poses
+/// answered.
 fn near_tangent_rulings(name: &str, r0: f64, r1: f64) -> usize {
     let tol = Tol::witness();
     let apex = r0 / (r0 - r1);
@@ -438,7 +441,11 @@ fn near_tangent_rulings(name: &str, r0: f64, r1: f64) -> usize {
             for s in [1.0, -1.0] {
                 let label = format!("near tangent {name}: a = {a}, t = {t}, s = {s}");
                 let n = (outward * t.cos() + ruling.cross(outward) * t.sin()) * s;
-                let d = n.dot(radial) / (n - axis * n.dot(axis)).norm();
+                let across = (n - axis * n.dot(axis)).norm();
+                let d = n.dot(radial) / across;
+                // The sliver's deepest point is on the larger disc's rim,
+                // `big·(1 − |d|)` across the chord in that disc's plane.
+                let depth = big * (across - n.dot(radial).abs());
                 let sliver = k * big * big * thin_segment(2.0 * d.abs().min(1.0).acos());
                 let (above, below) = if d > 0.0 {
                     (sliver, whole - sliver)
@@ -450,6 +457,30 @@ fn near_tangent_rulings(name: &str, r0: f64, r1: f64) -> usize {
                     continue;
                 };
                 answered += 1;
+                let (thin, material) = if d > 0.0 {
+                    (&r.above, &r.below)
+                } else {
+                    (&r.below, &r.above)
+                };
+                if depth <= tol.eps() && thin.body().is_none() {
+                    let b = material
+                        .body()
+                        .unwrap_or_else(|| panic!("{label}: both sides empty"));
+                    topo::validate(b).unwrap_or_else(|e| panic!("{label}: tier 1: {e:?}"));
+                    topo::validate_closed(b).unwrap_or_else(|e| panic!("{label}: tier 2: {e:?}"));
+                    topo::validate_geometric(b, tol)
+                        .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+                    topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
+                        .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+                    let m = mass_properties(b, tol)
+                        .unwrap_or_else(|e| panic!("{label}: mass properties: {e:?}"));
+                    assert!(
+                        (m.volume - whole).abs() <= 1e-9 * whole + m.volume_pad + floor,
+                        "{label}: landed whole with volume {}, want {whole}",
+                        m.volume
+                    );
+                    continue;
+                }
                 for (side, part, want) in [("above", &r.above, above), ("below", &r.below, below)] {
                     let b = part
                         .body()
