@@ -1092,9 +1092,10 @@ class TestNonuniformLoft(unittest.TestCase):
 
     # demos/tour/src/skinned.rs::NONUNIFORM_T — the middle section's
     # v-parameter at this spacing,
-    # (3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) + 3/40)/2, which the Rust
-    # scene pins against `loft_parameters`.
-    NONUNIFORM_T = 0.12562684454950906
+    # (3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) + 3/40)/2 to within an ulp:
+    # the kernel's answer, which the Rust scene pins against
+    # `loft_parameters`.
+    NONUNIFORM_T = 0.12562684454950904
 
     def test_nonuniform_loft_matches_the_derived_closed_form(self):
         # V = 4H + dH/(3t(1-t)) = 8 + 0.25/(t(1-t)), H = 2, d = 0.375.

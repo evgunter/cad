@@ -4,7 +4,7 @@ kind: issue
 title: A loft cap's Newell plane is summed from the authored start vertex, so re-spelling a section moves the cap's bits
 status: open
 opened: 2026-10-06
-priority: P3
+priority: P2
 ---
 
 
@@ -26,10 +26,13 @@ a function of the section set and are pinned bit-identical across
 spellings (`loft_v_is_the_section_set`), but the caps are not pinned
 and, by this reading, are not order-free.
 
-**Confidence**: likely, by reading. Not measured: the shipped fixtures
-are axis-aligned squares at constant z, where the sums may come out
-exact either way. A tilted, irregular section written from two corners
-would measure it.
+**Confidence**: sure. Measured by the review of PR 4193 on an
+irregular, tilted three-station loft: across start vertices, the cap
+`Plane`'s `origin`, `normal` and `u_ref` differ by ulps, while the
+walls, the section parameters and the volume are bit-identical.
+
+PR 4187 rewrites this cap fit (`swept::cap_plane`); the fix belongs on
+whichever of the two lands second.
 
 ## The fix it points at
 

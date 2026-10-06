@@ -619,14 +619,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The middle section's v-parameter, ASKED (LIB-U5 deliverable 1)
     // rather than re-derived: the note below narrates
     // t = (3√29/(3√29 + √5701) + 3/40)/2 and every number downstream
-    // of it, so
-    // the derivation is pinned against the kernel's own answer here.
+    // of it, so the derivation is pinned against the kernel's own
+    // answer here — the pinned constant exactly, the closed form to
+    // within the rounding of a mean over eight rows.
     let params = pncad::sweep::loft_parameters(&prism_sections(tol), &nonuniform_places, 2, tol)
         .expect("the non-uniform sections skin");
     assert_eq!(
         params,
         vec![0.0, NONUNIFORM_T, 1.0],
         "the narrated v-parameterization is no longer what the skin chose"
+    );
+    let nonuniform_t = {
+        let (a, b) = (3.0 * 29f64.sqrt(), 5701f64.sqrt());
+        0.5 * (a / (a + b) + 3.0 / 40.0)
+    };
+    assert!(
+        (NONUNIFORM_T - nonuniform_t).abs() <= 4.0 * f64::EPSILON,
+        "the narrated closed form t = {nonuniform_t} is no longer the kernel's {NONUNIFORM_T}"
     );
     let nonuniform_at_origin =
         pncad::sweep::loft_body::<f64>(&prism_sections(tol), &nonuniform_places, 2, tol)

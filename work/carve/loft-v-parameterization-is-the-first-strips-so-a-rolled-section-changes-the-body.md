@@ -71,13 +71,17 @@ v. So the answer is built, not put to Ev.
   parameters. Averaging does not make the sections "cross-sections of
   nothing in particular". The parameters shape only the surface between
   sections, which is shape, not labelling.
-- **Loft: Book Eq. 10.8 over every compatible control row of every
-  wall**, outer loop and holes alike. Each section's per-row chord
-  shares are sorted before they are summed, so the parameters are a
-  function of the multiset of rows. Every re-spelling (start vertex,
-  sense, a roll by the section's own symmetry, sketch origin) then
-  builds the bit-identical solid. A pinned row abstains as today, and
-  "every row pinned" stays the existing refusal.
+- **Loft: Book Eq. 10.8 over every compatible control row of the
+  outer loop's walls; holes read the outer loop's parameters** (the
+  orchestrator's ruling after PR 4193's review: the outer loop is
+  structurally unique, so this is label-free, the seam argument holds
+  within a loop, and a hole no longer moves the outer walls). Each
+  section's per-row chord shares are sorted before they are summed, so
+  the parameters are a function of the multiset of rows. Every
+  re-spelling (start vertex, sense, a roll by the section's own
+  symmetry, sketch origin) then builds bit-identical parameters and
+  walls. A pinned row abstains as today, and "every row pinned" stays
+  the existing refusal.
 - **Sweep: v is the path's own parameter**, normalised
   (`(t_i − lo)/(hi − lo)`, today `i/(k−1)`). The stations are samples of
   the path at known parameters, and that is what the user wrote. The
@@ -102,36 +106,39 @@ v. So the answer is built, not put to Ev.
 
 ## Built (2026-10-06)
 
-On `carve/loft-v-is-the-whole-sets`, as weighed: `loft_geometry`
-takes the parameters; `loft_body` and `loft_parameters` share one
-whole-set helper (Eq. 10.8 over every row of every wall, per-section
-shares sorted, the mean taken exact when the rows agree); `sweep_body`
-and `sweep_geometry` put each station at `i/(k − 1)`. Pinned by
-`loft_v_is_the_section_set` (four spellings, and a symmetry roll, build
-bit-identical walls) and
-`turning_orientation::the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll`
-(the issue's two frames: bit-identical walls, `v = 0.5` on the
-inflection).
+On `carve/loft-v-is-the-whole-sets` (PR 4193):
 
-**Open: the rule's "holes alike" clause meets the tour's tube cell.**
-`demos/tour/src/skinned.rs` asserts `V_tube = (1 − λ²)·V_solid` for an
-annular loft and its hole-less twin over the same stations. With hole
-rows in the average, the hole moves the outer skin and the identity is
-off by 5.1e-5 relative; with the outer loop's rows only, it holds to
-1.9e-16. The PR lays out the options; the cell is left as it was.
+- `loft_geometry` takes the parameters as an argument.
+- `loft_body` and `loft_parameters` share one helper. Following the
+  orchestrator's ruling (option B, after the review), it is Eq. 10.8
+  over the OUTER loop's compatible control rows only, per-section
+  shares sorted, the mean exact when the rows agree. Holes are
+  interpolated at the outer loop's parameters: the outer loop is
+  structurally unique (its validated role), so this is still
+  label-free; a hole cannot move the outer walls; and a hole that is
+  the outer loop scaled lofts to the outer surface scaled (the tour's
+  tube identity holds to 1.9e-16, where holes in the average put it
+  5.1e-5 off).
+- `sweep_body` and `sweep_geometry` put each station at `i/(k − 1)`.
 
-**Open: the sweep rule breaks the tour's coil (PR 4193's red gate).**
-`demos/tour/src/projectbox.rs`'s 6-turn coil (`sweep_body`, 193
-stations) no longer builds:
+Pinned by `loft_v_is_the_section_set` (corners, symmetry roll,
+order-free means, holes, arcs: bit-identical parameters and walls;
+the cap planes are not, see
+`a-loft-caps-plane-is-summed-in-the-authored-vertex-order`) and
+`turning_orientation::the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll`.
 
-```text
-Euler(Certification { error: Escalated { check: ParamSpan, …,
-predicate: Some("nurbs_span_meter") } })
-```
-
-The round-wire spring beside it refuses its volume with a
-`QuadratureBudget` (width 3.6e-3 after 1 round). With
-`i/(k − 1)` station parameters the coil's averaged v knots land
-EXACTLY on dyadic lines (0.3125, 0.328125, …), and the walls are
-integral. Under the first-strip rule the parameters carried
-chord-length noise. The cause is not pinned.
+**Open: the path-parameter sweep rule makes the tour's square coil
+escalate.** `demos/tour/src/projectbox.rs`'s 6-turn coil refuses at
+assembly with `Escalated { check: ParamSpan, predicate:
+"nurbs_span_meter", margin −0.055 }`. Root cause, measured: the spine
+advances uniformly between stations (centre chord 0.02756 at every
+step), but `sweep_places`' frame is the minimal rotation from the START
+tangent. On a helix that rotation swings the section about its own
+tangent where the tangent nears anti-parallel to `t₀`, every half-turn
+(stations 15–18 of each 32: a corner's step goes 0.0214 → 0.0607
+while `tangent·t₀` reaches −0.98). Chord-length v absorbed the spin;
+it deviated from uniform by 6.1e-3, more than a station step. Uniform
+v squeezes it into one step, so the cubic through the corner rows
+overshoots, and two seams' `speed_lower_bound` goes negative (−0.055,
+−0.016; +1.7 under chord-length v). The round-wire spring's wall 1
+holds as before.

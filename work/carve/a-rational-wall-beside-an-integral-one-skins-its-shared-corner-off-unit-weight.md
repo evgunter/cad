@@ -42,6 +42,15 @@ On the branch, the corner column of the six-station blade read
 `[1.0, 0.9999999999999993, 1.0000000000000002, 1.0, 1.0, 1.0]` while its
 parameters were an ulp off `k/5`.
 
+A second shape, same family (measured the same day, under both rules):
+a square with one arc edge whose bulge differs per section
+(`tan(π/8)`, `tan 50°`, `tan 30°`) at z = `[0, 0.8, 2]` or `[0, 1, 2]`
+refuses at `mint_pcurves` with `IsoUnsupported { what: "an arc rim whose
+chart image runs in neither u direction …" }` (or the seam-carrier
+text above), while the same square with one bulge in every section
+builds. `loft_v_is_the_section_set::an_arc_walled_loft_is_the_same_under_every_spelling`
+asserts that loft's geometry only, for this reason.
+
 ## The fix it points at
 
 Choose the lane per control ROW, not per surface: a row whose weight is
