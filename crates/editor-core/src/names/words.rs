@@ -26,13 +26,24 @@
 //!   body's own continuation and is silent. Two names of one table first
 //!   differ at a node where one went through a secondary operand, which
 //!   a join says.
+//! - **Wraps and joins are said in the order the path takes them.** A
+//!   join beneath a wrap is said inside it, in brackets: "instance 1's
+//!   copy of (the start cap of Extrude e548, cut in at Subtract 1669)"
+//!   is a copy of the cut-in cap, where "instance 1's copy of the start
+//!   cap of Extrude e548, cut in at Subtract 1669" is a cut-in copy.
 //! - **A cited name whose words run on past its node** — a qualifier's
 //!   list, a join — is said in brackets: "the part of the start cap of
 //!   Extrude e548 bordering (the part of the side wall over loop 0 step
 //!   2 of Extrude e548 bordering 2 faces) and the side wall over loop 0
 //!   step 3 of Extrude e548". Every other cited name ends at its node,
 //!   so no "and" or join the citing sentence says after a citation reads
-//!   as more of it, and the full form reads one way only.
+//!   as more of it.
+//!
+//! **The full form says two names alike only where they differ in a
+//! node it never says**: the node of a primary carry (silent above), or
+//! of a split's, a copy's, a band cut's or a part's carry, which the
+//! wrap's words leave unsaid. Every other difference between two names
+//! is in their words.
 //!
 //! **Which node's output holds the entity is not the name's to say**:
 //! two copies of one body hold names alike, and the sentence that says
@@ -127,8 +138,9 @@ pub(crate) type Pos = Vec<u16>;
 /// many more, or how many of what kind where it opens none.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Detail {
-    /// Every citation opened: the form two distinct names never share,
-    /// its run-on citations bracketed ([module docs](self)).
+    /// Every citation opened, its run-on citations bracketed: the form
+    /// two distinct names share only where they differ in a carry's
+    /// node it never says ([module docs](self)).
     Full,
     /// These citations opened, and no others.
     Open(BTreeSet<Pos>),
@@ -165,10 +177,17 @@ pub(crate) fn words(name: &StableName, by: Speaker<'_>, detail: &Detail) -> Stri
 ///
 /// Then every name is said at its own detail, and each group of names
 /// whose words are alike — each at the detail it chose, which no search
-/// above compared — is said in full, until no two read alike. The full
-/// form says no two distinct names alike ([`Detail::Full`]), so the
-/// loop ends with every name apart. A detail is unique in the table,
+/// above compared — is said in full, until no two read alike or every
+/// name still alike is said in full. A detail is unique in the table,
 /// not the fewest openings.
+///
+/// **Where the loop ends with names alike**: two names of the table
+/// that differ only in a carry's node the full form never says
+/// ([`Detail::Full`]) — two merged faces, say, each citing the end cap
+/// carried through the A of a different Subtract. A table of one
+/// node's output first differs at a node a join says (module docs), so
+/// no evaluation is known to mint such a pair; a debug build asserts
+/// none does.
 ///
 /// **Cost.** Each name of a group alike at no citation is said once per
 /// detail some search of the group asks of it ([`Alike`]), and the
@@ -213,6 +232,12 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
             .filter(|&i| details[i] != Detail::Full)
             .collect();
         if opened.is_empty() {
+            debug_assert!(
+                groups.values().all(|group| group.len() < 2),
+                "names of one table alike in full, differing only in a carry's node the full \
+                 form never says: {:?}",
+                groups.iter().find(|(_, group)| group.len() > 1)
+            );
             break;
         }
         for i in opened {
@@ -459,58 +484,88 @@ enum Join {
     },
 }
 
+/// A carry the walk looked through and says: around the leaf, or as a
+/// join.
+enum Step<'n> {
+    Wrap(Wrap<'n>),
+    Join(Join),
+}
+
 /// A name, its carrying segments and qualifiers looked through.
 struct Walk<'n> {
-    /// The carries said around the leaf, outermost first.
-    wraps: Vec<Wrap<'n>>,
-    /// The joins, outermost first.
-    joins: Vec<Join>,
+    /// The carries said, outermost first.
+    steps: Vec<Step<'n>>,
     /// The name the walk stopped at.
     leaf: &'n StableName,
 }
 
 fn walk(name: &StableName) -> Walk<'_> {
-    let mut wraps = Vec::new();
-    let mut joins = Vec::new();
+    let mut steps = Vec::new();
     let mut at = name;
     loop {
         let tail = fragment_tail_start(&at.path);
         // `[parent, Fragment(q1), Fragment(q2)]` is the q2 part of the
         // q1 part: the last qualifier is the outermost.
-        wraps.extend(at.path[tail..].iter().rev().filter_map(|seg| match seg {
-            RoleSeg::Fragment(q) => Some(Wrap::Part(q)),
+        steps.extend(at.path[tail..].iter().rev().filter_map(|seg| match seg {
+            RoleSeg::Fragment(q) => Some(Step::Wrap(Wrap::Part(q))),
             _ => None,
         }));
         let [seg] = &at.path[..tail] else {
-            return Walk {
-                wraps,
-                joins,
-                leaf: at,
-            };
+            return Walk { steps, leaf: at };
         };
         let SegOrigin::Carried(of, carry) = origin(seg) else {
-            return Walk {
-                wraps,
-                joins,
-                leaf: at,
-            };
+            return Walk { steps, leaf: at };
         };
-        match carry {
-            CarriedAs::Primary => {}
-            CarriedAs::Secondary => joins.push(match seg {
+        steps.extend(match carry {
+            CarriedAs::Primary => None,
+            CarriedAs::Secondary => Some(Step::Join(match seg {
                 RoleSeg::FromMember { member, .. } => Join::Member {
                     union: at.node,
                     member: *member,
                 },
                 _ => Join::B(at.node),
-            }),
-            CarriedAs::Split(side) => wraps.push(Wrap::Split(side)),
-            CarriedAs::ToolCopy(side) => wraps.push(Wrap::ToolCopy(side)),
-            CarriedAs::Instance(i) => wraps.push(Wrap::Instance(i)),
-            CarriedAs::Cut => wraps.push(Wrap::Cut),
-        }
+            })),
+            CarriedAs::Split(side) => Some(Step::Wrap(Wrap::Split(side))),
+            CarriedAs::ToolCopy(side) => Some(Step::Wrap(Wrap::ToolCopy(side))),
+            CarriedAs::Instance(i) => Some(Step::Wrap(Wrap::Instance(i))),
+            CarriedAs::Cut => Some(Step::Wrap(Wrap::Cut)),
+        });
         at = of;
     }
+}
+
+/// A walk's steps in levels, outermost first: each level's joins, said
+/// after its words, and its wraps, said around the next level —
+/// bracketed — or, at the last level, around the leaf.
+type Level<'w, 'n> = (&'w [Step<'n>], &'w [Step<'n>]);
+
+fn levels<'w, 'n>(steps: &'w [Step<'n>]) -> Vec<Level<'w, 'n>> {
+    let mut levels = Vec::new();
+    let mut rest = steps;
+    loop {
+        let joins = rest
+            .iter()
+            .take_while(|step| matches!(step, Step::Join(_)))
+            .count();
+        let (joins, after) = rest.split_at(joins);
+        let wraps = after
+            .iter()
+            .take_while(|step| matches!(step, Step::Wrap(_)))
+            .count();
+        let (wraps, inner) = after.split_at(wraps);
+        levels.push((joins, wraps));
+        if inner.is_empty() {
+            return levels;
+        }
+        rest = inner;
+    }
+}
+
+fn wraps<'w, 'n>(steps: &'w [Step<'n>]) -> impl DoubleEndedIterator<Item = &'w Wrap<'n>> {
+    steps.iter().filter_map(|step| match step {
+        Step::Wrap(wrap) => Some(wrap),
+        Step::Join(_) => None,
+    })
 }
 
 /// The sentence of `name` at `pos`, one level: its words, and the names
@@ -530,50 +585,46 @@ fn expand<'n, 's>(
         detail,
         by,
     };
-    let Walk { wraps, joins, leaf } = walk(name);
-    let mut items: Vec<Item<'n, 's>> = wraps.iter().map(|w| text(prefix(w, name.kind))).collect();
-    items.extend(head(leaf, by, &mut cites));
-    items.push(text(format!(" of {}", by.node(leaf.node))));
-    for wrap in wraps.iter().rev() {
-        if let Wrap::Part(q) = wrap {
-            let (word, names) = match q {
-                Qualifier::OrderAlong { .. } => continue,
-                Qualifier::Borders(walls) => (" bordering ", walls),
-                Qualifier::Keeps(edges) => (" along ", edges),
-                Qualifier::Ends(ends) => (" between ", ends),
-            };
-            items.push(text(word));
-            items.extend(cites.list(names));
+    let Walk { steps, leaf } = walk(name);
+    let levels = levels(&steps);
+    let last = levels.len() - 1;
+    let mut items: Vec<Item<'n, 's>> = Vec::new();
+    for (k, (_, level)) in levels.iter().enumerate() {
+        items.extend(wraps(level).map(|w| text(prefix(w, name.kind))));
+        if k < last {
+            items.push(text("("));
         }
     }
-    for join in &joins {
-        items.push(text(match *join {
-            Join::B(at) => match by.boolean_op(at) {
-                Some(op) => {
-                    let verb = match op {
-                        BooleanOp::Subtract => "cut in",
-                        BooleanOp::Union => "joined",
-                        BooleanOp::Intersect => "intersected",
-                    };
-                    format!(
-                        ", {verb} at {}",
-                        by.node_as_kind(at, verbs::VerbKind::Boolean(op).noun())
-                    )
-                }
-                // Which operation is the document's to say: the name
-                // holds only that it came in as operand B.
-                None => format!(", through operand B of {}", by.node(at)),
-            },
-            Join::Member { union, member } => {
-                format!(", joined at {} from {}", by.node(union), by.node(member))
+    items.extend(head(leaf, by, &mut cites));
+    items.push(text(format!(" of {}", by.node(leaf.node))));
+    for (k, (joins, level)) in levels.iter().enumerate().rev() {
+        if k < last {
+            items.push(text(")"));
+        }
+        for wrap in wraps(level).rev() {
+            if let Wrap::Part(q) = wrap {
+                let (word, names) = match q {
+                    Qualifier::OrderAlong { .. } => continue,
+                    Qualifier::Borders(walls) => (" bordering ", walls),
+                    Qualifier::Keeps(edges) => (" along ", edges),
+                    Qualifier::Ends(ends) => (" between ", ends),
+                };
+                items.push(text(word));
+                items.extend(cites.list(names));
             }
-        }));
+        }
+        for step in *joins {
+            if let Step::Join(join) = step {
+                items.push(text(join_words(join, by)));
+            }
+        }
     }
     // A cited name whose words run on past its node — a qualifier's
     // list, a join — is bracketed, so nothing the citing sentence says
     // after it reads as more of it.
+    let (joins, outer) = levels[0];
     let runs_on = !joins.is_empty()
-        || wraps.iter().any(|wrap| {
+        || wraps(outer).any(|wrap| {
             matches!(
                 wrap,
                 Wrap::Part(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_))
@@ -584,6 +635,31 @@ fn expand<'n, 's>(
         items.push(text(")"));
     }
     items
+}
+
+/// The words a join says after the name it carried.
+fn join_words(join: &Join, by: Speaker<'_>) -> String {
+    match *join {
+        Join::B(at) => match by.boolean_op(at) {
+            Some(op) => {
+                let verb = match op {
+                    BooleanOp::Subtract => "cut in",
+                    BooleanOp::Union => "joined",
+                    BooleanOp::Intersect => "intersected",
+                };
+                format!(
+                    ", {verb} at {}",
+                    by.node_as_kind(at, verbs::VerbKind::Boolean(op).noun())
+                )
+            }
+            // Which operation is the document's to say: the name holds
+            // only that it came in as operand B.
+            None => format!(", through operand B of {}", by.node(at)),
+        },
+        Join::Member { union, member } => {
+            format!(", joined at {} from {}", by.node(union), by.node(member))
+        }
+    }
 }
 
 /// The words a carry says before the leaf.

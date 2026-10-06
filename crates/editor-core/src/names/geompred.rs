@@ -406,10 +406,14 @@ impl crate::spoken::Say for SelectRefusal {
                 } else {
                     write!(f, "{one} and {two}")?;
                 }
+                // The margin is said as the sentence's own aside, so the
+                // sentence is the claim and the names' joins do not cut
+                // it off from the margin.
                 write!(
                     f,
-                    " are flush? undecided: {}",
-                    source.under(geom_core::NO_DECLARATION_RECOURSE)
+                    " may coincide ({}){}",
+                    source.payload(),
+                    source.under(geom_core::NO_DECLARATION_RECOURSE).tail()
                 )
             }
             Self::BadValue(error) => {

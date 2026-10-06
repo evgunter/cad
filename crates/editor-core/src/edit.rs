@@ -3650,31 +3650,30 @@ pub enum Took {
     Piece,
 }
 
-impl core::fmt::Display for Took {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Node => "deleted the node that minted it",
-            Self::Step => "dropped a profile step it names",
-            Self::Piece => "kept a step it names but no longer draws that piece",
-        })
-    }
-}
-
-/// **What the edit took from `name`, said in a strand row**: a delete
-/// says the node it deleted, the name's minter — the name's words say
-/// the node that made its leaf, which a carry through a Boolean's or a
-/// fillet's output is not — and a reshaping says what [`Took`] says.
-fn took_from<'a>(took: &'a Took, name: &'a SpokenName) -> impl core::fmt::Display + 'a {
-    struct TookFrom<'a>(&'a Took, &'a SpokenName);
-    impl core::fmt::Display for TookFrom<'_> {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            match self.0 {
-                Took::Node => write!(f, "deleted {}, which minted the name", self.1.minter()),
-                took => write!(f, "{took}"),
+impl Took {
+    /// **What the edit took from `name`, as a strand row says it**: a
+    /// delete says the node it deleted, the name's minter — the name's
+    /// words say the node that made its leaf, which a carry through a
+    /// Boolean's or a fillet's output is not — and a reshaping says
+    /// what it dropped.
+    #[must_use]
+    pub fn said<'a>(&'a self, name: &'a SpokenName) -> impl core::fmt::Display + 'a {
+        struct Said<'a>(&'a Took, &'a SpokenName);
+        impl core::fmt::Display for Said<'_> {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                match self.0 {
+                    Took::Node => {
+                        write!(f, "deleted {}, which minted the name", self.1.minter())
+                    }
+                    Took::Step => f.write_str("dropped a profile step it names"),
+                    Took::Piece => {
+                        f.write_str("kept a step it names but no longer draws that piece")
+                    }
+                }
             }
         }
+        Said(self, name)
     }
-    TookFrom(took, name)
 }
 
 impl core::fmt::Display for Maintenance {
@@ -3696,7 +3695,7 @@ impl core::fmt::Display for Maintenance {
                  until it is rebound",
                 node,
                 name,
-                took_from(took, name)
+                took.said(name)
             ),
             // The same sentence with the store where the carrying
             // node was: what a reader has to know is that the paint
@@ -3708,7 +3707,7 @@ impl core::fmt::Display for Maintenance {
                 "the appearance store holds an attachment under a name for {}; this edit \
                  {}, so the name resolves to nothing until it is rebound or cleared",
                 name,
-                took_from(took, name)
+                took.said(name)
             ),
             Self::LabelDropped { gauge, label } => write!(
                 f,

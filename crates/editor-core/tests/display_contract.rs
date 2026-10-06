@@ -185,7 +185,7 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
     assert!(
         shown.starts_with(
             "select: the end cap of node 000000000002 and the start cap of node \
-             000000000005, through operand B of node 000000000009 are flush? undecided: "
+             000000000005, through operand B of node 000000000009 may coincide (margin "
         ),
         "{shown}"
     );
@@ -661,7 +661,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec![
                 "select: the end cap",
                 "on node 000000000003 and the end cap",
-                "on node 000000000004 are flush? undecided:",
+                "on node 000000000004 may coincide (margin",
             ],
         ),
         (

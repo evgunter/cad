@@ -2738,6 +2738,8 @@ impl crate::spoken::Say for NodeErrorKind {
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
             ),
+            // A derived frame's payload holds one name, its face, so the
+            // reference that failed is always that one.
             Self::FaceFrameResolve { error } => resolve_failed(
                 f,
                 by,

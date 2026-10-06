@@ -74,7 +74,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// evaluation, in the corpus's order: a wrong word of the same length
 /// moves it where [`NAME_WORDS`] cannot see. Re-pinned with the words
 /// that moved, said in the PR that moves them.
-const SAID_DIGEST: u64 = 0x4363_a07d_a6e7_6bfc;
+const SAID_DIGEST: u64 = 0x93e9_5f79_ef76_6443;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
