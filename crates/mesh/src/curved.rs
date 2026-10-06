@@ -1129,6 +1129,7 @@ mod tests {
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
+    use sweep::ExtrudeSide;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -1217,10 +1218,10 @@ mod tests {
         let eps = Eps::at(Tol::witness());
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
-        for (vk, v) in body.vertices() {
+        for (vk, p) in body.vertex_points() {
             #[allow(clippy::cast_possible_truncation)]
             vids.insert(vk, positions.len() as u32);
-            positions.push(*body.get_point(v.point).unwrap());
+            positions.push(p);
         }
         let chords = crate::chords::compute_chords(
             body,
@@ -1410,7 +1411,10 @@ mod tests {
         lp = lp.with_tangent_joints((0..n).collect());
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -1430,7 +1434,10 @@ mod tests {
         ]);
         let slab = extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -1453,12 +1460,10 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        topo::boolean::subtract(&slab, &ball, Tol::witness())
-            .expect("the die pip cuts")
-            .body()
-            .expect("a pip is a dent, not a void")
-            .body
-            .clone()
+        let slab = topo::test_support::finished("the die slab", slab, Tol::witness());
+        let ball = topo::test_support::finished("the die ball", ball, Tol::witness());
+        let cut = topo::boolean::subtract(&slab, &ball, Tol::witness()).expect("the die pip cuts");
+        (*cut.body().expect("a pip is a dent, not a void").body).clone()
     }
 
     fn fixtures() -> Vec<(&'static str, Body<f64>)> {

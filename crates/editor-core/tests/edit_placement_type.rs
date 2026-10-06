@@ -7,12 +7,14 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Axis3, CancelToken, Dimension, DocEdit, DocParam, DocParamValue, EditError, EvalOptions, Expr,
-    Frame, FrameSite, Node, ParamEnv, ParamName, PersistError, Placement, ProfileDoc,
-    ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step,
-    ValuePayload, VectorSlot, evaluate, load, save,
+    Axis3, CancelToken, Dimension, DocEdit, EditError, EvalOptions, Formula, Frame, FrameSite,
+    FreeValue, FreeVar, Node, PersistError, Placement, ProfileDoc, ProfileProgram,
+    REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step, ValuePayload, VarEnv,
+    VarName, VectorSlot, evaluate, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::predicate::Band;
@@ -37,12 +39,13 @@ fn cube(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
 
 /// A rigid step about +z by `angle`, then by `t`.
-fn about_z(t: [f64; 3], angle: f64) -> Step {
+fn about_z(t: [f64; 3], angle: f64) -> Step<Formula> {
     Step::Rigid {
         translation: t.map(len),
         axis: [scl(0.0), scl(0.0), scl(1.0)],
@@ -86,12 +89,13 @@ fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
     a.components().map(f64::to_bits)
 }
 
-fn motion(p: &Placement) -> Affine3<f64> {
-    p.eval::<f64>(&ParamEnv::default(), band())
+fn motion(p: &Placement<Formula>) -> Affine3<f64> {
+    editor_core::test_support::stored_placement(p)
+        .eval::<f64>(&VarEnv::default(), band())
         .expect("the placement evaluates")
 }
 
-fn lands(p: &Placement, at: [f64; 3]) -> Point3<f64> {
+fn lands(p: &Placement<Formula>, at: [f64; 3]) -> Point3<f64> {
     motion(p).transform_point(Point3::from_array(at))
 }
 
@@ -361,20 +365,20 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
 /// at the same bits, and step 0 (the literal) has no slot to write.
 #[test]
 fn a_parameter_drives_a_rigid_steps_angle() {
-    let turn = ParamName::from_static("turn");
+    let turn = VarName::from_static("turn");
     let (doc, body) = cube("placement-param");
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: turn.clone(),
-            value: DocParam::continuous(Dimension::Angle, 0.0),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let placement = Placement::literal(&Frame::translation([5.0, 0.0, 0.0])).compose(
         &Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::param(turn.clone(), Dimension::Angle),
+            angle: Formula::named(turn.clone(), Dimension::Angle),
         }
         .into(),
     );
@@ -399,9 +403,9 @@ fn a_parameter_drives_a_rigid_steps_angle() {
     let quarter = core::f64::consts::FRAC_PI_2;
     let (turned_doc, _) = step(
         doc.clone(),
-        DocEdit::SetDocParamValue {
-            name: turn,
-            value: DocParamValue::Continuous(quarter),
+        DocEdit::SetVarValue {
+            var: turn.into(),
+            value: FreeValue::Continuous(quarter),
         },
     );
     let (turned, by_param) = min_x(&turned_doc);
@@ -448,16 +452,16 @@ fn a_parameter_drives_a_rigid_steps_angle() {
 /// unknown slot.
 #[test]
 fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
-    let turn = ParamName::from_static("turn");
+    let turn = VarName::from_static("turn");
     let (doc, body) = cube("placement-later-steps");
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: turn.clone(),
-            value: DocParam::continuous(Dimension::Angle, 0.0),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
-    let chain = |late: Step| {
+    let chain = |late: Step<Formula>| {
         Node::transform(
             body,
             Placement {
@@ -489,7 +493,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let unknown = Step::Rigid {
         translation: [len(0.0), len(0.0), len(0.0)],
         axis: [scl(0.0), scl(0.0), scl(1.0)],
-        angle: Expr::param(ParamName::from_static("nope"), Dimension::Angle),
+        angle: Formula::named(VarName::from_static("nope"), Dimension::Angle),
     };
     assert!(
         door(
@@ -507,7 +511,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         node: Box::new(chain(Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::param(turn, Dimension::Angle),
+            angle: Formula::named(turn, Dimension::Angle),
         })),
     };
     let (doc, t) = step(doc, insert_edit.clone());
@@ -562,13 +566,16 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let bad_ref = doctored(&full, |w| {
         let angle = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"][2]
             ["Rigid"]["angle"];
-        let text = angle.to_string().replace("\"turn\"", "\"nope\"");
-        assert_ne!(text, angle.to_string(), "aimed at the parameter");
+        let turn = doc.var_named("turn").expect("the fixture declares turn");
+        let text = angle
+            .to_string()
+            .replace(&format!("\"var\":{}", turn.0), "\"var\":1");
+        assert_ne!(text, angle.to_string(), "aimed at the variable");
         *angle = serde_json::from_str(&text).expect("still an expression");
     });
     assert!(
         load(&bad_ref, Tol::witness()).is_err(),
-        "an unknown parameter at step 2 refuses at load"
+        "a reader of an unminted variable at step 2 refuses at load"
     );
     let bad_dim = doctored(&full, |w| {
         let steps = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"];
@@ -613,7 +620,8 @@ fn a_mixed_chain_evaluates_in_the_interval_lane() {
 fn the_content_key_tells_every_chain_apart() {
     let literal = Step::Literal(Frame::translation([0.0, 3.0, 0.0]));
     let turn = about_z([1.0, 0.0, 0.0], core::f64::consts::FRAC_PI_2);
-    let cases: [(&str, Vec<Step>, Vec<Step>); 4] = [
+    type Chain = Vec<Step<Formula>>;
+    let cases: [(&str, Chain, Chain); 4] = [
         (
             "[rigid, literal] against [literal, rigid]",
             vec![turn.clone(), literal.clone()],
@@ -727,14 +735,13 @@ fn a_literal_frame_compares_by_bits() {
     let signed = Frame::translation([-0.0, 0.0, 0.25]);
     let plain = Frame::translation([0.0, 0.0, 0.25]);
     let body = RecipeNodeId(3);
-    let transform =
-        |f: &Frame| -> Node<ProfileProgram> { Node::transform(body, Placement::literal(f)) };
+    let transform = |f: &Frame| -> AuthoredNode { Node::transform(body, Placement::literal(f)) };
     assert!(transform(&signed).bit_eq(&transform(&signed)));
     assert!(
         !transform(&signed).bit_eq(&transform(&plain)),
         "a transform's -0.0 is not its 0.0"
     );
-    let group = |f: &Frame| -> Node<ProfileProgram> { Node::placed_union_at(body, vec![*f]) };
+    let group = |f: &Frame| -> AuthoredNode { Node::placed_union_at(body, vec![*f]) };
     assert!(
         !group(&signed).bit_eq(&group(&plain)),
         "an explicit rule's -0.0 is not its 0.0"

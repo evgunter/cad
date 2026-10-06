@@ -265,7 +265,7 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
             } => clicked = link_to(ui, row.depth, &asserted.measure).or(clicked),
             AssertionVerdict::Unevaluated {
                 reason:
-                    reason @ (UnevaluatedReason::Indeterminate
+                    reason @ (UnevaluatedReason::Indeterminate { .. }
                     | UnevaluatedReason::WindowSuperset { .. }),
             } => advisory_line(ui, row.depth, &reason.to_string(), theme),
             AssertionVerdict::Holds { .. } | AssertionVerdict::Violated { .. } => {}
@@ -354,7 +354,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{RecipeNodeId, SpokenNode};
+    use pncad::document::{ExtrudeSide, RecipeNodeId, SpokenNode};
 
     use eframe::egui;
 
@@ -718,8 +718,8 @@ mod tests {
 
     fn measure_fixture() -> MeasureFixture {
         use pncad::document::{
-            AssertionDir, CancelToken, Doc, EvalOptions, Expr, MeasureExpr, MeasurePrimitive, Node,
-            SitedRef, evaluate,
+            AssertionDir, CancelToken, Doc, EvalOptions, Formula, MeasureExpr, MeasurePrimitive,
+            Node, SitedRef, evaluate,
         };
         use pncad::geom_core::Tol;
         use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
@@ -742,6 +742,7 @@ mod tests {
             Node::Extrude {
                 profile,
                 distance: len(HEIGHT),
+                side: ExtrudeSide::Along,
             },
             tol,
         );
@@ -756,7 +757,7 @@ mod tests {
         };
         let caps = vec![cap(CapEnd::Start), cap(CapEnd::End)];
         let across = || MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-        let measure = |doc: &Doc<_>, expr: MeasureExpr| {
+        let measure = |doc: &Doc<_>, expr: MeasureExpr<Formula>| {
             inserted(
                 doc,
                 Node::measure(expr, caps.clone()).expect("both caps are referenced"),
@@ -774,7 +775,7 @@ mod tests {
                 .expect("a length over a scalar is a length"),
         );
         let (doc, angle) = measure(&doc, MeasureExpr::value(ang(0.5)));
-        let assertion = |doc: &Doc<_>, measure: RecipeNodeId, bound: Expr, dir: AssertionDir| {
+        let assertion = |doc: &Doc<_>, measure: RecipeNodeId, bound: Formula, dir: AssertionDir| {
             inserted(
                 doc,
                 Node::Assertion {
@@ -1264,7 +1265,7 @@ mod tests {
         let fixture = measure_fixture();
         let reason = match verdict_of(&fixture, fixture.indeterminate) {
             AssertionVerdict::Unevaluated {
-                reason: reason @ UnevaluatedReason::Indeterminate,
+                reason: reason @ UnevaluatedReason::Indeterminate { .. },
             } => reason.to_string(),
             other => panic!("the premise: a margin of 2ε is in the sliver band: {other:?}"),
         };

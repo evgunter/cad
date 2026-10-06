@@ -69,7 +69,9 @@
 //! (2) The sites the tree holds at
 //! this commit, outside this module and the scalar impls that merely
 //! forward the function: `linalg/svd.rs`'s Householder (`f64`
-//! only); `geom-brep/src/implicit.rs`'s cone gradient;
+//! only); `geom/src/curves/banded.rs`'s dropped `L` zero, which takes
+//! its pivot's sign (`f64` only); `geom-brep/src/implicit.rs`'s cone
+//! gradient;
 //! `geom-brep/src/props/curved.rs`'s sphere-meridian pole margins;
 //! `geom-brep/src/tangent.rs`'s jet (the orientation sign of the
 //! second surface's normal curvature);

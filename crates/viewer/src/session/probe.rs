@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, Evaluation, ParamName, PartReach, PartResolver,
-    ProfileProgram, RecipeNodeId, SlotId, apply,
+    Dimension, Doc, DocEdit, Evaluation, FreeVar, PartReach, PartResolver, ProfileProgram,
+    RecipeNodeId, SlotId, VarId, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
@@ -77,7 +77,7 @@ pub enum BoundsTarget {
     /// A document parameter.
     Param {
         /// The parameter.
-        name: ParamName,
+        var: VarId,
     },
 }
 
@@ -198,25 +198,25 @@ fn probe_scale(
             // A count remembers none and steps by 1.
             Ok((value.as_f64(), unit, dimension == Dimension::Count))
         }
-        BoundsTarget::Param { name } => {
-            let Some(param) = doc.params().get(name) else {
-                return Err(Refusal::NoSuchParam(name.clone()));
+        BoundsTarget::Param { var } => {
+            let Some(param) = doc.free(*var) else {
+                return Err(Refusal::NoSuchParam(*var));
             };
             // Same rule as a slot's: one of whatever unit the
             // field is WRITTEN in. A continuous parameter names the
             // notation it was authored in
-            // (`DocParam::Continuous::display_unit`, which rides
+            // (`FreeVar::Continuous::display_unit`, which rides
             // with the declaration and no value edit disturbs), so
             // a millimetre parameter is searched in millimetres. A
             // `Count` is a number rather than a quantity, has no
             // unit to name, and steps by 1.
             let (value, unit) = match param {
-                DocParam::Continuous {
+                FreeVar::Continuous {
                     value,
                     display_unit,
                     ..
                 } => (*value, Some(display_unit.def())),
-                DocParam::Count { value } => (*value as f64, None),
+                FreeVar::Count { value } => (*value as f64, None),
             };
             Ok((value, unit, param.dim() == Dimension::Count))
         }
@@ -241,15 +241,15 @@ fn probe_edit(
             props::slot_unit(doc, *node, *slot),
         )
         .ok(),
-        BoundsTarget::Param { name } => {
+        BoundsTarget::Param { var } => {
             // The dimension is read off the DECLARATION only to
             // decide which `SlotValue` arm the sample becomes; the
             // edit itself carries a value and nothing else, so a
             // probe cannot disturb the parameter's declaration
             // (`props::param_edit`'s door).
-            let dimension = doc.params().get(name)?.dim();
+            let dimension = doc.free(*var)?.dim();
             Some(props::param_edit(
-                name.clone(),
+                *var,
                 SlotValue::of(dimension, value).ok()?,
             ))
         }

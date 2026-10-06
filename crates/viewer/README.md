@@ -1070,7 +1070,7 @@ is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
 `frame::Withdrawal`, an accepted edit's `Maintenance` row (a name
-stranded or rewritten in place, a declaration left unconsumed) — are
+stranded or rewritten in place) — are
 typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
@@ -1483,15 +1483,12 @@ a pattern, so each binding's scope is read in order instead.
   owns the failure and its wording. Layer 3 adds nothing but the
   ranking, so it stores the payload and forwards the text.
 - **A flat arm** exists where layer 3 is the only place the fact
-  exists: there is no gesture in flight, this instance is itself, this
-  name is already declared and CREATE is not REPLACE, the seat wanted a
-  different node kind.
+  exists: there is no gesture in flight, this instance is itself, the
+  seat wanted a different node kind.
 
 Each of those examples names a fact `apply` has been read for and does
-not hold — `edit.rs` has no self-instance arm, `write_doc_param` has no
-existence check because `DocEdit::SetDocParam` is create-or-replace,
-and `DocEdit::InsertNode` checks a seat's input for EXISTENCE and not
-for KIND. That reading is what puts an arm in this list; a fact that
+not hold — `edit.rs` has no self-instance arm, and `DocEdit::InsertNode`
+checks a seat's input for EXISTENCE and not for KIND. That reading is what puts an arm in this list; a fact that
 merely feels like layer 3's is how the list acquires a member the door
 already refuses.
 
@@ -2151,7 +2148,7 @@ its shape is not one of these:
 - **A named `&'static str` owned by the layer the fact belongs to and
   spent by more than one door** — `refuse::NO_FACE_PICKED` (spent at
   `FaceFrameFault`'s `NoFace` arm and by `forms`), and
-  `editor_core::edit::UNDECLARED_PARAM_RECOURSE`,
+  `editor_core::edit::UNKNOWN_VAR_RECOURSE`,
   whose home is the crate that owns the fact.
 - **A literal at the chrome site, composed where it is drawn** —
   `pane::create`'s *add a frame datum first*, `pane::profile`'s *its
@@ -2240,7 +2237,7 @@ where, exhaustively:
   that can break one of those fourteen seeds the toolkit and takes the
   all-features pass. **The fifteenth does not.**
   `session::refuse`'s `Refusal::NoSuchParam` doc links
-  `` [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`] ``, and
+  `` [`editor_core::edit::UNKNOWN_VAR_RECOURSE`] ``, and
   `editor-core` is not in the seed set — so a branch that renames or
   deletes that constant reaches `viewer` through the closure, takes
   skip mode, and nothing anywhere reports the break. **The hole this

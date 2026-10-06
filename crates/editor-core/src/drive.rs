@@ -97,7 +97,7 @@ use geom_core::{Sym, SymCounts, Tol};
 #[cfg(feature = "probe")]
 use crate::analysis::BoxAxis;
 use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, ParamName};
+use crate::doc::Doc;
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
     ProfileLift, evaluate,
@@ -106,6 +106,7 @@ use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
 use crate::spoken::SpokenNode;
+use crate::var::VarId;
 // The two derived verdict forms live in one module (`resolve::vdiff`);
 // this driver is the strict form's certifying consumer, and names it at
 // `drive::` because that is where every consumer already reaches for it.
@@ -626,9 +627,43 @@ pub enum RefusalReason {
     MeasureRefused {
         /// The measure node that could not be taken.
         node: RecipeNodeId,
-        /// The engine's or the wiring's own class name for it.
-        class: &'static str,
+        /// Which refusal it was, typed.
+        class: MeasureRefusalClass,
     },
+}
+
+/// **Which measure refusal a smaller box cannot change**, as a type
+/// rather than a name.
+///
+/// The wiring's own arm and the clearance engine's refusal are two
+/// vocabularies, and one `&'static str` carrying both let a reader that
+/// wanted the arm match a string while nothing stopped the two
+/// colliding. The engine's typed refusal arrives at the measure layer
+/// already typed, and this is one hop further on, so it stays typed:
+/// `Clearance` holds the engine's own value.
+///
+/// [`Self::name`] is the serialized form, which is unchanged — the
+/// receipt reads only the name.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MeasureRefusalClass {
+    /// The selection resolved to the wrong KIND of entity
+    /// ([`NodeErrorKind::MeasureSelectionKind`]).
+    SelectionKind,
+    /// The clearance engine refused, with its own refusal
+    /// ([`NodeErrorKind::MeasureClearanceRefused`]).
+    Clearance(crate::clearance::ClearanceRefusal),
+}
+
+impl MeasureRefusalClass {
+    /// The class's name in a receipt: the wiring's own for its arm, the
+    /// engine's own for the engine's.
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::SelectionKind => "selection_kind",
+            Self::Clearance(r) => r.name(),
+        }
+    }
 }
 
 impl RefusalReason {
@@ -998,8 +1033,9 @@ impl ParamBoxVerdict {
     /// the box's distributions, not of the verdict: a drive over a
     /// band-only box produces exactly the same masses as one over a
     /// uniform box, and only the box knows that none of them is a
-    /// probability ([`crate::report::MassBasis`]).
-    pub fn render(&self, analyzed: &AnalyzedBox) -> String {
+    /// probability ([`crate::report::MassBasis`]). Each variable a line
+    /// names is spoken from `doc`, the document the drive ran over.
+    pub fn render<P>(&self, doc: &crate::doc::Doc<P>, analyzed: &AnalyzedBox) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
         let r = self.receipt;
@@ -1087,7 +1123,7 @@ impl ParamBoxVerdict {
         let _ = write!(
             s,
             "{}",
-            crate::report::MassBudget::of(&self.accounting, analyzed).render()
+            crate::report::MassBudget::of(&self.accounting, analyzed).render(doc)
         );
         s
     }
@@ -1320,7 +1356,7 @@ pub fn drive(
         let node = standing.node();
         let cause = witness
             .node_error(node)
-            .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
+            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
         return Err(DriveRefusal::WitnessDoesNotBuild {
             node: doc.spoken(node),
             cause,
@@ -1563,7 +1599,7 @@ pub(crate) fn lane_opts() -> EvalOptions {
 /// to reach it (the per-axis depth budget's currency).
 struct Box_ {
     box_: ParamBox,
-    depths: BTreeMap<ParamName, u32>,
+    depths: BTreeMap<VarId, u32>,
 }
 
 /// What one leaf's replay decided.
@@ -1871,7 +1907,7 @@ pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> 
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the
-/// lowest axis index, bisected at its midpoint.
+/// earliest-declared variable, bisected at its midpoint.
 ///
 /// # Errors
 ///
@@ -1885,7 +1921,7 @@ fn bisect(b: &Box_, root: &ParamBox, max_depth: u32) -> Result<(Box_, Box_), Bud
     if depth >= max_depth {
         return Err(BudgetKind::Depth { max_depth });
     }
-    let Some((lo, hi)) = b.box_.split(&axis) else {
+    let Some((lo, hi)) = b.box_.split(axis) else {
         return Err(BudgetKind::Resolution);
     };
     let mut depths = b.depths.clone();
@@ -1958,7 +1994,7 @@ fn add_mass(column: &mut Result<f64, MeasureUnavailable>, m: Result<f64, Measure
 /// the fold instead of rounding to a bit-exact zero).
 fn tail(analyzed: &AnalyzedBox) -> Result<f64, MeasureUnavailable> {
     let mut out = 0.0;
-    for name in analyzed.params().keys() {
+    for (name, _) in analyzed.in_order() {
         let t = match analyzed.axis_tail_mass(name) {
             Some(r) => r?,
             None => 0.0,
@@ -2004,16 +2040,16 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // population from the leaves it is supposed to describe: these are
     // the points the driver certified AROUND, and "around" is defined
     // by where it split.
-    let mid: BTreeMap<ParamName, BoxAxis> = box_
+    let mid: BTreeMap<VarId, BoxAxis> = box_
         .axes()
         .iter()
-        .map(|(n, a)| {
+        .map(|(&n, a)| {
             let m = a.midpoint();
-            (n.clone(), BoxAxis::Varying { lo: m, hi: m })
+            (n, BoxAxis::Varying { lo: m, hi: m })
         })
         .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, box_.order()))),
         ..lane_opts()
     };
     // The replay runs at the SAME TIER the drive did (E12): with the
@@ -2038,17 +2074,17 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
 }
 
-/// A box's goldening rendering: `name=[lo_bits,hi_bits]` per axis, in
-/// name order, floats as exact bits.
+/// A box's goldening rendering: `id=[lo_bits,hi_bits]` per axis, in
+/// declaration order, every bit of the id and floats as exact bits.
 pub(crate) fn render_box(b: &ParamBox) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
-    for (name, axis) in b.axes() {
+    for (name, axis) in b.order().iter().filter_map(|n| Some((n, b.get(*n)?))) {
         let (lo, hi) = axis.span();
         let _ = write!(
             s,
             "{}=[{:016x},{:016x}] ",
-            name.as_str(),
+            name.full(),
             lo.to_bits(),
             hi.to_bits()
         );
@@ -2064,7 +2100,7 @@ fn render_reason(r: &RefusalReason) -> String {
     match r {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
         RefusalReason::MeasureRefused { node, class } => {
-            format!("measure_refused {} {class}", node.full())
+            format!("measure_refused {} {}", node.full(), class.name())
         }
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
@@ -2130,7 +2166,7 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("refused band:{}", param.as_str())
+            format!("refused band:{}", param.id().full())
         }
     }
 }
@@ -2207,23 +2243,24 @@ pub fn assertion_at(
 ///
 /// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane
-fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
+fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
         // The selection resolved to the wrong KIND of entity. Document
         // structure; no parameter value moves it.
-        NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
+        NodeErrorKind::MeasureSelectionKind { .. } => Some(MeasureRefusalClass::SelectionKind),
         NodeErrorKind::MeasureClearanceRefused(r) => {
             use crate::clearance::ClearanceRefusal as C;
+            let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));
             match r {
                 // Reached: which faces are in scope, whether the two
                 // scopes pair at all, and whether the carrier has an
                 // implementation are decided by the document's own
                 // topology and the engine's support table, not by the box.
-                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => Some(r.name()),
+                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => engine(),
                 // Not reached from `min_separation`. The bound and the
                 // run's tolerance are fixed for the whole drive, so no
                 // sub-box changes them either.
-                C::NotADistance { .. } | C::ToleranceHasNoBand => Some(r.name()),
+                C::NotADistance { .. } | C::ToleranceHasNoBand => engine(),
                 // Reached: an enclosure that did not evaluate over this
                 // box (NaI, or empty) may evaluate over a smaller one, so
                 // nothing proves it box-independent.

@@ -5,7 +5,8 @@
 
 use eframe::egui;
 use pncad::document::{
-    Axis3, Dimension, Doc, Frame, ParamName, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
+    Axis3, Dimension, Doc, Frame, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker, VarId,
+    VarName,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::Resolution;
@@ -81,7 +82,7 @@ impl ViewerBehavior<'_> {
                     self.feature_rows_ui(ui, feature, &groups);
                 }
             }
-            Selection::Param(name) => {
+            Selection::Param(var) => {
                 // **The previewed document here, deliberately**: this
                 // row's field IS the drag, so it must show the value
                 // the gesture is previewing. What decides whether the
@@ -92,21 +93,21 @@ impl ViewerBehavior<'_> {
                 // undeclare one.
                 if let Some(row) = crate::props::param_rows(self.session.doc())
                     .into_iter()
-                    .find(|row| row.name == name)
+                    .find(|row| row.var == var)
                 {
                     // The dimension in the common noun editor-core's
                     // `Display` spells, never the variant identifier:
                     // a label a person reads is prose.
                     crate::widgets::message(
                         ui,
-                        format!("parameter {} ({})", row.name.as_str(), row.dimension),
+                        format!("parameter {} ({})", row.label, row.dimension),
                     );
                     ui.horizontal(|ui| {
                         value_field_ops(
                             ui,
                             param_showing(&row, *self.notation),
-                            value_gesture(ValueGestureName::Param(name.clone())),
-                            param_doors(&name),
+                            value_gesture(ValueGestureName::Param(var)),
+                            param_doors(var),
                             self.ops,
                             self.notices,
                         );
@@ -114,7 +115,7 @@ impl ViewerBehavior<'_> {
                         // parameter's notation is a fact the document
                         // stores and an edit changes
                         // (`SessionOp::SetParamUnit`, over
-                        // `DocEdit::SetDocParamUnit`), so the row says
+                        // `DocEdit::SetVarUnit`), so the row says
                         // it the way a slot row does: with the control
                         // that changes it. The dimensionless row and a
                         // `Count` have no notation to offer and draw
@@ -122,6 +123,27 @@ impl ViewerBehavior<'_> {
                         self.param_unit_ui(ui, &row);
                     });
                     self.param_bounds_ui(ui, &row);
+                } else if let Some(row) = crate::props::defined_rows(self.session.doc())
+                    .into_iter()
+                    .find(|row| row.var == var)
+                {
+                    // A defined variable's field shows its formula and
+                    // takes text as a free one's does: a formula
+                    // redefines it, a value makes it free again. It
+                    // holds no value of its own, so a drag is the value
+                    // door's to refuse.
+                    crate::widgets::message(
+                        ui,
+                        format!("parameter {} ({})", row.label, row.dimension),
+                    );
+                    value_field_ops(
+                        ui,
+                        defined_showing(&row, *self.notation),
+                        value_gesture(ValueGestureName::Param(var)),
+                        param_doors(var),
+                        self.ops,
+                        self.notices,
+                    );
                 }
                 // No row is an undeclared parameter, and nothing is
                 // drawn for it here: the header above has said so
@@ -137,9 +159,15 @@ impl ViewerBehavior<'_> {
         ui.label("document parameters");
         for row in crate::props::param_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
-            if crate::widgets::message_link(ui, row.name.as_str().to_owned()).clicked() {
-                self.ops
-                    .push(SessionOp::Select(Selection::Param(row.name.clone())));
+            if crate::widgets::message_link(ui, row.label.to_string()).clicked() {
+                self.ops.push(SessionOp::Select(Selection::Param(row.var)));
+            }
+        }
+        for row in crate::props::defined_rows(self.session.doc()) {
+            if crate::widgets::message_link(ui, format!("{} = {}", row.label, row.formula))
+                .clicked()
+            {
+                self.ops.push(SessionOp::Select(Selection::Param(row.var)));
             }
         }
         self.add_param_ui(ui);
@@ -183,7 +211,7 @@ impl ViewerBehavior<'_> {
 
     /// The create half of the document-parameters section: name,
     /// dimension, value, the NOTATION to write it in, one
-    /// [`SessionOp::CreateParam`] on commit.
+    /// [`SessionOp::DeclareVar`] on commit.
     ///
     /// **The unit is the working notation's, not this form's.** A
     /// length picked here is [`Notation::length`], the one every
@@ -199,9 +227,9 @@ impl ViewerBehavior<'_> {
     /// path arrives here from an expression whose context does not
     /// determine the new parameter's dimension, and a silent default
     /// would be a guess. And a name that is already declared shows the
-    /// session's own already-exists sentence with the edit door
-    /// offered, before the click ever reaches the typed refusal
-    /// backing it ([`Refusal::ParamExists`]).
+    /// already-exists sentence ([`Refusal::exists_wording`]) with the
+    /// edit door offered, before the click ever reaches the declare's
+    /// own refusal of a taken name (`EditError::VarNameTaken`).
     pub(crate) fn add_param_ui(&mut self, ui: &mut egui::Ui) {
         // The offer from an unknown-parameter parse refusal, shown
         // while the name field still says the offered name.
@@ -285,18 +313,19 @@ impl ViewerBehavior<'_> {
         // a parameter name is; a refused text leaves the control
         // disabled, and the sentence the refusal carries is not yet
         // shown beside it.
-        let name = ParamName::new(self.drafts.new_param_name.trim()).ok();
-        // `create_param` asks `committed_doc()`, so the notice ahead of
-        // the click asks it too: a notice drawn from the previewed
-        // document would be answering about a document the door will
-        // not see.
-        let existing = name
-            .as_ref()
-            .and_then(|name| self.session.committed_doc().params().get(name));
-        if let (Some(name), Some(existing)) = (&name, existing) {
-            if exists_notice(ui, &self.theme, name, existing.dim()) {
-                self.ops
-                    .push(SessionOp::Select(Selection::Param(name.clone())));
+        let name = VarName::new(self.drafts.new_param_name.trim()).ok();
+        // The declare door applies to `committed_doc()`, so the notice
+        // ahead of the click asks it too: a notice drawn from the
+        // previewed document would be answering about a document the
+        // door will not see.
+        let committed = self.session.committed_doc();
+        let existing = name.as_ref().and_then(|name| {
+            let var = committed.var_named(name.as_str())?;
+            Some((var, committed.free(var)?.dim()))
+        });
+        if let (Some(name), Some((var, dimension))) = (&name, existing) {
+            if exists_notice(ui, &self.theme, name, dimension) {
+                self.ops.push(SessionOp::Select(Selection::Param(var)));
             }
             return;
         }
@@ -317,7 +346,7 @@ impl ViewerBehavior<'_> {
             && let Some(dimension) = self.drafts.new_param_dimension
             && let Ok(value) = SlotValue::of(dimension, self.drafts.new_param_value)
         {
-            self.ops.push(SessionOp::CreateParam {
+            self.ops.push(SessionOp::DeclareVar {
                 name,
                 value: crate::props::doc_param(dimension, value, self.new_param_unit()),
             });
@@ -691,13 +720,16 @@ impl ViewerBehavior<'_> {
         let Some(written) = props::rendering_unit(row.dimension, row.unit, *self.notation) else {
             return;
         };
-        if let Some(unit) = pick_unit(ui, "param_unit", row.name.as_str(), row.dimension, written)
-            && unit != written
+        if let Some(unit) = pick_unit(
+            ui,
+            "param_unit",
+            &row.var.full().to_string(),
+            row.dimension,
+            written,
+        ) && unit != written
         {
-            self.ops.push(SessionOp::SetParamUnit {
-                name: row.name.clone(),
-                unit,
-            });
+            self.ops
+                .push(SessionOp::SetParamUnit { var: row.var, unit });
         }
     }
 
@@ -843,8 +875,8 @@ impl ViewerBehavior<'_> {
             slot: row.slot,
         };
         let reading = self.bounds_wording(&target);
-        if let Some(name) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
-            self.ops.push(SessionOp::Select(Selection::Param(name)));
+        if let Some(var) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
+            self.ops.push(SessionOp::Select(Selection::Param(var)));
         }
     }
 
@@ -941,9 +973,7 @@ impl ViewerBehavior<'_> {
     /// millimetres" a fact about one value rather than an agreement
     /// between two reads.
     pub(crate) fn param_bounds_ui(&mut self, ui: &mut egui::Ui, row: &ParamRow) {
-        let target = BoundsTarget::Param {
-            name: row.name.clone(),
-        };
+        let target = BoundsTarget::Param { var: row.var };
         let reading = self.bounds_wording(&target);
         if bounds_notes(ui, &self.theme, reading.as_deref()) {
             self.ops.push(SessionOp::ProbeBounds { target });
@@ -990,15 +1020,16 @@ pub(crate) fn standing_verdict(
             return;
         }
         Standing::Param {
-            name,
+            var,
             present: false,
         } => {
-            crate::widgets::message_toned(
-                ui,
-                format!("parameter {} is no longer declared", name.as_str()),
-                theme,
-                tone,
-            );
+            // A name the document no longer holds is not spoken, so a
+            // nameless variable is said by its tag alone.
+            let said = match var.name() {
+                Some(name) => format!("parameter {name} is no longer declared"),
+                None => format!("{var} is no longer declared"),
+            };
+            crate::widgets::message_toned(ui, said, theme, tone);
             return;
         }
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
@@ -1038,9 +1069,9 @@ pub(crate) fn standing_verdict(
 /// edge and a sentence beside a sentence is drawn past the pane's.
 ///
 /// Answers whether the door was clicked.
-fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: Dimension) -> bool {
-    // The same sentence the session's refusal would show, and the edit
-    // door it offers instead — refuse-then-offer, ahead of the click.
+fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &VarName, dimension: Dimension) -> bool {
+    // The already-exists sentence, and the edit door it offers instead
+    // — refuse-then-offer, ahead of the click.
     crate::widgets::message_toned(
         ui,
         Refusal::exists_wording(name, dimension),
@@ -1097,9 +1128,9 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
     }
 }
 
-/// **A document parameter's value field**: its number, in the unit
-/// it was DECLARED in. A parameter is never driven, so there is no
-/// text to show over it and no source to seed its edit with.
+/// **A free parameter's value field**: its number, in the unit it was
+/// DECLARED in, with no text over it and no source to seed its edit
+/// with. A defined one's is [`defined_showing`].
 pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
     FieldShowing {
@@ -1111,24 +1142,33 @@ pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing 
     }
 }
 
+/// **A defined parameter's value field**: its formula over the number
+/// it evaluates to, and the formula again as the text an edit starts
+/// from, as a driven slot's field shows its expression. A definition
+/// that refuses holds a zero under its text, which no edit writes: a
+/// drag is refused by the value door.
+pub(crate) fn defined_showing(row: &props::DefinedRow, notation: Notation) -> FieldShowing {
+    let writing = FieldWriting::of(row.dimension, None, notation);
+    FieldShowing {
+        writing,
+        dimension: row.dimension,
+        number: props::shown_value(writing.unit, row.value.map_or(0.0, SlotValue::as_f64)),
+        text: Some(row.formula.clone()),
+        source: Some(row.formula.clone()),
+    }
+}
+
 /// **The two doors a parameter's field has**: a bare number is a
 /// value in the field's notation and nothing else moves; anything
 /// else is text for `SessionOp::SetParamText`, which reads a number
 /// and its notation through the one parser and refuses what is
 /// neither.
 pub(crate) fn param_doors(
-    name: &ParamName,
+    var: VarId,
 ) -> FieldVocabulary<impl Fn(SlotValue) -> SessionOp, impl Fn(String) -> SessionOp> {
-    let (by_number, by_text) = (name.clone(), name.clone());
     FieldVocabulary {
-        number: move |value| SessionOp::SetParam {
-            name: by_number.clone(),
-            value,
-        },
-        text: move |text| SessionOp::SetParamText {
-            name: by_text.clone(),
-            text,
-        },
+        number: move |value| SessionOp::SetParam { var, value },
+        text: move |text| SessionOp::SetParamText { var, text },
     }
 }
 
@@ -1173,7 +1213,7 @@ fn slot_notes(
     row: &SlotRow,
     reading: Option<&str>,
     notation: Notation,
-) -> Option<ParamName> {
+) -> Option<VarId> {
     if let Err(error) = &row.value {
         crate::widgets::message_toned(
             ui,
@@ -1204,10 +1244,9 @@ fn slot_notes(
         );
         if !params.is_empty() {
             ui.horizontal_wrapped(|ui| {
-                for name in params {
-                    if crate::widgets::message_link(ui, format!("edit {}", name.as_str())).clicked()
-                    {
-                        clicked = Some(name.clone());
+                for var in params {
+                    if crate::widgets::message_link(ui, format!("edit {var}")).clicked() {
+                        clicked = Some(var.id());
                     }
                 }
             });
@@ -1344,7 +1383,7 @@ mod layout_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{Dimension, ParamName, SlotId};
+    use pncad::document::{Dimension, SlotId, SpokenVar, VarId, VarName};
 
     use super::{bounds_notes, exists_notice, slot_notes, slot_showing};
     use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
@@ -1356,8 +1395,13 @@ mod layout_tests {
     /// so these rows read the region and not the floor.
     const REGION: f32 = 260.0;
 
-    fn param(name: &'static str) -> ParamName {
-        ParamName::from_static(name)
+    /// A named variable, its id derived from the name so two names
+    /// are two variables.
+    fn param(name: &'static str) -> SpokenVar {
+        let id = name
+            .bytes()
+            .fold(0_u64, |h, b| h.wrapping_mul(31).wrapping_add(u64::from(b)));
+        SpokenVar::new(VarId(id), Some(VarName::from_static(name)))
     }
 
     /// An extrude distance row with `driver` and `value`.
@@ -1375,7 +1419,7 @@ mod layout_tests {
 
     #[test]
     fn a_declared_names_notice_and_its_door_each_take_a_line_inside_the_pane() {
-        let name = param("outer_enclosure_wall_thickness");
+        let name = VarName::from_static("outer_enclosure_wall_thickness");
         let wording = Refusal::exists_wording(&name, Dimension::Length);
         let door = format!("edit {}", name.as_str());
         let (region, painted) = drawn_in(REGION, |ui| {
@@ -1419,8 +1463,8 @@ mod layout_tests {
             ),
         );
         assert_own_lines(region, affordance);
-        for name in &params {
-            let door = find(&painted, &format!("edit {}", name.as_str()));
+        for var in &params {
+            let door = find(&painted, &format!("edit {var}"));
             assert_inside(region, door);
             assert_under(affordance, door);
         }
@@ -1539,14 +1583,14 @@ mod tests {
     use crate::session::{Refusal, SessionOp};
     use crate::theme::Theme;
     use eframe::egui;
-    use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
+    use pncad::document::{Dimension, RecipeNodeId, SlotId, SpokenVar, VarId, VarName};
 
     use crate::test_support::spoken;
 
     const NODE: RecipeNodeId = RecipeNodeId(test_utils::refusal::tagged(4));
 
-    fn thickness() -> ParamName {
-        ParamName::from_static("thickness")
+    fn thickness() -> SpokenVar {
+        SpokenVar::new(VarId(5), Some(VarName::from_static("thickness")))
     }
 
     /// One extrude distance row, driven or not, with the value the
@@ -1850,7 +1894,9 @@ mod verdict_tests {
     #![allow(clippy::expect_used)]
 
     use editor_core::RecipeEditRef;
-    use pncad::document::{Doc, NodeStanding, ParamName, ProfileProgram, RecipeNodeId};
+    use pncad::document::{
+        Doc, NodeStanding, ProfileProgram, RecipeNodeId, SpokenVar, VarId, VarName,
+    };
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
 
@@ -2066,7 +2112,7 @@ mod verdict_tests {
     #[test]
     fn an_undeclared_parameters_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Param {
-            name: ParamName::from_static("width"),
+            var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
             present: false,
         });
         assert_eq!(
@@ -2086,7 +2132,7 @@ mod verdict_tests {
                 present: true,
             },
             Standing::Param {
-                name: ParamName::from_static("width"),
+                var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
                 present: true,
             },
         ] {

@@ -2,10 +2,14 @@
 id: from-face-frame-under-an-analysis-lane-refuses-unpinned
 kind: issue
 title: A FromFace mate frame under an analysis-lane evaluation refuses Unpinned rather than resolving
-status: open
+status: closed
 opened: 2026-09-20
 priority: P1
 cost: H
+design: true
+parent: MSOLVE-14
+pr: 3986
+closed: 2026-10-03
 ---
 
 Found by the MSOLVE-9 lane while wiring `MateReach::face_pose`
@@ -72,3 +76,59 @@ ladder and the coset table carried at `T` rather than `f64`, so a face
 pose crosses with its tangent or its enclosure intact and the solved
 placement carries them onward. Not a choice of which `f64` to read —
 every such choice is one of the two losses above.
+
+## Weighed (2026-10-01)
+
+Plan item 19 gathers this row and its sibling
+(`from-face-frame-under-an-analysis-lane-refuses-unpinned`,
+`a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`)
+into one design fork, which two designers weighed on
+`msolve/ev-analysis-lane-solve`. That PR adds the sentence to
+`ASSEMBLY.md` A11 rule 5 that the recommendation would make true.
+
+Two corrections to this row, made by the designers and checked by the
+orchestrator against the tree:
+- The cost named under "The doors it blocks" is not live in v1. A
+  referenced part is evaluated with no box and no seed (`ASSEMBLY.md`
+  AQ4, per-instance arguments, is not implemented;
+  `PartCache::evaluate_entered`),
+  so today a face pose's tangent is zero and its enclosure is only as
+  wide as rounding. The refusal guards a loss that only per-instance
+  arguments would make real. The two doors are still lost.
+- The `undecided`/maintenance sentence under "What is missing" is
+  stale: A11 (2) records no frame.
+
+## Ruled (Ev, `[ev]` PR 3679, 2026-10-01)
+
+Approved: the mate solve runs at the evaluation's own scalar, over the
+evaluation's own parameters. A pattern's count and a `Part`'s index
+are read at the nominal, because no box or seed binds them.
+`ASSEMBLY.md` A11 (5) states this in place. The build is an MSOLVE
+unit: the solve goes generic over the scalar, and `Unpinned` loses its
+producer.
+
+## Closed
+
+Fixed by MSOLVE-14 (PR 3986). The solve runs at the evaluation's own
+scalar, so a `FromFace` side's pose crosses as the part's product
+holds it — with its tangent on a seed run, as an enclosure on a box
+run — and `FacePoseRefusal::Unpinned` lost its producer and is deleted,
+with its Python tag (`unpinned`) and census entry.
+
+- `msolve9_from_face::a_face_frame_under_an_analysis_evaluation_resolves`
+  re-baselines the row that pinned the refusal: the seat resolves at
+  `Dual64` (value channel on the `f64` bits) and at `Interval`.
+- `msolve14_run_scalar`'s A1 rows: a face-seated bolt carries
+  `∂B/∂s = −2` on a seed run, and its pose encloses the `f64` pose at
+  both corners of a box.
+- The two doors this row named are open:
+  `stackup::sensitivities`'s `resolver` and `ClearanceQuery::resolver`
+  (both doors evaluated with no resolver before, so no assembly with
+  parts reached them at all), pinned by
+  `msolve14_run_scalar::a5_sensitivities_cross_a_face_framed_mate` and
+  `a5_certified_clearance_runs_over_a_face_framed_mate`.
+
+What a box run still cannot do with a widened pose is the placement
+door's, not the solve's: `work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`
+(its "Measured" section: a box-wide translation refuses at
+certification too).

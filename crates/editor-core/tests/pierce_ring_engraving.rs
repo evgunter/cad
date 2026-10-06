@@ -13,20 +13,21 @@
 //! The pose refused `SectionLoopMixed` while `point_in_solid`'s planar
 //! arm read the arc-bounded cap as the polygon through its vertices; the
 //! rows here hold it to the closed form at every tier. The same tool
-//! slid until it crosses the rim is a different door: the circle ×
-//! cylinder root lane certifies where the rim meets the tool's arc
-//! wall, and the result's notched wall has no volume measurement —
-//! pinned by kind so it reds when that measurement lands.
+//! slid until it crosses the rim cuts too: the circle × cylinder root
+//! lane certifies where the rim meets the tool's arc wall, and the
+//! result's notched wall measures in closed form.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use crate::corpus::{body_of, eval};
 use crate::fixture::{frame, insert, len, len2, scl, xform};
 use editor_core::{
-    BooleanOp, Evaluation, LoopProgram, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    BooleanOp, Evaluation, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
 };
 use geom_core::Tol;
 
@@ -38,7 +39,7 @@ const DEPTH: f64 = 0.005;
 /// Node 15's outline: down the `x = 0` flank, along the bottom to
 /// `x = 0.008`, a tangent arc up to `(0.01, 0)`, and a `0.6` bulge back
 /// to the start.
-fn letter() -> LoopProgram {
+fn letter() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, 0.02])),
         ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, -0.02]))),
@@ -84,9 +85,9 @@ fn letter_area() -> f64 {
 /// The pose as authored: the cylinder (node 10), the tool's extrude
 /// (node 16) and the subtraction (node 19), with the tool lifted
 /// `DEPTH` along `+y` and slid `dx` along `x`.
-fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
+fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
     let doc = ProfileDoc::empty_derived("pierce-ring-engraving", Tol::witness());
-    // The XZ frame: its normal is −y, so a negative extrude runs +y.
+    // The XZ frame: its normal is −y, so an extrude against it runs +y.
     let (doc, xz) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let profile = |plane, lp| {
         Node::Profile(ProfileProgram {
@@ -100,7 +101,8 @@ fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
         doc,
         Node::Extrude {
             profile: disc,
-            distance: len(-HEIGHT),
+            distance: len(HEIGHT),
+            side: ExtrudeSide::Against,
         },
     );
     let (doc, outline) = insert(doc, profile(xz, tool));
@@ -109,6 +111,7 @@ fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
         Node::Extrude {
             profile: outline,
             distance: len(2.0 * DEPTH),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, lifted) = insert(doc, xform(prism, [dx, DEPTH, 0.0], [0.0, 0.0, 1.0], 0.0));
@@ -118,7 +121,7 @@ fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
             op: BooleanOp::Subtract,
             a: cylinder,
             b: lifted,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (eval::<f64>(&doc), [cylinder, prism, lifted, cut])
@@ -171,32 +174,38 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
 
 /// Slid to `x = 0.035`, the letter crosses the rim: the cylinder's rim
 /// CIRCLE meets the tool's arc wall, a CYLINDER, and the circle ×
-/// cylinder root lane certifies the crossing. The cut builds as far as
-/// the volume backstop, which cannot measure the result's cylinder
-/// wall: notched by the pocket along rulings and an arc, it is no
-/// iso-rectangle (`work/props/a-notched-cylinder-wall-has-no-volume-measurement.md`).
-/// Pinned by kind and by the props rule that refuses, so it reds when
-/// that wall measures.
+/// cylinder root lane certifies the crossing. The result's wall is
+/// notched by the pocket along rulings and an arc, and measures in
+/// closed form.
+///
+/// The letter covers the whole lens of the disc beyond `x = 0.035`: the
+/// lens spans `|z| ≤ √(R² − 0.035²) ≈ 0.0194`, inside the letter's
+/// `z = −0.02` bottom edge, and the bulge arc's chord `z = 0.02 − 2x`
+/// (local `x`) stays above the circle across it, the arc further out
+/// still. So the cut removes `DEPTH` times that circular segment.
 #[test]
-fn a_pocket_across_the_rim_stops_at_the_notched_walls_volume() {
+fn a_pocket_across_the_rim_cuts_to_the_closed_form() {
+    let tol = Tol::witness();
     let (ev, [_, _, _, cut]) = engrave(letter(), 0.035);
-    let Some(NodeResult::Failed(e)) = ev.nodes.get(&cut) else {
-        panic!("the rim-crossing pocket built; this row's door has moved");
-    };
+    if let Some(NodeResult::Failed(e)) = ev.nodes.get(&cut) {
+        panic!("the rim-crossing pocket refused: {e}");
+    }
+    let body = body_of(&ev, cut);
+    assert_eq!(topo::validate(body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(body), Ok(()), "closed");
+    assert_eq!(
+        topo::validate::validate_geometric(body, tol),
+        Ok(()),
+        "tier 3"
+    );
+    let d = 0.035;
+    let segment = R * R * (d / R).acos() - d * (R * R - d * d).sqrt();
+    let truth = PI * R * R * HEIGHT - segment * DEPTH;
+    let got = topo::mass_properties(body, tol)
+        .expect("mass properties")
+        .volume;
     assert!(
-        matches!(
-            &e.kind,
-            NodeErrorKind::Boolean(topo::BooleanError::VolumeUnmeasured {
-                operand: None,
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::props::PropsError::NotIsoRectangle {
-                        what: "props_rim_level"
-                    },
-                    ..
-                },
-            })
-        ),
-        "expected the result's notched wall to stop the volume backstop: {:?}",
-        e.kind
+        (got - truth).abs() < 1e-15,
+        "notched cylinder {got} against the closed form {truth}"
     );
 }

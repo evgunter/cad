@@ -6,6 +6,7 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Open, Start};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::ContactMark;
 
@@ -34,8 +35,15 @@ fn r1_cusp_profile_extrudes_and_the_cusp_is_legal_at_rest() {
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![closed.loop_.into_loop()])
         .validate(tol)
         .expect("the declared cusp profile must validate (the data gate accepts)");
-    let built = extrude(&profile, Extrusion::Distance(1.0), tol)
-        .expect("extrude must BUILD the cusp solid");
+    let built = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude must BUILD the cusp solid");
     let body = &built.body;
     assert_eq!(
         (

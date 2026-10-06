@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom_brep::{Pcurve, PcurveCache};
@@ -435,7 +436,10 @@ fn a_moved_vertex_misses_exactly_the_faces_whose_carriers_changed() {
         ]);
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -728,15 +732,19 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     // face at all, so the body it needs is the one that carries the old
     // rows under the new fit — put back deliberately, through the
     // caller's own row-level door, rather than left behind by a silence.
-    let saved: Vec<(HalfEdgeKey, PcurveCache<f64>)> = base
+    let saved: Vec<(HalfEdgeKey, PcurveCache<f64>, Option<topo::JointElement>)> = base
         .half_edges()
         .filter(|(_, he)| base.get_loop(he.parent_loop).unwrap().face == fk)
-        .filter_map(|(hek, _)| base.pcurve(hek).cloned().map(|cache| (hek, cache)))
+        .filter_map(|(hek, _)| {
+            base.pcurve(hek)
+                .cloned()
+                .map(|cache| (hek, cache, base.joint(hek)))
+        })
         .collect();
     assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
-    // Lifts both refusals: the memo must miss when the surface changes under the same edges.
+    // Lifts RechartStrandsDescriptions: the memo must miss when the surface changes under the same edges.
     after
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             fk,
             FaceSurface::New {
                 surface: Surface::Nurbs(std::sync::Arc::new(moved)),
@@ -744,8 +752,11 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
             },
         )
         .unwrap();
-    for (hek, cache) in saved {
+    for (hek, cache, joint) in saved {
         after.attach_pcurve(hek, cache);
+        if let Some(joint) = joint {
+            after.attach_joint(hek, joint);
+        }
     }
     // The chord pass reads a NURBS face's certified bound to size the
     // chords of its edges (`chords::nurbs_tighten`), so the wall's

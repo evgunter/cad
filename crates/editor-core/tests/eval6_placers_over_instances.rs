@@ -22,6 +22,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -49,20 +51,16 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
 
 /// A linear pattern of `count` along `dir` at `spacing`.
-pub(crate) fn linear(
-    input: RecipeNodeId,
-    dir: [f64; 3],
-    spacing: f64,
-    count: i64,
-) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
         input,
-        count: editor_core::Expr::count(count),
+        count: editor_core::Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
             spacing: len(spacing),
@@ -71,16 +69,16 @@ pub(crate) fn linear(
 }
 
 /// `Part(Instance(i))` of `of`.
-pub(crate) fn part(of: RecipeNodeId, i: i64) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn part(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
         of,
-        select: PartSelect::Instance(editor_core::Expr::count(i)),
+        select: PartSelect::Instance(editor_core::Formula::count(i)),
     }
 }
 
 /// A transform that both rotates and translates, so a transform-of-
 /// pattern and a pattern-of-transform are different placements.
-pub(crate) fn skew(input: RecipeNodeId) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn skew(input: RecipeNodeId) -> AuthoredNode {
     fixture::xform(input, [1.0, 2.0, 3.0], [1.0, 1.0, 1.0], 0.7)
 }
 
@@ -406,7 +404,7 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
             op: editor_core::BooleanOp::Union,
             a: pattern,
             b: cube,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &opts());

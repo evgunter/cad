@@ -8,7 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use sweep::test_support::disc_of_arcs;
+use sweep::test_support::{disc_of_arcs, finished};
 use topo::flush::{declare_all, find_flush_candidates};
 use topo::{BooleanResult, mass_properties, union_with};
 
@@ -16,7 +16,8 @@ use topo::{BooleanResult, mass_properties, union_with};
 fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
     let tol = Tol::witness();
     let block = topo::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol);
-    let cylinder = disc_of_arcs(3, 0.5, 1.0, tol);
+    let block = finished("the block", block, tol);
+    let cylinder = finished("the cylinder", disc_of_arcs(3, 0.5, 1.0, tol), tol);
     let decls = declare_all(&find_flush_candidates(&block, &cylinder, tol).expect("decides"));
     let BooleanResult::Body(union) =
         union_with(&block, &cylinder, &decls, tol).expect("the cylinder's side is decided")

@@ -180,7 +180,7 @@ impl fmt::Display for QuantityOpMismatch {
 
 impl core::error::Error for QuantityOpMismatch {}
 
-// The binding carries no literal pre-check of its own: `Expr::literal`'s
+// The binding carries no literal pre-check of its own: `Formula::literal`'s
 // own error type (`pncad::document::DimensionError`) is curated, so the
 // binding matches the kernel's refusal instead of predicting it; the tag
 // mapping is `crate::tags::expr_dimension_error_tag`.
@@ -264,7 +264,7 @@ pub enum ErrorClass {
     /// sublanguage's arithmetic constructors do, arriving on THIS
     /// class with the mismatch's own tag as `kind` — they are the same
     /// kernel type refusing at the same layer, because that language
-    /// asks `Expr`'s own constructors for its dimensions rather than
+    /// asks `Formula`'s own constructors for its dimensions rather than
     /// restating the F1 table. The full roster is on
     /// [`DIMENSION_DOORS`] — SIX doors under four class names, each
     /// naming the DOOR — and every one of them carries the failing
@@ -278,7 +278,7 @@ pub enum ErrorClass {
     /// constructor refuses over two operands' DIMENSIONS, and there is
     /// no single float to name.
     Literal,
-    /// The expression TEXT door refused: `parse_expr` could not read
+    /// The expression TEXT door refused: `parse_formula` could not read
     /// the source as an expression. The Python class keeps the Rust
     /// type's own name, `ParseError`.
     ///
@@ -525,7 +525,7 @@ pub enum ErrorClass {
 /// | literal construction | `LiteralError` | `kind` |
 /// | measurement arithmetic | `LiteralError` | `kind` |
 /// | the recorded-program lift | `LiteralError` | `variant` |
-/// | `Doc.parse_expr` | `ParseError` | `kind` |
+/// | `Doc.parse_formula` | `ParseError` | `kind` |
 /// | `Doc.apply` | `EditError` | `inner_variant` |
 /// | `load` | `PersistError` | `inner_variant` |
 ///
@@ -771,17 +771,19 @@ impl ValidationRefusal {
 /// the document layer.
 ///
 /// Taken by `crate::py::doc`'s boundary raise instead of a
-/// `&'static str`, so the three refusals this crate decides for itself
-/// are a closed set: a fourth is a variant here, an arm in
+/// `&'static str`, so the refusals this crate decides for itself are a
+/// closed set: another is a variant here, an arm in
 /// `crate::tags::boundary_edit_tag`, and a word the tag inventory sees.
 ///
-/// Two of the three carry the KERNEL VALUE whose word they publish
-/// rather than a word of their own, and that is the rule
-/// `crate::py::doc`'s boundary raise states: where a kernel enum arm
-/// stands behind the refusal, the word is that enum's to spell, so the
-/// two refusals a caller can reach through either door stay one word.
-/// Only [`Self::NameSerialize`] mints, because a `serde_json` failure
-/// has no arm anywhere.
+/// Every variant but [`Self::NameSerialize`] carries the KERNEL VALUE
+/// behind it, and that is the rule `crate::py::doc`'s boundary raise
+/// states: where the value is a kernel enum ([`Self::PlacementRule`],
+/// [`Self::Label`]), the word is that enum's own map's, so a refusal a
+/// caller can reach through either door stays one word. The other three
+/// are one word each, minted in `crate::tags`: [`Self::NameSerialize`]
+/// because a `serde_json` failure has no arm anywhere, and
+/// [`Self::MateHead`] and [`Self::ParamName`] because each is one
+/// constructor's one refusal, with no enum arm to spell it.
 #[derive(Debug, Clone, Copy)]
 pub enum BoundaryEdit<'a> {
     /// A stable name that would not serialize. The one arm with no
@@ -789,10 +791,6 @@ pub enum BoundaryEdit<'a> {
     /// serialization and the document layer never refuses a name for
     /// failing to produce it.
     NameSerialize,
-    /// An insert that minted no node id, worded by the declare
-    /// sugar's own map — the same refusal reaches Python through
-    /// `Doc.declare`, and it is the same word there.
-    Declare(&'a pncad::select::DeclareError),
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),
@@ -809,7 +807,7 @@ pub enum BoundaryEdit<'a> {
     /// one rule for one — an identifier an expression reads back — is
     /// held by the constructor there, so the binding answers with the
     /// constructor's own refusal at the call that offered the text.
-    ParamName(&'a pncad::document::ParamNameFault),
+    ParamName(&'a pncad::document::VarNameFault),
     /// A text that is not a label. A label crosses as text, and the
     /// document layer's rule for one — non-blank, one line, no control
     /// character — is held by `Label::new`, so the binding answers with

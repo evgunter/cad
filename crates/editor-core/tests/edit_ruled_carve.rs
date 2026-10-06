@@ -66,6 +66,8 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
@@ -158,7 +160,7 @@ struct Ruled {
 fn carve(
     what: &'static str,
     side: Side,
-    lp: LoopProgram,
+    lp: LoopProgram<Formula>,
     height: f64,
     creases: &'static [(u32, [u32; 2])],
     rims: &'static [(u32, [RimEnd; 2])],
@@ -179,6 +181,7 @@ fn carve(
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     );
     // A selection is stored in name order, which for one rod's edges

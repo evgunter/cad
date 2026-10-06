@@ -8,16 +8,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, MateFault, MateFrame, MatePrimitive,
-    MateRole, Node, ParamBox, ParamName, PatternKind, Placement, ProfileDoc, RecipeNodeId,
-    SitedFace, SlotId, StableName, Step, ValuePayload, evaluate, regauge_then_mate, root_of,
+    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame,
+    MatePrimitive, MateRole, Node, ParamBox, PatternKind, Placement, ProfileDoc, RecipeNodeId,
+    SitedFace, SlotId, StableName, Step, ValuePayload, VarName, evaluate, regauge_then_mate,
+    root_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -44,6 +47,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -90,11 +94,12 @@ impl Parts {
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -109,23 +114,27 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
-fn lift() -> ParamName {
-    ParamName::from_static("lift")
+fn lift() -> VarName {
+    VarName::from_static("lift")
 }
 
 fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -> ProfileDoc {
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement<Formula>>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
-fn literal(m: &M) -> Placement {
+fn literal<S: Clone>(m: &M) -> Placement<S> {
     Placement::literal(&m.frame())
 }
 
@@ -275,23 +284,23 @@ fn check_body_interval(
     }
 }
 
-fn declare(doc: ProfileDoc, name: ParamName, v: f64, dim: Dimension) -> ProfileDoc {
+fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name,
-            value: DocParam::continuous(dim, v),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(dim, v)),
         },
     )
     .0
 }
 
-fn set_value(doc: ProfileDoc, name: ParamName, v: f64) -> ProfileDoc {
+fn set_value(doc: ProfileDoc, name: VarName, v: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name,
-            value: DocParamValue::Continuous(v),
+        DocEdit::SetVarValue {
+            var: name.into(),
+            value: FreeValue::Continuous(v),
         },
     )
     .0
@@ -305,8 +314,8 @@ struct Chain {
     g1: RecipeNodeId,
 }
 
-fn turn() -> ParamName {
-    ParamName::from_static("turn")
+fn turn() -> VarName {
+    VarName::from_static("turn")
 }
 
 fn chain(label: &str) -> Chain {
@@ -320,9 +329,13 @@ fn chain(label: &str) -> Chain {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::param(turn(), Dimension::Angle),
+                angle: Formula::named(turn(), Dimension::Angle),
             },
         ),
     );
@@ -457,7 +470,7 @@ fn a_pattern_placer_poses_as_composed() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
                 spacing: len(4.0),
@@ -613,7 +626,12 @@ fn the_compound_door_refuses_when_a_declaring_mate_would_start_placing() {
         solve(&doc, &o, Tol::witness()).role(d),
         Some(MateRole::Declaring)
     );
-    match regauge_then_mate(&doc, seat(head(p.top_cap(top)), head(p.base_cap(base)))) {
+    match regauge_then_mate(
+        &doc,
+        seat(head(p.top_cap(top)), head(p.base_cap(base))),
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(editor_core::EditError::WouldStartPlacing { mate }) => assert_eq!(mate.id(), d),
         other => panic!("the compound door refuses typed: {other:?}"),
     }
@@ -638,7 +656,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
                 spacing: len(4.0),
@@ -667,7 +685,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
     )
     .0;
@@ -858,7 +876,7 @@ fn split_of(
 /// **A placing mate never crosses a cut** (A4): a cut holding a placed
 /// group's two instances but not the mate placing them refuses
 /// `PlacingMateLeft` naming the mate, rather than leave a self-mate in
-/// the remainder; with the mate in the cut the group hoists.
+/// the remainder; with the mate in the cut the group moves.
 #[test]
 fn a_cut_that_leaves_its_groups_placing_mate_behind_refuses() {
     let p = parts("r2-split-mate");
@@ -881,7 +899,7 @@ fn a_cut_that_leaves_its_groups_placing_mate_behind_refuses() {
         other => panic!("a placing mate left behind refuses typed: {other:?}"),
     }
     split_of(&p, &doc, &[base, top, mate], "r2-split-mate-whole")
-        .expect("the whole group with its mate hoists");
+        .expect("the whole group with its mate moves");
 }
 
 /// **Inline of split on the verbatim shape** (a cut of two placed
@@ -954,7 +972,11 @@ fn the_mate_placed_recourse_holds_when_an_earlier_member_roots_the_group() {
         "the top's stated offset is true"
     );
     match editor_core::inline(&stated, top, &resolver, Tol::witness()) {
-        Err(editor_core::InlineError::MatePlaced { root, mates, .. }) => {
+        Err(editor_core::InlineError::MatePlaced {
+            host_root: root,
+            mates,
+            ..
+        }) => {
             assert_eq!(
                 (root.id(), mates.iter().map(|m| m.id()).collect::<Vec<_>>()),
                 (base, vec![mate])

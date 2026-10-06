@@ -2,12 +2,14 @@
 id: extrude-mints-no-pcurve-rows
 kind: issue
 title: extrude mints no pcurve rows, alone among the producers, so its cylinder walls reach rest rowless
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: E
 parent: S331
 branch: pcert/at-rest-rows-mandatory
+closed: 2026-10-02
+pr: 3759
 ---
 
 
@@ -31,3 +33,7 @@ bound if that is cleaner). How much it matters depends on Ev's ruling
 on PR 3617: under "rows are mandatory at rest" a rowless wall is a
 tier-3 finding; under "rows are a cache" it is a cold cache. Either
 way the producer posture should be one rule.
+
+## Closed
+
+Closed by PR 3759 (`pcert/at-rest-rows-mandatory`, merged 82b52c36c): on every curved chart a face's pcurve rows are mandatory at rest (C4). Tier 3 dry-mints a rowless face and reports `Unminted` or the derivation's refusal, re-certifies and continuity-checks a half-minted face's stored rows like a complete one's (with `RowInterval`), reads an excused face whole before excusing it, and `sweep::extrude` closes with `topo::mint_pcurves`. Residue has its own rows: the four uncovered-class `mint-has-no-route-*` rows and `at-rest-trim-containment-checks-against-the-stored-hull`.

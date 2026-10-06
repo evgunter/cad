@@ -3,8 +3,9 @@
 //!
 //! Each converted write states that its key cannot be stale. These
 //! rows pin the other half: that the door leading to the write
-//! **refuses that key typed**, so the arm is not reachable through the
-//! API.
+//! **refuses a stale argument typed** ([`BadArgument::Stale`]), and
+//! panics in its plan phase on a stale link a torn body holds, so the
+//! arm is not reachable through the API.
 //!
 //! **What already existed, stated precisely.** The attach doors DO have
 //! error-path coverage, in `topo/tests/` and `sweep/tests/`, and
@@ -20,7 +21,7 @@
 //! returns before the component walk; only a dead face inside a live
 //! shell reaches the walk's own `get_face`.
 //!
-//! Each row is a pair: the typed refusal, and a deep-equal body — a
+//! Each row is a pair: the refusal or panic, and a deep-equal body — a
 //! door that refuses after mutating would satisfy the first alone.
 //! Where a door takes an entity key, the row plants a **removed**
 //! entity rather than a null key, so the slotmap generation check is
@@ -49,7 +50,7 @@ use geom_core::{Point3, Vec3};
 
 use crate::EulerOpError;
 use crate::entity::EntityId;
-use crate::euler::FaceSurface;
+use crate::euler::{BadArgument, FaceSurface};
 use crate::fixtures::deep_snapshot;
 use crate::test_support_fixtures::declined_cube;
 use geom_core::Tol;
@@ -85,9 +86,10 @@ fn d21_set_face_surface_refuses_a_stale_face_typed() {
         .unwrap_err();
     assert_eq!(
         err,
-        EulerOpError::StaleKey {
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "face",
             key: EntityId::Face(dead),
-        },
+        }),
         "set_face_surface must refuse a removed face typed, never panic"
     );
     assert_eq!(
@@ -116,9 +118,10 @@ fn d21_set_edge_curve_refuses_a_stale_edge_typed() {
         .unwrap_err();
     assert_eq!(
         err,
-        EulerOpError::StaleKey {
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "edge",
             key: EntityId::Edge(dead),
-        },
+        }),
         "set_edge_curve must refuse a removed edge typed, never panic"
     );
     assert_eq!(
@@ -143,9 +146,10 @@ fn d21_split_edge_refuses_a_stale_edge_typed() {
     let err = body.split_edge(dead, 0.5, tol).unwrap_err();
     assert_eq!(
         err,
-        EulerOpError::StaleKey {
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "edge",
             key: EntityId::Edge(dead),
-        },
+        }),
         "split_edge must refuse a stale edge typed, never panic"
     );
     assert_eq!(
@@ -155,16 +159,18 @@ fn d21_split_edge_refuses_a_stale_edge_typed() {
     );
 }
 
-/// `movefac`'s component walk refuses a face of the shell list that no
-/// longer resolves. The op's `face_data.shell = new_shell` write reads
-/// its keys out of that walk's labelling, so the walk's own refusal is
-/// what makes the write's `unreachable!` sound.
+/// `movefac`'s component walk panics, in its plan phase, at a face of
+/// the shell list that no longer resolves: the shell's `faces` is a
+/// link the body holds, so a dead entry is a torn body. The op's
+/// `face_data.shell = new_shell` write reads its keys out of that
+/// walk's labelling, so the walk's own check is what makes the write's
+/// `unreachable!` sound.
 ///
-/// The existing `movefac_stale_shell_is_typed` plants a stale *shell*
-/// and never reaches the walk; this plants a dead face inside a live
-/// shell, which is the shape the walk is the only guard against.
+/// A stale *shell* argument is refused typed and never reaches the
+/// walk; this plants a dead face inside a live shell, which is the
+/// shape the walk is the only guard against.
 #[test]
-fn d21_movefac_refuses_a_dead_face_reached_by_the_walk_typed() {
+fn d21_movefac_panics_at_a_dead_face_reached_by_the_walk() {
     let tol = Tol::witness();
     let cube = declined_cube::<f64>(tol);
     let mut body = cube.body;
@@ -174,19 +180,16 @@ fn d21_movefac_refuses_a_dead_face_reached_by_the_walk_typed() {
     // key, so only the walk's own lookup can catch it.
     body.faces.remove(dead);
 
-    let before = deep_snapshot(&body);
-    let err = body.movefac(shell).unwrap_err();
-    assert_eq!(
-        err,
-        EulerOpError::StaleKey {
-            key: EntityId::Face(dead),
-        },
-        "movefac must refuse a dead face in the shell list typed, never panic"
+    let named = format!(
+        "{}'s faces names {}, which does not resolve",
+        EntityId::Shell(shell),
+        EntityId::Face(dead)
     );
-    assert_eq!(
-        deep_snapshot(&body),
-        before,
-        "movefac atomicity: the body must be untouched on Err"
+    crate::review_d18::assert_torn_op_panics(
+        "movefac",
+        &mut body,
+        &[&named, crate::review_d18::ROW_FOUR],
+        |b| b.movefac(shell),
     );
 }
 

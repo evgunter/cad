@@ -335,8 +335,15 @@ mod tie_tests {
         let prof = profile::Profile::new(plane, vec![square])
             .validate(Tol::witness())
             .unwrap();
-        let built = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness())
-            .expect("a unit cube extrudes");
+        let built = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("a unit cube extrudes");
         let table = name_extrude(
             RecipeNodeId(1),
             &built,

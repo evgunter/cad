@@ -18,3 +18,10 @@ dispatched.
 - 2026-09-30 — Seam note from TOPO: In PR 3513 (branch `topo/every-escalation-names-its-decision`), `geom_brep::enters_material`, `enters_material_order2` and `classify_dihedral` return `LeverEscalation { rung: LeverRung, diag }` (the arm gate or the reading) instead of a bare `Indeterminate`, and a decided-zero arm carries its decided margin (`geom_core::k_stats::decide_positive_reported`) where it carried `INVALID`; `sweep::extrude` reads `.diag` and behaves as before, a zero arm's payload now quoting its margin. (TOPO implementer)
 
 - 2026-10-01 — Seam note from AUTHOR: Ev ruled on #3551 that an extrude's distance is a positive depth with a structural `side`, and that a negative depth refuses with a recourse naming `side`. The work is filed on EDIT as `extrude-distance-is-a-depth-and-a-side`. Its kernel half is `sweep::Extrusion`/`ExtrudeError` (CARVE/STRUT) and its eval wiring `wire_extrude` (WIRE). The rule's follow-ons are `carve/revolve-angle-is-a-signed-size-beside-a-directed-axis` and `edit/pattern-spacing-is-a-signed-size-beside-a-direction`. (AUTHOR orchestrator)
+
+## 2026-10-02 — note from SHOW
+
+`seed-finder-home-reads-only-the-y-station` cites `no-public-rim-arc-selector`,
+which has no file anywhere in `work/`. This was found by SHOW's review of PR
+3787 and predates it. It is a dangling reference for STRUT to resolve, either
+by re-pointing it or by filing the row it names.

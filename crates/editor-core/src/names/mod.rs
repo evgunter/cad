@@ -66,7 +66,7 @@ pub(crate) use emit_union::{
 pub use flush::{
     BooleanCoincidence, CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict,
     DeclareError, DeclaredContact, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare,
-    declare_all, declare_node, find_flush_candidates,
+    declare_all, declared_pairs, find_flush_candidates,
 };
 pub use geompred::{
     Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
@@ -87,7 +87,7 @@ pub use role::{
     SplitHalf, StableName, band, band_pi, band_rim, carried, meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
-pub(crate) use role::{VerbatimEdge, verbatim_edge};
+pub(crate) use role::{Lift, VerbatimEdge, lift, verbatim_edge};
 pub(crate) use seam_pair::face_descends_from;
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};

@@ -171,7 +171,7 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     let pairs = declared(&f);
     let Fixture { doc, a, b, g, h } = f;
     let h = h.unwrap();
-    let (docx, union, _) = declared_union_classed(doc, &[b, g, a, h], pairs);
+    let (docx, union) = declared_union_classed(doc, &[b, g, a, h], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let v = volume(body_of(&ev, union));
@@ -234,7 +234,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                 .collect()
         };
         for order in permutations(&members) {
-            let (docx, union, _) = declared_union_classed(doc.clone(), &order, pairs.clone());
+            let (docx, union) = declared_union_classed(doc.clone(), &order, pairs.clone());
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {

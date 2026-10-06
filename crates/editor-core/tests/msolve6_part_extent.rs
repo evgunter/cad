@@ -14,6 +14,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use std::sync::Arc;
 
@@ -50,6 +53,7 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -68,11 +72,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
     let Some(Node::Profile(program)) = part.node(profile) else {
         unreachable!("found as a profile")
     };
-    let ids = program
-        .ids
-        .iter()
-        .map(|lp| lp.iter().copied().map(Some).collect())
-        .collect();
+    let ids = program.kept_in_place();
     let loops = fixture::desc(program.plane, vec![fixture::square(0.0, 0.0, half)]).loops;
     let body = body_node(&part);
     let (part, _) = fixture::step(
@@ -172,8 +172,14 @@ fn instances(
     (doc, ids, opts, body)
 }
 
-fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A frame coincidence between `a`'s top cap and `b`'s bottom cap,
@@ -185,8 +191,8 @@ fn frame(origin: [f64; 3]) -> MateFrame {
 fn clocked(
     (a, a_body): (RecipeNodeId, RecipeNodeId),
     (b, b_body): (RecipeNodeId, RecipeNodeId),
-    alignment: Alignment,
-) -> Node<editor_core::ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     Node::Mate {
         a: fixture::head(in_part(a, a_body, CapEnd::End)),
         b: fixture::head(in_part(b, b_body, CapEnd::Start)),
@@ -195,7 +201,11 @@ fn clocked(
     }
 }
 
-fn coincidence(fa: MateFrame, fb: MateFrame, clocking: f64) -> Alignment {
+fn coincidence(
+    fa: MateFrame<Formula>,
+    fb: MateFrame<Formula>,
+    clocking: f64,
+) -> Alignment<Formula> {
     Alignment {
         a: fa,
         b: fb,
@@ -212,17 +222,13 @@ fn coincidence(fa: MateFrame, fb: MateFrame, clocking: f64) -> Alignment {
 fn at_the_store(
     doc: &ProfileDoc,
     opts: &EvalOptions,
-    node: Node<editor_core::ProfileProgram>,
+    node: AuthoredNode,
 ) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, MateFault)> {
     at_the_door(doc, &mate_reach::<f64>(opts, Tol::witness()), node)
 }
 
 /// [`at_the_store`] for a mate the door admits.
-fn mated(
-    doc: ProfileDoc,
-    opts: &EvalOptions,
-    node: Node<editor_core::ProfileProgram>,
-) -> (ProfileDoc, RecipeNodeId) {
+fn mated(doc: ProfileDoc, opts: &EvalOptions, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     at_the_store(&doc, opts, node).unwrap_or_else(|(_, fault)| panic!("the door admits: {fault}"))
 }
 
@@ -894,8 +900,8 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 /// a second mate asks exactly what its OWN admission needs — the rider
 /// on its coincidence is decided over its two parts, once each — and
 /// joins the third instance's group, clearing the offset of its first
-/// operand's group root (the mate door). An offset, an appearance, a declare, a fourth
-/// instance and every delete — the mate's, the root's — ask nothing:
+/// operand's group root (the mate door). An offset, an appearance, a
+/// union and its declared-pair list, a fourth instance and every delete — the mate's, the root's — ask nothing:
 /// no edit records a frame, so none solves.
 #[test]
 fn a6_only_a_mate_inserts_rider_asks_the_store() {
@@ -955,15 +961,30 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
         )
         .expect("an appearance asks nothing")
         .doc;
-    let doc = doc
+    let union = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Box::new(Node::declare_rest(Vec::new())),
+                node: Box::new(Node::Union {
+                    members: vec![b, c],
+                    declare: Vec::new(),
+                }),
             },
             tol,
             &counting,
         )
-        .expect("a declare asks nothing")
+        .expect("a union asks nothing");
+    let u = union.record.minted.expect("the union is minted");
+    let doc = union
+        .doc
+        .apply(
+            &DocEdit::SetDeclare {
+                node: u,
+                pairs: Vec::new(),
+            },
+            tol,
+            &counting,
+        )
+        .expect("a declared-pair list asks nothing")
         .doc;
     let doc = doc
         .apply(
@@ -1180,6 +1201,7 @@ fn block(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc

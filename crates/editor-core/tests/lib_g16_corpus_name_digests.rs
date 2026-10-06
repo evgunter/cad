@@ -82,7 +82,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
-/// `die` is `0x46ff_fbb3_d481_e812` — the same number
+/// `die` is the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
 /// digest of the same tables. The two pins agreeing is a cross-check,
 /// not a duplication: that one covers the die FIXTURE through its own
@@ -118,50 +118,46 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// chamfer mint two ids and their names differ in `node` alone.
 /// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
 /// where the two nodes differ and the names must be disjoint.
+///
+/// **`part_select` moved at JOIN-1's fix pass** (PR 3790), alone. Its
+/// union of the two split halves now builds through the chord join: the
+/// halves' side faces meet along edges of both solids, coplanar on the
+/// far side, which the join used to refuse and the declared-REST zip
+/// then built. The table is the box's — one body, six faces (the four
+/// sides each a `Merged` of the two halves' fragments), sixteen edges
+/// and twelve vertices, every name a `FromA`/`FromB` lineage — and
+/// the persisted text did not move (`perf2_name_keying_differential`'s
+/// second column).
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x5357_3a07_25c8_58e0),
-    ("corner_table", 0x9066_abb5_dca8_4e35),
-    ("heat_sink", 0x9494_f2b0_e239_0d24),
-    ("crossing_slots", 0xe678_8002_978e_e6cf),
-    ("nested_islands_105", 0xbc61_97e6_8d2c_9c5c),
-    ("nested_islands_106_depth1", 0xf8c5_745b_4a9c_153b),
-    ("nested_islands_106_depth2", 0xf6f6_0ffb_4d6a_bad5),
-    ("declared_tangency", 0x10e3_3436_e0dd_f2ca),
-    ("kitchen_sink", 0xe340_c82b_de6b_a18c),
-    ("cut_cylinder", 0x4fc1_3f27_d303_0751),
-    ("measured_web", 0x6a3e_d351_0833_d5e8),
-    ("boss_union", 0xd267_0612_127b_2383),
-    ("die_fillet", 0x9604_14fb_3d8d_dbf8),
-    ("die_chamfer", 0x6ec4_d463_dbda_f46c),
-    ("die_pips", 0xe6b8_bba4_9fa0_ff34),
-    ("heat_sink_fins", 0xde1b_5e70_e134_c51f),
-    ("die_tool", 0x76f0_19cf_1dd9_72c9),
-    ("face_sketch", 0x8969_aadc_d370_4777),
-    // DOCM-2. Two `Part`s of one split and one of a pattern: the
-    // projection mints nothing, so every name in the document is the
-    // split's, the pattern's, or the union's over them, and the row's
-    // arrival moved no other row.
-    ("part_select", 0x2fb2_7981_dae7_401b),
-    ("loft_prism", 0x74db_6889_4c07_172b),
-    ("die_composed", 0x094d_1539_1355_587e),
-    ("die_composed_tour", 0xbe61_d9d5_9d15_4607),
-    ("plate_param", 0x673d_ea64_7056_a450),
-    ("kiss_carry", 0x30ba_52ea_f908_146c),
-    // LIB-TUBE. Both tables are minted by `name_revolve` — the
-    // tube doors return `Revolved<T>` and the emitter reads only
-    // its maps — so these two rows are the revolve role vocabulary
-    // over a body no revolve node built. Their arrival moved no
-    // other row, which is the property this table exists to make
-    // readable.
-    ("tube_ring", 0xa71b_e28f_0bf1_a321),
-    ("tube_arc", 0x2af8_6e46_0e5f_188b),
-    ("hollow_tube_elbow", 0xafb7_1088_9300_f596),
-    ("hollow_tube_ring", 0x7842_e8a7_35aa_eb8d),
-    // EDIT-PROGRAM: the one document whose log reshapes a profile
-    // under a fillet. Its table is minted over the crease name the
-    // door REBOUND, which is the fact this row makes golden; its
-    // arrival moved no other row.
-    ("reshaped_rod", 0x6bd0_82fa_e3bc_3bde),
+    ("die", 0xaeb22275f9fa495e),
+    ("corner_table", 0xe29a7605d42b6b99),
+    ("heat_sink", 0xdd7f78193ebee3b9),
+    ("crossing_slots", 0xa5045ebdfc022177),
+    ("nested_islands_105", 0xacc71b2790de1ff6),
+    ("nested_islands_106_depth1", 0xa5eff96f7c11f8a8),
+    ("nested_islands_106_depth2", 0xd1fb7c2e0b16cbe9),
+    ("declared_tangency", 0x9669c31771c92a49),
+    ("kitchen_sink", 0xa9d24c08f3bb6efd),
+    ("cut_cylinder", 0x41db119290263bed),
+    ("measured_web", 0x7f05cba25971d021),
+    ("boss_union", 0x2c43ee7d87cb6d6d),
+    ("die_fillet", 0xf37ba47bed7131d2),
+    ("die_chamfer", 0x33f7333d4be4662e),
+    ("die_pips", 0xa8a677b2ab17e12e),
+    ("heat_sink_fins", 0x655d543ede0f8144),
+    ("die_tool", 0x23765b8f0b08085c),
+    ("face_sketch", 0xe17f467ecf2c0119),
+    ("part_select", 0x1d4f60b6c8a5a567),
+    ("loft_prism", 0x74db68894c07172b),
+    ("die_composed", 0x9708fe3b47e94d63),
+    ("die_composed_tour", 0x1e94e904622c8027),
+    ("plate_param", 0x950deaa6dd920469),
+    ("kiss_carry", 0xd74f677f841ff8b1),
+    ("tube_ring", 0xa71be28f0bf1a321),
+    ("tube_arc", 0x2af86e460e5f188b),
+    ("hollow_tube_elbow", 0xafb710889300f596),
+    ("hollow_tube_ring", 0x7842e8a735aaeb8d),
+    ("reshaped_rod", 0x83794d892ebf929a),
 ];
 
 #[test]

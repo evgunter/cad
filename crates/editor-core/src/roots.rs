@@ -324,12 +324,9 @@ pub(crate) fn consumer<P: crate::ProfilePayload>(
 ///
 /// A sink of ANY kind is a root, and that is A10's meaning rather
 /// than a gap in it: a mate is an isolated sink under consuming
-/// edges, and a `Declare` whose last consumer a delete removed is a
-/// sink from that delete on — both are listed, and both contribute
-/// nothing to the gather, which reads only body-denoting roots. The
-/// kind question is the gather's, never this predicate's
-/// (`work/edit/an-orphaned-declare-joins-the-product-root-set`, ruled
-/// a non-issue on exactly that ground).
+/// edges, and is listed, and contributes nothing to the gather, which
+/// reads only body-denoting roots. The kind question is the gather's,
+/// never this predicate's.
 pub(crate) fn is_sink<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> bool {
     consumer(doc, id).is_none()
 }

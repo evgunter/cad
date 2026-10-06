@@ -13,6 +13,7 @@
 use crate::common::cavity::{brick, rod};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol};
+use sweep::test_support::finished;
 use topo::{Body, BooleanResult, BooleanResultKind};
 
 /// **A brick with a rod-shaped cavity strictly inside it**: one solid,
@@ -25,14 +26,22 @@ use topo::{Body, BooleanResult, BooleanResultKind};
 /// an extruded bulge's is too, and the boolean engine refuses a lofted
 /// operand outright (`CurvedEdgeUnsupported`).
 fn voided_rod() -> Body<f64> {
-    let a = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 3.0, 3.0));
-    let b = rod(Point2::new(1.5, 1.5), 0.5, 1.0, 2.0);
+    let a = finished(
+        "the brick",
+        brick(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 3.0, 3.0)),
+        Tol::witness(),
+    );
+    let b = finished(
+        "the rod",
+        rod(Point2::new(1.5, 1.5), 0.5, 1.0, 2.0),
+        Tol::witness(),
+    );
     let BooleanResult::Body(bb) = topo::subtract(&a, &b, Tol::witness()).expect("the cut runs")
     else {
         panic!("a rod strictly inside the brick leaves a voided body")
     };
     assert_eq!(bb.kind, BooleanResultKind::Voided);
-    bb.body
+    bb.body.into_body()
 }
 
 /// **`voided_rod`'s verdicts as a SORTED multiset.** A digest that
@@ -41,24 +50,22 @@ fn voided_rod() -> Body<f64> {
 /// moved; this row pins each `(predicate, sign)` with its count,
 /// order-free.
 ///
-/// ONE of the twelve predicates is ANCHOR-RELATIVE by construction,
-/// and its sign is a fact about cycle order rather than about the
-/// body: `props_rim_side` is the sign of `lo + hi − 2·level` on
-/// whichever rim the loop walk from `Cycle::first` meets FIRST
-/// (`geom_brep`'s `props/curved.rs`, `linear_rim_side`'s `side`). The
-/// flux compensates (`Positive ⇒ d_u_sign`, `Negative ⇒ flip`), so
-/// the readings do not depend on the anchor while that sign does —
-/// the void shell here is the rod REVERTED, and `Body::revert` moves
-/// every loop's anchor to its source predecessor, which is why it
-/// reads `Positive` on this tree and `Negative` on one whose reversal
-/// kept the anchor. The other eleven are per-rim, per-meridian or
-/// per-face facts and count the same whichever rim comes first.
+/// None of them is anchor-relative. The rod's walls are cylinder
+/// faces, whose flux is the chart Green form `−∮ v du`: it takes the
+/// material side from the loops' own traversal, so the rim-side
+/// reading (`props_rim_side`, the sign of `lo + hi − 2·level` on
+/// whichever rim the walk from `Cycle::first` meets first) and the
+/// iso-rectangle premises it rests on are not run on this body at all.
+/// What the Green form does run is its closure premise, which makes the
+/// sum anchor-free: every loop closes at each of its eight edge
+/// junctions (`props_loop_closed`), and each wall's loops wind the
+/// cylinder zero times (`props_chart_loops_closed`) — per-junction and
+/// per-face facts, whichever edge a walk starts at.
 ///
-/// It was two. `props_rim_dir_group` compared each rim's traversal
-/// direction against that same first rim's, through a `Margin` over
-/// two values that are `±1` by construction; the direction is a
-/// discrete sign now and is compared as one, so that predicate
-/// records nothing and the multiset below is one row shorter.
+/// Each shell is read twice, so every `props_*` count is even: once at
+/// `f64` (`chk_shell_volume_sign`), and once re-derived at the interval
+/// scalar, where the role the first reading decided is certified
+/// (`chk_shell_volume_sign_enclosure`).
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = voided_rod();
@@ -77,17 +84,17 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
     let want: Vec<(String, usize)> = [
         ("chk_shell_volume_sign Negative", 1),
         ("chk_shell_volume_sign Positive", 1),
-        ("props_circle_axis_class Positive", 4),
-        ("props_du_consistent Zero", 2),
-        ("props_face_extent Positive", 2),
-        ("props_meridian_axial Zero", 4),
-        ("props_meridian_on_surface Zero", 4),
-        ("props_rim_axis_parallel Zero", 4),
-        ("props_rim_center_on_axis Zero", 4),
-        ("props_rim_fit Zero", 4),
-        ("props_rim_level Zero", 4),
-        ("props_rim_level_group Positive", 2),
-        ("props_rim_side Positive", 2),
+        ("chk_shell_volume_sign_enclosure Negative", 1),
+        ("chk_shell_volume_sign_enclosure Positive", 1),
+        ("props_chart_loops_closed Zero", 4),
+        ("props_circle_axis_class Positive", 8),
+        ("props_face_extent Positive", 4),
+        ("props_loop_closed Zero", 16),
+        ("props_meridian_axial Zero", 8),
+        ("props_meridian_on_surface Zero", 8),
+        ("props_rim_axis_parallel Zero", 8),
+        ("props_rim_center_on_axis Zero", 8),
+        ("props_rim_fit Zero", 8),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

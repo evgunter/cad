@@ -20,6 +20,7 @@ test_utils::gated_to![
 
 use geom_core::{Arc2, Interval, Point2, Real, Tol};
 use profile::{Bulge, Open, Profile, ProfileLoop, RawLoop, Segment, SketchPlane, Start};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 
 /// Validates `lp` at f64, lifts it onto the `Interval` xy plane by the
@@ -30,9 +31,16 @@ fn lifted_extrude(lp: ProfileLoop<f64>, tol: Tol) -> Result<(), String> {
         .validate(tol)
         .map_err(|e| format!("validate: {e:?}"))?;
     let lifted = vp.lift_onto(SketchPlane::<Interval>::xy());
-    extrude(&lifted, Extrusion::Distance(Interval::from_f64(1.0)), tol)
-        .map(|_| ())
-        .map_err(|e| format!("extrude: {e:?}"))
+    extrude(
+        &lifted,
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .map(|_| ())
+    .map_err(|e| format!("extrude: {e:?}"))
 }
 
 /// **Random ordinary arcs, copied and placed.** D-shapes (the arc and

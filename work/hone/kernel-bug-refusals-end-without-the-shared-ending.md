@@ -55,23 +55,18 @@ three above:
 - `topo::RevertError`'s link arms end in " (malformed body)"
   (`crates/topo/src/revert.rs`, the `fmt` that writes the tag after its
   `RevertLink` match).
-- `topo::pcurves::PcurveMintError::Corrupt` ends in a repair no public
-  door offers ("read the structural validators' report and repair the
-  reference it names", `crates/topo/src/pcurves.rs`); its sibling
-  `SiteRowRefusal::Corrupt` ends in `KERNEL_DEFECT_ENDING` now.
-- `topo::shell`'s "stopped resolving mid-construction (kernel bug)"
-  (`crates/topo/src/shell.rs`, the `Display` arm that writes it) and
-  `replace_face_offset`'s "referential coherence broke mid-plan (kernel
-  bug)" (`crates/topo/src/replace_face.rs`, `Corrupt`).
+- `topo::pcurves`: no longer an instance. A torn record in the pcurve
+  passes panics naming the record (D2 row 4), and a caller's key that
+  does not resolve refuses `PcurveMintError::Stale`, stating the fact.
 - `topo::splitting::SplitFinishError::Corrupt` ("the finish traversal
   failed (corrupt body)") and `SplitReduceError::CorruptOperand`, which
   ends in nothing (`crates/topo/src/splitting/finish.rs`,
   `splitting/mod.rs`).
 - `topo::chart_region`'s `Corrupt` hand-writes its own report sentence
   ("Rebuild the body through the Euler operators, and report this").
-- BOOL's ground, recorded only: `BooleanError::CorruptOperand` and
-  `TornComponent` ("(kernel bug or corrupt …)", "(kernel bug)" on the
-  seam zip), `boolean::solid_contain`'s `CorruptFace` and
+- BOOL's ground, recorded only: `TornComponent` ("(kernel bug or
+  corrupt …)", "(kernel bug)" on the seam zip),
+  `boolean::solid_contain`'s `CorruptFace` and
   `boolean::contain`'s `Corrupt` (which tells the caller to "repair the
   body's topology"), all in `crates/topo/src/boolean/`.
 
@@ -95,15 +90,13 @@ the name pass, on the merge of main at `79555f031e`):
   body)" tag ("the join's traversal failed at {entity}",
   `crates/topo/src/chord_join.rs`), and its sibling `SectionInvariant`
   ("curved-section invariant at face …") ends in nothing.
-- `topo::boolean::voids`' `VoidInsertError::Corrupt { what: "graft
-  refused outside its own error surface (kernel bug)" }`
-  (`crates/topo/src/boolean/voids.rs`, the arm that maps a graft
-  refusal), rendered as the bare `what`.
 - `BooleanError::ClassificationInvariant` ("classification invariant
   violated: {what}") ends in nothing (`crates/topo/src/boolean/mod.rs`).
   The "(kernel bug or corrupt …)" tag the BOOL bullet above names is
   `BooleanError::JoinDesync`'s and the seam zip's "(kernel bug)" is
-  `ZipCorrespondence`'s; `CorruptOperand` ends in "(a broken body)".
+  `ZipCorrespondence`'s. `BooleanError::CorruptOperand` and
+  `VoidInsertError::Corrupt` are gone: what raised them panics naming
+  the record (D2 row 4).
 - `topo::props::quad_lane`'s point lookup reports a corrupt body as
   `PropsError::QuadratureUnsupported` ("corrupt body reaching the
   quadrature lane (a key did not resolve)",

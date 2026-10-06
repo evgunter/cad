@@ -2534,6 +2534,7 @@ mod tests {
             Node::Extrude {
                 profile,
                 distance: len(SIDE),
+                side: pncad::document::ExtrudeSide::Along,
             },
             tol,
         );

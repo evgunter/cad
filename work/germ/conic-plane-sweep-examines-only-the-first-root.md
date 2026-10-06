@@ -15,7 +15,7 @@ refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exi
 
 `reduce.rs` `sweep_direction`, the conic × plane root lane
 (`if let Some(&t) = roots.first()`, about line 841 on `2ba90bced`).
-`conic_plane_crossing_roots` returns up to two interior roots in
+`plane_crossing_lane` returns up to two interior roots in
 ascending order, and the lane classifies only the FIRST against the
 face. When that root lands `Out` of the face it falls through to
 "No interior root: endpoint processing only" and `continue`s, so a

@@ -2,10 +2,11 @@
 id: whole-orbit-fan-end-has-three-spellings
 kind: issue
 title: The fan end next(mate(last)) is computed in three near-copies with three whole-orbit behaviours, and strut facing has two spellings
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
+closed: 2026-10-04
 ---
 
 ## What
@@ -47,3 +48,41 @@ insertions call. Give strut facing one rule, derived from the splice
 corner's arrival edge as `bool_strut_order` does, or proved equal to
 the hard-coded one on both placements. Pin the `_` arm with a row
 that one wrong labelling would fail.
+
+## Built
+
+**The fan end has one home.** `Body::run_site(first, last)` reads a
+run's fan end, the orbit successor of `last` (`Body::orbit_step`), and
+returns the typed `RunSite::WholeOrbit { corner }` when that successor
+is `first`. The whole-orbit answer is the strut that
+`mev(Fan { corner, corner })` splices into the one corner the run does
+not cross. The splitter, the pierce and `insert::run_degenerates` build
+that strut. The boolean planner mints it as the reverse empty run, so
+`mint_run` still refuses a whole-orbit run as a run-selection bug.
+Every caller matches on the variant.
+
+**Strut facing has one rule.** In `insert::strut_faces_first`,
+`he_plus` faces the germ the corner meets first, walking from its
+arrival edge. Three readings decide it, in order:
+- the structural vote (`strut_facing`);
+- otherwise the walk (`walk_faces_first`): the germs' entry order
+  (`precedes`), and for two germs in one entry `strut_order`.
+
+Both minters call it. At a closed edge's lone vertex with a germ along
+it the vote names no half and no row reaches the pose: the pierce
+refuses it `CurvedBooleanUnsupported`, and `mint_directed` orders the
+germs by the walk. On the whole-orbit placement it equals the old
+hard-coded `he_minus`. On the bare-bisector `_` arm it does not: there
+the hard-coded facing refused `JoinDesync` on every undeclared pose
+that reaches the arm without a vote, and the walk order builds.
+
+**Pinned.** `crates/topo/tests/join_pierce_strut_facing.rs` pins both
+arms with exact volumes, and `body::tests::run_site_reads_the_fan_end_
+and_names_the_whole_orbit` pins the home. Mutants turn them red; the PR
+lists them. JOIN-1's batteries and `rc_wide_battery` are byte-identical
+on main and head.
+
+**Filed.** `a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op`
+(P0/H): the ring struts are a third facing spelling.
+
+Closed with PR 4004, 2026-10-04.

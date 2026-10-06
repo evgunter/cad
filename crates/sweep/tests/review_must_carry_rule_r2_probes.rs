@@ -11,9 +11,12 @@
 
 use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{MustCarryVerdict, must_carry_over_edge, tangent_certificate_lane};
+use geom_brep::{
+    MustCarryEscalation, MustCarryVerdict, must_carry_over_edge, tangent_certificate_lane,
+};
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -51,7 +54,15 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).map(|e| e.body)
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body)
 }
 
 /// A ring whose bore cylinder of radius `r_bore` meets a torus of
@@ -335,8 +346,12 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
     // caller reporting it as the cause would report a margin that
     // passed: {kappas:?} is the spread that makes that concrete.
     if let MustCarryVerdict::InBand(source) = answer {
+        assert!(
+            matches!(source, MustCarryEscalation::SecondOrder(_)),
+            "the deciding station's escalation is the second-order reading's: {source:?}"
+        );
         assert_eq!(
-            source.predicate,
+            source.diag().predicate,
             Some("tangent_second_order"),
             "the payload names the deciding station's predicate"
         );

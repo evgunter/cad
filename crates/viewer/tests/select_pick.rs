@@ -20,11 +20,12 @@
 
 use crate::common;
 use crate::common::plate_index;
+use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Doc, Evaluation, Expr, Frame, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Doc, Evaluation, Formula, Frame, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{HitTestError, Ray, Resolution};
@@ -64,6 +65,7 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -71,7 +73,7 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
         &doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(count),
+            count: Formula::count(count),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -925,6 +927,7 @@ fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             Node::Extrude {
                 profile,
                 distance: common::len(0.01),
+                side: ExtrudeSide::Along,
             },
             tol,
         )

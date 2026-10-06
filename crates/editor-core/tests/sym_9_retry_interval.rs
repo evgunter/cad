@@ -198,7 +198,10 @@ fn replay(
     tol: Tol,
 ) -> (Vec<DecisionShape>, SymCounts) {
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &doc.spoken_var(*name).to_string(),
+        );
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
@@ -423,6 +426,63 @@ fn sym_9_what_each_retry_recovers() {
 /// read): `[1105, 21, …]` → `[1121, 5, …]` with and without the ladder,
 /// `registered`, `numeric` and `retried` unmoved.
 ///
+/// Every document moved UP when the extrude began closing with the
+/// pcurve mint: its wall rows' certificate is decided too. Without the
+/// ladder the plate read `[915, 0, 164, 754]`, the annulus
+/// `[408, 24, 164, 501]`, the boss `[435, 20, 118, 448]`, the bracket
+/// `[1206, 51, 170, 1151]` and the link `[649, 0, 122, 811]`, with the
+/// link's retries at 24 (`[651, 0, 144, 787]` with the ladder).
+///
+/// PCERT's incidence-and-fidelity unit (PR 3812) moved every document
+/// again. Without the ladder the plate reads `[947, 0, 148, 698]`, the
+/// annulus `[432, 32, 148, 445]`, the boss `[453, 26, 102, 410]`, the
+/// bracket `[1235, 59, 156, 1078]` and the link `[681, 0, 118, 743]`:
+/// theorems up on every document, `registered` and `numeric` down on
+/// every one. On a harmonic row check 4's envelope (incidence plus
+/// fidelity) is the whole statement and decides as a theorem where it
+/// used to go through the door, and the schedule that cross-checks it
+/// is not run at this scalar, so the residuals it used to register or
+/// leave numeric are gone. The loop walk's literal branch adds definite
+/// sign decisions at the half-period marks and turns some loop joints
+/// over to the form (`sign_gated` up). The ladder still recovers the
+/// bracket's six, and the link's retries fall 24 → 14 (`[683, 0, 130,
+/// 729]` with it): the ten that went were the certificate's schedule.
+///
+/// DECIDE-9 (a product with an ungated zero factor rests on that
+/// factor alone), merged in after PR 3812, turns `sign_gated` into
+/// theorems on three documents, with and without the ladder alike:
+/// the annulus `[432, 32, …]` → `[440, 24, …]`, the boss `[453, 26, …]`
+/// → `[459, 20, …]` and the bracket `[1235, 59, …]` → `[1259, 35, …]`.
+/// `registered`, `numeric` and `retried` do not move.
+///
+/// Check 5 deciding only an escape's positive part (PR 3981,
+/// `geom_brep::pcurve_cache::escape`) moves all five up out of
+/// `numeric`, with and without the ladder alike: theorems on the plate
+/// (+8, `[955, 0, 148, 690]`) and the link (+8, `[689, 0, 118, 735]`
+/// without the ladder), `sign_gated` on the annulus (+8, `[440, 32, …]`),
+/// the boss (+6, `[459, 26, …]`) and the bracket (+10, `[1259, 45, …]`).
+/// A row box inside its window reads Zero where its clearance read a
+/// numeric Negative. `registered` and `retried` do not move.
+///
+/// The variable table (INTENT-VARS-1 PR 2) keys a variable's symbol by
+/// its minted id where it was keyed by a hash of its name, so the
+/// bracket's variables sort differently inside every canonical form.
+/// Two of its residuals that registered under the old order are left
+/// numeric under the new one, with and without the ladder alike
+/// (`registered` 156 → 154 and 162 → 160, `numeric` up by two): the
+/// ladder's own six and every other document's row do not move.
+/// Measured by a probe binding each variable under its old name-hash
+/// symbol, which restores 156 and 162: the move is the order alone.
+///
+/// A loop walk that decides each loop's closure joint as every other
+/// joint, between two images, and reads the winding off the integer
+/// joint elements (the re-anchor ruling, PR 4024) trades the closure
+/// margins for that joint's branch, pole-lever and continuity margins:
+/// `numeric` up on all five, with and without the ladder alike (the
+/// plate +14 to 704, the annulus +14 to 451, the boss +10 to 414, the
+/// bracket +17 to 1087 and 1081, the link +13 to 748 and 734).
+/// Theorems, `sign_gated`, `registered` and `retried` do not move.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -442,16 +502,21 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [811, 0, 140, 462], [811, 0, 140, 462], 0),
-        ("r1_annulus", [328, 0, 140, 209], [328, 0, 140, 209], 0),
-        ("r1_segment_boss", [375, 2, 96, 233], [375, 2, 96, 233], 0),
+        ("two_hole_plate", [955, 0, 148, 704], [955, 0, 148, 704], 0),
+        ("r1_annulus", [440, 32, 148, 451], [440, 32, 148, 451], 0),
+        (
+            "r1_segment_boss",
+            [459, 26, 102, 414],
+            [459, 26, 102, 414],
+            0,
+        ),
         (
             "r2_filleted_bracket",
-            [1121, 5, 146, 781],
-            [1121, 5, 152, 775],
+            [1259, 45, 154, 1087],
+            [1259, 45, 160, 1081],
             6,
         ),
-        ("r2_link", [545, 0, 110, 507], [547, 0, 122, 493], 14),
+        ("r2_link", [689, 0, 118, 748], [691, 0, 130, 734], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -521,7 +586,12 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// the six as discharges a second attempt reached, not as a clause of
 /// `registered`'s. Without the ladder neither appears and the line is
 /// the one a drive wrote before the ladder existed. The six themselves
-/// are the rule-A attempt's, and they are `registered` (146 → 152).
+/// are the rule-A attempt's, and they are `registered` (156 → 162).
+/// Against the pin before PCERT's incidence-and-fidelity unit the
+/// receipt was `[1206, 51, 176, 1145, 6]` (bare `[1206, 51, 170, 1151,
+/// 0]`): the same six retried, and the restated certificate's
+/// theorems in place of the schedule's registered and numeric
+/// residuals.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -546,7 +616,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         retry: SymRetry::none(),
         ..editor_core::drive::SymbolicDials::default()
     });
-    let (line, human) = (shipped.serialize(), shipped.render(&analyzed));
+    let (line, human) = (shipped.serialize(), shipped.render(&doc, &analyzed));
     println!("{line}\n{human}");
     assert_eq!(shipped.receipt().certified, 1, "the leaf certifies whole");
     assert_eq!(
@@ -563,11 +633,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1121, 5, 152, 775, 6],
+        [1259, 45, 160, 1081, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=152 retried=6\n"),
+        line.contains("registered=160 retried=6\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -583,11 +653,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1121, 5, 146, 781, 0]
+        [1259, 45, 154, 1087, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
     );
-    assert!(!bare.render(&analyzed).contains("second attempt"));
+    assert!(!bare.render(&doc, &analyzed).contains("second attempt"));
 }

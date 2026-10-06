@@ -25,17 +25,19 @@
 // the default half of the units exhibit, against `ring` (millimetres
 // and half-turns) and `diefillet` (millimetres and degrees).
 
+use pncad::document::ExtrudeSide;
+use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
     BooleanOp, CancelToken, ChecksConfig, Datum, Dimension, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach,
-    Severity, apply, enforce_checks, evaluate, run_checks,
+    Evaluation, Formula, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
+    RefusingReach, Severity, apply, enforce_checks, evaluate, run_checks,
 };
 use pncad::geom_core::Tol;
 
 /// Inserts a node and returns its minted id.
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -52,8 +54,8 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 /// An extruded square: half-width `h` centered at `(cx, 0)` on the
 /// z = `z0` sketch plane, extruded `dz` up.
 fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> RecipeNodeId {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
     let plane = insert(
         doc,
         Node::Datum(Datum::Frame {
@@ -77,7 +79,8 @@ fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> Re
         doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal(dz, Dimension::Length).unwrap(),
+            distance: Formula::literal(dz, Dimension::Length).unwrap(),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -101,7 +104,7 @@ fn boolean_doc(
             op,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );

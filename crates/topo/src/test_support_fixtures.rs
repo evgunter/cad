@@ -325,7 +325,7 @@ pub fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 /// be outward-facing, in `tests/cube_doors_agree.rs` — which asserts
 /// each face's outward normal against the corners and so reads the
 /// composite rule rather than the profile alone.
-pub fn prism_ops<T: geom_core::Decide>(
+pub fn prism_ops<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     profile: &[(f64, f64)],
     z: (f64, f64),
@@ -470,7 +470,7 @@ pub const UNIT_SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0
 /// scaffolding door, named by both at-rest rules — the state this
 /// fixture's suites measure, and the one thing that distinguishes it
 /// from every other box builder in this file.
-pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> CubeOps<T> {
+pub fn geometric_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(tol: Tol) -> CubeOps<T> {
     unit_cube(FaceGeometry::Certified, tol)
 }
 
@@ -483,13 +483,16 @@ pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> CubeOps<T> {
 /// It is a separate door rather than a `bool` at the call site for the
 /// same reason the description step is: a reader must be able to see
 /// which body a suite took.
-pub fn declined_cube<T: geom_core::Decide>(tol: Tol) -> CubeOps<T> {
+pub fn declined_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(tol: Tol) -> CubeOps<T> {
     unit_cube(FaceGeometry::Declined, tol)
 }
 
 /// The shared body of [`geometric_cube`] and [`declined_cube`]: the
 /// cube sequence at [`UNIT_SQUARE`], untransformed, bundled.
-fn unit_cube<T: geom_core::Decide>(faces: FaceGeometry, tol: Tol) -> CubeOps<T> {
+fn unit_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    faces: FaceGeometry,
+    tol: Tol,
+) -> CubeOps<T> {
     let mut body = Body::<T>::new();
     let ops = prism_ops(
         &mut body,
@@ -588,13 +591,17 @@ pub struct Prism<T: Real> {
 /// welcome), extruded from z = 0 to z = `height`: [`prism_ops`]
 /// untransformed, then described. Every face gets its outward-CCW
 /// Newell plane, every edge a certified chord line.
-pub fn prism<T: geom_core::Decide>(profile: &[(f64, f64)], height: f64, tol: Tol) -> Prism<T> {
+pub fn prism<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    profile: &[(f64, f64)],
+    height: f64,
+    tol: Tol,
+) -> Prism<T> {
     prism_z(profile, 0.0, height, tol)
 }
 
 /// [`prism`] with an explicit z-range `[z0, z1]` (M3 PR 4: bricks at
 /// arbitrary heights for the boolean fixtures).
-pub fn prism_z<T: geom_core::Decide>(
+pub fn prism_z<T: geom_core::Decide + crate::props::AtRestPolicy>(
     profile: &[(f64, f64)],
     z0: f64,
     z1: f64,
@@ -648,7 +655,7 @@ pub fn prism_z<T: geom_core::Decide>(
 /// name, and that one door still stops short of the description step.
 /// That file's independent row is the first claim and its negative row
 /// the second.
-pub fn brick<T: geom_core::Decide>(
+pub fn brick<T: geom_core::Decide + crate::props::AtRestPolicy>(
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
@@ -674,7 +681,10 @@ pub fn brick<T: geom_core::Decide>(
 /// `upgrade_edges_to_intersections` review posture). Smooth edges
 /// (coplanar neighbors — collinear profile runs) keep their
 /// conventional chord, mirroring the pipeline's D2 split.
-pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
+pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: Tol,
+) {
     let band = Band::linear(tol).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
@@ -707,7 +717,7 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: 
 /// transform — and **with** the description step, so its edges carry
 /// `Intersection`/`Derived` where `geometric_cube`'s carry
 /// `Scaffold(ExtrudedPoint …)`/`Declared`.
-pub fn mapped_cube<T: geom_core::Decide>(
+pub fn mapped_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(
     map: impl Fn(f64, f64, f64) -> Point3<T>,
     tol: Tol,
 ) -> Body<T> {
@@ -718,7 +728,7 @@ pub fn mapped_cube<T: geom_core::Decide>(
 
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
-pub fn cube_into<T: geom_core::Decide>(
+pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     map: impl Fn(f64, f64, f64) -> Point3<T>,
     tol: Tol,
@@ -739,7 +749,7 @@ pub fn cube_into<T: geom_core::Decide>(
 /// Test-authoring convenience: the [`crate::BooleanDeclarations`] declaring
 /// every flush face pair of `(a, b)`, on any carrier the `Rest`
 /// ladder verifies — the test author's
-/// stand-in for a recipe `Declare` (the author built the contact
+/// stand-in for a recipe declaration (the author built the contact
 /// deliberately; this writes the intent down).
 ///
 /// The detection is the library's ([`crate::flush`]), so this helper
@@ -807,7 +817,7 @@ pub struct RingFaceOps {
 /// `rim` has at least three corners, in the membrane's outward-CCW
 /// order, and lies in the host face; nothing checks the order or the
 /// placement.
-pub fn plant_ring_face<T: geom_core::Decide>(
+pub fn plant_ring_face<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     at: HalfEdgeKey,
     rim: &[Point3<T>],
@@ -853,6 +863,59 @@ pub fn plant_ring_face<T: geom_core::Decide>(
     }
 }
 
+/// **A disc planted in a plane face**: the circle of `radius` about
+/// `center`, axis `+z`, closed at its one vertex `center + radius·x̂`,
+/// planted as a ring of the face whose loop holds `at` and covered by a
+/// new face on a new key holding a copy of that face's surface, with
+/// its sense. The circle is one closed edge between the host and the
+/// disc: its two ends are one vertex.
+///
+/// A strut from `at`'s start vertex to the circle's vertex, killed by
+/// `kemr` so the vertex is left as an empty ring of the host, then one
+/// `mef` at that lone vertex along the circle. The host face is
+/// horizontal and holds the circle; nothing checks either.
+pub fn plant_disc_face<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    at: HalfEdgeKey,
+    center: Point3<T>,
+    radius: T,
+    tol: Tol,
+) -> MefCreated {
+    let x = Vec3::new(T::one(), T::zero(), T::zero());
+    let host = body
+        .get_face(
+            body.get_loop(body.get_half_edge(at).unwrap().parent_loop)
+                .unwrap()
+                .face,
+        )
+        .unwrap()
+        .clone();
+    let strut = body
+        .mev_line(MevSite::Fan { he1: at, he2: at }, center + x * radius, tol)
+        .unwrap();
+    let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    let carrier = Curve3::Circle {
+        center,
+        axis: Vec3::new(T::zero(), T::zero(), T::one()),
+        radius,
+        u_ref: x,
+    };
+    let spec =
+        EdgeCurveSpec::arc_of_circle(carrier, T::zero(), T::from_f64(core::f64::consts::TAU))
+            .unwrap();
+    let surface = body.get_surface(host.surface).unwrap().clone();
+    body.mef(
+        MefSite::Lone { r#loop: kill.ring },
+        spec,
+        FaceSurface::New {
+            surface,
+            sense: host.sense,
+        },
+        tol,
+    )
+    .unwrap()
+}
+
 /// The operator keys [`drill_hole`] mints, in construction order.
 pub struct HoleOps {
     /// Steps (f)–(i): the rim planted in the entry face and its
@@ -883,7 +946,7 @@ pub struct HoleOps {
 /// Every face the hole adds inherits the entry face's surface key, as
 /// at [`plant_ring_face`]. `drops` has one point per rim corner and
 /// lies in `exit`; nothing checks the placement.
-pub fn drill_hole<T: geom_core::Decide>(
+pub fn drill_hole<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     at: HalfEdgeKey,
     exit: FaceKey,
@@ -1008,7 +1071,11 @@ pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
 ///
 /// The holes must lie inside the top face and clear of one another;
 /// nothing checks either.
-pub fn holed_block<T: geom_core::Decide>(w: f64, hole_centres: &[f64], tol: Tol) -> Body<T> {
+pub fn holed_block<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    w: f64,
+    hole_centres: &[f64],
+    tol: Tol,
+) -> Body<T> {
     let pt = identity_map::<T>;
     let mut body = Body::<T>::new();
     let ops = prism_ops(
@@ -1378,6 +1445,188 @@ pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
         cyl_wall_sheet_keyed(body, frame, CylKey::OnSeed, source, (u0, u1), (v0, v1), tol);
     crate::pcurves::mint_pcurves(body, tol).unwrap();
     face
+}
+
+/// The arc of the circle at height `v` around the canonical unit
+/// [`CylFrame`]'s axis from azimuth `u0` up to `u1`, its parameter the
+/// azimuth.
+pub fn cyl_arc_at(v: f64, u0: f64, u1: f64) -> EdgeCurveSpec<f64> {
+    let carrier = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, v),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    EdgeCurveSpec::arc_of_circle(carrier, u0, u1).unwrap()
+}
+
+/// The minted [`cyl_wall_sheet`] over `[4.2, 5.4] x [0, 1]` of the
+/// canonical unit [`CylFrame`] carrying a chain hung off its bottom
+/// rim: a strut up the ruling `u = 4.6` to `s`, then two arcs of the
+/// circle `v = 0.5` ([`cyl_arc_at`]), `s → q` from `4.6` to `4.8` and
+/// `q → t` on to `5.0`. An arc's image runs with its carrier's
+/// parameter, and the second arc's carrier is parametrised a period
+/// down (`4.8 − τ` to `5.0 − τ`), so its image sits a period below the
+/// first's and both joints at `q` carry a whole period, one each way.
+/// Returns the body, the wall, `[s → q, q → s]` and `[q → t, t → q]`.
+pub fn arc_chain_over_the_jump(
+    tol: Tol,
+) -> (Body<f64>, FaceKey, [HalfEdgeKey; 2], [HalfEdgeKey; 2]) {
+    let frame = CylFrame::canonical(1.0);
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(&mut body, frame, None, (4.2, 5.4), (0.0, 1.0), tol);
+    let rim = body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| {
+            let c = body
+                .get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(crate::CurveGeom::certified)
+                .unwrap();
+            matches!(c.carrier(), Curve3::Circle { .. }) && c.params() == (4.2, 5.4)
+        })
+        .unwrap();
+    let cycle = |body: &Body<f64>| {
+        let f = body.get_face(face).unwrap();
+        let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
+            unreachable!("the wall's outer loop is a cycle")
+        };
+        body.loop_cycle(first).unwrap()
+    };
+    let leaving = |body: &Body<f64>, v: crate::VertexKey| {
+        let hit: Vec<HalfEdgeKey> = cycle(body)
+            .into_iter()
+            .filter(|&h| body.get_half_edge(h).unwrap().start == v)
+            .collect();
+        assert_eq!(hit.len(), 1, "one half-edge of the wall leaves {v:?}");
+        hit[0]
+    };
+    let m = body.split_edge(rim, 4.6, tol).unwrap().vertex;
+    let he = leaving(&body, m);
+    let up = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(4.6, 0.5), tol)
+        .unwrap();
+    let mut chain: Vec<MevCreated> = Vec::new();
+    let tau = core::f64::consts::TAU;
+    for (u0, u1) in [(4.6, 4.8), (4.8 - tau, 5.0 - tau)] {
+        let from = chain.last().map_or(up.vertex, |last| last.vertex);
+        let he = leaving(&body, from);
+        let made = body
+            .mev(
+                MevSite::Fan { he1: he, he2: he },
+                frame.at(u1, 0.5),
+                cyl_arc_at(0.5, u0, u1),
+                tol,
+            )
+            .unwrap();
+        chain.push(made);
+    }
+    let outward = |made: &MevCreated, from: crate::VertexKey| {
+        if body.get_half_edge(made.he_plus).unwrap().start == from {
+            [made.he_plus, made.he_minus]
+        } else {
+            [made.he_minus, made.he_plus]
+        }
+    };
+    let s_q = outward(&chain[0], up.vertex);
+    let q_t = outward(&chain[1], chain[0].vertex);
+    let halves = cycle(&body);
+    assert_eq!(halves.len(), 11, "the wall's loop");
+    assert!(
+        halves.iter().all(|&h| body.pcurve(h).is_some()),
+        "the wall is complete"
+    );
+    let band = Band::linear(tol).unwrap();
+    assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
+    let shift = |u| {
+        crate::JointElement::Shift(crate::Deck {
+            u,
+            v: 0,
+            twin: false,
+        })
+    };
+    let [into_out, into_back] = [body.joint(q_t[0]), body.joint(s_q[1])];
+    assert!(
+        into_out.is_some_and(|e| e != shift(0)) && into_back.is_some_and(|e| e != shift(0)),
+        "the premise: both joints at `q` carry a period: {into_out:?} {into_back:?}"
+    );
+    (body, face, s_q, q_t)
+}
+
+/// What [`kill_under_a_null_strut`] hands `Body::kev_describing` to
+/// re-describe.
+pub type NullStrutListing = Vec<(crate::EdgeKey, EdgeCurveSpec<f64>)>;
+
+/// The minted [`cyl_wall_sheet`] over `[0.2, 1.4] x [0, 1]` of the
+/// canonical unit [`CylFrame`] with its bottom rim split at the ruling
+/// `u = 0.8`, a `mev_line` strut up the ruling to `v = 0.5`, and a
+/// `mev_null` strut at its tip: the wall missing the null edge's two
+/// rows. Killing the strut toward its tip merges the tip into the rim
+/// vertex, and the tip's fan is the null edge alone, so the listing is
+/// that edge with the ruling line between its merged ends — the null
+/// edge's first description.
+///
+/// Returns the body, the wall, the null edge, the half that kills the
+/// strut toward its tip, and the kill's listing.
+pub fn kill_under_a_null_strut(
+    tol: Tol,
+) -> (
+    Body<f64>,
+    FaceKey,
+    MevCreated,
+    HalfEdgeKey,
+    NullStrutListing,
+) {
+    let frame = CylFrame::canonical(1.0);
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+    // The bottom rim is the one circle edge whose interval is `[0.2,
+    // 1.4]`, the ascending one, whose parameter IS the azimuth.
+    let rim = body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| {
+            let c = body
+                .get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(crate::CurveGeom::certified)
+                .unwrap();
+            matches!(c.carrier(), Curve3::Circle { .. }) && c.params() == (0.2, 1.4)
+        })
+        .unwrap();
+    let m = body.split_edge(rim, 0.8, tol).unwrap().vertex;
+    let leaving = |body: &Body<f64>, v: crate::VertexKey| {
+        let f = body.get_face(face).unwrap();
+        let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
+            unreachable!("the wall's outer loop is a cycle")
+        };
+        body.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .find(|&h| body.get_half_edge(h).unwrap().start == v)
+            .unwrap()
+    };
+    let he = leaving(&body, m);
+    let strut = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(0.8, 0.5), tol)
+        .unwrap();
+    let he = leaving(&body, strut.vertex);
+    let null = body
+        .mev_null(
+            MevSite::Fan { he1: he, he2: he },
+            crate::NewVertexSide::Above,
+        )
+        .unwrap();
+    let toward_tip = if body.get_half_edge(strut.he_plus).unwrap().start == m {
+        strut.he_plus
+    } else {
+        strut.he_minus
+    };
+    let members = body.kev_merged_members(toward_tip).unwrap();
+    assert_eq!(members.len(), 1, "the tip's fan is the null edge alone");
+    assert_eq!(members[0].edge, null.edge, "the tip's fan is the null edge");
+    let line = EdgeCurveSpec::line_between(members[0].start, members[0].end);
+    let listing = vec![(null.edge, line)];
+    (body, face, null, toward_tip, listing)
 }
 
 #[cfg(test)]

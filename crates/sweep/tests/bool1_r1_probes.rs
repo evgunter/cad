@@ -29,6 +29,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, SurfaceKey};
 
@@ -39,9 +40,16 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    extrude(&validated(loops), Extrusion::Distance(h), Tol::witness())
-        .expect("the probe profile extrudes")
-        .body
+    extrude(
+        &validated(loops),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the probe profile extrudes")
+    .body
 }
 
 /// The Fig. 14.2 notched block of issue 1152's reproduction, with the
@@ -223,12 +231,22 @@ fn coplanar_split_e2e_volume_and_watertight() {
         .volume;
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     let mut total = 0.0;
+    let mut shared_points = 0;
     for (name, part) in [("above", &result.above), ("below", &result.below)] {
         let b = part.body().expect("side has material");
         assert_eq!(
             topo::validate_geometric(b, Tol::witness()),
             Ok(()),
             "{name} at tier 3"
+        );
+        // The pinch's tip copies share the cut vertex's point (D1 tier
+        // 3′), so the census clears the touch with no records.
+        let points: std::collections::BTreeSet<_> = b.vertices().map(|(_, v)| v.point).collect();
+        shared_points += b.vertices().count() - points.len();
+        assert_eq!(
+            topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), Tol::witness()),
+            Ok(()),
+            "{name} passes the pseudomanifold door with no records"
         );
         total += topo::mass_properties(b, Tol::witness())
             .unwrap_or_else(|e| panic!("{name} mass properties: {e:?}"))
@@ -241,6 +259,7 @@ fn coplanar_split_e2e_volume_and_watertight() {
         (total - v0).abs() <= 1e-12 * v0,
         "volume conserved: {total} vs {v0}"
     );
+    assert!(shared_points > 0, "a pinch half holds copies on one point");
 }
 
 /// PROBE 5: a DECLARED locus through the coplanar restatement. The

@@ -94,3 +94,10 @@ declared-`Tangent` door's shared-rim route
 refusal (`UnsupportedDeclarationClass`), so no refusal quotes the
 dropped rung today; a caller that comes to end the escalation itself
 owes it the arm's own decision.
+
+## Since (FUSE, PR 3889)
+
+`must_carry_over_edge` keeps the rung now (`MustCarryVerdict::InBand`
+carries a `geom_brep::MustCarryEscalation`); what remains of it for the
+sweep callers is recorded in
+`work/encl/must-carry-in-band-verdict-does-not-say-which-decision-escalated.md`.

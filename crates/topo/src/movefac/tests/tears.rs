@@ -1,6 +1,8 @@
 //! The labelling proofs' tear measurement: `movefac` on torn bodies,
 //! counting the `Ok` results whose partition misreads the records
-//! ([`super::claimed_components`]).
+//! ([`super::claimed_components`]). Every other outcome is a typed
+//! refusal that is not an argument's, or a panic naming a tier-1
+//! premise; any other panic fails the measurement.
 
 // A counterexample search over the labelling's walks and the proofs
 // they call: the operator, `Body::require_run_of`, the cycle walk it
@@ -19,9 +21,9 @@ use test_utils::fuzz::Rng;
 use super::{claimed_components, misread};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey};
+use crate::euler::EulerOpError;
 use crate::fixtures::{
     detached_digons, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube,
-    through_the_scalpel,
 };
 use crate::test_support_fixtures::declined_cube;
 
@@ -103,21 +105,27 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut Rng) {
     }
 }
 
-/// One row per tear kind: calls, `Err`, `Ok`, and the `Ok` results that
-/// join two of the records' components into one shell or split one
-/// across two.
-type Row = [usize; 5];
+/// One row per tear kind: calls, typed `Err`, `Ok`, the `Ok` results
+/// that join two of the records' components into one shell or split
+/// one across two, and the calls that panicked on a tier-1 premise.
+type Row = [usize; 6];
 
 /// The measurement under `tear`: for each seed, one and two tears on
 /// every [`BODIES`] body, then `movefac` on each of its shells, each on
 /// a clone inside a surgery scope, so a debug build's tier-1
 /// postcondition, which a torn input fails whatever the operator
 /// writes, does not answer first.
+///
+/// # Panics
+///
+/// On an `Argument` refusal (every key `movefac` reads past its own
+/// argument comes from the body) and on a panic whose message names no
+/// tier-1 premise, naming the tear, seed and body.
 fn rows(tear: Tear, seeds: &[u64]) -> Row {
-    let mut row = [0; 5];
+    let mut row = [0; 6];
     for &seed in seeds {
         for tears in [1, 2] {
-            for (_, build) in BODIES {
+            for (name, build) in BODIES {
                 let mut body = build();
                 let mut rng = Rng::from_seed(seed);
                 for _ in 0..tears {
@@ -127,25 +135,34 @@ fn rows(tear: Tear, seeds: &[u64]) -> Row {
                 for shell in shells {
                     let truth = claimed_components(&body, shell);
                     let mut trial = body.clone();
-                    let mut scope = trial.begin_surgery();
-                    let outcome = through_the_scalpel(&["movefac"], || scope.movefac(shell));
-                    drop(scope);
-                    // A fired sweep stood in front of the `Ok` naming the
-                    // shell and the shells the move minted.
-                    let outcome = outcome.unwrap_or_else(|_| {
-                        Ok(std::iter::once(shell)
-                            .chain(
-                                trial
-                                    .shells()
-                                    .map(|(k, _)| k)
-                                    .filter(|&k| body.get_shell(k).is_none()),
-                            )
-                            .collect())
-                    });
+                    let mut outcome = None;
+                    let panicked =
+                        crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+                            let mut scope = trial.begin_surgery_on_a_torn_body();
+                            outcome = Some(scope.movefac(shell));
+                        }));
                     row[0] += 1;
-                    let Ok(result) = outcome else {
-                        row[1] += 1;
-                        continue;
+                    let context = format!("{tear:?} x{tears}, seed {seed}, {name}");
+                    let result = match (panicked, outcome) {
+                        (None, Some(Ok(result))) => result,
+                        (None, Some(Err(EulerOpError::Argument(bad)))) => {
+                            panic!(
+                                "`movefac` refused a key it read from the body ({context}): {bad:?}"
+                            )
+                        }
+                        (None, Some(Err(_))) => {
+                            row[1] += 1;
+                            continue;
+                        }
+                        (Some(message), _) => {
+                            assert!(
+                                message.contains("tier-1-valid"),
+                                "`movefac` panicked naming no tier-1 premise ({context}): {message}"
+                            );
+                            row[5] += 1;
+                            continue;
+                        }
+                        (None, None) => unreachable!("the closure either returned or panicked"),
                     };
                     row[2] += 1;
                     let (joined, split) = misread(&trial, &result, &truth);
@@ -162,7 +179,7 @@ fn rows(tear: Tear, seeds: &[u64]) -> Row {
 fn assert_no_misread(table: &[Row; TEARS.len()], context: &str) {
     for (tear, row) in TEARS.iter().zip(table) {
         assert_eq!(
-            row[3..],
+            row[3..5],
             [0, 0],
             "`movefac` under {tear:?} joined or split the records' components through `Ok` \
              ({context})"
@@ -199,12 +216,12 @@ fn movefac_on_torn_bodies() {
         });
         handles.map(|handle| handle.join().unwrap())
     });
-    println!("| tear | calls | `Err` | `Ok` | `Ok`, joined | `Ok`, split |");
-    println!("| --- | --- | --- | --- | --- | --- |");
+    println!("| tear | calls | `Err` | `Ok` | `Ok`, joined | `Ok`, split | panicked |");
+    println!("| --- | --- | --- | --- | --- | --- | --- |");
     for (tear, row) in TEARS.iter().zip(&table) {
         println!(
-            "| `{tear:?}` | {} | {} | {} | {} | {} |",
-            row[0], row[1], row[2], row[3], row[4]
+            "| `{tear:?}` | {} | {} | {} | {} | {} | {} |",
+            row[0], row[1], row[2], row[3], row[4], row[5]
         );
     }
     assert_no_misread(&table, "seeds 1..=2000");

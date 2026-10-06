@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -102,6 +103,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -126,6 +128,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: plate_p,
             distance: len(0.8),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, boss_p) = on_frame(
@@ -140,6 +143,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: boss_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -148,7 +152,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
             op: editor_core::BooleanOp::Union,
             a: plate,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc
@@ -170,6 +174,7 @@ fn two_solid_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -207,8 +212,8 @@ fn part_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> PartFault {
 /// 4 need. Exact (no arithmetic beyond the comparison), so a rigid
 /// translation moves it by exactly the translation.
 fn min_x(body: &topo::Body<f64>) -> f64 {
-    body.vertices()
-        .filter_map(|(_, v)| body.get_point(v.point))
+    body.vertex_points()
+        .map(|(_, p)| p)
         .map(|p| p.x)
         .fold(f64::INFINITY, f64::min)
 }
@@ -1105,7 +1110,8 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
         p3,
         Node::Extrude {
             profile,
-            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+            distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
+            side: ExtrudeSide::Along,
         },
     );
     let p3_own = match run(&p3, &EvalOptions::default()).result(p3_root) {
@@ -1233,7 +1239,8 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         part,
         Node::Extrude {
             profile,
-            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+            distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
+            side: ExtrudeSide::Along,
         },
     );
     let (part, moved) = moved_over(part, extrude);

@@ -14,15 +14,19 @@
 //!   band under the bar, times the depth. These poses once returned ∩
 //!   bodies missing that face (a wrong volume, negative on some, tier 3
 //!   red): the join took the chord for the section segment and never
-//!   minted the arc (`chord_join`'s `between_edge_is_section`, the
-//!   `bool_between_line_on_wall` arm).
+//!   minted the arc. REACH first fixed it with a geometric test of the
+//!   chord against the wall; the join's adjacency skip now reads the
+//!   segment's locus instead (JOIN-1), and the section segment here
+//!   lies inside the bar's floor, so no edge is ever taken for it.
 //! - **Cubes touching a drum's wall at a corner**, their main diagonal
 //!   along the wall's normal, inside or outside: each op is the cube's
 //!   volume combined with the drum's, exactly.
 //!
 //! Each row runs ∪, both ∖ and ∩; a body must hold its closed-form
 //! volume and pass tier 3, and a refusal must be the door the row
-//! names.
+//! names. The bars' rows all build: a cut that notches the cap's wall
+//! measures, and one whose section closes inside the wall joins
+//! through the pierce rings.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_1_SQRT_2, PI};
@@ -30,24 +34,41 @@ use core::f64::consts::{FRAC_1_SQRT_2, PI};
 use crate::common::germ_pair::cyl;
 use crate::common::operands::{framed_bar, three_arc_cylinder};
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use sweep::test_support::brick;
-use topo::{ArcWindowCase, Body, BooleanError, BooleanResult, SplitJoinError};
+use sweep::test_support::{brick, finished};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 /// What one op must answer.
 #[derive(Clone, Copy, Debug)]
 enum Want {
-    /// A body of this volume (0 for an empty result).
+    /// A body of this volume (0 for an empty result), at tier 3.
     Volume(f64),
-    /// The pierce ring's join door (`work/tang/pierce-ring-has-no-join-arm`).
-    RingDoor,
-    /// The backstop cannot measure a cap wall the cut notched
-    /// (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
-    RimUnmeasured,
+    /// A body of this volume through tiers 2, 3 and 3′, and a legal
+    /// operand.
+    Sound(f64),
 }
 
 fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
     let tol = Tol::witness();
     match (r, want) {
+        (Ok(r), Want::Sound(v)) => {
+            let got = match r.body() {
+                Some(b) => {
+                    topo::validate_closed(&b.body)
+                        .unwrap_or_else(|e| panic!("{what}: tier 2, got {e:?}"));
+                    topo::validate_geometric(&b.body, tol)
+                        .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+                    topo::validate_pseudomanifold(&b.body, &b.contacts, tol)
+                        .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
+                    sweep::test_support::assert_legal_operand(what, &b.body, tol);
+                    topo::mass_properties(&b.body, tol).unwrap().volume
+                }
+                None => 0.0,
+            };
+            assert!(
+                (got - v).abs() <= 1e-9 * v.abs().max(1e-3),
+                "{what}: volume {got}, closed form {v}"
+            );
+        }
         (Ok(r), Want::Volume(v)) => {
             let got = match r.body() {
                 Some(b) => {
@@ -62,27 +83,6 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
                 "{what}: volume {got}, closed form {v}"
             );
         }
-        (
-            Err(BooleanError::Join(SplitJoinError::SectionArcWindow {
-                case: ArcWindowCase::NoChartedRun,
-                ..
-            })),
-            Want::RingDoor,
-        ) => {}
-        (
-            Err(BooleanError::VolumeUnmeasured {
-                source:
-                    topo::MassPropsError::Face {
-                        source:
-                            geom_brep::props::PropsError::NotIsoRectangle {
-                                what: "props_rim_level",
-                            },
-                        ..
-                    },
-                ..
-            }),
-            Want::RimUnmeasured,
-        ) => {}
         (got, want) => panic!(
             "{what}: wanted {want:?}, got {:?}",
             got.map(|r| r.body().is_some())
@@ -91,7 +91,7 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
 }
 
 /// The four ops of `a` with `b`, against `[∪, A∖B, B∖A, ∩]`.
-fn four(what: &str, a: &Body<f64>, b: &Body<f64>, want: [Want; 4]) {
+fn four(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: [Want; 4]) {
     let tol = Tol::witness();
     check(&format!("{what} ∪"), topo::union(a, b, tol), want[0]);
     check(&format!("{what} A∖B"), topo::subtract(a, b, tol), want[1]);
@@ -111,8 +111,8 @@ fn band_area(y0: f64, y1: f64) -> f64 {
 /// its centreline `c` off the axis of the unit cylinder `z ∈ [0, 2]`,
 /// sunk `depth` into the top cap. Its near floor edge, at lateral
 /// `c − w/2`, is a chord of the wall, clipped by the bar's own ends.
-/// ∩ and B∖A build; ∪ and A∖B stop where the backstop cannot measure
-/// the notched wall; the deeper poses at `c = 0.9` reach the ring door.
+/// Every op builds, the deeper poses at `c = 0.9` through the pierce
+/// rings their sections close on.
 #[test]
 fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
     let (w, t0, t1) = (
@@ -121,8 +121,12 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
         1.738_194_969_430_420_4,
     );
     let s = FRAC_1_SQRT_2;
-    let a = three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0);
-    let vbar = w * w * (t1 - t0);
+    let a = finished(
+        "the cylinder",
+        three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0),
+        Tol::witness(),
+    );
+    let (vcyl, vbar) = (2.0 * PI, w * w * (t1 - t0));
     for c in [0.9_f64, 1.047, 1.15] {
         let lo = c - w / 2.0;
         let half = (1.0 - lo * lo).sqrt();
@@ -130,20 +134,24 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
         let area = f(half.min(t1)) - f((-half).max(t0));
         for depth in [0.002, 0.0078, 0.03, 0.1, 0.3] {
             let o = Point3::new(c * s, -c * s, 2.0 - depth + w / 2.0);
-            let b = framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w);
+            let b = finished(
+                "the bar",
+                framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w),
+                Tol::witness(),
+            );
             let i = area * depth;
             let what = format!("c {c}, depth {depth}:");
-            let want = if c == 0.9 && depth >= 0.03 {
-                [Want::RingDoor; 4]
-            } else {
+            four(
+                &what,
+                &a,
+                &b,
                 [
-                    Want::RimUnmeasured,
-                    Want::RimUnmeasured,
-                    Want::Volume(vbar - i),
-                    Want::Volume(i),
-                ]
-            };
-            four(&what, &a, &b, want);
+                    Want::Sound(vcyl + vbar - i),
+                    Want::Sound(vcyl - i),
+                    Want::Sound(vbar - i),
+                    Want::Sound(i),
+                ],
+            );
         }
     }
 }
@@ -152,31 +160,38 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
 /// disc along `x`, lateral band `y ∈ [c − h, c + h]`, sunk `0.1` into
 /// the top cap or raised `0.1` into the bottom one: ∩ is the disc's
 /// band times the depth, whether both floor edges are chords, one is,
-/// or the band runs off the disc. ∪ and A∖B stop where the backstop
-/// cannot measure the notched wall.
+/// or the band runs off the disc.
 #[test]
 fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
     let (w, depth) = (0.4_f64, 0.1);
     let h = w / 2.0;
-    let a = three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0);
-    let vbar = w * w * 6.0;
+    let a = finished(
+        "the cylinder",
+        three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0),
+        Tol::witness(),
+    );
+    let (vcyl, vbar) = (2.0 * PI, w * w * 6.0);
     for c in [0.3, -0.95, 1.1] {
         let i = band_area(c - h, c + h) * depth;
         for (cap, zc) in [("top", 2.0 - depth + h), ("bottom", depth - h)] {
-            let b = framed_bar(
-                Point3::new(0.0, c, zc),
-                Vec3::new(1.0, 0.0, 0.0),
-                -3.0,
-                3.0,
-                w,
+            let b = finished(
+                "the bar",
+                framed_bar(
+                    Point3::new(0.0, c, zc),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    -3.0,
+                    3.0,
+                    w,
+                ),
+                Tol::witness(),
             );
             four(
                 &format!("x-bar c {c}, {cap} cap:"),
                 &a,
                 &b,
                 [
-                    Want::RimUnmeasured,
-                    Want::RimUnmeasured,
+                    Want::Volume(vcyl + vbar - i),
+                    Want::Volume(vcyl - i),
                     Want::Volume(vbar - i),
                     Want::Volume(i),
                 ],
@@ -187,7 +202,7 @@ fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
 
 /// The rigid motion taking the cube `[0, l]³`'s corner at the origin to
 /// `p`, its main diagonal to `diag`, spun `spin` about it.
-fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> Body<f64> {
+fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let u1 = Vec3::new(1.0, 1.0, 1.0).normalize();
     let u2 = Vec3::new(1.0, -1.0, 0.0).normalize();
@@ -203,8 +218,9 @@ fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> Body<f64> {
     };
     let m = Mat3::from_cols(col(0), col(1), col(2));
     let cube = brick((0.0, l), (0.0, l), (0.0, l), tol);
-    topo::transform_rigid(&cube, &Affine3::from_parts(m, p - Point3::origin()), tol)
-        .expect("the cube moves")
+    let cube = topo::transform_rigid(&cube, &Affine3::from_parts(m, p - Point3::origin()), tol)
+        .expect("the cube moves");
+    finished("the cube", cube, tol)
 }
 
 /// **A cube touching a drum's wall at one corner.** Its main diagonal
@@ -214,7 +230,7 @@ fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> Body<f64> {
 /// tangent plane.
 #[test]
 fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
-    let drum = cyl(1.0, 2.0);
+    let drum = finished("the drum", cyl(1.0, 2.0), Tol::witness());
     let vd = 4.0 * PI;
     let phi = 0.7_f64;
     let p = Point3::new(phi.cos(), phi.sin(), 0.3);
@@ -225,8 +241,8 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
             let inner = cube_at(p, -n, spin, l);
             assert!(
                 inner
-                    .vertices()
-                    .map(|(_, v)| *inner.get_point(v.point).unwrap())
+                    .vertex_points()
+                    .map(|(_, q)| q)
                     .filter(|q| (*q - p).norm() > 1e-9)
                     .all(|q| q.x.hypot(q.y) < 1.0 && q.z.abs() < 2.0),
                 "l {l} spin {spin}: the inner cube's corners are inside the drum"
@@ -252,6 +268,53 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
                     Want::Volume(cube3),
                     Want::Volume(0.0),
                 ],
+            );
+        }
+    }
+    // What the door ships below tier 3′ (it gates at tier 3; the census
+    // is parked, `work/reach/boolean-door-runs-the-census-over-its-result.md`),
+    // pinned as it stands at every pose: the drum ∖ the inner cube keeps
+    // the corner's vertex-on-face row though the corner left the wall
+    // (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`),
+    // and the drum ∪ the outer cube keeps the same row beside a curved
+    // pair the census's cross-solid lane cannot decide
+    // (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+    // Red when either is fixed.
+    let tol = Tol::witness();
+    for l in [0.65, 0.8] {
+        for spin in [0.0, 0.4] {
+            let census = |r: Result<BooleanResult<f64>, BooleanError>| {
+                let Ok(BooleanResult::Body(b)) = r else {
+                    panic!("l {l} spin {spin}: a body");
+                };
+                topo::validate_pseudomanifold(&b.body, &b.contacts, tol).expect_err("below tier 3′")
+            };
+            let inner = cube_at(p, -n, spin, l);
+            let stale = census(topo::subtract(&drum, &inner, tol));
+            assert!(
+                matches!(
+                    stale.as_slice(),
+                    [topo::ValidationError::StaleContactDeclaration {
+                        declaration: topo::StaleDeclaration::VertexOnFace { .. }
+                    }]
+                ),
+                "l {l} spin {spin}: drum ∖ inner keeps a stale vertex-on-face row: {stale:?}"
+            );
+            let outer = cube_at(p, n, spin, l);
+            let undecided = census(topo::union(&drum, &outer, tol));
+            let (undecidable, stale): (Vec<_>, Vec<_>) = undecided
+                .iter()
+                .partition(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
+            assert!(
+                !undecidable.is_empty()
+                    && matches!(
+                        stale.as_slice(),
+                        [topo::ValidationError::StaleContactDeclaration {
+                            declaration: topo::StaleDeclaration::VertexOnFace { .. }
+                        }]
+                    ),
+                "l {l} spin {spin}: drum ∪ outer is the undecidable curved pair, with the \
+                 corner's stale row: {undecided:?}"
             );
         }
     }

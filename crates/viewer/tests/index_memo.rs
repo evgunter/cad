@@ -25,8 +25,8 @@ use std::sync::Arc;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId,
-    StableName, UnnamedEntity,
+    Dimension, DocEdit, Evaluation, Formula, HitTestError, NodePick, ProfileDoc, RecipeNodeId,
+    SlotId, StableName, UnnamedEntity,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -95,13 +95,13 @@ fn digest(m: &Mesh) -> u64 {
 struct Edit {
     node: RecipeNodeId,
     slot: SlotId,
-    expr: Expr,
+    expr: Formula,
 }
 
 impl Edit {
-    /// The write as the session's op spells it.
-    fn op(&self) -> SessionOp {
-        set_slot(self.node, self.slot, &self.expr)
+    /// The write as the session's op spells it, against `doc`'s names.
+    fn op(&self, doc: &ProfileDoc) -> SessionOp {
+        set_slot(doc, self.node, self.slot, &self.expr)
     }
 }
 
@@ -117,7 +117,7 @@ fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
         Edit {
             node,
             slot,
-            expr: original.clone(),
+            expr: Formula::from(original),
         },
     ))
 }
@@ -142,7 +142,7 @@ fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
             if value == 0.0 {
                 continue;
             }
-            let scaled = Expr::literal(value * 1.015_625, Dimension::Length).ok()?;
+            let scaled = Formula::literal(value * 1.015_625, Dimension::Length).ok()?;
             return Some(Edit {
                 node,
                 slot,
@@ -682,7 +682,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     }
     steps.push(opened);
     for (step, edit) in edits {
-        let outcome = session.perform(edit.op());
+        let outcome = session.perform(edit.op(session.committed_doc()));
         assert!(
             outcome.refusal.is_none(),
             "{name}: edit {step} refused: {:?}",
@@ -810,7 +810,7 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
         for (landing, ask) in asked.iter().enumerate() {
             if landing > 0 {
                 let op = ops[landing - 1].clone().expect("an edit");
-                let outcome = session.perform(op.op());
+                let outcome = session.perform(op.op(session.committed_doc()));
                 assert!(
                     outcome.refusal.is_none(),
                     "{name}: landing {landing} refused"
@@ -870,7 +870,7 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
     let revert = Edit {
         node,
         slot,
-        expr: original.clone(),
+        expr: Formula::from(original),
     };
     let edits = sequence(&doc, bump, revert);
     drive("gallery_ring", doc, &edits, tol);
@@ -905,7 +905,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let bump = Edit { node, slot, expr };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let outcome = session.perform(bump.op());
+    let outcome = session.perform(bump.op(session.committed_doc()));
     assert!(
         outcome.refusal.is_none(),
         "the bump lands: {:?}",
@@ -1028,7 +1028,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let bump = Edit { node, slot, expr };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let outcome = session.perform(bump.op());
+    let outcome = session.perform(bump.op(session.committed_doc()));
     assert!(
         outcome.refusal.is_none(),
         "the bump lands: {:?}",

@@ -46,6 +46,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -59,9 +60,9 @@ use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_k
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    DocParam, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, evaluate,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason,
+    UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -81,8 +82,8 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn half() -> f64 {
@@ -128,18 +129,18 @@ fn measure_value<T: geom_core::Decide>(
 }
 
 fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name(n),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: dist,
-        },
+        }),
     });
 }
 
-fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Expr; 3]) -> RecipeNodeId {
+fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Formula; 3]) -> RecipeNodeId {
     r.insert(Node::transform(
         input,
         editor_core::Step::Rigid {
@@ -160,6 +161,7 @@ fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64
     r.insert(Node::Extrude {
         profile,
         distance: len(height),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -468,7 +470,7 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
         &mut r,
         solid,
         [
-            Expr::param(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
             len(0.0),
         ],
@@ -553,7 +555,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         "the ε-scaled box certifies"
     );
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("{}", budget.render());
+    eprintln!("{}", budget.render(&doc));
     let mut seen = Vec::new();
     for leaf in verdict.certified() {
         let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
@@ -569,7 +571,6 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
             .all(|v| matches!(v, AssertionVerdict::Holds { .. })),
         "a straddle inside the band reads Holds: {seen:?}"
     );
-    let _ = UnevaluatedReason::Indeterminate;
     let report = stackup(
         &doc,
         measure,
@@ -577,6 +578,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -622,7 +624,8 @@ fn report_key_tells_two_budgets_apart() {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::param(name("depth"), Dimension::Length),
+        distance: Formula::named(name("depth"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let starved = drive(
@@ -759,7 +762,7 @@ fn neck_dir(
         &mut r,
         solid,
         [
-            Expr::param(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
             len(0.0),
         ],
@@ -863,7 +866,7 @@ fn a_planted_engine_refusal_becomes_refused_mass_that_overruns_a_zero_budget() {
     )
     .expect("the f64 witness builds: no engine runs at a point scalar");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("{}", budget.render());
+    eprintln!("{}", budget.render(&doc));
     let unresolved = budget.unresolved.clone().expect("priced");
     assert!(unresolved > 0.0, "the refused leaf is priced: {unresolved}");
     assert!(verdict.certified().is_empty());
@@ -893,7 +896,7 @@ fn a_wide_box_overruns_a_zero_budget() {
     )
     .expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("{}", budget.render());
+    eprintln!("{}", budget.render(&doc));
     assert!(budget.unresolved.clone().expect("priced") > 0.0);
 }
 
@@ -925,9 +928,9 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         &mut r,
         solid,
         [
-            Expr::param(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
-            Expr::param(name("lift"), Dimension::Length),
+            Formula::named(name("lift"), Dimension::Length),
         ],
     );
     let measure = r.insert(
@@ -953,18 +956,20 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     });
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     match MassBasis::of(&analyzed) {
-        MassBasis::Forced { by } => assert_eq!(by, vec![name("lift")]),
+        MassBasis::Forced { by } => {
+            assert_eq!(by, vec![r.doc.var_named("lift").expect("declared")]);
+        }
         other => panic!("{other:?}"),
     }
     let verdict = drive(&r.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("mixed:\n{}\n{}", budget.render(), budget.serialize());
-    assert!(budget.render().contains("FORCED, not priced: lift"));
+    eprintln!("mixed:\n{}\n{}", budget.render(&r.doc), budget.serialize());
+    assert!(budget.render(&r.doc).contains("FORCED, not priced: lift"));
     // Now a band-only box that the drive must SPLIT: a starved split on
     // a band axis prices nothing, typed.
     let mut sub = BTreeMap::new();
     sub.insert(
-        name("lift"),
+        r.doc.var_named("lift").expect("declared"),
         BoxAxis::Varying {
             lo: -half(),
             hi: 0.0,
@@ -1038,11 +1043,11 @@ fn bracket(
         &mut r,
         post_solid,
         [
-            Expr::param(name("offset"), Dimension::Length),
+            Formula::named(name("offset"), Dimension::Length),
             len(0.0),
-            Expr::sub(
+            Formula::sub(
                 len(1.0),
-                Expr::neg(Expr::param(name("lift"), Dimension::Length))
+                Formula::neg(Formula::named(name("lift"), Dimension::Length))
                     .expect("a shallow negation"),
             )
             .expect("length"),
@@ -1110,14 +1115,14 @@ fn the_bracket_walk_through_the_public_doors() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
-    eprintln!("== drive\n{}", verdict.render(&analyzed));
+    eprintln!("== drive\n{}", verdict.render(&doc, &analyzed));
     assert!(
         !verdict.certified().is_empty(),
         "the bracket certifies at ε/64"
     );
 
     eprintln!("== stackup(web)");
-    let report = stackup(&doc, web, &analyzed, &verdict, None, true, tol).expect("a stackup");
+    let report = stackup(&doc, web, &analyzed, &verdict, None, true, None, tol).expect("a stackup");
     eprintln!("{}", report.render(&doc, &analyzed));
     assert!(report.worst_case.lo <= 1.0 && 1.0 <= report.worst_case.hi);
 
@@ -1130,7 +1135,7 @@ fn the_bracket_walk_through_the_public_doors() {
     // forfeits by name.
     eprintln!("== stackup(min_clearance)");
     let clearance_report =
-        stackup(&doc, clearance, &analyzed, &verdict, None, true, tol).expect("a stackup");
+        stackup(&doc, clearance, &analyzed, &verdict, None, true, None, tol).expect("a stackup");
     eprintln!("{}", clearance_report.render(&doc, &analyzed));
     assert!(
         clearance_report.worst_case.leaves > 0,
@@ -1224,7 +1229,7 @@ fn the_bracket_walk_through_the_public_doors() {
 
     eprintln!("== budget");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("{}", budget.render());
+    eprintln!("{}", budget.render(&doc));
     assert_eq!(budget.basis, MassBasis::Priced);
 
     // The same bracket with a BAND on the offset: the budget reads
@@ -1242,10 +1247,10 @@ fn the_bracket_walk_through_the_public_doors() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("== band budget\n{}", budget.render());
+    eprintln!("== band budget\n{}", budget.render(&doc));
     assert!(matches!(budget.basis, MassBasis::Forced { .. }));
     assert!(monte_carlo(&doc, &analyzed, &McConfig::default(), tol).is_err());
-    if let Ok(report) = stackup(&doc, web, &analyzed, &verdict, None, true, tol) {
+    if let Ok(report) = stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
         eprintln!("== band stackup\n{}", report.render(&doc, &analyzed));
     }
 }
@@ -1330,33 +1335,35 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     let _plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
-    let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
+    let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
-                radius: Expr::param(name(radius), Dimension::Length),
+                radius: Formula::named(name(radius), Dimension::Length),
             }],
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,
             distance: len(1.0e-3),
+            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(
         &mut r,
-        Expr::sub(
+        Formula::sub(
             len(0.0),
-            Expr::param(name("half_spacing"), Dimension::Length),
+            Formula::named(name("half_spacing"), Dimension::Length),
         )
         .expect("length"),
         "hole_a_r",
     );
     let hole_b = hole(
         &mut r,
-        Expr::param(name("half_spacing"), Dimension::Length),
+        Formula::named(name("half_spacing"), Dimension::Length),
         "hole_b_r",
     );
     let ev = eval_over::<f64>(&r.doc, None);
@@ -1368,7 +1375,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
                 geom::SurfaceKind::Cylinder,
             ))],
-            &r.doc.param_env::<f64>(),
+            &r.doc.var_env::<f64>(),
             tol,
         )
         .expect("exact atom");
@@ -1376,7 +1383,8 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &'static str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
+    let radius_of =
+        |n: &'static str| MeasureExpr::value(Formula::named(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
@@ -1392,7 +1400,8 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let verdict = drive(&r.doc, &analyzed, &numeric_lane(), tol).expect("builds");
     assert!(!verdict.certified().is_empty());
-    let report = stackup(&r.doc, measure, &analyzed, &verdict, None, true, tol).expect("stackup");
+    let report =
+        stackup(&r.doc, measure, &analyzed, &verdict, None, true, None, tol).expect("stackup");
     eprintln!(
         "stop 2: worst_case [{:e}, {:e}] bound {bound:e} (lo − bound = {:e}, ε = {:e})",
         report.worst_case.lo,

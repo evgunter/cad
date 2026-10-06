@@ -73,9 +73,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         body: &Body<T>,
         mut parents_of: impl FnMut(topo::Operand, FaceKey) -> Result<BTreeSet<K>, NamingError>,
     ) -> Result<(), NamingError> {
-        let fused = naming
-            .fused_into()
-            .ok_or_else(|| bug("a boolean's vertex fusions form a cycle"))?;
+        let fused = naming.fused_into();
         let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(v);
         // A bordered stretch settles on a seam edge: the zip made the
         // kept face's section edge one edge with the wall's. A held

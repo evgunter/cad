@@ -102,13 +102,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, DocumentId,
-    EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
+    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
+use pncad::prelude::AuthoredNode;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
 use pncad::topo::{Body, SurfaceKey};
 
@@ -164,54 +166,53 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// [`crate::mcchain`] draws it to scale, and a number a picture is
 /// built around should not be a literal buried in the drawing code.
 ///
-/// **At the DEFAULT ε**, like every other measured number here: the
-/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured — for the
-/// reason [`crate::chaintol`]'s header gives under "What sets the
-/// wall". So the cell asks at every ε whether this published box still
-/// certifies there rather than reasoning about it.
-pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
+/// **At the DEFAULT ε**, like every other measured number here. Since
+/// the extrude closes with the pcurve mint the wall is the placed rows'
+/// angular comparisons (`pcurve_loop_continuity`,
+/// `pcurve_trim_containment`), an enclosure ESCALATING against the band,
+/// so the fraction is ε-relative: `6.747e-5` at ε = 1e-6 against
+/// `6.751e-8` at the default, measured. Before the mint it was `0.111`,
+/// bounded by `dihedral_wedge`; the follow-on that restates the
+/// angular comparisons puts that back
+/// (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).
+pub const CERTIFIABLE_FRACTION: f64 = 6.751e-8;
 
-/// **The same measurement at 1, 2, 3 and 4 links** — one number in
-/// four spellings.
+/// **The same measurement at 1, 2, 3 and 4 links.**
 ///
 /// The tip's certified lateral half-width, `L · 3σ · f · n(n+1)/2` at
-/// `n` links, is `3.998e-4` m at two, three and four links alike. What
-/// that number IS, is half of [`PIN_RADIUS`] — a property of THIS
-/// document's geometry, not of the tier: the ratio is
-/// `0.500 / 0.500 / 0.499`, and MEASURED with the radius doubled to
-/// `1.6e-3` m the fractions become `1.0000 / 0.73841 / 0.36921 /
-/// 0.22192` and the half-width `7.975e-4` m — still `0.498` of the
-/// radius; why half is [`crate::chaintol`]'s header, "What sets the
-/// wall". [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it. The one-link row
-/// is capped by the study itself rather than by the wall, and sits at
-/// `0.450` of the radius.
+/// `n` links, is what each fraction allows. The wall that sets it is
+/// check 5's escape enclosure on the placed rows, which does NOT grow in
+/// step with the tip's lever sum: the half-width rises with link count
+/// and flattens ([`CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS`]), so the
+/// four fractions are four measurements, not one number spelled four
+/// ways.
 ///
-/// (An earlier reading of this table said the constant thing was an
-/// ANGLE — "about 1.9° of accumulated swing, however many joints it is
-/// spread over". It is not: the swing doubles with the pin radius, to
-/// `3.81°`. The invariance across link counts is real; the angle was
-/// the shipped radius in disguise.)
+/// (Before the mint the wall was `dihedral_wedge` and the number was
+/// HALF the pin radius, a property of this document's geometry: with
+/// the radius doubled to `1.6e-3` m the fractions became `1.0000 /
+/// 0.73841 / 0.36921 / 0.22192` and the half-width `7.975e-4` m, still
+/// `0.498` of the radius. That is what the follow-on restores.)
 ///
 /// MEASURED by [`crate::chaintol`] and pinned there;
 /// [`CERTIFIABLE_FRACTION`] is the last row.
 ///
 /// Read only by that cell; the sheet's own [`CERTIFIABLE_FRACTION`] is
 /// the last row of it.
-pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
+pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [6.510e-7, 2.216e-7, 1.117e-7, 6.751e-8];
 
-/// **The tip's certified lateral half-width, over the pin radius** —
-/// the same at every link count whose box the WALL sets, and the
-/// number [`CERTIFIABLE_FRACTION_BY_LINKS`] is four spellings of.
+/// **The tip's certified lateral half-width, over the pin radius**, at
+/// 1, 2, 3 and 4 links.
 ///
-/// MEASURED by [`crate::chaintol`] at 2, 3 and 4 links and pinned
-/// there with a paste-ready re-baseline; it is not derived from the
-/// two constants beside it, because what it asserts is that those two
-/// stand in this ratio AT EVERY LINK COUNT, which neither of them
-/// says. The one-link chain is excluded on purpose: its box is the
-/// study, not the wall.
+/// MEASURED by [`crate::chaintol`] and pinned there. It rises at every
+/// step, and each step is smaller than the one before (2.1%, 0.81%,
+/// 0.73%). Whether it converges is not established. Before the
+/// extrude closed with the pcurve mint the wall was `dihedral_wedge`
+/// and this was one number, `4.995e-1`, half the pin radius, past one
+/// link.
 ///
 /// Read only by that cell.
-pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 4.995e-1;
+pub const CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS: [f64; LINKS] =
+    [2.929e-7, 2.992e-7, 3.016e-7, 3.038e-7];
 
 /// **The certified enclosure of each joint pin's centre at that box**
 /// — `(half-width along the chain, half-width across it)`, in metres,
@@ -234,15 +235,19 @@ pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 4.995e-1;
 /// `1 : 2.24 : 3.74 : 5.48`, the quadrature sum. That gap between a
 /// linear sum and a root-sum-square is E11's subject, and on this
 /// document it is visible on the sheet rather than only in a report.
-/// The enclosures are TIGHT, not padded: `3.996e-5` m is exactly
-/// `L · 3σ_c · 1` at the certified box's own σ, to every digit the
-/// measurement carries.
+/// The enclosures are TIGHT, not padded: `2.430e-11` m is exactly
+/// `L · 3σ_c · 1` at the certified box's own σ. Since the extrude
+/// closes with the pcurve mint the box is `6.751e-8` of the study, so
+/// every enclosure is far under a pixel: the sheet draws each side
+/// under `mcchain`'s pixel floor AT that floor, centred on the pin,
+/// says in its legend which sides are floored, and prints the true
+/// half-widths in its table.
 pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
-    (0.0, 0.0),
-    (6.653231802815351e-8, 3.995961969247516e-5),
-    (3.3266085237848575e-7, 1.198788590774255e-4),
-    (9.314487635844748e-7, 2.3975816125464358e-4),
-    (1.995959949908921e-6, 3.9959841242371446e-4),
+    (0e0, 0e0),
+    (6.938893903907228e-18, 2.430341361328867e-11),
+    (2.42861286636753e-17, 7.291024083986602e-11),
+    (5.551115123125783e-17, 1.4582048167973203e-10),
+    (9.71445146547012e-17, 2.4303413613288677e-10),
 ];
 
 /// **The pin's axis, read off the body the kernel built** — ONE rule,
@@ -284,19 +289,19 @@ pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
 /// certified table alike.
-pub fn joint_name(k: usize) -> ParamName {
-    ParamName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
+pub fn joint_name(k: usize) -> VarName {
+    VarName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
 }
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("finite length")
 }
 
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -310,18 +315,16 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(
-    doc: &mut ProfileDoc,
-    name: ParamName,
-    value: f64,
-    distribution: Distribution,
-    tol: Tol,
-) {
+fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distribution, tol: Tol) {
     let applied = apply(
         doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name,
-            value: DocParam::continuous_with(Dimension::Angle, value, distribution),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous_with(
+                Dimension::Angle,
+                value,
+                distribution,
+            )),
         },
         tol,
         &RefusingReach,
@@ -346,6 +349,19 @@ pub struct Chain {
     /// The placed joint pins, base first: `links + 1` of them, pin `k`
     /// at the base of link `k` and the last at the tip.
     pub pins: Vec<RecipeNodeId>,
+}
+
+/// **The study** at `links` links: [`JOINT_SIGMA`] on every joint and
+/// [`POSITION_BOUND`] on the tip. At [`LINKS`] it is the chain
+/// [`crate::mcchain`] replays and the gallery writes;
+/// [`crate::chaintol`]'s table walks it from one link up.
+pub fn study(links: usize, tol: Tol) -> Chain {
+    chain(links, JOINT_SIGMA, POSITION_BOUND, tol)
+}
+
+/// The study's document at [`LINKS`] links, as the GUI opens it.
+pub fn gallery_document(tol: Tol) -> ProfileDoc {
+    study(LINKS, tol).doc
 }
 
 /// The chain document at `links` links, with `joint_sigma` on every
@@ -403,6 +419,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         Node::Extrude {
             profile: bar_profile,
             distance: len(LINK_THICKNESS),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -424,6 +441,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             Node::Extrude {
                 profile,
                 distance: len(LINK_THICKNESS),
+                side: ExtrudeSide::Along,
             },
             tol,
         )
@@ -447,7 +465,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     pncad::document::Step::Rigid {
                         translation: [len(step), len(0.0), len(0.0)],
                         axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: Expr::param(joint_name(j), Dimension::Angle),
+                        angle: Formula::named(joint_name(j), Dimension::Angle),
                     },
                 ),
                 tol,
@@ -486,7 +504,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
                 pncad::prelude::SurfaceKind::Cylinder,
             ))],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             tol,
         )
         .expect("the surface-kind atom is exact");

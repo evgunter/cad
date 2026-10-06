@@ -410,6 +410,26 @@ pub(crate) fn classify<T: Decide>(
     })
 }
 
+/// [`classify`] gated on a definitely positive margin
+/// ([`geom_core::k_stats::decide_positive`]): a decided non-positive
+/// margin escalates at `site` as `decision`, carrying the margin it was
+/// decided on, on the frame's log beside the verdict.
+pub(crate) fn classify_positive<T: Decide>(
+    site: BlendSite,
+    decision: BlendDecision,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), BlendError> {
+    let name = decision.predicate();
+    geom_core::k_stats::decide_positive(name, margin, band).map_err(|source| {
+        BlendError::Escalated {
+            site,
+            decision,
+            source,
+        }
+    })
+}
+
 /// A margin one of the battery's `fillet3_*` predicates classified
 /// **definitely**, carried with what the classifier saw, the band it
 /// was judged against, and the sign it decided.
@@ -463,7 +483,7 @@ impl fmt::Display for ClassifiedMargin {
             // escalates poison instead of deciding it — and rendered
             // rather than asserted, because a payload that cannot be
             // printed is worse than one that prints an impossibility.
-            MarginKind::Invalid => write!(f, "margin invalid (NaN or a poisoned enclosure)")?,
+            MarginKind::Invalid => write!(f, "margin invalid (NaN or a refused enclosure)")?,
         }
         write!(
             f,
@@ -504,7 +524,7 @@ impl fmt::Display for Measured {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0.kind() {
             MarginKind::Value | MarginKind::Enclosure => write!(f, "{}", self.0),
-            MarginKind::Invalid => f.write_str("an invalid (NaN or poisoned)"),
+            MarginKind::Invalid => f.write_str("an invalid (NaN or refused)"),
         }
     }
 }
@@ -1505,7 +1525,7 @@ pub enum BlendError {
     },
     /// **An Euler operator refused during assembly.**
     ///
-    /// The operator's own refusal is nested whole — `StaleKey`,
+    /// The operator's own refusal is nested whole — `Argument`,
     /// `Certification`, and the rest of its vocabulary reach the caller
     /// typed rather than as prose. `site` names the surgery step that
     /// ran the operator.
@@ -1969,13 +1989,13 @@ mod recourse_tests {
             },
             BlendError::Certify {
                 site: "blend face pcurves",
-                source: topo::PcurveMintError::Corrupt,
+                source: topo::PcurveMintError::LoopNotClosed {
+                    face: FaceKey::default(),
+                },
             },
             BlendError::Op {
                 site: "strut mev",
-                source: topo::EulerOpError::StaleKey {
-                    key: EntityId::Edge(EdgeKey::default()),
-                },
+                source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
             },
         ];
         seeds.extend(BlendDecision::ALL.map(|decision| BlendError::Escalated {

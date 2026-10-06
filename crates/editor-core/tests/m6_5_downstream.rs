@@ -36,12 +36,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply, evaluate,
+    RecipeNodeId, RoleSeg, StableName, ValuePayload, apply, evaluate,
 };
 use fixture::{len, prism_edges};
 use geom_core::Tol;
@@ -56,7 +58,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     )
 }
 
-fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let a = apply(
         doc,
         &DocEdit::InsertNode {
@@ -91,6 +93,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -298,7 +301,7 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
             op: BooleanOp::Union,
             a: blank,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -318,7 +321,7 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
 }
 
 /// **The reference survives a rebuild.** A parameter edit upstream of
-/// the fillet recomputes its whole cone; the downstream `Declare`
+/// the fillet recomputes its whole cone; the downstream reference
 /// still resolves, because the fillet's names are a function of the
 /// extrude's names and those did not move.
 #[test]

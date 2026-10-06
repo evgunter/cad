@@ -13,11 +13,11 @@
 //!
 //! # Which findings gate (M10-6)
 //!
-//! By default all three rules gate: findings fail the run. That is the
+//! By default every rule gates: findings fail the run. That is the
 //! corpus rows' setting and nothing about it changed.
 //!
 //! `--gate-rule-1-only` narrows the GATE to rule 1 — `indeterminate`
-//! and `invalid` margins — while rules 2 and 3 still print, still
+//! and `invalid` margins — while rules 2, 3 and 5 still print, still
 //! tally, and no longer fail the run. It exists for ONE caller, the E6
 //! driver's own K population, whose subdivision refines margins toward
 //! zero by construction and therefore crowds the escalation band in
@@ -123,7 +123,7 @@ fn main() {
     // Per-RULE totals across every input, printed unconditionally.
     // Rule 1's count is the number this row exists to report, and a
     // number nobody prints is a number nobody reads.
-    let mut per_rule = [0usize; 4];
+    let mut per_rule = [0usize; 6];
     // The symbolic column, summed the same way and printed the same
     // way: a decision the identity tier answered is not a rule sample
     // (lib.rs, `lint_sample`), and a population that is mostly such
@@ -160,7 +160,7 @@ fn main() {
         // carry several reasons; each is counted, so the reason counts
         // sum to at least the flag count and the two are labelled
         // differently rather than conflated.
-        let mut file_rule = [0usize; 4];
+        let mut file_rule = [0usize; 6];
         let mut file_reason = [0usize; Reason::ALL.len()];
         for f in &flags {
             for r in &f.reasons {
@@ -182,7 +182,8 @@ fn main() {
         say(format_args!(
             "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} sign_gated, {} registered, \
              {} classified), {} flagged — rule 1 (undecided/invalid): {}, rule 2 (near a \
-             threshold): {}, rule 3 (below a floor): {}",
+             threshold): {}, rule 3 (below a floor): {}, rule 5 (off its construction's \
+             target): {}",
             scan.symbolic,
             scan.sign_gated,
             scan.registered,
@@ -190,7 +191,8 @@ fn main() {
             flags.len(),
             file_rule[1],
             file_rule[2],
-            file_rule[3]
+            file_rule[3],
+            file_rule[5]
         ));
         for (r, c) in Reason::ALL.iter().zip(file_reason) {
             if c > 0 {
@@ -259,12 +261,13 @@ fn main() {
         "k-lint: TOTAL over {} file(s): {total_scanned} samples ({total_symbolic} \
          symbolic_zero, {total_gated} sign_gated, {total_registered} registered, {} \
          classified), rule 1 (undecided/invalid) {}, rule 2 (near a threshold) {}, rule 3 \
-         (below a floor) {}",
+         (below a floor) {}, rule 5 (off its construction's target) {}",
         paths.len(),
         total_scanned - total_symbolic - total_gated - total_registered,
         per_rule[1],
         per_rule[2],
-        per_rule[3]
+        per_rule[3],
+        per_rule[5]
     ));
     // WHICH findings decide the exit. Rule 1 always does; rules 2 and
     // 3 do unless this caller demoted them, and the demotion is stated
@@ -280,7 +283,7 @@ fn main() {
     // same kind of advisory reading as the flags it already carries.
     let (gating_flags, gating_unruled) = if gate_rule_1_only {
         say(format_args!(
-            "k-lint: --gate-rule-1-only — rules 2 and 3 and any EPS_COUPLED_UNRULED row \
+            "k-lint: --gate-rule-1-only — rules 2, 3 and 5 and any EPS_COUPLED_UNRULED row \
              are ADVISORY for this caller (docs/K-REPORT.md recourse 2; the justification \
              is at the calling step). Rule 1 is NOT demotable: it is the trigger E6 names."
         ));

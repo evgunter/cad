@@ -10,6 +10,7 @@
 )]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
@@ -58,6 +59,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -69,14 +71,14 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = declare_x_offset_flush(doc, a, b);
+    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -179,7 +181,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -252,6 +254,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -260,7 +263,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -318,14 +321,14 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
-        let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
+        let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a,
                 b: tb,
-                declare: Some(decl),
+                declare: decl,
             },
         );
         (doc, u, tb)
@@ -363,14 +366,14 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
-        let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
+        let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a,
                 b: tb,
-                declare: Some(decl),
+                declare: decl,
             },
         );
         (doc, u, tb)

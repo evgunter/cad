@@ -85,8 +85,8 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     let post = oracle(&bench.post, &bench.post_top);
     assert!(post.u_ref.is_some(), "the cap fixes a reference of its own");
     assert_eq!(
-        proposal.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
         "a names the post's own cap, the row the standalone part answers"
     );
     let shelf = oracle(&bench.shelf, &bench.shelf_bottom);
@@ -95,8 +95,8 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
         "the cap fixes a reference of its own"
     );
     assert_eq!(
-        proposal.alignment.b,
-        asm::from_face(&bench.shelf_bottom),
+        asm::face_side(doc, &proposal.alignment.b, &proposal.b),
+        Some(bench.shelf_bottom.clone()),
         "b names the shelf's own underside (the shelf placement's 0.08 m \
          y-translation is the solve's, applied to the resolved pose, never \
          baked into the frame)"
@@ -314,15 +314,14 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
             .affine::<f64>();
         let pose =
             pncad::select::face_frame(eval, b.node, &b.name).expect("the underside has a pose");
-        let authored = asm::authored_from_world(
+        let [mut origin, axis, reference] = asm::vectors_from_world(
             &placed,
             &pose,
             pose.u_ref.expect("the cap fixes a reference"),
         );
-        let vectors = authored.authored_vectors().expect("authored");
-        let mut origin = vectors.origin;
         origin[0] += 0.01;
-        pncad::document::MateFrame::authored(origin, vectors.axis, vectors.reference)
+        pncad::document::MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
+            .expect("a definite frame")
     };
     let outcome = session.perform(SessionOp::AddMate {
         a: proposal.a.clone(),

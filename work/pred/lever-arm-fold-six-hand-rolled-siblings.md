@@ -100,3 +100,15 @@ and `boolean/ops.rs`), so their `.min` resolves to `Real::min` and
 propagates poison already: a clippy `disallowed-methods` pass over
 `f64::min`/`f64::max` does not flag either. They are duplications only,
 not the poison-dropping class.
+
+## Progress (FUSE, PR 3889)
+
+Both generic sites are gone: `topo/boolean/ops.rs`'s rebuild walk now
+asks `geom_brep::must_carry_over_edge`, which levers through
+`tangent_second_order`, and `topo/boolean/contact_verify.rs`'s
+`tangent_locus_relation` calls `folded_lever_arm` (the same fold, the
+same bits). No hand-rolled copy of the fold is left. What remains of
+this row is its deeper half, `contact_tangent_opposed` as
+`classify_material_pairing`'s undisclosed twin, and the seventh
+spelling pair above (the parallelism fallback lever).
+

@@ -15,6 +15,7 @@ use geom_core::Tol;
 use geom_core::{Bounds, Interval, Real, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::readback::euler_counts;
@@ -47,7 +48,10 @@ fn interval_reversed_l_profile_all_tiers() {
         .unwrap();
     let t = extrude(
         &vp,
-        Extrusion::Distance(Interval::from_f64(-1.5)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.5),
+            side: ExtrudeSide::Against,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -89,7 +93,10 @@ fn interval_axis_aligned_bridge_ring_path_genus_one() {
         .unwrap();
     let t = extrude(
         &vp,
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -125,7 +132,10 @@ fn fixed_interval_diagonal_bridge_builds_tier_valid() {
         .unwrap();
     let t = extrude(
         &vp,
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -161,7 +171,10 @@ fn fixed_interval_rotated_placement_builds_tier_valid() {
         .unwrap();
     let t = extrude(
         &vp,
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
