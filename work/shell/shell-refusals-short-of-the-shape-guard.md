@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-29
 priority: P2
 cost: M
+rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)

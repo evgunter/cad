@@ -195,9 +195,7 @@ std::thread_local! {
 /// drops. It captures only on threads inside [`PanicCapture::run`] and
 /// hands every other thread's panic to the previous hook, so a test
 /// panicking concurrently on another thread prints and fails as it
-/// would have. `fixtures::through_the_scalpel` installs its own hook
-/// once, without that lock, so the guard has it install first and
-/// chains to it.
+/// would have.
 pub(crate) struct PanicCapture {
     previous: Option<std::sync::Arc<PanicHook>>,
     _serialized: std::sync::MutexGuard<'static, ()>,
@@ -208,7 +206,6 @@ impl PanicCapture {
         let serialized = crate::surgery::tests::PANIC_HOOK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let _ = crate::fixtures::through_the_scalpel(&[], || ());
         let previous = std::sync::Arc::new(std::panic::take_hook());
         let chained = std::sync::Arc::clone(&previous);
         std::panic::set_hook(Box::new(move |info| {
@@ -278,7 +275,7 @@ pub(crate) fn assert_torn_op_panics<R: core::fmt::Debug>(
     let planted = kill_anchor_faults(body);
     let capture = PanicCapture::install();
     let outcome = capture.run(|| {
-        let mut scope = body.begin_surgery();
+        let mut scope = body.begin_surgery_on_a_torn_body();
         format!("{:?}", op(&mut scope))
     });
     drop(capture);
@@ -2134,12 +2131,10 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 /// [`kill_anchor_faults`] fault the tear did not plant, which is one the
 /// operator wrote; a typed refusal and a row-4 premise panic count as
 /// `Err`, and any other panic, or a stale-key refusal of a key read out
-/// of the body, fails. Each call runs inside a surgery scope, so a debug
-/// build's tier-1 postcondition, which a torn input fails whatever the
-/// operator writes, does not answer first; under the
-/// `per-op-postcondition` scalpel, whose sweep answers after the
-/// operator's last write, a fired sweep counts as the `Ok` it stood in
-/// front of.
+/// of the body, fails. Each call runs inside a torn-body surgery scope
+/// (`Body::begin_surgery_on_a_torn_body`), so a debug build's tier-1
+/// postcondition, which a torn input fails whatever the operator
+/// writes, does not answer first.
 fn kill_anchor_rows(tear: Tear, seeds: &[u64], capture: &PanicCapture) -> AnchorRows {
     use test_utils::fuzz::Rng;
     let tol = Tol::witness();
@@ -2170,19 +2165,9 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64], capture: &PanicCapture) -> Anchor
                 for call in anchor_calls(&body) {
                     let cells = &mut table[call.op()];
                     let mut trial = body.clone();
-                    let doors: &[&str] = match call {
-                        AnchorCall::Kev(_) => &["kev", "kev_describing"],
-                        _ => &ANCHOR_OPS[call.op()..=call.op()],
-                    };
-                    let outcome = capture.run(|| call.run(&mut trial.begin_surgery(), tol));
+                    let outcome =
+                        capture.run(|| call.run(&mut trial.begin_surgery_on_a_torn_body(), tol));
                     cells[0] += 1;
-                    let swept = |report: &str| {
-                        doors.iter().any(|op| {
-                            report.contains(&format!(
-                                ": {op} postcondition: result is not tier-1 valid"
-                            ))
-                        })
-                    };
                     match outcome {
                         Ok(Ok(())) => {}
                         Ok(Err(
@@ -2193,7 +2178,6 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64], capture: &PanicCapture) -> Anchor
                             "{call:?} under {tear:?} refused a key read out of the body as \
                              stale: {stale:?}"
                         ),
-                        Err(report) if swept(&report) => {}
                         Ok(Err(_)) => {
                             cells[1] += 1;
                             continue;
@@ -2481,9 +2465,10 @@ fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear) -> [usize; 3] {
 /// **`revert` writes no anchor off a torn `next` or `prev`**: every
 /// single tear of each [`REVERT_BODIES`] body, and no `Ok` carries an
 /// anchor fault the tear did not plant. An enumeration, not a sample.
-/// Each body, and each tear kind, is refused somewhere, so the tears
-/// reach the proofs. (A `Prev` tear of a body with one cycle loop,
-/// the segment, cannot move a `first` out of its loop.)
+/// `Next` tears are refused somewhere, so they reach the proofs. A
+/// `Prev` tear reaches none: `revert` follows no `prev` (it moves no
+/// loop's `first`), so the tear is carried, swapped into the result's
+/// `next`, and the row reads only that it writes no fault.
 #[test]
 #[cfg(not(debug_assertions))]
 fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
@@ -2514,13 +2499,9 @@ fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
             );
             *per_tear += refused;
         }
-        assert!(
-            cells.iter().any(|&[_, refused, _]| refused > 0),
-            "no tear of {name} was refused"
-        );
     }
     assert!(
-        refused_per_tear.iter().all(|&n| n > 0),
+        refused_per_tear[0] > 0 && refused_per_tear[1] == 0,
         "refusals per tear kind {tears:?}: {refused_per_tear:?}"
     );
 }
@@ -2625,8 +2606,9 @@ fn revert_rename_rows(body: &Body<f64>, tear: RevertTear) -> RenameCells {
 /// a `next` or `prev` tear is the tear's image, and no `Ok` of a `start`
 /// tear carries a validator kind its torn source does not. The kinds
 /// the images carry beyond their sources are [`RENAMED_KINDS`], pinned
-/// per tear kind. An enumeration, not a sample; each tear kind is
-/// refused somewhere, so the tears reach the proofs.
+/// per tear kind. An enumeration, not a sample; `next` and `start`
+/// tears are refused somewhere, so they reach the proofs, and a `prev`
+/// tear, which no proof follows, is carried as its image.
 #[test]
 #[cfg(not(debug_assertions))]
 fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
@@ -2679,8 +2661,9 @@ fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
             "the kinds `{tear:?}` tears' images carry beyond their sources"
         );
     }
-    assert!(
-        refused_per_tear.iter().all(|&n| n > 0),
+    assert_eq!(
+        refused_per_tear.map(|n| n > 0),
+        [true, false, true],
         "refusals per tear kind {REVERT_TEARS:?}: {refused_per_tear:?}"
     );
 }
@@ -3423,7 +3406,11 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 11] = [
+const READ_DOORS: [&str; 19] = [
+    "face_carrier",
+    "carrier_pair_relation",
+    "carrier_pair_verdict",
+    "flush_pair_relation",
     "mint_pcurves",
     "mint_pcurves_of",
     "face_pose",
@@ -3435,6 +3422,26 @@ const READ_DOORS: [&str; 11] = [
     "vertex_points",
     "rim_of",
     "planar_loop_winding",
+    "contfp",
+    "curved_face_containment",
+    "classify_neighborhood",
+    "face_azimuth_window_traces",
+];
+
+/// The doors the read sweep floors on a premise panic: the split, which
+/// reads every face, edge and vertex before it builds, the containment
+/// and neighborhood doors and the azimuth window walk, whose walks a
+/// torn loop or orbit reaches, and the carrier doors, which a dropped
+/// surface reaches.
+#[cfg(not(debug_assertions))]
+const PREMISE_DOORS: [&str; 7] = [
+    "split_reduce",
+    "contfp",
+    "classify_neighborhood",
+    "face_carrier",
+    "carrier_pair_verdict",
+    "flush_pair_relation",
+    "face_azimuth_window_traces",
 ];
 
 /// The read sweep's bodies: [`FIXTURES`], whose faces decline their
@@ -3576,6 +3583,47 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         body.vertex_points().for_each(drop);
         Ok(true)
     });
+    // The carrier doors, each face against a sound cube's. A face whose
+    // surface does not resolve, read as outside the ladder's inventory,
+    // is a record's miss answered as the kind's.
+    let sound = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+    let sound_face = sound.faces().next().map(|(k, _)| k).unwrap();
+    for (face, data) in body.faces() {
+        use crate::boolean::{
+            PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+            flush_pair_relation,
+        };
+        let outside = || match body.get_surface(data.surface) {
+            Some(_) => Ok(false),
+            None => Err(format!(
+                "{} reads as outside the inventory over a surface that does not resolve",
+                crate::entity::EntityId::Face(face)
+            )),
+        };
+        let pair = |unread: Option<PairUnread>| match unread {
+            None => Ok(true),
+            Some(PairUnread::OutsideInventory) => outside(),
+            Some(PairUnread::Extent(_)) => Ok(false),
+        };
+        judge_read(
+            capture,
+            &mut census,
+            "face_carrier",
+            || match face_carrier(body, face) {
+                Some(_) => Ok(true),
+                None => outside(),
+            },
+        );
+        judge_read(capture, &mut census, "carrier_pair_relation", || {
+            pair(carrier_pair_relation(body, face, &sound, sound_face, false, band).err())
+        });
+        judge_read(capture, &mut census, "carrier_pair_verdict", || {
+            pair(carrier_pair_verdict(body, face, &sound, sound_face, false, band).err())
+        });
+        judge_read(capture, &mut census, "flush_pair_relation", || {
+            pair(flush_pair_relation(body, face, &sound, sound_face, false, band).err())
+        });
+    }
     // The mints write their body, so each runs on a clone, and a
     // premise panic must leave that clone as it found it — rows
     // included, which is why the sweep mints its fixtures before
@@ -3619,7 +3667,94 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             Ok(body.planar_loop_winding(l, Vec3::unit_z(), band).is_some())
         });
     }
+    let q = Point3::new(0.5, 0.5, 0.0);
+    for (face, _) in body.faces() {
+        use crate::boolean::ContainError;
+        use crate::boolean::solid_contain::PointInSolidError as Solid;
+        let contain = |answer: Result<bool, ContainError>| match answer {
+            Err(e @ ContainError::StaleFace(_)) => Err(e.to_string()),
+            Ok(_)
+            | Err(
+                ContainError::Escalated(_)
+                | ContainError::RayExhausted
+                | ContainError::EmptyLoop(_)
+                | ContainError::Uncrossable(_)
+                | ContainError::Curved(
+                    Solid::Escalated { .. }
+                    | Solid::PartialConeFace { .. }
+                    | Solid::PartialTorusFace { .. }
+                    | Solid::WallOutlineUnsupported { .. },
+                ),
+            ) => Ok(answer.is_ok()),
+            // A scaffold circle or a conic wound past a period is a loop
+            // a sound face holds; the same answer over a loop with a torn
+            // hop is a record's miss.
+            Err(ContainError::LoopUnreadable(lk)) if loop_reads_whole(body, lk) => Ok(false),
+            Err(e) => panic!("a torn read answered a refusal a sound face cannot give: {e}"),
+        };
+        judge_read(capture, &mut census, "contfp", || {
+            contain(crate::boolean::contfp(body, face, Vec3::unit_z(), q, band).map(|_| true))
+        });
+        judge_read(capture, &mut census, "curved_face_containment", || {
+            contain(crate::boolean::curved_face_containment(body, face, q, band).map(|_| true))
+        });
+        // The window walk: the face is the caller's key; a record past
+        // it that does not resolve had to panic.
+        judge_read(capture, &mut census, "face_azimuth_window_traces", || {
+            use crate::chord_join::SplitJoinError;
+            match crate::chord_join::face_azimuth_window_traces(body, face, band) {
+                Err(e @ SplitJoinError::Corrupt { .. }) => Err(e.to_string()),
+                answer => Ok(answer.is_ok()),
+            }
+        });
+    }
+    // The split plane crosses every fixture; the side map holds a
+    // verdict for every live vertex, so a vertex it lacks is a dangling
+    // record's, and its refusal had to panic.
+    let plane = crate::test_support_fixtures::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::unit_z(),
+        Tol::witness(),
+    );
+    let sides: slotmap::SecondaryMap<crate::entity::VertexKey, crate::splitting::PlaneSide> = body
+        .vertices()
+        .map(|(v, _)| (v, crate::splitting::PlaneSide::Above))
+        .collect();
+    for (vertex, _) in body.vertices() {
+        judge_read(capture, &mut census, "classify_neighborhood", || {
+            use crate::splitting::SplitReduceError as E;
+            match crate::splitting::classify_neighborhood(body, &plane, &sides, vertex, band) {
+                Err(e @ (E::StaleVertex { .. } | E::UnrecordedSide { .. })) => Err(e.to_string()),
+                answer => Ok(answer.is_ok()),
+            }
+        });
+    }
+    judge_read(capture, &mut census, "split_reduce", || {
+        Ok(crate::splitting::reduce(body, &plane, Tol::witness()).is_ok())
+    });
     census
+}
+
+/// Whether every record `lk`'s cycle names resolves: its boundary's
+/// walk closes, and each half-edge's edge, curve and start point is live.
+#[cfg(not(debug_assertions))]
+fn loop_reads_whole(body: &Body<f64>, lk: crate::entity::LoopKey) -> bool {
+    let first = match body.get_loop(lk).map(|l| l.boundary) {
+        Some(LoopBoundary::Cycle { first }) => first,
+        // A lone-vertex loop answers `EmptyLoop`, never `LoopUnreadable`.
+        Some(LoopBoundary::Empty { .. }) | None => return false,
+    };
+    body.loop_cycle(first).is_some_and(|cycle| {
+        cycle.into_iter().all(|he| {
+            body.get_half_edge(he).is_some_and(|h| {
+                body.get_edge(h.edge)
+                    .is_some_and(|e| body.get_curve_geom(e.curve).is_some())
+                    && body
+                        .get_vertex(h.start)
+                        .is_some_and(|v| body.get_point(v.point).is_some())
+            })
+        })
+    })
 }
 
 /// The arenas a read-sweep removal tear drops one live record of,
@@ -3735,13 +3870,68 @@ fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
             fuzz::replay()
         ),
     );
+    let premise_doors: Vec<String> = PREMISE_DOORS
+        .iter()
+        .map(|d| format!("{d}: {PREMISE}"))
+        .collect();
+    let premise_doors: Vec<&str> = premise_doors.iter().map(String::as_str).collect();
     census.require_each(
-        &[PREMISE, UNION_PREMISE],
+        &[&[PREMISE, UNION_PREMISE][..], &premise_doors].concat(),
         1,
         &format!(
             "no read met a tear, or the boolean answered a torn operand without naming its \
              premise — {}",
             fuzz::replay()
         ),
+    );
+}
+
+/// **A caller's key that does not resolve answers typed** (D2 row 1):
+/// a face or vertex the body once held, freed so the body around it is
+/// sound, handed to the public read doors. `contfp` and
+/// `curved_face_containment` answer `StaleFace` naming it, and
+/// `classify_neighborhood` `StaleVertex`; a door that read the key as a
+/// record would panic instead.
+#[test]
+fn a_callers_key_that_does_not_resolve_answers_typed() {
+    use crate::boolean::ContainError;
+    use crate::splitting::SplitReduceError;
+    use geom_core::{Band, Vec3};
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+    let (live_face, face_data) = body.faces().next().map(|(k, f)| (k, f.clone())).unwrap();
+    let face = body.faces.insert(face_data);
+    body.faces.remove(face);
+    let (_, vertex_data) = body.vertices().next().map(|(k, v)| (k, v.clone())).unwrap();
+    let vertex = body.vertices.insert(vertex_data);
+    body.vertices.remove(vertex);
+    assert!(
+        body.get_face(live_face).is_some() && body.get_face(face).is_none(),
+        "the freed face is stale and its source is live"
+    );
+    let q = Point3::new(0.5, 0.5, 0.0);
+    assert_eq!(
+        crate::boolean::contfp(&body, face, Vec3::unit_z(), q, band),
+        Err(ContainError::StaleFace(face)),
+        "contfp"
+    );
+    assert_eq!(
+        crate::boolean::curved_face_containment(&body, face, q, band),
+        Err(ContainError::StaleFace(face)),
+        "curved_face_containment"
+    );
+    let plane = crate::test_support_fixtures::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::unit_z(),
+        Tol::witness(),
+    );
+    let sides: slotmap::SecondaryMap<crate::entity::VertexKey, crate::splitting::PlaneSide> = body
+        .vertices()
+        .map(|(v, _)| (v, crate::splitting::PlaneSide::Above))
+        .collect();
+    let got = crate::splitting::classify_neighborhood(&body, &plane, &sides, vertex, band);
+    assert!(
+        matches!(got, Err(SplitReduceError::StaleVertex { vertex: v }) if v == vertex),
+        "classify_neighborhood: {got:?}"
     );
 }

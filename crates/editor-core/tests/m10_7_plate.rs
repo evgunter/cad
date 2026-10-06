@@ -19,7 +19,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
     Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
 };
@@ -34,8 +34,8 @@ pub(crate) const RADIUS: f64 = 1.25e-3;
 /// The nominal web: `SPACING − 2·RADIUS` = 0.6 mm.
 pub(crate) const WEB: f64 = SPACING - 2.0 * RADIUS;
 
-fn param(n: &'static str) -> Expr {
-    Expr::named(VarName::from_static(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The plate, its two holes, the web measure and its assertion.
@@ -52,7 +52,7 @@ pub(crate) fn plate(
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -100,7 +100,7 @@ pub(crate) fn plate(
         side: ExtrudeSide::Along,
     });
 
-    let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
+    let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
@@ -117,7 +117,7 @@ pub(crate) fn plate(
     };
     let hole_a = hole(
         &mut r,
-        Expr::sub(len(0.0), param("half_spacing")).expect("a length"),
+        Formula::sub(len(0.0), param("half_spacing")).expect("a length"),
         "hole_a_r",
     );
     let hole_b = hole(&mut r, param("half_spacing"), "hole_b_r");

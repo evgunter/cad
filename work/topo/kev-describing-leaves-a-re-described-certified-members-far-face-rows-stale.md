@@ -2,7 +2,7 @@
 id: kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale
 kind: issue
 title: kev_describing leaves a listed certified member's rows on its far face spanning the interval its ends moved from
-status: open
+status: dispatched
 opened: 2026-10-04
 priority: P3
 ---
@@ -55,3 +55,28 @@ listed member's halves are on whose carrier it moved, as the null
 member's faces already are, or the posture's declaration says in
 words that a moved certified member's far-face rows are tier 3's to
 report. The first is the one D1's atomic contract points at.
+
+## Also on the near face (PR 4037's review fixes)
+
+The same keep holds where the listed certified member's halves are both
+on the kill's own face: `euler_site_pcurve_rows::a_kev_mirror_writes_the_sum_of_two_periods`
+(`crates/topo/tests/euler_site_pcurve_rows.rs`) merges the tip of an arc
+chain hung off a cylinder wall into its far end, listing the remaining
+arc with the arc to the merged end; `validate_pcurves` reports
+`RowInterval` on both of that arc's halves and nothing else. The row pins
+that state, so closing this item turns its first assertion red.
+
+## Later operators no longer repair it (PR 4039)
+
+Until PR 4039 the site mint re-derived every image of a loop it rewired,
+so a later `mev` or `mef` on the far face incidentally re-minted the
+stale rows. It now keeps every image the door does not create
+(`pcurves::site_rows`), so the stale rows outlive later operators, and
+their stale interval enters the joints those operators decide beside
+them. Tier 3 still reports them at rest.
+
+A `debug_assert!` that a kept image's interval is its edge's
+(`cache.params()` against the edge's) was considered there and not
+added: this row is a reachable state in which the two differ, so the
+assertion would panic a debug build where the posture hands the state
+to tier 3. Closing this row makes it sound.

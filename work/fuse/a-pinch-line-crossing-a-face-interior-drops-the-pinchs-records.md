@@ -2,10 +2,11 @@
 id: a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records
 kind: issue
 title: A pinch line crossing a face's interior drops the pinch's records at the new pinch end
-status: open
+status: parked
 opened: 2026-10-03
 priority: P1
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

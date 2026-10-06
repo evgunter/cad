@@ -75,6 +75,7 @@
 //! Interval, and through BOTH sweep strategies.
 
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     Axis3, BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, SlotId,
@@ -184,7 +185,7 @@ pub fn document() -> CorpusDoc {
 /// The half-disc loop PROGRAM: the bulge-1 semicircle pole to pole,
 /// closed by its on-axis diameter — three steps, both vertices on the
 /// revolve axis.
-pub fn half_disc_program() -> LoopProgram {
+pub fn half_disc_program() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {

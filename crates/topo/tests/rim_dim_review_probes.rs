@@ -171,6 +171,7 @@ fn silent_fixed_predicates_scale_linearly() {
         );
         // Oblique split of a cube.
         let body = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)).clone();
+        let body = topo::test_support::finished("the body", body, Tol::witness());
         let n = geom_core::Vec3::new(Probe(1.0 / 3.0), Probe(2.0 / 3.0), Probe(2.0 / 3.0));
         let plane = topo::test_support::split_plane(
             geom_core::Point3::new(Probe(s(1.0)), Probe(s(1.0)), Probe(s(1.0))),

@@ -47,7 +47,7 @@ use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
+    Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
     NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
     UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
@@ -95,7 +95,7 @@ fn dumbbell() -> Dumbbell {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("place"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -143,7 +143,7 @@ fn dumbbell() -> Dumbbell {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::named(name("place"), Dimension::Length),
+                Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],

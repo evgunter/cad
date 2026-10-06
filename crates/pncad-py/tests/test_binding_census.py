@@ -510,7 +510,7 @@ def audit_gap_ids():
     FIRST cell is `G` + digits — the shape the Rust tally guard uses to
     tell a gap row from the prose and headers around it. The open list
     and the closed list are read alike: a closed gap keeps its id, and
-    an entry citing one (`G1`'s Expr residue, `G2`'s tube node) is
+    an entry citing one (`G1`'s Formula residue, `G2`'s tube node) is
     citing a row that is still there to be read.
 
     What this cannot see is stated in the module docstring: a gap named
@@ -589,14 +589,17 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
-    # A document variable's name, free definition and value: Python
-    # spells them as the parameter classes.
-    "FreeValue": "DocParamValue",
-    "FreeVar": "DocParam",
-    "VarName": "ParamName",
     # A variable's identity is Python's `Var`, the handle `Doc.var`
     # and `Doc.vars` answer.
     "VarId": "Var",
+    # The authored node is what Python's `Node` holds: every
+    # constructor builds one, and the edit door lowers it.
+    "AuthoredNode": "Node",
+    # A name a formula reads that the document does not answer: Python
+    # meets it as the `EvalError` the lowering raises (`Doc.eval`,
+    # `Doc.eval_count`, `GeomPred.datum_distance`), `unlowered_name`
+    # or `var_kind_mismatch`.
+    "NameFault": "EvalError.variant",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
@@ -1210,15 +1213,15 @@ BOUND_AS = {
     "ResolutionFailure": "Resolution.offers",
     # The expression surface, which hangs off the DOCUMENT for the
     # read-back doors' reason one layer over: all three free
-    # functions take a per-document table — `parse_expr` the declared
+    # functions take a per-document table — `parse_formula` the declared
     # DIMENSIONS, the two evaluators the bound VALUES — so all three
     # arrive as `Doc` methods and the table is never threaded in
     # separately, where it could drift from the document it describes.
-    # `Expr`, `ParseError` and `EvalError` are spelled identically and
+    # `Formula`, `ParseError` and `EvalError` are spelled identically and
     # are accounted by rule 1, not here.
     #
     # `unparse` is the odd one: it is the text door OUTWARD and takes
-    # only the expression, so it is a property of the `Expr` rather
+    # only the expression, so it is a property of the `Formula` rather
     # than a document method — which is exactly the carrier-projection
     # reading, the receiver following what the door actually needs.
     #
@@ -1227,10 +1230,10 @@ BOUND_AS = {
     # G1 stays open on its authoring half.
     "eval": "Doc.eval",
     "eval_count": "Doc.eval_count",
-    "parse_expr": "Doc.parse_expr",
-    "unparse": "Expr.text",
+    "parse_formula": "Doc.parse_formula",
+    "unparse": "Formula.text",
     # The display formatter, on the receiver the carrier-projection
-    # rule picks — the same reading that put `unparse` on `Expr` two
+    # rule picks — the same reading that put `unparse` on `Formula` two
     # entries up, applied to a door whose Rust signature does NOT
     # name its carrier. `fmt_length` takes canonical metres as a bare
     # `f64` because Rust reaches this module from BELOW, where the
@@ -1426,7 +1429,7 @@ GAP = "gap"
 #: and tube), `G18` (the
 #: whole Python assembly series, whose row enumerates `assemble`,
 #: `solve_document`, `product`, `split` and `inline` by name), and
-#: `G1` for the Expr-in-a-profile-step residue its row records.
+#: `G1` for the Formula-in-a-profile-step residue its row records.
 #:
 #: **The spelling.** `B-` is the register category these entries used
 #: to point at in prose — the "LIB residual register", category B,
@@ -1750,7 +1753,7 @@ FAMILIES: dict[str, str] = {
 #:   into the verbs that take them, and
 #:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
-#:   `DocParam.length`/`angle`/`count`/`scalar` choose between;
+#:   `FreeVar.length`/`angle`/`count`/`scalar` choose between;
 #:   `ProfileDoc` is the alias `Node.profile` builds from loops;
 #:   `SplitSide` is the position in `Value.split`'s tuple.
 #:
@@ -2045,7 +2048,7 @@ FAMILIES: dict[str, str] = {
 #: lesson arriving on a family that had no accounting error at all.
 #:
 #: The measurement first, because the charter's claim was executed
-#: rather than repeated: `DocParam.length(25 * mm)` saved
+#: rather than repeated: `FreeVar.length(25 * mm)` saved
 #: `"display_unit": "m"`. The `mm` erases at the `Length` door,
 #: because a Python `Length` wraps `quantity::Length` and is canonical
 #: metres and nothing else — and it CANNOT be taught the unit, since
@@ -2071,15 +2074,19 @@ FAMILIES: dict[str, str] = {
 #: written in. A read door for a notation is unusable without it.
 #:
 #: What closing it bound: `WrittenLength` / `WrittenAngle`,
-#: `DocParam.written_length` / `written_angle`, `DocParam.unit`,
+#: `FreeVar.written_length` / `written_angle`, `FreeVar.unit`,
 #: `Doc.params`, and equality and hashing on `LengthUnit` /
 #: `AngleUnit`. `Expr::written_length` needed nothing THERE:
-#: `Doc.parse_expr("25 mm")` already reaches `literal_with_unit` and
-#: `Expr.text` reads the notation back. It is bound now all the same
-#: — `Expr.written_length`, beside `literal`, `written_angle` and
-#: `count` — because a node SLOT takes an `Expr` and a caller
-#: authoring one through the typed doors has no string to parse. The
-#: positive form is `tests/test_notation.py`.
+#: `Doc.parse_expr("25 mm")` already reached `literal_with_unit` and
+#: `Expr.text` read the notation back. It was bound all the same —
+#: `Expr.written_length`, beside `literal`, `written_angle` and
+#: `count` — because a node SLOT took an `Expr` and a caller
+#: authoring one through the typed doors had no string to parse. The
+#: positive form is `tests/test_notation.py`. (The closing notes in
+#: this block keep the names of their day: INTENT-LITERALS PR B renamed
+#: the authored `Expr` class `Formula`, `Doc.parse_expr`
+#: `Doc.parse_formula`, and `DocParam`, `DocParamValue` and `ParamName`
+#: `FreeVar`, `FreeValue` and `VarName`.)
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could
@@ -2094,9 +2101,9 @@ FAMILIES: dict[str, str] = {
 #: docstring predicted ("not that a cited id is the RIGHT owner") and
 #: this is the first case that executed it.
 #:
-#: `Expr`, `ParseError` and `EvalError` are top-level names in
-#: `pncad.pyi`; `parse_expr`, `eval` and `eval_count` are `BOUND_AS`
-#: `Doc` methods and `unparse` is `Expr.text`; `VarEnv` is
+#: `Formula`, `ParseError` and `EvalError` are top-level names in
+#: `pncad.pyi`; `parse_formula`, `eval` and `eval_count` are `BOUND_AS`
+#: `Doc` methods and `unparse` is `Formula.text`; `VarEnv` is
 #: `INTERIOR`, corrected from a `gap` it should never have been (see
 #: its entry). The positive form is `tests/test_expressions.py`.
 #:
@@ -2107,7 +2114,7 @@ FAMILIES: dict[str, str] = {
 #: `GeomPred.datum_distance`'s comparand waits on. What changed is
 #: that THAT residue is now a SIGNATURE rather than a missing name,
 #: so this census cannot see it and does not pretend to;
-#: `tests/test_north_star.py` executes an `Expr` against the arc and
+#: `tests/test_north_star.py` executes a `Formula` against the arc and
 #: parameter doors that refuse it, which is the shape every other
 #: signature gap on that page is watched in. G1 keeps a citation
 #: here regardless, on a different residue of the same row:
@@ -2233,7 +2240,7 @@ FAMILIES: dict[str, str] = {
 #: the quantity they format, for the reason recorded at their entry —
 #: the receiver is what makes `Length.format(deg)` unspellable. The
 #: positive form is `tests/test_quantities.py`, whose oracle is the
-#: EXPRESSION PARSER: `Doc.parse_expr(x.format(u))` evaluates back to
+#: EXPRESSION PARSER: `Doc.parse_formula(x.format(u))` evaluates back to
 #: `x`'s exact bits, which is the formatter's own headline pin
 #: checked against the door it names — something the Rust side cannot
 #: do, since `quantity` sits below `editor-core` and its fixture has
@@ -2269,6 +2276,17 @@ NOT_BOUND = {
     "declare_rest": SHAPE,
     "declare_continuation": SHAPE,
     "Dimension": SHAPE,
+    # The sealed trait over the slot forms (`Formula`, `Expr`): a
+    # type-level fact with no value to hold, and the reason a fault's
+    # `why` (`Unlowered`) rides `EvalError.variant` rather than a class.
+    "Slot": SHAPE,
+    "Unlowered": SHAPE,
+    # The one tree both forms share, and its leaf sets: Rust's generic
+    # spelling of what Python holds as two classes, `Formula` and `Expr`.
+    "AuthoredLeaf": SHAPE,
+    "ExprTree": SHAPE,
+    "LeafSet": SHAPE,
+    "StoredLeaf": SHAPE,
     # How a sentence names a node. Python reads a node's sentence inside
     # the error a door raises, already spoken; its machine spelling is
     # `NodeId`'s and `StepId`'s repr, which prints the full id
@@ -2492,10 +2510,10 @@ NOT_BOUND = {
     "NameTextError": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
-    # The display-unit CODE a `DocParam` carries. A one-byte index into
+    # The display-unit CODE a `FreeVar` carries. A one-byte index into
     # the unit table has no Python spelling and should not get one: a
     # notation reaches Python as its SYMBOL, which is what
-    # `DocParam.__repr__` prints.
+    # `FreeVar.__repr__` prints.
     "UnitSym": SHAPE,
     "PartialPath": SHAPE,
     # The fillet refusal envelope's entry types. A Python caller reads
@@ -3063,7 +3081,7 @@ NOT_BOUND = {
     "NotAFaceName": SHAPE,
     # `VarNameFault` is what `VarName::new` refuses with, and
     # `VarNameReason` the lexer's finding inside it. A Python caller
-    # holds a name as text until `ParamName(text)`, which is where the
+    # holds a name as text until `VarName(text)`, which is where the
     # binding calls the constructor and publishes the refusal as
     # `EditError.variant == "param_name_not_an_identifier"`; neither
     # type crosses, for `NotAFaceName`'s reason.
@@ -3271,18 +3289,20 @@ NOT_BOUND = {
     #
     # The FIVE G1 entries left with them, and that is the decay rule
     # rather than a re-assignment: `Expr`, `ParseError`, `parse_expr`
-    # and `unparse` are names Python now spells, and a `gap:` entry
-    # Python binds is stale whatever id it cites. `VarEnv` moved
+    # and `unparse` were names Python then spelled (`Expr` and
+    # `parse_expr` are `Formula` and `parse_formula` since
+    # INTENT-LITERALS PR B), and a `gap:` entry Python binds is stale
+    # whatever id it cites. `VarEnv` moved
     # for the OTHER reason — it is `INTERIOR` now, below, because
     # both doors that take one build it from the document in hand.
     # **G1 is not closed by any of that**, and it did not stop being
     # cited here either: `ArrivesTangent` above carries the id now,
     # for a residue of the SAME row that has nothing to do with
     # expressions. What the expression half's residue became is a
-    # SIGNATURE rather than a missing name — no door takes an `Expr`
-    # INTO a document — so this census structurally cannot watch that
+    # SIGNATURE rather than a missing name — no door then took an
+    # `Expr` INTO a document — so this census structurally cannot watch that
     # half and does not pretend to; `tests/test_north_star.py` does,
-    # by executing an `Expr` against the arc and parameter doors that
+    # by executing a `Formula` against the arc and parameter doors that
     # still refuse it. The positive form is
     # `tests/test_expressions.py`.
     # --- gap: geometry read-back doors (census-owned) -------------
@@ -3441,6 +3461,11 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
+    # --- a continuous arm spelled per dimension -------------------
+    # A continuous free variable or value carries its dimension; Python
+    # builds one per dimension, so the arm is the three constructors.
+    "FreeVar::Continuous": ("FreeVar.length", "FreeVar.angle", "FreeVar.scalar"),
+    "FreeValue::Continuous": ("FreeValue.length", "FreeValue.angle", "FreeValue.scalar"),
     # --- an arm that crosses as a TAG WORD -------------------------
     # A crossing is whatever KIND of edge crossed the cut, and a mate
     # is the only kind that can — so the one arm crosses as the one
@@ -3553,9 +3578,14 @@ MEMBERS_BOUND_AS = {
     "EditError::DeleteAnonymousVar": "EditError.variant",
     "EditError::SlotUnresolvedVar": "EditError.variant",
     "EditError::PayloadUnresolvedVar": "EditError.variant",
-    "EditError::NameLeafWritten": "EditError.variant",
     "EditError::VarIdCollides": "EditError.variant",
     "EditError::VarKindFixed": "EditError.variant",
+    "EditError::NotAFreeVar": "EditError.variant",
+    "EditError::DefinitionCycle": "EditError.variant",
+    "EditError::DefinitionTooLarge": "EditError.variant",
+    "EditError::DefinitionUnknownVarName": "EditError.variant",
+    "EditError::DefinitionUnresolvedVar": "EditError.variant",
+    "EditError::DefinitionVarKind": "EditError.variant",
     "EditError::VarValueKindMismatch": "EditError.variant",
     "EditError::VarCountHasNoUnit": "EditError.variant",
     "EditError::VarCountHasNoDistribution": "EditError.variant",
@@ -3614,7 +3644,7 @@ MEMBERS_BOUND_AS = {
     "EditError::LabelUnchanged": "EditError.variant",
     "EvalError::UnresolvedVar": "EvalError.variant",
     "EvalError::VarKindMismatch": "EvalError.variant",
-    "EvalError::UnloweredName": "EvalError.variant",
+    "EvalError::DefinitionRefused": "EvalError.variant",
     "EvalError::CountExprInContinuousEval": "EvalError.variant",
     "EvalError::ContinuousExprInCountEval": "EvalError.variant",
     "EvalError::CountOverflow": "EvalError.variant",
@@ -3837,6 +3867,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::CertificateExceeded": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
+    "TessellateError::PinchWedge": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
     "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",

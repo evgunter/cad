@@ -28,7 +28,7 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep,
     ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
@@ -37,8 +37,8 @@ use geom_core::Tol;
 
 use crate::fixture::{Recorder, len, scl, xy_frame};
 
-fn plen(n: &'static str) -> Expr {
-    Expr::named(VarName::from_static(n), Dimension::Length)
+fn plen(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The nominal arm of the bracket, in metres.
@@ -62,7 +62,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -104,7 +104,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let plane = r.insert(xy_frame());
 
     // The L, with a PARAMETRIC fillet at its inner corner — the arc.
-    let pt = |x: Expr, y: Expr| ProgramTarget::Point([x, y]);
+    let pt = |x: Formula, y: Formula| ProgramTarget::Point([x, y]);
     let bracket_loop = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::LineTo(pt(plen("arm"), len(0.0))),
@@ -128,7 +128,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         ids: Vec::new(),
     }));
     // THE DIVISION: the plate is a quarter of the arm thick.
-    let thickness = Expr::div(plen("arm"), scl(4.0)).expect("Length / Scalar");
+    let thickness = Formula::div(plen("arm"), scl(4.0)).expect("Length / Scalar");
     let _body = r.insert(Node::Extrude {
         profile,
         distance: thickness.clone(),
@@ -461,7 +461,7 @@ fn collinear_walls() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 4.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -476,7 +476,7 @@ fn collinear_walls() -> ProfileDoc {
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
-    let w = || Expr::named(VarName::from_static("w"), Dimension::Length);
+    let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
@@ -486,7 +486,7 @@ fn collinear_walls() -> ProfileDoc {
             // — an undeclared zero-turn joint), so the split vertex is
             // authored the way the vocabulary spells it.
             ProgramStep::LineTo(ProgramTarget::Point([
-                Expr::div(w(), scl(2.0)).expect("Length / Scalar"),
+                Formula::div(w(), scl(2.0)).expect("Length / Scalar"),
                 len(0.0),
             ])),
             ProgramStep::ContinueTo(ProgramTarget::Point([w(), len(0.0)])),

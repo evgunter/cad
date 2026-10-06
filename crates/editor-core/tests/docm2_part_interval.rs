@@ -64,7 +64,7 @@ fn widened_document(width: f64) -> ProfileDoc {
         &cd.doc,
         &DocEdit::DefineVar {
             var: VarName::from_static(corpus::part_select::H).into(),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -138,7 +138,7 @@ fn widened_runs(width: f64) -> (ProfileDoc, Evaluation<Interval>, Evaluation<Int
 /// The node of `doc` matching `pick`, by evaluation order.
 fn node_where(
     doc: &ProfileDoc,
-    pick: impl Fn(&Node<editor_core::ProfileProgram>) -> bool,
+    pick: impl Fn(&editor_core::Node<editor_core::ProfileProgram>) -> bool,
 ) -> RecipeNodeId {
     *doc.order()
         .iter()

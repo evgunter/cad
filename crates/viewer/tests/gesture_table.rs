@@ -89,6 +89,7 @@
 
 use crate::common;
 use pncad::document::ExtrudeSide;
+use pncad::document::Formula;
 
 use std::collections::BTreeSet;
 
@@ -143,7 +144,7 @@ fn face(node: RecipeNodeId) -> StableName {
 }
 
 /// A seat for the mate door — well-formed and never evaluated here.
-fn alignment() -> Alignment {
+fn alignment() -> Alignment<Formula> {
     Alignment {
         a: MateFrame::authored(
             [0.0; 3],

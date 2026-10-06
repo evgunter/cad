@@ -103,7 +103,7 @@ fn fixture() -> ProfileDoc {
             &doc,
             &DocEdit::DeclareVar {
                 name: p(name),
-                def: editor_core::VarDef::Free(value),
+                def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -157,7 +157,7 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
         &before,
         &DocEdit::DefineVar {
             var: p("wall").into(),
-            def: editor_core::VarDef::Free(rebuilt),
+            def: editor_core::VarDecl::Free(rebuilt),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -494,7 +494,7 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
     vec![
         DocEdit::DeclareVar {
             name: p("wall"),
-            def: editor_core::VarDef::Free(FreeVar::continuous_with(
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                 Dimension::Length,
                 0.003,
                 sigma(),
@@ -502,11 +502,11 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
         },
         DocEdit::DeclareVar {
             name: p("sweep"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 1.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 1.5)),
         },
         DocEdit::DeclareVar {
             name: p("ribs"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 4 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 4 }),
         },
     ]
 }
@@ -691,7 +691,7 @@ fn annotating_through_define_var_reverts_the_notation() {
         &in_mm,
         &DocEdit::DefineVar {
             var: p("wall").into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous_with(
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                 dim,
                 value,
                 Distribution::Normal { sigma: 2e-5 },
@@ -759,7 +759,7 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
             &doc,
             &DocEdit::DefineVar {
                 var: p("wall").into(),
-                def: editor_core::VarDef::Free(crooked)
+                def: editor_core::VarDecl::Free(crooked)
             },
             Tol::witness(),
             &editor_core::RefusingReach,

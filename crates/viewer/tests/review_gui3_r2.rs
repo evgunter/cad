@@ -34,7 +34,7 @@ use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, EvalOutcome, Expr, FreeVar, Node, ProfileProgram, RecipeNodeId,
+    Dimension, Doc, DocEdit, EvalOutcome, Formula, FreeVar, Node, ProfileProgram, RecipeNodeId,
     SlotId, VarName,
 };
 use pncad::geom_core::Tol;
@@ -65,7 +65,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         DocEdit::DeclareVar {
             name: width_param(),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.005)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.005)),
         },
         tol,
     );
@@ -86,7 +86,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             extrude,
             pncad::document::Step::Rigid {
                 translation: [
-                    Expr::mul(Expr::named(width_param(), Dimension::Length), scl(2.0))
+                    Formula::mul(Formula::named(width_param(), Dimension::Length), scl(2.0))
                         .expect("length * scalar is a length"),
                     len(0.0),
                     len(0.0),
@@ -505,7 +505,7 @@ fn a_save_taken_mid_gesture_writes_the_committed_document_not_the_preview() {
 
 /// **The other direction of the text door**: a slot that is a bare
 /// literal accepts a number today, and once an expression is written
-/// into it through `parse_expr` it starts REFUSING numbers with the
+/// into it through `parse_formula` it starts REFUSING numbers with the
 /// affordance. The unit's rows walk driven → expression; this walks
 /// literal → driven → refusal → navigate → parameter edit → the slot
 /// follows.

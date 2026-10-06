@@ -34,6 +34,7 @@ fn halves() -> (Body<Interval>, Body<Interval>) {
     )
     .unwrap()
     .body;
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         p3(0.0, 0.0, H / 2.0),
         v3(PHI.sin(), 0.0, PHI.cos()),

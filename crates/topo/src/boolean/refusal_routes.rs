@@ -258,17 +258,18 @@ pub enum BooleanDecision {
     /// quadratic's discriminant (`solid_contain::line_sphere_roots`,
     /// `bool_ray_sphere_disc`).
     SphereRoots,
-    /// Where an arc crosses a sphere: the circle × sphere lane's
-    /// extremes (`circle_sphere`, `bool_circle_sphere_extreme`), read
-    /// for a coaxial carrier's constant residual and for either end of
-    /// a tilted one's range; on an ellipse, the ellipse door's rows
-    /// (`ellipse_roots`).
+    /// Where an arc crosses a sphere: the conic × quadric door's rows
+    /// (`conic_quadric`) — on a circle, or an ellipse whose second
+    /// harmonic is in the zero band, its first-harmonic arm's extremes
+    /// (`bool_conic_quadric_first_extreme`), read for a constant
+    /// residual and for either end of the range; otherwise the
+    /// half-angle quartic's rows.
     ArcSphereRoots,
-    /// Where an arc crosses a cylinder wall: the circle × cylinder lane's
-    /// certified roots (`circle_cylinder`) — on a circle square to the
-    /// wall's axis the square arm's extremes, otherwise the half-angle
-    /// quartic's rows; on an ellipse, the ellipse door's rows
-    /// (`ellipse_roots`), by the same two arms.
+    /// Where an arc crosses a cylinder wall: the conic × quadric door's
+    /// certified roots (`conic_quadric`), by the same two arms — the
+    /// first-harmonic arm's extremes on a circle square to the wall's
+    /// axis or an ellipse whose projection off it is a circle, otherwise
+    /// the half-angle quartic's rows.
     ArcCylinderRoots,
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.
@@ -1219,6 +1220,10 @@ pub enum RestZipFrontier {
     BandRunOffLoops,
     /// A vertex pair inside a zipped fold is fused already.
     FoldVertexFused,
+    /// Two vertices of one part at one point (a pinch apex) meet one
+    /// vertex of the other across the seam, which pairs vertices one
+    /// to one.
+    PinchApex,
 }
 
 impl RestZipFrontier {
@@ -1249,6 +1254,7 @@ impl RestZipFrontier {
             Self::RunVertexBranches => "seam-run interior vertex holds edges beyond the run",
             Self::BandRunOffLoops => "band-closure run edge outside the folded face's loops",
             Self::FoldVertexFused => "pre-fused vertex pair inside a slit-zip fold",
+            Self::PinchApex => "two seam vertices of one part meet one vertex of the other",
         }
     }
 
@@ -1281,7 +1287,8 @@ impl RestZipFrontier {
             | Self::WholeBoundaryShared
             | Self::RunVertexBranches
             | Self::BandRunOffLoops
-            | Self::FoldVertexFused => geom_core::NOT_YET_ENDING,
+            | Self::FoldVertexFused
+            | Self::PinchApex => geom_core::NOT_YET_ENDING,
         }
     }
 }

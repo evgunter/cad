@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
@@ -15,9 +16,9 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
-    Node, NodeErrorKind, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace, SlotId,
-    StableName, Step, ValuePayload, VarName, evaluate, root_of,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame,
+    MatePrimitive, Node, NodeErrorKind, PatternKind, Placement, ProfileDoc, RecipeNodeId,
+    SitedFace, SlotId, StableName, Step, ValuePayload, VarName, evaluate, root_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -90,12 +91,12 @@ impl Parts {
     }
 }
 
-fn mframe(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn mframe(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
 
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -110,7 +111,7 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
@@ -270,7 +271,7 @@ fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::DeclareVar {
             name: lift(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0
@@ -291,7 +292,11 @@ fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement<Formula>>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
@@ -332,7 +337,11 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.25),
             },
@@ -355,7 +364,7 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(2.0),
@@ -466,7 +475,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(5.0),
@@ -485,7 +494,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     let unstated = solve(&doc, &o, Tol::witness());
@@ -1100,7 +1109,11 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), Expr::named(lift(), Dimension::Length), len(0.0)],
+                translation: [
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                    len(0.0),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },
@@ -1110,7 +1123,7 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     // By id, so the stored offset compares to it as written.
     let lift_id = doc.var_named(lift().as_str()).expect("lift is declared");
     let offset = Placement::from(Step::Rigid {
-        translation: [Expr::var(lift_id, Dimension::Length), len(0.0), len(0.0)],
+        translation: [Formula::var(lift_id, Dimension::Length), len(0.0), len(0.0)],
         axis: [0.0, 0.0, 1.0].map(scl),
         angle: ang(0.0),
     });
@@ -1144,7 +1157,7 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     let k = k.expect("the promote mints its gauge");
     let out = split(&doc).expect("the promoted offset stays in the host");
     assert!(
-        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&offset)),
+        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&editor_core::test_support::stored_placement(&offset))),
         "the promoted gauge holds the parametric offset"
     );
     assert_eq!(
@@ -1179,7 +1192,11 @@ fn the_memo_moves_instances_when_their_gauge_or_their_root_moves() {
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },

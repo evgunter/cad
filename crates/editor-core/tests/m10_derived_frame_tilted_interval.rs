@@ -39,7 +39,7 @@ use crate::m10_8_harness::{atom_census, distinct_atoms, head};
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeVar, LoopProgram, MeridianEnd, Node, NodeResult, ProfileDoc, ProfileLift, ProfileProgram,
     RecipeNodeId, RoleSeg, UnitSym, VarName, evaluate,
 };
@@ -104,7 +104,7 @@ fn sym(
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(name),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -127,8 +127,8 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
     ));
-    let w = Expr::named(VarName::from_static("w"), Dimension::Length);
-    let neg_w = Expr::neg(w.clone()).expect("a shallow negation");
+    let w = Formula::named(VarName::from_static("w"), Dimension::Length);
+    let neg_w = Formula::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon_expr([
@@ -213,7 +213,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("t"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -223,7 +223,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             }),
         }),
     });
-    let t = Expr::named(VarName::from_static("t"), Dimension::Scalar);
+    let t = Formula::named(VarName::from_static("t"), Dimension::Scalar);
     let base = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -581,7 +581,7 @@ enum Base {
     FlipX,
 }
 
-fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
+fn base_frame(r: &mut Recorder, t: &Formula, base: Base) -> RecipeNodeId {
     let (u, v) = match base {
         Base::TiltV => (
             [scl(1.0), scl(0.0), scl(0.0)],
@@ -594,7 +594,7 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         Base::Spin => (
             [scl(1.0), t.clone(), scl(0.0)],
             [
-                Expr::neg(t.clone()).expect("a shallow negation"),
+                Formula::neg(t.clone()).expect("a shallow negation"),
                 scl(1.0),
                 scl(0.0),
             ],
@@ -624,7 +624,7 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
             [
                 scl(0.0),
                 scl(-1.0),
-                Expr::neg(t.clone()).expect("a shallow negation"),
+                Formula::neg(t.clone()).expect("a shallow negation"),
             ],
         ),
         Base::FlipX => (
@@ -732,7 +732,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("t"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -742,7 +742,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
             }),
         }),
     });
-    let t = Expr::named(VarName::from_static("t"), Dimension::Scalar);
+    let t = Formula::named(VarName::from_static("t"), Dimension::Scalar);
     let b = base_frame(&mut r, &t, base);
     let on = match place {
         Place::Authored => b,

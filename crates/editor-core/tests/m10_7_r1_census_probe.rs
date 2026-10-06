@@ -24,8 +24,8 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node,
-    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
+    Node, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName,
     evaluate,
 };
 use fixture::{Recorder, len, scl, xy_frame};
@@ -42,7 +42,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -52,14 +52,14 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             }),
         }),
     });
-    let w = || Expr::named(VarName::from_static("w"), Dimension::Length);
+    let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let plane = r.insert(xy_frame());
-    let pt = |x: Expr, y: Expr| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
+    let pt = |x: Formula, y: Formula| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
-            pt(Expr::div(w(), scl(2.0)).unwrap(), len(0.0)),
+            pt(Formula::div(w(), scl(2.0)).unwrap(), len(0.0)),
             pt(w(), len(0.0)),
             pt(w(), len(1.0)),
             pt(len(0.0), len(1.0)),

@@ -31,6 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
@@ -42,8 +43,9 @@ use editor_core::clearance::{
     ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
 };
 use editor_core::{
-    CapEnd, Datum, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
+    CapEnd, Datum, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    VarName,
 };
 use geom_core::Tol;
 
@@ -86,7 +88,7 @@ fn box_of(doc: &ProfileDoc, axis: &'static str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(axis),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -98,7 +100,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     });
 }
 
-fn translated(input: RecipeNodeId, d: [Expr; 3]) -> Node<ProfileProgram> {
+fn translated(input: RecipeNodeId, d: [Formula; 3]) -> AuthoredNode {
     let [dx, dy, dz] = d;
     Node::transform(
         input,
@@ -194,7 +196,7 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let placed = r.insert(translated(
         probe,
         [
-            Expr::named(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
             len(-0.05),
         ],
@@ -351,7 +353,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         [
             len(0.0),
             len(0.0),
-            Expr::named(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
         ],
     ));
     (r.doc, solid, placed)
@@ -477,7 +479,8 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(0.3), Expr::named(name("place"), Dimension::Length)).expect("a length"),
+            Formula::add(len(0.3), Formula::named(name("place"), Dimension::Length))
+                .expect("a length"),
         ],
     ))
 }
@@ -633,7 +636,8 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(-0.2), Expr::named(name("place"), Dimension::Length)).expect("a length"),
+            Formula::add(len(-0.2), Formula::named(name("place"), Dimension::Length))
+                .expect("a length"),
         ],
     ));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));

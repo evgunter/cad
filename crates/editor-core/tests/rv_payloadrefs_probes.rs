@@ -30,7 +30,7 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, FreeVar, MeasureExpr, Node, PatternKind, PersistError,
+    Dimension, DocEdit, EditError, Formula, FreeVar, MeasureExpr, Node, PatternKind, PersistError,
     ProfileDoc, RecipeNodeId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};
@@ -63,7 +63,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
         &doc,
         &DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -74,7 +74,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::named(name.clone(), Dimension::Count),
+            count: Formula::named(name.clone(), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -151,7 +151,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     let name = VarName::from_static("depth");
     // The F1 checker, at construction, with no document in sight.
     let fault = MeasureExpr::add(
-        MeasureExpr::value(Expr::named(name.clone(), Dimension::Length)),
+        MeasureExpr::value(Formula::named(name.clone(), Dimension::Length)),
         MeasureExpr::value(ang(1.0)),
     );
     assert!(
@@ -161,7 +161,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 
     // The param TABLE, which construction never asks: reading a
     // declared LENGTH parameter as an ANGLE builds fine.
-    let leaf = MeasureExpr::value(Expr::named(name.clone(), Dimension::Angle));
+    let leaf = MeasureExpr::value(Formula::named(name.clone(), Dimension::Angle));
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs-f1"),
@@ -184,7 +184,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
         &doc,
         &DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

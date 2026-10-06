@@ -213,7 +213,7 @@ pub struct Cut<S: Scalar> {
 
 /// `body` split by the plane tilted [`PHI`] through mid-height, as
 /// (above, below).
-fn tilted_cut<S: Scalar>(body: &Body<S>, tol: Tol) -> (Body<S>, Body<S>) {
+fn tilted_cut<S: Scalar>(body: &AtRestBody<S>, tol: Tol) -> (Body<S>, Body<S>) {
     let plane = split_plane(p3(0.0, 0.0, H / 2.0), v3(PHI.sin(), 0.0, PHI.cos()), tol);
     let result = split(body, &plane, tol).expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {

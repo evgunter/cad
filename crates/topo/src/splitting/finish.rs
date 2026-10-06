@@ -64,7 +64,7 @@ use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
 use super::{PlaneSide, SplitReduction, section_loops};
-use crate::attach::Rechart;
+use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
@@ -185,7 +185,7 @@ pub enum SplitFinishError {
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
     /// (`diag`), or (`None`) zero, or unread because the loop carries a
-    /// spiric or NURBS edge. The split's operand gate admits only line,
+    /// spiric or NURBS edge. The split's carrier gate admits only line,
     /// circle and ellipse edges, so every section edge is one the
     /// winding reads.
     SectionWindingUndecided {
@@ -220,7 +220,7 @@ pub enum SplitFinishError {
     /// solid to begin with: the operand is never validated, and the
     /// one tier-2 finding the reduction refuses is an empty OUTER loop
     /// on a face rule (a) measures at an ON vertex
-    /// ([`super::SplitReduceError::CorruptOperand`], via
+    /// ([`super::SplitReduceError::UnboundedFace`], via
     /// `rules::face_extent`). Only the direct run's refusal
     /// is ever surfaced (a mirrored run's is replaced by it), so
     /// `side` is in the caller's orientation.
@@ -362,13 +362,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             .null_edges
             .iter()
             .map(|r| {
-                if r.attr.below_end == r.at_vertex {
-                    Ok((r.attr.above_end, r.at_vertex))
-                } else if r.attr.above_end == r.at_vertex {
-                    Ok((r.attr.below_end, r.at_vertex))
-                } else {
-                    Err(SplitFinishError::Corrupt)
-                }
+                let copy = r.attr.copy_at(r.at_vertex);
+                copy.map(|c| (c, r.at_vertex))
+                    .ok_or(SplitFinishError::Corrupt)
             })
             .collect::<Result<_, _>>()?,
     };
@@ -645,7 +641,7 @@ fn section_plane_restatements<T: Decide>(
             let Some(curve) = geom.certified() else {
                 continue;
             };
-            if !Body::description_surfaces(geom).contains(&chart) {
+            if !Named::of(geom).keys().any(|k| k == chart) {
                 continue;
             }
             let image = geom_brep::EdgeDescriptionSpec::chart(chart);
@@ -682,6 +678,12 @@ fn section_plane_restatements<T: Decide>(
 /// opposed is a wedge end nothing declared and refuses
 /// ([`SplitFinishError::SectionCusp`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
+///
+/// The body is mid-operation, past the carve; each edge is read after
+/// the writes to the edges before it. Its curve is a link
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]; a rewritten edge's old curve
+/// goes only once orphaned, [`Body::remove_curve_if_orphaned`]): a torn
+/// one panics, and is not an edge with no description.
 fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -726,8 +728,8 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 return Err(corrupt());
             };
             let existing = body
-                .get_curve_geom(edge_data.curve)
-                .and_then(crate::null::CurveGeom::certified)
+                .edge_curve_linked(edge, &edge_data)
+                .certified()
                 .cloned();
             let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
             let (witness, arm) = (draft.witness, draft.extent);
@@ -815,10 +817,10 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         let mut spec = match &existing {
                             Some(c) => c.restated_spec(),
                             // Unreachable, not a licence to rebuild:
-                            // the operand gate refuses uncertified
-                            // edges (`ScaffoldingOperand`) and every
-                            // split-minted edge certifies at its mint,
-                            // so a section-boundary edge always has a
+                            // a finished operand has no uncertified
+                            // edge and every split-minted edge
+                            // certifies at its mint, so a
+                            // section-boundary edge always has a
                             // carrier to restate.
                             None => geom_brep::EdgeCurveSpec::line_between(p0, p1),
                         };
@@ -985,6 +987,14 @@ fn classify_shell<T: Decide>(
 /// with every other shell's entities removed and orphaned geometry
 /// swept. Kept entities keep their keys (lineage-scoped identity —
 /// deterministic, replay-stable).
+///
+/// **Every surviving link resolves.** The removal is arena surgery, not
+/// an Euler operator, so it keeps the links by removing only records
+/// no kept record names: no kept half-edge starts at a dropped vertex
+/// or shares an edge with a dropped half-edge, and no kept lone-vertex
+/// loop holds a dropped vertex. That is tier-1 pass 6's "no split
+/// orbits" on a body at rest; `src` may be mid-operation, so the carve
+/// checks it and answers [`SplitFinishError::Corrupt`] where it fails.
 pub(crate) fn carve<T: Decide>(
     src: &Body<T>,
     solid: SolidKey,
@@ -1028,6 +1038,31 @@ pub(crate) fn carve<T: Decide>(
                     }
                 }
             }
+        }
+    }
+
+    let dropped_hes: SecondaryMap<crate::entity::HalfEdgeKey, ()> =
+        hes.iter().map(|&he| (he, ())).collect();
+    let dropped_loops: SecondaryMap<crate::entity::LoopKey, ()> =
+        loops.iter().map(|&l| (l, ())).collect();
+    for (he, he_data) in &body.half_edges {
+        if dropped_hes.contains_key(he) {
+            continue;
+        }
+        let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
+        if vertices.contains_key(he_data.start)
+            || dropped_hes.contains_key(edge.he_plus)
+            || dropped_hes.contains_key(edge.he_minus)
+        {
+            return Err(corrupt());
+        }
+    }
+    for (l, loop_data) in &body.loops {
+        if let LoopBoundary::Empty { vertex } = loop_data.boundary
+            && !dropped_loops.contains_key(l)
+            && vertices.contains_key(vertex)
+        {
+            return Err(corrupt());
         }
     }
 
@@ -1100,7 +1135,7 @@ pub(crate) fn carve<T: Decide>(
     // description on a surviving edge must never dangle (extrude-built
     // operands carry them — M3 PR 5).
     for (_, curve) in body.curves() {
-        for s in Body::description_surfaces(curve) {
+        for s in Named::of(curve).keys() {
             live_surfaces.insert(s, ());
         }
     }
@@ -1116,4 +1151,70 @@ pub(crate) fn carve<T: Decide>(
         body.drop_surface_rows(k);
     }
     Ok(body)
+}
+
+/// **A torn section curve panics before the description writes**: on a
+/// split cube's lower half, a torn curve on the section face's first
+/// boundary edge panics naming the link, with the body unchanged. Two
+/// reads name that link: the description's own, and
+/// [`crate::Body::set_edge_curve`]'s plan, which every arm that
+/// describes the edge reaches before its write. The row holds whichever
+/// panics first, so it cannot tell the two apart.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::entity::{EntityId, GeomRef, LoopBoundary};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn a_torn_section_curve_panics_before_any_write() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::unit_z(),
+            tol,
+        );
+        let mut cube = cube;
+        crate::test_support_fixtures::describe_as_intersections(&mut cube, tol);
+        let cube = crate::test_support::finished("the cube", cube, tol);
+        let split = crate::splitting::split(&cube, &plane, tol).unwrap();
+        let mut body = split.below.body().unwrap().clone();
+        let face = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.5).abs() < 1e-12
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        assert!(
+            super::describe_section_boundary(&mut body.clone(), face, band, tol).is_ok(),
+            "the sound section face's boundary is described"
+        );
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the section face's outer loop is a cycle");
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "describe_section_boundary",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| super::describe_section_boundary(b, face, band, tol),
+        );
+    }
 }

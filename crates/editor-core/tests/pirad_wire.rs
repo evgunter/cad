@@ -19,7 +19,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::expr::DimensionError;
-use editor_core::{Dimension, Expr, Node, PersistError, ProfileDoc, SlotId, load, save};
+use editor_core::{Dimension, Formula, Node, PersistError, ProfileDoc, SlotId, load, save};
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
 
@@ -43,7 +43,7 @@ fn half_turn_doc() -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    let angle = Expr::literal_with_unit(
+    let angle = Formula::literal_with_unit(
         0.5 * core::f64::consts::PI,
         Dimension::Angle,
         quantity::PI.def(),

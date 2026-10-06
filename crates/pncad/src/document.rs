@@ -158,19 +158,27 @@ pub use editor_core::{
 };
 
 // Expressions and their text door.
+// `Formula` is what a caller writes (VARIABLES-DESIGN VR6) and `Expr`
+// what a document stores; the edit door lowers the one to the other, so
+// a node an edit carries is an `AuthoredNode`. `NameFault` is the
+// lowering's refusal, for a caller that lowers a formula itself
+// (`Doc::lowered`), and `Unlowered` says why; `Slot` is the bound a
+// reader generic over the two node forms states, and `ExprTree` over
+// `LeafSet` (`StoredLeaf`, `AuthoredLeaf`) the tree both forms share.
 // `VarEnv` joins them because `select_where` takes one, so a
 // caller who cannot spell the type cannot call the door.
-// `DimensionError` is the refusal `Expr`'s constructor doors return
+// `DimensionError` is the refusal `Formula`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
-// `unparse` is `parse_expr`'s inverse, the text door OUTWARD: the
+// `unparse` is `parse_formula`'s inverse, the text door OUTWARD: the
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
 // `ExprPath` is here by the payload rule: it is the ADDRESS
 // `DocEdit::SetExpression` takes, so without it a consumer cannot spell
 // which expression the edit replaces.
 pub use editor_core::{
-    Dimension, DimensionError, Expr, ExprPath, ParseError, VarEnv, parse_expr, unparse,
+    AuthoredLeaf, AuthoredNode, Dimension, DimensionError, Expr, ExprPath, ExprTree, Formula,
+    LeafSet, NameFault, ParseError, Slot, StoredLeaf, Unlowered, VarEnv, parse_formula, unparse,
 };
 
 // The expression READ side: an expression's current value under a
@@ -194,12 +202,14 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // held beside it — a string newtype admissible by construction (one
 // identifier an expression reads back), whose fallible constructor
 // answers `VarNameFault`. `Var` is the variable a document holds, of a
-// `VarKind` fixed at minting and defined by a `VarDef`; `FreeVar` is a
-// free definition's dimension plus exact stored value. `VarRef` is how
+// `VarKind` fixed at minting and defined by a `VarDef` (free, or defined
+// by an `Expr` over other variables); `VarDecl` is the definition as
+// an edit carries it, read by name before the door lowers it; `FreeVar`
+// is a free definition's dimension plus exact stored value. `VarRef` is how
 // an edit addresses a variable, by id or by name. Recipe vocabulary,
 // plain values, no arena key anywhere: they complete doors this module
 // already carries — `DocEdit::DeclareVar` takes a name and a
-// definition, the variable edits take a `VarRef`, and `Expr::named`
+// `VarDecl`, the variable edits take a `VarRef`, and `Formula::named`
 // takes a `VarName` — so without them the parametric flagship
 // (`plate_param`, guide §3.2) could not be authored façade-only.
 // `SpokenVar` is a variable as a refusal speaks it.
@@ -223,9 +233,12 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // it holds could otherwise read the reason only out of prose.
 // `DistributionRefusal` is the same thing at the third field, for
 // `FreeVar::with_distribution`.
+// `DEFINITION_NODE_BOUND` is the expansion bound
+// `EditError::DefinitionTooLarge` refuses past, so a caller holding that
+// refusal's count can read what it was measured against.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym, Var, VarDef, VarId,
-    VarKind, VarName, VarNameFault, VarNameReason, VarRef,
+    DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym,
+    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the

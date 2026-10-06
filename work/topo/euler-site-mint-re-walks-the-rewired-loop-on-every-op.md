@@ -2,10 +2,11 @@
 id: euler-site-mint-re-walks-the-rewired-loop-on-every-op
 kind: issue
 title: The Euler operators' site mint re-walks and re-certifies every rewired loop on every op, so N ops on one minted face cost O(N²)
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: M
+closed: 2026-10-04
 ---
 
 Found by the dual review of PR 3160
@@ -57,3 +58,27 @@ the fillet surgery (`crates/sweep/src/blend/surgery.rs`), with a handful
 of operators per face, which is where the one measured suite delta
 came from; a producer that grows one minted face by many operators is
 where the quadratic would bind.
+
+## Closed
+
+The site-mint follow-up to PR #4037. Under R, an image is a function of
+its edge and the chart, and an element is a function of its two images,
+so no stored byte depends on `first`. `site_rows` therefore derives and
+certifies only the images a door creates (new, described or rowless
+halves) and decides only the elements of the joints it makes. Every other
+row of the rewired loop stands, and the loop's winding is an integer sum.
+
+Re-measured on this row's benchmark shape: `cyl_wall_sheet`, N struts on
+the outer loop after N rim splits, in a debug build on a shared box. Read
+it for shape only.
+
+| N | before (PR #4037) | after |
+|---|---|---|
+| 25 | 0.029 s | 0.008 s |
+| 50 | 0.086 s | 0.025 s |
+| 100 | 0.281 s | 0.086 s |
+| 200 | 1.122 s | 0.351 s |
+
+The derivation and certification per op are now constant. What still
+grows with the loop is reads, filed rather than disclosed here:
+`work/topo/the-site-mints-plan-reads-the-rewired-loop-whole-on-every-op`.

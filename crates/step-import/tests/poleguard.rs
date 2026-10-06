@@ -260,10 +260,13 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
         // the door, naming the premise, before any mesh is minted; at
         // 1e-9 that overshoot is sub-band — the arc ENDS at the pole
         // as far as this run can tell, which is precisely the case the
-        // door must admit (CERT-1's split-vertex row) — and the
-        // refusal comes from the chord certificate downstream instead.
-        // Both are typed refusals, neither is a panic or a mesh; which
-        // one answers is the two-tolerance shape of a banded premise.
+        // door must admit (CERT-1's split-vertex row). The walk then
+        // carries the arc's end vertex and the witness vertex on one UV
+        // point, two mesh ids on one CDT handle, and the curved lane
+        // refuses that (`PinchWedge`) before its chord certificate is
+        // read. Both are typed refusals, neither is a panic or a mesh;
+        // which one answers is the two-tolerance shape of a banded
+        // premise.
         let expected_at_this_band = if (0.99e-12..=1.01e-12).contains(&eps) {
             matches!(
                 err,
@@ -273,7 +276,7 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
                 }
             )
         } else {
-            matches!(err, mesh::TessellateError::CertificateExceeded { .. })
+            matches!(err, mesh::TessellateError::PinchWedge { .. })
         };
         assert!(
             expected_at_this_band,

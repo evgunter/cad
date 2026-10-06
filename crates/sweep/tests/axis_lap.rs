@@ -228,7 +228,7 @@ fn full_length_flats_build_at_the_analytic_volume() {
 fn an_oblique_cap_flats_through_its_ellipse_arc() {
     let theta = 20f64.to_radians();
     let normal = Vec3::new(0.0, -theta.sin(), theta.cos());
-    let part = |body: &Body<f64>, z0: f64, above: bool| -> Body<f64> {
+    let part = |body: &AtRestBody<f64>, z0: f64, above: bool| -> Body<f64> {
         let split = topo::split(
             body,
             &topo::test_support::split_plane(
@@ -246,7 +246,11 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
     };
     let capped = finished(
         "the oblique-capped rod",
-        part(&part(&rod(), 3.5, false), 0.5, true),
+        part(
+            &finished("the rod's lower part", part(&rod(), 3.5, false), tol()),
+            0.5,
+            true,
+        ),
         tol(),
     );
     // Between two parallel planes 3 apart along z, over the disc.

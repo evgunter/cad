@@ -33,6 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
@@ -46,7 +47,7 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    CapEnd, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
+    CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::k_stats::decide;
@@ -81,7 +82,7 @@ fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(axis),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -93,7 +94,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     });
 }
 
-fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<ProfileProgram> {
+fn translated(input: RecipeNodeId, dx: Formula, dy: Formula, dz: Formula) -> AuthoredNode {
     Node::transform(
         input,
         editor_core::Step::Rigid {
@@ -175,7 +176,7 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         solid,
-        Expr::named(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
     ));
@@ -224,7 +225,7 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         probe,
-        Expr::named(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(-0.05),
     ));
@@ -245,7 +246,7 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let b = r.insert(translated(a, len(1.0 + gap), len(0.0), len(0.0)));
     let _ = r.insert(translated(
         a,
-        Expr::named(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
     ));

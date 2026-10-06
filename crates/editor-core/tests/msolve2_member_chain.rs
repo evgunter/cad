@@ -20,16 +20,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
-    DocEdit, DocumentId, EvalOptions, Expr, FreeValue, FreeVar, MateFault, MateFrame,
+    DocEdit, DocumentId, EvalOptions, Formula, FreeValue, FreeVar, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, VarName, groups,
-    member_of, product,
+    RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, VarName, groups, member_of,
+    product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
@@ -75,7 +76,7 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 /// physical seat: the block stands ON the slab. `a_origin` moves the
 /// declared contact point across the slab, which is how a second mate
 /// declares the seat a sibling copy actually lands in.
-fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> Node<ProfileProgram> {
+fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -174,10 +175,10 @@ fn control_seat(label: &str) -> Affine3<f64> {
 }
 
 /// A linear pattern node over `input`.
-fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> Node<ProfileProgram> {
+fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
         input,
-        count: Expr::count(count),
+        count: Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
             spacing: len(spacing),
@@ -187,10 +188,10 @@ fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> Node<
 
 /// A `Part` selecting instance `i` of `of` — the identity-transparent
 /// projection a nested pattern is built through.
-fn part_of(of: RecipeNodeId, i: i64) -> Node<ProfileProgram> {
+fn part_of(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
         of,
-        select: PartSelect::Instance(Expr::count(i)),
+        select: PartSelect::Instance(Formula::count(i)),
     }
 }
 
@@ -220,7 +221,7 @@ fn circular(
         doc,
         Node::Pattern {
             input,
-            count: Expr::count(count),
+            count: Formula::count(count),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(step_angle),
@@ -292,7 +293,7 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
         doc,
         Node::Pattern {
             input: part,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(std::f64::consts::FRAC_PI_2),
@@ -1201,7 +1202,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
         DocEdit::SetStructuralParam {
             node: part2,
             slot: editor_core::SlotId::Instance,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     // Both references are members: admission is structural and the
@@ -1247,7 +1248,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
         s.doc,
         DocEdit::DeclareVar {
             name: k.clone(),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 1 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 1 }),
         },
     );
     let (doc, pattern) = insert(doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
@@ -1255,7 +1256,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
         doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(Expr::named(k.clone(), Dimension::Count)),
+            select: PartSelect::Instance(Formula::named(k.clone(), Dimension::Count)),
         },
     );
     let a = in_part(base, base_body, CapEnd::End);

@@ -479,6 +479,31 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             },
             ..none
         },
+        // A definition's faults name the variable defined; the
+        // variable it reads, or the cycle, rides in the sentence.
+        EditError::NotAFreeVar { var, door: _ }
+        | EditError::DefinitionCycle { var, through: _ }
+        | EditError::DefinitionUnknownVarName { var, name: _ }
+        | EditError::DefinitionUnresolvedVar { var, read: _ } => EditPayload {
+            param: var.name(),
+            ..none
+        },
+        EditError::DefinitionTooLarge { var, nodes } => EditPayload {
+            param: var.name(),
+            count: Some(*nodes),
+            ..none
+        },
+        EditError::DefinitionVarKind {
+            var,
+            read: _,
+            declared,
+            referenced,
+        } => EditPayload {
+            param: var.name(),
+            expected: Some(dim(*declared)),
+            found: Some(dim(*referenced)),
+            ..none
+        },
         EditError::VarNameTaken { name, holder: _ } => EditPayload {
             param: Some(name),
             ..none
@@ -493,11 +518,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         EditError::PayloadUnresolvedVar { var, node } => EditPayload {
             node: Some(node.id()),
             param: var.name(),
-            ..none
-        },
-        EditError::NameLeafWritten { node, name } => EditPayload {
-            node: Some(node.id()),
-            param: Some(name),
             ..none
         },
         EditError::VarNameUnchanged { var }

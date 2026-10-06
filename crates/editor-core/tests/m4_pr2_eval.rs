@@ -124,7 +124,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .apply(
             &editor_core::DocEdit::DefineVar {
                 var: editor_core::VarName::from_static("pip_depth").into(),
-                def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
                     editor_core::Dimension::Length,
                     0.0625,
                 )),
@@ -220,13 +220,13 @@ fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
 #[test]
 fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     use editor_core::{
-        Dimension, DocEdit, Expr, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
+        Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
     };
     let h = VarName::from_static("h");
     let mut r = fixture::Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: h.clone(),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, -0.25)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.25)),
     });
     let profile = r.profile(
         [0.0; 3],
@@ -236,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     );
     let block = r.insert(Node::Extrude {
         profile,
-        distance: Expr::named(h.clone(), Dimension::Length),
+        distance: Formula::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let ev = run(&r.doc, None, false);
@@ -269,7 +269,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     for edit in [
         DocEdit::DefineVar {
             var: h.into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         DocEdit::SetExtrudeSide {
             node: block,
@@ -304,8 +304,8 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             &editor_core::DocEdit::SetParam {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
-                expr: editor_core::Expr::div(
-                    editor_core::Expr::named(
+                expr: editor_core::Formula::div(
+                    editor_core::Formula::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),

@@ -581,7 +581,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadVarKind { .. } => "payload_var_kind",
         EditError::SlotUnresolvedVar { .. } => "slot_unresolved_var",
         EditError::PayloadUnresolvedVar { .. } => "payload_unresolved_var",
-        EditError::NameLeafWritten { .. } => "name_leaf_written",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
         EditError::AssertionDimension { .. } => "assertion_dimension",
@@ -593,6 +592,12 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::AnonymousVarUnread { .. } => "anonymous_var_unread",
         EditError::DeleteAnonymousVar { .. } => "delete_anonymous_var",
         EditError::VarKindFixed { .. } => "var_kind_fixed",
+        EditError::NotAFreeVar { .. } => "not_a_free_var",
+        EditError::DefinitionCycle { .. } => "definition_cycle",
+        EditError::DefinitionTooLarge { .. } => "definition_too_large",
+        EditError::DefinitionUnknownVarName { .. } => "definition_unknown_var_name",
+        EditError::DefinitionUnresolvedVar { .. } => "definition_unresolved_var",
+        EditError::DefinitionVarKind { .. } => "definition_var_kind",
         EditError::VarValueKindMismatch { .. } => "var_value_kind_mismatch",
         EditError::VarCountHasNoUnit { .. } => "var_count_has_no_unit",
         EditError::VarCountHasNoDistribution { .. } => "var_count_has_no_distribution",
@@ -1288,11 +1293,16 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::VarIdCollides { .. } => None,
         EditError::SlotUnresolvedVar { .. } => None,
         EditError::PayloadUnresolvedVar { .. } => None,
-        EditError::NameLeafWritten { .. } => None,
         EditError::VarNameUnchanged { .. } => None,
         EditError::AnonymousVarUnread { .. } => None,
         EditError::DeleteAnonymousVar { .. } => None,
         EditError::VarKindFixed { .. } => None,
+        EditError::NotAFreeVar { .. } => None,
+        EditError::DefinitionCycle { .. } => None,
+        EditError::DefinitionTooLarge { .. } => None,
+        EditError::DefinitionUnknownVarName { .. } => None,
+        EditError::DefinitionUnresolvedVar { .. } => None,
+        EditError::DefinitionVarKind { .. } => None,
         EditError::VarValueKindMismatch { .. } => None,
         EditError::VarCountHasNoUnit { .. } => None,
         EditError::VarCountHasNoDistribution { .. } => None,
@@ -1592,6 +1602,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
+        BooleanErrorKind::PointInFaceRefused => "point_in_face_refused",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
@@ -1612,6 +1623,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PierceRunsUnordered => "pierce_runs_unordered",
+        BooleanErrorKind::PinchUncrossed => "pinch_uncrossed",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1816,6 +1828,7 @@ pub fn seed_error_tag(err: &SeedError) -> &'static str {
     match err {
         SeedError::UnknownVar { .. } => "unknown_param",
         SeedError::CountVar { .. } => "count_param",
+        SeedError::SeedOnDefinedVar { .. } => "seed_on_defined_var",
         SeedError::TangentUnrepresentable { .. } => "tangent_unrepresentable",
     }
 }
@@ -1986,11 +1999,14 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::VarOrderMismatch => "var_order_mismatch",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
         SnapshotError::SlotDimension { .. } => "slot_dimension",
-        SnapshotError::NamedReaderInSnapshot { .. } => "named_reader_in_snapshot",
         SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
         SnapshotError::PayloadVarKind { .. } => "payload_var_kind",
         SnapshotError::AnonymousVarUnread { .. } => "anonymous_var_unread",
+        SnapshotError::DefinitionReadsUnmintedVar { .. } => "definition_reads_unminted_var",
+        SnapshotError::DefinitionVarKind { .. } => "definition_var_kind",
+        SnapshotError::DefinitionCycle { .. } => "definition_cycle",
+        SnapshotError::DefinitionTooLarge { .. } => "definition_too_large",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // The product-root list's own invariant vocabulary, carried
         // through: a root fault is the same fact here as at the edit
@@ -2234,7 +2250,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
 }
 
 /// The stable tag for an expression-constructor refusal
-/// (`Expr::literal`'s own error type, matched rather than
+/// (`Formula::literal`'s own error type, matched rather than
 /// pre-checked).
 pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
     match err {
@@ -2274,7 +2290,7 @@ pub fn fmt_quantity_error_tag(err: &FmtQuantityError) -> &'static str {
     }
 }
 
-/// The stable tag for an expression TEXT-door refusal (`parse_expr`).
+/// The stable tag for an expression TEXT-door refusal (`parse_formula`).
 ///
 /// The `Dimension` arm keeps a tag of its OWN rather than borrowing
 /// the inner refusal's: what refused is the parse, at a byte offset
@@ -2298,6 +2314,19 @@ pub fn parse_error_tag(err: &ParseError) -> &'static str {
     }
 }
 
+/// The stable tag for a name an expression door could not read against
+/// its document (`Doc.eval` / `Doc.eval_count` lower a formula before
+/// evaluating it): a name no variable holds, or one held at another
+/// kind than the formula reads it at. Raised as `EvalError`, beside
+/// [`eval_error_tag`]'s refusals, since it is the evaluation door that
+/// refuses it.
+pub fn name_fault_tag(fault: &pncad::document::NameFault) -> &'static str {
+    match fault.why {
+        pncad::document::Unlowered::Unheld => "unlowered_name",
+        pncad::document::Unlowered::Kind { .. } => "var_kind_mismatch",
+    }
+}
+
 /// The stable tag for an evaluation refusal (`eval` / `eval_count`).
 ///
 /// Note what is NOT here: division by zero and out-of-domain trig.
@@ -2309,7 +2338,7 @@ pub fn eval_error_tag(err: &EvalError) -> &'static str {
     match err {
         EvalError::UnresolvedVar { .. } => "unresolved_var",
         EvalError::VarKindMismatch { .. } => "var_kind_mismatch",
-        EvalError::UnloweredName { .. } => "unlowered_name",
+        EvalError::DefinitionRefused { .. } => "definition_refused",
         EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",
         EvalError::ContinuousExprInCountEval { .. } => "continuous_expr_in_count_eval",
         EvalError::CountOverflow => "count_overflow",
@@ -2341,6 +2370,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
+        TessellateError::PinchWedge { .. } => "pinch_wedge",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",

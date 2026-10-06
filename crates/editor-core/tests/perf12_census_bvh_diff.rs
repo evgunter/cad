@@ -42,7 +42,7 @@ use editor_core::ExtrudeSide;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
-    Datum, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
+    Datum, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
     VarName, apply, product_recorded,
 };
 use fixture::{Recorder, band, frame, len, scl, xy_frame};
@@ -212,7 +212,7 @@ fn loft_with_brick() -> ProfileDoc {
     let top = section(&mut r, 2.0, PRISM_SQUARE);
     r.insert(Node::Loft {
         profiles: vec![bottom, middle, top],
-        v_degree: Expr::count(2),
+        v_degree: Formula::count(2),
     });
     let brick_plane = r.insert(frame([0.0, 0.0, 2.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
@@ -332,7 +332,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         &entry.doc,
         &DocEdit::DefineVar {
             var: VarName::from_static("fins").into(),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: fins }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: fins }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

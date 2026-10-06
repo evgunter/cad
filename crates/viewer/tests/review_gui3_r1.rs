@@ -24,9 +24,10 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::AuthoredNode;
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    Dimension, Doc, DocEdit, EvalOutcome, Expr, FreeVar, LoopProgram, Node, ProfileProgram,
+    Dimension, Doc, DocEdit, EvalOutcome, Formula, FreeVar, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, SlotId, VarName,
 };
 use pncad::geom_core::Tol;
@@ -48,7 +49,7 @@ fn depth_param() -> VarName {
 
 /// A triangle, for the same reason as `depth_param` — it reads apart
 /// from the unit suites' square. No row asserts on the shape.
-fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+fn triangle(plane: RecipeNodeId, side: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -66,7 +67,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         DocEdit::DeclareVar {
             name: depth_param(),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );
@@ -76,7 +77,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::mul(Expr::named(depth_param(), Dimension::Length), scl(3.0))
+            distance: Formula::mul(Formula::named(depth_param(), Dimension::Length), scl(3.0))
                 .expect("length * scalar is a length"),
             side: ExtrudeSide::Along,
         },
@@ -309,7 +310,7 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         &doc,
         DocEdit::DeclareVar {
             name: depth_param(),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );
@@ -448,7 +449,7 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
         Node::Extrude {
             profile,
             // Well-dimensioned at the door, non-finite at evaluation.
-            distance: Expr::div(len(0.005), scl(0.0)).expect("length / scalar"),
+            distance: Formula::div(len(0.005), scl(0.0)).expect("length / scalar"),
             side: ExtrudeSide::Along,
         },
         tol,

@@ -100,18 +100,6 @@
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
 //!   ([`Exempt::Rest`]).
-//! - **Four-germ vertex–vertex sites**: where a vertex of the other
-//!   operand coincides with a 315° reflex corner and its wall lies
-//!   flush on the corner's notch wall under a tilted cap, the vertex
-//!   pair keeps four crossing germs, and `insert` runs each pair's null
-//!   edge in B in A's germ order rather than B's: the B runs overlap and
-//!   the op refuses (`Euler(FanStartMismatch)`, `JoinDesync`;
-//!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). Some such
-//!   unions are not refused: the declared-REST zip answers them after
-//!   the join's refusal, with a wrong volume
-//!   (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
-//!   The vertex-on-face form of the same corner (the corner piercing a
-//!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
@@ -251,8 +239,9 @@ pub struct BooleanNaming {
     /// has no result key (translate the kept column through
     /// `graft_vertices`).
     pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
-    /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
-    /// result keys.
+    /// Face absorption groups `(kept, absorbed…)`, result keys: the
+    /// pinch crossings' (`zip::cross_pinches`), then
+    /// `merge_coplanar_faces`'.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
     /// Curved merge groups the output stage did NOT glue, as outside
     /// the merge's Euler inventory (M4 PR 5), and declared surface pairs
@@ -603,6 +592,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // A pinch is one vertex on two seams: the first zip fuses it, so
     // each later zip reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
+    let crossed = super::zip::cross_pinches(&mut body, &fin.seams, &mut vertex_map, tol)?;
+    desc.absorb_faces(&crossed);
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
         desc.absorb_zip(&rep);
@@ -657,7 +648,11 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges,
         vertex_merges,
         weld_merges_b: fin.weld_merges_b,
-        merge_groups: merge_rows(&merged),
+        merge_groups: crossed
+            .iter()
+            .map(|&(absorbed, kept)| (kept, vec![absorbed]))
+            .chain(merge_rows(&merged))
+            .collect(),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
         face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
@@ -1093,10 +1088,16 @@ pub(crate) fn place_witness<T: Decide>(
     band: Band,
 ) -> Option<FaceContainment> {
     match *surface {
-        geom::Surface::Plane { normal, .. } => contfp(body, face, normal, p, band).ok(),
+        geom::Surface::Plane { normal, .. } => match contfp(body, face, normal, p, band) {
+            Ok(at) => Some(at),
+            Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+            Err(_) => None,
+        },
         _ => match super::contain::curved_face_placement(body, face, p, band) {
             Ok(super::contain::CurvedPlacement::Trim(v)) => v,
-            _ => None,
+            Ok(super::contain::CurvedPlacement::OffCarrier) => None,
+            Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+            Err(_) => None,
         },
     }
 }
@@ -1219,10 +1220,7 @@ fn face_boundary_meets<T: Decide + Bounds>(
     pad: f64,
 ) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
-    for (lk, field) in
-        core::iter::once((fd.outer, "outer")).chain(fd.rings.iter().map(|&r| (r, "rings")))
-    {
-        let l = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field);
+    for (_, l) in body.face_loops_linked(face, fd) {
         let LoopBoundary::Cycle { first } = l.boundary else {
             continue;
         };
@@ -2175,6 +2173,19 @@ pub(super) fn of_merge(refusal: crate::merge_faces::MergeCoplanarError) -> Boole
 /// it left unglued. The boolean's minted edges and the merge door's
 /// kept boundaries are both described here, and each door words the
 /// refusal as its own.
+///
+/// A worklist edge is a key the caller carries: its miss refuses typed
+/// ([`EdgeDescribeFailure::NotWalkable`]).
+///
+/// # Panics
+///
+/// Where a record past a resolved worklist edge does not resolve (D2
+/// row 4): its halves, their loops and faces, the faces' surfaces, its
+/// ends' points and its curve. A torn curve is not an uncertified one,
+/// and a torn half's face is not one outside a recorded skip. Both
+/// callers run it mid-operation (the boolean's output stage, the merge
+/// door's re-description), where links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     worklist: impl IntoIterator<Item = crate::entity::EdgeKey>,
@@ -2184,10 +2195,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<(), DescribeRefusal> {
     // Whether two faces both belong to one recorded merge skip: the
     // licensed cosurface pairs the merge stage ships unglued.
-    let recorded_skip = |f1: Option<crate::entity::FaceKey>, f2: Option<crate::entity::FaceKey>| {
-        let (Some(f1), Some(f2)) = (f1, f2) else {
-            return false;
-        };
+    let recorded_skip = |(f1, f2): (FaceKey, FaceKey)| {
         skipped
             .iter()
             .any(|s| s.faces.contains(&f1) && s.faces.contains(&f2))
@@ -2195,23 +2203,23 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
     for edge in worklist {
         let corrupt = || DescribeRefusal::failed(edge, EdgeDescribeFailure::NotWalkable);
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
-        let sides = crate::readback::edge_sides(body, edge).map_err(|_| corrupt())?;
+        let sides = crate::readback::edge_sides_of(body, edge, &edge_data);
         let (s1, s2) = sides.surfaces();
         let he_plus = sides.plus.half_edge;
-        let start = body.get_half_edge(he_plus).ok_or_else(corrupt)?.start;
-        let end = body.half_edge_end(he_plus).ok_or_else(corrupt)?;
-        let p0 = *body
-            .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
-            .ok_or_else(corrupt)?;
-        let p1 = *body
-            .get_point(body.get_vertex(end).ok_or_else(corrupt)?.point)
-            .ok_or_else(corrupt)?;
-        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
-            return Err(corrupt());
+        let start = proven(&body.half_edges, he_plus, EntityId::HalfEdge).start;
+        let p0 = body.linked_vertex_point(start, EntityId::HalfEdge(he_plus), "start");
+        let p1 = body.linked_vertex_point(
+            body.proven_half_edge_end(he_plus),
+            EntityId::HalfEdge(he_plus),
+            "end",
+        );
+        let surface_of = |side: crate::readback::EdgeSide| {
+            body.face_surface_linked(side.face, proven(&body.faces, side.face, EntityId::Face))
         };
+        let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
         let existing = body
-            .get_curve_geom(edge_data.curve)
-            .and_then(crate::null::CurveGeom::certified)
+            .edge_curve_linked(edge, &edge_data)
+            .certified()
             .cloned();
         let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
@@ -2235,12 +2243,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                 // re-homed its neighbors, or the zip fused it between
                 // new faces). Re-describe conventionally where the
                 // surfaces under-determine the locus (D2's split).
-                let stale = match body
-                    .get_curve_geom(edge_data.curve)
-                    .and_then(crate::null::CurveGeom::certified)
-                    .ok_or_else(corrupt)?
-                    .description()
-                {
+                let stale = match existing.as_ref().ok_or_else(corrupt)?.description() {
                     geom_brep::EdgeDescription::Intersection { s1: d1, s2: d2, .. }
                     | geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } => {
                         !Body::<T>::cites_pair((*d1, *d2), s1, s2)
@@ -2260,10 +2263,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     // "only a curved group's skip is recorded and
                     // shipped"); it is described where it rests. Any
                     // other scaffold stays one, and tier 3 refuses it.
-                    geom_brep::EdgeDescription::Scaffold(_) => recorded_skip(
-                        body.face_of_half_edge(edge_data.he_plus),
-                        body.face_of_half_edge(edge_data.he_minus),
-                    ),
+                    geom_brep::EdgeDescription::Scaffold(_) => recorded_skip(sides.faces()),
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order through the must-carry rule
@@ -2567,6 +2567,11 @@ impl Descendants {
             self.fused.insert(dead);
             self.fused.insert(kept);
         }
+    }
+
+    /// Face absorptions `(absorbed, kept)` outside the coplanar merge.
+    pub(super) fn absorb_faces(&mut self, rows: &[(FaceKey, FaceKey)]) {
+        self.faces.extend(rows.iter().copied());
     }
 
     pub(super) fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {
@@ -3005,6 +3010,24 @@ struct SphereRecut<T: Real> {
     align: Vec3<T>,
 }
 
+/// The sphere extent scan's reading of a refused [`contfp`] on `face`, a
+/// plane face of the operand facing the sphere's (`sphere_is`). The
+/// operands are AT REST, past the operand gate, whose tier 2 refuses a
+/// lone-vertex loop: meeting one here is a kernel bug. Every other
+/// refusal reads as the reduction reads it ([`super::reduce::esc`]).
+/// Two test-support doors run the scan on ungated bodies
+/// (`test_support::boolean_through_the_join` and
+/// [`no_crossings_certificates`]); there a lone-vertex loop is the
+/// fixture's, and still answers this typed invariant.
+fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> BooleanError {
+    match e {
+        ContainError::EmptyLoop(_) => BooleanError::ClassificationInvariant {
+            what: "extent scan: a gated operand face has a lone-vertex loop",
+        },
+        e => super::reduce::esc(e, sphere_is.other(), face),
+    }
+}
+
 /// The curved-EXTENT scan (fn-level story on the call site in
 /// [`boolean_op_recut`]). Sound because every CURVED-involved boundary
 /// pair is either **certified disjoint** (so a connected shell shares
@@ -3029,6 +3052,12 @@ struct SphereRecut<T: Real> {
 ///
 /// Determinism (D9): face-arena order throughout; the first escape's
 /// normal is the alignment target.
+///
+/// # Panics
+///
+/// Where an arena face's surface does not resolve (D2 row 4): a torn
+/// surface is neither NURBS nor a sphere. The operands are at rest
+/// (gated, or a rigid re-chart of gated operands).
 fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
@@ -3046,7 +3075,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // is unwritable for the kind (variant docs).
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         for (face, fd) in body.faces() {
-            if matches!(body.get_surface(fd.surface), Some(geom::Surface::Nurbs(_))) {
+            if matches!(body.face_surface_linked(face, fd), geom::Surface::Nurbs(_)) {
                 return Err(BooleanError::NurbsExtentUnsupported { operand, face });
             }
         }
@@ -3065,12 +3094,12 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let charts = crate::chart_groups::ChartGroups::of_body(x);
         let mut seen: Vec<SurfaceKey> = Vec::new();
         for (face, fd) in x.faces() {
-            let Some(&geom::Surface::Sphere {
+            let &geom::Surface::Sphere {
                 center,
                 radius,
                 axis,
                 ..
-            }) = x.get_surface(fd.surface)
+            } = x.face_surface_linked(face, fd)
             else {
                 continue;
             };
@@ -3169,28 +3198,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     });
                                 }
                                 let witness = foot + u_ref * rho;
-                                match contfp(y, yf, normal, witness, band).map_err(|e| match e {
-                                    ContainError::Escalated(diag) => BooleanError::Escalated {
-                                        decision: BooleanDecision::Containment,
-                                        diag,
-                                    },
-                                    ContainError::RayExhausted => {
-                                        BooleanError::ClassificationInvariant {
-                                            what: "extent scan: contfp ray schedule exhausted",
-                                        }
-                                    }
-                                    ContainError::Corrupt => {
-                                        BooleanError::ClassificationInvariant {
-                                            what: "extent scan: contfp met corrupt topology",
-                                        }
-                                    }
-                                    ContainError::Uncrossable(cause) => {
-                                        BooleanError::ArcLoopContainmentUnsupported {
-                                            operand: x_is,
-                                            cause,
-                                        }
-                                    }
-                                })? {
+                                match contfp(y, yf, normal, witness, band)
+                                    .map_err(|e| extent_scan_refusal(e, x_is, yf))?
+                                {
                                     // The circle misses this face
                                     // (it crosses the carrier plane
                                     // elsewhere).
@@ -5700,5 +5710,80 @@ mod tests {
                 "{described:?} passes through as the boolean's own"
             );
         }
+    }
+
+    /// **The sphere extent scan answers `ContainError`'s reachable
+    /// refusals typed, on the face's own operand.** It runs on operands
+    /// AT REST: a refusal the face door owns is carried whole with the
+    /// face and the operand facing the sphere's — decided, not
+    /// forwarded — and only a lone-vertex loop, which the gate's tier 2
+    /// rules out, stays a kernel-bug claim.
+    #[test]
+    fn extent_scan_refusals_name_the_faces_operand() {
+        use crate::boolean::Operand;
+        use crate::boolean::contain::ContainError;
+        use crate::boolean::solid_contain::PointInSolidError;
+        use crate::entity::{FaceKey, LoopKey};
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let (face, lk) = (FaceKey::from(key(7)), LoopKey::from(key(9)));
+        for (sphere_is, face_is) in [(Operand::A, Operand::B), (Operand::B, Operand::A)] {
+            for e in [
+                ContainError::LoopUnreadable(lk),
+                ContainError::RayExhausted,
+                ContainError::Curved(PointInSolidError::CorruptFace { face }),
+            ] {
+                let got = super::extent_scan_refusal(e.clone(), sphere_is, face);
+                assert!(
+                    matches!(
+                        &got,
+                        BooleanError::PointInFaceRefused { operand, face: f, refusal }
+                            if *operand == face_is && *f == face && *refusal == e
+                    ),
+                    "sphere on {sphere_is:?}: {e:?} answered {got:?}"
+                );
+            }
+        }
+        assert!(
+            matches!(
+                super::extent_scan_refusal(ContainError::EmptyLoop(lk), Operand::A, face),
+                BooleanError::ClassificationInvariant { .. }
+            ),
+            "a lone-vertex loop past the gate is a kernel bug"
+        );
+    }
+}
+
+/// **`sphere_extent_scan`: a torn surface panics**, where it read as a
+/// face that is neither NURBS nor a sphere.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::entity::GeomRef;
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn the_extent_scan_panics_on_a_torn_surface() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cube = || crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let (mut a, b) = (cube(), cube());
+        assert!(
+            sphere_extent_scan(&a, &b, &[], band).unwrap().is_empty(),
+            "two cubes carry no sphere"
+        );
+        let (face, fd) = a.faces().next().map(|(k, d)| (k, d.clone())).unwrap();
+        a.surfaces.remove(fd.surface);
+        let named = format!(
+            "{}'s surface names {}",
+            EntityId::Face(face),
+            GeomRef::Surface(fd.surface)
+        );
+        assert_torn_op_panics(
+            "sphere_extent_scan",
+            &mut a,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |a| sphere_extent_scan(a, &b, &[], band).map(|r| r.len()),
+        );
     }
 }

@@ -45,3 +45,17 @@ A prism's vertex cannot do it: its link meets a plane at most four
 times, so at most two runs (PR 4026's review r2, N3). Then hang the
 ring struts in the walk's order, pin it with a row, and retire the
 refusal.
+
+## Evidence (the six-crossing pairing)
+
+This is the vertex-on-face sibling of the vertex-vertex six-crossing
+row, which builds as of branch `join/six-crossing-pairing`. Three Out
+runs are six crossings of the piercing vertex's link with the pierced
+plane's great circle. The runs on one side of the plane are disjoint
+arcs of one hemisphere, so their germ pairs nest round the circle and
+cannot cross. The ring struts' cyclic order has to follow that nesting
+(`insert::b_runs` reads the same structure in B's walk order).
+
+Still unreached: 6 048 face-placement runs of the 343° notch, the L
+prism and a 203° shallow reflex, every op and both orders over the
+pierce sweep's grid, are all SOUND, and none mints a third run.

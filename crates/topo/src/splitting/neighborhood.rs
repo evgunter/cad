@@ -59,7 +59,8 @@ use slotmap::SecondaryMap;
 use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
@@ -80,7 +81,7 @@ use crate::validate::decide;
 /// rather than left to the gate.
 ///
 /// It is worth being exact about WHY the arm is unreachable, because
-/// the obvious answer is wrong: it is not that the F5 operand gate
+/// the obvious answer is wrong: it is not that the F5 carrier gate
 /// ([`super::classify`]) runs first. [`super::classify_neighborhood`]
 /// is public, deliberately, so tests and the joining step can inspect
 /// classification on their own, and on that path no gate runs at all.
@@ -145,20 +146,23 @@ pub(super) fn chord<T: Decide>(
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(VertexKey, Vec3<T>, Option<(Vec3<T>, T)>), SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let final_vertex = body.half_edge_end(he).ok_or_else(corrupt)?;
-    let p_base = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
-    let p_final = *body
-        .get_point(body.get_vertex(final_vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
-    let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
-    let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .and_then(crate::null::CurveGeom::certified)
-        .ok_or_else(corrupt)?;
+    let final_vertex = body.proven_half_edge_end(he);
+    let p_base = body.resolve_vertex_point(vertex, Proven);
+    let p_final = body.resolve_vertex_point(final_vertex, Proven);
+    let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+    let edge = linked(
+        &body.edges,
+        edge_key,
+        EntityId::Edge,
+        EntityId::HalfEdge(he),
+        "edge",
+    );
+    let curve = body.edge_curve_linked(edge_key, edge).certified().ok_or(
+        SplitReduceError::NullEdgeAtVertex {
+            vertex,
+            edge: edge_key,
+        },
+    )?;
     match curve.carrier() {
         geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
@@ -193,7 +197,9 @@ pub(super) fn chord<T: Decide>(
 /// # Errors
 ///
 /// [`SplitReduceError`] — sliver escalations, the consecutive-ON
-/// invariant, or a corrupt/unwalkable neighborhood.
+/// invariant, a `vertex` that does not resolve or is a lone vertex, a
+/// far vertex `sides` holds no verdict for, or a null edge at `vertex`
+/// ([`SplitReduceError::NullEdgeAtVertex`]).
 pub fn classify_neighborhood<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -201,11 +207,13 @@ pub fn classify_neighborhood<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<SectorEntry>, SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let orbit = body
-        .vertex_orbit_of(vertex)
-        .filter(|orbit| !orbit.is_empty())
-        .ok_or_else(corrupt)?;
+    if body.get_vertex(vertex).is_none() {
+        return Err(SplitReduceError::StaleVertex { vertex });
+    }
+    let orbit = body.vertex_orbit_linked(vertex);
+    if orbit.is_empty() {
+        return Err(SplitReduceError::LoneVertex { vertex });
+    }
 
     let mut entries = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
@@ -265,7 +273,11 @@ pub fn classify_neighborhood<T: Decide>(
                 }
             }
         } else {
-            *sides.get(final_vertex).ok_or_else(corrupt)?
+            *sides
+                .get(final_vertex)
+                .ok_or(SplitReduceError::UnrecordedSide {
+                    vertex: final_vertex,
+                })?
         };
         entries.push(SectorEntry {
             he,

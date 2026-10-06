@@ -18,10 +18,11 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CountMismatch, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult,
+    BooleanOp, CountMismatch, DocEdit, EditError, Formula, Frame, Node, NodeErrorKind, NodeResult,
     PatternKind, PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload,
     apply,
 };
@@ -164,7 +165,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
             node: Box::new(
                 Node::placed_union(
                     fin,
-                    Expr::count(5),
+                    Formula::count(5),
                     PatternKind::Linear {
                         direction: [scl(1.0), scl(0.0), scl(0.0)],
                         spacing: len(PITCH),
@@ -417,7 +418,7 @@ fn a_circular_group_places_around_a_datum_axis() {
     let group = r.insert(
         Node::placed_union(
             solid,
-            Expr::count(4),
+            Formula::count(4),
             PatternKind::Circular {
                 axis,
                 step: ang(std::f64::consts::FRAC_PI_2),
@@ -441,7 +442,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     let (doc, fin) = fin_only();
     let with_count = Node::PlacedUnion {
         input: fin,
-        count: Some(Expr::count(2)),
+        count: Some(Formula::count(2)),
         kind: PatternKind::Explicit(vec![Frame::IDENTITY, Frame::translation([9.0, 0.0, 0.0])]),
     };
     assert!(matches!(
@@ -457,7 +458,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     ));
     let pattern_explicit = Node::Pattern {
         input: fin,
-        count: Expr::count(2),
+        count: Formula::count(2),
         kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
     };
     assert!(matches!(
@@ -473,9 +474,9 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     ));
     // …and the constructor cannot build the first state at all.
     assert!(
-        Node::<editor_core::ProfileProgram>::placed_union(
+        <editor_core::AuthoredNode>::placed_union(
             fin,
-            Expr::count(2),
+            Formula::count(2),
             PatternKind::Explicit(vec![Frame::IDENTITY]),
         )
         .is_none()
@@ -490,7 +491,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
 #[test]
 fn a_placement_rule_refusals_recourse_gets_through() {
     let (doc, fin) = fin_only();
-    let insert = |node: Node<editor_core::ProfileProgram>| {
+    let insert = |node: AuthoredNode| {
         apply(
             &doc,
             &DocEdit::InsertNode {
@@ -510,7 +511,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             "a placed union's list, with a count",
             Node::PlacedUnion {
                 input: fin,
-                count: Some(Expr::count(1)),
+                count: Some(Formula::count(1)),
                 kind: listed(),
             },
             Some(CountMismatch::ListedWithCount),
@@ -532,7 +533,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             "insert it with a count",
             vec![Node::PlacedUnion {
                 input: fin,
-                count: Some(Expr::count(2)),
+                count: Some(Formula::count(2)),
                 kind: linear(),
             }],
         ),
@@ -540,7 +541,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             "a pattern given a list",
             Node::Pattern {
                 input: fin,
-                count: Expr::count(1),
+                count: Formula::count(1),
                 kind: listed(),
             },
             Some(CountMismatch::ListedOnPattern),
@@ -549,7 +550,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             vec![
                 Node::Pattern {
                     input: fin,
-                    count: Expr::count(1),
+                    count: Formula::count(1),
                     kind: linear(),
                 },
                 Node::PlacedUnion {
@@ -594,22 +595,21 @@ fn a_placement_rule_refusals_recourse_gets_through() {
 #[test]
 fn the_slot_surface_follows_the_rule() {
     let (_, fin) = fin_only();
-    let explicit: Node<editor_core::ProfileProgram> =
-        Node::placed_union_at(fin, vec![Frame::IDENTITY]);
+    let explicit: AuthoredNode = Node::placed_union_at(fin, vec![Frame::IDENTITY]);
     assert!(explicit.slots().is_empty());
     assert!(explicit.expr(SlotId::Count).is_none());
-    let stepped: Node<editor_core::ProfileProgram> = Node::placed_union(
+    let stepped: AuthoredNode = Node::placed_union(
         fin,
-        Expr::count(3),
+        Formula::count(3),
         PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
         },
     )
     .expect("a stepped rule takes a count");
-    let pattern: Node<editor_core::ProfileProgram> = Node::Pattern {
+    let pattern: AuthoredNode = Node::Pattern {
         input: fin,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
@@ -630,7 +630,7 @@ fn the_slot_surface_follows_the_rule() {
 #[test]
 fn an_empty_placement_list_refuses_like_a_zero_count() {
     let (doc, fin) = fin_only();
-    let empty: Node<editor_core::ProfileProgram> = Node::placed_union_at(fin, Vec::new());
+    let empty: AuthoredNode = Node::placed_union_at(fin, Vec::new());
     assert_eq!(
         empty.placement_rule_fault(Tol::witness()),
         Some(PlacementRuleFault::NoPlacements),
@@ -655,7 +655,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
             node: Box::new(
                 Node::placed_union(
                     fin,
-                    Expr::count(0),
+                    Formula::count(0),
                     PatternKind::Linear {
                         direction: [scl(1.0), scl(0.0), scl(0.0)],
                         spacing: len(2.0),
@@ -732,7 +732,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
 #[test]
 fn placement_frames_are_held_to_the_group_frame_bar() {
     let (doc, fin) = fin_only();
-    let with = |f: Frame| Node::<editor_core::ProfileProgram>::placed_union_at(fin, vec![f]);
+    let with = |f: Frame| <editor_core::AuthoredNode>::placed_union_at(fin, vec![f]);
 
     let nan = Frame::translation([f64::NAN, 0.0, 0.0]);
     assert_eq!(
@@ -774,8 +774,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         with(stretched).placement_rule_fault(Tol::witness()),
         Some(PlacementRuleFault::NonRigidFrame { index: 0, .. })
     ));
-    let two =
-        Node::<editor_core::ProfileProgram>::placed_union_at(fin, vec![Frame::IDENTITY, stretched]);
+    let two = <editor_core::AuthoredNode>::placed_union_at(fin, vec![Frame::IDENTITY, stretched]);
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -953,8 +952,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
 #[test]
 fn the_typed_insert_answers_to_the_placement_backstops() {
     let (doc, fin) = fin_only();
-    let with =
-        |frames: Vec<Frame>| Node::<editor_core::ProfileProgram>::placed_union_at(fin, frames);
+    let with = |frames: Vec<Frame>| <editor_core::AuthoredNode>::placed_union_at(fin, frames);
     let mut mirror = Frame::IDENTITY;
     mirror.columns[0] = [-1.0, 0.0, 0.0];
     let mut stretched = Frame::translation([10.0, 0.0, 0.0]);

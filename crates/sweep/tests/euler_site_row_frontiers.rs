@@ -223,7 +223,13 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
             topo::NewVertexSide::Above,
         )
         .unwrap();
-    let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
+    let rows = |b: &Body<f64>| {
+        format!(
+            "{:?} {:?}",
+            b.pcurves().collect::<Vec<_>>(),
+            b.joints().collect::<Vec<_>>()
+        )
+    };
     let before = rows(&body);
     body.set_edge_curve(null.edge, EdgeCurveSpec::self_loop_circle_at(p), tol())
         .unwrap();
@@ -257,7 +263,8 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
 /// refuses `SplineChart` on the complete wall is taken once a null
 /// strut hangs on the same loop: the wall is incomplete already, and a
 /// refusal would strand the pipeline mid-surgery with its null edge.
-/// No row moves, and the wall misses the null strut's two rows and the
+/// No image moves, nor any element but the joint the strut re-links,
+/// and the wall misses the null strut's two rows and the
 /// new strut's two.
 #[test]
 fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
@@ -269,8 +276,17 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
             topo::NewVertexSide::Above,
         )
         .unwrap();
-    let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
-    let before = rows(&body);
+    // The strut is spliced before `he`, so the joint into `he` is
+    // re-linked and keeps no element; every other image and element
+    // stands.
+    let images = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
+    let elements = |b: &Body<f64>| {
+        format!(
+            "{:?}",
+            b.joints().filter(|(h, _)| *h != he).collect::<Vec<_>>()
+        )
+    };
+    let before = (images(&body), elements(&body));
     let strut = body
         .mev_line(
             MevSite::Fan { he1: he, he2: he },
@@ -278,7 +294,12 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
             tol(),
         )
         .expect("the held-open wall takes the strut");
-    assert_eq!(rows(&body), before, "no row moves");
+    assert_eq!(
+        (images(&body), elements(&body)),
+        before,
+        "no image moves, and no element but the re-linked joint's"
+    );
+    assert_eq!(body.joint(he), None, "the re-linked joint keeps no element");
     let mut missing: Vec<HalfEdgeKey> = validate_pcurves(&body, band())
         .into_iter()
         .map(|f| match f {

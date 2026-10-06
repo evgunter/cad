@@ -289,6 +289,8 @@ mod shell_roles;
 mod shell_tolerance_chain;
 #[path = "shell_winding.rs"]
 mod shell_winding;
+#[path = "site_mint_scaling.rs"]
+mod site_mint_scaling;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "sphere_twin_rows_interval.rs"]
@@ -297,6 +299,8 @@ mod sphere_twin_rows_interval;
 mod split_edge_pcurve_rows;
 #[path = "split_gate_per_face.rs"]
 mod split_gate_per_face;
+#[path = "split_operand_gate.rs"]
+mod split_operand_gate;
 #[path = "stated_general_image_mint.rs"]
 mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]

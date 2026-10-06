@@ -636,8 +636,8 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 pub(crate) fn slot_expr(
     py: Python<'_>,
     slot: d::SlotId,
-    expr: &super::expr::Expr,
-) -> PyResult<d::Expr> {
+    expr: &super::expr::Formula,
+) -> PyResult<d::Formula> {
     let found = expr.0.dim();
     let expected = slot.dimension();
     if found == expected {
@@ -867,29 +867,15 @@ pub(crate) struct Doc {
 /// shared door bodies that land there. None of it is a
 /// Python method.
 impl Doc {
-    /// **An authored expression, read against this document**: its
+    /// **An authored formula, read against this document**: its
     /// names lowered to the variables they name ([`d::Doc::lowered`]).
-    /// A name the document holds at another kind than the expression
+    /// A name the document holds at another kind than the formula
     /// reads it at refuses `var_kind_mismatch`, naming both kinds; a
-    /// name it does not hold stays, for evaluation to refuse
-    /// `unlowered_name`.
-    fn authored(&self, py: Python<'_>, expr: &d::Expr) -> PyResult<d::Expr> {
-        let lowered = self.inner.lowered(expr);
-        let mut names = Vec::new();
-        lowered.named_reads(&mut names);
-        for (name, read) in names {
-            if let Some(var) = self.inner.var_named(name.as_str())
-                && let Some(held) = self.inner.var(var)
-            {
-                let err = d::EvalError::VarKindMismatch {
-                    var,
-                    bound: held.kind().dimension(),
-                    read,
-                };
-                return Err(super::expr::eval_err(py, &err, Some(&self.inner)));
-            }
-        }
-        Ok(lowered)
+    /// name it does not hold refuses `unlowered_name`.
+    fn authored(&self, py: Python<'_>, formula: &d::Formula) -> PyResult<d::Expr> {
+        self.inner
+            .lowered(formula)
+            .map_err(|fault| super::expr::name_fault_err(py, &fault))
     }
 
     /// A single edit's door onto **the swap point**, [`Doc::take_up`],
@@ -944,7 +930,7 @@ impl Doc {
     /// the maintenance is the action's.
     fn insert_node(
         &mut self,
-        node: d::Node<d::ProfileProgram>,
+        node: d::AuthoredNode,
         label: Option<d::Label>,
         resolver: Option<&super::store::Workspace>,
     ) -> Result<NodeId, d::EditError> {
@@ -1262,9 +1248,9 @@ impl Doc {
     /// Raises `ValueError` for a node that does not instantiate a part.
     fn offset(&self, node: &NodeId) -> PyResult<Option<super::place::Placement>> {
         match self.inner.node(node.0) {
-            Some(d::Node::InstantiatePart { offset, .. }) => {
-                Ok(offset.clone().map(super::place::Placement))
-            }
+            Some(d::Node::InstantiatePart { offset, .. }) => Ok(offset
+                .as_ref()
+                .map(|p| super::place::Placement(p.authored()))),
             _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} does not instantiate a part, so it has no offset",
                 self.inner.spoken(node.0)
@@ -1405,7 +1391,7 @@ impl Doc {
         &mut self,
         py: Python<'_>,
         plane: Option<SketchPlane>,
-        elevation: Option<super::expr::Expr>,
+        elevation: Option<super::expr::Formula>,
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
@@ -1495,10 +1481,13 @@ impl Doc {
         self.inner.order().iter().copied().map(NodeId).collect()
     }
 
-    /// **The document's named parameters**, by name (`Doc::var_names`,
-    /// each read through `Doc::free`).
+    /// **The document's named free parameters**, by name, in
+    /// declaration order (`Doc::var_names`, each read through
+    /// `Doc::free`). A defined variable is listed by
+    /// [`Self::definitions`] instead: it holds no value, notation or
+    /// distribution of its own.
     ///
-    /// The read side of `DocEdit.declare_var`, and the only door
+    /// The read side of a free `DocEdit.declare_var`, and the only door
     /// that answers a whole parameter back: `Doc.eval` answers a
     /// parameter reference's NUMBER, with the dimension and the
     /// authored notation both erased, so a consumer showing a
@@ -1513,15 +1502,38 @@ impl Doc {
         // In declaration order: the dict's own order is the document's.
         for (id, param) in self.inner.free_vars() {
             if let Some(name) = self.inner.var_name(id) {
-                out.set_item(ParamName(name.clone()), DocParam(param.clone()))?;
+                out.set_item(VarName(name.clone()), FreeVar(param.clone()))?;
             }
         }
         Ok(out)
     }
 
-    /// **The document's variables**, by identity, in declaration order —
-    /// the named ones and the anonymous ones (whose identity is all an
-    /// edit can address them by).
+    /// **The document's named defined variables**, by name, in
+    /// declaration order: each one's definition, reading variables by
+    /// id. The read side of a defined `DocEdit.declare_var` and of
+    /// `DocEdit.define_var`; with [`Self::params`] it lists every named
+    /// variable once.
+    ///
+    /// A snapshot, not a view: the map is built here and mutating it
+    /// changes no document.
+    #[getter]
+    fn definitions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for &id in self.inner.var_order() {
+            let Some(expr) = self.inner.var(id).and_then(|v| v.def().defined()) else {
+                continue;
+            };
+            if let Some(name) = self.inner.var_name(id) {
+                out.set_item(VarName(name.clone()), super::expr::Expr(expr.clone()))?;
+            }
+        }
+        Ok(out)
+    }
+
+    /// **The document's free variables**, by identity, in declaration
+    /// order — the named ones and the anonymous ones (whose identity is
+    /// all an edit can address them by). A defined variable's
+    /// definition is [`Self::definition`].
     ///
     /// A snapshot, not a view: the map is built here and mutating it
     /// changes no document.
@@ -1529,27 +1541,40 @@ impl Doc {
     fn vars<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
         for (id, param) in self.inner.free_vars() {
-            out.set_item(Var(id), DocParam(param.clone()))?;
+            out.set_item(Var(id), FreeVar(param.clone()))?;
         }
         Ok(out)
     }
 
+    /// **The definition of `var`**, when it is a defined variable: the
+    /// expression it was defined by, reading variables by id. `None`
+    /// for a free variable, or one the document does not hold.
+    fn definition(&self, var: &Var) -> Option<super::expr::Expr> {
+        self.inner
+            .var(var.0)
+            .and_then(|v| v.def().defined())
+            .map(|expr| super::expr::Expr(expr.clone()))
+    }
+
     /// The variable this document names `name`, or `None`.
-    fn var(&self, name: &ParamName) -> Option<Var> {
+    fn var(&self, name: &VarName) -> Option<Var> {
         self.inner.var_named(name.0.as_str()).map(Var)
     }
 
     /// The name this document holds for `var`, or `None` — for an
     /// anonymous variable, or one the document no longer holds.
-    fn var_name(&self, var: &Var) -> Option<ParamName> {
-        self.inner.var_name(var.0).cloned().map(ParamName)
+    fn var_name(&self, var: &Var) -> Option<VarName> {
+        self.inner.var_name(var.0).cloned().map(VarName)
     }
 
     /// **The text of `expr`**, each variable it reads written by the
     /// name this document holds for it (`Doc::unparse`); one with no
     /// name here writes its full id, `#<16 hex>`.
-    fn unparse(&self, expr: &super::expr::Expr) -> String {
-        self.inner.unparse(&expr.0)
+    fn unparse(&self, expr: super::expr::EitherForm) -> String {
+        match expr {
+            super::expr::EitherForm::Formula(formula) => self.inner.unparse(&formula.0),
+            super::expr::EitherForm::Expr(expr) => self.inner.unparse(&expr.0),
+        }
     }
 
     /// The document's tolerance.
@@ -1564,7 +1589,7 @@ impl Doc {
     }
 
     /// **Read `source` as an expression** against this document's
-    /// declared parameters (`parse_expr`).
+    /// declared parameters (`parse_formula`).
     ///
     /// The one door inward. The parser is CHECKING — every reduction
     /// runs the expression layer's smart constructors — so a text
@@ -1594,10 +1619,10 @@ impl Doc {
     /// offset `pos`; a reduction the dimension checker refused
     /// arrives as `variant == "dimension"` with the constructor's own
     /// tag as `kind`.
-    fn parse_expr(&self, py: Python<'_>, source: &str) -> PyResult<super::expr::Expr> {
+    fn parse_formula(&self, py: Python<'_>, source: &str) -> PyResult<super::expr::Formula> {
         let declared = self.inner.var_scope();
-        d::parse_expr(source, &declared)
-            .map(super::expr::Expr)
+        d::parse_formula(source, &declared)
+            .map(super::expr::Formula)
             .map_err(|err| super::expr::parse_err(py, &err))
     }
 
@@ -1619,13 +1644,15 @@ impl Doc {
     /// and promotion to a continuous value is explicit in the
     /// expression language or not at all, so this refuses
     /// `count_expr_in_continuous_eval` and `eval_count` is the door.
-    /// The expression's names are read against this document. Refuses
-    /// typed on `EvalError` otherwise — `unlowered_name` names a name
-    /// no variable holds at the dimension it is read at,
-    /// `unresolved_var` a variable the document no longer holds, and
+    /// The expression's names are read against this document by the
+    /// edit door's lowering, whose refusals ride `EvalError` too:
+    /// `unlowered_name` names a name no variable holds at the dimension
+    /// it is read at, and `var_kind_mismatch` one held at another.
+    /// Refuses typed on `EvalError` otherwise — `unresolved_var` a
+    /// variable the document no longer holds, and
     /// `non_finite_result` is the arithmetic having overflowed or hit
     /// a pole.
-    fn eval(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<Py<PyAny>> {
+    fn eval(&self, py: Python<'_>, expr: &super::expr::Formula) -> PyResult<Py<PyAny>> {
         let env = self.inner.var_env::<f64>();
         let value = d::eval(&self.authored(py, &expr.0)?, &env)
             .map_err(|err| super::expr::eval_err(py, &err, Some(&self.inner)))?;
@@ -1663,7 +1690,7 @@ impl Doc {
     /// refuses `continuous_expr_in_count_eval` naming the dimension
     /// it actually has — a count is never inferred from a continuous
     /// value.
-    fn eval_count(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<i64> {
+    fn eval_count(&self, py: Python<'_>, expr: &super::expr::Formula) -> PyResult<i64> {
         let env = self.inner.var_env::<f64>();
         d::eval_count(&self.authored(py, &expr.0)?, &env)
             .map_err(|err| super::expr::eval_err(py, &err, Some(&self.inner)))
@@ -1784,7 +1811,7 @@ const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
 /// constructors, one per kernel arm, spelled in snake case.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PartSelect(pub(crate) d::PartSelect);
+pub(crate) struct PartSelect(pub(crate) d::PartSelect<d::Formula>);
 
 #[pymethods]
 impl PartSelect {
@@ -1804,7 +1831,7 @@ impl PartSelect {
     /// The `index`-th instance of a `Node.pattern` value, counting
     /// from zero.
     ///
-    /// `index` is a count `Expr` — `Expr.count(3)` — because a Count
+    /// `index` is a count `Formula` — `Formula.count(3)` — because a Count
     /// is an integer in the kernel's own expression language, not a
     /// measurement, and every slot on this surface takes the
     /// expression its kernel slot holds. It is the node's `Instance`
@@ -1817,7 +1844,7 @@ impl PartSelect {
     /// neither is wrapped nor clamped, because either would hand back
     /// a body the author did not name.
     #[staticmethod]
-    fn instance(py: Python<'_>, index: &super::expr::Expr) -> PyResult<Self> {
+    fn instance(py: Python<'_>, index: &super::expr::Formula) -> PyResult<Self> {
         Ok(Self(d::PartSelect::Instance(super::doc::slot_expr(
             py,
             d::SlotId::Instance,
@@ -2041,7 +2068,10 @@ fn sketch_plane(
 /// `extract`'s own `TypeError`, so a stringly-typed or numeric
 /// argument still refuses at the boundary rather than being iterated
 /// into nonsense.
-fn loops_from_outline(py: Python<'_>, outline: &Bound<'_, PyAny>) -> PyResult<Vec<d::LoopProgram>> {
+fn loops_from_outline(
+    py: Python<'_>,
+    outline: &Bound<'_, PyAny>,
+) -> PyResult<Vec<d::LoopProgram<d::Formula>>> {
     match outline.cast::<super::path::ClosedLoop>() {
         Ok(one) => Ok(vec![super::path::loop_program(py, &one.borrow())?]),
         Err(_) => {
@@ -2057,7 +2087,7 @@ fn loops_from_outline(py: Python<'_>, outline: &Bound<'_, PyAny>) -> PyResult<Ve
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Node {
-    pub(crate) inner: d::Node<d::ProfileProgram>,
+    pub(crate) inner: d::AuthoredNode,
 }
 
 #[pymethods]
@@ -2069,7 +2099,7 @@ impl Node {
     /// `elevation=` is the xy sugar — the world xy-plane, that far up
     /// z. The default is the xy-plane itself.
     ///
-    /// Coordinates arrive as length `Expr`s — the profile program's
+    /// Coordinates arrive as length `Formula`s — the profile program's
     /// own slot type — so a vertex can be a written `25 mm`, a
     /// canonical literal or a parameter reference, and a bare number
     /// is a boundary refusal rather than an ambiguous unit. They are
@@ -2086,7 +2116,7 @@ impl Node {
     #[staticmethod]
     fn polygon(
         py: Python<'_>,
-        points: Vec<(super::expr::Expr, super::expr::Expr)>,
+        points: Vec<(super::expr::Formula, super::expr::Formula)>,
         plane: NodeId,
     ) -> PyResult<Self> {
         let plane = plane.0;
@@ -2099,8 +2129,8 @@ impl Node {
         // at `insert`.
         let point = |py2: Python<'_>,
                      step: usize,
-                     p: &(super::expr::Expr, super::expr::Expr)|
-         -> PyResult<[d::Expr; 2]> {
+                     p: &(super::expr::Formula, super::expr::Formula)|
+         -> PyResult<[d::Formula; 2]> {
             let at = |arg| d::SlotId::Profile {
                 loop_: 0,
                 step: u32::try_from(step).unwrap_or(u32::MAX),
@@ -2173,7 +2203,7 @@ impl Node {
     fn extrude(
         py: Python<'_>,
         profile: &NodeId,
-        distance: &super::expr::Expr,
+        distance: &super::expr::Formula,
         side: ExtrudeSide,
     ) -> PyResult<Self> {
         let distance = slot_expr(py, d::SlotId::Distance, distance)?;
@@ -2196,7 +2226,7 @@ impl Node {
         py: Python<'_>,
         profile: &NodeId,
         axis: &NodeId,
-        angle: &super::expr::Expr,
+        angle: &super::expr::Formula,
     ) -> PyResult<Self> {
         let angle = slot_expr(py, d::SlotId::RevolveAngle, angle)?;
         Ok(Self {
@@ -2251,10 +2281,14 @@ impl Node {
     fn tube(
         py: Python<'_>,
         spine: &NodeId,
-        u_ref: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-        major_radius: &super::expr::Expr,
+        u_ref: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        major_radius: &super::expr::Formula,
         window: &TubeWindow,
-        minor_radius: &super::expr::Expr,
+        minor_radius: &super::expr::Formula,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Tube {
@@ -2298,11 +2332,15 @@ impl Node {
     fn hollow_tube(
         py: Python<'_>,
         spine: &NodeId,
-        u_ref: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-        major_radius: &super::expr::Expr,
+        u_ref: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        major_radius: &super::expr::Formula,
         window: &TubeWindow,
-        minor_radius: &super::expr::Expr,
-        wall: &super::expr::Expr,
+        minor_radius: &super::expr::Formula,
+        wall: &super::expr::Formula,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::HollowTube {
@@ -2322,7 +2360,7 @@ impl Node {
     /// data, and reversing it reverses the produced surface's
     /// v-direction. `v_degree` is the v-direction interpolation
     /// degree, a COUNT (structural material, D3), so it crosses as
-    /// `Expr.count` and not as a continuous literal.
+    /// `Formula.count` and not as a continuous literal.
     ///
     /// There is no placement argument, and that is the document
     /// design rather than a missing one: each section rides its OWN
@@ -2341,7 +2379,11 @@ impl Node {
     /// those is the kernel's own typed refusal, arriving from `insert`
     /// or from `evaluate` exactly where the Rust surface raises it.
     #[staticmethod]
-    fn loft(py: Python<'_>, profiles: Vec<NodeId>, v_degree: &super::expr::Expr) -> PyResult<Self> {
+    fn loft(
+        py: Python<'_>,
+        profiles: Vec<NodeId>,
+        v_degree: &super::expr::Formula,
+    ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
                 profiles: profiles.iter().map(|p| p.0).collect(),
@@ -2369,7 +2411,7 @@ impl Node {
     fn sketch_frame(
         py: Python<'_>,
         plane: Option<SketchPlane>,
-        elevation: Option<super::expr::Expr>,
+        elevation: Option<super::expr::Formula>,
     ) -> PyResult<Self> {
         // `elevation` is the one AUTHORED number this door takes, and
         // it is the frame's own origin z: the xy-plane that far up.
@@ -2381,7 +2423,7 @@ impl Node {
         let place = sketch_plane(plane, elevation.is_some())?.placement;
         let (u, v) = (place.linear.c0, place.linear.c1);
         let len = |x: f64| literal(py, x, d::Dimension::Length);
-        let scl3 = |v: pncad::prelude::Vec3<f64>| -> PyResult<[d::Expr; 3]> {
+        let scl3 = |v: pncad::prelude::Vec3<f64>| -> PyResult<[d::Formula; 3]> {
             Ok([
                 literal(py, v.x, d::Dimension::Scalar)?,
                 literal(py, v.y, d::Dimension::Scalar)?,
@@ -2408,8 +2450,16 @@ impl Node {
     #[staticmethod]
     fn datum_axis(
         py: Python<'_>,
-        origin: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-        direction: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        origin: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        direction: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
     ) -> PyResult<Self> {
         let origin = direction_expr(py, d::VectorSlot::Origin, &origin)?;
         let direction = direction_expr(py, d::VectorSlot::Direction, &direction)?;
@@ -2434,8 +2484,8 @@ impl Node {
     fn datum_axis_in_plane(
         py: Python<'_>,
         plane: NodeId,
-        origin: (super::expr::Expr, super::expr::Expr),
-        direction: (super::expr::Expr, super::expr::Expr),
+        origin: (super::expr::Formula, super::expr::Formula),
+        direction: (super::expr::Formula, super::expr::Formula),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::AxisInPlane {
@@ -2467,7 +2517,7 @@ impl Node {
     /// the carrier's own u-reference, right-handed. It has no default:
     /// which way a sketch faces on a face is an authoring decision,
     /// and a door that quietly chose zero would put a convention where
-    /// the document should carry one. Pass `Expr.literal(0 * rad)` to take
+    /// the document should carry one. Pass `Formula.literal(0 * rad)` to take
     /// u-reference unturned.
     ///
     /// The outward normal is the face's orientation sense times the
@@ -2488,7 +2538,7 @@ impl Node {
         py: Python<'_>,
         at: &NodeId,
         face: &str,
-        spin: &super::expr::Expr,
+        spin: &super::expr::Formula,
     ) -> PyResult<Self> {
         let spin = slot_expr(py, d::SlotId::Spin, spin)?;
         Ok(Self {
@@ -2530,9 +2580,21 @@ impl Node {
     #[staticmethod]
     fn datum_frame(
         py: Python<'_>,
-        origin: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-        u: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-        v: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        origin: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        u: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        v: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Frame {
@@ -2553,8 +2615,16 @@ impl Node {
     #[staticmethod]
     fn datum_plane(
         py: Python<'_>,
-        origin: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-        normal: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        origin: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        normal: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Plane {
@@ -2582,7 +2652,11 @@ impl Node {
     #[staticmethod]
     fn datum_point(
         py: Python<'_>,
-        position: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
+        position: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Point {
@@ -2628,7 +2702,7 @@ impl Node {
     fn fillet(
         py: Python<'_>,
         target: &NodeId,
-        radius: &super::expr::Expr,
+        radius: &super::expr::Formula,
         selection: Vec<String>,
     ) -> PyResult<Self> {
         let radius = slot_expr(py, d::SlotId::Radius, radius)?;
@@ -2671,7 +2745,7 @@ impl Node {
     fn chamfer(
         py: Python<'_>,
         target: &NodeId,
-        distance: &super::expr::Expr,
+        distance: &super::expr::Formula,
         selection: Vec<String>,
     ) -> PyResult<Self> {
         let distance = slot_expr(py, d::SlotId::ChamferDistance, distance)?;
@@ -2723,7 +2797,7 @@ impl Node {
     fn shell(
         py: Python<'_>,
         target: &NodeId,
-        thickness: &super::expr::Expr,
+        thickness: &super::expr::Formula,
         open: Vec<String>,
     ) -> PyResult<Self> {
         let thickness = slot_expr(py, d::SlotId::ShellThickness, thickness)?;
@@ -2772,9 +2846,17 @@ impl Node {
     fn transform(
         py: Python<'_>,
         input: &NodeId,
-        translation: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-        rotation_axis: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-        rotation_angle: &super::expr::Expr,
+        translation: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        rotation_axis: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        rotation_angle: &super::expr::Formula,
     ) -> PyResult<Self> {
         Self::transform_by(
             py,
@@ -2799,7 +2881,7 @@ impl Node {
         let inner = d::Node::transform(input.0, placement.0.clone());
         for slot in inner.slots() {
             if let Some(expr) = inner.expr(slot) {
-                slot_expr(py, slot, &super::expr::Expr(expr.clone()))?;
+                slot_expr(py, slot, &super::expr::Formula(expr.clone()))?;
             }
         }
         Ok(Self { inner })
@@ -2885,7 +2967,7 @@ impl Node {
     /// list. Reach for `placed_union` when the family IS the shape,
     /// and for `pattern` + `part` when one copy of it is.
     ///
-    /// `count` is a count `Expr` — `Expr.count(4)` — and it is the
+    /// `count` is a count `Formula` — `Formula.count(4)` — and it is the
     /// node's `Count` slot, so `DocEdit.bind_count_param` is what
     /// makes it a named, editable number. A count below one refuses
     /// at `evaluate` (`non_positive_count`).
@@ -2904,7 +2986,7 @@ impl Node {
     fn pattern(
         py: Python<'_>,
         input: &NodeId,
-        count: &super::expr::Expr,
+        count: &super::expr::Formula,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
         Ok(Self {
@@ -2959,7 +3041,7 @@ impl Node {
     /// naming is the `Instance(i)` qualifier, ONE segment deep
     /// whatever the count.
     ///
-    /// `count` is a count `Expr` — `Expr.count(4)`, the `Node.loft`
+    /// `count` is a count `Formula` — `Formula.count(4)`, the `Node.loft`
     /// `v_degree` precedent: a Count is an integer in the kernel's own
     /// expression language, not a dimensioned measurement, and there
     /// is no `Count` quantity to wrap it in.
@@ -2978,7 +3060,7 @@ impl Node {
     fn placed_union(
         py: Python<'_>,
         input: &NodeId,
-        count: &super::expr::Expr,
+        count: &super::expr::Formula,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
         let count = slot_expr(py, d::SlotId::Count, count)?;
@@ -3065,7 +3147,7 @@ impl Node {
         let inner = d::Node::gauge(parent.map(|p| p.0), placement.0.clone());
         for slot in inner.slots() {
             if let Some(expr) = inner.expr(slot) {
-                slot_expr(py, slot, &super::expr::Expr(expr.clone()))?;
+                slot_expr(py, slot, &super::expr::Formula(expr.clone()))?;
             }
         }
         Ok(Self { inner })
@@ -3199,14 +3281,14 @@ impl Node {
     /// DAG edge, so a failed or poisoned measure poisons the assertion
     /// rather than producing a verdict about nothing. `dir` is which
     /// side of `bound` the measurement must fall on, and `bound` is an
-    /// `Expr` from `Doc.parse_expr`.
+    /// `Formula` from `Doc.parse_formula`.
     ///
     /// **The bound is an expression and not a quantity, because its
     /// DIMENSION is the measure's.** Every other node door takes a
     /// typed `Length` or `Angle` because a slot's address fixes what
     /// it holds; this one's is fixed by the node it points at, and it
     /// may be an angle, a count or a plain scalar as readily as a
-    /// length. `Doc.parse_expr("0.5 mm")` is the one spelling, and it
+    /// length. `Doc.parse_formula("0.5 mm")` is the one spelling, and it
     /// reaches document parameters (`"min_web"`) in the same call —
     /// which is what makes an assertion re-decidable by a parameter
     /// edit.
@@ -3225,7 +3307,7 @@ impl Node {
     fn assertion(
         measure: &NodeId,
         dir: super::measure::AssertionDir,
-        bound: &super::expr::Expr,
+        bound: &super::expr::Formula,
     ) -> Self {
         Self {
             inner: d::Node::Assertion {
@@ -3242,10 +3324,10 @@ impl Node {
 /// recipe vocabulary, meaningful in any document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct ParamName(pub(crate) d::VarName);
+pub(crate) struct VarName(pub(crate) d::VarName);
 
 #[pymethods]
-impl ParamName {
+impl VarName {
     /// Refuses typed (`EditError.variant == "param_name_not_an_identifier"`)
     /// a text no expression could read back as this parameter — blank,
     /// padded, not one identifier: the document layer's one rule for a
@@ -3264,7 +3346,7 @@ impl ParamName {
     }
 
     fn __repr__(&self) -> String {
-        format!("ParamName({:?})", self.0.as_str())
+        format!("VarName({:?})", self.0.as_str())
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -3312,13 +3394,13 @@ impl Var {
 }
 
 /// **A variable as an edit addresses it**: by its identity (`Var`), or
-/// by the name the document holds for it (`ParamName`).
+/// by the name the document holds for it (`VarName`).
 #[derive(FromPyObject)]
 pub(crate) enum VarArg {
     /// By identity.
     Id(Var),
     /// By name.
-    Name(ParamName),
+    Name(VarName),
 }
 
 impl VarArg {
@@ -3331,6 +3413,83 @@ impl VarArg {
     }
 }
 
+/// **A variable's definition as an edit carries it** — a free value, or
+/// a `Formula` over other variables that the edit door lowers (its names
+/// resolved against the document's) and stores as the variable's
+/// definition (VARIABLES-DESIGN VR3).
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct VarDecl(pub(crate) d::VarDecl);
+
+#[pymethods]
+impl VarDecl {
+    /// A free variable holding `value`.
+    #[staticmethod]
+    fn free(value: &FreeVar) -> Self {
+        Self(d::VarDecl::Free(value.0.clone()))
+    }
+
+    /// A variable defined by `expr`, of `expr`'s dimension: its value is
+    /// `expr`'s, re-evaluated whenever a variable it reads moves, and it
+    /// takes no value, unit or distribution of its own.
+    #[staticmethod]
+    fn defined(expr: &super::expr::Formula) -> Self {
+        Self(d::VarDecl::defined(expr.0.clone()))
+    }
+
+    /// The defining expression, or `None` for a free variable.
+    #[getter]
+    fn expr(&self) -> Option<super::expr::Formula> {
+        match &self.0 {
+            d::VarDecl::Free(_) => None,
+            d::VarDecl::Defined(expr) => Some(super::expr::Formula(expr.clone())),
+        }
+    }
+
+    /// The free value, or `None` for a defined variable.
+    #[getter]
+    fn value(&self) -> Option<FreeVar> {
+        match &self.0 {
+            d::VarDecl::Free(free) => Some(FreeVar(free.clone())),
+            d::VarDecl::Defined(_) => None,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        match &self.0 {
+            d::VarDecl::Free(free) => {
+                format!("VarDecl.free({})", FreeVar(free.clone()).__repr__())
+            }
+            d::VarDecl::Defined(expr) => {
+                format!("VarDecl.defined({})", d::unparse(expr, &|_| None))
+            }
+        }
+    }
+}
+
+/// **A definition as a variable door takes it**: a free value, an
+/// expression (a defined variable), or a [`VarDecl`] spelling either.
+#[derive(FromPyObject)]
+pub(crate) enum DeclArg {
+    /// A free value.
+    Free(FreeVar),
+    /// A defining expression.
+    Defined(super::expr::Formula),
+    /// Either, spelled.
+    Decl(VarDecl),
+}
+
+impl DeclArg {
+    /// The kernel's definition.
+    fn decl(&self) -> d::VarDecl {
+        match self {
+            Self::Free(value) => d::VarDecl::Free(value.0.clone()),
+            Self::Defined(expr) => d::VarDecl::defined(expr.0.clone()),
+            Self::Decl(decl) => decl.0.clone(),
+        }
+    }
+}
+
 /// `-0.0` folded to `0.0`, every other value untouched — the
 /// normalization a hash must apply wherever the equality it mirrors is
 /// IEEE (`-0.0 == 0.0`).
@@ -3338,7 +3497,7 @@ pub(crate) fn fold_zero(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
 }
 
-/// The shared body of the three continuous `DocParam` constructors:
+/// The shared body of the three continuous `FreeVar` constructors:
 /// declare the dimension, and hang an annotation on it if one was
 /// offered.
 ///
@@ -3355,16 +3514,14 @@ fn continuous(
     dim: d::Dimension,
     value: f64,
     distribution: Option<&super::analysis::Distribution>,
-) -> PyResult<DocParam> {
+) -> PyResult<FreeVar> {
     let Some(dist) = distribution else {
-        return Ok(DocParam(d::FreeVar::continuous(dim, value)));
+        return Ok(FreeVar(d::FreeVar::continuous(dim, value)));
     };
     if dist.dim != dim {
         return Err(super::analysis::dimension_mismatch(py, door, dim, dist.dim));
     }
-    Ok(DocParam(d::FreeVar::continuous_with(
-        dim, value, dist.inner,
-    )))
+    Ok(FreeVar(d::FreeVar::continuous_with(dim, value, dist.inner)))
 }
 
 /// A named parameter's declared dimension and exact stored value
@@ -3390,10 +3547,10 @@ fn continuous(
 /// [`Self::distribution`] reads it back.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct DocParam(pub(crate) d::FreeVar);
+pub(crate) struct FreeVar(pub(crate) d::FreeVar);
 
 #[pymethods]
-impl DocParam {
+impl FreeVar {
     /// A continuous Length parameter, with an optional Length
     /// distribution.
     #[staticmethod]
@@ -3405,7 +3562,7 @@ impl DocParam {
     ) -> PyResult<Self> {
         continuous(
             py,
-            "DocParam.length",
+            "FreeVar.length",
             d::Dimension::Length,
             value.0.meters(),
             distribution,
@@ -3423,7 +3580,7 @@ impl DocParam {
     ) -> PyResult<Self> {
         continuous(
             py,
-            "DocParam.angle",
+            "FreeVar.angle",
             d::Dimension::Angle,
             value.0.radians(),
             distribution,
@@ -3471,7 +3628,7 @@ impl DocParam {
     ) -> PyResult<Self> {
         continuous(
             py,
-            "DocParam.scalar",
+            "FreeVar.scalar",
             d::Dimension::Scalar,
             value,
             distribution,
@@ -3596,17 +3753,17 @@ impl DocParam {
                 value,
                 display_unit,
                 distribution: None,
-            } => format!("DocParam({dim:?} {value} {})", display_unit.def().symbol()),
+            } => format!("FreeVar({dim:?} {value} {})", display_unit.def().symbol()),
             d::FreeVar::Continuous {
                 dim,
                 value,
                 display_unit,
                 distribution: Some(d),
             } => format!(
-                "DocParam({dim:?} {value} {} {d:?})",
+                "FreeVar({dim:?} {value} {} {d:?})",
                 display_unit.def().symbol()
             ),
-            d::FreeVar::Count { value } => format!("DocParam(Count {value})"),
+            d::FreeVar::Count { value } => format!("FreeVar(Count {value})"),
         }
     }
 }
@@ -3616,7 +3773,7 @@ impl DocParam {
 /// parameter.
 ///
 /// This is the safe "just change the number" spelling. `define_var`
-/// replaces a whole definition and takes a whole `DocParam`, so using it to
+/// replaces a whole definition and takes a whole `FreeVar`, so using it to
 /// move a value rebuilds the declaration from parts — and a parameter
 /// read back from a file carrying a distribution (ERROR-DESIGN E1/E2)
 /// loses it, silently, because Python has no way to spell the
@@ -3625,15 +3782,15 @@ impl DocParam {
 /// exactly as the document has them.
 ///
 /// Continuous values arrive as typed quantities for the same reason
-/// `DocParam`'s do — except that here the dimension is NOT being
+/// `FreeVar`'s do — except that here the dimension is NOT being
 /// declared, it is being matched: the quantity says which unit the
 /// number is in, and the parameter's own declaration is what rules.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct DocParamValue(pub(crate) d::FreeValue);
+pub(crate) struct FreeValue(pub(crate) d::FreeValue);
 
 #[pymethods]
-impl DocParamValue {
+impl FreeValue {
     /// A continuous value in Length units.
     #[staticmethod]
     fn length(value: &super::quantity::Length) -> Self {
@@ -3665,7 +3822,7 @@ impl DocParamValue {
     }
 
     fn __repr__(&self) -> String {
-        format!("DocParamValue({})", self.0)
+        format!("FreeValue({})", self.0)
     }
 }
 
@@ -3703,7 +3860,7 @@ pub(crate) struct DocEdit {
 /// unit objects a caller already writes quantities with.
 ///
 /// A typed unit rather than a symbol STRING, for
-/// `DocParam.written_length`'s reason: a `LengthUnit` is an index into
+/// `FreeVar.written_length`'s reason: a `LengthUnit` is an index into
 /// a Length row of the table, so an off-table notation cannot be spelled
 /// at all and the boundary extraction is the check. What remains for
 /// the kernel to refuse is the pairing — `mm` on an angle — which is a
@@ -3838,7 +3995,7 @@ impl DocEdit {
     /// The constructors take numbers, so a node arrives with its
     /// slots holding literals. This is the door that moves one
     /// afterwards, and the door that puts an EXPRESSION there: hand
-    /// it `Doc.parse_expr("plate_t * 2")` and the slot is driven by a
+    /// it `Doc.parse_formula("plate_t * 2")` and the slot is driven by a
     /// document parameter from then on, exactly as
     /// `bind_count_param` drives a structural one.
     ///
@@ -3862,7 +4019,7 @@ impl DocEdit {
     /// `slot_unknown_var_name` / `slot_var_kind` for a
     /// parameter reference the document does not answer.
     #[staticmethod]
-    fn set_param(node: &NodeId, slot: &str, expr: &super::expr::Expr) -> PyResult<Self> {
+    fn set_param(node: &NodeId, slot: &str, expr: &super::expr::Formula) -> PyResult<Self> {
         Ok(Self {
             inner: d::DocEdit::SetParam {
                 node: node.0,
@@ -3892,12 +4049,20 @@ impl DocEdit {
     /// Neither annotation fault is reachable through the
     /// `Distribution` constructors, which run the same check at the
     /// value; both are reachable through a file.
+    ///
+    /// A `Formula` (or `VarDecl.defined`) declares a DEFINED variable,
+    /// whose value is the expression's over the variables it reads.
+    /// It refuses `definition_unknown_var_name`,
+    /// `definition_unresolved_var` and `definition_var_kind` for a read
+    /// the document does not answer, `definition_cycle` for one that
+    /// reads the variable back, and `definition_too_large` for an
+    /// expansion past the bound.
     #[staticmethod]
-    fn declare_var(name: &ParamName, value: &DocParam) -> Self {
+    fn declare_var(name: &VarName, value: DeclArg) -> Self {
         Self {
             inner: d::DocEdit::DeclareVar {
                 name: name.0.clone(),
-                def: pncad::document::VarDef::Free(value.0.clone()),
+                def: value.decl(),
             },
         }
     }
@@ -3905,22 +4070,26 @@ impl DocEdit {
     /// **Replace a variable's definition**, keeping its identity, its
     /// name and its kind.
     ///
-    /// **The whole definition is replaced.** The `DocParam` handed over
+    /// **The whole definition is replaced.** The `FreeVar` handed over
     /// is what the variable ends up with, so one rebuilt from a
     /// dimension and a number has no distribution and the annotation
     /// the old one carried is gone. `set_var_value` is the door for
     /// moving a number, because it cannot drop what it never takes.
     ///
+    /// A `Formula` (or `VarDecl.defined`) makes the variable a DEFINED
+    /// one, keeping its identity; a `FreeVar` makes it free again.
+    ///
     /// Refuses typed on a name the document does not hold
     /// (`unknown_var`), on a definition of another kind
     /// (`var_kind_fixed` — a kind is fixed when a variable is
-    /// declared), and on `declare_var`'s annotation faults.
+    /// declared), and on `declare_var`'s annotation and definition
+    /// faults.
     #[staticmethod]
-    fn define_var(var: VarArg, value: &DocParam) -> Self {
+    fn define_var(var: VarArg, value: DeclArg) -> Self {
         Self {
             inner: d::DocEdit::DefineVar {
                 var: var.var_ref(),
-                def: pncad::document::VarDef::Free(value.0.clone()),
+                def: value.decl(),
             },
         }
     }
@@ -3930,7 +4099,7 @@ impl DocEdit {
     /// one, its distribution (ERROR-DESIGN E1/E2).
     ///
     /// **Prefer this over `define_var` to move a number.** `define_var`
-    /// replaces the whole definition: handed a `DocParam` rebuilt from
+    /// replaces the whole definition: handed a `FreeVar` rebuilt from
     /// a dimension and a number — the natural spelling of a value
     /// change — any annotation the variable carried is gone with no
     /// refusal and no diagnostic. This door cannot do that, because it
@@ -3942,7 +4111,7 @@ impl DocEdit {
     /// (`var_value_kind_mismatch`) — a kind is fixed when a
     /// variable is declared.
     #[staticmethod]
-    fn set_var_value(var: VarArg, value: &DocParamValue) -> Self {
+    fn set_var_value(var: VarArg, value: &FreeValue) -> Self {
         Self {
             inner: d::DocEdit::SetVarValue {
                 var: var.var_ref(),
@@ -3961,7 +4130,7 @@ impl DocEdit {
     /// to re-spell one unit, and whatever they leave out — the
     /// annotation, every time — is deleted with no refusal.
     ///
-    /// A notation change is NOT a redeclaration — `DocParam.bit_eq`
+    /// A notation change is NOT a redeclaration — `FreeVar.bit_eq`
     /// already excludes the display unit as presentation metadata.
     ///
     /// The unit is a `LengthUnit` or an `AngleUnit` — the same objects
@@ -4003,7 +4172,7 @@ impl DocEdit {
     /// Refuses typed on a name the document does not declare
     /// (`unknown_var`), on a `Count` parameter
     /// (`var_count_has_no_distribution` — a count takes no
-    /// annotation, for the reason `DocParam.count` gives) and on a
+    /// annotation, for the reason `FreeVar.count` gives) and on a
     /// distribution that breaks an E2 invariant
     /// (`non_finite_var`, `invalid_distribution`).
     ///
@@ -4013,7 +4182,7 @@ impl DocEdit {
     /// payload and nothing survives for `apply` to compare. That is
     /// `set_var_value`'s position too — it takes a typed
     /// quantity and carries only the number — and the difference from
-    /// the `DocParam` constructors, which hold the declaration and its
+    /// the `FreeVar` constructors, which hold the declaration and its
     /// annotation at once and do check. Whether the binding should
     /// instead carry the dropped dimension and refuse at `apply` is
     /// LIB's `doc-param-edit-doors-drop-the-python-dimension`.
@@ -4042,7 +4211,7 @@ impl DocEdit {
     /// nothing reads (`anonymous_var_unread`).
     #[staticmethod]
     #[pyo3(signature = (var, name))]
-    fn rename_var(var: VarArg, name: Option<&ParamName>) -> Self {
+    fn rename_var(var: VarArg, name: Option<&VarName>) -> Self {
         Self {
             inner: d::DocEdit::RenameVar {
                 var: var.var_ref(),
@@ -4098,12 +4267,12 @@ impl DocEdit {
     /// vocabulary as an enum, which is exactly what the bindings
     /// decline to do.
     #[staticmethod]
-    fn bind_count_param(node: &NodeId, name: &ParamName) -> Self {
+    fn bind_count_param(node: &NodeId, name: &VarName) -> Self {
         Self {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Count,
-                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
+                expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }
@@ -4139,12 +4308,12 @@ impl DocEdit {
     /// half included — and on an unknown or wrongly dimensioned
     /// parameter.
     #[staticmethod]
-    fn bind_instance_param(node: &NodeId, name: &ParamName) -> Self {
+    fn bind_instance_param(node: &NodeId, name: &VarName) -> Self {
         Self {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Instance,
-                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
+                expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }
@@ -4168,12 +4337,12 @@ impl DocEdit {
     /// binding: a bound degree is checked at `evaluate`, where a
     /// literal one is checked too.
     #[staticmethod]
-    fn bind_v_degree_param(node: &NodeId, name: &ParamName) -> Self {
+    fn bind_v_degree_param(node: &NodeId, name: &VarName) -> Self {
         Self {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::VDegree,
-                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
+                expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }
@@ -4503,8 +4672,12 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
 /// its own direction, shared so the two cannot drift.
 fn u_ref_expr(
     py: Python<'_>,
-    u: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
-) -> PyResult<[d::Expr; 3]> {
+    u: (
+        super::expr::Formula,
+        super::expr::Formula,
+        super::expr::Formula,
+    ),
+) -> PyResult<[d::Formula; 3]> {
     direction_expr(py, d::VectorSlot::Direction, &u)
 }
 
@@ -4513,8 +4686,12 @@ fn u_ref_expr(
 pub(crate) fn direction_expr(
     py: Python<'_>,
     slot: d::VectorSlot,
-    v: &(super::expr::Expr, super::expr::Expr, super::expr::Expr),
-) -> PyResult<[d::Expr; 3]> {
+    v: &(
+        super::expr::Formula,
+        super::expr::Formula,
+        super::expr::Formula,
+    ),
+) -> PyResult<[d::Formula; 3]> {
     Ok([
         slot_expr(py, slot.slot(d::Axis3::X), &v.0)?,
         slot_expr(py, slot.slot(d::Axis3::Y), &v.1)?,
@@ -4533,7 +4710,7 @@ pub(crate) fn direction_expr(
 /// reaches one full period precisely so the two never blur.
 #[pyclass(module = "pncad", frozen)]
 pub(crate) struct TubeWindow {
-    inner: d::TubeWindow,
+    inner: d::TubeWindow<d::Formula>,
 }
 
 #[pymethods]
@@ -4550,7 +4727,7 @@ impl TubeWindow {
     /// the reference direction, right-handed. Wedge caps close the
     /// ends.
     ///
-    /// Both angles cross as angle `Expr`s, the same seat
+    /// Both angles cross as angle `Formula`s, the same seat
     /// `Node.revolve` takes its sweep angle at — a slot is never a
     /// bare float on this surface.
     ///
@@ -4558,7 +4735,7 @@ impl TubeWindow {
     /// span reaching one full period (which must say `full()`), are
     /// the kernel's own typed refusals at `evaluate`.
     #[staticmethod]
-    fn arc(py: Python<'_>, t0: &super::expr::Expr, t1: &super::expr::Expr) -> PyResult<Self> {
+    fn arc(py: Python<'_>, t0: &super::expr::Formula, t1: &super::expr::Formula) -> PyResult<Self> {
         Ok(Self {
             inner: d::TubeWindow::Arc {
                 t0: slot_expr(py, d::SlotId::TubeWindowStart, t0)?,
@@ -4580,7 +4757,7 @@ impl TubeWindow {
 /// mirror's argument, verbatim): the match is over the KERNEL enum, so
 /// a variant added there breaks this build rather than leaving the
 /// python surface silently short of it. Never called.
-const fn _binds_every_kernel_window(kernel: &d::TubeWindow) -> &'static str {
+const fn _binds_every_kernel_window(kernel: &d::TubeWindow<d::Formula>) -> &'static str {
     match kernel {
         d::TubeWindow::Full => "full",
         d::TubeWindow::Arc { .. } => "arc",
@@ -4592,10 +4769,14 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeId>()?;
     m.add_class::<Doc>()?;
     m.add_class::<DocEdit>()?;
-    m.add_class::<ParamName>()?;
+    m.add_class::<VarName>()?;
     m.add_class::<Var>()?;
-    m.add_class::<DocParam>()?;
-    m.add_class::<DocParamValue>()?;
+    m.add_class::<FreeVar>()?;
+    m.add_class::<VarDecl>()?;
+    // The expansion bound `definition_too_large`'s `count` is measured
+    // against.
+    m.add("DEFINITION_NODE_BOUND", d::DEFINITION_NODE_BOUND)?;
+    m.add_class::<FreeValue>()?;
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;
     m.add_class::<BooleanOp>()?;

@@ -280,6 +280,15 @@ pub struct Link<T: Real> {
     pub arm_len: T,
 }
 
+impl<T: Real> Link<T> {
+    /// **This link's trim on its support `face`** — the trimline there
+    /// and the setback to it; `None` when `face` is neither support.
+    pub(crate) fn trim_on(&self, face: FaceKey) -> Option<&super::arms::Trim<T>> {
+        (self.face_a == face || self.face_b == face)
+            .then(|| self.blend.trims(self.face_a == face).0)
+    }
+}
+
 /// How a chain terminates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChainClosure {
@@ -1620,8 +1629,9 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 /// their seams; one where a support is a whole face carrying both arcs —
 /// a full revolve's plane disc or annulus, which has no seam to cut it.
 /// The one-seam reading also needs `topo::query::rim_of` to list the
-/// rim through this vertex: an open run of cocircular arcs swept beside
-/// a whole face (one arc of a D's rim) has the same orbit at its
+/// rim through this vertex: an open run of cocircular arcs whose walls
+/// a sweep keeps apart, beside a whole face (a partial revolve's arc
+/// run, one meridian piece on its wedge cap), has the same orbit at its
 /// station, and there the recourse's "request the rim whole, `rim_of`
 /// lists it" would be false — so the reading asks that door itself:
 /// `rim_lists(seed, arcs)` is the caller's `rim_of` read, true iff the
@@ -1697,7 +1707,8 @@ fn is_seam_vertex<T: Decide>(
         2 => true,
         // One seam: a whole face carries the rim on one side, so
         // nothing about this vertex alone says the rim is CLOSED — one
-        // arc of an open cocircular run (a D's quarter arcs, swept) has
+        // arc of an open cocircular run (a partially revolved D's
+        // meridian pieces) has
         // the same orbit, and so do arcs that close on shared vertices
         // but sit on circles `rim_of` does not read as one (the same
         // point set stored on bits of its own per arc). The recourse
@@ -2165,11 +2176,7 @@ fn consumption_sweep<T: Decide + Bounds>(
         // Each joint on this face: its foot against the trimline of
         // every boundary edge that meets its run at an end.
         for (v, link) in &joints {
-            let trim = if link.face_a == face {
-                &link.blend.trim_a.0
-            } else if link.face_b == face {
-                &link.blend.trim_b.0
-            } else {
+            let Some((trim, _)) = link.trim_on(face) else {
                 continue;
             };
             // A joint is plane–plane by its verdict, and

@@ -37,10 +37,11 @@ fn rows_deep(body: &Body<f64>) -> Vec<String> {
         .pcurves()
         .map(|(he, c)| {
             format!(
-                "{he:?} {:?} {:?} {:?}",
+                "{he:?} {:?} {:?} {:?} {:?}",
                 c.params(),
                 c.pcurve(),
-                c.certificate()
+                c.certificate(),
+                body.joint(he)
             )
         })
         .collect();
@@ -271,10 +272,11 @@ fn a_strut_on_the_ringed_tube_wall_keeps_the_rings_row() {
     let ring_row = |body: &Body<f64>| {
         let row = body.pcurve(first).unwrap();
         format!(
-            "{:?} {:?} {:?}",
+            "{:?} {:?} {:?} {:?}",
             row.params(),
             row.pcurve(),
-            row.certificate()
+            row.certificate(),
+            body.joint(first)
         )
     };
     let before = ring_row(&body);

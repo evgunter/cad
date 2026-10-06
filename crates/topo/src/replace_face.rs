@@ -1851,6 +1851,60 @@ fn plan_edge<T: Decide>(
             }
         };
 
+    // Whether the section of the moved chart and an untouched neighbour
+    // is one this kernel can state.
+    let neighbour_section = |other: SurfaceKey| -> Result<(), ReplaceFaceError<T>> {
+        let other_surface = body.get_surface(other).unwrap_or_else(|| {
+            dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(other))
+        });
+        let other_kind = other_surface.kind();
+        let kind = new_surface.kind();
+        if !geom_brep::intersect::route(kind, other_kind).implemented {
+            return Err(ReplaceFaceError::NeighborPairUnroutable {
+                edge,
+                kind,
+                other_kind,
+            });
+        }
+        // The kind pair routes; the arm is asked whether it serves
+        // THIS pose — the moved surface against the untouched one,
+        // read over the edge's own reach.
+        let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
+        let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
+            .map_err(|e| match e {
+                geom_brep::SectionError::Escalated(source)
+                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
+                    ReplaceFaceError::Escalated { source }
+                }
+                // `route_pose` returns only an escalation or a
+                // dispatch naming the wrong arm or seat — this
+                // kernel's own bug, not the body's (its `# Errors`);
+                // every other variant is answered inside it and
+                // never returned.
+                other @ (geom_brep::SectionError::WrongLane { .. }
+                | geom_brep::SectionError::RadiusDeclarationContradicted
+                | geom_brep::SectionError::CoaxialDeclarationContradicted
+                | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::BeyondOperandExtent { .. }
+                | geom_brep::SectionError::CoincidentSurfaces
+                | geom_brep::SectionError::DegenerateTorus
+                | geom_brep::SectionError::RoutesToGeneralRung { .. }
+                | geom_brep::SectionError::Carrier(_)) => unreachable!(
+                    "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and \
+                 returned {other:?}"
+                ),
+            })?;
+        if !posed.implemented {
+            return Err(ReplaceFaceError::NeighborPoseUnroutable {
+                edge,
+                kind,
+                other_kind,
+                why: posed.note,
+            });
+        }
+        Ok(())
+    };
+
     let new_description = match description {
         // A seam names a surface and nothing else — its image is
         // DERIVED from the transported carrier against the new chart,
@@ -1887,54 +1941,7 @@ fn plan_edge<T: Decide>(
             if s1 == old_key || s2 == old_key =>
         {
             let other = if s1 == old_key { s2 } else { s1 };
-            let other_surface = body.get_surface(other).unwrap_or_else(|| {
-                dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(other))
-            });
-            let other_kind = other_surface.kind();
-            let kind = new_surface.kind();
-            if !geom_brep::intersect::route(kind, other_kind).implemented {
-                return Err(ReplaceFaceError::NeighborPairUnroutable {
-                    edge,
-                    kind,
-                    other_kind,
-                });
-            }
-            // The kind pair routes; the arm is asked whether it serves
-            // THIS pose — the moved surface against the untouched one,
-            // read over the edge's own reach.
-            let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
-            let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
-                .map_err(|e| match e {
-                geom_brep::SectionError::Escalated(source)
-                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
-                    ReplaceFaceError::Escalated { source }
-                }
-                // `route_pose` returns only an escalation or a
-                // dispatch naming the wrong arm or seat — this
-                // kernel's own bug, not the body's (its `# Errors`);
-                // every other variant is answered inside it and
-                // never returned.
-                other @ (geom_brep::SectionError::WrongLane { .. }
-                | geom_brep::SectionError::RadiusDeclarationContradicted
-                | geom_brep::SectionError::CoaxialDeclarationContradicted
-                | geom_brep::SectionError::DegenerateOperand { .. }
-                | geom_brep::SectionError::BeyondOperandExtent { .. }
-                | geom_brep::SectionError::CoincidentSurfaces
-                | geom_brep::SectionError::DegenerateTorus
-                | geom_brep::SectionError::RoutesToGeneralRung { .. }
-                | geom_brep::SectionError::Carrier(_)) => unreachable!(
-                    "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and \
-                     returned {other:?}"
-                ),
-            })?;
-            if !posed.implemented {
-                return Err(ReplaceFaceError::NeighborPoseUnroutable {
-                    edge,
-                    kind,
-                    other_kind,
-                    why: posed.note,
-                });
-            }
+            neighbour_section(other)?;
             let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
             let (n1, n2) = if s1 == old_key {
                 (old_key, s2)
@@ -2009,20 +2016,14 @@ fn plan_edge<T: Decide>(
                 },
             )?)
         }
-        // A description naming only OTHER surfaces still moves with the
-        // face — its carrier transports, and whether the untouched
-        // surface it names still holds the moved locus is a question
-        // the attach layer's certification answers, not this door.
-        //
-        // Its chart did not move, but the EDGE did — so the image
-        // stands and the declaring pushforward still travels with the
-        // face, by the same transport as every other arm.
-        EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
-            surface: c.surface,
-            image: Some(c.pcurve.clone()),
-            seam: c.seam,
-            declared: carried_declaration()?,
-        },
+        // An image in an untouched neighbour's chart.
+        EdgeDescription::Chart(ref c) => {
+            let declared = carried_declaration()?;
+            if declared.is_none() {
+                neighbour_section(c.surface)?;
+            }
+            crate::offset_restate::held_neighbour_image(old_key, c.surface, declared, new_mid)
+        }
         EdgeDescription::Intersection { s1, s2, witness } => {
             EdgeDescriptionSpec::Intersection { s1, s2, witness }
         }

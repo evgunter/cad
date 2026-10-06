@@ -65,7 +65,7 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// Retypes one literal from `Length`/`m` to `Angle`/`rad`. BOTH halves
 /// move, so the literal stays well-formed through
-/// `Expr::literal_with_unit` and the display-unit walk has nothing to
+/// `Formula::literal_with_unit` and the display-unit walk has nothing to
 /// say — the only rule left to refuse it is the slot's own.
 fn retype_to_angle(literal: &mut serde_json::Value) {
     let lit = &mut literal["Literal"];
@@ -186,7 +186,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
         &doc,
         &DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
                 Dimension::Length,
                 1.0,
             )),
@@ -201,7 +201,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::named(name.clone(), Dimension::Length),
+            expr: editor_core::Formula::named(name.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -223,7 +223,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::named(missing.clone(), Dimension::Length),
+            expr: editor_core::Formula::named(missing.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -265,7 +265,10 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         &doc,
         &DocEdit::DefineVar {
             var: name.clone().into(),
-            def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(Dimension::Angle, 1.0)),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                Dimension::Angle,
+                1.0,
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

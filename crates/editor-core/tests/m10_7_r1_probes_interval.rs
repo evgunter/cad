@@ -15,7 +15,7 @@ use editor_core::drive::{DriveConfig, RefusalReason, SymbolicDials, assertion_at
 use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
-    Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Expr, FreeVar, GeomPred,
+    Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar, GeomPred,
     LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
     ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate,
     select_where,
@@ -26,8 +26,8 @@ use geom_core::Tol;
 use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
-fn param(n: &'static str) -> Expr {
-    Expr::named(VarName::from_static(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
@@ -350,7 +350,7 @@ fn bracket_with(
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 20.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -361,7 +361,7 @@ fn bracket_with(
         }),
     });
     let w = || param("w");
-    let div = |a: Expr, k: f64| Expr::div(a, scl(k)).unwrap();
+    let div = |a: Formula, k: f64| Formula::div(a, scl(k)).unwrap();
     let plane = r.insert(xy_frame());
     let half = |k: f64| div(w(), k);
     // The plate: (−w/2, −w/4) .. (w/2, w/4), parametric corners.
@@ -376,19 +376,19 @@ fn bracket_with(
     } else {
         LoopProgram::Chain(vec![
             editor_core::ProgramStep::At([
-                Expr::neg(half(2.0)).expect("a shallow negation"),
-                Expr::neg(half(4.0)).expect("a shallow negation"),
+                Formula::neg(half(2.0)).expect("a shallow negation"),
+                Formula::neg(half(4.0)).expect("a shallow negation"),
             ]),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
                 half(2.0),
-                Expr::neg(half(4.0)).expect("a shallow negation"),
+                Formula::neg(half(4.0)).expect("a shallow negation"),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
                 half(2.0),
                 half(4.0),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
-                Expr::neg(half(2.0)).expect("a shallow negation"),
+                Formula::neg(half(2.0)).expect("a shallow negation"),
                 half(4.0),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
@@ -404,7 +404,7 @@ fn bracket_with(
         distance: div(w(), 10.0),
         side: ExtrudeSide::Along,
     });
-    let hole = |r: &mut Recorder, cx: Expr| {
+    let hole = |r: &mut Recorder, cx: Formula| {
         let profile = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
@@ -419,7 +419,7 @@ fn bracket_with(
             side: ExtrudeSide::Along,
         })
     };
-    let hole_a = hole(&mut r, Expr::neg(half(4.0)).expect("a shallow negation"));
+    let hole_a = hole(&mut r, Formula::neg(half(4.0)).expect("a shallow negation"));
     let hole_b = hole(&mut r, half(4.0));
     let refs = {
         let ev: editor_core::Evaluation<f64> = evaluate(

@@ -13,10 +13,12 @@
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
 use crate::doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, FreeValue, FreeVar, GaugeRefFault, NameCarrier,
-    VarName, VarReadFault, WitnessSiteFault,
+    DisplayUnitRefusal, DistributionRefusal, Doc, ExpansionFault, FreeValue, FreeVar,
+    GaugeRefFault, NameCarrier, VarName, VarReadFault, WitnessSiteFault,
 };
+use crate::expr::Unlowered;
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
+use crate::formula::{Formula, NameFault};
 use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
@@ -27,7 +29,7 @@ use crate::node::{
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
-use crate::var::{Var, VarDef, VarId, VarKind, VarRef};
+use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -60,7 +62,11 @@ use geom_core::Tol;
 /// typed [`EditError`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum DocEdit<P> {
+#[serde(bound(
+    serialize = "P::Authored: serde::Serialize",
+    deserialize = "P::Authored: serde::Deserialize<'de>"
+))]
+pub enum DocEdit<P: crate::ProfilePayload> {
     /// Insert a node; the new [`RecipeNodeId`] is minted from the
     /// document's mint chain ([`crate::Mint`]) and returned in the
     /// [`EditRecord`]. Input refs must resolve to EXISTING nodes —
@@ -69,7 +75,7 @@ pub enum DocEdit<P> {
         /// The node payload (data only, spec D3), boxed: a whole node,
         /// a mate's two frames included, is many times every other
         /// arm, and a history is a `Vec` of edits.
-        node: Box<Node<P>>,
+        node: Box<Node<P::Authored, Formula>>,
     },
     /// Delete a node. Refused while any live node holds it as an
     /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
@@ -199,7 +205,7 @@ pub enum DocEdit<P> {
         node: RecipeNodeId,
         /// The whole new program, outer loop first then holes in
         /// description order — every loop stated in full.
-        loops: Vec<crate::program::LoopProgram>,
+        loops: Vec<crate::program::LoopProgram<Formula>>,
         /// Per new loop, per step in program order: the id of the old
         /// step it keeps, or `None` for a new step.
         ids: Vec<Vec<Option<StepId>>>,
@@ -212,7 +218,7 @@ pub enum DocEdit<P> {
         /// The named slot (spec D5: never an index).
         slot: SlotId,
         /// The replacement expression (dimension re-checked).
-        expr: Expr,
+        expr: Formula,
     },
     /// Replace a STRUCTURAL (Count-typed) slot's expression — a
     /// DISTINCT arm from [`DocEdit::SetParam`] so the structural/
@@ -224,7 +230,7 @@ pub enum DocEdit<P> {
         /// The named structural slot.
         slot: SlotId,
         /// The replacement Count expression.
-        expr: Expr,
+        expr: Formula,
     },
     /// Set which side of its sketch plane an extrude goes toward — the
     /// one structural choice on a [`Node::Extrude`] that is not an
@@ -244,7 +250,7 @@ pub enum DocEdit<P> {
         /// The subtree address.
         path: ExprPath,
         /// The replacement subtree.
-        expr: Expr,
+        expr: Formula,
     },
     /// **Declare a variable** (VARIABLES-DESIGN VR1/VR2): mint its id
     /// from the document's mint chain and hold `name` beside it.
@@ -262,7 +268,7 @@ pub enum DocEdit<P> {
         /// The name, unique within the document.
         name: VarName,
         /// The definition; its kind is the variable's, for good.
-        def: VarDef,
+        def: VarDecl,
     },
     /// **Replace a variable's definition**, keeping its identity, its
     /// name and its kind (VR3: a new kind is a new variable).
@@ -275,7 +281,7 @@ pub enum DocEdit<P> {
         /// The variable.
         var: VarRef,
         /// The new definition.
-        def: VarDef,
+        def: VarDecl,
     },
     /// Write a NEW VALUE into a free variable, keeping its definition:
     /// its kind, its notation and its optional distribution ride
@@ -487,7 +493,7 @@ pub enum DocEdit<P> {
         /// The instantiate node.
         instance: RecipeNodeId,
         /// Its new offset, `None` for none.
-        offset: Option<crate::placement::Placement>,
+        offset: Option<crate::placement::Placement<Formula>>,
     },
     /// Set the gauge a node sits on (A11 (2)): an instance's gauge or
     /// a gauge's parent, `None` for the world. The gauge must be live
@@ -606,7 +612,7 @@ pub enum DocEdit<P> {
     },
 }
 
-impl<P> DocEdit<P> {
+impl<P: crate::ProfilePayload> DocEdit<P> {
     /// **Whether this edit writes a mate's alignment datum** — the
     /// frames, the primitive, the sense and the rider the solve's
     /// per-mate admission decides on. Two edits do, and both ask the
@@ -673,94 +679,175 @@ enum ExprSite {
     Payload,
 }
 
-impl<P: crate::ProfilePayload> DocEdit<P> {
-    /// **Every expression this edit carries** — the expressions the
-    /// edit door lowers. Exhaustive with no wildcard arm, so an arm
-    /// added to [`DocEdit`] says here which of its expressions lower,
-    /// or does not compile.
-    fn exprs_mut(&mut self) -> Vec<&mut Expr> {
-        match self {
-            Self::InsertNode { node } => node.exprs_mut(),
-            Self::SetParam { expr, .. }
-            | Self::SetStructuralParam { expr, .. }
-            | Self::SetExpression { expr, .. } => vec![expr],
-            Self::SetProgram { loops, .. } => loops
-                .iter_mut()
-                .flat_map(|lp| lp.rows_mut().into_iter().map(|(_, e)| e))
-                .collect(),
-            Self::SetOffset { offset, .. } => offset
-                .iter_mut()
-                .flat_map(crate::placement::Placement::rows_mut)
-                .map(|(_, e)| e)
-                .collect(),
-            Self::DeleteNode { .. }
-            | Self::SetMembers { .. }
-            | Self::SetDeclare { .. }
-            | Self::SetExtrudeSide { .. }
-            | Self::DeclareVar { .. }
-            | Self::DefineVar { .. }
-            | Self::SetVarValue { .. }
-            | Self::SetVarUnit { .. }
-            | Self::SetVarDistribution { .. }
-            | Self::RenameVar { .. }
-            | Self::DeleteVar { .. }
-            | Self::Rebind { .. }
-            | Self::ReWitness { .. }
-            | Self::ReWitnessBulk { .. }
-            | Self::SetAppearance { .. }
-            | Self::ClearAppearance { .. }
-            | Self::SetTolerance { .. }
-            | Self::SetAppearanceMeta { .. }
-            | Self::ClearAppearanceMeta { .. }
-            | Self::SetRoots { .. }
-            | Self::SetGauge { .. }
-            | Self::Promote { .. }
-            | Self::Fold { .. }
-            | Self::UpdateReference { .. }
-            | Self::SetLabel { .. } => Vec::new(),
+/// **A name the lowering left, as the door refuses it** at its
+/// address: a name no variable holds is an unknown name; a name a
+/// variable holds at another kind is that variable's kind fault, in the
+/// words [`check_reads`] gives a stored reader of it.
+fn name_refusal<P>(doc: &Doc<P>, node: SpokenNode, site: ExprSite, fault: NameFault) -> EditError {
+    let NameFault { name, dim, why } = fault;
+    match (site, why) {
+        (ExprSite::Slot(slot), Unlowered::Unheld) => {
+            EditError::SlotUnknownVarName { name, node, slot }
         }
+        (ExprSite::Payload, Unlowered::Unheld) => EditError::PayloadUnknownVarName { name, node },
+        (site, Unlowered::Kind { var, declared }) => read_refusal(
+            doc,
+            node,
+            site,
+            VarReadFault::Kind {
+                var,
+                declared,
+                referenced: dim,
+            },
+        ),
     }
 }
 
-/// **The edit as the door writes it: every name leaf lowered** to a
-/// reader of the variable `doc` names, where that variable has the kind
-/// the leaf reads it at (VR6's lowering, for the one authored form this
-/// build has). A name that does not lower stays, and the door refuses
-/// it where it checks the expression it writes ([`check_reads`]), in
-/// the order its other checks run. An edit with no name leaf is
-/// answered as handed in.
-///
-/// An insert's preimage is the node AFTER lowering, so a node authored
-/// by name and the same node authored by id mint one id.
-fn lowered<'e, P: Clone + crate::ProfilePayload>(
+/// **One authored formula as the door writes it** (VR6's lowering, for
+/// the one authored leaf this build has): every name a reader of the
+/// variable `doc` names so, at the kind the leaf reads it at. A name
+/// that does not lower refuses at the formula's address
+/// ([`name_refusal`]).
+fn lower_at<P>(
     doc: &Doc<P>,
-    edit: &'e DocEdit<P>,
-) -> std::borrow::Cow<'e, DocEdit<P>> {
-    let mut probe = edit.clone();
-    let mut named = false;
-    for e in probe.exprs_mut() {
-        let mut names = Vec::new();
-        e.named_reads(&mut names);
-        if !names.is_empty() {
-            named = true;
-            // What did not lower is refused where the door checks
-            // the expression it writes, from the same answer
-            // (`Doc::var_read_faults`).
-            let _unlowered = e.lower_names(&|name| doc.lowering_scope(name));
-        }
+    node: impl FnOnce() -> SpokenNode,
+    site: ExprSite,
+    formula: &Formula,
+) -> Result<Expr, EditError> {
+    formula
+        .lower(&|name| doc.lowering_scope(name))
+        .map_err(|fault| name_refusal(doc, node(), site, fault))
+}
+
+/// **An authored value lowered in one walk**: `walk` maps every formula
+/// the value holds through `doc`'s lowering, and its answer is the
+/// lowered value. Where a formula does not lower, the fault the refusal
+/// names is the first of `rows` — the value's slot table, in table
+/// order — that does not, with its address; `None` for the address
+/// where no row holds the fault, a formula the walk maps and the table
+/// does not address (a count beside a listed placement rule, the one
+/// such field: [`Node::exprs`]' edge). The caller refuses that typed.
+fn lower_value<P, K: Copy, U>(
+    doc: &Doc<P>,
+    rows: &[(K, &Formula)],
+    walk: impl FnOnce(&mut dyn FnMut(&Formula) -> Result<Expr, NameFault>) -> Result<U, NameFault>,
+) -> Result<U, (Option<K>, NameFault)> {
+    let scope = |name: &crate::doc::VarName| doc.lowering_scope(name);
+    walk(&mut |formula| formula.lower(&scope)).map_err(|fault| {
+        rows.iter()
+            .find_map(|(key, formula)| Some((Some(*key), formula.lower(&scope).err()?)))
+            .unwrap_or((None, fault))
+    })
+}
+
+/// **An authored node as the door writes it**: every slot, every payload
+/// expression and every other formula field lowered in one walk
+/// ([`lower_value`]), a fault refusing at its address, slots before
+/// payload in their table order. A formula no address names is the
+/// count of a node whose placement rule takes none, and the refusal is
+/// the rule's own ([`EditError::PlacementRuleMismatch`]), the one the
+/// door gives that node whatever its count holds. `spoken` speaks the
+/// node a refusal names.
+fn lower_node<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: &Node<P::Authored, Formula>,
+    tol: Tol,
+    spoken: impl Fn() -> SpokenNode,
+) -> Result<Node<P>, EditError> {
+    let rows: Vec<(ExprSite, &Formula)> = node
+        .rows()
+        .into_iter()
+        .map(|(slot, formula)| (ExprSite::Slot(slot), formula))
+        .chain(
+            crate::node::payload_exprs(node)
+                .into_iter()
+                .flatten()
+                .map(|formula| (ExprSite::Payload, formula)),
+        )
+        .collect();
+    lower_value(doc, &rows, |f| {
+        node.try_map_slots(|p, g| P::lower(p, g), &mut |e| f(e))
+    })
+    .map_err(
+        |(site, fault)| match (site, node.placement_rule_fault(tol)) {
+            (Some(site), _) => name_refusal(doc, spoken(), site, fault),
+            (None, Some(PlacementRuleFault::CountSpelling { shape })) => {
+                EditError::PlacementRuleMismatch {
+                    node: spoken(),
+                    shape,
+                }
+            }
+            (None, _) => name_refusal(doc, spoken(), ExprSite::Payload, fault),
+        },
+    )
+}
+
+/// **A declared definition as the door writes it**: a free one as
+/// handed, a defined one lowered, a name that does not lower refusing
+/// in the words [`check_definition`] gives a faulty read of `var`'s
+/// definition.
+fn lower_decl<P>(doc: &Doc<P>, var: &SpokenVar, decl: &VarDecl) -> Result<VarDef, EditError> {
+    match decl {
+        VarDecl::Free(free) => Ok(VarDef::Free(free.clone())),
+        VarDecl::Defined(formula) => formula
+            .lower(&|name| doc.lowering_scope(name))
+            .map(VarDef::Defined)
+            .map_err(|NameFault { name, dim, why }| match why {
+                Unlowered::Unheld => EditError::DefinitionUnknownVarName {
+                    var: var.clone(),
+                    name,
+                },
+                Unlowered::Kind {
+                    var: read,
+                    declared,
+                } => EditError::DefinitionVarKind {
+                    var: var.clone(),
+                    read: doc.spoken_var(read),
+                    declared,
+                    referenced: dim,
+                },
+            }),
     }
-    if named {
-        std::borrow::Cow::Owned(probe)
-    } else {
-        std::borrow::Cow::Borrowed(edit)
-    }
+}
+
+/// **A `SetProgram`'s loops as the door writes them**, lowered in one
+/// walk each ([`lower_value`]); the first that does not lower refuses
+/// at the profile's address of its first argument, in program order,
+/// that does not. An argument no row addresses refuses at the
+/// profile's payload.
+fn lower_loops<P>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    loops: &[crate::LoopProgram<Formula>],
+) -> Result<Vec<crate::LoopProgram>, EditError> {
+    loops
+        .iter()
+        .enumerate()
+        .map(|(li, lp)| {
+            let rows: Vec<(SlotId, &Formula)> = lp
+                .rows()
+                .into_iter()
+                .map(|((step, arg), formula)| {
+                    let slot = SlotId::Profile {
+                        loop_: crate::program::program_index(li),
+                        step,
+                        arg,
+                    };
+                    (slot, formula)
+                })
+                .collect();
+            lower_value(doc, &rows, |f| lp.try_map_slots(&mut |e| f(e))).map_err(|(slot, fault)| {
+                let site = slot.map_or(ExprSite::Payload, ExprSite::Slot);
+                name_refusal(doc, doc.spoken(node), site, fault)
+            })
+        })
+        .collect()
 }
 
 /// **The reads of one expression an edit writes**, against the
 /// document's table, in this door's vocabulary: every leaf must read a
-/// live variable at its kind (a name leaf here is one no lowering
-/// reached). The rule is `Doc::var_read_faults`, which the load door
-/// reads too.
+/// live variable at its kind. The rule is `Doc::var_read_faults`, which
+/// the load door reads too.
 fn check_reads<P>(
     doc: &Doc<P>,
     node: &SpokenNode,
@@ -770,14 +857,19 @@ fn check_reads<P>(
     let Some(fault) = doc.var_read_faults(expr).into_iter().next() else {
         return Ok(());
     };
-    let node = node.clone();
-    Err(match (site, fault) {
-        (ExprSite::Slot(slot), VarReadFault::Name { name }) => {
-            EditError::SlotUnknownVarName { name, node, slot }
-        }
-        (ExprSite::Payload, VarReadFault::Name { name }) => {
-            EditError::PayloadUnknownVarName { name, node }
-        }
+    Err(read_refusal(doc, node.clone(), site, fault))
+}
+
+/// **A faulty read as this door refuses it**, at its address: the one
+/// vocabulary [`check_reads`] and the lowering's kind faults
+/// ([`name_refusal`]) share.
+fn read_refusal<P>(
+    doc: &Doc<P>,
+    node: SpokenNode,
+    site: ExprSite,
+    fault: VarReadFault,
+) -> EditError {
+    match (site, fault) {
         (ExprSite::Slot(slot), VarReadFault::Unminted { var } | VarReadFault::Dead { var }) => {
             EditError::SlotUnresolvedVar {
                 var: doc.spoken_var(var),
@@ -818,7 +910,7 @@ fn check_reads<P>(
             declared,
             referenced,
         },
-    })
+    }
 }
 
 /// Which door an edit of a STANDING variable came through: the three
@@ -884,6 +976,73 @@ impl core::fmt::Display for CarryForwardDoor {
 /// a declare mints a new variable, which nothing addressed by the old
 /// id reads.
 pub const UNKNOWN_VAR_RECOURSE: &str = "pick a variable the document holds";
+
+/// **The most expression nodes a variable's expansion may hold**: a
+/// coincidence token writes a defined variable's definition expanded
+/// through every definition it reads, so a diamond of definitions would
+/// grow it exponentially without a bound. The doors that write a
+/// definition refuse past it ([`EditError::DefinitionTooLarge`]).
+pub const DEFINITION_NODE_BOUND: usize = 4096;
+
+/// **The sentence of a definition cycle**, rendered once for the edit
+/// door ([`EditError::DefinitionCycle`]) and the load walk
+/// ([`crate::persist::SnapshotError::DefinitionCycle`]): one fact at
+/// two doors.
+pub(crate) struct DefinitionCycleSentence<'a> {
+    pub(crate) var: &'a SpokenVar,
+    pub(crate) through: &'a [SpokenVar],
+}
+
+impl core::fmt::Display for DefinitionCycleSentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let var = self.var;
+        write!(f, "the definition of {var} reads {var} back, through ")?;
+        for (i, held) in self.through.iter().enumerate() {
+            if i > 0 {
+                f.write_str(" → ")?;
+            }
+            write!(f, "{held}")?;
+        }
+        write!(f, " → {var}")
+    }
+}
+
+/// **The sentence of an expansion past [`DEFINITION_NODE_BOUND`]**,
+/// rendered once for both doors, as [`DefinitionCycleSentence`].
+pub(crate) struct DefinitionTooLargeSentence<'a> {
+    pub(crate) var: &'a SpokenVar,
+    pub(crate) nodes: usize,
+}
+
+impl core::fmt::Display for DefinitionTooLargeSentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} expands, through the definitions it reads, to {} expression nodes, past the \
+             bound of {DEFINITION_NODE_BOUND}",
+            self.var, self.nodes
+        )
+    }
+}
+
+/// **The sentence of a definition reading a variable at another
+/// kind**, rendered once for both doors, as [`DefinitionCycleSentence`].
+pub(crate) struct DefinitionVarKindSentence<'a> {
+    pub(crate) var: &'a SpokenVar,
+    pub(crate) read: &'a SpokenVar,
+    pub(crate) declared: Dimension,
+    pub(crate) referenced: Dimension,
+}
+
+impl core::fmt::Display for DefinitionVarKindSentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} is declared {} but the definition of {} reads it as {}",
+            self.read, self.declared, self.var, self.referenced
+        )
+    }
+}
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
@@ -1206,17 +1365,6 @@ pub enum EditError {
         /// The reading node.
         node: SpokenNode,
     },
-    /// **The door's post-condition failed**: the written document
-    /// holds a name leaf in `node`, where a stored document reads
-    /// variables by id alone. Every writing arm lowers what it writes
-    /// and refuses a name that does not lower, so this is the kernel's
-    /// own defect, refused rather than stored.
-    NameLeafWritten {
-        /// The node holding the name leaf.
-        node: SpokenNode,
-        /// The name it reads.
-        name: VarName,
-    },
     /// A [`Node::Measure`]'s expression reads a reference the node does
     /// not carry ([`crate::MeasureNodeFault`]).
     MeasureMalformed {
@@ -1314,6 +1462,63 @@ pub enum EditError {
         kind: VarKind,
         /// The kind the definition holds.
         offered: VarKind,
+    },
+    /// A carry-forward door ([`DocEdit::SetVarValue`],
+    /// [`DocEdit::SetVarUnit`], [`DocEdit::SetVarDistribution`]) named
+    /// a defined variable. A defined variable holds no value, notation
+    /// or distribution of its own: they are its inputs' (VR3).
+    NotAFreeVar {
+        /// The variable.
+        var: SpokenVar,
+        /// Which edit was refused.
+        door: CarryForwardDoor,
+    },
+    /// A definition ([`DocEdit::DeclareVar`], [`DocEdit::DefineVar`])
+    /// reads, directly or through other definitions, the variable it
+    /// defines (VR3).
+    DefinitionCycle {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The cycle, from `var` on: each variable's definition reads
+        /// the next, and the last one's reads `var`.
+        through: Vec<SpokenVar>,
+    },
+    /// A definition whose expansion through the definitions it reads
+    /// would exceed [`DEFINITION_NODE_BOUND`] expression nodes: a
+    /// coincidence token writes that expansion, so a diamond of
+    /// definitions would grow it exponentially.
+    DefinitionTooLarge {
+        /// The variable whose expansion is too large.
+        var: SpokenVar,
+        /// Its expansion's node count, saturating at one past the
+        /// bound.
+        nodes: usize,
+    },
+    /// A definition reads a name the document does not hold at the
+    /// kind it is read at.
+    DefinitionUnknownVarName {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The name read.
+        name: VarName,
+    },
+    /// A definition reads a variable this document does not hold.
+    DefinitionUnresolvedVar {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The variable read.
+        read: SpokenVar,
+    },
+    /// A definition reads a variable at a kind other than its own.
+    DefinitionVarKind {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The variable read.
+        read: SpokenVar,
+        /// The read variable's dimension.
+        declared: Dimension,
+        /// The dimension the definition reads it at.
+        referenced: Dimension,
     },
     /// A notation edit ([`DocEdit::SetVarUnit`]) named a `Count`
     /// variable. A count is an exact integer, not a quantity: it names
@@ -2149,9 +2354,6 @@ impl EditError {
                 *node = node.respoken(doc);
                 *var = var.respoken(doc);
             }
-            Self::NameLeafWritten { node, name: _ } => {
-                *node = node.respoken(doc);
-            }
             Self::ContinuousVarCannotBeCount { var }
             | Self::VarNameTaken {
                 name: _,
@@ -2177,8 +2379,27 @@ impl EditError {
                 offered: _,
             }
             | Self::NonFiniteVar { var, field: _ }
-            | Self::InvalidDistribution { var, fault: _ } => {
+            | Self::InvalidDistribution { var, fault: _ }
+            | Self::NotAFreeVar { var, door: _ }
+            | Self::DefinitionTooLarge { var, nodes: _ }
+            | Self::DefinitionUnknownVarName { var, name: _ } => {
                 *var = var.respoken(doc);
+            }
+            Self::DefinitionUnresolvedVar { var, read }
+            | Self::DefinitionVarKind {
+                var,
+                read,
+                declared: _,
+                referenced: _,
+            } => {
+                *var = var.respoken(doc);
+                *read = read.respoken(doc);
+            }
+            Self::DefinitionCycle { var, through } => {
+                *var = var.respoken(doc);
+                for held in through.iter_mut() {
+                    *held = held.respoken(doc);
+                }
             }
             Self::WouldCycle { at } => {
                 *at = at.respoken(doc);
@@ -2633,6 +2854,69 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("{UNKNOWN_VAR_RECOURSE}"))
             }
+            Self::NotAFreeVar { var, door } => {
+                write!(
+                    f,
+                    "{var} is defined by an expression, so {door} has no value, notation or \
+                     distribution of its own to write"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "edit a free variable its definition reads, or redefine {var} as a \
+                         free variable"
+                    ),
+                )
+            }
+            Self::DefinitionCycle { var, through } => {
+                write!(f, "{}", DefinitionCycleSentence { var, through })?;
+                tail.recourse(
+                    f,
+                    format_args!("define {var} without reading any variable on that cycle"),
+                )
+            }
+            Self::DefinitionTooLarge { var, nodes } => {
+                write!(f, "{}", DefinitionTooLargeSentence { var, nodes: *nodes })?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "define {var} over fewer nested definitions, or make one of them free"
+                    ),
+                )
+            }
+            Self::DefinitionUnknownVarName { var, name } => {
+                write!(
+                    f,
+                    "no variable is named {name} (read by the definition of {var})"
+                )?;
+                tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
+            }
+            Self::DefinitionUnresolvedVar { var, read } => {
+                write!(
+                    f,
+                    "{read} is not a variable of this document (read by the definition of \
+                     {var})"
+                )?;
+                tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
+            }
+            Self::DefinitionVarKind {
+                var,
+                read,
+                declared,
+                referenced,
+            } => {
+                write!(
+                    f,
+                    "{}",
+                    DefinitionVarKindSentence {
+                        var,
+                        read,
+                        declared: *declared,
+                        referenced: *referenced,
+                    }
+                )?;
+                tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
+            }
             Self::VarNameTaken { name, holder } => {
                 write!(
                     f,
@@ -2678,14 +2962,6 @@ impl EditError {
                     f,
                     "the declare drew the variable id {id}, which this document's mint log \
                      already holds"
-                )?;
-                tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
-            }
-            Self::NameLeafWritten { node, name } => {
-                write!(
-                    f,
-                    "the edit would store {node} reading the name {name}, and a stored \
-                     document reads variables by id"
                 )?;
                 tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
             }
@@ -3800,7 +4076,7 @@ impl MaintenanceNet {
 ///
 /// Nothing is written anywhere until a caller takes the [`Recorded`]
 /// up, so undo is the caller keeping the document it started from.
-pub struct Recording<'a, P> {
+pub struct Recording<'a, P: crate::ProfilePayload> {
     start: &'a Doc<P>,
     produced: Option<Doc<P>>,
     refused: Option<EditError>,
@@ -3863,7 +4139,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// # Errors
     ///
     /// As [`Self::apply`]'s.
-    pub fn insert(&mut self, node: Node<P>) -> Result<RecipeNodeId, EditError> {
+    pub fn insert(&mut self, node: Node<P::Authored, Formula>) -> Result<RecipeNodeId, EditError> {
         self.open()?;
         let (applied, id) =
             apply_insert(self.doc(), &node, self.tol, self.reach).map_err(|e| self.end(e))?;
@@ -3882,7 +4158,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// # Errors
     ///
     /// As [`Self::apply`]'s.
-    pub fn declare(&mut self, name: VarName, def: VarDef) -> Result<VarId, EditError> {
+    pub fn declare(&mut self, name: VarName, def: VarDecl) -> Result<VarId, EditError> {
         self.open()?;
         let edit = DocEdit::DeclareVar { name, def };
         let applied = apply(self.doc(), &edit, self.tol, self.reach).map_err(|e| self.end(e))?;
@@ -3933,7 +4209,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
 /// document it produced and the record of how. Undo is the caller
 /// keeping the document the recording started from.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Recorded<P> {
+pub struct Recorded<P: crate::ProfilePayload> {
     /// The document the last edit produced; the start's, unchanged,
     /// when the action recorded no edit.
     pub doc: Doc<P>,
@@ -3976,9 +4252,7 @@ fn check_name_steps<P>(before: &Doc<P>, doc: &Doc<P>, name: &StableName) -> Resu
 /// `before` in their helpers), never from the working copy the edit is
 /// writing. A node the edit is minting is spoken by
 /// [`SpokenNode::entering`]. An id neither holds is
-/// [`SpokenNode::absent`]. The one exception is a cluster gauge, which
-/// is spoken from the document the edit leaves, or, when the edit
-/// dropped it, from the one it found (`mate::solve::gauge_spoken`).
+/// [`SpokenNode::absent`].
 fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
     if doc.node(id).is_some() {
         doc.spoken(id)
@@ -3989,10 +4263,8 @@ fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
 
 /// **A node an edit's result names, as its refusal speaks it**: from
 /// `before` when it holds the node, else by its kind as `after` mints
-/// it ([`written`]), else [`SpokenNode::absent`]. A refusal speaks the
-/// node as the author handed it; a cluster gauge prefers `after`
-/// (`mate::solve::gauge_spoken`) because its row reports what the edit
-/// left.
+/// it ([`written`]), else [`SpokenNode::absent`]: a refusal speaks the
+/// node as the author handed it.
 fn spoken_before_else_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId) -> SpokenNode {
     match after.node(id) {
         Some(node) => written(before, id, node),
@@ -4047,7 +4319,11 @@ fn distribution_fault_error(var: &SpokenVar, fault: DistributionFault) -> EditEr
 /// definitions; only this door can name the structural/continuous
 /// divide as the reason.
 fn check_var_def(var: &SpokenVar, def: &VarDef) -> Result<(), EditError> {
-    let VarDef::Free(value) = def;
+    // A definition's floats are its expression's literals, finite by
+    // construction; what it reads is `check_definition`'s.
+    let VarDef::Free(value) = def else {
+        return Ok(());
+    };
     // Ruled door 1 (non-finite policy): recipe data never carries
     // NaN/inf — the nominal and the distribution offsets alike, by the
     // ONE predicate the load door's float walk asks
@@ -4112,17 +4388,16 @@ fn write_free<P>(
     })
 }
 
-/// The live variable an edit of a standing variable addresses, or that
-/// door's refusal.
+/// The live FREE variable an edit of a standing variable addresses, or
+/// that door's refusal: a variable the document does not hold, or a
+/// defined one, which holds no value, notation or distribution of its
+/// own.
 fn standing_var<P>(
     doc: &Doc<P>,
     var: &VarRef,
     door: CarryForwardDoor,
 ) -> Result<(VarId, SpokenVar, FreeVar), EditError> {
-    // `resolve_var` answers live ids only, and every definition this
-    // build holds is free (one arm, R1), so the one miss is a variable
-    // the document does not hold — which is what `UnknownVar` says.
-    let Some((id, VarDef::Free(free))) = doc
+    let Some((id, def)) = doc
         .resolve_var(var)
         .and_then(|id| Some((id, doc.var(id)?.def())))
     else {
@@ -4131,7 +4406,59 @@ fn standing_var<P>(
             door,
         });
     };
-    Ok((id, doc.spoken_var(id), free.clone()))
+    match def {
+        VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
+        VarDef::Defined(_) => Err(EditError::NotAFreeVar {
+            var: doc.spoken_var(id),
+            door,
+        }),
+    }
+}
+
+/// **The checks a written definition answers to**, against the
+/// document it was written into: every variable it reads is one the
+/// document holds, at its kind; it does not read itself back (VR3);
+/// and no variable's expansion outgrows [`DEFINITION_NODE_BOUND`].
+/// A free definition reads nothing and passes.
+fn check_definition<P>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
+    let Some(expr) = new.var(id).and_then(|v| v.def().defined()) else {
+        return Ok(());
+    };
+    let var = new.spoken_var(id);
+    if let Some(fault) = new.var_read_faults(expr).into_iter().next() {
+        return Err(match fault {
+            VarReadFault::Unminted { var: read } | VarReadFault::Dead { var: read } => {
+                EditError::DefinitionUnresolvedVar {
+                    var,
+                    read: new.spoken_var(read),
+                }
+            }
+            VarReadFault::Kind {
+                var: read,
+                declared,
+                referenced,
+            } => EditError::DefinitionVarKind {
+                var,
+                read: new.spoken_var(read),
+                declared,
+                referenced,
+            },
+        });
+    }
+    // A redefinition can close a cycle or grow every expansion that
+    // reads it, so the whole document is asked, by the search the load
+    // walk asks too.
+    match new.expansion_fault() {
+        None => Ok(()),
+        Some(ExpansionFault::Cycle { var, through }) => Err(EditError::DefinitionCycle {
+            var: new.spoken_var(var),
+            through: through.into_iter().map(|v| new.spoken_var(v)).collect(),
+        }),
+        Some(ExpansionFault::TooLarge { var, nodes }) => Err(EditError::DefinitionTooLarge {
+            var: new.spoken_var(var),
+            nodes,
+        }),
+    }
 }
 
 /// Validate every slot of a node payload against slot dimensions and
@@ -4373,7 +4700,7 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
 /// together. Undo is the caller keeping the input value: the input is
 /// untouched.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RegaugeThenMateOutcome<P> {
+pub struct RegaugeThenMateOutcome<P: crate::ProfilePayload> {
     /// The input document with the action applied.
     pub doc: Doc<P>,
     /// The edits that produce `doc` from the input, in the order the
@@ -4415,7 +4742,7 @@ pub struct RegaugeThenMateOutcome<P> {
 /// refuses.
 pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
-    mate: Node<P>,
+    mate: Node<P::Authored, Formula>,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<RegaugeThenMateOutcome<P>, EditError> {
@@ -4442,7 +4769,7 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
 /// insert, in order, computed against `doc`.
 fn regauges_for<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
-    mate: &Node<P>,
+    mate: &Node<P::Authored, Formula>,
 ) -> Result<Vec<DocEdit<P>>, EditError> {
     let mut edits = Vec::new();
     if let Node::Mate { a, b, .. } = mate
@@ -4569,9 +4896,8 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<Applied<P>, EditError> {
-    let edit = lowered(doc, edit);
     let (doc, record, maintenance) = door(doc, tol, |new, reported| {
-        write_edit(doc, new, reported, &edit, tol, reach)
+        write_edit(doc, new, reported, edit, tol, reach)
     })?;
     Ok(Applied {
         doc,
@@ -4585,16 +4911,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
 /// in the type rather than in [`EditRecord::minted`]'s `Option`.
 pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
-    node: &Node<P>,
+    node: &Node<P::Authored, Formula>,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let edit = DocEdit::InsertNode {
-        node: Box::new(node.clone()),
-    };
-    let DocEdit::InsertNode { node } = &*lowered(doc, &edit) else {
-        unreachable!("lowering keeps an edit's arm")
-    };
     let (doc, id, maintenance) = door(doc, tol, |new, reported| {
         insert_into(doc, new, reported, node, tol, Some(reach))
     })?;
@@ -4622,37 +4942,15 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // word and reports nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
     let wrote = write(&mut new, &mut reported)?;
-    // The post-condition, on EVERY arm: a stored node reads variables
-    // by id, so no name leaf survives the write. Each writing arm
-    // lowers and checks what it writes; this is what says so rather
-    // than assuming it, and refuses loud where an arm did not.
-    for (&node, n) in new
-        .order
-        .iter()
-        .filter_map(|id| Some((id, new.nodes.get(id)?)))
-    {
-        let mut names = Vec::new();
-        for expr in n.exprs() {
-            expr.named_reads(&mut names);
-        }
-        if let Some((name, _)) = names.into_iter().next() {
-            return Err(EditError::NameLeafWritten {
-                node: written(doc, node, n),
-                name,
-            });
-        }
-    }
     // VR7, on EVERY arm: an anonymous variable is read by something, so
     // the edit that detached its last reader removes it. The mint log
     // keeps its id.
-    for var in new.unread_vars() {
-        if !new.var_names.contains_key(&var) {
-            new.vars.remove(&var);
-            new.var_order.retain(|&held| held != var);
-            reported.push(Maintenance::AnonymousVarRemoved {
-                var: doc.spoken_var(var),
-            });
-        }
+    for var in new.unread_anonymous_vars() {
+        new.vars.remove(&var);
+        new.var_order.retain(|&held| held != var);
+        reported.push(Maintenance::AnonymousVarRemoved {
+            var: doc.spoken_var(var),
+        });
     }
     // The D-2 backstop, on EVERY arm: the maintenance rules make the
     // invariant-violating states unreachable, and this is what says so
@@ -4735,10 +5033,28 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &mut Doc<P>,
     reported: &mut Vec<Maintenance>,
-    node: &Node<P>,
+    authored: &Node<P::Authored, Formula>,
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<RecipeNodeId, EditError> {
+    // The node as the door writes it, lowered before anything else is
+    // asked of it: its id is minted from the lowered node, so a node
+    // authored by name and the same node authored by id mint one id.
+    // A refusal speaks the node by the id drawn from it with every name
+    // the document holds lowered, so the two spellings speak one id
+    // even where some other name does not lower.
+    let node = &lower_node(doc, authored, tol, || {
+        let mut held = authored.clone();
+        for formula in held.exprs_mut() {
+            *formula = formula.lower_held(&|name| doc.lowering_scope(name));
+        }
+        let would = new
+            .mint
+            .clone()
+            .insert(&held)
+            .unwrap_or_else(|crate::NodeIdCollides { id }| id);
+        SpokenNode::entering(would, &held)
+    })?;
     // Liveness, and it stays spelled here rather than moving to
     // a shared home: the rule IS the node map's own lookup, so
     // the load door's `DanglingInput` walk and this loop share
@@ -5005,10 +5321,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // rather than the program. Minting extends a mint held
             // aside, so a refusal further down leaves the document's
             // untouched.
+            let loops = lower_loops(doc, *node, loops)?;
             let mut mint = new.mint.clone();
             let (minted, dropped) =
-                settle_step_ids(&doc.spoken(*node), old_ids, loops, ids, &mut mint)?;
-            let Some(rewritten) = payload.with_program(loops.clone(), minted) else {
+                settle_step_ids(&doc.spoken(*node), old_ids, &loops, ids, &mut mint)?;
+            let Some(rewritten) = payload.with_program(loops, minted) else {
                 return Err(EditError::SetProgramOnNonProfile {
                     node: doc.spoken(*node),
                 });
@@ -5102,7 +5419,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     slot: path.slot,
                 });
             };
-            let rebuilt = root
+            let rebuilt = Formula::from(root)
                 .with_replaced(&path.path, expr.clone())
                 .ok_or_else(|| EditError::PathOffTree {
                     node: doc.spoken(path.node),
@@ -5129,19 +5446,24 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     holder: doc.spoken_var(holder),
                 });
             }
-            // The definition is checked BEFORE anything is minted: a
+            // A free definition is checked BEFORE anything is minted: a
             // definition fault outranks a collision, and a refused
-            // declare speaks the id it would have minted.
-            let would = new.mint.would_declare(def.kind());
-            check_var_def(&SpokenVar::new(would, Some(name.clone())), def)?;
+            // declare speaks the id it would have minted. What a defined
+            // one reads is asked after, with the rest of its checks.
+            let spoken = SpokenVar::new(new.mint.would_declare(def.kind()), Some(name.clone()));
+            if let VarDecl::Free(free) = def {
+                check_var_def(&spoken, &VarDef::Free(free.clone()))?;
+            }
             let mut mint = new.mint.clone();
             let id = mint
                 .declare(def.kind())
                 .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
+            let def = lower_decl(doc, &spoken, def)?;
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
             new.var_names.insert(id, name.clone());
             new.var_order.push(id);
+            check_definition(new, id)?;
             EditRecord {
                 minted: None,
                 minted_var: Some(id),
@@ -5149,7 +5471,15 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
         }
         DocEdit::DefineVar { var, def } => {
-            let (id, spoken, _) = standing_var(doc, var, CarryForwardDoor::Definition)?;
+            let Some(id) = doc.resolve_var(var) else {
+                return Err(EditError::UnknownVar {
+                    var: var.clone(),
+                    door: CarryForwardDoor::Definition,
+                });
+            };
+            let spoken = doc.spoken_var(id);
+            // The kind first: a definition of another kind is refused
+            // whatever it reads, and what it reads is asked after.
             let kind = doc.var(id).map_or(def.kind(), Var::kind);
             if def.kind() != kind {
                 return Err(EditError::VarKindFixed {
@@ -5158,8 +5488,20 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     offered: def.kind(),
                 });
             }
-            let VarDef::Free(value) = def;
-            write_free(new, id, &spoken, value.clone())?
+            let def = lower_decl(doc, &spoken, def)?;
+            match def {
+                VarDef::Free(value) => write_free(new, id, &spoken, value)?,
+                VarDef::Defined(_) => {
+                    check_var_def(&spoken, &def)?;
+                    new.vars.insert(id, Var::new(def));
+                    check_definition(new, id)?;
+                    EditRecord {
+                        minted: None,
+                        minted_var: None,
+                        structural: kind == VarKind::Count,
+                    }
+                }
+            }
         }
         DocEdit::SetVarValue { var, value } => {
             let (id, spoken, declared) = standing_var(doc, var, CarryForwardDoor::Value)?;
@@ -5232,12 +5574,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     new.var_names.insert(id, name.clone());
                 }
                 None => {
-                    if doc.var_readers(id).is_empty() {
+                    new.var_names.remove(&id);
+                    if new.unread_anonymous_vars().contains(&id) {
                         return Err(EditError::AnonymousVarUnread {
                             var: doc.spoken_var(id),
                         });
                     }
-                    new.var_names.remove(&id);
                 }
             }
             // A reader holds the id: nothing evaluated moves.
@@ -5553,7 +5895,18 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*instance),
                 });
             };
-            held.clone_from(offset);
+            *held = match offset {
+                None => None,
+                Some(offset) => {
+                    let rows = offset.rows();
+                    let lowered = lower_value(doc, &rows, |f| offset.try_map_slots(&mut |e| f(e)))
+                        .map_err(|(slot, fault)| {
+                            let site = slot.map_or(ExprSite::Payload, ExprSite::Slot);
+                            name_refusal(doc, doc.spoken(*instance), site, fault)
+                        })?;
+                    Some(lowered)
+                }
+            };
             // The offset's rigid steps are the instance's slots, held
             // to the insert door's own checks: dimensions and parameter
             // references. Its literal steps meet the frame rule in the
@@ -6034,7 +6387,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     before: &Doc<P>,
     id: RecipeNodeId,
     slot: SlotId,
-    expr: &Expr,
+    formula: &Formula,
 ) -> Result<(), EditError> {
     let Some(node) = new.nodes.get(&id) else {
         return Err(EditError::UnknownNode {
@@ -6056,7 +6409,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
         slot,
         expected,
         found,
-    }) = slot.dimension_fault(expr)
+    }) = slot.dimension_fault(formula)
     {
         return Err(EditError::SlotDimensionMismatch {
             slot,
@@ -6064,6 +6417,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
             found,
         });
     }
+    let expr = &lower_at(before, || spoken.clone(), ExprSite::Slot(slot), formula)?;
     check_reads(new, &spoken, ExprSite::Slot(slot), expr)?;
     if let Some(target) = new.nodes.get_mut(&id).and_then(|n| n.expr_mut(slot)) {
         *target = expr.clone();
@@ -6128,35 +6482,6 @@ mod tests {
     use super::DocEdit;
     use crate::program::ProfileProgram;
     use crate::test_support::len;
-
-    /// **The door's post-condition is checked, not assumed**: a write
-    /// that leaves a name leaf in a stored node refuses
-    /// `NameLeafWritten`, naming the node and the name. No public arm
-    /// reaches it — each lowers and checks what it writes first — so the
-    /// row hands [`super::door`] a write that does not, which is the
-    /// defect the check exists to refuse rather than store.
-    #[test]
-    fn a_write_that_leaves_a_name_leaf_refuses_name_leaf_written() {
-        let tol = geom_core::Tol::witness();
-        let (doc, [extrude, _, _]) = crate::test_support::clipped_cylinder(tol);
-        let width = crate::VarName::from_static("width");
-        let unlowered = crate::Expr::named(width.clone(), crate::Dimension::Length);
-        let refused = super::door(&doc, tol, |new, _| {
-            let node = new.nodes.get_mut(&extrude).expect("the extrude is live");
-            *node
-                .expr_mut(crate::node::SlotId::Distance)
-                .expect("a distance slot") = unlowered;
-            Ok(())
-        })
-        .map(|_| ())
-        .expect_err("a stored name leaf is refused");
-        match refused {
-            super::EditError::NameLeafWritten { node, name } => {
-                assert_eq!((node.id(), name), (extrude, width));
-            }
-            other => panic!("the post-condition refuses, got {other:?}"),
-        }
-    }
 
     /// **The datum question is answered by the edit too**: the insert
     /// of a mate and a slot edit at a mate's frame-offset step write a
@@ -6230,7 +6555,7 @@ mod tests {
             DocEdit::SetStructuralParam {
                 node: id,
                 slot: crate::node::SlotId::Count,
-                expr: crate::expr::Expr::count(1),
+                expr: crate::Formula::count(1),
             },
             DocEdit::SetParam {
                 node: id,

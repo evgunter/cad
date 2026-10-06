@@ -33,8 +33,9 @@ use slotmap::SecondaryMap;
 
 use super::{NullEdgeRecord, PlaneSide, SectorEntry, SectorEntryKind, SplitReduceError};
 use crate::body::Body;
-use crate::entity::VertexKey;
+use crate::entity::{EntityId, VertexKey};
 use crate::euler::{MevSite, RunSite};
+use crate::live::proven;
 use crate::null::{NewVertexSide, NullEdge};
 
 /// A maximal cyclic run of ABOVE entries, by entry index.
@@ -98,19 +99,39 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
             // physical sector: the strut spliced in that sector's
             // corner, whose tip is the Below copy while the base vertex
             // keeps the Above run.
-            (Some(first), Some(last)) => match body
-                .run_site(first.he, last.he)
-                .ok_or(SplitReduceError::CorruptOperand { vertex })?
-            {
+            (Some(first), Some(last)) => match body.run_site(first.he, last.he).unwrap_or_else(|| {
+                unreachable!(
+                    "the run {:?} ..= {:?} at {vertex:?} has no orbit successor: its halves come \
+                     from the orbit the reduction just walked, the reduction kills nothing, and \
+                     {}",
+                    first.he,
+                    last.he,
+                    crate::live::NAMES_ONLY_LIVE
+                )
+            }) {
                 site @ RunSite::Fan { .. } => (site.mev_site(), false, false),
                 site @ RunSite::WholeOrbit { .. } => (site.mev_site(), true, true),
             },
-            // Dup-only run: the dangling strut inside the wide sector.
-            // The entry after a bisector duplicate is always the next
-            // real orbit edge; the strut splices immediately before it,
-            // i.e. inside the sector's corner.
+            // Dup-only run: the dangling strut inside the wide sector P,
+            // spliced before `after`, the next real orbit edge Q. The run
+            // is P's one duplicate (sharing P's half), and runs being
+            // maximal, neither P's entry nor Q's is Above. Every other
+            // run's mint moves only Above halves, and splices only
+            // before its first half, the successor of its last, or its
+            // own `after`, whose predecessor is another sector: none is
+            // Q. So the corner is still `after`'s at `vertex`, however
+            // many runs minted first.
             _ => {
                 let after = &entries[(run.start + run.len) % n];
+                if body.proven_orbit_step(entries[run.start].he) != after.he
+                    || proven(&body.half_edges, after.he, EntityId::HalfEdge).start != vertex
+                {
+                    unreachable!(
+                        "the duplicate run {run:?}'s corner before {:?} left {vertex:?} or gained \
+                         a half: no other run's mint touches it",
+                        after.he
+                    );
+                }
                 (
                     MevSite::Fan {
                         he1: after.he,
@@ -188,5 +209,62 @@ mod tests {
         );
         // Three runs, each a single entry.
         assert_eq!(above_runs(&entries(&[A, B, A, B, A, B])).len(), 3);
+    }
+
+    /// **A duplicate run minted after another run hangs its strut in
+    /// its own corner.** A plane through the L-prism's reflex corner
+    /// crosses its neighborhood in two Above runs, one the reflex
+    /// sector's duplicate alone; which mints first follows the orbit's
+    /// start. One of the corner's three starts mints the duplicate's
+    /// strut second (read off the records), and the reduction builds at
+    /// every start. The teeth are those builds and the arm's
+    /// `unreachable!`: a corner moved by another run panics there.
+    #[test]
+    fn a_duplicate_run_after_another_run_keeps_its_corner() {
+        use crate::test_support_fixtures::{prism, split_plane};
+        use geom_core::{Point3, Tol, Vec3};
+        let tol = Tol::witness();
+        let profile = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ];
+        let (theta, phi) = (std::f64::consts::TAU * 0.37 / 12.0, 0.05_f64);
+        let plane = split_plane(
+            Point3::new(1.0, 1.0, 1.0),
+            -Vec3::new(theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()),
+            tol,
+        );
+        let built = prism::<f64>(&profile, 1.0, tol);
+        let corner = built.top[3];
+        let orders: Vec<Vec<bool>> = built
+            .body
+            .vertex_orbit_linked(corner)
+            .into_iter()
+            .map(|start| {
+                let mut body = built.body.clone();
+                body.get_vertex_mut(corner).unwrap().emanating = Some(start);
+                crate::splitting::reduce(&body, &plane, tol)
+                    .unwrap()
+                    .null_edges
+                    .iter()
+                    .filter(|r| r.at_vertex == corner)
+                    .map(|r| r.dangling)
+                    .collect()
+            })
+            .collect();
+        let fan_first = vec![false, true];
+        assert!(
+            orders.len() == 3
+                && orders.iter().filter(|&o| *o == fan_first).count() == 1
+                && orders
+                    .iter()
+                    .all(|o| *o == fan_first || *o == [true, false]),
+            "two runs at each of three starts, the duplicate's strut minted second at exactly \
+             one: {orders:?}"
+        );
     }
 }

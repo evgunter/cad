@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Expr;
 use editor_core::ExtrudeSide;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -36,7 +37,7 @@ use editor_core::range::{
     CertifiedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range, derive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
     LoopProgram, Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
     SpokenNode, StableName, VarName, evaluate,
 };
@@ -52,8 +53,8 @@ fn var(doc: &editor_core::ProfileDoc, n: &'static str) -> editor_core::VarId {
     doc.var_named(n).expect("the fixture declares it")
 }
 
-fn param(n: &'static str) -> Expr {
-    Expr::named(name(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(name(n), Dimension::Length)
 }
 
 /// The drive's budgets, both of them the caller's: the query is on
@@ -73,11 +74,11 @@ fn frame(r: &mut Recorder) -> RecipeNodeId {
 fn declare(r: &mut Recorder, n: &'static str, value: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(n),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
     });
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
@@ -171,7 +172,7 @@ fn two_param_slab() -> ProfileDoc {
     declare(&mut r, "depth", 1.0);
     r.push(DocEdit::DeclareVar {
         name: name("side"),
-        def: editor_core::VarDef::Free(FreeVar::continuous_with(
+        def: editor_core::VarDecl::Free(FreeVar::continuous_with(
             Dimension::Length,
             1.0,
             Distribution::Uniform { lo: -0.1, hi: 0.1 },
@@ -212,7 +213,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     });
     let pat = r.insert(Node::Pattern {
         input: e,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
@@ -346,7 +347,7 @@ fn a_driven_step_certifies_within_its_turn() {
         });
         let pattern = r.insert(Node::Pattern {
             input: e,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Circular {
                 axis,
                 step: fixture::ang(step),
@@ -726,7 +727,7 @@ fn the_slot_rewrite_is_exact() {
             .doc
             .node(node)
             .and_then(|n| n.expr(SlotId::Distance)),
-        Some(&Expr::var(derived.axis, Dimension::Length))
+        Some(&editor_core::Expr::var(derived.axis, Dimension::Length))
     );
     // The input document declared no parameter at all; the derived one
     // declares exactly the query's.
@@ -936,7 +937,7 @@ fn a_profile_step_argument_widens() {
     .unwrap_or_else(|e| panic!("the {} slot widens: {e}", slot.label()));
     assert_eq!(
         derived.doc.node(p).and_then(|n| n.expr(slot)),
-        Some(&Expr::var(derived.axis, slot.dimension())),
+        Some(&editor_core::Expr::var(derived.axis, slot.dimension())),
         "the slot names the synthetic parameter"
     );
 }
@@ -959,7 +960,7 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::new(spelled.clone()).expect("an author can type it"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(
+                def: editor_core::VarDecl::Free(FreeVar::continuous(
                     Dimension::Length,
                     3.0 + i as f64,
                 )),
@@ -997,7 +998,7 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
             .doc
             .node(node)
             .and_then(|n| n.expr(SlotId::Distance)),
-        Some(&Expr::var(derived.axis, Dimension::Length)),
+        Some(&editor_core::Expr::var(derived.axis, Dimension::Length)),
         "the slot reads the synthetic parameter, not an authored one"
     );
 }

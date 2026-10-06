@@ -115,3 +115,88 @@ independent verifier session checked the fix pass: 8 of 9 mutants red and every 
 `docs/doc-ledger/intent-vars-1-spec.md`. `no-dimensioned-literal-in-a-slot`
 and `parameters-defined-by-formulas` are unparked; the literal retirement
 is next.
+
+## 2026-10-05 — the literal retirement's spec (`docs/INTENT-LITERALS-SPEC.md`)
+
+A spec writer read the merged code and sized every literal site. VR4
+cannot land before a slot can hold an anonymous *defined* variable, so
+`parameters-defined-by-formulas` merges into this unit as its first PR.
+The unit lands in four PRs, each green:
+
+- A: definitions.
+- B: authored `Formula` and stored `Expr`, with byte-identical goldens.
+- C: a slot holds a `VarId`.
+- D: `Expr` holds no float.
+
+All nine of the spec's recommendations were accepted (§11). Two were
+written into VARIABLES-DESIGN:
+
+- A lone number at a slot's root is a typed value (VR6).
+- A `Measure`'s arithmetic stays a formula in the node until stage 2
+  (VR4).
+
+Both elaborate D10 and change no ratified text. The spec found that C
+makes separately typed equal radii lose their declared evidence; a
+fixture that relied on it shares one variable instead. Ev has said to
+proceed through the plan without asking.
+
+## 2026-10-05 — INTENT-LITERALS PR A, definitions (`intent/literals-a`)
+
+A variable may be defined by an `Expr` over other variables
+(`VarDef::Defined`), authored as `VarDecl` and lowered at the edit door.
+The doors refuse a definition cycle, a read the document does not
+answer, and an expansion past `DEFINITION_NODE_BOUND` (4096 nodes); the
+load door refuses the same in two new walks. The environments bind
+definitions over their inputs in definition order, so a defined
+variable carries its inputs' enclosure, tangent or symbol; the seed door
+refuses one. Coincidence tokens and content keys expand definitions,
+`DocDiff::vars` closes over them, and the anonymous lifecycle cascades
+through them. The viewer's parameter text door defines a variable, and
+retires `Refusal::ParamNotANumber`.
+
+Filed: `viewer-value-doors-read-a-defined-variable-as-absent`.
+
+## 2026-10-05 — INTENT-LITERALS PR B, authored Formula and stored Expr (`intent/literals-b`, PR 4072)
+
+One tree, `ExprTree<L>`, serves two forms: the stored `Expr` reads
+every variable by id, and the authored `Formula` may also write a name.
+Nodes, programs, placements and measures are generic over the slot
+form; a `DocEdit` carries the authored form, and every door lowers it
+before anything else reads it, refusing an unlowerable name in the
+existing vocabulary. The type now carries what `NameLeafWritten` and
+load walk 4 (`NamedReaderInSnapshot`, with its definition twin)
+checked, so all three are deleted. `parse_expr` is `parse_formula`.
+Python's `Expr` class is `Formula`, a stored definition reads back as a
+read-only `Expr`, and `ParamName`, `DocParam` and `DocParamValue` are
+`VarName`, `FreeVar` and `FreeValue`. Goldens, corpus files and digests
+are byte-identical.
+
+Ruled by the lane: an edit refused for two faults at once may now name
+its unlowerable name first (InsertNode, SetProgram, SetOffset; SetParam
+and SetExpression keep their order); a name read at another kind is
+`var_kind_mismatch` in Python rather than `unlowered_name`;
+`GeomPred.datum_distance`'s comparand stays a stored `Expr`, so a
+written name refuses where the predicate is built; the error tag words
+(`unknown_param`, …) keep their spelling.
+
+Closed: `python-param-classes-name-a-variable`.
+### PR A review pass (both reviewers APPROVE-WITH-FIXES, no MAJOR)
+
+- The viewer's text door folds constant text, continuous or count, to a
+  value (`SetVarValue`), so a toleranced parameter keeps its tolerance.
+  Only text that reads a variable defines one. A value typed over a
+  definition frees the variable and writes through the value door in one
+  action, so `3` over a length refuses `VarValueKindMismatch` whether the
+  variable is free or defined.
+- A defined parameter's row has the free row's field, showing its
+  formula. A formula typed into it redefines the variable; a number
+  frees it.
+- The order memo is gone. `definition_order` is Kahn's algorithm over
+  one adjacency, and the other definition walks read the same index.
+- The edit and load doors ask one `Doc::expansion_fault`, and the
+  definition sentences render once for both.
+- `Doc.definitions` lists the named defined variables in Python.
+- Each mutant the review found surviving has a row, and there are MC and
+  symbolic-tier rows.
+
+Filed: `definition-node-bound-is-re-measured-against-the-corpus-after-d`.

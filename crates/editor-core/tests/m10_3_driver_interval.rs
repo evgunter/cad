@@ -64,7 +64,7 @@ use editor_core::drive::{
     RefusalReason, SymbolicDials, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
     LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
     ProfileProgram, VarName, evaluate,
 };
@@ -80,8 +80,8 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str) -> Expr {
-    Expr::named(name(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(name(n), Dimension::Length)
 }
 
 fn uniform(w: f64) -> Distribution {
@@ -95,7 +95,7 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
@@ -109,7 +109,7 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -152,11 +152,11 @@ pub(crate) fn notch(nominal: f64, half: f64) -> ProfileDoc {
 
 /// [`notch`] with the parameter's distribution and the vertex's
 /// height expression given.
-pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Expr) -> ProfileDoc {
+pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("height"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -195,7 +195,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -204,7 +204,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     });
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.5,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -247,7 +247,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("axis"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 20.0 * eps(),
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -272,7 +272,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
             axis: [
                 scl(0.0),
                 scl(0.0),
-                Expr::named(name("axis"), Dimension::Scalar),
+                Formula::named(name("axis"), Dimension::Scalar),
             ],
             angle: ang(0.0),
         },

@@ -393,6 +393,7 @@ use geom_brep::{
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
+use crate::attach::Named;
 use crate::body::{Body, Walk};
 use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
@@ -2566,6 +2567,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => {
             "its faces are not certainly crossing along it, so they do not fix where it runs"
         }
+        CertifyError::PlaneNurbs(P::TubeNotOneArc { .. }) => {
+            "its curve is not proved to span one arc of its faces' crossing"
+        }
         CertifyError::NurbsLaneNotSupplied => {
             "it lies between a plane and a spline face, and the check that ran was given no \
              plane x NURBS lane, so nothing about it was checked"
@@ -2614,6 +2618,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TransversalityEscalated { .. }
                 | P::Limb { .. }
                 | P::TubeStraddles { .. }
+                | P::TubeNotOneArc { .. }
                 | P::Escalated { .. }
                 | P::ReportedTransversalityPoisoned(_)
                 | P::ChartSpeed(_),
@@ -2985,25 +2990,121 @@ const OFF_BOUNDARY: &str = "Recourse: move the geometry clear of the boundary";
 
 fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
     match e {
-        ContainError::Escalated(diag) => (
-            "a point of it lies too close to a boundary to place at this tolerance".into(),
-            own_close(&diag.margin, OFF_BOUNDARY),
+        ContainError::Escalated(diag) => close_to_boundary(diag),
+        ContainError::RayExhausted => (GRAZED.into(), MOVE_GEOMETRY),
+        ContainError::StaleFace(_) => (
+            "a face the check asked about does not resolve in the body".into(),
+            DEFECT,
         ),
-        ContainError::RayExhausted => (
-            "a point of it lies too close to a boundary to place at this tolerance".into(),
-            OFF_BOUNDARY,
+        ContainError::EmptyLoop(_) => (
+            "a loop of its boundary is a lone vertex, which bounds no region".into(),
+            DEFECT,
         ),
-        ContainError::Corrupt => ("its boundary could not be walked".into(), DEFECT),
-        // The edge is whatever the body's producer made — a shell's or a
-        // revolve's section of a torus as readily as a drawn spline — so
-        // the cause is the check's, and no redrawing is prescribed.
-        ContainError::Uncrossable(u) => (
+        ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT),
+        ContainError::Curved(e) => classify_point_in_solid(e),
+        ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET),
+    }
+}
+
+const CLOSE_TO_BOUNDARY: &str =
+    "a point of it lies too close to a boundary to place at this tolerance";
+
+const UNWALKABLE: &str = "its boundary could not be walked";
+
+/// Every ray parity cast grazed, for a point a pre-pass had already
+/// placed off the boundary.
+const GRAZED: &str =
+    "a point the check read is off the boundary, but every test ray from it grazed the boundary";
+
+/// The lever for a point with nothing to declare a coincidence with.
+const MOVE_GEOMETRY: &str = concat!("Recourse: ", geom_core::coincidence_move_arm!());
+
+fn close_to_boundary(diag: &Indeterminate) -> (Cow<'static, str>, &'static str) {
+    (
+        CLOSE_TO_BOUNDARY.into(),
+        own_close(&diag.margin, OFF_BOUNDARY),
+    )
+}
+
+// The edge is whatever the body's producer made — a shell's or a
+// revolve's section of a torus as readily as a drawn spline — so the
+// cause is the check's, and no redrawing is prescribed.
+fn uncrossable(u: &crate::splitting::Uncrossable) -> Cow<'static, str> {
+    format!(
+        "every test ray from a point the check asked about could meet a {} edge of the \
+         boundary, which the check cannot yet cross",
+        u.carrier.word()
+    )
+    .into()
+}
+
+/// A curved face's read, carried whole from the solid door. An arm whose
+/// kind the face door also raises at its top level (`Escalated`,
+/// `RayExhausted`, a corrupt loop, an uncrossable edge) reads as that
+/// arm does; the rest have texts of their own. At rest the body has
+/// passed tier 2, so an arena claim (`CorruptFace`, `NoSuchSolid`, a
+/// corrupt or off-plane loop) is the producer's defect.
+fn classify_point_in_solid(
+    e: &crate::boolean::PointInSolidError,
+) -> (Cow<'static, str>, &'static str) {
+    use crate::boolean::PointInSolidError as S;
+    use crate::splitting::{OffPlaneCause, PointInLoopError as L};
+    match e {
+        S::Escalated { diag, .. } | S::Loop(L::Escalated { diag, .. }) => close_to_boundary(diag),
+        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY),
+        S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT),
+        S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
+            (uncrossable(u), NOT_YET)
+        }
+        S::Loop(L::OffPlane(o)) => (
+            match o.cause {
+                OffPlaneCause::Loop { .. } => "a flat face's boundary does not lie in its plane",
+                OffPlaneCause::Query => {
+                    "a point the check read does not lie in the plane of the flat face it tested"
+                }
+                OffPlaneCause::NormalNotUnit => {
+                    "the normal the check read for a flat face's plane is not of unit length"
+                }
+            }
+            .into(),
+            DEFECT,
+        ),
+        S::CorruptFace { .. } => (
+            "a face the check read is broken: it cannot be walked, or names something that is \
+             gone"
+                .into(),
+            DEFECT,
+        ),
+        S::NoSuchSolid { .. } => (
+            "a solid the check asked about does not resolve in the body".into(),
+            DEFECT,
+        ),
+        // Check 7 passes a volume in band of zero, so the body may carry
+        // such a solid at rest; it is the model's to fix, as the census
+        // says (`Undecided::ZeroVolume`).
+        S::ZeroVolumeBody => (
+            "a solid the check read encloses no measurable volume, so nothing can be inside it"
+                .into(),
+            "Recourse: fix that solid so it encloses a volume",
+        ),
+        S::VolumeUncertified => (
+            "a solid's volume cannot be certified, so which side of it is inside cannot be read"
+                .into(),
+            NOT_YET,
+        ),
+        S::KindUnsupported { kind, .. } => (
             format!(
-                "every test ray from a point the check asked about could meet a {} edge \
-                 of the boundary, which the check cannot yet cross",
-                u.carrier.word()
+                "a face the check read is a {} surface, which it has no way yet to cross",
+                crate::boolean::kind_word(*kind)
             )
             .into(),
+            NOT_YET,
+        ),
+        S::PartialSphereFace { .. }
+        | S::PartialConeFace { .. }
+        | S::PartialTorusFace { .. }
+        | S::WallOutlineUnsupported { .. } => (
+            "a curved face's trim is one the check cannot yet read".into(),
             NOT_YET,
         ),
     }
@@ -3046,10 +3147,7 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "their overlap is too close to call at this tolerance",
             too_close(Some(&diag.margin)),
         ),
-        ChartRegionError::RayExhausted => (
-            "a point lies too close to a boundary to place at this tolerance",
-            too_close(None),
-        ),
+        ChartRegionError::RayExhausted => (GRAZED, too_close(None)),
         ChartRegionError::WitnessBudgetExhausted { .. } => (
             "their boundaries cross too many times for the check to finish",
             "Recourse: simplify the faces' boundaries",
@@ -4508,25 +4606,38 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     }
 }
 
-/// **The solids of `body` that check 7 refuses as inside-out** — its
-/// [`ValidationError::NegativeVolume`] verdicts and nothing else, at the
-/// lane `quad` gives. A solid whose sign the lane leaves undecided, or
-/// cannot measure, is not named: this reads only what check 7 decides
-/// definitely. Premise: tier 1 is clean ([`check7_subjects`]).
-pub(crate) fn inside_out_solids<T: geom_core::Decide>(
+/// **Where `body` holds material wound negative, read as tier 3 reads
+/// it**, at the lane `quad` gives: check 7's
+/// [`ValidationError::NegativeVolume`] verdicts, a solid at a time; then,
+/// behind a clean check 7 as tier 3 runs it, check 10's
+/// [`ValidationError::ShellWinding`] verdicts, a shell at a time
+/// ([`shell_winding_errors`]). The first is a solid whose total is
+/// negative. The second is a shell inside a solid whose total is
+/// positive that bounds a region of winding −1: check 10 reads winding
+/// only where a solid holds at most one decided `Outer` shell, and there
+/// a misplaced shell is a `Void` outside the `Outer` or inside another
+/// `Void`, each an inside-out shell.
+///
+/// Nothing else is named. A sign the lane leaves undecided, or cannot
+/// measure, passes, and check 10 is then not run, as tier 3 runs it
+/// behind a clean check 7 only. A solid with two decided `Outer` shells
+/// ([`ValidationError::SolidOuterShells`]) is a piece count, not an
+/// orientation, and its winding is not read. Premise: tier 1 is clean
+/// ([`check7_subjects`]).
+pub(crate) fn wound_negative<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Vec<SolidKey> {
+) -> Vec<ValidationError> {
     match plus_v_by_sign(body, band, tol, quad) {
-        Ok(_) => Vec::new(),
+        Ok(_) => shell_winding_errors(body, band, tol, quad)
+            .into_iter()
+            .filter(|e| matches!(e, ValidationError::ShellWinding { .. }))
+            .collect(),
         Err(errors) => errors
             .into_iter()
-            .filter_map(|e| match e {
-                ValidationError::NegativeVolume { solid } => Some(solid),
-                _ => None,
-            })
+            .filter(|e| matches!(e, ValidationError::NegativeVolume { .. }))
             .collect(),
     }
 }
@@ -8123,6 +8234,82 @@ impl<T: Real> AtRestBody<T> {
     }
 }
 
+/// **Why an operand that carries no verdict is not a finished body** —
+/// the two promises [`AtRestBody::gate_unverdicted`] reads.
+#[derive(Debug)]
+pub(crate) enum Unfinished {
+    /// Tier 2's findings: scaffolding at rest.
+    Scaffolding(Vec<ValidationError>),
+    /// [`wound_negative`]'s findings: solids check 7 decides inside-out
+    /// ([`ValidationError::NegativeVolume`]), or shells check 10 finds
+    /// bounding negative material ([`ValidationError::ShellWinding`]).
+    InsideOut(Vec<ValidationError>),
+}
+
+impl<T: Real> AtRestBody<T> {
+    /// **What a door owes an operand that carries no verdict** — one
+    /// whose scalar runs no at-rest gate
+    /// ([`AtRestOutcome::NotRunAtThisScalar`], a dual). A
+    /// [`AtRestOutcome::Validated`] operand passes untouched: tier 3's
+    /// verdict holds both reads. Otherwise, in order:
+    ///
+    /// 1. tier 2 over the whole body ([`operand_scaffolding`], whose
+    ///    tier-1 panic names `subject`);
+    /// 2. orientation, at the scalar's lane
+    ///    ([`crate::AtRestPolicy::quad_lane`]), read as tier 3 reads it
+    ///    ([`wound_negative`]): check 7 per solid, then, behind a clean
+    ///    check 7, check 10 per shell. A solid whose total it decides
+    ///    definitely negative refuses, and so does a shell bounding
+    ///    negative material inside a solid whose total is positive; a
+    ///    sign it leaves open passes, as tier 3 passes it.
+    ///
+    /// A total hides a sign at both levels: a body's total hides an
+    /// inside-out solid, and a solid's hides an inside-out shell. So a
+    /// door that reads a several-solid operand as one solid runs this
+    /// before it merges.
+    pub(crate) fn gate_unverdicted(
+        &self,
+        subject: impl fmt::Display,
+        band: Band,
+        tol: Tol,
+    ) -> Result<(), Unfinished>
+    where
+        T: Decide + crate::props::AtRestPolicy,
+    {
+        if self.outcome == AtRestOutcome::Validated {
+            return Ok(());
+        }
+        let scaffolding = operand_scaffolding(&self.body, subject);
+        if !scaffolding.is_empty() {
+            return Err(Unfinished::Scaffolding(scaffolding));
+        }
+        let wound = wound_negative(&self.body, band, tol, T::quad_lane());
+        if wound.is_empty() {
+            Ok(())
+        } else {
+            Err(Unfinished::InsideOut(wound))
+        }
+    }
+}
+
+/// **Tier 2's findings on a door's operand.** A tier-1 finding panics
+/// naming `subject` and the first finding: every public door keeps a
+/// body tier-1-valid, so only a kernel bug hands one in.
+pub(crate) fn operand_scaffolding<T: Real>(
+    body: &Body<T>,
+    subject: impl fmt::Display,
+) -> Vec<ValidationError> {
+    let (broken, scaffolding) = closed_by_tier(body);
+    if let Some(first) = broken.first() {
+        unreachable!(
+            "{subject} fails tier 1 ({} findings, the first {first:?}): every public door keeps \
+             the body tier-1-valid",
+            broken.len()
+        );
+    }
+    scaffolding
+}
+
 impl<T: Real> core::ops::Deref for AtRestBody<T> {
     type Target = Body<T>;
 
@@ -8381,7 +8568,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     // pass-8 orphan count exactly like a face's reference does (the
     // removal guard `remove_surface_if_orphaned` honors the same rule).
     for (curve_key, curve) in body.curves.iter() {
-        for surface in Body::description_surfaces(curve) {
+        for surface in Named::of(curve).keys() {
             if body.surfaces.contains_key(surface) {
                 count_ref(&mut surface_refs, surface);
             } else {
@@ -9952,6 +10139,145 @@ mod tests {
                 },
             ])
         );
+    }
+
+    /// A curved face's refusal, carried whole, reads as its own kind:
+    /// an arena claim is a defect, a point at a boundary or one every
+    /// ray grazed is the geometry's to move, and only a read the door
+    /// has no arm for is not yet.
+    #[test]
+    fn carried_curved_refusals_read_by_their_own_kind() {
+        use crate::boolean::PointInSolidError as S;
+        use crate::splitting::{PointInLoopError as L, Uncrossable, UncrossableCarrier};
+        use geom_core::MarginDiag;
+        let diag = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
+            predicate: Some("bool_curved_contain_carrier"),
+            terminal_sliver: false,
+        };
+        let face = FaceKey::default();
+        let r#loop = LoopKey::default();
+        let u = Uncrossable {
+            r#loop,
+            edge: crate::entity::EdgeKey::default(),
+            carrier: UncrossableCarrier::Spline,
+        };
+        let read = |e: S| super::classify_contain(&ContainError::Curved(e));
+        let top = |e: ContainError| super::classify_contain(&e);
+        // The arms the face door also raises at its top level read as
+        // that top-level arm does.
+        for (carried, own) in [
+            (S::Escalated { face, diag }, ContainError::Escalated(diag)),
+            (
+                S::Loop(L::Escalated { r#loop, diag }),
+                ContainError::Escalated(diag),
+            ),
+            (S::RayExhausted, ContainError::RayExhausted),
+            (
+                S::Loop(L::RayExhausted { r#loop }),
+                ContainError::RayExhausted,
+            ),
+            (
+                S::Loop(L::CorruptLoop { r#loop }),
+                ContainError::LoopUnreadable(r#loop),
+            ),
+            (S::Loop(L::Uncrossable(u)), ContainError::Uncrossable(u)),
+            (
+                S::EdgeCarrierUnsupported { face, cause: u },
+                ContainError::Uncrossable(u),
+            ),
+        ] {
+            assert_eq!(read(carried.clone()), top(own), "{carried:?}");
+        }
+        assert_eq!(read(S::Escalated { face, diag }).1, super::OFF_BOUNDARY);
+        // A poisoned margin is a defect on the carried path as on the
+        // top-level one (`own_close`).
+        let poisoned = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..diag
+        };
+        for carried in [
+            S::Escalated {
+                face,
+                diag: poisoned,
+            },
+            S::Loop(L::Escalated {
+                r#loop,
+                diag: poisoned,
+            }),
+        ] {
+            assert_eq!(read(carried.clone()).1, super::DEFECT, "{carried:?}");
+        }
+        // Every ray grazed a point the pre-pass placed off the boundary:
+        // nothing about it is close, at either level.
+        assert_eq!(
+            top(ContainError::RayExhausted),
+            (super::GRAZED.into(), super::MOVE_GEOMETRY)
+        );
+        assert_eq!(read(S::Loop(L::CorruptLoop { r#loop })).1, super::DEFECT);
+        // The solid door's own arena claims: defects at rest.
+        for e in [
+            S::CorruptFace { face },
+            S::NoSuchSolid {
+                solid: crate::entity::SolidKey::default(),
+            },
+        ] {
+            assert_eq!(read(e.clone()).1, super::DEFECT, "{e:?}");
+        }
+        assert!(read(S::CorruptFace { face }).0.contains("broken"));
+        // Each off-plane cause names what lies off the plane, and all
+        // three are the kernel's or the file's.
+        let off_plane = |cause| {
+            read(S::Loop(L::OffPlane(crate::splitting::OffPlane {
+                r#loop,
+                cause,
+            })))
+        };
+        let [lp, query, normal] = [
+            crate::splitting::OffPlaneCause::Loop {
+                edge: crate::entity::EdgeKey::default(),
+            },
+            crate::splitting::OffPlaneCause::Query,
+            crate::splitting::OffPlaneCause::NormalNotUnit,
+        ]
+        .map(off_plane);
+        for (cause, (why, recourse), names) in [
+            ("Loop", &lp, "boundary"),
+            ("Query", &query, "a point"),
+            ("NormalNotUnit", &normal, "normal"),
+        ] {
+            assert_eq!(*recourse, super::DEFECT, "{cause}");
+            assert!(why.contains(names), "{cause}: {why}");
+        }
+        // A solid in band of zero volume passes check 7, so it is the
+        // model's to fix, not a defect.
+        let zero = read(S::ZeroVolumeBody);
+        assert_ne!(zero.1, super::DEFECT);
+        assert!(zero.1.contains("encloses a volume"), "{}", zero.1);
+        // What the door has no arm for yet.
+        let spline = read(S::KindUnsupported {
+            face,
+            kind: geom::SurfaceKind::Nurbs,
+        });
+        assert_eq!(spline.1, super::NOT_YET);
+        assert!(spline.0.contains("spline (NURBS) surface"), "{}", spline.0);
+        assert_eq!(read(S::VolumeUncertified).1, super::NOT_YET);
+        for e in [
+            S::PartialSphereFace { face },
+            S::PartialConeFace { face },
+            S::PartialTorusFace { face },
+            S::WallOutlineUnsupported { face },
+        ] {
+            assert_eq!(
+                read(e.clone()),
+                (
+                    "a curved face's trim is one the check cannot yet read".into(),
+                    super::NOT_YET
+                ),
+                "{e:?}"
+            );
+        }
     }
 
     /// `too_close`'s two sentences are the shared coincidence menu,

@@ -1045,11 +1045,14 @@ test_utils::f6_variants! {
         NameOnMissingVar,
         VarNameTwice,
         SlotDimension,
-        NamedReaderInSnapshot,
         ReaderOfUnmintedVar,
         SlotVarKind,
         PayloadVarKind,
         AnonymousVarUnread,
+        DefinitionReadsUnmintedVar,
+        DefinitionVarKind,
+        DefinitionCycle,
+        DefinitionTooLarge,
         EpsilonInvalid,
         Roots,
         NotAGauge,
@@ -1200,6 +1203,66 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
+            SnapshotError::DefinitionReadsUnmintedVar {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("h")),
+                ),
+                read: editor_core::VarId(tagged(8)),
+            },
+            vec![
+                "the definition of h reads variable #0000000000080000",
+                "never minted",
+            ],
+        ),
+        (
+            SnapshotError::DefinitionVarKind {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("h")),
+                ),
+                read: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(8)),
+                    Some(VarName::from_static("w")),
+                ),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            vec!["w is declared angle but the definition of h reads it as length"],
+        ),
+        (
+            SnapshotError::DefinitionCycle {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("w")),
+                ),
+                through: vec![
+                    editor_core::SpokenVar::new(
+                        editor_core::VarId(tagged(7)),
+                        Some(VarName::from_static("w")),
+                    ),
+                    editor_core::SpokenVar::new(
+                        editor_core::VarId(tagged(8)),
+                        Some(VarName::from_static("h")),
+                    ),
+                ],
+            },
+            vec!["the definition of w reads w back, through w → h → w"],
+        ),
+        (
+            SnapshotError::DefinitionTooLarge {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("h")),
+                ),
+                nodes: 4097,
+            },
+            vec![
+                "h expands",
+                "to 4097 expression nodes, past the bound of 4096",
+            ],
+        ),
+        (
             SnapshotError::VarOrderMismatch,
             vec!["declaration order", "exactly once"],
         ),
@@ -1231,13 +1294,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "Extrude \"base plate\" (000000000005): slot distance",
                 "needs a length expression",
-            ],
-        ),
-        (
-            SnapshotError::NamedReaderInSnapshot { node: node() },
-            vec![
-                "Extrude \"base plate\" (000000000005) reads a variable by name",
-                "reads variables by id",
             ],
         ),
         (

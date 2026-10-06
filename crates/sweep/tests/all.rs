@@ -89,6 +89,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "carved_sphere_operand.rs"]
+mod carved_sphere_operand;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -105,6 +107,8 @@ mod offc_r1_probes;
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "offset_restates_a_neighbour_chart_rim.rs"]
+mod offset_restates_a_neighbour_chart_rim;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
 #[path = "parallel_cylinder_join.rs"]
@@ -194,6 +198,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_clearance_screen_reads_every_feature.rs"]
 mod band_clearance_screen_reads_every_feature;
+#[path = "band_co_requested_boundary.rs"]
+mod band_co_requested_boundary;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -216,6 +222,8 @@ mod blend4_r1_probes;
 mod blend6_verb_vocab;
 #[path = "blend_ball_side_bits.rs"]
 mod blend_ball_side_bits;
+#[path = "blend_bore_two_rims.rs"]
+mod blend_bore_two_rims;
 #[path = "blend_dual_tangent.rs"]
 mod blend_dual_tangent;
 #[path = "blend_margin_payload_interval.rs"]
@@ -910,3 +918,7 @@ mod witness_ladder;
 mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;
+#[path = "pinch_faces_tessellate.rs"]
+mod pinch_faces_tessellate;
+#[path = "rest_nested_strut.rs"]
+mod rest_nested_strut;

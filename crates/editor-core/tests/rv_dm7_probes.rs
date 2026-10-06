@@ -2,9 +2,9 @@
 //! Not a substitute for their rows; a probe lives here when a mutant
 //! showed the case unpinned and the claim it pins is a residue rather
 //! than a documented contract. A probe that turns out to hold a
-//! documented contract moves into the unit suite instead (that is
-//! where `an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
-//! went, to `dm7_delete_strands.rs`).
+//! documented contract moves into the unit suite instead, as the
+//! delete's strand order did
+//! (`dm7_delete_strands::a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset`).
 //!
 //! Two carriers are covered. The payload walk (`review/strands-rv`): a
 //! carrier that names its own space, a mate operand that is a read site
@@ -18,6 +18,7 @@
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
+use editor_core::Formula;
 use editor_core::{
     Alignment, AxisSense, ContactClass, DocEdit, DocumentId, EntityKind, Maintenance, MateFrame,
     MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, solve_document,
@@ -91,7 +92,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     );
 }
 
-fn mate_frame() -> MateFrame {
+fn mate_frame() -> MateFrame<Formula> {
     MateFrame::authored(
         [0.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],

@@ -188,7 +188,7 @@ fn assert_other_rows_kept(
     let before = deep_snapshot(body);
     let rows_before = rows_of_loop(body, other);
     let capture = PanicCapture::install();
-    let got = match capture.run(|| op(&mut body.begin_surgery())) {
+    let got = match capture.run(|| op(&mut body.begin_surgery_on_a_torn_body())) {
         Ok(returned) => Outcome::Returned(returned),
         Err(report) => Outcome::Panicked(report),
     };
@@ -480,7 +480,7 @@ fn a_diversion_paired_with_a_parent_loop_tear_passes_the_proof() {
         body.whole_cycle(wall).contains(&stray),
         "the walk, claim and Whole proof take the stray as a member"
     );
-    let mut scope = body.begin_surgery();
+    let mut scope = body.begin_surgery_on_a_torn_body();
     let got = scope.kfmrh(s.seed, s.wall).map(|_| ());
     drop(scope);
     assert_eq!(got, Ok(()), "kfmrh moves the wall with the stray");
@@ -796,7 +796,9 @@ fn row_walk_rows_on(seeds: &[u64], bodies: &[(&str, BuildFixture)]) -> RowSweep 
                 for call in row_calls(&body) {
                     let cells = table.entry(call.door).or_insert([0; 4]);
                     let mut trial = body.clone();
-                    let outcome = match capture.run(|| (call.run)(&mut trial.begin_surgery())) {
+                    let outcome = match capture
+                        .run(|| (call.run)(&mut trial.begin_surgery_on_a_torn_body()))
+                    {
                         Ok(returned) => Outcome::Returned(returned),
                         Err(report) => Outcome::Panicked(report),
                     };

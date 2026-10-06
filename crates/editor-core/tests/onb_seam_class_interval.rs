@@ -38,8 +38,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::clearance::{ClearanceVerdict, Selection, clearance};
 use editor_core::{
-    Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, VarName,
+    Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, VarName,
 };
 use geom::Surface;
 use geom_brep::newell_plane;
@@ -74,7 +74,7 @@ fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
     r.push(DocEdit::DeclareVar {
         name: VarName::new(axis).expect("a valid parameter name"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -292,7 +292,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
         input: solid,
         placement: editor_core::placement::Step::Rigid {
             translation: [
-                Expr::named(
+                Formula::named(
                     VarName::new("place").expect("a valid parameter name"),
                     Dimension::Length,
                 ),
@@ -300,7 +300,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
                 len(0.0),
             ],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+            angle: Formula::literal(0.0, Dimension::Angle).expect("finite angle"),
         }
         .into(),
     });

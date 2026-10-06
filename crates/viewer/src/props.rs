@@ -15,7 +15,7 @@
 //!
 //! The reason it is a change worth making rather than a convenience:
 //! the display unit is already stored per literal and already round-
-//! trips through persistence — `Expr::literal_with_unit` exists
+//! trips through persistence — `Formula::literal_with_unit` exists
 //! precisely so that "25 mm" comes back as `25 mm` and not as `0.025`.
 //! A panel that showed `0.025` was throwing away information the
 //! document was carrying for it. The conversion is the parser's own
@@ -80,7 +80,7 @@
 //!
 //! **What the affordance offers, measured against this substrate.**
 //! The typed expression API has a text door in BOTH directions —
-//! `parse_expr` inward and `unparse` outward (issue #1103, closed) —
+//! `parse_formula` inward and `unparse` outward (issue #1103, closed) —
 //! so the panel neither parses nor renders expression text itself. It
 //! shows the slot's own source, and hands edited text straight back
 //! through the parser. Beside that it still shows what a user needs in
@@ -108,21 +108,20 @@
 //!   — so the field and the unit picker agree afterwards without
 //!   either being told about the other.
 //!
-//! **The two doors differ in WHERE that text may land, and only
-//! there.** A slot can be driven by an expression, so its text door is
-//! `SessionOp::SetSlotExpression` and `w * 2` is an edit. A document
-//! parameter holds an `f64` and nothing else — there is no
-//! `SetVarExpression` — so its text door is
-//! `SessionOp::SetParamText`, which takes a number and its notation
-//! (`50 mm`) and refuses every other expression by name.
+//! **The two doors differ in WHERE that text lands.** A slot's text
+//! door is `SessionOp::SetSlotExpression`, and `w * 2` drives the slot.
+//! A document parameter's is `SessionOp::SetParamText`: a number and
+//! its notation (`50 mm`) are the free parameter's value, and any
+//! other expression DEFINES the parameter (`DocEdit::DefineVar`),
+//! keeping its identity.
 //!
 //! A slot field that evaluated to a literal shows its number, which
 //! the widget formats (`crate::widgets::number_text`); the unit is the
 //! picker's to say, not the field's. Every other slot field shows
 //! [`field_text`] in its number's place: a driven slot the value its
 //! expression equals, with its keyboard edit opening on the source
-//! ([`field_source`]). A parameter's always shows its number, because
-//! a parameter is never driven by anything.
+//! ([`field_source`]). A free parameter's always shows its number; a
+//! defined parameter's row shows its formula ([`defined_rows`]).
 //!
 //! **Text the field itself produced is not an edit**, at either field
 //! — [`echoed`], one function because it is one rule, asked of the
@@ -131,6 +130,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
     ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VectorSlot, eval,
@@ -169,18 +169,18 @@ impl SlotValue {
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value in
     /// a `Count` dimension — **the same refusal, by name, that
-    /// `Expr::literal` raises for the continuous half**, which is what
+    /// `Formula::literal` raises for the continuous half**, which is what
     /// makes [`field_edit`]'s promise true. That door admits `inf` and
     /// `NaN` as Numbers on the stated ground that the refusal
     /// downstream names the problem; downstream of a `Count` dimension
-    /// there is no literal to refuse, because `Expr::count` takes an
+    /// there is no literal to refuse, because `Formula::count` takes an
     /// integer. `f64 as i64` is a SATURATING cast, not a conversion —
     /// `NaN` is `0` and `inf` is `i64::MAX` — so without this the word
     /// the user typed leaves as an ordinary count that no one asked
     /// for, and every guard downstream of it sees a number.
     ///
     /// The continuous arm refuses nothing here: its value reaches
-    /// `Expr::literal` intact and is refused there, which is the
+    /// `Formula::literal` intact and is refused there, which is the
     /// arrangement this arm is being brought into line with rather
     /// than a second one.
     pub fn of(dimension: Dimension, value: f64) -> Result<Self, DimensionError> {
@@ -279,8 +279,8 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite value (the literal door's refusal).
-    pub fn length_literal(self, metres: f64) -> Result<Expr, DimensionError> {
-        Expr::written_length(WrittenLength::canonical_in(metres, self.length))
+    pub fn length_literal(self, metres: f64) -> Result<Formula, DimensionError> {
+        Formula::written_length(WrittenLength::canonical_in(metres, self.length))
     }
 
     /// An `Angle` literal — [`Self::length_literal`]'s twin.
@@ -288,8 +288,8 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite value.
-    pub fn angle_literal(self, radians: f64) -> Result<Expr, DimensionError> {
-        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle))
+    pub fn angle_literal(self, radians: f64) -> Result<Formula, DimensionError> {
+        Formula::written_angle(WrittenAngle::canonical_in(radians, self.angle))
     }
 
     /// Three `Length` literals — a datum origin, a translation.
@@ -297,7 +297,7 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite component.
-    pub fn length_literals(self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+    pub fn length_literals(self, v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
         Ok([
             self.length_literal(v[0])?,
             self.length_literal(v[1])?,
@@ -310,7 +310,7 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite component.
-    pub fn point_literals(self, p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+    pub fn point_literals(self, p: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
         Ok([self.length_literal(p[0])?, self.length_literal(p[1])?])
     }
 }
@@ -415,7 +415,7 @@ pub fn written_text(canonical: f64, unit: UnitDef) -> String {
 }
 
 /// A written value back to canonical — `n * factor`, which is exactly
-/// the literal semantics `parse_expr` applies to `n <symbol>`, so a
+/// the literal semantics `parse_formula` applies to `n <symbol>`, so a
 /// number typed into a panel field and the same number typed into the
 /// expression field land on the same bits.
 pub fn from_written(written: f64, unit: UnitDef) -> f64 {
@@ -827,7 +827,7 @@ pub enum FieldEdit {
 /// line exactly where the user sees it — `25` is a number, `25 in` is
 /// not, `w * 2` is not — and it inherits `1e-3` and `-4` for free.
 /// A non-finite spelling (`inf`, `NaN`) reads as a Number here on
-/// purpose: `Expr::literal`'s refusal names the problem ("a literal
+/// purpose: `Formula::literal`'s refusal names the problem ("a literal
 /// value must be finite"), where the parser would only say the word
 /// is not a parameter.
 pub fn field_edit(text: &str) -> FieldEdit {
@@ -943,6 +943,45 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
         .collect()
 }
 
+/// One defined variable, as the panel shows it: its formula as the
+/// document's names write it, in a field that takes a new formula or a
+/// value ([`crate::session::SessionOp::SetParamText`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DefinedRow {
+    /// The variable.
+    pub var: VarId,
+    /// The variable as the panel labels it.
+    pub label: SpokenVar,
+    /// Its dimension.
+    pub dimension: Dimension,
+    /// Its definition, unparsed (`Doc::unparse`).
+    pub formula: String,
+    /// What the definition evaluates to, or `None` when it refuses.
+    pub value: Option<SlotValue>,
+}
+
+/// Every defined variable, declaration order.
+pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
+    let env = doc.var_env::<f64>();
+    doc.var_order()
+        .iter()
+        .filter_map(|&var| {
+            let expr = doc.var(var)?.def().defined()?;
+            Some(DefinedRow {
+                var,
+                label: doc.spoken_var(var),
+                dimension: expr.dim(),
+                formula: doc.unparse(expr),
+                value: if expr.dim() == Dimension::Count {
+                    eval_count(expr, &env).ok().map(SlotValue::Count)
+                } else {
+                    eval(expr, &env).ok().map(SlotValue::Continuous)
+                },
+            })
+        })
+        .collect()
+}
+
 /// The edit that writes `value` into `slot` on `node`.
 ///
 /// The structural/continuous divide is decided by the SLOT, which is
@@ -961,8 +1000,8 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
 ///
 /// # Errors
 ///
-/// The dimension refusal `Expr::literal` raises for a value that is
-/// not finite, and `Expr::literal_with_unit`'s
+/// The dimension refusal `Formula::literal` raises for a value that is
+/// not finite, and `Formula::literal_with_unit`'s
 /// `DisplayUnitMismatch` for a unit that does not measure the slot's
 /// dimension — reported rather than silently dropped, because a
 /// mismatched unit means the caller's idea of the slot disagrees with
@@ -974,10 +1013,10 @@ pub fn slot_edit(
     unit: Option<UnitDef>,
 ) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
     let expr = match (value, unit) {
-        (SlotValue::Count(count), _) => Expr::count(count),
-        (SlotValue::Continuous(v), None) => Expr::literal(v, slot.dimension())?,
+        (SlotValue::Count(count), _) => Formula::count(count),
+        (SlotValue::Continuous(v), None) => Formula::literal(v, slot.dimension())?,
         (SlotValue::Continuous(v), Some(unit)) => {
-            Expr::literal_with_unit(v, slot.dimension(), unit)?
+            Formula::literal_with_unit(v, slot.dimension(), unit)?
         }
     };
     Ok(if slot.is_structural() {
@@ -1263,7 +1302,7 @@ pub fn slot_unit_edit(
     unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
     let value = slot_literal(doc, node, slot)?;
-    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
+    let expr = Formula::literal_with_unit(value, slot.dimension(), unit)
         .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
     Ok(DocEdit::SetParam { node, slot, expr })
 }

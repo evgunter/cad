@@ -150,9 +150,9 @@ use geom::surfaces::nurbs::NurbsSurface;
 use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 
 use super::BooleanError;
-use crate::body::{Body, WALKS_CLOSE};
-use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::live::{linked, proven};
+use crate::body::Body;
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary};
+use crate::live::{BoundaryMember, linked, proven};
 
 /// The sweep's box pad in meters — what candidate generation must add
 /// so pruning can never lose an accepted pair. Derivation (each term
@@ -843,10 +843,12 @@ pub(crate) fn meet<T: Real>(a: SpanBox<T>, b: SpanBox<T>) -> SpanBox<T> {
 pub(crate) type TorusWindowPair<T> = (Span<T>, Span<T>);
 
 /// One HALF-EDGE, as the window walk reads it: its stored certified
-/// pcurve cache, and whether the loop traverses it FORWARD (the
-/// `he_plus` side, so the certified span runs `t₀ → t₁`). `None` for a
-/// half-edge with no cache.
-pub(crate) type WindowStep<'a, T> = Option<(&'a geom_brep::PcurveCache<T>, bool)>;
+/// pcurve cache, its image as the loop's lift places it
+/// ([`crate::Body::loop_lift`]), and whether the loop traverses it
+/// FORWARD (the `he_plus` side, so the certified span runs `t₀ → t₁`).
+/// `None` for a half-edge of a loop with no lift.
+pub(crate) type WindowStep<'a, T> =
+    Option<(&'a geom_brep::PcurveCache<T>, geom_brep::Pcurve<T>, bool)>;
 
 /// **A torus face's chart window, from its boundary's stored certified
 /// pcurves — the ONE walk, for every lane.**
@@ -1000,13 +1002,13 @@ impl<T: Real> TorusChartWindow<T> {
     /// images are harmonic (a cone-section image certifies on a cone
     /// only), so any other image abandons the window — which widens the
     /// box to the whole tube, never narrows it.
-    pub(crate) fn step(&mut self, step: WindowStep<'_, T>) {
-        let Some((cache, forward)) = step else {
+    pub(crate) fn step(&mut self, step: &WindowStep<'_, T>) {
+        let Some((cache, image, forward)) = step else {
             self.ok = false;
             return;
         };
         let (t0, t1) = cache.params();
-        let Some(b) = cache.pcurve().closed_form_span_box(t0, t1) else {
+        let Some(b) = image.closed_form_span_box(t0, t1) else {
             self.ok = false;
             return;
         };
@@ -1018,7 +1020,7 @@ impl<T: Real> TorusChartWindow<T> {
             lo: b.v_min,
             hi: b.v_max,
         };
-        let Some(travel) = harmonic_travel(cache.pcurve(), t0, t1, forward) else {
+        let Some(travel) = harmonic_travel(image, t0, t1, *forward) else {
             self.ok = false;
             return;
         };
@@ -1110,29 +1112,48 @@ pub(crate) fn harmonic_travel<T: Real>(
 
 /// **The face's loops, as [`WindowStep`]s** — the one ARENA walk, so
 /// the boolean lane, the census lane and the construction rows read
-/// one traversal rather than three that can drift. `None` for a face
-/// or a loop this cannot walk at all.
+/// one traversal rather than three that can drift.
 ///
 /// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
 /// abandons the window on: it carries no chart image.
-pub(crate) fn face_window_steps<T: Real>(
+///
+/// # Panics
+///
+/// Where `face`, which every caller resolved in `body`, or a record on
+/// the walk from it does not resolve, or a loop walk does not close
+/// (D2 row 4). The bodies are at rest (the census's) or the boolean's
+/// working copies, whose links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
+pub(crate) fn face_window_steps<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-) -> Option<Vec<Vec<WindowStep<'_, T>>>> {
-    let f = body.get_face(face)?;
+) -> Vec<Vec<WindowStep<'_, T>>> {
+    let f = proven(&body.faces, face, EntityId::Face);
     let mut out = Vec::new();
-    for lk in loops_of(f) {
-        let l = body.get_loop(lk)?;
+    for (_, l) in body.face_loops_linked(face, f) {
         let mut steps = Vec::new();
         if let LoopBoundary::Cycle { first } = l.boundary {
-            for he in body.loop_cycle(first)? {
-                let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
-                steps.push(body.pcurve(he).map(|c| (c, edge.he_plus == he)));
+            let cycle = body.loop_walk(first).closed("loop", first);
+            let lifted = crate::pcurves::lifted_images(body, &cycle);
+            for (he, image) in cycle.into_iter().zip(lifted) {
+                let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+                let edge = linked(
+                    &body.edges,
+                    ek,
+                    EntityId::Edge,
+                    EntityId::HalfEdge(he),
+                    "edge",
+                );
+                steps.push(
+                    body.pcurve(he)
+                        .zip(image)
+                        .map(|(c, image)| (c, image, edge.he_plus == he)),
+                );
             }
         }
         out.push(steps);
     }
-    Some(out)
+    out
 }
 
 /// **The ONE walk**, over a face's loops of [`WindowStep`]s — see
@@ -1147,7 +1168,7 @@ pub(crate) fn torus_chart_window<T: Real>(
     let mut acc = TorusChartWindow::new();
     for lp in loops {
         acc.open_loop();
-        for &step in lp {
+        for step in lp {
             acc.step(step);
         }
         if lp.is_empty() {
@@ -1435,7 +1456,9 @@ pub(crate) fn face_box_rule<T: Decide>(
 ///
 /// Where `face`, which the caller read out of `body`, or a record on
 /// the walk from it does not resolve, or a loop walk does not close
-/// (D2 row 4).
+/// (D2 row 4); a torn curve is not an uncertified one. The bodies are
+/// at rest or the reduction's working copies, whose links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -1457,21 +1480,10 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         let (origin, axis) = (bracket_point(origin), bracket_vector(axis));
         let mut acc: Option<Span<f64>> = None;
         let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
-        for lk in loops_of(f) {
-            let l = linked(
-                &body.loops,
-                lk,
-                EntityId::Loop,
-                EntityId::Face(face),
-                "loop",
-            );
-            match l.boundary {
-                LoopBoundary::Empty { vertex } => {
-                    let p = bracket_point(body.linked_vertex_point(
-                        vertex,
-                        EntityId::Loop(lk),
-                        "vertex",
-                    ));
+        for member in body.face_boundary_linked(face, f) {
+            match member {
+                BoundaryMember::Isolated(p) => {
+                    let p = bracket_point(p);
                     grow(edge_axial_span(
                         &origin,
                         &axis,
@@ -1479,55 +1491,39 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                         (&p, &p),
                     ));
                 }
-                LoopBoundary::Cycle { first } => {
-                    for he in body.loop_walk(first).closed("loop", first) {
-                        let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-                        let e = linked(
-                            &body.edges,
-                            ek,
-                            EntityId::Edge,
-                            EntityId::HalfEdge(he),
-                            "edge",
-                        );
-                        let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
-                        let carrier = body
-                            .get_curve_geom(e.curve)
-                            .and_then(crate::null::CurveGeom::certified)
-                            .map(geom_brep::EdgeCurve::carrier);
-                        let axial = match edge_box_rule(carrier) {
-                            // No axial-span closed form is written
-                            // for the spiric; a box that cannot
-                            // claim is the honest answer.
-                            EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
-                                AxialCarrier::Unclaimable
-                            }
-                            EdgeBoxRule::Chord => AxialCarrier::Chord,
-                            EdgeBoxRule::ConicAmplitude {
-                                center,
-                                axis: c_axis,
-                                semi_u,
-                                semi_v,
-                                u_ref,
-                            } => AxialCarrier::Conic {
-                                center: bracket_point(center),
-                                u_ref: bracket_vector(u_ref),
-                                v_ref: bracket_vector(c_axis.cross(u_ref)),
-                                semi_u: semi_u.hi(),
-                                semi_v: semi_v.hi(),
-                                params: body
-                                    .get_curve_geom(e.curve)
-                                    .and_then(crate::null::CurveGeom::certified)
-                                    .map(geom_brep::EdgeCurve::params)
-                                    .map(|(a, b)| (a.lo(), b.hi())),
-                            },
-                        };
-                        grow(edge_axial_span(
-                            &origin,
-                            &axis,
-                            &axial,
-                            (&end(e.he_plus, "he_plus"), &end(e.he_minus, "he_minus")),
-                        ));
-                    }
+                BoundaryMember::Edge { ek, edge: e } => {
+                    let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
+                    let certified = body.edge_curve_linked(ek, e).certified();
+                    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
+                    let axial = match edge_box_rule(carrier) {
+                        // No axial-span closed form is written
+                        // for the spiric; a box that cannot
+                        // claim is the honest answer.
+                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
+                        EdgeBoxRule::Chord => AxialCarrier::Chord,
+                        EdgeBoxRule::ConicAmplitude {
+                            center,
+                            axis: c_axis,
+                            semi_u,
+                            semi_v,
+                            u_ref,
+                        } => AxialCarrier::Conic {
+                            center: bracket_point(center),
+                            u_ref: bracket_vector(u_ref),
+                            v_ref: bracket_vector(c_axis.cross(u_ref)),
+                            semi_u: semi_u.hi(),
+                            semi_v: semi_v.hi(),
+                            params: certified
+                                .map(geom_brep::EdgeCurve::params)
+                                .map(|(a, b)| (a.lo(), b.hi())),
+                        },
+                    };
+                    grow(edge_axial_span(
+                        &origin,
+                        &axis,
+                        &axial,
+                        (&end(e.he_plus, "he_plus"), &end(e.he_minus, "he_minus")),
+                    ));
                 }
             }
         }
@@ -1543,9 +1539,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // (`lo()`/`hi()`), so a bracketed cache widens the window rather
     // than narrowing it.
     let chart_window = |major: T, minor: T| -> Option<TorusWindowPair<f64>> {
-        let steps = face_window_steps(body, face).unwrap_or_else(|| {
-            unreachable!("the window walk of {face:?}'s loops does not close: {WALKS_CLOSE}")
-        });
+        let steps = face_window_steps(body, face);
         torus_chart_window(&steps, major, minor).map(|(u, v)| {
             (
                 Span {
@@ -1727,12 +1721,6 @@ fn aabb_of(s: SpanBox<f64>) -> Aabb {
     }
 }
 
-/// A face's loop keys, outer first — the walk order every arm here
-/// shares (D9: fixed, so two boxes of one face fold identically).
-fn loops_of(f: &crate::entity::Face) -> impl Iterator<Item = LoopKey> + '_ {
-    core::iter::once(f.outer).chain(f.rings.iter().copied())
-}
-
 /// The hull of the face boundary's own certified boxes — every
 /// boundary edge's [`edge_box`], plus the isolated-vertex loops, which
 /// have no edge to speak for them. `None` for a face with no boundary
@@ -1754,26 +1742,11 @@ fn boundary_hull<T: Decide + Bounds>(
 ) -> Option<Aabb> {
     let mut acc: Option<Aabb> = None;
     let mut grow = |x: Aabb| acc = Some(acc.map_or(x, |a: Aabb| a.hull(&x)));
-    for lk in loops_of(f) {
-        let l = linked(
-            &body.loops,
-            lk,
-            EntityId::Loop,
-            EntityId::Face(face),
-            "loop",
-        );
-        match l.boundary {
-            LoopBoundary::Empty { vertex } => {
-                let p = body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex");
-                grow(Aabb::from_points([p]).unwrap_or_else(Aabb::poison));
-            }
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_walk(first).closed("loop", first) {
-                    let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-                    grow(edge_box(body, ek, 0.0));
-                }
-            }
-        }
+    for member in body.face_boundary_linked(face, f) {
+        grow(match member {
+            BoundaryMember::Isolated(p) => Aabb::from_points([p]).unwrap_or_else(Aabb::poison),
+            BoundaryMember::Edge { ek, .. } => edge_box(body, ek, 0.0),
+        });
     }
     acc
 }
@@ -1945,8 +1918,11 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeB
 ///
 /// # Panics
 ///
-/// Where `edge`, which the caller read out of `body`, or a record on
-/// the way to its ends does not resolve (D2 row 4).
+/// Where `edge`, which the caller read out of `body`, its curve or a
+/// record on the way to its ends does not resolve (D2 row 4): a torn
+/// curve is not an uncertified one. The bodies are at rest (the census,
+/// the separation and the operand gate) or the reduction's working
+/// copies, whose links hold by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f64) -> Aabb {
     let e = proven(&body.edges, edge, EntityId::Edge);
     let (a, b) = (
@@ -1954,9 +1930,7 @@ pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f
         edge_end_point(body, edge, e.he_minus, "he_minus"),
     );
     let chord = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
-    let certified = body
-        .get_curve_geom(e.curve)
-        .and_then(crate::null::CurveGeom::certified);
+    let certified = body.edge_curve_linked(edge, e).certified();
     let carrier = certified.map(geom_brep::EdgeCurve::carrier);
     let boxed = match edge_box_rule(carrier) {
         EdgeBoxRule::NoSoundBox => return Aabb::poison(),
@@ -2106,7 +2080,7 @@ pub(crate) fn arc_extent<X: Real>(
 /// The start point of `edge`'s half `he`, which `edge`'s field `field`
 /// names: every hop is a link.
 #[track_caller]
-fn edge_end_point<T: Real>(
+pub(crate) fn edge_end_point<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
     he: HalfEdgeKey,
@@ -2405,6 +2379,22 @@ pub(crate) mod tests {
         );
     }
 
+    /// `face` re-labelled onto `surface`, its edges' descriptions as
+    /// they stand.
+    fn relabel(body: &mut Body<f64>, face: FaceKey, surface: Surface<f64>) {
+        // Lifts RechartUnvouched: each box arm reads the surface a face
+        // is labelled with, and the fixture's edges name the chart it
+        // was built on.
+        body.lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(surface, face, true)],
+                &[],
+                Tol::witness(),
+            )
+        })
+        .unwrap();
+    }
+
     /// A cylinder WALL face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
     /// the radius-`r` cylinder about the z axis, bounded below and
     /// above by circular rims and on the sides by axial lines.
@@ -2579,21 +2569,16 @@ pub(crate) mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let center = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(
-                    Surface::Sphere {
-                        center,
-                        radius: r,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
-                    },
-                    face,
-                    true,
-                )],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(
+                &mut body,
+                face,
+                Surface::Sphere {
+                    center,
+                    radius: r,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+            );
             let b = face_box(&body, face, pad(), witness_band()).unwrap();
             for i in 0..=32 {
                 let theta = core::f64::consts::PI * f64::from(i) / 32.0;
@@ -2633,12 +2618,7 @@ pub(crate) mod tests {
         let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-        body.set_face_surfaces_describing(
-            vec![crate::Rechart::new(surface, face, true)],
-            &[],
-            Tol::witness(),
-        )
-        .unwrap();
+        relabel(&mut body, face, surface);
         (
             body,
             face,
@@ -2991,21 +2971,16 @@ pub(crate) mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let c = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(
-                    Surface::Sphere {
-                        center: c,
-                        radius: r,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
-                    },
-                    face,
-                    true,
-                )],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(
+                &mut body,
+                face,
+                Surface::Sphere {
+                    center: c,
+                    radius: r,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+            );
             let b = face_box(&body, face, pad, witness_band()).unwrap();
             agrees_with_the_rule(
                 &b,
@@ -3155,11 +3130,14 @@ pub(crate) mod tests {
         // calls through those closure parameters match the same text.
         // So are one of `boolean/ops.rs`'s three and `pieces.rs`'s one:
         // the boolean's exit builds the face-box closure the piece
-        // sort's screen calls.
-        const PINNED: [(&str, usize); 6] = [
+        // sort's screen calls. `boolean/torn_hop_rows.rs`' four are not
+        // doors either: its torn-body witnesses call `face_box` and
+        // `edge_box` to show a torn link panics.
+        const PINNED: [(&str, usize); 7] = [
             ("boolean/mod.rs", 2),
             ("boolean/ops.rs", 3),
             ("boolean/reduce.rs", 8),
+            ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
             ("pieces.rs", 1),
             ("separation.rs", 2),
@@ -3241,12 +3219,7 @@ pub(crate) mod tests {
         for s in kinds {
             let kind = s.kind();
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(s, face, true)],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(&mut body, face, s);
             let b = face_box(&body, face, pad(), witness_band()).unwrap();
             assert!(
                 !b.min_x.is_nan(),
@@ -3453,7 +3426,13 @@ pub(crate) mod tests {
     /// A CONE wall face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
     /// the cone of half-angle `alpha` about `z` with its apex at the
     /// origin. Rims are the cone's own circles, sides its generators.
-    fn cone_wall(alpha: f64, u0: f64, u1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
+    pub(crate) fn cone_wall(
+        alpha: f64,
+        u0: f64,
+        u1: f64,
+        z0: f64,
+        z1: f64,
+    ) -> (Body<f64>, FaceKey) {
         let (mut body, face) = revolved_wall(&|z| z * alpha.tan(), u0, u1, z0, z1);
         let cone = Surface::Cone {
             apex: Point3::origin(),
@@ -3461,12 +3440,7 @@ pub(crate) mod tests {
             half_angle: alpha,
             u_ref: Vec3::unit_x(),
         };
-        body.set_face_surfaces_describing(
-            vec![crate::Rechart::new(cone, face, true)],
-            &[],
-            Tol::witness(),
-        )
-        .unwrap();
+        relabel(&mut body, face, cone);
         (body, face)
     }
 
@@ -3592,22 +3566,17 @@ pub(crate) mod tests {
                 let (u_ref, _) = axis.orthonormal_basis();
                 let v_ref = axis.cross(u_ref);
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surfaces_describing(
-                    vec![crate::Rechart::new(
-                        Surface::Torus {
-                            center,
-                            axis,
-                            major_radius: major,
-                            minor_radius: minor,
-                            u_ref,
-                        },
-                        face,
-                        true,
-                    )],
-                    &[],
-                    Tol::witness(),
-                )
-                .unwrap();
+                relabel(
+                    &mut body,
+                    face,
+                    Surface::Torus {
+                        center,
+                        axis,
+                        major_radius: major,
+                        minor_radius: minor,
+                        u_ref,
+                    },
+                );
                 let b = face_box(&body, face, pad(), witness_band()).unwrap();
                 for i in 0..=48 {
                     let theta = 2.0 * core::f64::consts::PI * f64::from(i) / 48.0;
@@ -3638,7 +3607,7 @@ pub(crate) mod tests {
         major: f64,
         minor: f64,
     ) -> Option<TorusWindowPair<f64>> {
-        torus_chart_window(&face_window_steps(body, face)?, major, minor)
+        torus_chart_window(&face_window_steps(body, face), major, minor)
     }
 
     /// A torus face bounded by two LONE full-meridian circles
@@ -3808,7 +3777,7 @@ pub(crate) mod tests {
             // **Each guard, separately.** On this face both fire, so
             // the assertion above outlives either one; these two pin
             // them one at a time, on real caches.
-            let steps = face_window_steps(&body, face).expect("the fixture walks");
+            let steps = face_window_steps(&body, face);
             assert!(
                 torus_chart_window(&[steps[0].clone()], major, minor).is_none(),
                 "the WRAP guard alone must refuse the outer loop, which closes by \
@@ -3816,7 +3785,7 @@ pub(crate) mod tests {
             );
             let (wall, wall_face) =
                 torus_wall(center, axis, u_ref, major, minor, (0.3, 1.9), (-0.7, 0.8));
-            let ok = face_window_steps(&wall, wall_face).expect("the wall walks");
+            let ok = face_window_steps(&wall, wall_face);
             assert!(
                 torus_chart_window(&[ok[0].clone()], major, minor).is_some(),
                 "that same wall windows as ONE loop"
@@ -4247,13 +4216,12 @@ pub(crate) mod tests {
         let (u, v) = read_window(&body, face, major, minor)
             .expect("every half-edge stores a certified cache and the window reads");
         let hull = face_window_steps(&body, face)
-            .expect("the face walks")
             .into_iter()
             .flatten()
             .map(|step| {
-                let (cache, _) = step.expect("every half-edge stores a certified cache");
+                let (cache, image, _) = step.expect("every half-edge stores a certified cache");
                 let (t0, t1) = cache.params();
-                cache.pcurve().chart_box(t0, t1)
+                image.chart_box(t0, t1)
             })
             .reduce(geom_brep::ChartWindow::hull)
             .expect("the face has half-edges");
@@ -4297,22 +4265,17 @@ pub(crate) mod tests {
                 let c = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
                 let u_ref = axis.orthonormal_basis().0;
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surfaces_describing(
-                    vec![crate::Rechart::new(
-                        Surface::Torus {
-                            center: c,
-                            axis,
-                            major_radius: major,
-                            minor_radius: minor,
-                            u_ref,
-                        },
-                        face,
-                        true,
-                    )],
-                    &[],
-                    Tol::witness(),
-                )
-                .unwrap();
+                relabel(
+                    &mut body,
+                    face,
+                    Surface::Torus {
+                        center: c,
+                        axis,
+                        major_radius: major,
+                        minor_radius: minor,
+                        u_ref,
+                    },
+                );
                 let b = face_box(&body, face, pad, witness_band()).unwrap();
                 let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
                 let (rx, ry, rz) = (reach(axis.x), reach(axis.y), reach(axis.z));
@@ -4428,12 +4391,7 @@ pub(crate) mod tests {
         };
         let relabelled = |s: Surface<f64>| {
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(s, face, true)],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(&mut body, face, s);
             (body, face)
         };
         let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();

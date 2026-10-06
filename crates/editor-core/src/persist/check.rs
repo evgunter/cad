@@ -36,7 +36,9 @@
 
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
-use crate::doc::{DocParamField, FreeVar, GaugeRefFault, VarName, VarReadFault, WitnessSiteFault};
+use crate::doc::{
+    DocParamField, ExpansionFault, FreeVar, GaugeRefFault, VarName, VarReadFault, WitnessSiteFault,
+};
 use crate::edit::DocEdit;
 use crate::expr::Expr;
 use crate::meta::MetaVersionError;
@@ -148,7 +150,7 @@ pub(crate) enum Walk {
     /// and the edit log — every float the format would write, checked
     /// finite, with a typed site name.
     ///
-    /// Expression literals are finite BY CONSTRUCTION (`Expr::literal`
+    /// Expression literals are finite BY CONSTRUCTION (`Formula::literal`
     /// refuses non-finite — ruled door 1; the load side re-runs the
     /// same constructors), so this walk covers the float carriers
     /// outside that door: profile PLANE PLACEMENTS (program args are
@@ -167,7 +169,7 @@ pub(crate) enum Walk {
     /// [`first_display_unit_fault`] over the variable table: every
     /// document parameter's authored display unit measures the
     /// dimension it was declared with. A literal needs no twin walk
-    /// (`Expr::literal_with_unit` makes the pairing at construction and
+    /// (`Formula::literal_with_unit` makes the pairing at construction and
     /// the load side re-runs it); a `FreeVar` does, because its
     /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
@@ -176,6 +178,19 @@ pub(crate) enum Walk {
     /// every id is logged in the mint as a variable's, every name sits
     /// on a live variable, and no name is held twice. Snapshot only.
     Vars,
+    /// [`first_definition_read_fault`] over every defined variable's
+    /// definition: it holds no name leaf, and every variable it reads
+    /// is one the mint log holds, read at its kind when live — the
+    /// predicate the edit doors ask (`Doc::var_read_faults`). A
+    /// definition reading a deleted variable is legal, as a slot's
+    /// reader is (VR7). Snapshot only.
+    DefinitionRead,
+    /// [`first_definition_cycle`] over the variable table (VR3): no
+    /// definition reads its own variable back, and no variable's
+    /// expansion outgrows [`crate::edit::DEFINITION_NODE_BOUND`].
+    /// After the read walk, so a cycle is a cycle of live variables.
+    /// Snapshot only.
+    DefinitionCycle,
     /// [`first_slot_fault`] over every node's slots: every node's SLOT
     /// expressions carry the dimension their addresses fix (spec D6),
     /// by the same `Node::slot_dimension_fault` the edit doors ask.
@@ -183,11 +198,6 @@ pub(crate) enum Walk {
     /// admitted a retyped extrude distance the edit door refuses.
     /// Snapshot only.
     SlotDimension,
-    /// [`first_named_reader`] over every node's expressions: a stored
-    /// document holds no name leaf — the edit door lowers every one, so
-    /// a file holding one is data no door wrote. Snapshot only (an edit
-    /// LOG holds edits as authored, and names in it lower on replay).
-    NamedReader,
     /// [`first_slot_read_fault`] over every slot expression's readers,
     /// by the same `Doc::var_read_faults` the edit doors ask: a reader
     /// names a minted variable, and a live one at its kind. A reader of
@@ -237,13 +247,14 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 11] = [
+    pub(crate) const ORDER: [Walk; 12] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
+        Walk::DefinitionRead,
+        Walk::DefinitionCycle,
         Walk::SlotDimension,
-        Walk::NamedReader,
         Walk::SlotRead,
         Walk::PayloadRead,
         Walk::AnonymousVar,
@@ -280,13 +291,14 @@ impl Walk {
                 }
             }),
             Walk::Vars => first_var_fault(snapshot).map(super::PersistError::Snapshot),
+            Walk::DefinitionRead => {
+                first_definition_read_fault(snapshot).map(super::PersistError::Snapshot)
+            }
+            Walk::DefinitionCycle => {
+                first_definition_cycle(snapshot).map(super::PersistError::Snapshot)
+            }
             Walk::SlotDimension => first_slot_fault(snapshot)
                 .map(|(node, fault)| slot_refusal(snapshot.spoken(node), fault)),
-            Walk::NamedReader => first_named_reader(snapshot).map(|node| {
-                super::PersistError::Snapshot(SnapshotError::NamedReaderInSnapshot {
-                    node: snapshot.spoken(node),
-                })
-            }),
             Walk::SlotRead => first_slot_read_fault(snapshot).map(|(node, slot, fault)| {
                 read_refusal(
                     snapshot,
@@ -438,14 +450,14 @@ fn read_refusal(
             declared,
             referenced,
         },
-        (_, VarReadFault::Name { .. } | VarReadFault::Dead { .. }) => {
-            unreachable!("the read walks pass on a name leaf and a dead reader")
+        (_, VarReadFault::Dead { .. }) => {
+            unreachable!("the read walks pass on a dead reader")
         }
     })
 }
 
-/// The first fault of `expr`'s readers this door refuses: a name leaf
-/// is [`Walk::NamedReader`]'s, and a dead reader is legal.
+/// The first fault of `expr`'s readers this door refuses: a dead
+/// reader is legal.
 fn refused_read(snapshot: &ProfileDoc, expr: &Expr) -> Option<VarReadFault> {
     snapshot.var_read_faults(expr).into_iter().find(|fault| {
         matches!(
@@ -464,7 +476,7 @@ fn refused_read(snapshot: &ProfileDoc, expr: &Expr) -> Option<VarReadFault> {
 /// `apply` on replay, and a replayed document is a snapshot this same
 /// validator sees.
 ///
-/// Expression literals need no twin walk — `Expr::literal_with_unit`
+/// Expression literals need no twin walk — `Formula::literal_with_unit`
 /// checks the pairing at construction and the load side re-runs that
 /// same constructor, so a literal cannot reach a document mismatched.
 /// A `FreeVar` has no such door to make total: its payload is `pub`
@@ -544,6 +556,59 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     None
 }
 
+/// The first defined variable, in declaration order, whose definition
+/// reads what no door could have written ([`Walk::DefinitionRead`]).
+fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    snapshot.var_order.iter().find_map(|&id| {
+        let expr = snapshot.vars.get(&id)?.def().defined()?;
+        let var = snapshot.spoken_var(id);
+        snapshot
+            .var_read_faults(expr)
+            .into_iter()
+            .find_map(|fault| match fault {
+                VarReadFault::Unminted { var: read } => {
+                    Some(SnapshotError::DefinitionReadsUnmintedVar {
+                        var: var.clone(),
+                        read,
+                    })
+                }
+                VarReadFault::Kind {
+                    var: read,
+                    declared,
+                    referenced,
+                } => Some(SnapshotError::DefinitionVarKind {
+                    var: var.clone(),
+                    read: snapshot.spoken_var(read),
+                    declared,
+                    referenced,
+                }),
+                // Answered above, and a deleted variable's reader is
+                // legal (VR7).
+                VarReadFault::Dead { .. } => None,
+            })
+    })
+}
+
+/// The first variable, in declaration order, whose definition reads it
+/// back, or whose expansion outgrows the bound
+/// ([`Walk::DefinitionCycle`]): the search the edit door asks
+/// ([`crate::Doc::expansion_fault`]).
+fn first_definition_cycle(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    Some(match snapshot.expansion_fault()? {
+        ExpansionFault::Cycle { var, through } => SnapshotError::DefinitionCycle {
+            var: snapshot.spoken_var(var),
+            through: through
+                .into_iter()
+                .map(|v| snapshot.spoken_var(v))
+                .collect(),
+        },
+        ExpansionFault::TooLarge { var, nodes } => SnapshotError::DefinitionTooLarge {
+            var: snapshot.spoken_var(var),
+            nodes,
+        },
+    })
+}
+
 /// The first node whose slots break spec D6's rule, by the ONE
 /// predicate the edit doors ask ([`Node::slot_dimension_fault`]) — so
 /// a file can carry no slot expression an edit door would have
@@ -557,21 +622,6 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
         .nodes
         .iter()
         .find_map(|(&id, node)| Some((id, node.slot_dimension_fault()?)))
-}
-
-/// The first node holding a name leaf in any expression it carries,
-/// slot or payload ([`Walk::NamedReader`]).
-fn first_named_reader(snapshot: &ProfileDoc) -> Option<RecipeNodeId> {
-    snapshot.nodes.iter().find_map(|(&id, node)| {
-        node.exprs()
-            .into_iter()
-            .any(|expr| {
-                let mut names = Vec::new();
-                expr.named_reads(&mut names);
-                !names.is_empty()
-            })
-            .then_some(id)
-    })
 }
 
 /// The first slot expression with a reader this door refuses, by the
@@ -624,10 +674,7 @@ fn first_payload_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, VarR
 /// The first variable, in declaration order, that has no name and that
 /// nothing reads ([`Walk::AnonymousVar`]).
 fn first_unread_anonymous_var(snapshot: &ProfileDoc) -> Option<VarId> {
-    snapshot
-        .unread_vars()
-        .into_iter()
-        .find(|var| !snapshot.var_names.contains_key(var))
+    snapshot.unread_anonymous_vars().first().copied()
 }
 
 /// The first non-finite float in ε, the document params, the profile
@@ -722,11 +769,11 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
     match edit {
         DocEdit::DeclareVar {
             name,
-            def: crate::var::VarDef::Free(value),
+            def: crate::var::VarDecl::Free(value),
         } => param_site(VarRef::Name(name.clone()), value),
         DocEdit::DefineVar {
             var,
-            def: crate::var::VarDef::Free(value),
+            def: crate::var::VarDecl::Free(value),
         } => param_site(var.clone(), value),
         // The value door carries no distribution of its own — the
         // declaration it writes into supplies that — but its
@@ -787,6 +834,16 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // - The `Node` vocabulary is not closed here: this match is
         //   exhaustive on `DocEdit`, not on `Node`.
         DocEdit::SetVarValue { .. }
+        // A definition's floats are its expression's literals, finite
+        // by the construction door.
+        | DocEdit::DeclareVar {
+            def: crate::var::VarDecl::Defined(_),
+            ..
+        }
+        | DocEdit::DefineVar {
+            def: crate::var::VarDecl::Defined(_),
+            ..
+        }
         // A notation is a table code, not a float.
         | DocEdit::SetVarUnit { .. }
         // The partial arm above, completed: a CLEARED annotation
@@ -1069,13 +1126,6 @@ pub enum SnapshotError {
         /// The expression's dimension.
         found: crate::expr::Dimension,
     },
-    /// A node holding a name leaf: an authored expression no edit door
-    /// lowered. Every door lowers names against the document's, so a
-    /// stored document reads variables by id alone.
-    NamedReaderInSnapshot {
-        /// The offending node.
-        node: SpokenNode,
-    },
     /// A node reading a variable id this document never minted. A
     /// deleted variable's reader is legal (its id is in the mint log);
     /// an id the log never held names nothing that ever existed.
@@ -1122,6 +1172,44 @@ pub enum SnapshotError {
     AnonymousVarUnread {
         /// The variable.
         var: SpokenVar,
+    },
+    /// A definition reading a variable id this document never minted.
+    DefinitionReadsUnmintedVar {
+        /// The defined variable.
+        var: SpokenVar,
+        /// The id it reads.
+        read: VarId,
+    },
+    /// A definition reading a live variable at another dimension than
+    /// its kind, which the edit doors refuse through the same
+    /// predicate.
+    DefinitionVarKind {
+        /// The defined variable.
+        var: SpokenVar,
+        /// The variable it reads.
+        read: SpokenVar,
+        /// The dimension the read variable's kind reads at.
+        declared: crate::expr::Dimension,
+        /// The dimension the definition reads it at.
+        referenced: crate::expr::Dimension,
+    },
+    /// A definition reading its own variable back (VR3), directly or
+    /// through other definitions.
+    DefinitionCycle {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The cycle, from `var` on: each variable's definition reads
+        /// the next, and the last one's reads `var`.
+        through: Vec<SpokenVar>,
+    },
+    /// A variable whose expansion through the definitions it reads
+    /// outgrows [`crate::edit::DEFINITION_NODE_BOUND`].
+    DefinitionTooLarge {
+        /// The variable.
+        var: SpokenVar,
+        /// Its expansion's node count, saturating at one past the
+        /// bound.
+        nodes: usize,
     },
     /// A measure node whose expression reads a reference the node does
     /// not carry (E3). The expression indexes the reference list
@@ -1321,6 +1409,36 @@ impl core::fmt::Display for SnapshotError {
                 "{var} has no name and nothing reads it, and a variable with no name is one \
                  something reads"
             ),
+            Self::DefinitionReadsUnmintedVar { var, read } => write!(
+                f,
+                "the definition of {var} reads variable {read}, which the document never \
+                 minted"
+            ),
+            Self::DefinitionVarKind {
+                var,
+                read,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "{}",
+                crate::edit::DefinitionVarKindSentence {
+                    var,
+                    read,
+                    declared: *declared,
+                    referenced: *referenced,
+                }
+            ),
+            Self::DefinitionCycle { var, through } => write!(
+                f,
+                "{}",
+                crate::edit::DefinitionCycleSentence { var, through }
+            ),
+            Self::DefinitionTooLarge { var, nodes } => write!(
+                f,
+                "{}",
+                crate::edit::DefinitionTooLargeSentence { var, nodes: *nodes }
+            ),
             Self::NameOnMissingVar { var, name } => write!(
                 f,
                 "the name {name} is attached to variable {var}, which is not live"
@@ -1388,10 +1506,6 @@ impl core::fmt::Display for SnapshotError {
                     expected: *expected,
                     found: *found
                 }
-            ),
-            Self::NamedReaderInSnapshot { node } => write!(
-                f,
-                "{node} reads a variable by name, and a stored document reads variables by id"
             ),
             Self::ReaderOfUnmintedVar { node, var } => write!(
                 f,
@@ -1892,8 +2006,9 @@ mod tests {
             Distribution,
             DisplayUnit,
             Vars,
+            DefinitionRead,
+            DefinitionCycle,
             SlotDimension,
-            NamedReader,
             SlotRead,
             PayloadRead,
             AnonymousVar,
@@ -1912,8 +2027,9 @@ mod tests {
         match walk {
             Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
             Walk::Vars
+            | Walk::DefinitionRead
+            | Walk::DefinitionCycle
             | Walk::SlotDimension
-            | Walk::NamedReader
             | Walk::SlotRead
             | Walk::PayloadRead
             | Walk::AnonymousVar
@@ -1945,11 +2061,14 @@ mod tests {
             NameOnMissingVar,
             VarNameTwice,
             SlotDimension,
-            NamedReaderInSnapshot,
             ReaderOfUnmintedVar,
             SlotVarKind,
             PayloadVarKind,
             AnonymousVarUnread,
+            DefinitionReadsUnmintedVar,
+            DefinitionVarKind,
+            DefinitionCycle,
+            DefinitionTooLarge,
             EpsilonInvalid,
             Roots,
             NotAGauge,
@@ -1981,13 +2100,17 @@ mod tests {
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
-            SnapshotError::NamedReaderInSnapshot { .. } => Walk::NamedReader,
             // Both read walks raise it; the slot walk runs first.
             SnapshotError::ReaderOfUnmintedVar { .. } | SnapshotError::SlotVarKind { .. } => {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
             SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
+            SnapshotError::DefinitionReadsUnmintedVar { .. }
+            | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
+            SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
+                Walk::DefinitionCycle
+            }
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::OrderMismatch
             | SnapshotError::NodeNotMinted { .. }
@@ -2109,7 +2232,6 @@ mod tests {
                 expected: Dimension::Length,
                 found: Dimension::Angle,
             },
-            SnapshotError::NamedReaderInSnapshot { node: node() },
             SnapshotError::ReaderOfUnmintedVar {
                 node: node(),
                 var: crate::VarId(7),
@@ -2129,6 +2251,24 @@ mod tests {
             },
             SnapshotError::AnonymousVarUnread {
                 var: crate::SpokenVar::new(crate::VarId(7), None),
+            },
+            SnapshotError::DefinitionReadsUnmintedVar {
+                var: crate::SpokenVar::new(crate::VarId(7), None),
+                read: crate::VarId(8),
+            },
+            SnapshotError::DefinitionVarKind {
+                var: crate::SpokenVar::new(crate::VarId(7), None),
+                read: crate::SpokenVar::new(crate::VarId(8), None),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            SnapshotError::DefinitionCycle {
+                var: crate::SpokenVar::new(crate::VarId(7), None),
+                through: vec![crate::SpokenVar::new(crate::VarId(7), None)],
+            },
+            SnapshotError::DefinitionTooLarge {
+                var: crate::SpokenVar::new(crate::VarId(7), None),
+                nodes: 4097,
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
             SnapshotError::Roots(crate::roots::RootFault::Ancestor {
@@ -2609,10 +2749,10 @@ mod tests {
         for id in [2u64, 3] {
             doc.nodes.insert(
                 RecipeNodeId(id),
-                Node::Datum(crate::node::Datum::Plane {
+                crate::test_support::stored(&Node::Datum(crate::node::Datum::Plane {
                     origin: [0.0; 3].map(crate::test_support::len),
                     normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
-                }),
+                })),
             );
         }
         for (id, derived) in [(0u64, 50u64), (1, 60)] {

@@ -58,10 +58,11 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, FreeValue, FreeVar,
-    Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError, ProfileProgram,
-    RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName, apply,
-    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Formula, FreeValue,
+    FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver,
+    ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject,
+    VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
+    product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -150,7 +151,7 @@ impl GestureTarget {
     ///
     /// # Errors
     ///
-    /// [`SlotValue::of`]'s, which is `Expr::literal`'s own
+    /// [`SlotValue::of`]'s, which is `Formula::literal`'s own
     /// finiteness refusal reached for a `Count` target, where the
     /// literal door is not on the path.
     fn value_of(&self, value: f64) -> Result<SlotValue, pncad::document::DimensionError> {
@@ -239,6 +240,14 @@ fn driver_of(
     Ok((row.driver, row.value.ok()))
 }
 
+/// Whether `expr` reads any variable, by id or by name.
+fn reads_a_variable(expr: &Formula) -> bool {
+    let (mut ids, mut names) = (Vec::new(), Vec::new());
+    expr.var_reads(&mut ids);
+    expr.named_reads(&mut names);
+    !ids.is_empty() || !names.is_empty()
+}
+
 /// Refuse a numeric edit to a driven slot, with the affordance.
 fn guard_driven(
     doc: &Doc<ProfileProgram>,
@@ -286,10 +295,10 @@ fn carry_unmoved(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     current: &ProfileProgram,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: &[Vec<Option<StepId>>],
     notation: Notation,
-) -> Result<Vec<LoopProgram>, Refusal> {
+) -> Result<Vec<LoopProgram<Formula>>, Refusal> {
     let was: std::collections::HashMap<StepId, (u32, u32)> = current
         .ids
         .iter()
@@ -341,7 +350,9 @@ fn carry_unmoved(
             arg,
         };
         match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(committed) => *held = committed.clone(),
+            Some(held) if held.bit_eq(&Formula::from(committed)) => {
+                *held = Formula::from(committed)
+            }
             _ if committed.literal_value().is_some() => {}
             _ => guard_driven(doc, node, slot, notation)?,
         }
@@ -455,6 +466,9 @@ pub struct DocSession {
 ///   genuinely differs: `Open` sets both, `NewDocument` clears both.
 struct Derived {
     selection: Selection,
+    /// The nodes [`Derived::selection`] names, as the last document that
+    /// held them spoke them ([`DocSession::selection_said`]).
+    said: HeldNodes,
     /// What the cursor is over: transient, never persisted, and its
     /// ONE home. A widget that kept its own copy would be the
     /// per-widget shadow the panels' inventory discipline forbids.
@@ -494,6 +508,7 @@ impl Derived {
     fn none() -> Self {
         Self {
             selection: Selection::None,
+            said: HeldNodes::default(),
             hover: None,
             scratch: None,
             landed: None,
@@ -518,6 +533,7 @@ impl core::fmt::Debug for Derived {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             selection,
+            said,
             hover,
             scratch,
             landed,
@@ -525,6 +541,7 @@ impl core::fmt::Debug for Derived {
         } = self;
         f.debug_struct("Derived")
             .field("selection", selection)
+            .field("said", said)
             .field("hover", hover)
             .field("scratch", &scratch.as_ref().map(|_| format_args!("<Doc>")))
             .field("landed", landed)
@@ -879,6 +896,17 @@ impl DocSession {
         &self.derived.selection
     }
 
+    /// **The selection's nodes as the last document that held them
+    /// spoke them** ([`Selection::nodes`]): what a sentence about the
+    /// selection says a node by once the document it is spoken from no
+    /// longer holds it (`Speaker::or_held`). Spoken when the selection
+    /// is made, and again from the shown document after every
+    /// operation (`SpokenNode::respoken`'s rule), so a deleted node
+    /// is said by the last label it had.
+    pub fn selection_said(&self) -> &HeldNodes {
+        &self.derived.said
+    }
+
     /// What the cursor is over, if anything.
     pub fn hover(&self) -> Option<&Hovered> {
         self.derived.hover.as_ref()
@@ -913,6 +941,30 @@ impl DocSession {
                 resolution: self.entity_resolution(&edge.name),
             },
         }
+    }
+
+    /// **The nodes `selection` names, as the session speaks them now**:
+    /// each as the shown document holds it, or as the landed run's
+    /// document does where the shown one no longer holds it. A selection
+    /// is picked in one of the two: the feature tree draws the shown
+    /// document, and the viewport and the Checks window the landed run.
+    /// Both are versions of this session's one document, so an id
+    /// names one node in each (`SpokenNode::respoken`'s soundness
+    /// paragraph); a replaced document drops the landed run with the
+    /// selection.
+    fn spoken_now(&self, selection: &Selection) -> HeldNodes {
+        let landed = self.landed_pair().map(|(doc, _)| doc);
+        selection
+            .nodes()
+            .into_iter()
+            .map(|id| {
+                let shown = self.doc().spoken(id);
+                match landed {
+                    Some(landed) if shown.kind().is_none() => landed.spoken(id),
+                    Some(_) | None => shown,
+                }
+            })
+            .collect()
     }
 
     /// One picked name's verdict against the landed run — the shipped
@@ -1383,6 +1435,18 @@ impl DocSession {
     /// table plus that one rule, held once for both drags rather than
     /// spelled per gesture and per table.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
+        let outcome = self.perform_op(op);
+        // Every document change is an operation, so this is the one
+        // place the kept nodes follow the newest document that holds
+        // them. A landing changes only the landed run, an earlier
+        // version of the shown document.
+        self.derived.said = self.derived.said.respoken(self.doc());
+        outcome
+    }
+
+    /// [`DocSession::perform`]'s operation, before the selection's kept
+    /// nodes are spoken again.
+    fn perform_op(&mut self, op: SessionOp) -> OpOutcome {
         if self.gesture.held().is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
@@ -1391,6 +1455,7 @@ impl DocSession {
         }
         match op {
             SessionOp::Select(selection) => {
+                self.derived.said = self.spoken_now(&selection);
                 self.derived.selection = selection;
                 OpOutcome::default()
             }
@@ -1842,7 +1907,7 @@ impl DocSession {
     }
 
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.committed_doc().var_scope()) {
+        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
@@ -1862,7 +1927,7 @@ impl DocSession {
         // source is no echo of anything. `Self::writes_nothing` asks the question
         // that is actually being asked here — whether the expression
         // offered is the expression standing — and the `unparse` /
-        // `parse_expr` round trip preserves both the bits and the
+        // `parse_formula` round trip preserves both the bits and the
         // display unit, so a source re-typed as itself compares equal.
         self.commit_written(edit)
     }
@@ -1890,9 +1955,10 @@ impl DocSession {
     }
 
     /// The text door: a number, and the notation to write it in, from
-    /// one piece of typed text.
+    /// one piece of typed text — or an expression, which DEFINES the
+    /// variable (`DocEdit::DefineVar`), keeping its identity.
     ///
-    /// **One parser.** `parse_expr` reads `50 mm` into a literal that
+    /// **One parser.** `parse_formula` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
     /// the one multiply is the parser's — so what arrives here is read
     /// off the literal and never scaled again.
@@ -1920,41 +1986,86 @@ impl DocSession {
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
     fn set_param_text(&mut self, var: VarId, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.committed_doc().var_scope()) {
+        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
-        // A literal is the whole of what a parameter can hold. Every
-        // other kind of expression — a reference, an operator, a count
-        // — is refused by name rather than flattened to a number,
-        // because flattening would store a value the text does not
-        // say.
-        let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
-            return OpOutcome::refused(Refusal::ParamNotANumber {
-                var: self.committed_doc().spoken_var(var),
+        // Text that reads a variable defines this one by it.
+        let constant = (!reads_a_variable(&expr))
+            .then(|| Expr::try_from(&expr).ok())
+            .flatten();
+        let Some(stored) = constant else {
+            return self.commit(DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::defined(expr),
             });
         };
-        let declared = self.committed_doc().free(var).map(FreeVar::dim);
-        let notation = props::param_unit_edit(var, unit);
-        let written = props::param_edit(var, SlotValue::Continuous(value));
-        match declared {
+        // Constant text is a value, folded as a written quantity is, so
+        // `50 mm + 1 mm` writes 51 mm and keeps the variable's identity
+        // and distribution. Only a literal carries a notation to write.
+        let env = pncad::document::VarEnv::<f64>::default();
+        let folded = if expr.dim() == Dimension::Count {
+            pncad::document::eval_count(&stored, &env).map(SlotValue::Count)
+        } else {
+            pncad::document::eval(&stored, &env).map(SlotValue::Continuous)
+        };
+        let value = match folded {
+            Ok(value) => value,
+            Err(source) => {
+                return OpOutcome::refused(Refusal::ConstantRefused {
+                    var: self.committed_doc().spoken_var(var),
+                    source,
+                });
+            }
+        };
+        let doc = self.committed_doc();
+        let Some(held) = doc.var(var) else {
             // An undeclared variable takes the commit path so the typed
             // refusal comes from the door rather than from here, the
             // way [`Self::set_param`]'s does.
-            None => return self.commit(written),
-            // **A `Count` gets the VALUE edit and only that.** A count
-            // names no notation at all, so the notation half of this
-            // door has nothing to say about one, and submitting it
-            // anyway answers what the user did — typing a value — in
-            // the words of a change nobody asked for ("it has no
-            // display unit to change"). The value edit is the act, and
-            // refusing it names the right half: a count declared where
-            // a continuous value was typed.
-            Some(Dimension::Count) => return self.commit(written),
-            Some(Dimension::Length | Dimension::Angle | Dimension::Scalar) => {}
+            return self.commit(props::param_edit(var, value));
+        };
+        let kind = held.kind();
+        let defined = held.def().defined().is_some();
+        let notation = match (value, expr.display_unit()) {
+            (SlotValue::Continuous(_), Some(unit)) => Some(props::param_unit_edit(var, unit)),
+            _ => None,
+        };
+        let written = props::param_edit(var, value);
+        // A value typed over a definition frees the variable first, at
+        // its own kind and in its kind's canonical notation, and then
+        // writes the value through the same doors a free variable's
+        // field does — one action, so a value of another kind refuses
+        // in the value door's words and leaves the definition standing.
+        if defined {
+            let freed = match kind {
+                pncad::document::VarKind::Count => FreeVar::Count { value: 0 },
+                _ => FreeVar::continuous(kind.dimension(), 0.0),
+            };
+            let free_again = DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::Free(freed),
+            };
+            return self.commit_action(
+                std::iter::once(free_again)
+                    .chain(notation)
+                    .chain([written])
+                    .collect(),
+            );
         }
-        let edits: Vec<DocEdit<ProfileProgram>> = [notation, written]
+        // **A `Count` gets the VALUE edit and only that.** A count names
+        // no notation at all, so the notation half of this door has
+        // nothing to say about one, and submitting it anyway answers
+        // what the user did — typing a value — in the words of a change
+        // nobody asked for ("it has no display unit to change"). The
+        // value edit is the act, and refusing it names the right half:
+        // a count declared where a continuous value was typed.
+        if kind == pncad::document::VarKind::Count {
+            return self.commit(written);
+        }
+        let edits: Vec<DocEdit<ProfileProgram>> = notation
             .into_iter()
+            .chain([written])
             .filter(|edit| !self.writes_nothing(edit))
             .collect();
         if edits.is_empty() {
@@ -1969,7 +2080,7 @@ impl DocSession {
     fn declare_var(&mut self, name: VarName, value: FreeVar) -> OpOutcome {
         self.commit(DocEdit::DeclareVar {
             name,
-            def: pncad::document::VarDef::Free(value),
+            def: pncad::document::VarDecl::Free(value),
         })
     }
 
@@ -1990,12 +2101,15 @@ impl DocSession {
         })
     }
 
-    /// The parameter door: a drag over a declared parameter's value.
+    /// The parameter door: a drag over a declared parameter's value. A
+    /// defined one opens too, at its kind, and its first preview is
+    /// refused by the value door in its own words
+    /// ([`pncad::document::EditError::NotAFreeVar`]).
     fn begin_param_gesture(&mut self, var: VarId) -> OpOutcome {
         self.start(move |doc| {
             let dimension = doc
-                .free(var)
-                .map(FreeVar::dim)
+                .var(var)
+                .map(|held| held.kind().dimension())
                 .ok_or(Refusal::NoSuchParam(var))?;
             Ok(GestureTarget::Param { var, dimension })
         })
@@ -2328,7 +2442,7 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
         let plane = match plane {
             // The plane is a PICK, so it is gated where every other
             // pick is: at this door, by kind, before the edit. Without
@@ -2368,7 +2482,7 @@ impl DocSession {
     /// free with that — a profile the insert door refuses leaves no
     /// orphan frame behind, because nothing is recorded until both
     /// edits have landed.
-    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
         let frame = match ProfilePlane::world_xy() {
             Ok(frame) => datum_node(frame),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
@@ -2390,7 +2504,7 @@ impl DocSession {
         &mut self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> OpOutcome {
         match self.set_program_of(node, base, loops, ids) {
@@ -2418,7 +2532,7 @@ impl DocSession {
         &self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> Result<Vec<Maintenance>, Refusal> {
         let Some(edit) = self.set_program_of(node, base, loops, ids)? else {
@@ -2438,7 +2552,7 @@ impl DocSession {
         &self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> Result<Option<DocEdit<ProfileProgram>>, Refusal> {
         self.require_kind(node, NodeKindWanted::Profile)?;
@@ -2462,7 +2576,7 @@ impl DocSession {
 
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
-    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Expr) -> OpOutcome {
+    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Formula) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
@@ -2477,7 +2591,12 @@ impl DocSession {
 
     /// Insert one revolve of an existing profile about an existing
     /// axis datum ([`SessionOp::AddRevolve`]).
-    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Expr) -> OpOutcome {
+    fn add_revolve(
+        &mut self,
+        profile: RecipeNodeId,
+        axis: RecipeNodeId,
+        angle: Formula,
+    ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
@@ -2568,9 +2687,9 @@ impl DocSession {
     fn add_transform(
         &mut self,
         input: RecipeNodeId,
-        translation: [Expr; 3],
-        rotation_axis: [Expr; 3],
-        rotation_angle: Expr,
+        translation: [Formula; 3],
+        rotation_axis: [Formula; 3],
+        rotation_angle: Formula,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
@@ -2715,7 +2834,7 @@ impl DocSession {
     fn add_blend(
         &mut self,
         target: RecipeNodeId,
-        size: Expr,
+        size: Formula,
         selection: Vec<StableName>,
         kind: BlendKindChoice,
     ) -> OpOutcome {
@@ -2785,7 +2904,9 @@ impl DocSession {
             // expression reads ids.
             DocEdit::SetParam { node, slot, expr }
             | DocEdit::SetStructuralParam { node, slot, expr } => {
-                doc.node(*node).and_then(|node| node.expr(*slot)) == Some(&doc.lowered(expr))
+                doc.lowered(expr).is_ok_and(|offered| {
+                    doc.node(*node).and_then(|node| node.expr(*slot)) == Some(&offered)
+                })
             }
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:

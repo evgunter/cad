@@ -8,7 +8,7 @@
 //!   [`matching_reads_the_germs_loci`] red, and nothing else here.
 //! - **the structural skip** — on the boolean lanes a chord is not
 //!   minted when the edge between the two halves IS the segment's
-//!   locus edge (`chord_join::Chords::Segment`). Never skipping turns
+//!   locus edge (`chord_join::SegmentEdge::Locus`). Never skipping turns
 //!   [`the_skip_takes_the_locus_edge_for_the_segment`] red, and it
 //!   stays green under the other two mutations.
 //! - **the fold direction** — an on-bound joins the In run unless both
@@ -119,61 +119,17 @@ fn the_skip_takes_the_locus_edge_for_the_segment() {
 /// than the null half facing it. The check used to read only that half's
 /// two ends and refused `JoinDesync { "an OnEdge germ's edge is not
 /// incident to its site" }` under every op; it reads the site the null
-/// edges tie together now. The poses then stop where they stopped
-/// before JOIN-1, in the reflex corner's own refusals
-/// (`work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`):
-/// `JoinDesync { "every chord arc separates a loose scaffolding pair" }`
-/// under every op, as on main. The row pins that outcome exactly.
+/// edges tie together now. Past it, each solid reads its own walk
+/// order round the corner's four germs, and every op builds at the
+/// closed form, `SOUND` by `outcome`.
 #[test]
 fn the_incidence_check_reads_the_whole_site() {
-    use topo::test_support::{
-        FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
-    };
-    // The 315° reflex prism (CCW): material everywhere but the 45°
-    // wedge between +x and (1, 1).
-    let a_prof = [
-        (0.0, 0.0),
-        (2.0, 2.0),
-        (-2.0, 2.0),
-        (-2.0, -2.0),
-        (2.0, -2.0),
-        (2.0, 0.0),
-    ];
-    let a = finished(
-        "the reflex prism",
-        prism_z::<f64>(&a_prof, 0.0, 1.0, tol()).body,
-        tol(),
-    );
-    let prof = [(0.0, -0.5), (1.0, -0.5), (1.0, 0.5), (0.0, 0.5)];
+    use crate::common::differential::{REFLEX_OPS, outcome, reflex_pose, reflex_run};
     for sx in [-0.5, -0.25] {
-        let mut b = topo::Body::<f64>::new();
-        prism_ops(
-            &mut b,
-            &prof,
-            (1.0, 3.0),
-            |x, y, z| geom_core::Point3::new(x, y, z + sx * x),
-            FaceGeometry::Certified,
-            tol(),
-        );
-        describe_as_intersections(&mut b, tol());
-        let d = flush_declarations(&a, &b, tol());
-        let b = finished("the sheared strut", b, tol());
-        for (op, r) in [
-            ("∩", topo::intersect_with(&a, &b, &d, tol())),
-            ("∪", topo::union_with(&a, &b, &d, tol())),
-            ("∖", topo::subtract_with(&a, &b, &d, tol())),
-        ] {
-            // Exactly where main stopped these poses: the reflex corner's
-            // own refusal, measured, not this unit's incidence check.
-            assert!(
-                matches!(
-                    r,
-                    Err(BooleanError::JoinDesync {
-                        what: "every chord arc separates a loose scaffolding pair"
-                    })
-                ),
-                "sx = {sx} {op}: {r:?}"
-            );
+        let p = reflex_pose("eLeft", 0.0, sx, 0.0, tol());
+        for (op, want) in REFLEX_OPS.into_iter().zip(p.want) {
+            let line = outcome(reflex_run(&p, op, tol()), want, tol());
+            assert!(line.starts_with("OK SOUND"), "sx = {sx} {op}: {line}");
         }
     }
 }

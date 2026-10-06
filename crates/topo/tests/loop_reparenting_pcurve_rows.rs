@@ -433,7 +433,10 @@ fn on_a_key_of_its_own(
 ) -> Result<topo::SurfaceKey, topo::EulerOpError> {
     let charts = vec![topo::Rechart::new(surface, face, sense)];
     let specs = body.carried_redescriptions(&charts)?;
-    let keys = body.set_face_surfaces_describing(charts, &specs, tol())?;
+    // Lifts RechartUnvouched: the edge between the panels names the lower panel's key, on a curved chart whose residuals no door reads; the rows across the chart change are the row.
+    let keys = body.lifting_rechart_refusals_for_tests(|body| {
+        body.set_face_surfaces_describing(charts, &specs, tol())
+    })?;
     Ok(keys[0])
 }
 
@@ -710,8 +713,22 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
     loud_at_rest(&mut s.body);
 }
 
-/// Every stored row of `face`, with its interval, its image and its
-/// certificate — what "byte for byte" means for a carry.
+/// Every half-edge of `face`'s loops.
+fn halves_of(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
+    let f = body.get_face(face).unwrap();
+    core::iter::once(f.outer)
+        .chain(f.rings.iter().copied())
+        .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+            topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
+            topo::LoopBoundary::Empty { .. } => None,
+        })
+        .flatten()
+        .collect()
+}
+
+/// Every stored row of `face`, with its interval, its image, its
+/// certificate and its joint element — what "byte for byte" means for
+/// a carry.
 fn rows_deep(body: &Body<f64>, face: FaceKey) -> Vec<String> {
     let f = body.get_face(face).unwrap();
     let mut out = Vec::new();
@@ -722,10 +739,11 @@ fn rows_deep(body: &Body<f64>, face: FaceKey) -> Vec<String> {
         for he in body.loop_cycle(first).unwrap() {
             if let Some(c) = body.pcurve(he) {
                 out.push(format!(
-                    "{he:?} {:?} {:?} {:?}",
+                    "{he:?} {:?} {:?} {:?} {:?}",
                     c.params(),
                     c.pcurve(),
-                    c.certificate()
+                    c.certificate(),
+                    body.joint(he)
                 ));
             }
         }
@@ -1908,8 +1926,11 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
 
         let charts = vec![topo::Rechart::shared(second, s.low, true)];
         let specs = s.body.carried_redescriptions(&charts).unwrap();
+        // Lifts RechartUnvouched: the edge between the panels names the upper panel's key, on a curved chart whose residuals no door reads; the rows across the chart change are the row.
         s.body
-            .set_face_surfaces_describing(charts, &specs, tol())
+            .lifting_rechart_refusals_for_tests(|b| {
+                b.set_face_surfaces_describing(charts, &specs, tol())
+            })
             .unwrap();
         assert_eq!(rows_of(&s.body, s.low), (0, 4), "stamped: {stamped}");
 
@@ -2093,6 +2114,7 @@ struct ArcSheet {
 fn arc_sheet(tied: bool) -> ArcSheet {
     let mut s = sheet();
     let saved: Vec<_> = s.body.pcurves().map(|(h, c)| (h, c.clone())).collect();
+    let joints: Vec<_> = s.body.joints().collect();
     assert_eq!(saved.len(), 8);
     let p = patch();
     let mut keys = Vec::new();
@@ -2127,6 +2149,9 @@ fn arc_sheet(tied: bool) -> ArcSheet {
     assert_eq!(rows_total(&s.body), 0, "the swaps dropped every row");
     for (h, c) in saved {
         s.body.attach_pcurve(h, c);
+    }
+    for (h, e) in joints {
+        s.body.attach_joint(h, e);
     }
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
@@ -2237,11 +2262,38 @@ fn a_spline_destination_keeps_the_drop() {
         |b| b.kef_minting(he, tol()).map(|_| ()),
     );
     assert_eq!(rows_of(&body, up), (3, 3), "kef");
-    let up_after = rows_deep(&body, up);
-    assert!(
-        up_after.iter().all(|row| up_before.contains(row)),
-        "kef: the survivor keeps its own rows and gains none"
-    );
+    // A kept row whose predecessor the splice did not change is kept
+    // whole, its element included; the joints the kill bridges carry
+    // the summed element, so there the image alone is kept.
+    let image_row = |body: &Body<f64>, he| {
+        body.pcurve(he)
+            .map(|c| format!("{:?} {:?} {:?}", c.params(), c.pcurve(), c.certificate()))
+    };
+    let images_before: Vec<String> = halves_of(&s.body, up)
+        .into_iter()
+        .filter_map(|h| image_row(&s.body, h))
+        .collect();
+    let rows_after = rows_deep(&body, up);
+    for half in halves_of(&body, up) {
+        let Some(image) = image_row(&body, half) else {
+            continue;
+        };
+        if s.body.get_half_edge(half).unwrap().prev == body.get_half_edge(half).unwrap().prev {
+            let row = rows_after
+                .iter()
+                .find(|r| r.starts_with(&format!("{half:?} ")))
+                .unwrap();
+            assert!(
+                up_before.contains(row),
+                "kef: the survivor keeps its own rows and gains none: {row}"
+            );
+        } else {
+            assert!(
+                images_before.contains(&image),
+                "kef: the survivor keeps its own images and gains none: {half:?} {image}"
+            );
+        }
+    }
 
     // The plane face's rowless loop demotes into `low`, then moves on
     // as a ring onto `up`: two complete spline destinations in turn.
@@ -2295,12 +2347,15 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
     let mut failures = Vec::new();
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
+        // Lifts RechartUnvouched: on the deep copies `up`'s edges name the key it leaves, on a curved chart whose residuals no door reads; the demotion onto `low`'s key is the row's setup.
         s.body
-            .set_face_surfaces_describing(
-                vec![topo::Rechart::shared(keys[0], s.up, true)],
-                &[],
-                tol(),
-            )
+            .lifting_rechart_refusals_for_tests(|b| {
+                b.set_face_surfaces_describing(
+                    vec![topo::Rechart::shared(keys[0], s.up, true)],
+                    &[],
+                    tol(),
+                )
+            })
             .unwrap();
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
@@ -2316,12 +2371,15 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
         }
 
         let ArcSheet { mut s, keys } = arc_sheet(tied);
+        // Lifts RechartUnvouched: on the deep copies `up`'s edges name the key it leaves, on a curved chart whose residuals no door reads; the demotion onto `low`'s key is the row's setup.
         s.body
-            .set_face_surfaces_describing(
-                vec![topo::Rechart::shared(keys[0], s.up, true)],
-                &[],
-                tol(),
-            )
+            .lifting_rechart_refusals_for_tests(|b| {
+                b.set_face_surfaces_describing(
+                    vec![topo::Rechart::shared(keys[0], s.up, true)],
+                    &[],
+                    tol(),
+                )
+            })
             .unwrap();
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);

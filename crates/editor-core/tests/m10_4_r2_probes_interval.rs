@@ -48,7 +48,7 @@ use editor_core::stackup::{
     Unavailable, sensitivities, stackup,
 };
 use editor_core::{
-    CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamValue,
     ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
     SitedRef, ValuePayload, VarName, evaluate, seed_env,
@@ -66,8 +66,8 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::named(name(n), dim)
+fn param(n: &'static str, dim: Dimension) -> Formula {
+    Formula::named(name(n), dim)
 }
 
 fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
@@ -216,15 +216,15 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, w_dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, w_dist)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("d"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, d_dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, d_dist)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("k"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, None)),
     });
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -297,7 +297,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("r"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.2, r_dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, r_dist)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -350,11 +350,11 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("h"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, h_dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("u"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, None)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -414,7 +414,7 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, None)),
     });
     let section = |z: f64| {
         let chain = LoopProgram::Chain(vec![
@@ -457,7 +457,7 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     }));
     let loft = r.insert(Node::Loft {
         profiles: vec![p0, p1],
-        v_degree: Expr::count(1),
+        v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);
     if let Some(e) = ev.node_error(loft) {
@@ -490,7 +490,7 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, Recip
     ] {
         r.push(DocEdit::DeclareVar {
             name: name(p),
-            def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, dist)),
+            def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, dist)),
         });
     }
     let v = |p: &'static str| MeasureExpr::value(param(p, Dimension::Length));
@@ -752,7 +752,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
         &s.doc,
         DocEdit::DefineVar {
             var: name("w").into(),
-            def: editor_core::VarDef::Free(continuous(
+            def: editor_core::VarDecl::Free(continuous(
                 Dimension::Length,
                 2.0,
                 Some(uniform(-0.1, 0.1)),
@@ -965,7 +965,7 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("a"),
-        def: editor_core::VarDef::Free(continuous(
+        def: editor_core::VarDecl::Free(continuous(
             Dimension::Scalar,
             1.0,
             Some(uniform(-0.5, 0.5)),

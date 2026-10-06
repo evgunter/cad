@@ -17,7 +17,7 @@
 use crate::common;
 use pncad::document::ExtrudeSide;
 
-use pncad::document::{Dimension, Doc, Expr, Node, ProfileProgram, SlotId};
+use pncad::document::{Dimension, Doc, Formula, Node, ProfileProgram, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use pncad::quantity::WrittenLength;
@@ -558,7 +558,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         pncad::document::DocEdit::DeclareVar {
             name: common::thickness_param(),
-            def: pncad::document::VarDef::Free(pncad::document::FreeVar::written_length(
+            def: pncad::document::VarDecl::Free(pncad::document::FreeVar::written_length(
                 WrittenLength::in_unit(8.0, MM),
             )),
         },
@@ -569,7 +569,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::named(common::thickness_param(), Dimension::Length),
+            distance: Formula::named(common::thickness_param(), Dimension::Length),
             side: ExtrudeSide::Along,
         },
         tol,

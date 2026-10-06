@@ -12,7 +12,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind,
-    EvalOptions, Expr, ExprPath, FreeVar, MetaValue, Node, PersistError, ProfileDoc,
+    EvalOptions, ExprPath, Formula, FreeVar, MetaValue, Node, PersistError, ProfileDoc,
     ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply,
     evaluate, load, save,
 };
@@ -40,7 +40,7 @@ fn small() -> (ProfileDoc, String) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.5)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -71,7 +71,7 @@ fn attack_all_ones_nan_slips_save_door() {
     for dim in [Dimension::Length, Dimension::Scalar] {
         assert!(
             matches!(
-                Expr::literal(nan, dim),
+                Formula::literal(nan, dim),
                 Err(editor_core::DimensionError::NonFiniteLiteral)
             ),
             "the {dim:?} literal door must refuse the all-ones NaN"
@@ -112,7 +112,7 @@ fn tokens_separate_structure_from_data() {
     // The NaN payload class dies at construction (ruled door 1): a
     // program literal cannot carry the all-ones pattern at all.
     assert!(matches!(
-        editor_core::Expr::literal(f64::from_bits(u64::MAX), editor_core::Dimension::Scalar),
+        editor_core::Formula::literal(f64::from_bits(u64::MAX), editor_core::Dimension::Scalar),
         Err(editor_core::DimensionError::NonFiniteLiteral)
     ));
 }
@@ -275,7 +275,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("d"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.5)),
         },
     );
     // 2 InsertNode xN — the two quads sit at different x offsets, so
@@ -299,7 +299,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: p0,
-                distance: Expr::named(VarName::from_static("d"), Dimension::Length),
+                distance: Formula::named(VarName::from_static("d"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -386,7 +386,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Box::new(Node::Pattern {
                 input: boole,
-                count: Expr::count(2),
+                count: Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
                     spacing: len(4.0),
@@ -400,7 +400,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(3),
+            expr: Formula::count(3),
         },
     );
     // 7 ReWitness
@@ -454,7 +454,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     );
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     m.insert("neg".to_owned(), MetaValue::Float(-0.0));
     push(
         &mut doc,
@@ -628,11 +628,11 @@ fn attack_meta_order_canonical() {
     let tree = |order: bool| {
         let mut m = std::collections::BTreeMap::new();
         if order {
-            m.insert("v".to_owned(), MetaValue::Int(1));
-            m.insert("a".to_owned(), MetaValue::Int(2));
+            m.insert("v".to_owned(), MetaValue::Int(1.into()));
+            m.insert("a".to_owned(), MetaValue::Int(2.into()));
         } else {
-            m.insert("a".to_owned(), MetaValue::Int(2));
-            m.insert("v".to_owned(), MetaValue::Int(1));
+            m.insert("a".to_owned(), MetaValue::Int(2.into()));
+            m.insert("v".to_owned(), MetaValue::Int(1.into()));
         }
         MetaValue::map(m).expect("a shallow value")
     };
@@ -696,7 +696,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .unwrap()
     .doc;
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     let doc = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {

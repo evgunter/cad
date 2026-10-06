@@ -458,8 +458,9 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     let mut edges = Vec::with_capacity(outer.len());
-    for (le, he) in outer.iter().zip(hes) {
-        let Some(cache) = body.pcurve(*he) else {
+    let lifted = crate::pcurves::lifted_images(body, hes);
+    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
+        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "curved-cut face half-edge carries no stored pcurve cache — \
                        caches mint in the split/boolean pipelines",
@@ -473,7 +474,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         // wired. A sphere's general circle mints one at rest (an
         // oblique fillet corner's octant); the props door refuses that
         // face's spherical triangle before this lane is asked.
-        let Pcurve::Harmonic { p0, pa, pb, pl } = *cache.pcurve() else {
+        let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "curved-cut face half-edge carries a FITTED pcurve on an analytic \
                        chart — its Green-form boundary integral (bspline_green_integral) \
@@ -567,8 +568,9 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     let mut polygon: Vec<(f64, f64)> = Vec::with_capacity(outer.len());
     let mut boundary_defect = 0.0f64;
     let mut perimeter = 0.0f64;
-    for (le, he) in outer.iter().zip(hes) {
-        let Some(cache) = body.pcurve(*he) else {
+    let lifted = crate::pcurves::lifted_images(body, hes);
+    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
+        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "NURBS face half-edge carries no stored pcurve cache — the \
                        loft assembly mints them; a body that lost its caches must \
@@ -591,8 +593,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
         let (t0, t1) = cache.params();
-        let a = cache.pcurve().eval(t0);
-        let b = cache.pcurve().eval(t1);
+        let a = image.eval(t0);
+        let b = image.eval(t1);
         let (ax, ay) = (
             exact(Interval::from_certified(a.x))?,
             exact(Interval::from_certified(a.y))?,
@@ -755,8 +757,9 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<RoundOutcome, PropsError> {
     let ring = |x: T| Interval::from_certified(x);
     let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
-    for (le, he) in outer.iter().zip(hes) {
-        let Some(cache) = body.pcurve(*he) else {
+    let lifted = crate::pcurves::lifted_images(body, hes);
+    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
+        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "NURBS face half-edge carries no stored pcurve cache — the \
                        loft assembly mints them; a body that lost its caches must \
@@ -764,13 +767,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         let (t0, t1) = cache.params();
-        let (pa, pb) = (cache.pcurve().eval(t0), cache.pcurve().eval(t1));
+        let (pa, pb) = (image.eval(t0), image.eval(t1));
         let (a, b) = if le.forward {
             ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
         } else {
             ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
         };
-        let piece = match cache.pcurve() {
+        let piece = match image {
             // An iso image is one exact chord: its endpoints are
             // structure, so there is no arc to bound.
             Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,

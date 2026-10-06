@@ -337,9 +337,20 @@ impl<T: Decide> Body<T> {
             (v, hm_data.parent_loop),
             &provenance,
         );
+        // The joints the splice makes, read before it. Each child pair
+        // joins at the split point with the element the restriction
+        // decided; the joint out of the second child is the parent's old
+        // one, the second child's exit being the parent's. A side the
+        // restriction carried nothing for takes no element.
+        let carried = |rows: &Option<crate::pcurves::CarriedRows<T>>, old: HalfEdgeKey| {
+            rows.as_ref()
+                .map_or((None, None), |rows| (Some(rows.joint), self.joint(old)))
+        };
+        let (into_n_plus, into_hp_next) = carried(&rows_plus, hp_next.key());
+        let (into_hm, into_n_minus) = carried(&rows_minus, hm.key());
         // Splice 1: hp → n⁺ → old next(hp), in hp's loop.
-        self.link_half_edges(hp, n_plus);
-        self.link_half_edges(n_plus, hp_next);
+        self.link_half_edges(hp, n_plus, into_n_plus);
+        self.link_half_edges(n_plus, hp_next, into_hp_next);
         // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. Splice 1
         // moved that prev in the strut case (next(hp) == hm ⇒ prev(hm)
         // is now n⁺), and the two cases are exhaustive: splice 1 writes
@@ -350,8 +361,8 @@ impl<T: Decide> Body<T> {
         // re-reading it keeps both branches proven: the mint above, and
         // the plan phase.
         let hm_prev = if hm == hp_next { n_plus } else { hm_prev };
-        self.link_half_edges(hm_prev, n_minus);
-        self.link_half_edges(n_minus, hm);
+        self.link_half_edges(hm_prev, n_minus, into_n_minus);
+        self.link_half_edges(n_minus, hm, into_hm);
         // The splice is done; past it the new halves are ordinary keys.
         let (n_plus, n_minus) = (n_plus.key(), n_minus.key());
         // The chart rows certified above: the parent halves keep the

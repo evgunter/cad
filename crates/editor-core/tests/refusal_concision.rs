@@ -287,6 +287,38 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "PointInFaceRefused(EmptyLoop)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::EmptyLoop(LoopKey::default()),
+            },
+        ),
+        (
+            "PointInFaceRefused(LoopUnreadable)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::LoopUnreadable(LoopKey::default()),
+            },
+        ),
+        (
+            "PointInFaceRefused(RayExhausted)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::RayExhausted,
+            },
+        ),
+        (
+            "PointInFaceRefused(Curved(CorruptFace))",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::A,
+                face,
+                refusal: topo::ContainError::Curved(PointInSolidError::CorruptFace { face }),
+            },
+        ),
+        (
             "ScaffoldingOperand",
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
@@ -299,7 +331,9 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "InsideOutOperand",
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
-                solid: topo::SolidKey::default(),
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
             },
         ),
         (
@@ -615,6 +649,12 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
                 runs: 3,
+            },
+        ),
+        (
+            "PinchUncrossed",
+            BooleanError::PinchUncrossed {
+                vertex: VertexKey::default(),
             },
         ),
         (

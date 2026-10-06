@@ -10,7 +10,7 @@
 
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
-use editor_core::{Dimension, Doc, DocEdit, Expr, FreeVar, Node, RecipeNodeId, SlotId, VarName};
+use editor_core::{Dimension, Doc, DocEdit, Formula, FreeVar, Node, RecipeNodeId, SlotId, VarName};
 use geom_core::Tol;
 
 /// Opaque profile payload (spec D1/D3): tests never look inside.
@@ -18,7 +18,19 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
+impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored(&self) -> Self {
+        self.clone()
+    }
     fn drawn_pieces(
         &self,
         _env: &editor_core::VarEnv<f64>,
@@ -104,7 +116,7 @@ fn author_die() -> Die {
         &mut log,
         TEdit::DeclareVar {
             name: VarName::from_static("pip_depth"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
     );
     // Cube: profile wrap + extrude.
@@ -140,7 +152,7 @@ fn author_die() -> Die {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
+                distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

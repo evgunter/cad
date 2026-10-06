@@ -123,7 +123,7 @@ from pncad import (
     Doc,
     DocEdit,
     DocRef,
-    Expr,
+    Formula,
     Frame,
     MateFrame,
     MatePrimitive,
@@ -293,12 +293,12 @@ class TestBenchLayout(BenchWorkspace):
                 family = doc.insert(
                     posts(
                         post_i,
-                        Expr.count(PATTERN_COUNT),
+                        Formula.count(PATTERN_COUNT),
                         PatternKind.linear((
-                            Expr.literal(0.0),
-                            Expr.literal(1.0),
-                            Expr.literal(0.0),
-                        ), Expr.length_in(SHELF_LENGTH, m)),
+                            Formula.literal(0.0),
+                            Formula.literal(1.0),
+                            Formula.literal(0.0),
+                        ), Formula.length_in(SHELF_LENGTH, m)),
                     )
                 )
                 shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
@@ -513,15 +513,15 @@ class TestBenchStand(BenchWorkspace):
             profile = doc.insert(
                 Node.polygon(
                     [
-                        (Expr.literal(x[0]), Expr.literal(y[0])),
-                        (Expr.literal(x[1]), Expr.literal(y[0])),
-                        (Expr.literal(x[1]), Expr.literal(y[1])),
-                        (Expr.literal(x[0]), Expr.literal(y[1])),
+                        (Formula.literal(x[0]), Formula.literal(y[0])),
+                        (Formula.literal(x[1]), Formula.literal(y[0])),
+                        (Formula.literal(x[1]), Formula.literal(y[1])),
+                        (Formula.literal(x[0]), Formula.literal(y[1])),
                     ],
-                    plane=doc.sketch_frame(elevation=Expr.literal(z[0])),
+                    plane=doc.sketch_frame(elevation=Formula.literal(z[0])),
                 )
             )
-            return doc.insert(Node.extrude(profile, Expr.literal(z[1] - z[0])))
+            return doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
 
         # `insert` again, on an edit that joins no groups: the record
         # is now EMPTY, not the clear still standing from before.
@@ -922,12 +922,12 @@ class TestAssemblyRefusals(BenchWorkspace):
             Node.transform(
                 shelf_i,
                 (
-                    Expr.length_in(0, m),
-                    Expr.length_in(0, m),
-                    Expr.length_in(0.25, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0.25, m),
                 ),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.literal(0.0 * pncad.rad),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                Formula.literal(0.0 * pncad.rad),
             )
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
@@ -969,12 +969,12 @@ class TestAssemblyRefusals(BenchWorkspace):
             Node.transform(
                 shelf_i,
                 (
-                    Expr.length_in(0, m),
-                    Expr.length_in(0, m),
-                    Expr.length_in(0.25, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0.25, m),
                 ),
-                (Expr.literal(1e200), Expr.literal(0.0), Expr.literal(0.0)),
-                Expr.literal(0.5 * pncad.rad),
+                (Formula.literal(1e200), Formula.literal(0.0), Formula.literal(0.0)),
+                Formula.literal(0.5 * pncad.rad),
             )
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
@@ -1121,23 +1121,23 @@ class TestAssemblyRefusals(BenchWorkspace):
             Node.transform(
                 shelf_i,
                 (
-                    Expr.length_in(0, m),
-                    Expr.length_in(0, m),
-                    Expr.length_in(0.25, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0.25, m),
                 ),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.literal(0.0 * pncad.rad),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                Formula.literal(0.0 * pncad.rad),
             )
         )
         # Two copies, the second clear of the post and of the first:
         # the row is about the copy the mate names.
         family = doc.insert(
             Node.placed_union(
-                lifted, Expr.count(2), PatternKind.linear((
-                    Expr.literal(1.0),
-                    Expr.literal(0.0),
-                    Expr.literal(0.0),
-                ), Expr.length_in(2.0 * SHELF_LENGTH, m))
+                lifted, Formula.count(2), PatternKind.linear((
+                    Formula.literal(1.0),
+                    Formula.literal(0.0),
+                    Formula.literal(0.0),
+                ), Formula.length_in(2.0 * SHELF_LENGTH, m))
             )
         )
         a_top = self.instance_face(doc, post_a, CapEnd.End)
@@ -1743,11 +1743,11 @@ class TestRefactorings(BenchWorkspace):
     def test_inline_of_a_node_that_is_not_an_instance_refuses(self):
         doc = Doc("plain")
         profile = doc.insert(Node.polygon([
-            (Expr.length_in(0, m), Expr.length_in(0, m)),
-            (Expr.length_in(1, m), Expr.length_in(0, m)),
-            (Expr.length_in(1, m), Expr.length_in(1, m)),
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(1, m)),
         ], plane=doc.sketch_frame()))
-        body = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+        body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         with self.assertRaises(pncad.InlineError) as caught:
             pncad.inline(doc, body, self.ws)
         self.assertEqual(caught.exception.variant, "not_an_instance")
@@ -1790,13 +1790,13 @@ class TestProductRoots(BenchWorkspace):
     def test_a_document_with_no_body_root_has_no_product(self):
         doc = Doc("datum-only")
         doc.insert(Node.datum_plane((
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
         )))
         with self.assertRaises(pncad.ProductError) as caught:
             product(doc, evaluate(doc))
@@ -1926,6 +1926,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
             "carried-unmintable", class_=ContactClass.Tangent
         )
         outer, instance = self.instantiated("carried-unmintable-outer", ref)
+        outer.apply(DocEdit.set_label(instance, "left bracket"))
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(outer, evaluate(outer, resolver=self.ws))
         err = caught.exception
@@ -1942,6 +1943,13 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         self.assertEqual(row.of, str(inner.id))
         self.assertEqual(row.via, [instance])
         self.assertIn("at rest", str(err))
+        # The route's first instance is the outer document's, so the
+        # row says it as that document holds it; the inner mate keeps
+        # its tag.
+        through = f'through InstantiatePart "left bracket" ({tag(instance)})'
+        self.assertIn(through, str(row))
+        self.assertIn(f"mate {tag(inner_mate)}", str(row))
+        self.assertIn(through, str(err))
 
     def test_a_certified_assembly_names_the_carried_mates_it_certified_over(self):
         # Two stands side by side, each certifying: the assembly keeps
@@ -2029,7 +2037,7 @@ class TestMateFrameFromFace(BenchWorkspace):
         # with the cap, by exactly the height change.
         self.post.apply(
             DocEdit.set_param(
-                self.post.roots[0], "distance", Expr.length_in(POST_HEIGHT + 0.1, m)
+                self.post.roots[0], "distance", Formula.length_in(POST_HEIGHT + 0.1, m)
             )
         )
         self.ws.resave(self.post)
@@ -2060,14 +2068,14 @@ class TestMateFrameFromFace(BenchWorkspace):
         self.assertAlmostEqual(moved.origin[2].meters, plain.origin[2].meters, places=12)
 
         def declare(d):
-            d.apply(DocEdit.declare_var(pncad.ParamName("slide"), pncad.DocParam.length(0.1 * m)))
+            d.apply(DocEdit.declare_var(pncad.VarName("slide"), pncad.FreeVar.length(0.1 * m)))
 
         def driven(d):
             return MateFrame.on_face(
                 Placement.rigid(
-                    translation=(Expr.length_in(0.0, m), d.parse_expr("slide"), Expr.length_in(0.0, m)),
-                    axis=(Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                    angle=Expr.angle_in(0.0, rad),
+                    translation=(Formula.length_in(0.0, m), d.parse_formula("slide"), Formula.length_in(0.0, m)),
+                    axis=(Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                    angle=Formula.angle_in(0.0, rad),
                 )
             )
 
@@ -2077,7 +2085,7 @@ class TestMateFrameFromFace(BenchWorkspace):
         at = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(at.origin[0].meters, moved.origin[0].meters, places=12)
         doc.apply(
-            DocEdit.set_var_value(pncad.ParamName("slide"), pncad.DocParamValue.length(0.3 * m)),
+            DocEdit.set_var_value(pncad.VarName("slide"), pncad.FreeValue.length(0.3 * m)),
             resolver=self.ws,
         )
         later = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)

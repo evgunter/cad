@@ -187,17 +187,83 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v
 }
 
+fn uncrossable() -> crate::splitting::Uncrossable {
+    crate::splitting::Uncrossable {
+        r#loop: LoopKey::default(),
+        edge: EdgeKey::default(),
+        carrier: crate::splitting::UncrossableCarrier::Spiric,
+    }
+}
+
+/// Every refusal the solid door can hand the face door's curved reads,
+/// carried as [`ContainError::Curved`]; `Loop` once per loop refusal, and
+/// `OffPlane` once per cause.
+fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
+    use crate::boolean::PointInSolidError as S;
+    use crate::splitting::{OffPlane, OffPlaneCause, PointInLoopError as L};
+    let face = FaceKey::default();
+    let r#loop = LoopKey::default();
+    vec![
+        S::Escalated { face, diag: diag() },
+        S::RayExhausted,
+        S::ZeroVolumeBody,
+        S::Loop(L::Escalated {
+            r#loop,
+            diag: diag(),
+        }),
+        S::Loop(L::RayExhausted { r#loop }),
+        S::Loop(L::CorruptLoop { r#loop }),
+        S::Loop(L::Uncrossable(uncrossable())),
+        S::Loop(L::OffPlane(OffPlane {
+            r#loop,
+            cause: OffPlaneCause::Loop {
+                edge: crate::entity::EdgeKey::default(),
+            },
+        })),
+        S::Loop(L::OffPlane(OffPlane {
+            r#loop,
+            cause: OffPlaneCause::Query,
+        })),
+        S::Loop(L::OffPlane(OffPlane {
+            r#loop,
+            cause: OffPlaneCause::NormalNotUnit,
+        })),
+        S::CorruptFace { face },
+        S::KindUnsupported {
+            face,
+            kind: geom::SurfaceKind::Nurbs,
+        },
+        S::VolumeUncertified,
+        S::PartialSphereFace { face },
+        S::PartialConeFace { face },
+        S::PartialTorusFace { face },
+        S::EdgeCarrierUnsupported {
+            face,
+            cause: uncrossable(),
+        },
+        S::WallOutlineUnsupported { face },
+        S::NoSuchSolid {
+            solid: SolidKey::default(),
+        },
+    ]
+}
+
 fn contain_errors() -> Vec<ContainError> {
     vec![
         ContainError::Escalated(diag()),
         ContainError::RayExhausted,
-        ContainError::Corrupt,
-        ContainError::Uncrossable(crate::splitting::Uncrossable {
-            r#loop: LoopKey::default(),
-            edge: crate::entity::EdgeKey::default(),
-            carrier: crate::splitting::UncrossableCarrier::Spiric,
-        }),
+        ContainError::StaleFace(crate::entity::FaceKey::default()),
+        ContainError::EmptyLoop(LoopKey::default()),
+        ContainError::LoopUnreadable(LoopKey::default()),
+        ContainError::Uncrossable(uncrossable()),
     ]
+    .into_iter()
+    .chain(
+        point_in_solid_errors()
+            .into_iter()
+            .map(ContainError::Curved),
+    )
+    .collect()
 }
 
 /// The carrier-domain refusal on a width that overflows.
@@ -265,6 +331,26 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::Escalated {
             limb: geom_brep::SsiLimb::Tube,
             cause: diag(),
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Short,
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Undecided(diag()),
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Count { solutions: 0 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: geom_brep::ssi::OneArcRefusal::Count { solutions: 4 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: geom_brep::ssi::OneArcRefusal::Unlinked,
         },
         PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
         PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
@@ -710,6 +796,31 @@ fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
     format!("{arm}/{head}")
 }
 
+/// `arm/Curved/Loop/Variant`: [`label`] read down the arms that carry a
+/// solid or loop refusal whole, and down to an off-plane loop's cause,
+/// so each carried refusal gets its own label.
+fn path_label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
+    let debug = format!("{nested:?}");
+    let mut path = arm.to_owned();
+    let mut rest = debug.as_str();
+    loop {
+        let head: String = rest
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        path = format!("{path}/{head}");
+        match rest[head.len()..].strip_prefix('(') {
+            Some(inner) if matches!(head.as_str(), "Curved" | "Loop") => rest = inner,
+            // An off-plane loop's refusals differ by cause alone.
+            _ if head == "OffPlane" => match rest.split_once("cause: ") {
+                Some((_, cause)) => rest = cause,
+                None => return path,
+            },
+            _ => return path,
+        }
+    }
+}
+
 /// Every [`ValidationError`] shape the viewer can draw, each with a
 /// short label naming the arm and the nested variant it carries (the
 /// module docs).
@@ -1025,7 +1136,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     for source in contain_errors() {
         s.push((
-            label("RingNestingUndecided", &source),
+            path_label("RingNestingUndecided", &source),
             ValidationError::RingNestingUndecided {
                 face,
                 ring: loop_,
@@ -1138,7 +1249,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     for e in contain_errors() {
         causes.push((
-            label("CensusUnsupported/Containment", &e),
+            path_label("CensusUnsupported/Containment", &e),
             CensusUnsupportedCause::Containment(e),
         ));
     }
@@ -1236,6 +1347,27 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         "ContainError",
         &contain_errors(),
     ));
+    let carried: Vec<crate::boolean::PointInSolidError> = contain_errors()
+        .into_iter()
+        .filter_map(|e| match e {
+            ContainError::Curved(e) => Some(e),
+            _ => None,
+        })
+        .collect();
+    out.extend(gaps::<
+        _,
+        crate::boolean::solid_contain::PointInSolidErrorKind,
+    >("PointInSolidError", &carried));
+    let loops: Vec<crate::splitting::PointInLoopError> = carried
+        .into_iter()
+        .filter_map(|e| match e {
+            crate::boolean::PointInSolidError::Loop(e) => Some(e),
+            _ => None,
+        })
+        .collect();
+    out.extend(
+        gaps::<_, crate::splitting::containment::PointInLoopErrorKind>("PointInLoopError", &loops),
+    );
     out.extend(gaps::<_, CertifyErrorKind>(
         "CertifyError",
         &certify_errors(),

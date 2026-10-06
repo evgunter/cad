@@ -51,7 +51,8 @@
 //! [`Body::resolve_half_edge_live`] are it for their callers' shapes.
 use crate::body::Body;
 use crate::entity::{
-    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
+    LoopKey, VertexKey,
 };
 use crate::euler::{BadArgument, EulerOpError};
 use crate::geometry::PointKey;
@@ -92,6 +93,23 @@ impl Live {
 /// panic names it, and the rows that drive a torn body match on it.
 pub(crate) const NAMES_ONLY_LIVE: &str = "every public door keeps the body tier-1-valid, \
      and a tier-1-valid record names only live records";
+
+/// The premise a link that does not resolve breaks on a body
+/// mid-operation, where tier 1 is not yet asked: every link-miss panic,
+/// [`proven`]-miss panic and broken-walk panic ([`crate::body::Walk::closed`])
+/// names it beside the at-rest premise, and the reads that panic on a
+/// link mid-operation cite it rather than restate it. Every removal of
+/// a surface or a curve is orphan-only
+/// ([`Body::remove_surface_if_orphaned`],
+/// [`Body::remove_curve_if_orphaned`], and `splitting/finish.rs`'
+/// sweep, which collects the live ones from faces and curves first).
+/// The one removal of topology that is not an Euler operator,
+/// [`crate::splitting::finish::carve`]'s, checks its own premise (it
+/// drops only records no kept record names), which a read of a carved
+/// body cites beside this one.
+pub(crate) const OPERATORS_KEEP_LINKS: &str = "mid-operation, every Euler operator leaves each \
+     link it writes resolving and each walk it writes closed, and removes a record only once no \
+     record names it";
 
 /// Where a key a plan phase resolves came from, and so what its miss
 /// is: [`Arg`]'s is the caller's typed refusal, so a lookup through it
@@ -206,7 +224,7 @@ impl KeySource for Proven {
 fn unproven(key: impl core::fmt::Display) -> ! {
     unreachable!(
         "{key}, which this call resolved or read out of a record, does not resolve: \
-         nothing removes a record during a plan, and {NAMES_ONLY_LIVE}"
+         nothing removes a record during a plan, and {NAMES_ONLY_LIVE}; {OPERATORS_KEEP_LINKS}"
     )
 }
 
@@ -218,7 +236,10 @@ pub(crate) fn dangling_link(
     link: &str,
     key: impl core::fmt::Display,
 ) -> ! {
-    unreachable!("{holder}'s {link} names {key}, which does not resolve: {NAMES_ONLY_LIVE}")
+    unreachable!(
+        "{holder}'s {link} names {key}, which does not resolve: {NAMES_ONLY_LIVE}; \
+         {OPERATORS_KEEP_LINKS}"
+    )
 }
 
 /// [`Link`]: `holder`'s field `link`.
@@ -252,8 +273,10 @@ pub(crate) fn linked<'a, K: slotmap::Key, V>(
 
 /// `key`'s record in `arena`, for a key this call already resolved,
 /// minted, or read out of a record it resolved: nothing removes a record
-/// during a plan, and a tier-1-valid record names only live records, so
-/// a miss is a kernel bug and panics.
+/// during a plan, a tier-1-valid record names only live records, and
+/// mid-operation [`OPERATORS_KEEP_LINKS`], so a miss is a kernel bug and
+/// panics. A key read out of a record is better resolved through
+/// [`linked`], whose panic names the record that holds it.
 #[track_caller]
 pub(crate) fn proven<K: slotmap::Key, V, I: core::fmt::Display>(
     arena: &slotmap::SlotMap<K, V>,
@@ -275,6 +298,14 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
     from: S,
 ) -> S::Answer<()> {
     S::map(lookup(arena, key, id, from), |_| ())
+}
+
+/// One member of a face's boundary ([`Body::face_boundary_linked`]).
+pub(crate) enum BoundaryMember<'a, T: Real> {
+    /// An isolated-vertex loop's point.
+    Isolated(Point3<T>),
+    /// A loop cycle member's edge `ek`, whose record is `edge`.
+    Edge { ek: EdgeKey, edge: &'a Edge },
 }
 
 impl<T: Real> Body<T> {
@@ -315,6 +346,59 @@ impl<T: Real> Body<T> {
         self.get_curve_geom(data.curve).unwrap_or_else(|| {
             dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(data.curve))
         })
+    }
+
+    /// `face`'s loops, each a link its record holds: the outer loop, then
+    /// its rings. The one order every walk of a face's boundary takes,
+    /// and the one spelling of the fields a miss names.
+    pub(crate) fn face_loops_linked<'a>(
+        &'a self,
+        face: FaceKey,
+        data: &'a Face,
+    ) -> impl Iterator<Item = (LoopKey, &'a Loop)> + 'a {
+        core::iter::once((data.outer, "outer"))
+            .chain(data.rings.iter().map(|&ring| (ring, "rings")))
+            .map(move |(lk, field)| {
+                let l = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(face), field);
+                (lk, l)
+            })
+    }
+
+    /// `face`'s boundary, member by member, in [`Body::face_loops_linked`]'s
+    /// order: each isolated-vertex loop's point, and each closed loop
+    /// cycle member's edge. Every hop is a link, and a loop
+    /// walk that does not close panics ([`crate::body::Walk::closed`]).
+    pub(crate) fn face_boundary_linked<'a>(
+        &'a self,
+        face: FaceKey,
+        data: &'a Face,
+    ) -> impl Iterator<Item = BoundaryMember<'a, T>> + 'a {
+        self.face_loops_linked(face, data)
+            .flat_map(move |(lk, l)| match l.boundary {
+                LoopBoundary::Empty { vertex } => {
+                    vec![BoundaryMember::Isolated(self.linked_vertex_point(
+                        vertex,
+                        EntityId::Loop(lk),
+                        "vertex",
+                    ))]
+                }
+                LoopBoundary::Cycle { first } => self
+                    .loop_walk(first)
+                    .closed("loop", first)
+                    .into_iter()
+                    .map(|he| {
+                        let ek = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+                        let edge = linked(
+                            &self.edges,
+                            ek,
+                            EntityId::Edge,
+                            EntityId::HalfEdge(he),
+                            "edge",
+                        );
+                        BoundaryMember::Edge { ek, edge }
+                    })
+                    .collect(),
+            })
     }
 
     /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`

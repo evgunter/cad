@@ -74,10 +74,11 @@ fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<String> {
         .filter_map(|he| {
             let c = body.pcurve(he)?;
             Some(format!(
-                "{he:?} {:?} {:?} {:?}",
+                "{he:?} {:?} {:?} {:?} {:?}",
                 c.params(),
                 c.pcurve(),
-                c.certificate()
+                c.certificate(),
+                body.joint(he)
             ))
         })
         .collect();
@@ -129,7 +130,7 @@ fn every_minted_face_is_the_passs(body: &Body<f64>, what: &str) -> usize {
 fn an_oblique_split_leaves_the_cut_wall_minted_whole_at_the_join() {
     let theta = 20f64.to_radians();
     let body = split_through_the_join(
-        &rod(),
+        &sweep::test_support::finished("the operand", rod(), tol()),
         &topo::test_support::split_plane(
             Point3::new(0.0, 2.0, 0.0),
             Vec3::new(0.0, theta.cos(), theta.sin()),

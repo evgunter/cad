@@ -33,8 +33,8 @@ use geom_core::Tol;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::mc::{McConfig, McRefusal, monte_carlo, sample_offsets};
 use editor_core::{
-    Dimension, Distribution, DocEdit, Expr, FreeVar, MeasureExpr, Node, ProfileDoc, RecipeNodeId,
-    UnitSym, VarName, apply,
+    Dimension, Distribution, DocEdit, Formula, FreeVar, MeasureExpr, Node, ProfileDoc,
+    RecipeNodeId, UnitSym, VarName, apply,
 };
 
 /// The nominal, and a number with no dyadic shortcuts in it: a mean
@@ -58,7 +58,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("x"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: NOMINAL,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -76,7 +76,10 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
         &DocEdit::InsertNode {
             node: Box::new(
                 Node::measure(
-                    MeasureExpr::value(Expr::named(VarName::from_static("x"), Dimension::Length)),
+                    MeasureExpr::value(Formula::named(
+                        VarName::from_static("x"),
+                        Dimension::Length,
+                    )),
                     Vec::new(),
                 )
                 .expect("a measure over a value leaf takes no references"),

@@ -172,7 +172,7 @@ pub use geom_core::{
 // `WrittenLength`/`WrittenAngle` are value types by the same rule and
 // ride here for the same reason `Length` does: they are what an
 // authored quantity IS at this boundary — a magnitude plus the
-// notation it was written in — and `Expr::written_length` is the door
+// notation it was written in — and `Formula::written_length` is the door
 // they open, which is how a library recipe records `300 mm` rather
 // than `0.3` for a reader to interpret.
 pub use quantity::{
@@ -708,10 +708,11 @@ pub use stl::{
 };
 
 // --- 8. The document layer ------------------------------------
-// `parse_expr` is the expression TEXT door: the checking
-// parser whose every reduction runs the Expr smart constructors;
+// `parse_formula` is the expression TEXT door: the checking
+// parser whose every reduction runs the Formula smart constructors;
 // `unparse` is the same door outward, source text the parser reads
-// back as the same tree.
+// back as the same tree. `Formula` is what a caller writes and `Expr`
+// what a document stores; a node an edit carries is an `AuthoredNode`.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
 // surface (`crate::document`). `Datum` and `VarEnv` ride here
@@ -719,8 +720,9 @@ pub use stl::{
 // `GeomPred::DatumDistance` selection is written against, and
 // `select_where` takes a `VarEnv`, so both are needed to write a
 // position filter at all.
-// `VarName`, `FreeVar` and `VarDef` ride here because they are what
-// `DocEdit::DeclareVar` and `Expr::named` take, so a prelude user
+// `VarName`, `FreeVar` and `VarDecl` ride here because they are what
+// `DocEdit::DeclareVar` and `Formula::named` take, and `VarDef` because it
+// is what a document's variable reads back as, so a prelude user
 // could otherwise hold the variable doors and not open them — the
 // parametric flagship (`plate_param`, guide §3.2) imports them.
 // `RecordedNotation` rides beside `LoopProgram` because it is the other
@@ -733,11 +735,11 @@ pub use stl::{
 // read out of a file gets. `VarNameFault` is the same thing for
 // `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
-    FaceName, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError, PatternKind,
-    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDef,
-    VarEnv, VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
+    AuthoredNode, CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation,
+    Expr, FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
+    PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
+    VarDecl, VarDef, VarEnv, VarName, VarNameFault, apply, evaluate, parse_formula, unparse,
 };
 pub use editor_core::{NameTextError, StableName};
 

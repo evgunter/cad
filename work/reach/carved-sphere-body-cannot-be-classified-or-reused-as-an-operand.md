@@ -2,11 +2,14 @@
 id: carved-sphere-body-cannot-be-classified-or-reused-as-an-operand
 kind: issue
 title: A body carrying a sphere face bounded by a tilted circle refuses point classification (PartialSphereFace) and a ball nested in it (CurvedPierceUnsupported)
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
-refs: [tilted-sphere-pair-section-refuses-at-the-polar-gate]
+refs: [tilted-sphere-pair-section-refuses-at-the-polar-gate, torus-face-bounded-by-an-oblique-circle-refuses-point-classification]
+pr: 4046
+branch: reach/carved-sphere-classify
+closed: 2026-10-05
 ---
 
 
@@ -60,18 +63,15 @@ operand with `Containment(PartialSphereFace)`
 `a_pole_struts_halves_face_their_own_meridians`, which accepts that
 refusal).
 
-## Evidence (2026-10-05, `reach/trimmed-sphere-escape`)
+## Closed (2026-10-05)
 
-A slab cutting a cap of height 0.0075 off the pole-strut carve
-(`ball_poled_y(0.5) ∖ [−1, 0.25] × [−1, 1] × [−1, 0]`), toward latitude
-10° at azimuth π/2 and toward `(0.866, 0.1, −0.5)`, refuses every op in
-both orders before any cut: the face holding the circle is bounded by
-the tilted circle `x = 0.25`, so the section certificate places no
-witness on it (R-undec, "no witness could place"). Pinned by
-`snowman.rs`
-`a_slab_cutting_a_cap_off_a_pole_strut_carve_refuses_the_unplaced_witness`.
-With `reach/carved-sphere-classify` at `fb2e1803c9` merged in, both
-poses build under every op in either order to the closed forms
-(`v_strut + 36 − cap`, the cap, `v_strut − cap`, `36 − cap`), the
-second through a meridian cut whose two ends split the one `x = 0.25`
-arc: the row flips to `assert_cap_cut` when this lands.
+Merged by PR 4046. `topo::boolean::sphere_region` is the one reading of
+a trimmed sphere face: a geodesic closest-crossing rule over the face's
+boundary arcs, cast both ways, read by `point_in_solid`'s sphere arm and
+by the pierce arm's face door. The item's four queries, the nested,
+disjoint and lens-centre balls, the pole-strut results and a tilted
+plane × sphere cut all classify and build to their closed forms under
+every op. `PartialSphereFace` now means only a sphere face with a
+non-circle boundary edge. An independent verifier
+(`analysis/reach-verify/4046`) found 0 wrong answers in 52,500 random
+queries on five carved bodies at three ε, plus both reviewers' probes.

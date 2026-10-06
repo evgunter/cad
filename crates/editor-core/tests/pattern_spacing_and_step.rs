@@ -22,8 +22,8 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Dimension, DocEdit, Expr, FreeVar, Node, NodeErrorClass, NodeErrorKind, NodeResult,
-    PatternKind, ProfileDoc, RecipeNodeId, StepTurns, ValuePayload, VarName, parse_expr,
+    Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorClass, NodeErrorKind, NodeResult,
+    PatternKind, ProfileDoc, RecipeNodeId, StepTurns, ValuePayload, VarName, parse_formula,
 };
 use fixture::{ang, len, scl};
 
@@ -37,7 +37,7 @@ fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, Recipe
     if let Some((name, radians)) = th {
         r.push(DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, radians)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, radians)),
         });
     }
     let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
@@ -58,7 +58,7 @@ fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, Recipe
     (r, solid, axis)
 }
 
-fn linear(direction: [f64; 3], spacing: f64) -> PatternKind {
+fn linear(direction: [f64; 3], spacing: f64) -> PatternKind<Formula> {
     PatternKind::Linear {
         direction: direction.map(scl),
         spacing: len(spacing),
@@ -66,14 +66,18 @@ fn linear(direction: [f64; 3], spacing: f64) -> PatternKind {
 }
 
 /// A pattern (or, with `union`, a placed union) of the block.
-fn patterned(count: i64, kind: impl FnOnce(RecipeNodeId) -> PatternKind, union: bool) -> Built {
+fn patterned(
+    count: i64,
+    kind: impl FnOnce(RecipeNodeId) -> PatternKind<Formula>,
+    union: bool,
+) -> Built {
     built(count, kind, union, None)
 }
 
 /// A pattern of the block whose rule reads the angle parameter `th`.
 fn driven(
     count: i64,
-    kind: impl FnOnce(RecipeNodeId) -> PatternKind,
+    kind: impl FnOnce(RecipeNodeId) -> PatternKind<Formula>,
     th: (&VarName, f64),
 ) -> Built {
     built(count, kind, false, Some(th))
@@ -81,18 +85,19 @@ fn driven(
 
 fn built(
     count: i64,
-    kind: impl FnOnce(RecipeNodeId) -> PatternKind,
+    kind: impl FnOnce(RecipeNodeId) -> PatternKind<Formula>,
     union: bool,
     th: Option<(&VarName, f64)>,
 ) -> Built {
     let (mut r, solid, axis) = block(th);
     let kind = kind(axis);
     let node = if union {
-        Node::placed_union(solid, Expr::count(count), kind).expect("a stepped rule takes a count")
+        Node::placed_union(solid, Formula::count(count), kind)
+            .expect("a stepped rule takes a count")
     } else {
         Node::Pattern {
             input: solid,
-            count: Expr::count(count),
+            count: Formula::count(count),
             kind,
         }
     };
@@ -132,7 +137,7 @@ impl Built {
     /// A formula a refusal carries, as the document speaks it: a
     /// reader is stored by its id, and said by the name the document
     /// holds.
-    fn said(&self, formula: &editor_core::Expr) -> String {
+    fn said(&self, formula: &editor_core::Formula) -> String {
         editor_core::spoken::Speaker::of(&self.doc).formula(formula)
     }
 
@@ -316,7 +321,7 @@ fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
     ] {
         let value = f64::to_radians(value);
         let radians = times * value;
-        let expr = parse_expr(step, &params).unwrap();
+        let expr = parse_formula(step, &params).unwrap();
         let built = driven(5, circular(expr), (&th, value));
         let (class, text) = built.refusal();
         assert_eq!(class, NodeErrorClass::FullRangeStep, "{step}: {text}");
@@ -336,7 +341,7 @@ fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
         );
         lands_where(radians, within, &params, Some((&th, value)));
     }
-    let expr = parse_expr("th * 2.0", &params).unwrap();
+    let expr = parse_formula("th * 2.0", &params).unwrap();
     let whole = driven(3, circular(expr), (&th, f64::to_radians(360.0)));
     let (_, text) = whole.refusal();
     assert_eq!(whole.full_range_step(), (StepTurns::Whole, true), "{text}");
@@ -347,13 +352,13 @@ fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
 }
 
 /// A circular rule about the block's axis at `step`.
-fn circular(step: Expr) -> impl FnOnce(RecipeNodeId) -> PatternKind {
+fn circular(step: Formula) -> impl FnOnce(RecipeNodeId) -> PatternKind<Formula> {
     move |axis| PatternKind::Circular { axis, step }
 }
 
 /// `text` parsed as a parameter-free expression.
-fn written(text: &str) -> Expr {
-    parse_expr(text, &BTreeMap::new()).unwrap()
+fn written(text: &str) -> Formula {
+    parse_formula(text, &BTreeMap::new()).unwrap()
 }
 
 /// **Follows a recourse**: builds five copies at `within` (with `th`
@@ -366,7 +371,7 @@ fn lands_where(
     params: &BTreeMap<VarName, Dimension>,
     th: Option<(&VarName, f64)>,
 ) {
-    let step = parse_expr(within, params).unwrap_or_else(|e| panic!("{within:?} parses: {e:?}"));
+    let step = parse_formula(within, params).unwrap_or_else(|e| panic!("{within:?} parses: {e:?}"));
     let built = match th {
         Some(th) => driven(5, circular(step), th),
         None => patterned(5, circular(step), false),

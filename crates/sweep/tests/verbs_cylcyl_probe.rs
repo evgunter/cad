@@ -104,7 +104,7 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 ///    the caps: an undeclared continuation, refused at the same door
 ///    for the same reason.
 /// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall,
-///    and the circle × cylinder root lane (`topo::boolean::circle_cylinder`)
+///    and the conic × quadric root door (`topo::boolean::conic_quadric`)
 ///    certifies where. Both operands span one height, so their cap
 ///    discs overlap in the planes `z = 0` and `z = 2`: an undeclared
 ///    coincidence, refused at `UndeclaredCoincidence` and moved by a
@@ -592,6 +592,7 @@ fn a_wall_closed_by_a_tilted_section_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let post = sweep::test_support::finished("the post", post, tol);
     let phi = 0.3_f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.0),

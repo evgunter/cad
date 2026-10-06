@@ -109,8 +109,9 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     for (profile, must_succeed) in [(BUMP_ONLY, true), (NOTCH_ONLY, true), (BOTH_SIDED, false)] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
-        match split(&fx.body, &plane_y::<T>(1.0, 1.0), Tol::witness()) {
+        match split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness()) {
             Ok(r) => {
                 assert!(must_succeed, "BOTH_SIDED unexpectedly split — re-examine");
                 let (va, vb) = (
@@ -154,8 +155,9 @@ fn r1_both_sided_pinch_f64() {
 fn mirror_identity_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     for profile in [MIRRORED, NOTCHED] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
-        let rp = split(&fx.body, &plane_y::<T>(1.0, 1.0), Tol::witness()).unwrap();
-        let rn = split(&fx.body, &plane_y::<T>(1.0, -1.0), Tol::witness()).unwrap();
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+        let rp = split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness()).unwrap();
+        let rn = split(&operand, &plane_y::<T>(1.0, -1.0), Tol::witness()).unwrap();
         // swap(split(S,−n)): its BELOW is our ABOVE.
         let pairs = [
             (body_of(&rp.above), body_of(&rn.below), "above"),
@@ -372,8 +374,8 @@ fn r2_inscribed_diamond_vertices_on_edges() {
 }
 
 // =================================================================
-// R4 — the saddle frontier (D8): pin what JoinDesync is, and stress
-// tilt families the 24-sweep missed, with a volume-identity oracle
+// R4 — the saddle frontier (D8): stress tilt families the 24-sweep
+// missed, with a volume-identity oracle
 // (vol(A∪B) = vol(A)+vol(B)−vol(A∩B); vol(A∖B) = vol(A)−vol(A∩B))
 // that detects WRONG-RESULT outcomes the internal gates cannot.
 // =================================================================
@@ -397,8 +399,9 @@ fn l_prism() -> topo::AtRestBody<f64> {
 }
 
 /// Volume of a boolean outcome: `Some(v)` when it closed (Empty = 0),
-/// `None` on a typed refusal. Panics only on `PairingMismatch` — the
-/// D8 witness this hunt exists for.
+/// `None` on a typed refusal. Panics on `PairingMismatch` so that it is
+/// read (`m3_pr6_saddle`'s module docs): a bug at any number of
+/// crossings.
 fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64> {
     match r {
         Ok(BooleanResult::Body(b)) => {
@@ -406,40 +409,10 @@ fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64>
         }
         Ok(BooleanResult::Empty) => Some(0.0),
         Err(BooleanError::PairingMismatch { .. }) => {
-            panic!("D8 WITNESS: PairingMismatch at {ctx}")
+            panic!("PairingMismatch at {ctx}: a bug at any number of crossings")
         }
         Err(_) => None,
     }
-}
-
-/// The implementer's frontier fixture, pinned TIGHTLY: their test
-/// accepts `JoinDesync | PairingMismatch`; this one demands to know
-/// which. (If it ever flips to PairingMismatch, that is the D8
-/// witness and this test fails loudly to say so.)
-#[test]
-fn r4_frontier_is_joindesync_not_pairingmismatch() {
-    let a = l_prism();
-    let b = mapped_cube(
-        |x, y, z| {
-            let (e1, e2, e3) = (
-                Vec3::new(0.9, -0.6, 0.5),
-                Vec3::new(0.7, 0.8, -0.55),
-                Vec3::new(-0.45, 0.5, 0.9),
-            );
-            Point3::new(
-                2.0 + x * e1.x + y * e2.x + z * e3.x,
-                2.0 + x * e1.y + y * e2.y + z * e3.y,
-                0.5 + x * e1.z + y * e2.z + z * e3.z,
-            )
-        },
-        Tol::witness(),
-    );
-    let b = finished("the tilted cube", b, Tol::witness());
-    let err = union(&a, &b, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::JoinDesync { .. }),
-        "frontier moved: {err:?}"
-    );
 }
 
 /// Families the 24-tilt sweep missed: all three OPS (they swept union

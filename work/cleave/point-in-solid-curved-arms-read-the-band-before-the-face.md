@@ -8,8 +8,25 @@ priority: P3
 cost: M
 ---
 
-Unmeasured: no fixture is known to reach it. Found by the sweep of the
-far-plane fix (`point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`).
+Found by the sweep of the far-plane fix
+(`point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`).
+
+## Measured (2026-10-05, PR 4046's dual review)
+
+Every body carrying a trimmed sphere face reaches it since PR 4046 reads
+such faces (`boolean::sphere_region`). The witness is the unit ball at the
+origin ∩ the box `[−0.3, 0.2] × [0.6, 2] × [−2, 2]` (a slab across the
+`+y` pole). Take the point on the sphere along `(0.126, 0.122, −0.985)`,
+about 0.48 outside the body. Placed 5ε off the sphere, it refuses
+`Escalated(bool_point_in_solid_sphere)` at ε 1e-9; placed on the sphere,
+it answers `Out`. Reproduced on PR 4046's branch, which renamed the
+sphere arms' residual from `bool_point_in_solid_plane` to
+`bool_point_in_solid_sphere`.
+
+The reviewer's ball × box and lens families gave the counts, per family
+per ε: about 900 such refusals at points clear of every face, plus 65
+`bool_ray_sphere_disc` in the lens family
+(`analysis/reach-dual/4046-r1`, `review.md` MINOR 1).
 
 That fix changed `point_in_solid`'s plane arm in two places
 (`crates/topo/src/boolean/solid_contain.rs`):
@@ -29,16 +46,17 @@ That fix changed `point_in_solid`'s plane arm in two places
 The curved arms keep the old order on both counts.
 
 1. **Pre-pass.** The cylinder, cone, sphere-patch and torus arms all
-   decide `bool_point_in_solid_plane` on the carrier residual. An
+   decide the carrier residual (`bool_point_in_solid_plane`, or
+   `bool_point_in_solid_sphere` on the sphere arms). An
    in-band residual escalates at once, wherever the face's trim lies.
    For example, a point a band off a cylinder's carrier but a metre
    past the wall's azimuth window refuses. The plane arm would set
    that face aside.
    - The fix is the plane arm's shape: ask the trim of the point's
      foot on the carrier.
-   - The trims (`wall_hit`, `point_on_sphere_in_face`,
+   - The trims (`wall_hit`, `SphereFaceRegion::contains`,
      `point_on_torus_in_face`, `point_on_cone_in_face`) are written for
-     on-chart points. So the foot has to be projected per kind:
+     on-carrier points. So the foot has to be projected per kind:
      radially for the wall, sphere and torus, and along the
      generator's normal for the cone. `point_on_cone_in_face` reads the
      slant as `h / cos α` off the point itself, which is not the foot's.

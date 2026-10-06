@@ -32,7 +32,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
     MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc,
     ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SeedError, SitedRef,
     ValuePayload, VarName, evaluate, seed_env,
@@ -53,8 +53,8 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str) -> Expr {
-    Expr::named(name(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(name(n), Dimension::Length)
 }
 
 fn continuous(value: f64) -> FreeVar {
@@ -131,7 +131,7 @@ fn two_param_web() -> ProfileDoc {
         &doc,
         DocEdit::DeclareVar {
             name: name("depth"),
-            def: editor_core::VarDef::Free(continuous(0.1)),
+            def: editor_core::VarDecl::Free(continuous(0.1)),
         },
     );
     // The plate is the corpus web's extrude; its distance becomes the
@@ -156,7 +156,8 @@ fn two_param_web() -> ProfileDoc {
     let Some(Node::Measure { expr, refs }) = doc.node(old).cloned() else {
         panic!("the corpus web is a measure")
     };
-    let with_depth = MeasureExpr::add(expr, MeasureExpr::value(param("depth"))).expect("Length");
+    let with_depth =
+        MeasureExpr::add(expr.authored(), MeasureExpr::value(param("depth"))).expect("Length");
     // Replace the measure: the assertion depends on the old node, so
     // it goes first (cascade), then the new measure is inserted.
     let assertion = doc
@@ -186,7 +187,7 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(w)),
+        def: editor_core::VarDecl::Free(continuous(w)),
     });
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -224,7 +225,7 @@ fn with_count() -> ProfileDoc {
         &doc,
         &DocEdit::DeclareVar {
             name: name("n"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

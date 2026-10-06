@@ -23,9 +23,9 @@ use std::collections::BTreeSet;
 use crate::docm7_union_declare::block;
 
 use editor_core::{
-    DocEdit, DocumentId, EvalOptions, Expr, FreeVar, InlineError, Node, ProfileDoc, RecipeNodeId,
-    ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin, inline, load,
-    product_named, save, split,
+    DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc,
+    RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin,
+    inline, load, product_named, save, split,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
@@ -544,13 +544,13 @@ fn row3_uncut_param_reference_refuses() {
         doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("h"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(
+            def: editor_core::VarDecl::Free(FreeVar::continuous(
                 editor_core::Dimension::Length,
                 1.5,
             )),
         },
     );
-    let h = || Expr::named(VarName::from_static("h"), editor_core::Dimension::Length);
+    let h = || Formula::named(VarName::from_static("h"), editor_core::Dimension::Length);
     // Each block draws on its OWN frame. A shared one would sever an
     // edge at the cut below — the frame is a document input now — and
     // that refusal would fire before the parameter question this row
@@ -1382,7 +1382,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         part_doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("L"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(
+            def: editor_core::VarDecl::Free(FreeVar::continuous(
                 editor_core::Dimension::Length,
                 2.0,
             )),
@@ -1394,7 +1394,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         host,
         DocEdit::DeclareVar {
             name: VarName::from_static("L"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(
+            def: editor_core::VarDecl::Free(FreeVar::continuous(
                 editor_core::Dimension::Length,
                 1.0,
             )),
@@ -1728,7 +1728,11 @@ fn reshaped_component(
         doc,
         DocEdit::SetProgram {
             node: p2,
-            loops: program.loops.clone(),
+            loops: program
+                .loops
+                .iter()
+                .map(editor_core::LoopProgram::authored)
+                .collect(),
             ids,
         },
     );
