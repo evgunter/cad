@@ -1808,3 +1808,15 @@ Review folds:
 - a stale `app`-gated comment.
 
 All mutation-checked.
+
+## 2026-10-06 — PR 4103: verdict-nodes issue parked on the rewiring op
+
+`a-verdicts-other-nodes-are-said-by-tag-once-deleted` cannot happen
+through the session today. A `Vanished` verdict names only derivation
+nodes and strict ancestors of a live minter. `delete_node` deletes the
+whole cascade cone, and no session op rewires a live node's inputs.
+The row is parked on `no-docedit-splices-a-deleted-node` (#1324). Its
+body records the reachability evidence and the fix for when the case
+becomes reachable: widen `Derived::said` to the nodes a verdict can
+name, merged after each op. A snapshot taken at standing time would be
+too late.
