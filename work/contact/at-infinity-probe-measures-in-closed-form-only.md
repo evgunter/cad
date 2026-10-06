@@ -146,6 +146,14 @@ notch327 `phi230 th210`, `th225`, `th315`, `th330`, `phi300 th135`,
 `th150`, `th30`, `th45`. Main already ships 294 such intersection
 lines in that battery.
 
+**Met again on `reach/pierce-tangent-off-face` (2026-10-06).** The
+unit rod `z ∈ [0, 3]` capped by the plane `z = 1.5 + y/2` (a subtract
+of a tilted brick; it builds, volume `1.5π` to 1e-15), against a brick
+whose edge touches the wall's carrier above the cap, refuses
+`Containment(VolumeUncertified)` in every op and both orders once the
+crossing layer clears the touch. The unit took its cylinder row on a
+270° extrusion instead, whose faces are all closed-form.
+
 ## Moved on branch `cleave/ray-walk`
 
 CLEAVE's ray-walk driver unit (PR 4083) made the probe's refusal a
