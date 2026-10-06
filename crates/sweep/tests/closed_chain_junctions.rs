@@ -47,6 +47,9 @@
 //! - `a_self_closed_link_counts_its_vertex_twice` — the walk's
 //!   incidence: a self-closed link beside one other link at its vertex
 //!   is a corner, not a junction.
+//! - `a_self_closed_link_walks_alone_in_every_request_order` — the same
+//!   rule over five incidences on rewired cube links, each walked from
+//!   every seed rotation.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -459,5 +462,59 @@ fn a_self_closed_link_counts_its_vertex_twice() {
             "no junction at a corner: {:?}",
             chain.junctions
         );
+    }
+}
+
+/// **A self-closed link always walks alone**, whatever else meets its
+/// vertex and in every request order: its chain is closed with no
+/// junction, and no other chain records a junction at its vertex.
+/// Cube links rewired by `(start, end)` vertex index; vertex 0 is the
+/// self-closed link's.
+#[test]
+fn a_self_closed_link_walks_alone_in_every_request_order() {
+    let body = cube(1.0, tol());
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    let vs: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
+    let cases: [(&[(usize, usize)], usize); 5] = [
+        (&[(0, 0), (1, 0)], 2),                 // s + o, o arriving at v
+        (&[(0, 0), (0, 1), (0, 2)], 3),         // s + two others
+        (&[(0, 0), (0, 1), (1, 2)], 2),         // s + o continuing through a junction
+        (&[(0, 0), (0, 0), (0, 1)], 3),         // two self-closed + one other
+        (&[(0, 0), (0, 1), (1, 2), (2, 3)], 2), // s + a three-link run
+    ];
+    for (spec, want) in cases {
+        let links: Vec<_> = resolved_links(&body, &edges[..spec.len()], RHO, band())
+            .into_iter()
+            .zip(spec)
+            .map(|(mut l, &(a, b))| {
+                (l.start, l.end) = (vs[a], vs[b]);
+                l
+            })
+            .collect();
+        for k in 0..links.len() {
+            let mut order = links.clone();
+            order.rotate_left(k);
+            let chains = walked_links(order);
+            assert_eq!(chains.len(), want, "{spec:?} rotated {k}: chain count");
+            for c in &chains {
+                assert!(
+                    c.junctions.iter().all(|j| j.vertex != vs[0]),
+                    "{spec:?}: a junction at v"
+                );
+                if c.first().start == c.first().end {
+                    assert_eq!(
+                        c.link_count(),
+                        1,
+                        "{spec:?}: a self-closed link walks alone"
+                    );
+                    assert_eq!(c.closure, ChainClosure::Closed, "{spec:?}");
+                } else {
+                    assert!(
+                        matches!(c.closure, ChainClosure::Open { .. }),
+                        "{spec:?}: free end, open"
+                    );
+                }
+            }
+        }
     }
 }
