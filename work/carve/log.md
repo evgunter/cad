@@ -317,3 +317,35 @@ it; a note is on ZIP's log. Main is now red at 1e-6 on PATHS'
 rows are green, with any red confined to rows that are red on main.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-06 — `sweep-cap-plane-winds-against-a-convex-arc-region` closed (PR 4187)
+
+`sweep::swept::cap_plane` is the one home for all six cap sites
+(extrude's, loft's and the partial revolve's two each). It keeps
+Newell's plane over `cap_points` and flips it exactly when one decided
+comparison, the K predicate `cap_plane_orientation`, says Newell's
+normal opposes the region's (± the sketch normal, by the verb's
+`reverse` and the cap's end). The C-shape's caps now point out of the
+material in extrude, loft and partial revolve, at f64 and Interval.
+
+**Ruled mid-unit: B2.**
+- A (the placed sketch normal) failed CI with 13 rows in `editor-core`
+  and `step-export`. The placed `c2` is a far looser enclosure at
+  Interval than Newell over the actual points, and that is a geometric
+  reason, not output stability.
+- C (an arc-exact vector area) would have been a third copy of the
+  circular-segment formula.
+- B2 is bit-identical wherever Newell already agrees. The reviewer
+  dumped every face surface and vertex on base and branch to confirm.
+
+Review: single FULL (Opus). It found no MAJOR. Its fix pass:
+- The orientation refusal now carries the escalation's payload and the
+  shared `KERNEL_DEFECT_ENDING`. It had forwarded a recourse menu that
+  offered "declare the coincidence".
+- The new arms are in the concision census, plus two rows.
+- The right-handed-frame claim is a stated precondition that cites
+  PATHS' `sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary`.
+- The lane's overstated TESS row became the true
+  `a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`.
+
+Signed: (CARVE orchestrator)
