@@ -1509,9 +1509,12 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // A fold's dropped label is said nowhere else: the gauge is
         // gone, and nothing evaluates a label.
         Maintenance::LabelDropped { .. } => Retold::Never,
-        // An anonymous variable's removal is said nowhere else: its
-        // panel row goes with it, and nothing reads it any more.
-        Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
+        // An anonymous variable's removal is what rewriting or deleting
+        // the slot it was written at means: the panel lists named
+        // variables, so nothing the person sees went with it, and a
+        // typed value retires one on almost every edit. It rides
+        // `OpOutcome::maintenance` for a reader of the API.
+        Maintenance::AnonymousVarRemoved { .. } => return None,
         // The mate door's offset clear is what inserting the mate
         // means — the joined group stands on the one it joined — and
         // the mate the person just placed is its notice.

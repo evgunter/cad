@@ -2605,7 +2605,7 @@ fn continuous_only_change(
         let (Some(dst), Some(src)) = (patched.expr_mut(slot), new.expr(slot)) else {
             return false; // slot sets disagree: structural change
         };
-        *dst = src.clone();
+        *dst = *src;
     }
     patched.bit_eq(new)
 }

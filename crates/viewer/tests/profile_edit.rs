@@ -182,7 +182,7 @@ fn edit_of(
     node: RecipeNodeId,
     loops: Vec<LoopProgram<Formula>>,
 ) -> SessionOp {
-    let base = program(session, node).clone();
+    let base = sketch::written_program(session.committed_doc(), program(session, node));
     SessionOp::EditProfile {
         node,
         ids: base.kept_in_place(),
@@ -208,10 +208,11 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
                 .unwrap_or_else(|refusal| panic!("{name}: the editor refused it: {refusal}"));
             assert_eq!(held.len(), loops.len(), "{name}: one held list per loop");
             for notation in [authored_in, other] {
-                let committed = program(&session, profile);
+                let committed =
+                    sketch::written_program(session.committed_doc(), program(&session, profile));
                 let lowered = lowered(&held, notation);
                 assert!(
-                    sketch::is_committed(committed, &lowered, &committed.kept_in_place()),
+                    sketch::is_committed(&committed, &lowered, &committed.kept_in_place()),
                     "{name}: an untouched load lowers to another program: {lowered:?}"
                 );
             }
@@ -268,8 +269,9 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         let held = sketch::held_program(pncad::document::SpokenNode::absent(node), &program, &doc)
             .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
         let back = lowered(&held, MM);
+        let written = sketch::written_program(&doc, &program);
         assert!(
-            sketch::is_committed(&program, &back, &program.kept_in_place()),
+            sketch::is_committed(&written, &back, &written.kept_in_place()),
             "{verb}: came back as {back:?}"
         );
     }
@@ -370,7 +372,7 @@ fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let before = session.committed_doc().clone();
-    let base = program(&session, profile).clone();
+    let base = sketch::written_program(session.committed_doc(), program(&session, profile));
     let kept = base.kept_in_place();
     let held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     let mut longer = (held.clone(), kept.clone());
@@ -693,7 +695,7 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
         node: profile,
         label: Some(pncad::document::Label::new("outline").expect("a label")),
     });
-    let loaded = program(&session, profile).clone();
+    let loaded = sketch::written_program(session.committed_doc(), program(&session, profile));
     let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     // Something else moves corner 2 first.
     let out = session.perform(SessionOp::SetSlot {

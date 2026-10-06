@@ -332,17 +332,9 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 editor_core::NodeErrorKind::Expr { slot, source } => {
                     assert_eq!(*slot, SlotId::Distance);
                     // The formula written at the slot is the anonymous
-                    // definition the slot reads, refused as such.
-                    let var = broken
-                        .slot(d.pz_extrude, SlotId::Distance)
-                        .expect("the extrude reads its distance");
-                    assert_eq!(
-                        *source,
-                        editor_core::EvalError::DefinitionRefused {
-                            var,
-                            source: Box::new(editor_core::EvalError::NonFiniteResult),
-                        }
-                    );
+                    // definition it reads, whose refusal is the slot's
+                    // own (`VarEnv::written`).
+                    assert_eq!(*source, editor_core::EvalError::NonFiniteResult);
                 }
                 other => panic!("expected Expr error, got {other:?}"),
             }

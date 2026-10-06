@@ -4763,7 +4763,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 94] = [
+const NOT_CARRIED: [&str; 95] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4848,6 +4848,9 @@ const NOT_CARRIED: [&str; 94] = [
     "entity_name",
     "from_value",
     "var_env_over",
+    // The analysis's axis rule (VR8), which `analyzed_box` and the
+    // stackup's entry set read; a caller asks the box.
+    "is_axis",
     "rebind_suggestions",
     "remap_name",
     "Unmapped",

@@ -71,6 +71,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
         &r.doc,
         &DocEdit::InsertNode {
             node: Box::new(profile),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

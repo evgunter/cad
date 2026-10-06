@@ -354,8 +354,9 @@ impl DoorLoops {
 pub(crate) struct ProfileEdit {
     /// The profile node.
     pub(crate) node: RecipeNodeId,
-    /// The committed program the loops were loaded from.
-    base: ProfileProgram,
+    /// The committed program the loops were loaded from, as written
+    /// ([`sketch::written_program`]).
+    base: ProfileProgram<Formula>,
     /// The loops as the editor holds them, in description order.
     loops: Vec<Vec<Step<f64>>>,
     /// Per held loop, per held step: the committed step it was loaded
@@ -383,7 +384,11 @@ struct HeldReport {
 impl ProfileEdit {
     /// The draft of `program`, held as `loops` ([`sketch::held_loops`]
     /// of it), every step loaded as itself.
-    fn load(node: RecipeNodeId, program: &ProfileProgram, loops: Vec<Vec<Step<f64>>>) -> Self {
+    fn load(
+        node: RecipeNodeId,
+        program: ProfileProgram<Formula>,
+        loops: Vec<Vec<Step<f64>>>,
+    ) -> Self {
         let loaded_as = program.kept_in_place();
         let shaped = program.ids.len() == loops.len()
             && program
@@ -406,7 +411,7 @@ impl ProfileEdit {
             .collect();
         Self {
             node,
-            base: program.clone(),
+            base: program,
             loops,
             loaded_as,
             base_steps,
@@ -423,7 +428,7 @@ impl ProfileEdit {
     /// The committed program the loops were loaded from — what
     /// `SessionOp::EditProfile` carries so the door can refuse numbers
     /// loaded from a program the document no longer holds.
-    pub(crate) fn base(&self) -> &ProfileProgram {
+    pub(crate) fn base(&self) -> &ProfileProgram<Formula> {
         &self.base
     }
 
@@ -535,7 +540,7 @@ impl ProfileEdit {
     /// rather than assumed: [`sketch::held_loops`]'s refusal.
     pub(crate) fn revert(&mut self, doc: &Doc<ProfileProgram>) -> Result<(), HeldRefusal> {
         let loops = sketch::held_loops(doc, self.node)?;
-        *self = Self::load(self.node, &self.base, loops);
+        *self = Self::load(self.node, self.base.clone(), loops);
         Ok(())
     }
 }
@@ -819,13 +824,13 @@ impl Drafts {
         node: RecipeNodeId,
     ) -> Result<&mut ProfileEdit, HeldRefusal> {
         let current = match doc.node(node) {
-            Some(Node::Profile(program)) => Some(program),
+            Some(Node::Profile(program)) => Some(sketch::written_program(doc, program)),
             _ => None,
         };
         let fresh = self
             .profile_edit
             .as_ref()
-            .is_some_and(|held| held.node == node && current == Some(&held.base));
+            .is_some_and(|held| held.node == node && current.as_ref() == Some(&held.base));
         if !fresh {
             self.profile_edit = None;
             let loops = sketch::held_loops(doc, node)?;
@@ -1382,7 +1387,10 @@ mod tests {
             assert!(
                 authorable
                     .iter()
-                    .any(|node| admits(Some(&editor_core::test_support::stored(node)), wanted)),
+                    .any(|node| {
+                        let mut doc = Doc::empty_derived("seat", Tol::witness());
+                        admits(Some(&editor_core::test_support::stored(&mut doc, node)), wanted)
+                    }),
                 "the {} seat wants {} and no add-datum choice authors one",
                 seat.name(),
                 wanted.name(),
@@ -1603,6 +1611,7 @@ mod tests {
             node: edit.node,
             loops: edit.programs(notation).expect("finite"),
             ids: edit.ids(),
+            fresh: Vec::new(),
         };
         try_edited(doc, edit, Tol::witness())
             .expect("the edit door takes it")
@@ -1627,7 +1636,7 @@ mod tests {
         };
         assert!(
             sketch::is_committed(
-                current,
+                &sketch::written_program(&doc, current),
                 &edit.programs(notation).expect("finite"),
                 &edit.ids()
             ),

@@ -313,16 +313,14 @@ where
         // No `id`: the projection mints no description and no name, so
         // nothing it produces is stamped or keyed by this node.
         Node::Part { of, select } => wire_part(*of, select, results, vals),
-        Node::PlacedUnion { input, kind, .. } => wire_placed_union(
-            id,
-            *input,
-            kind,
-            &written(doc, id),
-            node.placement_rule_fault(tol),
-            results,
-            vals,
-            tol,
-        ),
+        // The rule gate, FIRST, through the node's own door (the one
+        // `apply` reads): a bad placement list refuses with its own
+        // name rather than downstream as a separation or rigidity
+        // refusal. Hand-built-document backstop.
+        Node::PlacedUnion { input, kind, .. } => match node.placement_rule_fault(tol) {
+            Some(fault) => Err(NodeErrorKind::PlacementRule(fault)),
+            None => wire_placed_union(id, *input, kind, &written(doc, id), results, vals, tol),
+        },
         Node::Measure { expr, refs } => {
             wire_measure(node, expr, refs, payload_values, doc, results, tol)
         }
@@ -4406,18 +4404,10 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     input: RecipeNodeId,
     kind: &PatternKind,
     written: &dyn Fn(SlotId) -> crate::expr::Expr,
-    fault: Option<crate::node::PlacementRuleFault>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    // The rule gate, FIRST, through the node's own door (the one
-    // `apply` reads): a bad placement list refuses with its own name
-    // rather than downstream as a separation or rigidity refusal.
-    // Hand-built-document backstop.
-    if let Some(fault) = fault {
-        return Err(NodeErrorKind::PlacementRule(fault));
-    }
     let body = body_operand(results, input)?;
     let maps: Vec<Affine3<T>> = match kind.placements() {
         Some(frames) => frames.iter().map(|f| f.affine::<T>()).collect(),

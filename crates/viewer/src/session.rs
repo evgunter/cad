@@ -2472,7 +2472,7 @@ impl DocSession {
     fn edit_profile(
         &mut self,
         node: RecipeNodeId,
-        base: &ProfileProgram,
+        base: &ProfileProgram<Formula>,
         loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> OpOutcome {
@@ -2492,7 +2492,8 @@ impl DocSession {
     ///
     /// The profile editor reads it BEFORE its Apply, while the person
     /// can still keep the step; the op's outcome carries the same rows
-    /// after.
+    /// after, beside the anonymous variables the rewrite retires, which
+    /// this count leaves out.
     ///
     /// # Errors
     ///
@@ -2500,7 +2501,7 @@ impl DocSession {
     pub fn edit_profile_report(
         &self,
         node: RecipeNodeId,
-        base: &ProfileProgram,
+        base: &ProfileProgram<Formula>,
         loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> Result<Vec<Maintenance>, Refusal> {
@@ -2512,7 +2513,16 @@ impl DocSession {
         let mut run = Recording::start(self.committed_doc(), self.tol, &reach);
         let refused = |error| Refusal::Edit(Box::new(error));
         run.apply(edit).map_err(refused)?;
-        Ok(run.finish().map_err(refused)?.maintenance)
+        // What the count says is what the person would lose: a
+        // reshaping retires the variables the arguments it rewrote were
+        // written in, which is no name and no paint of theirs.
+        Ok(run
+            .finish()
+            .map_err(refused)?
+            .maintenance
+            .into_iter()
+            .filter(|row| !matches!(row, Maintenance::AnonymousVarRemoved { .. }))
+            .collect())
     }
 
     /// **The one `SetProgram` [`SessionOp::EditProfile`] commits**, or
@@ -2520,7 +2530,7 @@ impl DocSession {
     fn set_program_of(
         &self,
         node: RecipeNodeId,
-        base: &ProfileProgram,
+        base: &ProfileProgram<Formula>,
         loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> Result<Option<DocEdit<ProfileProgram>>, Refusal> {
@@ -2531,15 +2541,22 @@ impl DocSession {
         };
         // The editor's program is an edit OF the program it loaded;
         // over any other program it would be a guess about what the
-        // person meant. Compared by value, so a unit rewrite since the
-        // load does not refuse.
-        if current != base {
+        // person meant. Compared as written and by value, so a value
+        // moved since the load refuses and a unit rewrite does not.
+        if sketch::written_program(doc, current) != *base {
             return Err(Refusal::ProfileEditStale {
                 node: doc.spoken(node),
             });
         }
         let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
-        let unchanged = sketch::is_committed(current, &loops, &ids);
+        // The carried loops read each unmoved argument's variable, so
+        // they are compared with the program re-authored.
+        let authored = ProfileProgram {
+            plane: current.plane,
+            loops: current.loops.iter().map(LoopProgram::authored).collect(),
+            ids: current.ids.clone(),
+        };
+        let unchanged = sketch::is_committed(&authored, &loops, &ids);
         Ok((!unchanged).then_some(DocEdit::SetProgram {
             node,
             loops,

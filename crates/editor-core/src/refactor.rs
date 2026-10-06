@@ -1909,7 +1909,7 @@ fn remap_rule(
         PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
         PatternKind::Circular { axis, step } => PatternKind::Circular {
             axis: id(*axis)?,
-            step: step.clone(),
+            step: *step,
         },
     })
 }
@@ -1997,8 +1997,8 @@ fn remap_node(
             direction,
         }) => Node::Datum(crate::Datum::AxisInPlane {
             plane: id(*plane)?,
-            origin: origin.clone(),
-            direction: direction.clone(),
+            origin: *origin,
+            direction: *direction,
         }),
         // A derived frame is not a leaf either: its body is an input
         // and its face is a frozen name, and both cross the cut or
@@ -2008,7 +2008,7 @@ fn remap_node(
             Node::Datum(crate::Datum::FaceFrame {
                 at: id(*at)?,
                 face: nm(face)?,
-                spin: spin.clone(),
+                spin: *spin,
             })
         }
         Node::Datum(
@@ -2036,7 +2036,7 @@ fn remap_node(
             side,
         } => Node::Extrude {
             profile: id(*profile)?,
-            distance: distance.clone(),
+            distance: *distance,
             side: *side,
         },
         Node::Revolve {
@@ -2046,7 +2046,7 @@ fn remap_node(
         } => Node::Revolve {
             profile: id(*profile)?,
             axis: id(*axis)?,
-            angle: angle.clone(),
+            angle: *angle,
         },
         // The two tube kinds remap the same way — one spine edge, every
         // other field carried — and are written apart rather than
@@ -2060,10 +2060,10 @@ fn remap_node(
             minor_radius,
         } => Node::Tube {
             spine: id(*spine)?,
-            u_ref: u_ref.clone(),
-            major_radius: major_radius.clone(),
+            u_ref: *u_ref,
+            major_radius: *major_radius,
             window: window.clone(),
-            minor_radius: minor_radius.clone(),
+            minor_radius: *minor_radius,
         },
         Node::HollowTube {
             spine,
@@ -2074,15 +2074,15 @@ fn remap_node(
             wall,
         } => Node::HollowTube {
             spine: id(*spine)?,
-            u_ref: u_ref.clone(),
-            major_radius: major_radius.clone(),
+            u_ref: *u_ref,
+            major_radius: *major_radius,
             window: window.clone(),
-            minor_radius: minor_radius.clone(),
-            wall: wall.clone(),
+            minor_radius: *minor_radius,
+            wall: *wall,
         },
         Node::Loft { profiles, v_degree } => Node::Loft {
             profiles: profiles.iter().map(|&p| id(p)).collect::<Result<_, _>>()?,
-            v_degree: v_degree.clone(),
+            v_degree: *v_degree,
         },
         Node::Sweep {
             profile,
@@ -2092,8 +2092,8 @@ fn remap_node(
         } => Node::Sweep {
             profile: id(*profile)?,
             path: id(*path)?,
-            stations: stations.clone(),
-            v_degree: v_degree.clone(),
+            stations: *stations,
+            v_degree: *v_degree,
         },
         Node::Fillet {
             target,
@@ -2101,7 +2101,7 @@ fn remap_node(
             selection,
         } => Node::fillet(
             id(*target)?,
-            radius.clone(),
+            *radius,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Chamfer {
@@ -2110,7 +2110,7 @@ fn remap_node(
             selection,
         } => Node::chamfer(
             id(*target)?,
-            distance.clone(),
+            *distance,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         // Through the construction door, which keeps the designation
@@ -2122,7 +2122,7 @@ fn remap_node(
             open,
         } => Node::shell(
             id(*target)?,
-            thickness.clone(),
+            *thickness,
             open.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Split { target, tool } => Node::Split {
@@ -2145,7 +2145,7 @@ fn remap_node(
         },
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: id(*input)?,
-            count: count.clone(),
+            count: *count,
             kind: remap_rule(kind, &id)?,
         },
         // The selector is payload with no id in it (a half, or an
@@ -2156,7 +2156,7 @@ fn remap_node(
         },
         Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
             input: id(*input)?,
-            count: count.clone(),
+            count: *count,
             kind: remap_rule(kind, &id)?,
         },
         // The reference crosses verbatim (the function's docs say why);
@@ -2229,7 +2229,7 @@ fn remap_node(
             dir,
         } => Node::Assertion {
             measure: id(*measure)?,
-            bound: bound.clone(),
+            bound: *bound,
             dir: *dir,
         },
     })

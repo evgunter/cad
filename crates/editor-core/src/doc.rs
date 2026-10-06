@@ -1747,6 +1747,7 @@ impl<P> Doc<P> {
         let mut env = VarEnv {
             bindings,
             refused: BTreeMap::new(),
+            written: std::collections::BTreeSet::new(),
         };
         self.bind_definitions(&mut env);
         env
@@ -1766,6 +1767,11 @@ impl<P> Doc<P> {
             };
             env.bindings.remove(&id);
             env.refused.remove(&id);
+            if self.var_names.contains_key(&id) {
+                env.written.remove(&id);
+            } else {
+                env.written.insert(id);
+            }
             let bound = if expr.dim() == Dimension::Count {
                 crate::expr::eval_count(expr, env).map(ParamValue::Count)
             } else {

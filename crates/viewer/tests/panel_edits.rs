@@ -80,12 +80,15 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
         slot: SlotId::Distance,
         value: SlotValue::Continuous(0.012),
     });
+    // A literal slot's value is its own variable's (Q6): the edit
+    // writes that value, and the slot keeps reading the same variable.
+    let held = session
+        .committed_doc()
+        .slot(extrude, SlotId::Distance)
+        .expect("the extrude reads its distance");
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetParam {
-            slot: SlotId::Distance,
-            ..
-        })
+        Some(DocEdit::SetVarValue { var, .. }) if *var == pncad::document::VarRef::Id(held)
     ));
     assert_eq!(
         props::slot_rows(session.committed_doc(), extrude)
@@ -1840,6 +1843,8 @@ fn a_delete_removes_the_parameter_and_its_reader_refuses_unresolved() {
         .result(extrude)
         .and_then(pncad::document::NodeResult::error)
         .expect("the reader fails");
+    // The slot reads the anonymous definition its formula lowered to,
+    // whose refusal is the slot's own: the variable it cannot read.
     assert!(
         matches!(
             &error.kind,

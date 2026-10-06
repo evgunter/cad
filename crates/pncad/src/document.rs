@@ -196,8 +196,9 @@ pub use editor_core::{
 // `editor_core::eval`, which names BOTH the evaluation module and this
 // function: a bare `pub use editor_core::eval` would re-export the
 // module too, opening a second door onto the layer this list exists to
-// curate.
-pub use editor_core::expr::{EvalError, eval, eval_count};
+// curate. `eval_var` / `eval_var_count` read one variable — what a slot
+// holds — at the dimension its slot reads it at.
+pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_count};
 
 // Document variables (VARIABLES-DESIGN VR1–VR3).
 // `VarId` is a variable's minted identity and `VarName` the unique name

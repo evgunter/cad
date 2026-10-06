@@ -159,7 +159,7 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::DeleteNode { node: victim };
     let outcome = session.perform(op.clone());
-    assert_eq!(outcome.maintenance, expected);
+    assert_eq!(crate::fixture::without_anonymous(&outcome.maintenance), expected);
     assert_line_words(&line_after(&outcome, op), &expected);
     assert!(
         session.committed_doc().node(carrier).is_some(),
@@ -249,8 +249,7 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::DeleteNode { node: victim };
     let outcome = session.perform(op.clone());
-    assert_eq!(
-        outcome.maintenance, expected,
+    assert_eq!(crate::fixture::without_anonymous(&outcome.maintenance), expected,
         "the deleted node's key, and not the kept block's"
     );
     assert_line_words(&line_after(&outcome, op), &expected);
@@ -285,7 +284,7 @@ fn apex_y() -> SlotId {
 /// batch's own verdict — clear — stands.
 fn assert_quiet(outcome: &OpOutcome, op: SessionOp) {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.maintenance, Vec::new());
+    assert_eq!(crate::fixture::without_anonymous(&outcome.maintenance), Vec::new());
     assert_eq!(
         frame::frame_status(
             &frame::outcome_notices(outcome).collect::<Vec<_>>(),
@@ -341,7 +340,7 @@ fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
     });
     assert!(previewed.refusal.is_none(), "{:?}", previewed.refusal);
     assert_eq!(previewed.previewed.len(), 1, "the premise: a preview ran");
-    assert_eq!(previewed.maintenance, Vec::new());
+    assert_eq!(crate::fixture::without_anonymous(&previewed.maintenance), Vec::new());
     let op = SessionOp::CommitGesture {
         node: profile,
         slot,
@@ -358,9 +357,10 @@ fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
 #[test]
 fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let (doc, profile, _) = framed_triangle("maint-profile-flip");
-    let Some(Node::Profile(base)) = doc.node(profile).cloned() else {
+    let Some(Node::Profile(base)) = doc.node(profile) else {
         panic!("the fixture's profile")
     };
+    let base = viewer::sketch::written_program(&doc, base);
     let loops = vec![LoopProgram::Chain(vec![
         ProgramStep::At(common::len2([0.0, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(common::len2([2.0, 0.0]))),
@@ -429,9 +429,10 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     let (doc, profile, extrude) = extruded(&doc, vec![corner(false)]);
     let right = wall(&doc, extrude, 0, 1);
     let (doc, carrier) = frame_on(&doc, extrude, right.clone());
-    let Some(Node::Profile(base)) = doc.node(profile).cloned() else {
+    let Some(Node::Profile(base)) = doc.node(profile) else {
         panic!("the fixture's profile")
     };
+    let base = viewer::sketch::written_program(&doc, base);
     let mut ids = base.kept_in_place();
     ids[0].insert(3, None);
     ids[0].insert(5, None);
@@ -454,7 +455,7 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
         ids,
     };
     let outcome = session.perform(op.clone());
-    assert_eq!(outcome.maintenance, expected);
+    assert_eq!(crate::fixture::without_anonymous(&outcome.maintenance), expected);
     assert_line_words(&line_after(&outcome, op), &expected);
 }
 
@@ -506,7 +507,7 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
     let outcome = session.perform(op.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "the premise: the edit landed");
-    assert_eq!(outcome.maintenance, Vec::new());
+    assert_eq!(crate::fixture::without_anonymous(&outcome.maintenance), Vec::new());
     assert_eq!(
         frame::frame_status(
             &frame::outcome_notices(&outcome).collect::<Vec<_>>(),

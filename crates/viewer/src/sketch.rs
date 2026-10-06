@@ -435,26 +435,40 @@ pub fn held_program(
         .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
 }
 
+/// **`program` as it was written** ([`Node::written`]): each argument
+/// the formula its variable was written as — an anonymous variable's
+/// value, a named one's reader. It is what the path editor loads from
+/// and compares against: a value moved since the load (a `SetVarValue`
+/// on an argument's anonymous variable) moves it, where the stored
+/// program, which reads that variable by id, stays put.
+#[must_use]
+pub fn written_program(doc: &Doc<ProfileProgram>, program: &ProfileProgram) -> ProfileProgram<Formula> {
+    let Node::Profile(written) = Node::Profile(program.clone()).written(doc) else {
+        unreachable!("a profile node is written as a profile node")
+    };
+    written
+}
+
 /// **Whether `loops` under `ids` is `base` itself** — every step kept
 /// in place and the program bit-equal to `base`, blind to notation: a
-/// `DocEdit::SetProgram` of them would write nothing.
+/// `DocEdit::SetProgram` of them would write nothing. `base` is the
+/// program as written ([`written_program`]) for loops the editor holds,
+/// or as re-authored ([`Node::authored`]) for loops whose unmoved
+/// arguments carry their variables.
 #[must_use]
 pub fn is_committed(
-    base: &ProfileProgram,
+    base: &ProfileProgram<Formula>,
     loops: &[LoopProgram<Formula>],
     ids: &[Vec<Option<StepId>>],
 ) -> bool {
     ids == base.kept_in_place().as_slice()
         && base.loops.len() == loops.len()
-        && ProfileProgram {
-            plane: base.plane,
-            loops: base.loops.iter().map(LoopProgram::authored).collect(),
-            ids: base.ids.clone(),
-        } == ProfileProgram {
-            plane: base.plane,
-            loops: loops.to_vec(),
-            ids: base.ids.clone(),
-        }
+        && *base
+            == ProfileProgram {
+                plane: base.plane,
+                loops: loops.to_vec(),
+                ids: base.ids.clone(),
+            }
 }
 
 /// Why a committed node cannot be held by the path editor.

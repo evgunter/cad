@@ -1527,8 +1527,14 @@ pub struct VarEnv<T> {
     pub bindings: std::collections::BTreeMap<VarId, ParamValue<T>>,
     /// The defined variables whose definition refused, by variable: a
     /// reader of one refuses [`EvalError::DefinitionRefused`] with
-    /// this refusal as its source.
+    /// this refusal as its source — or, for one in [`Self::written`],
+    /// with the refusal itself.
     pub refused: std::collections::BTreeMap<VarId, EvalError>,
+    /// The defined variables a document holds with no name: each is a
+    /// formula as it was written at the slot that reads it, so a
+    /// refusal of its definition is the slot's own refusal, not a
+    /// variable's the person never named.
+    pub written: std::collections::BTreeSet<VarId>,
 }
 
 impl<T> VarEnv<T> {
@@ -1537,6 +1543,7 @@ impl<T> VarEnv<T> {
         match self.bindings.get(&var) {
             Some(bound) => Ok(bound),
             None => Err(match self.refused.get(&var) {
+                Some(source) if self.written.contains(&var) => source.clone(),
                 Some(source) => EvalError::DefinitionRefused {
                     var,
                     source: Box::new(source.clone()),
@@ -1554,6 +1561,7 @@ impl<T> Default for VarEnv<T> {
         Self {
             bindings: std::collections::BTreeMap::new(),
             refused: std::collections::BTreeMap::new(),
+            written: std::collections::BTreeSet::new(),
         }
     }
 }

@@ -1102,6 +1102,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
     let mut env = crate::expr::VarEnv {
         bindings,
         refused: BTreeMap::new(),
+        written: std::collections::BTreeSet::new(),
     };
     // A defined variable is no axis: it binds its definition over the
     // widened inputs, so it carries their enclosure.
