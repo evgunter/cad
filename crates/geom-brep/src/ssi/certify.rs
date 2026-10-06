@@ -1115,12 +1115,11 @@ impl core::fmt::Display for OneArcRefusal {
 ///
 /// A narrower rung is the more specific reading of the same carrier, so
 /// it speaks over every wider one.
-fn limb_three<T: Decide + Bounds>(
-    extent: T,
+fn limb_three<T: Decide>(
+    (widest, extent): (f64, T),
     band: Band,
     mut probe: impl FnMut(f64) -> Result<Option<Rung>, SsiError>,
 ) -> Result<(Rung, T), SsiError> {
-    let widest = Bounds::hi(extent);
     // The ladder is materialised so its EMPTINESS is a distinguishable
     // outcome. An empty ladder means every rung fell below the floor —
     // a structural fact about extent against ε, decided before any box
@@ -1410,10 +1409,13 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             z: Interval::from_certified(p.z),
         }
     });
+    // The extent levers the clearance; its upper end is the ladder's
+    // widest rung.
+    let widest = Bounds::hi(extent);
     let three = match (a, b) {
         (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
             let chain = box_chain(carrier);
-            limb_three(extent, band, |radius| {
+            limb_three((widest, extent), band, |radius| {
                 Ok(probe_tube_analytic(
                     &chain,
                     s1,
@@ -1435,7 +1437,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            limb_three(extent, band, |radius| {
+            limb_three((widest, extent), band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
                 // speed along that axis. The padded windows are the
                 // proved region and the certificate records them; the
@@ -2147,7 +2149,7 @@ mod tests {
         use super::{Rung, SsiTube, limb_three};
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let mut widest = true;
-        limb_three(1.0, band, |radius| {
+        limb_three((1.0, 1.0), band, |radius| {
             let (margin, one_arc) = if widest { first } else { rest };
             widest = false;
             Ok(Some(Rung {
