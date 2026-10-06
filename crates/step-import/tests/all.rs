@@ -142,6 +142,7 @@ mod tcost_k3_import_certificate;
 #[path = "tier_gate.rs"]
 mod tier_gate;
 
+mod review_4136_step_probes;
 #[path = "verbs_chamfer_roundtrip.rs"]
 mod verbs_chamfer_roundtrip;
 #[path = "wall_column_structure.rs"]

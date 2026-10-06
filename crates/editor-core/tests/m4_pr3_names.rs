@@ -791,3 +791,37 @@ fn declare_pairs_resolve_in_the_named_nodes_tables() {
         );
     }
 }
+
+/// Reviewer probe (PR #4136): the flange's three plane annuli carry no
+/// `Meridian(Seam, ·)`; its three cylinders do. 1 body + 6 bands +
+/// 6 rims + 3 seam meridians + 6 meridian vertices = 22.
+#[test]
+fn review_4136_flange_names_no_plane_meridian() {
+    let (doc, rev) = revolve_doc(
+        vec![
+            (1.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 0.5),
+            (2.0, 0.5),
+            (2.0, 2.0),
+            (1.0, 2.0),
+        ],
+        std::f64::consts::TAU,
+    );
+    let ev = run(&doc);
+    let t = table(&ev, rev);
+    println!("flange name table: {} rows", t.len());
+    assert_eq!(t.len(), 22);
+    for s in 0..6 {
+        assert_eq!(
+            t.lookup(&minted(
+                EntityKind::Edge,
+                rev,
+                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, s).into())
+            ))
+            .is_some(),
+            s % 2 == 1,
+            "segment {s}"
+        );
+    }
+}
