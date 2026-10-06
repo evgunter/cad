@@ -545,7 +545,9 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds_with_its_discs_decla
 
 /// **A lens**: the dome on an inverted dome of the same rim, discs
 /// declared `Rest`. Both rims lie on the other's sphere, at a 90° corner.
-/// It builds with the two domes' seams aligned; turned, it refuses.
+/// It builds with the two domes' seams aligned, and turned: each dome rim
+/// semicircle then runs along parts of two bowl arcs, and the reduction
+/// splits it at the bowl's rim vertex between them.
 #[test]
 fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
     let tol = Tol::witness();
@@ -583,10 +585,6 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
             "order {order}: the discs are consumed"
         );
     }
-    // Turned on the bowl, each dome rim semicircle runs along parts of
-    // two bowl arcs, and the chain certificate needs both of its ends
-    // paired: it keeps the door
-    // (`work/tang/a-turned-lens-keeps-the-door.md`).
     for angle in [PI / 7.0, PI / 2.0] {
         let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
         let turned = finished(
@@ -598,10 +596,14 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
             .into_iter()
             .enumerate()
         {
+            let label = format!("turned {angle}, order {order}");
+            let (v, c, k) = built(&label, r);
+            assert_eq!(k, [0; 4], "{label}: no contact records");
+            // Each dome's two rim vertices and pole: minimal.
+            assert_eq!(c, (4, 8, 6, 1), "{label}: F, E, V, shells");
             assert!(
-                matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                "turned {angle}, order {order}: the crossing layer: {:?}",
-                r.err()
+                (v - want).abs() <= 1e-12 * want,
+                "{label}: the two domes: {v} vs {want}"
             );
         }
     }
@@ -1397,10 +1399,6 @@ fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
 /// `±x`, where the rim's own vertices are, so each rim semicircle lies
 /// wholly inside one face (certificate (a)) and its ends are recorded.
 /// The union is the tube plus the dome's cap above `z = H`.
-///
-/// Turned a twelfth of a turn, each semicircle crosses a seam ruling
-/// mid-arc: a crossing neither certificate places, so it keeps the door
-/// (`work/tang/a-rim-lying-on-a-wall-across-its-seam-ruling-keeps-the-door.md`).
 #[test]
 fn a_dome_sunk_into_the_tube_builds_undeclared() {
     let tol = Tol::witness();
@@ -1434,17 +1432,160 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
             // (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
             assert_eq!(c, (6, 12, 9, 1), "{label}: F, E, V, shells");
         }
-        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), PI / 6.0);
-        let turned = finished(
-            "the turned dome",
-            topo::transform_rigid(&dome, &turn, tol).unwrap(),
-            tol,
-        );
-        for e in union_both_orders(&tube, &turned, &[], &[], None) {
-            assert!(
-                is_pierce(&e),
-                "dz = {dz}, turned: the crossing layer: {e:?}"
+    }
+}
+
+/// [`rod_z`]'s tube from `z = 0` to [`H`], its wall in four quarter
+/// faces: seam rulings at `±x` and `±y`.
+fn quartered_tube() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(R, 0.0), q),
+        (Point2::new(0.0, R), q),
+        (Point2::new(-R, 0.0), q),
+        (Point2::new(0.0, -R), q),
+    ]);
+    let p = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
+    let rod = extrude(
+        &p,
+        Extrusion::Distance {
+            depth: H,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
+    finished("the quartered tube", rod, tol)
+}
+
+/// **A dome sunk into the tube and turned about the axis, undeclared,
+/// builds every op**: each rim semicircle lies on the tube's wall and
+/// crosses a seam ruling mid-arc, passing from one wall face to the
+/// next. The reduction splits the rim where it crosses the ruling, and
+/// each half lies inside one face.
+///
+/// The rows: the two-face tube turned so that no rim vertex is on a
+/// ruling (`1/12`, `1/8`, `1/5` of a turn); the four-face tube at the
+/// same turns, where each semicircle crosses TWO rulings; and the
+/// four-face tube at `0` and `1/4` of a turn, where the rim's vertices
+/// sit on two rulings and each semicircle crosses the one between. Each
+/// at both sink depths, every op in both member orders.
+///
+/// The closed forms: the dome's sphere (radius `√2·R`, its rim at
+/// `z = H + dz`) holds a cap of height `√2·R − R + dz` above the tube's
+/// top, so `d ∖ t` is that cap, `t ∩ d` is the dome less it, `t ∪ d`
+/// and `t ∖ d` add it to and take the rest from the tube.
+///
+/// `t ∖ d` touches itself along the rim, as the unturned dome's does
+/// (`a_tube_through_the_domes_base_builds_every_op_undeclared`): the
+/// pocket the dome leaves meets the wall along the whole rim circle.
+/// The rim's vertices where it crosses a ruling are paired with the
+/// ruling's (v-v), and the dome's own rim vertices off a ruling lie
+/// inside a wall face (v-f). The rim's split vertices stay as valence-2
+/// vertices in the intersection and in `t ∖ d`, and on the rulings of
+/// the four-face tube's union
+/// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
+#[test]
+fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
+    type Censuses = [(usize, usize, usize, usize); 4];
+    let tol = Tol::witness();
+    let none = BooleanDeclarations::none();
+    let rho = 2.0_f64.sqrt() * R;
+    let (tube, quartered) = (rod_z(R, 0.0, H), quartered_tube());
+    // `[∪, t ∖ d, d ∖ t, ∩]`, and `t ∖ d`'s `[v-v, v-f]` records.
+    let off: (Censuses, [usize; 2]) = (
+        [(6, 12, 9, 1), (7, 16, 12, 1), (3, 4, 3, 1), (4, 8, 6, 1)],
+        [2, 2],
+    );
+    let off4: (Censuses, [usize; 2]) = (
+        [(8, 20, 15, 1), (9, 26, 20, 1), (3, 4, 3, 1), (4, 10, 8, 1)],
+        [4, 2],
+    );
+    let on4: (Censuses, [usize; 2]) = (
+        [(8, 20, 15, 1), (9, 24, 18, 1), (3, 4, 3, 1), (4, 8, 6, 1)],
+        [4, 0],
+    );
+    let rows = [
+        ("two walls", &tube, 1.0 / 12.0, off),
+        ("two walls", &tube, 1.0 / 8.0, off),
+        ("two walls", &tube, 1.0 / 5.0, off),
+        ("four walls", &quartered, 1.0 / 12.0, off4),
+        ("four walls", &quartered, 1.0 / 8.0, off4),
+        ("four walls", &quartered, 1.0 / 5.0, off4),
+        ("four walls", &quartered, 0.0, on4),
+        ("four walls", &quartered, 1.0 / 4.0, on4),
+    ];
+    for dz in [-1e-3, -0.3] {
+        let above = cap_volume(rho, rho - R + dz);
+        let inside = cap_volume(rho, rho - R) - above;
+        let t = PI * R * R * H;
+        let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
+        let sunk = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
+        for (walls, tube, turn, (census, [vv, vf])) in rows {
+            let spin =
+                Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 2.0 * PI * turn);
+            let d = finished(
+                "the turned dome",
+                topo::transform_rigid(&sunk, &spin, tol).unwrap(),
+                tol,
             );
+            for (op, r, want, census, contacts) in [
+                (
+                    "t ∪ d",
+                    topo::union_with(tube, &d, &none, tol),
+                    t + above,
+                    census[0],
+                    [0; 4],
+                ),
+                (
+                    "d ∪ t",
+                    topo::union_with(&d, tube, &none, tol),
+                    t + above,
+                    census[0],
+                    [0; 4],
+                ),
+                (
+                    "t ∖ d",
+                    topo::subtract_with(tube, &d, &none, tol),
+                    t - inside,
+                    census[1],
+                    [vv, vf, 0, 0],
+                ),
+                (
+                    "d ∖ t",
+                    topo::subtract_with(&d, tube, &none, tol),
+                    above,
+                    census[2],
+                    [0; 4],
+                ),
+                (
+                    "t ∩ d",
+                    topo::intersect_with(tube, &d, &none, tol),
+                    inside,
+                    census[3],
+                    [0; 4],
+                ),
+                (
+                    "d ∩ t",
+                    topo::intersect_with(&d, tube, &none, tol),
+                    inside,
+                    census[3],
+                    [0; 4],
+                ),
+            ] {
+                let label = format!("{walls}, dz = {dz}, turn {turn}: {op}");
+                let (v, c, k) = built(&label, r);
+                assert!(
+                    (v - want).abs() <= 1e-12 * want,
+                    "{label}: the closed form: {v} vs {want}"
+                );
+                assert_eq!(c, census, "{label}: F, E, V, shells");
+                assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
+            }
         }
     }
 }

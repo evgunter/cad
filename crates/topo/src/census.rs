@@ -5655,37 +5655,83 @@ fn confirm_declarations<T: Decide>(
         confirm_edge_edge(body, geo, *c, band, errors);
     }
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
-        let stale = ValidationError::StaleContactDeclaration {
-            declaration: StaleDeclaration::VertexOnFace {
-                vertex: c.vertex,
-                face: c.face,
-            },
-        };
-        let (Some(&q), Some(f)) = (
-            geo.vmap.get(&c.vertex),
-            geo.faces.iter().find(|f| f.key == c.face),
-        ) else {
+        confirm_vertex_on_face(body, geo, *c, band, errors);
+    }
+}
+
+/// One `(vertex, face)` record's witness: both cells live, and the
+/// vertex strictly inside the face — on its plane and inside its region
+/// for a planar face, inside its trim by the curved containment door
+/// ([`crate::boolean::curved_face_containment`], which puts a point off
+/// the carrier `Out`) for a curved one.
+fn confirm_vertex_on_face<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    c: crate::boolean::VfContact,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::VertexOnFace {
+            vertex: c.vertex,
+            face: c.face,
+        },
+    };
+    let Some(&q) = geo.vmap.get(&c.vertex) else {
+        errors.push(stale);
+        return;
+    };
+    let Some(f) = geo.faces.iter().find(|f| f.key == c.face) else {
+        if !geo.curved_faces.contains(&c.face) {
             errors.push(stale);
-            continue;
-        };
-        match signed_is_zero(
-            "pm_census_confirm_vf",
-            Margin::of((q - f.origin).dot(f.normal)),
-            band,
-            errors,
-        ) {
-            Some(true) => {}
-            Some(false) => {
-                errors.push(stale);
-                continue;
+            return;
+        }
+        match crate::boolean::curved_face_containment(body, c.face, q, band) {
+            Ok(Some(FaceContainment::In)) => {}
+            Ok(Some(_)) => errors.push(stale),
+            Ok(None) => errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Face(c.face)),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a vertex-on-face record on a curved face whose trim \
+                               the containment door does not read",
+                    },
+                ),
+            }),
+            Err(ContainError::Escalated(cause)) => {
+                errors.push(ValidationError::CensusEscalated { cause });
             }
-            None => continue,
+            Err(ContainError::StaleFace(face)) => crate::boolean::driver_face_stale(face),
+            Err(
+                e @ (ContainError::Uncrossable(_)
+                | ContainError::RayExhausted
+                | ContainError::EmptyLoop(_)
+                | ContainError::LoopUnreadable(_)
+                | ContainError::Curved(_)),
+            ) => errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Face(c.face)),
+                cause: CensusUnsupportedCause::Containment(e),
+            }),
         }
-        match contain(body, f, q, band, errors) {
-            Some(FaceContainment::In) => {}
-            Some(_) => errors.push(stale),
-            None => {}
+        return;
+    };
+    match signed_is_zero(
+        "pm_census_confirm_vf",
+        Margin::of((q - f.origin).dot(f.normal)),
+        band,
+        errors,
+    ) {
+        Some(true) => {}
+        Some(false) => {
+            errors.push(stale);
+            return;
         }
+        None => return,
+    }
+    match contain(body, f, q, band, errors) {
+        Some(FaceContainment::In) => {}
+        Some(_) => errors.push(stale),
+        None => {}
     }
 }
 

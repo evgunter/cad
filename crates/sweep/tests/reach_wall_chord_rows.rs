@@ -271,50 +271,43 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
             );
         }
     }
-    // What the door ships below tier 3′ (it gates at tier 3; the census
-    // is parked, `work/reach/boolean-door-runs-the-census-over-its-result.md`),
-    // pinned as it stands at every pose: the drum ∖ the inner cube keeps
-    // the corner's vertex-on-face row though the corner left the wall
-    // (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`),
-    // and the drum ∪ the outer cube keeps the same row beside a curved
-    // pair the census's cross-solid lane cannot decide
-    // (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-    // Red when either is fixed.
+    // Tier 3′ (the door gates at tier 3; the census is parked,
+    // `work/reach/boolean-door-runs-the-census-over-its-result.md`), at
+    // every pose. The drum ∖ the inner cube is the drum with a cubic void
+    // whose corner touches the wall, recorded vertex-on-face, and passes.
+    // The drum ∪ the outer cube carries the same record, confirmed, beside
+    // a curved pair the census's cross-solid lane cannot decide
+    // (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`):
+    // red when that is fixed.
     let tol = Tol::witness();
     for l in [0.65, 0.8] {
         for spin in [0.0, 0.4] {
-            let census = |r: Result<BooleanResult<f64>, BooleanError>| {
+            let body = |r: Result<BooleanResult<f64>, BooleanError>| {
                 let Ok(BooleanResult::Body(b)) = r else {
                     panic!("l {l} spin {spin}: a body");
                 };
-                topo::validate_pseudomanifold(&b.body, &b.contacts, tol).expect_err("below tier 3′")
+                b
             };
-            let inner = cube_at(p, -n, spin, l);
-            let stale = census(topo::subtract(&drum, &inner, tol));
-            assert!(
-                matches!(
-                    stale.as_slice(),
-                    [topo::ValidationError::StaleContactDeclaration {
-                        declaration: topo::StaleDeclaration::VertexOnFace { .. }
-                    }]
+            let void = body(topo::subtract(&drum, &cube_at(p, -n, spin, l), tol));
+            assert_eq!(
+                (
+                    void.body.shells().count(),
+                    void.contacts.a_on_b.len() + void.contacts.b_on_a.len()
                 ),
-                "l {l} spin {spin}: drum ∖ inner keeps a stale vertex-on-face row: {stale:?}"
+                (2, 1),
+                "l {l} spin {spin}: drum ∖ inner is the drum and a void, its corner on the wall"
             );
-            let outer = cube_at(p, n, spin, l);
-            let undecided = census(topo::union(&drum, &outer, tol));
-            let (undecidable, stale): (Vec<_>, Vec<_>) = undecided
-                .iter()
-                .partition(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
+            topo::validate_pseudomanifold(&void.body, &void.contacts, tol)
+                .unwrap_or_else(|e| panic!("l {l} spin {spin}: drum ∖ inner, tier 3′: {e:?}"));
+            let pair = body(topo::union(&drum, &cube_at(p, n, spin, l), tol));
+            let undecided = topo::validate_pseudomanifold(&pair.body, &pair.contacts, tol)
+                .expect_err("below tier 3′");
             assert!(
-                !undecidable.is_empty()
-                    && matches!(
-                        stale.as_slice(),
-                        [topo::ValidationError::StaleContactDeclaration {
-                            declaration: topo::StaleDeclaration::VertexOnFace { .. }
-                        }]
-                    ),
-                "l {l} spin {spin}: drum ∪ outer is the undecidable curved pair, with the \
-                 corner's stale row: {undecided:?}"
+                !undecided.is_empty()
+                    && undecided
+                        .iter()
+                        .all(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+                "l {l} spin {spin}: drum ∪ outer is the undecidable curved pair alone: {undecided:?}"
             );
         }
     }

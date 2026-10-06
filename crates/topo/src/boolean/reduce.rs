@@ -2683,8 +2683,8 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 
 /// **An arc lying on `face`'s carrier, its parents distinct from it:**
 /// the endpoint records, once the arc's interior is certified to cross
-/// `face`'s boundary nowhere. Two certificates do that, and anything
-/// else keeps the door (`None`):
+/// `face`'s boundary nowhere, or a split where it crosses it. Three
+/// readings, in order, and anything else keeps the door (`None`):
 ///
 /// - **off the boundary but at its ends**: the face's boundary meets the
 ///   arc's own circle nowhere but at the vertices of `y` the arc's ends
@@ -2703,14 +2703,24 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 ///   cross no face's interior: the end records, with the chain's inner
 ///   vertices that the other direction's sweep records on this arc, are
 ///   every incidence it has.
+/// - **the interior question**: where the arc's span meets the face's
+///   boundary strictly inside it ([`super::carrier_cross`]: any line or
+///   circle boundary edge, or a boundary vertex). A meeting is a
+///   `Pierce` the caller splits both edges at, as at a wall pierce
+///   landing on the boundary, and each fragment is read again here; a
+///   certified absence is (a)'s conclusion. A seam ruling a rim crosses
+///   mid-arc is such a meeting: (a) reads the whole circle, which the
+///   ruling meets wherever the rim is turned, and (b) has no chain.
 ///
-/// The ends are placed, and recorded, before either certificate runs:
+/// The ends are placed, and recorded, before any certificate runs:
 /// certificate (a) reads the vertices of `y` the placements pair them
 /// with, minting one where an end lands on an edge. That is sound
-/// because every answer but `Recorded` either follows two `Elsewhere`
-/// placements, which record nothing, or is `None`, which the caller
-/// turns into the frontier that ends the op, so no record or split made
-/// here outlives a certificate that did not hold.
+/// because every answer but `Recorded` and `Pierce` either follows two
+/// `Elsewhere` placements, which record nothing, or is `None`, which the
+/// caller turns into the frontier that ends the op, so no record or
+/// split made here outlives a certificate that did not hold. A `Pierce`
+/// keeps the records: its fragments carry the same ends, and placing
+/// them again records nothing new (the accumulator dedups).
 fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     arc: &ArcOnCarrier<'_, T>,
     y: &mut Body<T>,
@@ -2750,33 +2760,45 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
         return Ok(None);
     }
     let at_ends: Vec<VertexKey> = placed.iter().filter_map(|(_, w)| *w).collect();
-    if boundary_meets_circle_only_at(y, face, (center, axis, radius), &at_ends, band)? {
+    // The ends' placements, once the arc's interior is certified to meet
+    // the boundary nowhere: it lies wholly inside the face or wholly
+    // outside it.
+    let interior_clear = || {
         let all = |p: Placement| placed.iter().all(|(q, _)| *q == p);
         if all(Placement::Elsewhere) {
-            return Ok(Some(CurvedEvent::None));
+            return Some(CurvedEvent::None);
         }
         // With no end paired with a vertex of `y`, one end in and one
         // out would need the arc to cross a boundary the certificate has
-        // just kept off its circle: only two certified answers
+        // just kept off its interior: only two certified answers
         // contradicting reach it, and that keeps the door. An end paired
         // with a vertex is outside that argument (the face-free vertex
         // search can pair one off this face's boundary), and the record
         // it made is its answer.
         let mixed = at_ends.is_empty() && !all(Placement::Recorded);
-        return Ok((!mixed).then_some(CurvedEvent::Recorded));
-    }
-    let [(_, Some(wu)), (_, Some(wv))] = placed else {
-        return Ok(None);
+        (!mixed).then_some(CurvedEvent::Recorded)
     };
-    let (dir, _) = curve.walk_tangents(
-        x.get_half_edge(e.he_plus)
-            .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
-            .start
-            == ends[0].0,
-    );
+    if boundary_meets_circle_only_at(y, face, (center, axis, radius), &at_ends, band)? {
+        return Ok(interior_clear());
+    }
+    if let [(_, Some(wu)), (_, Some(wv))] = placed {
+        let (dir, _) = curve.walk_tangents(
+            x.get_half_edge(e.he_plus)
+                .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
+                .start
+                == ends[0].0,
+        );
+        if arc_chain_reaches(y, wu, wv, dir, (center, axis, radius), band)? {
+            return Ok(Some(CurvedEvent::Recorded));
+        }
+    }
+    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
     Ok(
-        arc_chain_reaches(y, wu, wv, dir, (center, axis, radius), band)?
-            .then_some(CurvedEvent::Recorded),
+        match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
+            BoundaryCrossing::At { t, p, at } => Some(CurvedEvent::Pierce { t, p, at }),
+            BoundaryCrossing::Clear => interior_clear(),
+            BoundaryCrossing::Unread => None,
+        },
     )
 }
 

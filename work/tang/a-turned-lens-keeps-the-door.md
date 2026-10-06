@@ -43,3 +43,15 @@ certificate that reads an overlapping run of the partner's arcs, not
 only a chain from paired end to paired end, would cover it, and so
 would ordering the sweep so the partner's split vertices exist before
 the arc is asked.
+
+## Measured on `tang/lying-on-arc-splits-at-a-ruling`
+
+The turned lens builds there, in both member orders at `π/7` and `π/2`:
+`2 · V(dome)` to `1e-15`, tiers 3 and 3′, census `(4, 8, 6, 1)`, no
+contact records. No change to declarations was made. `reduce::lying_on`
+now asks where an arc meets the face's boundary mid-span when (a) and
+(b) decline, and splits it there. Here that splits the dome's rim at
+the bowl's rim vertex, and each half's ends are then paired, so (b)
+holds on each. The row in `a_lens_of_two_domes_builds_with_its_discs_declared_rest`
+pins the build. Whether this row closes while D10 holds its discs'
+`Rest` declaration is the orchestrator's call.
