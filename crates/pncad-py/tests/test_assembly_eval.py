@@ -390,6 +390,11 @@ class TestAPartWhoseRootFails(unittest.TestCase):
     `__cause__` — an `EvaluationError` for the part's node, raised the
     way that node's own evaluation raises it — so a part inside a part
     is a chain of causes, one per document.
+
+    The assembly's first node is the bracket's root again, an instance
+    of the boss, so it has the same id (both documents mint from the
+    zero chain) under another label: a part's node said with the
+    host's label would show.
     """
 
     #: The word budget a refusal the viewer draws is held to
@@ -407,9 +412,12 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         # The bracket: its one root instantiates the boss.
         bracket = pncad.Doc("pncad-partroot-bracket")
         self.bracket_root = bracket.insert(Node.instantiate_part(self.boss_ref))
+        bracket.apply(DocEdit.set_label(self.bracket_root, "bracket seat"))
         self.store.create(bracket)
         self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
         self.assembly = pncad.Doc("pncad-partroot-assembly")
+        self.twin = self.assembly.insert(Node.instantiate_part(self.boss_ref))
+        self.assembly.apply(DocEdit.set_label(self.twin, "host twin"))
         self.instance = self.assembly.insert(Node.instantiate_part(self.bracket_ref))
 
     def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
@@ -418,14 +426,21 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertEqual(refusal.kind, "part_root_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
-        self.assertIn(f"repair node {tag(bracket_root)}", text)
+        self.assertEqual(bracket_root, self.twin, "both documents mint from the zero chain")
+        seat = f'InstantiatePart "bracket seat" ({tag(bracket_root)})'
+        self.assertIn(f"the part's {seat} failed", text)
+        self.assertIn(f"repair {seat}", text)
+        self.assertNotIn("host twin", text)
 
         # One level down: the bracket's root, itself a part whose root
-        # failed — in the bracket's own id space.
+        # failed — in the bracket's own id space, said with the
+        # bracket's label and never the assembly's for the same id.
         bracket_refusal = refusal.__cause__
         self.assertIsInstance(bracket_refusal, pncad.EvaluationError)
         self.assertEqual(bracket_refusal.kind, "part_root_failed")
         self.assertEqual(bracket_refusal.node, bracket_root)
+        self.assertTrue(str(bracket_refusal).startswith(f"{seat} failed: "), str(bracket_refusal))
+        self.assertNotIn("host twin", str(bracket_refusal))
         self.assertNotIn(str(bracket_refusal), text, "the instance never quotes it")
 
         # Two levels down: the boss's extrude, as its own tree draws it.
@@ -511,8 +526,8 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
         self.assertEqual(refusal.kind, "part_root_poisoned")
         text = str(refusal)
-        self.assertIn(f"its root, node {tag(self.root)}", text)
-        self.assertIn(f"repair node {tag(self.extrude)}", text)
+        self.assertIn(f"its root, Transform {tag(self.root)}", text)
+        self.assertIn(f"repair Extrude {tag(self.extrude)}", text)
 
         cause = refusal.__cause__
         self.assertIsInstance(cause, pncad.EvaluationError)
@@ -694,7 +709,7 @@ class TestNestingPastTheBound(unittest.TestCase):
         self.assertNotIn("lost sys.stderr", child.stderr)
         self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
         self.assertEqual(
-            len(re.findall(r"the part's node [0-9a-f]{12} failed", child.stderr)),
+            len(re.findall(r"the part's InstantiatePart [0-9a-f]{12} failed", child.stderr)),
             DEPTH_BOUND,
             "one line for the instance and one for each document above the bound",
         )
