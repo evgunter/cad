@@ -1513,7 +1513,9 @@ fn sheet_clip<T: Decide + Bounds>(
                 return None;
             }
             let [r0, r1, z0, z1] = sheet_box(o, a, &Cell::<T>::new(aabb[0], aabb[1]));
-            grow([r0 - pad, r1 + pad, z0 - pad, z1 + pad]);
+            // The edge's sheet image: its box's, narrowed below for a
+            // latitude circle, whose box holds the axis it rings.
+            let mut image = [r0, r1, z0, z1];
             let dt = if forward { t1 - t0 } else { t0 - t1 };
             let pi = T::pi();
             let (z0e, z1e) = (sheet_of(o, a, p0).1 - zc, sheet_of(o, a, p1).1 - zc);
@@ -1544,6 +1546,15 @@ fn sheet_clip<T: Decide + Bounds>(
                         // at most `π/2·D/ρ_min`.
                         let e = pi * d_lat / (radius - d_lat).max(T::zero());
                         let z = sheet_of(o, a, center).1 - zc;
+                        // Every point lies within `d_lat` of the
+                        // coaxial circle's one sheet point.
+                        let zs = z + zc;
+                        image = [
+                            image[0].max(radius - d_lat),
+                            image[1].min(radius + d_lat),
+                            image[2].max(zs - d_lat),
+                            image[3].min(zs + d_lat),
+                        ];
                         (
                             dot / dot.abs() * dt,
                             e,
@@ -1566,7 +1577,19 @@ fn sheet_clip<T: Decide + Bounds>(
                     let turn = u0.cross(u1).dot(a).atan2(u0.dot(u1));
                     let turn = if forward { turn } else { -turn };
                     let span = (z0e - z1e).abs() / T::from_f64(2.0);
-                    let clear = if r0.lo() > 0.0 {
+                    // Its sheet image: no nearer the axis than its line
+                    // (an axial segment's reads `0`), no farther than an
+                    // end, and between its ends' heights.
+                    let d = u1 - u0;
+                    let near_axis =
+                        u0.cross(d).norm() / d.norm().max(T::from_f64(f64::MIN_POSITIVE));
+                    image = [
+                        image[0].max(near_axis),
+                        image[1].min(u0.norm().max(u1.norm())),
+                        image[2].max((z0e + zc).min(z1e + zc)),
+                        image[3].min((z0e + zc).max(z1e + zc)),
+                    ];
+                    let clear = if image[0].lo() > 0.0 {
                         T::zero()
                     } else {
                         T::from_f64(f64::NAN)
@@ -1583,6 +1606,12 @@ fn sheet_clip<T: Decide + Bounds>(
                     (nan, nan, nan, nan)
                 }
             };
+            grow([
+                image[0] - pad,
+                image[1] + pad,
+                image[2] - pad,
+                image[3] + pad,
+            ]);
             turn = [
                 turn[0] + d_theta,
                 turn[1] + e_theta,

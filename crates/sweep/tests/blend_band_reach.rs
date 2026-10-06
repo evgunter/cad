@@ -4,9 +4,11 @@
 //! anything is built.
 //!
 //! The witnesses are bodies main built wrong: a cavity whose concave
-//! fillet grows into an island standing in it, on one shell and on two
-//! solids, and a thin revolved wall whose convex inner fillet leaves the
-//! material through the far wall. Beside each refusal stands its control:
+//! fillet grows into an island standing in it, on one shell, on two
+//! solids and from one edge cut off at its end walls; a round void whose
+//! floor rim grows into a washer, its bore a round or a square ring; and
+//! a thin revolved wall whose convex inner fillet leaves the material
+//! through the far wall. Beside each refusal stands its control:
 //! the same body with the obstacle clear of the band, which builds.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -288,4 +290,106 @@ fn a_sphere_zone_beside_a_band_is_metered_by_its_own_extent() {
     let f = fillet_edges(&body, &edges, 2.0 * u, tol())
         .unwrap_or_else(|e| panic!("the dome is clear of the flange's band: {:?}", e.error));
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "tier 3");
+}
+
+/// One cavity floor edge, `y = z = 1`, alone: the band is cut off at
+/// both end walls in their planes (the planar band's local carve), and
+/// the island `gap` off the walls stands beside it, clear of both chain
+/// vertices.
+fn one_floor_edge(body: &Body<f64>) -> Vec<topo::EdgeKey> {
+    crate::common::cavity::edges_with_corners(body, |p| {
+        crate::common::cavity::cavity_corner(p)
+            && (p.y - 1.0).abs() < 1e-12
+            && (p.z - 1.0).abs() < 1e-12
+    })
+}
+
+/// A band cut off at its end faces is metered over the window those
+/// faces' planes close: the island's front-bottom edge, `0.05` off the
+/// floor and the wall, lies in the material the one-edge band adds; at
+/// `0.15` it is clear and the cut-off builds.
+#[test]
+fn a_band_cut_off_at_its_end_faces_refuses_an_island_in_its_reach() {
+    let body = island_in_vented_cavity(0.05);
+    let edges = one_floor_edge(&body);
+    assert_eq!(edges.len(), 1, "one floor edge");
+    let err = fillet_edges(&body, &edges, 0.25, tol())
+        .map(|f| format!("built: tier 3 {:?}", validate_geometric(&f.body, tol())))
+        .expect_err("the cut-off band reaches the island");
+    assert!(
+        matches!(err.error, BlendError::FaceClearance { bounded: false, .. }),
+        "the island's edge lies in the material the cut-off band adds: {:?}",
+        err.error
+    );
+    let clear = island_in_vented_cavity(0.15);
+    let edges = one_floor_edge(&clear);
+    let f = fillet_edges(&clear, &edges, 0.25, tol())
+        .unwrap_or_else(|e| panic!("the island is clear of the cut-off band: {:?}", e.error));
+    assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "tier 3");
+}
+
+/// A round void, `ρ ≤ 1.5` over `y ∈ [1, 3]` about the `y` axis, sealed
+/// in a block, with a washer standing `gap` off its floor and its wall
+/// as a second solid. `bore` cuts the washer's hole: `None` keeps the
+/// revolve's round bore, so each flat face is one plane annulus whose
+/// bore is a ring; `Some(h)` cuts a square hole of half-side `h` along
+/// the axis instead, so the ring is a polygon.
+fn washer_in_round_void(gap: f64, bore: Option<f64>) -> Body<f64> {
+    let block = brick(Point3::new(-3.0, 0.0, -3.0), Point3::new(3.0, 4.0, 3.0));
+    let void = revolved_about_y(
+        corners(&[(0.0, 1.0), (1.5, 1.0), (1.5, 3.0), (0.0, 3.0)]),
+        Revolution::Full,
+        tol(),
+    );
+    let sealed = crate::common::cavity::cut("void", &block, &void);
+    let (y0, rho) = (1.0 + gap, 1.5 - gap);
+    let washer = match bore {
+        None => revolved_about_y(
+            corners(&[(0.5, y0), (rho, y0), (rho, 1.5), (0.5, 1.5)]),
+            Revolution::Full,
+            tol(),
+        ),
+        Some(h) => {
+            let disk = revolved_about_y(
+                corners(&[(0.0, y0), (rho, y0), (rho, 1.5), (0.0, 1.5)]),
+                Revolution::Full,
+                tol(),
+            );
+            let hole = brick(Point3::new(-h, 0.5, -h), Point3::new(h, 2.0, h));
+            crate::common::cavity::cut("bore", &disk, &hole)
+        }
+    };
+    let body = fuse("washer", &sealed, &washer);
+    assert_eq!(body.solids().count(), 2, "the washer is a second solid");
+    body
+}
+
+/// The void's floor rim, a circular spine, reaches the washer's flat
+/// underside — a coaxial plane metered in the band's meridian sheet,
+/// its extent read off its outer circle and its bore ring together —
+/// and its outer wall. Both bores refuse at `0.05` and build at `0.15`.
+#[test]
+fn a_circular_band_meters_a_washer_through_its_ring_round_or_square() {
+    for bore in [None, Some(0.35)] {
+        let body = washer_in_round_void(0.05, bore);
+        let edges = rim_arcs_at(&body, 1.5, 1.0);
+        assert!(!edges.is_empty(), "{bore:?}: the void's floor rim");
+        let err = fillet_edges(&body, &edges, 0.25, tol())
+            .map(|f| format!("built: tier 3 {:?}", validate_geometric(&f.body, tol())))
+            .expect_err("the void's band reaches the washer");
+        assert!(
+            reach_refusal(&err.error),
+            "{bore:?}: refused by the reach meter: {:?}",
+            err.error
+        );
+        let clear = washer_in_round_void(0.15, bore);
+        let edges = rim_arcs_at(&clear, 1.5, 1.0);
+        let f = fillet_edges(&clear, &edges, 0.25, tol())
+            .unwrap_or_else(|e| panic!("{bore:?}: the washer is clear of the band: {:?}", e.error));
+        assert_eq!(
+            validate_geometric(&f.body, tol()),
+            Ok(()),
+            "{bore:?}: tier 3"
+        );
+    }
 }
