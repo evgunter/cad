@@ -193,3 +193,9 @@ union.
 The finding that matters is a class: the join chooses each segment's corner from the geometry at strut insertion and carries it as `HalfGerm.he`. The REST zip drops that, undoes the struts, and re-derives the corner from loop structure, which cannot answer at a vertex the loop visits twice. Same job, two implementations.
 
 A designer pair is weighing the zip's seam realization: blinding on `analysis/design-fork/rest-zip-seam-realization`, problem statement handed to both unchanged. Whether it goes to Ev depends on what they find.
+
+## 2026-10-06 — the round tube closes; friction: disk
+
+`a-round-tube-standing-on-a-plate-refuses-seam-orientation` builds on main in every order and is closed by PR 4126. A 2160-boolean variant sweep around it found no `SeamOrientation` refusal. 4126 merged over an inherited red: JOIN's `pinch-tessellate-row-escalates-at-eps-1e-6`, annotated on the PR.
+
+**Friction (finding).** This remote container's disk allowance is about 40 GB. One lane's debug target grows to 7–13 GB once it has built probes and a branch or two, so three concurrent cargo lanes fill it. Two lanes hit ENOSPC or near it today. The width-1 build slot also serialized designer probes behind lane suites for 20+ minutes. In this environment, more than about three building lanes belong in their own cloud sessions (`memories/orchestration-model.md`, the 2026-10-02 rule), not as subagents here.
