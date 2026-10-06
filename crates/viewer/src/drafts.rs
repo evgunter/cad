@@ -1579,7 +1579,7 @@ mod tests {
         };
         assert_eq!(at, seat.0, "the node the gate admitted");
         assert_ne!(at, held.node, "and not the node the form is displaying");
-        assert_ne!(at, held.feature(), "nor the feature that minted the name");
+        assert_ne!(at, held.feature(), "nor the feature that made the entity");
         assert_eq!(name, seat.1);
         let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,
