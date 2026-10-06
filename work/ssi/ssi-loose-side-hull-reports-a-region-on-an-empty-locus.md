@@ -53,24 +53,33 @@ test and the side arm move together.
 
 ## Closed (2026-10-06)
 
-A side's sign is read on a refined hull in `section.rs`'s one reader:
-`refined_sign` halves (de Casteljau in interval arithmetic) every piece
-whose hull of Bernstein ratios straddles zero. It stops with a sign
-where every piece's hull is certified one-signed, all of one sign, and
-reads the side in band (no sign, not clear) at the first piece whose
-hull is refused, two pieces of opposite sign, or a straddling piece
-whose halves' hull is not narrower than its own: the arithmetic's floor
-at that piece, with no tuned constant. The pieces read count against
-`SSI_MAX_CELLS`, past which it refuses `SsiError::CellBudget` (the
-search) or reads `Refused` (limb 3). `boundary_section`'s
-`side_of_plane` and `read_stretch`'s per-piece sign both read it, so
-the clear test moves at both doors together.
+A side's sign is read on a refined hull in `section.rs`'s one reader.
+`refined_sign` reads each piece's `h` coefficients (the weights are
+positive, so `φ` shares `h`'s sign) and halves (`sub_piece`) every
+piece whose hull straddles zero. It gives a sign where every piece reads
+certified one-signed, all of one sign, and reads the side in band (no
+sign, not clear) at a refused hull, two pieces of opposite sign (the
+pieces as given are all read first, so order does not matter), or a
+straddling piece whose halves' hull is no narrower than its own: the
+arithmetic's floor at that piece, with no tuned constant. Only halvings
+spend the budget, `SIDE_SIGN_HALVINGS` per side read: the whole side at
+the search, all 64 pieces of a stretch together at limb 3. Past it the
+search refuses `SsiError::SideSignBudget` naming the side, and limb 3
+reads the stretch `Refused`. `boundary_section`'s `side_of_plane` and
+`read_stretch`'s per-piece sign both read it, so the clear test moves at
+both doors together.
 
-Measured reads: the phantom takes 3 per span (one halving, both halves
-one-signed). A flush side and a true crossing stop within 2 reads: once
-a straddling piece's hull ends are its end values, `φ`'s own values at
-the piece's ends, halving keeps them and cannot narrow it, which happens
-exactly where those ends have opposite sign or touch zero.
+Measured reads (the PR 4104 reviews' probes): the phantom takes 3 per
+span (one halving, both halves one-signed). A transversal crossing stops
+in a few reads. A tangential touch takes up to about 750 reads, bounded
+by underflow: an exact double root at a non-dyadic point halves exactly
+for about 250 levels. Planted zeros of multiplicity 4 take up to about
+1500. In exact arithmetic the stop fires only where a piece's hull ends
+are its end coefficients, `φ`'s values at the piece's ends, of opposite
+sign or touching zero. Under intervals it fires where an end
+coefficient's enclosure touches or straddles zero, which costs only
+rounding-level precision, and never loses a sign the unrefined hull
+gave.
 
 Measured on the reported grid (P/N ∈ {0.6ε/0.2ε, 0.9ε/0.5ε},
 k ∈ {10, 100}, m ∈ {64, 256, 1024}) at ε 1e-6, 1e-9 and 1e-12: the search
@@ -78,13 +87,14 @@ answers no branch and no region (before: one `Side { U, Low }` region),
 and a window of limb 3's on the side reads `Clear` and holds no
 side's piece (before: the side arm took it). The declared carrier still
 refuses `Limb { HullSup }` first at the public door. Rows:
-`a_side_whose_hull_is_loose_reads_clear_at_both_doors` (with a control
-whose spans each hold two zeros of `φ`, still a `Side` region),
-`a_window_on_a_side_whose_hull_is_loose_holds_no_sides_piece`, and
-`section.rs`'s three `refined_sign` rows.
+`a_side_whose_hull_is_loose_reads_clear_at_both_doors` (one row per PR,
+with a control whose spans each hold two zeros of `φ`, still a `Side`
+region) and `…_over_the_grid` (the slow set),
+`a_window_on_a_side_whose_hull_is_loose_holds_no_sides_piece`,
+`a_stretch_past_its_halvings_reads_refused`, and `section.rs`'s
+`refined_sign` and `section_within` rows.
 
 The trough rows of
 `ssi-a-corner-on-a-side-the-plane-runs-along-refuses-as-a-graze` answer
 as before at all three ε: the graze is on a side whose hull is already
 tight.
-

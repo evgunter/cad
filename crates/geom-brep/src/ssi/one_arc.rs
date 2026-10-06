@@ -45,7 +45,8 @@
 //! the plane and not clear. [`Shortfall::Short`] is read only where that
 //! is certified not so, and a reading that resolves neither is
 //! [`Shortfall::Undecided`]. A side's end whose `|φ|` is not certified
-//! within ε is such a reading. Where a box resolves no piece but an end
+//! within ε, or whose sign is not resolved within the side's halvings,
+//! is such a reading. Where a box resolves no piece but an end
 //! is certified unreached by its own box (by the side's reading where a
 //! side holds that box's piece, by an arc's where none does), no chain
 //! reaches that end, and the refusal is `Short`.
@@ -635,8 +636,10 @@ struct CarrierEnd {
 /// end certified far ([`end_reading`]), a side's end off its stretch or
 /// on a point the pass reads clear. A reading that resolves neither is
 /// [`Shortfall::Undecided`]: an arc's end read neither way, a side's end
-/// whose `φ` is refused, or whose `|φ|` is not certified within ε
-/// ([`Reading::Beyond`], which is no certificate that it is beyond).
+/// whose `φ` is refused or whose sign is not resolved within the side's
+/// halvings ([`Reading::Refused`]), or whose `|φ|` is not certified
+/// within ε ([`Reading::Beyond`], which is no certificate that it is
+/// beyond).
 fn reaches_end<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     plane: ([Interval; 3], [Interval; 3]),
@@ -1626,6 +1629,32 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A stretch whose sign is not resolved within the side's halvings
+    /// reads `Refused`, not clear and not the side's.** On
+    /// [`loose_wall`], the first of the stretch's pieces spends one
+    /// halving and reads clear; with none to spend the stretch is
+    /// refused. Red under the refusal read as no sign (`Within`).
+    #[test]
+    fn a_stretch_past_its_halvings_reads_refused() {
+        let wall = loose_wall(10.0, 64, (0.6e-9, 0.2e-9));
+        let boxes = NurbsBoxes::new(&wall);
+        let readers = super::side_readers(&boxes, ground());
+        let side = super::SIDES[0];
+        let reader = super::reader_of(&readers, side).unwrap();
+        let r = rect((0.0, 0.2), (0.0, 1.0));
+        let read = |halvings| {
+            super::super::boundary::stretch_within(
+                &boxes,
+                ground().0,
+                reader,
+                (side, r),
+                (band().zero(), halvings),
+            )
+        };
+        assert_eq!(read(1), super::Reading::Clear, "one halving");
+        assert_eq!(read(0), super::Reading::Refused, "none");
     }
 
     /// A polyline pcurve through `pts`, one span per segment.

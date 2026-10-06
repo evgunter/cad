@@ -51,8 +51,8 @@ use super::enclose::{ChartSpeeds, NurbsBoxes};
 use super::exhaust::UvRect;
 use super::march::MarchTol;
 use super::section::{
-    BoundarySection, SectionRoot, band_verdict, boundary_roots, boundary_section, magnitude,
-    settle_root, sign,
+    BoundarySection, SIDE_SIGN_HALVINGS, SectionRoot, band_verdict, boundary_roots,
+    boundary_section, magnitude, one_signed, settle_root, sign,
 };
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{ChartAxis, SsiError, TraceDecision};
@@ -948,8 +948,8 @@ fn nth_piece(along: (f64, f64), count: u32, k: u32) -> (f64, f64) {
 pub(crate) enum Reading {
     /// A piece of it [`clears`]: no zero lies along it or beside it.
     Clear,
-    /// `φ` along a piece is refused, or its sign's refinement passed
-    /// the cell budget.
+    /// `φ` along a piece is refused, or the pieces' signs were not
+    /// resolved within the side's halvings.
     Refused,
     /// `|φ|` along it is not certified within ε: no side's piece, and
     /// the clear test is not read.
@@ -966,13 +966,26 @@ pub(crate) enum Reading {
 /// `eps`, each piece where `φ` is one-signed (on the refined hull the
 /// boundary section reads a whole side's sign by) is read for the slope
 /// across `r` beside it too, and a piece that [`clears`] (the side's own
-/// test) makes the stretch [`Reading::Clear`].
+/// test) makes the stretch [`Reading::Clear`]. The pieces' signs share
+/// one side's halvings ([`SIDE_SIGN_HALVINGS`]), as the boundary
+/// section's whole side does.
 pub(crate) fn read_stretch<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     normal: [Interval; 3],
     reader: &super::section::SectionReader,
     (side, r): (ChartSide, UvRect),
     eps: f64,
+) -> Reading {
+    stretch_within(boxes, normal, reader, (side, r), (eps, SIDE_SIGN_HALVINGS))
+}
+
+/// [`read_stretch`], its pieces' signs read within `halvings`.
+pub(super) fn stretch_within<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    normal: [Interval; 3],
+    reader: &super::section::SectionReader,
+    (side, r): (ChartSide, UvRect),
+    (eps, mut halvings): (f64, usize),
 ) -> Reading {
     let (a, b) = along(side, r);
     let across_u = side.fixed == ChartAxis::U;
@@ -993,7 +1006,7 @@ pub(crate) fn read_stretch<T: CertifiedBounds>(
         return Reading::Beyond;
     }
     for (piece, stretch) in pieces {
-        let Ok(side_of_plane) = stretch.sign() else {
+        let Ok(side_of_plane) = stretch.sign(&mut halvings) else {
             return Reading::Refused;
         };
         if side_of_plane.is_some() {
@@ -1190,11 +1203,6 @@ fn strip_reach<T: CertifiedBounds>(
 /// Whether a chart point lies in a rectangle.
 fn holds(r: UvRect, (u, v): (f64, f64)) -> bool {
     u >= r.u.0 && u <= r.u.1 && v >= r.v.0 && v <= r.v.1
-}
-
-/// Whether an enclosure is certified and one-signed.
-fn one_signed(i: Interval) -> bool {
-    sign(i).is_some()
 }
 
 /// The graze refusal at `side` where the slope along it is not
