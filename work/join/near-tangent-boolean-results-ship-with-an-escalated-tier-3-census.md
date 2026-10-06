@@ -176,3 +176,19 @@ and ±1e-9 rad (57 048 runs).
 Repro: `mnotch343 corner i=13 j=3 k=72 d=+1e-7 ab U`, with
 `SX_SWEEP=near`, in `crates/sweep/tests/review_sixx_r2_probes.rs` on
 branch `join/six-crossing-pairing-review-r2`.
+
+## Measured (pinch unit, branch `join/pinch-one-vertex-per-cone-build`)
+
+Review r2's near-tangent battery (`r2_pinch_probes nt`), main
+`f9bf3bca` vs the pinch unit's head:
+- **19 → refusal.** Lines that shipped `BAD` with tier 3′
+  `CensusEscalated` now refuse `ResultInvalid { ShellRoleUndecided:
+  Escalated }`, e.g. `shallow200 nt e1 a3 d1e-8 face psi=0 cp I`.
+- **3 `SOUND` → the same refusal.** All at `d1e-8`, e.g. `shallow200 nt
+  e1 a3 d1e-8 face psi=0 pc I`.
+- **7 refusals → `BAD`.** Lines that refused `JoinDesync` now ship `BAD`
+  with tier 3′ `CensusEscalated`, e.g. `vee300 nt e1 a3 d1e-8 face psi=0
+  pc U`.
+
+The pinch's lumps now meet only at a point, so they become shells of
+their own, and at 1e-8 the gate cannot decide one shell's role.

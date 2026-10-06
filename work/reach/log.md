@@ -829,3 +829,28 @@ PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's r
 - **The last pass.** It added the circle row (the only red under that mutant, at three ε), measured the coefficient rounding against the charge, gave the test oracles one home with extremum refinement, and carried the review's notes to the filed items. One near-copy helper is left in `circle_wall_rows.rs:102`.
 - **Verification.** An independent verifier session found the pass VERIFIED: 0 wrong in the fuzz at three ε, and the mutant table holds. The single charge covers the rounding with about 3× room (max 0.316 of it, not the 0.19 the PR first quoted).
 — (REACH orchestrator)
+
+## 2026-10-06 — a trimmed sphere face is cut along its meridian (PR 4044)
+
+- **The change.** A section circle lying wholly inside a TRIMMED sphere face and a plane face used to refuse: the escape re-chart rotates closed groups only. Now the plane arm reads the section certificate. On R-loop it cuts the holding face along its own chart's meridian through the circle (`apply_cut_ins`), and the pipeline re-enters. Any other verdict refuses with the certificate's own reason. The lane chose the meridian cut over a ring cut by measurement: the ring hit three downstream lanes (join, containment, mesh) that the meridian needs none of.
+- **Tier.** Dual review (H / TRICKY). A cut on the wrong arc or the wrong piece ships a wrong body.
+- **Review.** Dual review frozen at `4bd8f5a8b9`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR, so nothing enters the tally (DR-87). Bilaterally: a pole-to-pole span sign, a stale face key across two cut-ins, and an unguarded nearest-hit choice. Unilaterally: the R-loop gate loses its only guard once 4046 lands.
+- **The last pass.** It went to a replacement session, because the first lane blocked three times asking to confirm mid-task instructions. The pass merged main with 4046 and 4042 and fixed each finding with a row its mutant turns red. It flipped the pole-strut row from refusal to build at the closed forms, and filed three items.
+- **Verification.** An independent verifier session found the pass VERIFIED: every mutant red as claimed, and 0 wrong bodies in about 7,800 random-pose op runs per ε. Multi-cap poses refuse 61–80%, almost all at the plane arm's pre-existing near-boundary pre-check, upstream of the cut.
+— (REACH orchestrator)
+
+## 2026-10-06 — an edge tangent to a carrier off the face is no event (PR 4128)
+
+- **The change.** A root set whose door cannot settle is no longer refused against the carrier. `carrier_touch` localizes every place the span may meet the carrier into balls, using a Lipschitz bound and a second-order bound. A ball placed `Out` of the face, with no face edge reaching it, is no event. Six off-face tangencies now build (lens, extrusion, donut, coin); a touch on the face or within reach of its rim still refuses typed.
+- **Tier.** Single FULL review (M). It was not a dual pair, so there is no DR row.
+- **Review.** NOT-MERGEABLE-AS-IS, with one MAJOR. `carrier_touch` read an ellipse's `major` as its larger semi-axis. STEP import stores the axes as written, so a minor-first ellipse under-stated its speed and annulus, and the probe lost real crossings in 60/60 poses at function level (not built end to end). Two MINORs: the bounds-allowlist necessity paragraph argued from the wrong failure (the real one is the `Dual64` instantiation), and the rows' doc was stale.
+- **The last pass.** The bounds now read `Conic::speed_hi`/`curvature_hi` and the semi-axis magnitudes in either order. The class sweep fixed two `containment.rs` readers and one `join.rs` reader, and filed three refusal-side ones. Eight coverage rows were added (ellipse spans, elliptic edges, the torus inner side, a midpoint on the axis). The necessity paragraph was restated.
+- **Verification.** An independent verifier session found the pass VERIFIED: the reviewer's 60 swapped poses keep their crossings; 0 misses in 351 swapped-storage poses × 3 ε; 0 wrong in 1,800 edge-clearance queries × 3 ε; no unlisted order-assuming reader. The bounds paragraph is an entry under the 2026-07-29 driver amendment, not a new ratification (the orchestrator's ruling, on the PR).
+— (REACH orchestrator)
+
+## 2026-10-06 — #4128 left main red at ε 1e-6 (fixed by PR 4199)
+
+- **The red.** `sweep` `rest_zip_admission::the_tangent_lever_keeps_building_pure_contacts` refused `Escalated { Containment, bool_contact_vertex, margin 2.29e-6 }` at ε 1e-6 from #4128's merge on. It was green at the default ε and at 1e-12.
+- **The cause.** `carrier_touch::ball_off_face` placed the ball's foot before reading the face's boundary against the ball. A line tangent to a fillet at the fillet's own boundary vertex localized a ball holding that vertex, 2.29e-6 from the foot, so the placement's vertex pre-pass escalated in band. Read in the other order, the ball holds the vertex and the answer is "not off the face".
+- **The fix.** PR 4199 (CLEAVE lane) reads the boundary first. Its row `carrier_touch_rows::a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face` is red without the fix at every ε.
+— (CLEAVE lane, for REACH)

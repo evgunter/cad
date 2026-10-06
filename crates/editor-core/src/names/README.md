@@ -16,7 +16,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
-| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
+| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
@@ -71,9 +71,14 @@ DM4) follow this rule, and so do profile pieces:
   states it, which holds its inputs' and names' ids but not its own; the
   insert then extends the chain once more and takes the node's
   `RecipeNodeId` from it. The steps one edit mints take the chain's next
-  digests, one per step in authored order; an id is the first 64 bits of
-  its digest. So a node's or a step's id is a function of the edit
-  sequence that minted it:
+  digests, one per step in authored order. An id is a pair: its mint
+  ordinal (the mint log's length when it was drawn, plus one; a `u32`) and
+  the first 64 bits of its digest. Ids order by ordinal first, so they order
+  as they were minted: of two nodes or steps in one document, the one minted
+  first has the lesser id, and the document keeps no separate record of the
+  order its nodes were placed in.
+  So a node's or a step's id is a function of the edit sequence that
+  minted it:
   - the same sequence of edits from one value mints the same ids (D9);
   - two documents that branch from one value — an undo followed by a
     different edit, or two edits applied to one base — mint different ids
@@ -83,8 +88,9 @@ DM4) follow this rule, and so do profile pieces:
     parent's name on a step one such version minted, held across a pin
     update to the other, resolves `Vanished`.
 
-  Like a `RecipeNodeId`, a step id is never positional and never reused,
-  and it is unique across the whole document. The document keeps every
+  Like a `RecipeNodeId`, a step id is never reused and is unique across the
+  whole document; its order is mint order, which is the order the author
+  placed things in, and nothing else. The document keeps every
   id it has minted, node and step, in one mint log, deleted nodes' and
   dropped steps' included, and a mint whose id is already in the log is
   refused. The load door checks what minting makes true: every node's id
@@ -218,31 +224,70 @@ The qualifier depends on what was split:
   without piece qualifiers; equal sets tie.
 - **Edge pieces** take `Qualifier::Ends`: the sorted pair of a piece's two end
   vertices' names as the node publishes them. This covers every piece of a
-  parent edge: a seam chain's pieces, pieces of an operand edge, pieces of an
-  earlier seam, and a union's pieces of a member edge (`FromMember(m, e)` +
-  `Ends` over the union's published vertex names, read off the finished body).
+  parent edge, a lone piece on its side of a cut included, so no piece's name
+  says how many siblings it has: a seam chain's pieces, pieces of an operand
+  edge, pieces of an earlier seam, and a union's pieces of a member edge
+  (`FromMember(m, e)` + `Ends` over the union's published vertex names, read
+  off the finished body).
   Section chords are the same case: a section line that re-enters one operand
   face (an inner loop, a non-convex face) cuts several chords that
   `SectionEdge{side, face}` spells alike, and each takes `Ends` like any other
   edge piece (Ev, PR 3553). Pieces with equal pairs are N4's tie.
 - **Vertices** cite the edges they lie on by their heads, never by a piece's
   qualifier, so vertices are named before edge pieces are qualified, and
-  nothing in a piece's name lies beyond its own boundary. The one ordinal left
-  is on vertices: where one edge crosses one face several times, the crossings
-  share a name and are ranked along the crossed edge by its carrier's own
-  parameter, oriented as the operand body stores that edge (a seam edge as the
-  loop of the pair's first side runs along it); an equal pair ties.
+  nothing in a piece's name lies beyond its own boundary. A crossing, where a
+  face of one operand meets an edge of the other or where an edge lying in such
+  a face ends in it, is named by its sense: whether the crossed edge, oriented
+  as the operand body stores it (a seam edge as the loop of the pair's first
+  side runs along it), enters or leaves at the vertex the closed body the
+  crossing face belongs to. For the Split that body is the half the edge runs
+  into; a side of the vertex with no portion of the edge counts as outside.
+  The sense is read at the step that mints the vertex and carried through a
+  union's collapse. Every crossing carries it, a lone one included: a
+  boolean's or union's is `Crossing { edge, face, sense }`, the Split's
+  `CrossingVertex` holds it as a field. A vertex where two edges cross carries
+  each edge's sense against the other operand's closed body. Crossings of one
+  edge by one face with the same sense are ranked along the crossed edge by its
+  carrier's own parameter, in the edge's stored orientation; an equal pair
+  ties.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
-name order changes nothing.
+name order changes nothing. Name order spells a set; the flush rule below is
+the one place it chooses an entity.
 
-**Flush edges at a union.** An edge that lies along several members' edges,
-where they run flush, is a piece of the least of them in name order, and an
-edge lying along a member edge is a piece of it whatever the fold named it
-(`emit_union::Flush`). A seam vertex cites such an edge whole,
-`FromMember(m, e)`, never a piece; a vertex at a member vertex is that vertex,
-and one where a single face crosses a member edge is `Seam` of that edge and
-that face.
+**Flush edges at a union.** Each union edge is named for the member edges it
+lies on, read off the finished body and the members' own bodies
+(`emit_union::Flush`), so the name is the same in every member order:
+
+- An edge that lies within one or more member edges, where they run flush, is
+  a piece of the first minted of them (the least in name order, since name
+  order compares the minting node's id first and ids order as minted), so a
+  member added later never takes a stretch from an earlier one, whatever the
+  fold named it.
+- An edge that lies within none, but runs along several member edges that
+  together cover it, is named for that set: `Merged` of those member edges,
+  flat and in name order, the shape faces have (N3). Such an edge is a flush
+  rim the output stage joined across members (maximal edges, `docs/DESIGN.md`).
+  "Along" means on the edge's line and overlapping it over a length, so a rim
+  that only partly overlaps an edge is in its set. Several pieces of one set
+  are told apart by their ends (N2).
+- An edge that runs along member edges for part of its length and along a seam
+  for the rest is named from its two faces, as a seam is.
+
+The set does not retire its constituents the way N3 retires a merged face's.
+A member edge a set lists can also hold a stretch outside it, and that
+stretch keeps its piece name, the member edge qualified by its ends (N2),
+never the bare member edge. Unlike two coplanar faces, the stretch and the set
+are different cells on the line, and a name cites only what its cell lies on.
+
+A pair boolean names a joined edge by the same reading over its two operands'
+edges. A seam vertex cites a member edge whole, `FromMember(m, e)`, never a
+piece and never a set: the one it lies on, the least where several do. In a
+pair boolean, where an A edge and a B edge both hold it, A's is cited. A
+vertex at a member vertex is that vertex, and one where a single face crosses
+a member edge is the `Crossing` of that edge and that face. A reference to a
+member edge, or to a piece of one, that no longer resolves is offered every
+set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
 all of these hold: their members are declared coincident on them, or share a
@@ -440,12 +485,13 @@ table at the minting node carried the name, and the group its emitter divided
 the fragment's parent into held `was` entities there and holds `now ≠ was` in
 the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
 
-- *Which edge pieces it meets.* An edge piece's `Ends` holds no count, so a cut
-  elsewhere on its parent, by a face that does not already cross it, leaves the
-  piece's name as it was. A crossing keeps an ordinal, so a second crossing by
-  a face that already crosses the parent renames the first crossing, and with
-  it every piece whose `Ends` cite it. The rung meets an edge piece where its
-  own ends moved or were renamed, or its group stopped being divided.
+- *Which edge pieces it meets.* An edge piece's `Ends` holds no count and a
+  crossing's sense is its own, so a cut elsewhere on its parent leaves the
+  piece's name as it was, and so do the crossings it ends at. Only a second
+  crossing with the same sense by a face that already crosses the parent
+  renames anything: it ranks the same-sense group, so the first crossing gains
+  its rank, and with it every piece whose `Ends` cite it. The rung meets an edge piece where its own ends moved or were
+  renamed, or its group stopped being divided.
 - *What the group is.* The group is the one the emitter formed, read from the
   record it keeps beside the table (`names::FragmentGroups`, not persisted),
   not re-derived from the names. It counts the distinct entities of the node's

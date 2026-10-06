@@ -95,3 +95,34 @@ are 0.2 apart. The 16-gon twin passes 3′. In ZIP's sweep this held for
 all 144 rim and bore splits and phases tried
 (`a-round-tube-standing-on-a-plate-refuses-seam-orientation`,
 `## Closed`).
+
+## Measured (JOIN's pinch unit, branch `join/pinch-one-vertex-per-cone-build`)
+
+Booleans now reach this class too. Under Ev's ruling on PR 4057 a
+pinch is one vertex per cone, so lumps of a result that meet only at a
+pinch point are separate shells, and the gate sorts them into separate
+solids. On curved walls the census then answers `CensusUndecidable` for
+the curved faces touching at the pinch. Before, the crossed vertex kept
+them one shell, and the census did not examine them.
+
+772 lines that were already `BAD` (their legal-operand check fails) add
+tier 3′ `CensusUndecidable`:
+- 460 in PR 4051's island battery on cylinder walls;
+- 218 in review r2's cylinder poses (e.g. `Ltop cyl fib3 psi=0 off pc I`);
+- 94 in review r1's cylinder poses.
+
+The planar pinches pass: the census's `same_point` clears the shared
+point key.
+
+## 2026-10-06 — two stubs of a tilted prism through a slab (TANG)
+
+`sweep::planar_ring_arc_closure::a_prism_with_arc_walls_through_a_slab_builds_every_op`:
+a prism with an arc wall tilted through the slab `[−4, 4]² × [−0.5,
+0.5]`, `prism ∖ slab`. The result is the two stubs either side of the
+slab, two solids a unit apart along the slab's normal, whose tilted
+walls overhang each other. Tier 3 passes and the volume matches its
+closed form; empty tier 3′ answers 2 to 9 `CensusUndecidable` pairs
+on 11 of the row's 18 tilted shape-poses: all nine shapes tilted
+about two axes, and the 1.4π D and the lens tilted about one. The row
+accepts that refusal, and only it, on those results; the upright ones
+must pass.

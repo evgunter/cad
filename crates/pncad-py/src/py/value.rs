@@ -102,9 +102,17 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 ///
 /// The message speaks the node from `doc`, the document the evaluation
 /// is OF ([`Evaluation`]'s captured `doc`), so a label set after
-/// `evaluate` shows on the next evaluation; `node` crosses as the id.
-fn node_failure(py: Python<'_>, doc: &d::ProfileDoc, node: NodeId, error: &d::NodeError) -> PyErr {
-    let err = refused(py, node, &error.kind, error.spoken(doc), None);
+/// `evaluate` shows on the next evaluation, and each name within its
+/// table in `evaluation`, the one that raised it; `node` crosses as
+/// the id.
+fn node_failure(
+    py: Python<'_>,
+    doc: &d::ProfileDoc,
+    evaluation: &d::Evaluation<f64>,
+    node: NodeId,
+    error: &d::NodeError,
+) -> PyErr {
+    let err = refused(py, node, &error.kind, error.spoken(doc, evaluation), None);
     with_carried(py, err, error.kind.carried_chain(), Some(doc))
 }
 
@@ -242,6 +250,7 @@ pub(crate) fn carried_cause(
 fn poisoning(
     py: Python<'_>,
     doc: &d::ProfileDoc,
+    evaluation: &d::Evaluation<f64>,
     node: d::RecipeNodeId,
     through: d::RecipeNodeId,
     root: Option<&d::NodeError>,
@@ -275,7 +284,7 @@ fn poisoning(
             format!(
                 "{}; the failure there: {}",
                 standing.spoken(doc),
-                error.spoken(doc)
+                error.spoken(doc, evaluation)
             )
         }
         None => {
@@ -693,10 +702,13 @@ impl Body {
 ///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
 ///   matters: an `"edge_face_pierce"` is interpenetration and cannot
 ///   be declared, while an `"edge_edge_overlap"` can be.
-/// * `stale_kind` — which declared record the census could not
-///   confirm (`"vertex_vertex"`, `"vertex_on_face"`, `"curve_locus"`,
-///   `"patch"`). The granularity is which record to withdraw or
-///   re-seat; withdrawing another one leaves the refusal standing.
+/// * `stale_kind` — which contact record the census could not confirm
+///   (`"vertex_vertex"`, `"vertex_on_face"`, `"vertex_on_edge"`,
+///   `"edge_edge"`, `"curve_locus"`, `"patch"`). A record a declaration
+///   made is withdrawn or re-seated at that granularity; withdrawing
+///   another one leaves the refusal standing. `"vertex_on_edge"` and
+///   `"edge_edge"` are records an op wrote, never a declaration: a stale
+///   one is the op's defect, with nothing to withdraw.
 /// * `ring_contact_kind` — how a ring meets its face's own outer loop
 ///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
 ///   `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
@@ -1284,10 +1296,10 @@ impl Evaluation {
         let root = self.inner.node_error(node.0);
         Err(match (standing, root) {
             (d::NodeStanding::Failed { .. }, Some(error)) => {
-                node_failure(py, &self.doc, *node, error)
+                node_failure(py, &self.doc, &self.inner, *node, error)
             }
             (d::NodeStanding::Poisoned { node, through }, root) => {
-                poisoning(py, &self.doc, node, through, root)
+                poisoning(py, &self.doc, &self.inner, node, through, root)
             }
             (
                 d::NodeStanding::Failed { .. }
@@ -1437,7 +1449,12 @@ impl Evaluation {
             tol,
         ) {
             Ok(found) => names(py, found),
-            Err(refusal) => Err(super::select::select_refusal(py, &refusal, &self.doc)),
+            Err(refusal) => Err(super::select::select_refusal(
+                py,
+                &refusal,
+                &self.doc,
+                &self.inner,
+            )),
         }
     }
 
@@ -1598,6 +1615,7 @@ impl Evaluation {
                 &name,
             ),
             &self.doc,
+            &self.inner,
         )
     }
 
@@ -1677,7 +1695,12 @@ impl Evaluation {
                 .into_iter()
                 .map(super::flush::FlushFinding)
                 .collect()),
-            Err(refusal) => Err(super::select::select_refusal(py, &refusal, &self.doc)),
+            Err(refusal) => Err(super::select::select_refusal(
+                py,
+                &refusal,
+                &self.doc,
+                &self.inner,
+            )),
         }
     }
 

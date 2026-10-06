@@ -24,7 +24,7 @@ use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use sweep::test_support::{revolved_about_y, stacked_at};
 use topo::pcurves::{SiteRowRefusal, validate_pcurves};
-use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, MevSite};
+use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, MevSite, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -311,4 +311,147 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     let mut want = vec![null.he_plus, null.he_minus, strut.he_plus, strut.he_minus];
     want.sort();
     assert_eq!(missing, want);
+}
+
+/// **A kill that re-describes a certified member leaves its spline
+/// wall as found.** On the lofted prism, every edge with a half on a
+/// minted wall — each rim and each vertical seam — is split at its
+/// mid-parameter, and the first piece is killed toward the split,
+/// listing the second, certified, with the line between its merged
+/// ends. The kill re-mints a listed member's faces, but the site mint
+/// derives a spline chart's rows only through the fitted lane it does
+/// not carry, so the wall is left for tier 3: the kill returns `Ok`
+/// rather than refusing `SplineChart`, every finding tier 3 reads is on
+/// a spline wall, a rim's planar cap included in none, and no image a
+/// surviving half on a spline wall stores moves.
+#[test]
+fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
+    let base = lofted_prism();
+    let face_of = |b: &Body<f64>, h: HalfEdgeKey| {
+        let lk = b.get_half_edge(h).unwrap().parent_loop;
+        b.get_loop(lk).unwrap().face
+    };
+    let on_spline = |b: &Body<f64>, h: HalfEdgeKey| {
+        let f = b.get_face(face_of(b, h)).unwrap();
+        b.get_surface(f.surface).unwrap().spline_chart().is_some()
+    };
+    let wall_images = |b: &Body<f64>, killed: &[HalfEdgeKey]| {
+        format!(
+            "{:?}",
+            b.pcurves()
+                .filter(|(h, _)| !killed.contains(h) && on_spline(b, *h))
+                .collect::<Vec<_>>()
+        )
+    };
+    let (mut rims, mut seams) = (0, 0);
+    for (edge, e) in base.edges() {
+        match [e.he_plus, e.he_minus].map(|h| on_spline(&base, h)) {
+            [true, true] => seams += 1,
+            [true, false] | [false, true] => rims += 1,
+            [false, false] => continue,
+        }
+        let mut body = base.clone();
+        let (t0, t1) = body
+            .get_curve_geom(e.curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap()
+            .params();
+        body.split_edge(edge, 0.5 * (t0 + t1), tol()).unwrap();
+        let kill = body.get_edge(edge).unwrap().he_plus;
+        let listed: Vec<_> = body
+            .kev_merged_members(kill)
+            .unwrap()
+            .into_iter()
+            .map(|m| (m.edge, EdgeCurveSpec::line_between(m.start, m.end)))
+            .collect();
+        let [(member, _)] = listed.as_slice() else {
+            panic!("{edge:?}: the split vertex's fan is the second piece alone: {listed:?}")
+        };
+        assert!(
+            body.get_curve_geom(body.get_edge(*member).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .is_some(),
+            "{edge:?}: the listed member is certified"
+        );
+        let killed = [kill, body.mate(kill).unwrap()];
+        let before = wall_images(&body, &killed);
+        body.kev_describing(kill, &listed, tol())
+            .unwrap_or_else(|e| panic!("{edge:?}: the kill refused {e:?}"));
+        assert_eq!(
+            wall_images(&body, &killed),
+            before,
+            "{edge:?}: no image a spline wall stores moves"
+        );
+        let findings = validate_pcurves(&body, band());
+        assert!(
+            findings.iter().all(|f| match *f {
+                PcurveMintError::MissingCache { half_edge }
+                | PcurveMintError::RowInterval { half_edge, .. }
+                | PcurveMintError::LoopDiscontinuity { half_edge, .. } => {
+                    on_spline(&body, half_edge)
+                }
+                _ => false,
+            }),
+            "{edge:?}: tier 3 reads only the spline walls: {findings:?}"
+        );
+    }
+    assert_eq!((rims, seams), (8, 4), "every rim and every seam is a case");
+}
+
+/// **A re-parameterization of a certified edge leaves its spline wall
+/// as found.** On the lofted prism, every edge with a half on a minted
+/// wall — each rim and each vertical seam — is re-described by the line
+/// between its ends, its parameter shifted by one: the same points,
+/// another interval. `set_edge_curve` re-mints the faces of a certified
+/// edge it describes, but the site mint derives a spline chart's
+/// rows only through the fitted lane it does not carry, so the wall is
+/// left for tier 3: the door returns `Ok` rather than refusing
+/// `SplineChart`, and no image a spline wall stores moves.
+#[test]
+fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
+    let base = lofted_prism();
+    let on_spline = |b: &Body<f64>, h: HalfEdgeKey| {
+        let lk = b.get_half_edge(h).unwrap().parent_loop;
+        let f = b.get_face(b.get_loop(lk).unwrap().face).unwrap();
+        b.get_surface(f.surface).unwrap().spline_chart().is_some()
+    };
+    let wall_images = |b: &Body<f64>| {
+        format!(
+            "{:?}",
+            b.pcurves()
+                .filter(|(h, _)| on_spline(b, *h))
+                .collect::<Vec<_>>()
+        )
+    };
+    let mut cases = 0;
+    for (edge, e) in base.edges() {
+        if !(on_spline(&base, e.he_plus) || on_spline(&base, e.he_minus)) {
+            continue;
+        }
+        cases += 1;
+        let mut body = base.clone();
+        let (p0, p1) = (
+            start_point(&body, e.he_plus),
+            start_point(&body, e.he_minus),
+        );
+        let mut spec = EdgeCurveSpec::line_between(p0, p1);
+        let Curve3::Line { origin, dir } = spec.carrier else {
+            unreachable!("line_between builds a line")
+        };
+        spec.carrier = Curve3::Line {
+            origin: origin - dir,
+            dir,
+        };
+        spec.param_start += 1.0;
+        spec.param_end += 1.0;
+        let before = wall_images(&body);
+        body.set_edge_curve(edge, spec, tol())
+            .unwrap_or_else(|e| panic!("{edge:?}: the description refused {e:?}"));
+        assert_eq!(
+            wall_images(&body),
+            before,
+            "{edge:?}: no image a spline wall stores moves"
+        );
+    }
+    assert_eq!(cases, 12, "every rim and every seam is a case");
 }

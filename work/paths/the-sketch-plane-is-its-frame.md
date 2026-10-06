@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P0
 cost: M
-blocked_on: [store-constructed-carriers]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

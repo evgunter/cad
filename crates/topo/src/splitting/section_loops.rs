@@ -13,7 +13,7 @@
 //! `n_SP·m < 0` ⇒ **m = −n_SP**; symmetrically the below body's
 //! section face carries **m = +n_SP** ([`section_normal`]).
 
-use geom_core::{Decide, Indeterminate, Point3, Real, Vec3};
+use geom_core::{Decide, Indeterminate, Point3, Real, UnitVec3, Vec3};
 
 use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
@@ -37,13 +37,60 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
     }
 }
 
-/// The in-plane `u` axis a section loop is charted with: its first
-/// chord, normalized — deterministic data, no comparisons. `None` for
-/// a loop of fewer than two corners.
-pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>]) -> Option<Vec3<T>> {
-    match points {
-        [a, b, ..] => Some((*b - *a).normalize()),
-        _ => None,
+/// The in-plane `u` axis a section loop `l` on a plane of normal `n` is
+/// charted with: its first chord, normalized, or for a loop of one
+/// corner the first axis of `n`'s own basis (`orthonormal_basis`, a
+/// fixed function of `n`'s bits). Deterministic data; which `n` it
+/// reads is the caller's to state.
+///
+/// # Panics
+///
+/// On a loop of one corner whose edge is not a whole section conic,
+/// which is a kernel bug. That edge is a self-loop chord, and
+/// [`crate::chord_join`] mints one only as the whole conic or as a lone
+/// site's placeholder; the join refuses a loop of placeholders alone
+/// (`DegenerateSection`) before any frame is read.
+pub(super) fn chord_u_ref<T: Real>(
+    body: &Body<T>,
+    l: LoopKey,
+    points: &[Point3<T>],
+    n: UnitVec3<T>,
+) -> Vec3<T> {
+    if let [a, b, ..] = points {
+        return (*b - *a).normalize();
+    }
+    let first = match body.get_loop(l).map(|lp| lp.boundary) {
+        Some(LoopBoundary::Cycle { first }) => first,
+        other => unreachable!("section loop {l:?} has one corner and is no cycle: {other:?}"),
+    };
+    assert!(
+        one_whole_conic(body, first),
+        "section loop {l:?} has one corner and no whole section conic: the join refuses a loop of \
+         lone-site placeholders before it is charted"
+    );
+    n.orthonormal_basis().0
+}
+
+/// Whether the cycle at `first` is one edge on a section conic that is
+/// no placeholder ([`crate::chord_join::lone_site_placeholder`]).
+fn one_whole_conic<T: Real>(body: &Body<T>, first: crate::entity::HalfEdgeKey) -> bool {
+    let Some(he) = body.get_half_edge(first) else {
+        return false;
+    };
+    let curve = body
+        .get_edge(he.edge)
+        .and_then(|e| body.get_curve_geom(e.curve))
+        .and_then(crate::null::CurveGeom::certified);
+    match (curve, body.half_edge_end(first)) {
+        (Some(curve), Some(end)) => {
+            he.next == first
+                && !crate::chord_join::lone_site_placeholder(he.start, end, curve)
+                && matches!(
+                    curve.carrier(),
+                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+                )
+        }
+        _ => false,
     }
 }
 

@@ -9,7 +9,7 @@
 test_utils::gated_to![
     "crates/topo/src/boolean/solid_contain.rs",
     "crates/topo/src/splitting/containment.rs",
-    "crates/topo/src/ray_parity.rs",
+    "crates/topo/src/ray_walk.rs",
 ];
 
 use crate::common;

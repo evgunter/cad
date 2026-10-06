@@ -2088,7 +2088,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PierceRunsUnordered
-        | BooleanErrorKind::PinchUncrossed
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2113,7 +2112,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         // to execute: this census does not reach them.
         | BooleanErrorKind::CrossingInsertion
         | BooleanErrorKind::Containment
-        | BooleanErrorKind::Revert
         | BooleanErrorKind::Merge
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
@@ -2409,6 +2407,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
+    (
+        "carrier_touch.rs",
+        "ball_off_face",
+        "BooleanDecision::Containment",
+        1,
+    ),
     ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
     (
         "circle_torus.rs",
@@ -2428,15 +2432,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         2,
     ),
+    ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
     (
         "finish.rs",
         "weld_pinches",
-        "BooleanDecision::VertexOnVertex",
-        1,
-    ),
-    (
-        "finish.rs",
-        "weld_pierce_copies",
         "BooleanDecision::VertexOnVertex",
         1,
     ),
@@ -2533,6 +2532,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VolumeBackstop",
         1,
     ),
+    ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
+    ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
@@ -2552,6 +2553,17 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
+    ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
+    ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "split_lineage", "BooleanDecision::SelfCheck", 1),
+    (
+        "ops.rs",
+        "split_lineage",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
+    ("ops.rs", "split_lineage", "SelfCheck::CarriedLineage", 1),
     (
         "ops.rs",
         "volume_backstop",

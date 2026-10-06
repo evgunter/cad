@@ -142,6 +142,28 @@ impl<T: geom_core::Real> BoolSector<T> {
     }
 }
 
+/// One corner of a vertex neighborhood as its orbit reads it, before
+/// any subdivision: the corner after orbit half-edge `he`, sweeping CCW
+/// around its face's outward normal from `start` (the next orbit
+/// half-edge's chord) to `end` (`he`'s own), each unnormalized and as
+/// [`Reach`] says it was read.
+pub(super) struct OrbitCorner<T: geom_core::Real> {
+    /// The orbit half-edge the corner follows.
+    pub he: HalfEdgeKey,
+    /// The next orbit half-edge's chord: the CCW-first bound.
+    pub start: Vec3<T>,
+    /// What stands behind `start`.
+    pub start_reach: Reach<T>,
+    /// `he`'s own chord: the CCW-last bound.
+    pub end: Vec3<T>,
+    /// What stands behind `end`.
+    pub end_reach: Reach<T>,
+    /// The corner's face.
+    pub face: FaceKey,
+    /// The face's outward unit normal at the vertex ([`sector_face`]).
+    pub normal: OutwardNormal<T>,
+}
+
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
@@ -149,6 +171,91 @@ pub(super) fn build_sectors<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
+    let corners = orbit_corners(body, operand, vertex);
+    // A lone orbit half-edge's corner runs from its chord round to it.
+    let alone = corners.len() == 1;
+    let mut sectors = Vec::with_capacity(corners.len() + 2);
+    for corner in corners {
+        let OrbitCorner {
+            he,
+            start: dir_start,
+            start_reach: reach_start,
+            end: dir_end,
+            end_reach: reach_end,
+            face,
+            normal,
+        } = corner?;
+        // The three sector-shape rungs — metering arm, wideness, and
+        // the subdivision direction (PR 2's derivation: the cone
+        // argument needs < 180°) — are [`crate::sector_shape`]: ONE
+        // implementation, called from here and from the splitting
+        // lane's neighborhood walk, under the one pooled set of K names
+        // (pooled in #652). This is a call, not a copy.
+        //
+        // The sense-invariance argument for the `normal` passed here is
+        // NOT restated: it is the contract of `sector_shape`'s `normal`
+        // parameter, which is the one place a caller has to read it.
+        // The value arrives typed, so it cannot be the wrong one.
+        let SectorShape {
+            arm,
+            unit_own: u_end,
+            unit_next: u_start,
+            bisector: bisec,
+        } = sector_shape(dir_end, dir_start, normal, alone, band).map_err(|fault| match fault {
+            SectorFault::NonFiniteChord => BooleanError::NonFiniteSectorChord { vertex, face },
+            SectorFault::UnderflowedChord => BooleanError::UnderflowedSectorChord { vertex, face },
+            SectorFault::Rung { rung, diag } => BooleanError::Escalated {
+                decision: BooleanDecision::Corner(rung),
+                diag,
+            },
+        })?;
+        match bisec {
+            None => sectors.push(BoolSector {
+                he,
+                start: u_start,
+                end: u_end,
+                start_reach: reach_start,
+                end_reach: reach_end,
+                face,
+                normal,
+                arm,
+            }),
+            Some(b) => {
+                // Chained order (module docs): the end-sharing half
+                // first, then the start-sharing half.
+                sectors.push(BoolSector {
+                    he,
+                    start: b,
+                    end: u_end,
+                    start_reach: Reach::Bisector(arm),
+                    end_reach: reach_end,
+                    face,
+                    normal,
+                    arm,
+                });
+                sectors.push(BoolSector {
+                    he,
+                    start: u_start,
+                    end: b,
+                    start_reach: reach_start,
+                    end_reach: Reach::Bisector(arm),
+                    face,
+                    normal,
+                    arm,
+                });
+            }
+        }
+    }
+    Ok(sectors)
+}
+
+/// The corners of `vertex`'s neighborhood, in orbit order
+/// ([`OrbitCorner`]).
+pub(super) fn orbit_corners<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    vertex: VertexKey,
+) -> impl ExactSizeIterator<Item = Result<OrbitCorner<T>, BooleanError>> + '_ {
     let orbit = body.vertex_orbit_linked(vertex);
     if orbit.is_empty() {
         unreachable!(
@@ -162,7 +269,7 @@ pub(super) fn build_sectors<T: Decide>(
     // vertex scaled by `edge_extent` for conic carriers (M5 PR 9: the
     // ON-set machinery consumes curved carrier tangents instead of
     // assuming straight edges — the splitting lane's C12.2 idiom).
-    let chord = |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
+    let chord = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
         let end = body.proven_half_edge_end(he);
         let p_base = body.resolve_vertex_point(vertex, Proven);
         let p_end = body.resolve_vertex_point(end, Proven);
@@ -209,78 +316,22 @@ pub(super) fn build_sectors<T: Decide>(
             }
         }
     };
-    let mut sectors = Vec::with_capacity(orbit.len() + 2);
-    for (i, &he) in orbit.iter().enumerate() {
-        let next_he = orbit[(i + 1) % orbit.len()];
-        let (dir_end, reach_end) = chord(he); // this entry's own chord = CCW-last
-        let (dir_start, reach_start) = chord(next_he); // next chord = CCW-first
+    let n = orbit.len();
+    (0..n).map(move |i| {
+        let he = orbit[i];
+        let (end, end_reach) = chord(he); // this entry's own chord = CCW-last
+        let (start, start_reach) = chord(orbit[(i + 1) % n]); // next chord = CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he)?;
-        // The three sector-shape rungs — metering arm, wideness, and
-        // the subdivision direction (PR 2's derivation: the cone
-        // argument needs < 180°) — are [`crate::sector_shape`]: ONE
-        // implementation, called from here and from the splitting
-        // lane's neighborhood walk, under the one pooled set of K names
-        // (pooled in #652). This is a call, not a copy.
-        //
-        // The sense-invariance argument for the `normal` passed here is
-        // NOT restated: it is the contract of `sector_shape`'s `normal`
-        // parameter, which is the one place a caller has to read it.
-        // The value arrives typed, so it cannot be the wrong one.
-        let SectorShape {
-            arm,
-            unit_own: u_end,
-            unit_next: u_start,
-            bisector: bisec,
-        } = sector_shape(dir_end, dir_start, normal, he == next_he, band).map_err(|fault| {
-            match fault {
-                SectorFault::NonFiniteChord => BooleanError::NonFiniteSectorChord { vertex, face },
-                SectorFault::UnderflowedChord => {
-                    BooleanError::UnderflowedSectorChord { vertex, face }
-                }
-                SectorFault::Rung { rung, diag } => BooleanError::Escalated {
-                    decision: BooleanDecision::Corner(rung),
-                    diag,
-                },
-            }
-        })?;
-        match bisec {
-            None => sectors.push(BoolSector {
-                he,
-                start: u_start,
-                end: u_end,
-                start_reach: reach_start,
-                end_reach: reach_end,
-                face,
-                normal,
-                arm,
-            }),
-            Some(b) => {
-                // Chained order (module docs): the end-sharing half
-                // first, then the start-sharing half.
-                sectors.push(BoolSector {
-                    he,
-                    start: b,
-                    end: u_end,
-                    start_reach: Reach::Bisector(arm),
-                    end_reach: reach_end,
-                    face,
-                    normal,
-                    arm,
-                });
-                sectors.push(BoolSector {
-                    he,
-                    start: u_start,
-                    end: b,
-                    start_reach: reach_start,
-                    end_reach: Reach::Bisector(arm),
-                    face,
-                    normal,
-                    arm,
-                });
-            }
-        }
-    }
-    Ok(sectors)
+        Ok(OrbitCorner {
+            he,
+            start,
+            start_reach,
+            end,
+            end_reach,
+            face,
+            normal,
+        })
+    })
 }
 
 /// The sector's face + outward normal at the base vertex.
@@ -1129,15 +1180,7 @@ fn tangent_face<T: Decide>(
         }
     }
     let at_site = faces_at(side.body, side.site).map_err(stale_site)?;
-    Ok(sole_common_face(&at_site, &far_faces))
-}
-
-/// The one face in both `xs` and `ys`; `None` when not exactly one is.
-pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey> {
-    match xs.iter().filter(|f| ys.contains(f)).collect::<Vec<_>>()[..] {
-        [&f] => Some(f),
-        _ => None,
-    }
+    Ok(super::fragments::sole_common_face(&at_site, &far_faces))
 }
 
 /// The faces around a site of `body` (every copy null edges tie

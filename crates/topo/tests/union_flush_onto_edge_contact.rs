@@ -36,7 +36,7 @@ fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
 }
 
 /// Folds `order`, each step declaring its flush pairs and, when
-/// `carry`, carrying the accumulator's own v-v records in as `Rest`.
+/// `carry`, carrying the accumulator's own records in ([`carried_rows`]).
 /// Every step's result, or the refusal and the step it came at.
 fn fold(
     bodies: &[AtRestBody<f64>; 3],
@@ -49,7 +49,7 @@ fn fold(
         let acc = steps.last().map_or(&bodies[order[0]], |s| &s.body);
         let mut decls = flush_declarations(acc, &bodies[next], tol);
         if carry && let Some(prev) = steps.last() {
-            decls.carried_a.vv = rest_rows(&prev.contacts);
+            decls.carried_a = carried_rows(&prev.contacts);
         }
         match union_with(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, e))? {
             BooleanResult::Body(out) => steps.push(out),
@@ -113,6 +113,79 @@ fn carried_records_certify_every_order_of_the_fold() {
                 );
             }
         }
+    }
+}
+
+/// Every row of `records` carried in as `Rest`: the v-v rows, and the
+/// `(vertex, edge)` and edge-edge rows a join leaves.
+fn carried_rows(records: &topo::ContactRecords) -> topo::CarriedContacts {
+    topo::CarriedContacts {
+        vv: rest_rows(records),
+        ve: records.ve.clone(),
+        ee: records.ee.clone(),
+        ..topo::CarriedContacts::default()
+    }
+}
+
+/// **With the records carried, every order certifies and builds one
+/// body.** The fold of [`fold`], each step's output joined by its own
+/// output stage, as maximal edges asks of every output
+/// (`docs/DESIGN.md`, the merge stage): every step passes 3′ and holds
+/// no joinable vertex, and the finished bodies of all six orders have
+/// one vertex, edge and face count, for each span (16, 24 and 12). Red
+/// when the join drops the v-v record whose vertex it joined away: the
+/// touching corner then rests on the joined rim unrecorded
+/// (`UndeclaredContact` `VertexOnEdge` and the overlap it bounds). Red
+/// when a step's output stage skips the join: the step holds a
+/// joinable vertex, and the orders that cut the rim before the flush
+/// pair merges keep a vertex the others never mint.
+#[test]
+fn joined_folds_certify_and_build_one_body_in_every_order() {
+    let tol = Tol::witness();
+    for span in C_SPANS {
+        let bodies = members(span, tol);
+        let mut counts = Vec::new();
+        for order in ORDERS {
+            let mut acc: Option<BooleanBody<f64>> = None;
+            for &next in &order[1..] {
+                let base = acc.as_ref().map_or(&bodies[order[0]], |s| &s.body);
+                let mut decls = flush_declarations(base, &bodies[next], tol);
+                if let Some(prev) = &acc {
+                    decls.carried_a = carried_rows(&prev.contacts);
+                }
+                let out = match union_with(base, &bodies[next], &decls, tol) {
+                    Ok(BooleanResult::Body(out)) => out,
+                    other => panic!("c over {span:?}, order {order:?}: {other:?}"),
+                };
+                assert!(
+                    topo::joinable_vertices(&out.body).is_empty(),
+                    "c over {span:?}, order {order:?}, at {next}: a joinable vertex is left"
+                );
+                let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+                assert!(
+                    verdict.is_ok(),
+                    "c over {span:?}, order {order:?}, at {next}: 3′ refused {:?}",
+                    verdict.err()
+                );
+                acc = Some(out);
+            }
+            let body = &acc.expect("two steps").body;
+            assert!(
+                topo::joinable_vertices(body).is_empty(),
+                "c over {span:?}, order {order:?}: a joinable vertex is left"
+            );
+            counts.push((
+                order,
+                body.vertices().count(),
+                body.edges().count(),
+                body.faces().count(),
+            ));
+        }
+        let first = (counts[0].1, counts[0].2, counts[0].3);
+        assert!(
+            counts.iter().all(|c| (c.1, c.2, c.3) == first),
+            "c over {span:?}: the orders build different bodies: {counts:?}"
+        );
     }
 }
 
@@ -222,30 +295,32 @@ fn every_op_builds(
     ab.carried_a.vv = carried.to_vec();
     let mut ba = flush_declarations(cutter, pinch, tol);
     ba.carried_b.vv = carried.to_vec();
-    for (op, got, want) in [
-        ("pinch ∪ cutter", union_with(pinch, cutter, &ab, tol), union),
-        (
-            "pinch ∖ cutter",
-            subtract_with(pinch, cutter, &ab, tol),
-            pinch_less,
-        ),
-        (
-            "pinch ∩ cutter",
-            intersect_with(pinch, cutter, &ab, tol),
-            common,
-        ),
-        ("cutter ∪ pinch", union_with(cutter, pinch, &ba, tol), union),
-        (
-            "cutter ∖ pinch",
-            subtract_with(cutter, pinch, &ba, tol),
-            cutter_less,
-        ),
-        (
-            "cutter ∩ pinch",
-            intersect_with(cutter, pinch, &ba, tol),
-            common,
-        ),
-    ] {
+    for (op, got, want) in topo::test_support::ops_under_test(|| {
+        [
+            ("pinch ∪ cutter", union_with(pinch, cutter, &ab, tol), union),
+            (
+                "pinch ∖ cutter",
+                subtract_with(pinch, cutter, &ab, tol),
+                pinch_less,
+            ),
+            (
+                "pinch ∩ cutter",
+                intersect_with(pinch, cutter, &ab, tol),
+                common,
+            ),
+            ("cutter ∪ pinch", union_with(cutter, pinch, &ba, tol), union),
+            (
+                "cutter ∖ pinch",
+                subtract_with(cutter, pinch, &ba, tol),
+                cutter_less,
+            ),
+            (
+                "cutter ∩ pinch",
+                intersect_with(cutter, pinch, &ba, tol),
+                common,
+            ),
+        ]
+    }) {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -351,7 +426,7 @@ fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
 fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64, f64), tol: Tol) {
     let fold = |acc: &BooleanBody<f64>, next: &AtRestBody<f64>| {
         let mut decls = flush_declarations(&acc.body, next, tol);
-        decls.carried_a.vv = rest_rows(&acc.contacts);
+        decls.carried_a = carried_rows(&acc.contacts);
         match union_with(&acc.body, next, &decls, tol).expect("a touching wedge folds in") {
             BooleanResult::Body(out) => out,
             BooleanResult::Empty => panic!("a union of wedges came back empty"),
@@ -884,7 +959,7 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     };
     let mut decls = flush_declarations(&pinch_a.body, &pinch_b.body, tol);
     decls.carried_a.vv = carried_a;
-    decls.carried_b.vv = rest_rows(&pinch_b.contacts);
+    decls.carried_b = carried_rows(&pinch_b.contacts);
     let BooleanResult::Body(out) =
         subtract_with(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")
     else {
@@ -900,7 +975,7 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
 /// (a right-handed triple), scaled by `scale`: the linear image of the
 /// unit right prism, so its faces stay planar and its corner cone is
 /// the rays' own.
-fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> AtRestBody<f64> {
+pub(crate) fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> AtRestBody<f64> {
     let mut body = Body::<f64>::new();
     common::prism_ops(
         &mut body,
@@ -921,7 +996,7 @@ fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> AtRestBody<f64> {
 /// both operand orders, with `carried` as `y`'s records.
 fn against_the_cube(
     y: &AtRestBody<f64>,
-    carried: &[CarriedVv],
+    carried: &topo::CarriedContacts,
     tol: Tol,
 ) -> [(&'static str, BooleanOutcome); 6] {
     let cube = finished(
@@ -930,17 +1005,19 @@ fn against_the_cube(
         tol,
     );
     let mut ab = flush_declarations(y, &cube, tol);
-    ab.carried_a.vv = carried.to_vec();
+    ab.carried_a = carried.clone();
     let mut ba = flush_declarations(&cube, y, tol);
-    ba.carried_b.vv = carried.to_vec();
-    [
-        ("y ∪ cube", union_with(y, &cube, &ab, tol)),
-        ("y ∖ cube", subtract_with(y, &cube, &ab, tol)),
-        ("y ∩ cube", intersect_with(y, &cube, &ab, tol)),
-        ("cube ∪ y", union_with(&cube, y, &ba, tol)),
-        ("cube ∖ y", subtract_with(&cube, y, &ba, tol)),
-        ("cube ∩ y", intersect_with(&cube, y, &ba, tol)),
-    ]
+    ba.carried_b = carried.clone();
+    topo::test_support::ops_under_test(|| {
+        [
+            ("y ∪ cube", union_with(y, &cube, &ab, tol)),
+            ("y ∖ cube", subtract_with(y, &cube, &ab, tol)),
+            ("y ∩ cube", intersect_with(y, &cube, &ab, tol)),
+            ("cube ∪ y", union_with(&cube, y, &ba, tol)),
+            ("cube ∖ y", subtract_with(&cube, y, &ba, tol)),
+            ("cube ∩ y", intersect_with(&cube, y, &ba, tol)),
+        ]
+    })
 }
 
 type BooleanOutcome = Result<BooleanResult<f64>, BooleanError>;
@@ -956,11 +1033,10 @@ type BooleanOutcome = Result<BooleanResult<f64>, BooleanError>;
 /// operand orders, builds at the volume a polygon clip of the prism's
 /// rectangle against each brick's square gives (the prism is that
 /// rectangle at every height of the pinch), and the result passes 3′
-/// with the pinch's records carried, except `pinch ∖ prism`: the
-/// pinch's top end lies inside the prism's face, and that result keeps
-/// both pieces there with no v-v row
-/// (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`),
-/// pinned as it stands. Red as the first row: each dangling null edge
+/// with the pinch's records carried. Red in `pinch ∖ prism` when a
+/// carried row's ends do not reach their null-edge copies: the pinch's
+/// top end lies inside the prism's face, and the result keeps both
+/// pieces there with no v-v row. Red as the first row: each dangling null edge
 /// read the other's cut along the line as held, and all six refused
 /// `SharedVertexCrossings`. Red with the notch from −20° to 220° if a
 /// dangling null edge splices by the germ its run leaves from rather
@@ -1018,44 +1094,40 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
     ab.carried_a.vv.clone_from(&carried);
     let mut ba = flush_declarations(&prism, &pinch.body, tol);
     ba.carried_b.vv = carried;
-    for (op, got, want, drops) in [
-        (
-            "pinch ∪ prism",
-            union_with(&pinch.body, &prism, &ab, tol),
-            2.0 + prism_volume - common,
-            false,
-        ),
-        (
-            "pinch ∖ prism",
-            subtract_with(&pinch.body, &prism, &ab, tol),
-            2.0 - common,
-            true,
-        ),
-        (
-            "pinch ∩ prism",
-            intersect_with(&pinch.body, &prism, &ab, tol),
-            common,
-            false,
-        ),
-        (
-            "prism ∪ pinch",
-            union_with(&prism, &pinch.body, &ba, tol),
-            2.0 + prism_volume - common,
-            false,
-        ),
-        (
-            "prism ∖ pinch",
-            subtract_with(&prism, &pinch.body, &ba, tol),
-            prism_volume - common,
-            false,
-        ),
-        (
-            "prism ∩ pinch",
-            intersect_with(&prism, &pinch.body, &ba, tol),
-            common,
-            false,
-        ),
-    ] {
+    for (op, got, want) in topo::test_support::ops_under_test(|| {
+        [
+            (
+                "pinch ∪ prism",
+                union_with(&pinch.body, &prism, &ab, tol),
+                2.0 + prism_volume - common,
+            ),
+            (
+                "pinch ∖ prism",
+                subtract_with(&pinch.body, &prism, &ab, tol),
+                2.0 - common,
+            ),
+            (
+                "pinch ∩ prism",
+                intersect_with(&pinch.body, &prism, &ab, tol),
+                common,
+            ),
+            (
+                "prism ∪ pinch",
+                union_with(&prism, &pinch.body, &ba, tol),
+                2.0 + prism_volume - common,
+            ),
+            (
+                "prism ∖ pinch",
+                subtract_with(&prism, &pinch.body, &ba, tol),
+                prism_volume - common,
+            ),
+            (
+                "prism ∩ pinch",
+                intersect_with(&prism, &pinch.body, &ba, tol),
+                common,
+            ),
+        ]
+    }) {
         let op = format!("{op} (notch {notch:?})");
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
@@ -1065,17 +1137,8 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
             (volume - want).abs() < 1e-9,
             "{op}: volume {volume}, want {want}"
         );
-        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
-            Ok(_) => assert!(!drops, "{op}: passes 3′; the row's pin flips"),
-            Err(errors) => {
-                assert!(drops, "{op}: 3′ refused {errors:?}");
-                let text = format!("{errors:?}");
-                assert!(
-                    text.contains("VertexVertex") && text.contains("(0.0, 0.0, 1.5)"),
-                    "{op}: the undeclared pair at the pinch's top end: {errors:?}"
-                );
-            }
-        }
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
 }
 
@@ -1106,6 +1169,22 @@ pub(crate) fn box_planes(lo: f64, hi: f64) -> Vec<([f64; 3], f64)> {
         .collect()
 }
 
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
 /// The volume of the convex polyhedron `faces` cut to `planes`, outside
 /// the kernel: each face loop clipped to each half-space in turn
 /// (Sutherland–Hodgman), the points on the plane closing the cut's cap
@@ -1114,15 +1193,6 @@ pub(crate) fn box_planes(lo: f64, hi: f64) -> Vec<([f64; 3], f64)> {
 /// counts as lying on a plane only where its coordinates meet it
 /// exactly, as the boxes' and the lenses' zero coordinates do.
 pub(crate) fn clipped_volume(mut faces: Vec<Vec<[f64; 3]>>, planes: &[([f64; 3], f64)]) -> f64 {
-    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-    let cross = |a: [f64; 3], b: [f64; 3]| {
-        [
-            a[1] * b[2] - a[2] * b[1],
-            a[2] * b[0] - a[0] * b[2],
-            a[0] * b[1] - a[1] * b[0],
-        ]
-    };
     let area = |f: &[[f64; 3]]| {
         (1..f.len() - 1)
             .map(|i| cross(sub(f[i], f[0]), sub(f[i + 1], f[0])))
@@ -1227,11 +1297,11 @@ fn pit_holding_spikes_built(
         let spike = corner_prism(rays, scale, tol);
         let got = if spike_first {
             let mut decls = flush_declarations(&spike, &y.body, tol);
-            decls.carried_b.vv = rest_rows(&y.contacts);
+            decls.carried_b = carried_rows(&y.contacts);
             union_with(&spike, &y.body, &decls, tol)
         } else {
             let mut decls = flush_declarations(&y.body, &spike, tol);
-            decls.carried_a.vv = rest_rows(&y.contacts);
+            decls.carried_a = carried_rows(&y.contacts);
             union_with(&y.body, &spike, &decls, tol)
         };
         let BooleanResult::Body(next) = got.expect("the spike touches the pit's apex") else {
@@ -1260,7 +1330,7 @@ fn pit_holding_spikes_built(
         1 + spikes.len(),
         "the pit's apex and each spike's corner"
     );
-    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
         let want = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
@@ -1333,47 +1403,37 @@ fn lens_prisms(
 /// **A strut whose segment holds another whole, sharing its ends'
 /// directions.** `y` is the block `[-1, 1]³` less the lens `outer`
 /// (scaled out past the block), with the lens `inner` (inside `outer`,
-/// its rays along `outer`'s at the ends `inner` names) put back: the
-/// two pieces touch along pinch lines in the cube's bottom face. Against
-/// the unit cube's corner, both pieces' pairs cross that face's corner
-/// twice, so both are dangling null edges: the block's an Out run whose
-/// other way round is the whole orbit, the lens's an In run inside it
-/// that hangs at its tip. `y` is built in both orders of its union, and
-/// every op, in both operand orders, builds at
-/// the volume clipping each prism to each box gives, and passes 3′
-/// with `y`'s records carried except in the ops `drops` names.
-fn lens_in_a_lens(outer: [[[f64; 3]; 3]; 2], inner: [[[f64; 3]; 3]; 2], drops: &[&str], tol: Tol) {
+/// its rays along `outer`'s at the ends `inner` names) put back at its
+/// scale: the two pieces touch along pinch lines in the cube's bottom
+/// face. Against the unit cube's corner, both pieces' pairs cross that
+/// face's corner twice, so both are dangling null edges: the block's an
+/// Out run whose other way round is the whole orbit, the lens's an In
+/// run inside it that hangs at its tip. `y` is built in both orders of
+/// its union, and every op, in both operand orders, builds at the
+/// volume clipping each prism to each box gives, and passes 3′ with
+/// `y`'s records carried.
+fn lens_in_a_lens(outer: [[[f64; 3]; 3]; 2], inner: ([[[f64; 3]; 3]; 2], f64), tol: Tol) {
+    let volumes = lens_volumes(outer, inner, None, None);
     for (order, y) in lens_ys(outer, inner, tol) {
-        lens_against_the_cube(
-            &y,
-            (outer, LENS_SCALES.0),
-            (inner, LENS_SCALES.1),
-            order,
-            drops,
-            tol,
+        assert_eq!(
+            keys_at(&y.body, (0.0, 0.0, 0.0)).len(),
+            2,
+            "y = {order}: each piece's corner at the origin"
         );
+        lens_against_the_cube(&y, volumes, order, tol);
     }
 }
 
-/// The outer and inner lenses' scales in [`lens_ys`].
-const LENS_SCALES: (f64, f64) = (3.0, 0.5);
+/// The outer lens's scale in [`lens_ys`].
+const OUTER_SCALE: f64 = 3.0;
 
 /// [`lens_in_a_lens`]'s `y` in both orders of its union.
 fn lens_ys(
     outer: [[[f64; 3]; 3]; 2],
-    inner: [[[f64; 3]; 3]; 2],
+    (inner, scale): ([[[f64; 3]; 3]; 2], f64),
     tol: Tol,
 ) -> [(&'static str, BooleanBody<f64>); 2] {
-    let lens = |rays: [[[f64; 3]; 3]; 2], scale: f64| {
-        let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
-        let BooleanResult::Body(lens) =
-            union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
-        else {
-            panic!("the lens came back empty");
-        };
-        lens
-    };
-    let k = lens(outer, LENS_SCALES.0);
+    let k = lens(outer, OUTER_SCALE, tol);
     let block = finished(
         "block",
         brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol),
@@ -1388,11 +1448,11 @@ fn lens_ys(
     .expect("the lens is cut") else {
         panic!("the block ∖ lens came back empty");
     };
-    let piece = lens(inner, LENS_SCALES.1);
+    let piece = lens(inner, scale, tol);
     let mut cut_first = flush_declarations(&cut.body, &piece.body, tol);
-    cut_first.carried_a.vv = rest_rows(&cut.contacts);
+    cut_first.carried_a = carried_rows(&cut.contacts);
     let mut piece_first = flush_declarations(&piece.body, &cut.body, tol);
-    piece_first.carried_b.vv = rest_rows(&cut.contacts);
+    piece_first.carried_b = carried_rows(&cut.contacts);
     [
         (
             "cut ∪ lens",
@@ -1412,61 +1472,133 @@ fn lens_ys(
     })
 }
 
-/// [`lens_in_a_lens`]'s `y`, built in the `order` named, against the
-/// cube's corner.
+/// The lens over `rays` ([`lens_prisms`]) at `scale`.
+fn lens(rays: [[[f64; 3]; 3]; 2], scale: f64, tol: Tol) -> BooleanBody<f64> {
+    let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
+    let BooleanResult::Body(lens) =
+        union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
+    else {
+        panic!("the lens came back empty");
+    };
+    lens
+}
+
+/// The half-spaces `n·p ≤ d` of the convex prism `faces`, each face's
+/// plane turned away from the prism's mean vertex.
+fn prism_planes(faces: &[Vec<[f64; 3]>]) -> Vec<([f64; 3], f64)> {
+    let all = faces.concat();
+    let c: [f64; 3] =
+        core::array::from_fn(|k| all.iter().map(|p| p[k]).sum::<f64>() / all.len() as f64);
+    faces
+        .iter()
+        .map(|f| {
+            let n = cross(sub(f[1], f[0]), sub(f[2], f[0]));
+            let n = if dot(n, c) > dot(n, f[0]) {
+                n.map(|x| -x)
+            } else {
+                n
+            };
+            (n, dot(n, f[0]))
+        })
+        .collect()
+}
+
+/// A lens's two prisms, by rays and scale ([`lens_prisms`]).
+type Lens = ([[[f64; 3]; 3]; 2], f64);
+
+/// `[common, y]`: the volumes of `y ∩ cube` and of `y`
+/// ([`lens_against_the_cube`]), for `y` the block less the lens
+/// `outer` at [`OUTER_SCALE`], with `inner` put back less `notch`, and
+/// `fill` put back in the notch. Each lens's two halves lie on the two
+/// sides of the plane they share, so halves are clipped pairwise. The
+/// block's part is clipped to the block; the lenses put back count
+/// whole in `y`, as `inner` may reach past the block. `inner` and the
+/// notch lie in `outer` within the block, and the fill in the notch,
+/// which the generator checks.
+fn lens_volumes(
+    outer: [[[f64; 3]; 3]; 2],
+    inner: Lens,
+    notch: Option<Lens>,
+    fill: Option<Lens>,
+) -> [f64; 2] {
+    let halves = |(rays, s): Lens| rays.map(|r| prism_faces(r, s));
+    let (o, i) = (halves((outer, OUTER_SCALE)), halves(inner));
+    let clip = |f: &[Vec<[f64; 3]>], within: &[&[Vec<[f64; 3]>]], box_: &[([f64; 3], f64)]| {
+        let mut planes = box_.to_vec();
+        for w in within {
+            planes.extend(prism_planes(w));
+        }
+        clipped_volume(f.to_vec(), &planes)
+    };
+    let (cube, block) = (box_planes(0.0, 1.0), box_planes(-1.0, 1.0));
+    let anywhere: Vec<([f64; 3], f64)> = Vec::new();
+    [(1.0, &cube, &cube), (8.0, &block, &anywhere)].map(|(whole, box_, put)| {
+        (0..2)
+            .map(|h| {
+                let (in_outer, i_block) = (clip(&i[h], &[&o[h]], &block), clip(&i[h], &[], &block));
+                assert!(
+                    (in_outer - i_block).abs() < 1e-12,
+                    "the inner lens lies in the outer within the block: {in_outer} vs {i_block}"
+                );
+                let mut v = clip(&i[h], &[], put) - clip(&o[h], &[], box_);
+                if let Some(n) = notch.map(halves) {
+                    let in_outer = clip(&n[h], &[&o[h]], &block);
+                    let n_block = clip(&n[h], &[], &block);
+                    assert!(
+                        (in_outer - n_block).abs() < 1e-12,
+                        "the notch lies in the outer lens: {in_outer} vs {n_block}"
+                    );
+                    v -= clip(&n[h], &[&i[h]], put);
+                    if let Some(f) = fill.map(halves) {
+                        let (in_notch, whole) = (clip(&f[h], &[&n[h]], &[]), clip(&f[h], &[], &[]));
+                        assert!(
+                            (in_notch - whole).abs() < 1e-12,
+                            "the fill lies in the notch: {in_notch} vs {whole}"
+                        );
+                        v += clip(&f[h], &[], put);
+                    }
+                }
+                v
+            })
+            .sum::<f64>()
+            + whole
+    })
+}
+
+/// A lens `y`, built in the `order` named, against the cube's corner:
+/// each op builds at its share of `[common, y]` ([`lens_volumes`]) and
+/// passes 3′ with `y`'s records carried.
 fn lens_against_the_cube(
     y: &BooleanBody<f64>,
-    (outer, outer_scale): ([[[f64; 3]; 3]; 2], f64),
-    (inner, inner_scale): ([[[f64; 3]; 3]; 2], f64),
+    [common, y_volume]: [f64; 2],
     order: &str,
-    drops: &[&str],
     tol: Tol,
 ) {
-    let (cube, block) = (box_planes(0.0, 1.0), box_planes(-1.0, 1.0));
-    let volume = |rays: [[[f64; 3]; 3]; 2], scale: f64, planes: &[([f64; 3], f64)]| {
-        rays.iter()
-            .map(|&r| clipped_volume(prism_faces(r, scale), planes))
-            .sum::<f64>()
-    };
-    let common = 1.0 - volume(outer, outer_scale, &cube) + volume(inner, inner_scale, &cube);
-    let y_volume = 8.0 - volume(outer, outer_scale, &block) + volume(inner, inner_scale, &block);
     let got = mass_properties(&y.body, tol).expect("mass").volume;
     assert!(
         (got - y_volume).abs() < 1e-9,
-        "y: volume {got}, want {y_volume}"
+        "y = {order}: volume {got}, want {y_volume}"
     );
-    assert_eq!(
-        keys_at(&y.body, (0.0, 0.0, 0.0)).len(),
-        2,
-        "each piece's corner at the origin"
-    );
-    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
-        let dropped = drops.contains(&op);
-        let want = match op {
+    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
+        let volume = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
             "cube ∖ y" => 1.0 - common,
             _ => common,
         };
         let op = format!("{op} (y = {order})");
-        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
-            panic!("{op} came back empty");
+        let out = match got {
+            Err(e) => panic!("{op} refused: {e:?}"),
+            Ok(BooleanResult::Body(out)) => out,
+            Ok(_) => panic!("{op} came back empty"),
         };
-        let volume = mass_properties(&out.body, tol).expect("mass").volume;
+        let got = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
-            (volume - want).abs() < 1e-9,
-            "{op}: volume {volume}, want {want}"
+            (got - volume).abs() < 1e-9,
+            "{op}: volume {got}, want {volume}"
         );
-        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
-            Ok(_) => assert!(!dropped, "{op}: passes 3′; the row's pin flips"),
-            Err(errors) => {
-                assert!(dropped, "{op}: 3′ refused {errors:?}");
-                assert!(
-                    format!("{errors:?}").contains("VertexVertex"),
-                    "{op}: the undeclared pair at a pinch line's far end: {errors:?}"
-                );
-            }
-        }
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
 }
 
@@ -1474,101 +1606,107 @@ fn lens_against_the_cube(
 const D1: [f64; 3] = [1.0, 0.3, 0.0];
 const D2: [f64; 3] = [0.3, 1.0, 0.0];
 
-/// **Two dangling null edges whose runs are one arc refuse typed**: the
-/// inner lens's rays in the cube's face are the outer's
-/// ([`lens_ys`]), so the two pieces touch along both, and their
-/// pairs' dangling null edges have one segment, whose other way round
-/// is the whole orbit. Neither nests the other (`insert::holds_whole`):
-/// hanging either at the other's tip builds in one order of `y`'s union
-/// and fails the join in the other. So every op, in both operand orders
-/// and with `y` built both ways, refuses `SharedVertexCrossings` naming
-/// the cube's corner and two of `y`'s vertices there. So does the inner
-/// lens with a thinner lens cut out of it between the two rays, whose
-/// pair's four crossings pair the outer two, with or without a third
-/// lens in the notch: pinned as they stand
-/// (`work/fuse/two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings.md`).
-#[test]
-fn two_dangling_null_edges_with_one_segment_refuse_typed() {
-    let tol = Tol::witness();
-    let outer = lens_prisms((D1, D2), ([0.8, 0.8, 0.3], [0.8, 0.8, -0.3]));
-    let inner = lens_prisms((D1, D2), ([0.8, 0.8, 0.15], [0.8, 0.8, -0.15]));
-    let cube_corner = keys_at(
-        &brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
-        (0.0, 0.0, 0.0),
-    );
-    let [(_, cut_first), lens_first] = lens_ys(outer, inner, tol);
-    let notched = notched(&cut_first, None, tol);
-    let filled = notched_filled(&cut_first, tol);
-    for (order, y) in [
-        ("cut ∪ lens", cut_first),
-        lens_first,
-        ("cut ∪ notched lens", notched),
-        ("cut ∪ notched lens ∪ lens in the notch", filled),
-    ] {
-        let ends = keys_at(&y.body, (0.0, 0.0, 0.0));
-        for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
-            let side = if op.starts_with("cube") {
-                topo::Operand::A
-            } else {
-                topo::Operand::B
-            };
-            match got {
-                Err(BooleanError::SharedVertexCrossings {
-                    operand,
-                    vertex,
-                    partners: [p0, p1],
-                }) => {
-                    assert_eq!(
-                        (operand, vertex),
-                        (side, cube_corner[0]),
-                        "{op} (y = {order}): the cube's corner"
-                    );
-                    assert!(
-                        p0 != p1 && ends.contains(&p0) && ends.contains(&p1),
-                        "{op} (y = {order}): two of y's vertices there, {ends:?}"
-                    );
-                }
-                other => panic!(
-                    "{op} (y = {order}): want SharedVertexCrossings, got {:?}",
-                    other.map(|_| ())
-                ),
-            }
-        }
-    }
+/// The outer lens of the one-arc witnesses: its pinch lines along both
+/// [`D1`] and [`D2`].
+fn one_arc_outer() -> [[[f64; 3]; 3]; 2] {
+    lens_prisms((D1, D2), ([0.8, 0.8, 0.3], [0.8, 0.8, -0.3]))
 }
 
-/// `cut ∪ lens` ([`lens_ys`]) with the inner lens notched: the lens over
-/// `([1, 0.6, 0], [0.6, 1, 0])`, thinner and scaled past it, taken out
-/// of the inner lens, then `fill` put back if given.
-fn notched(y: &BooleanBody<f64>, fill: Option<&AtRestBody<f64>>, tol: Tol) -> BooleanBody<f64> {
-    let lens = |rays: [[[f64; 3]; 3]; 2], scale: f64| {
-        let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
-        let BooleanResult::Body(lens) =
-            union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
-        else {
-            panic!("the lens came back empty");
-        };
-        lens
-    };
-    let notch = lens(
+/// The inner lens of the one-arc witnesses, along the outer's rays.
+fn one_arc_inner() -> [[[f64; 3]; 3]; 2] {
+    lens_prisms((D1, D2), ([0.8, 0.8, 0.15], [0.8, 0.8, -0.15]))
+}
+
+/// **Two dangling null edges whose runs are one arc, in every op**: the
+/// inner lens's rays in the cube's face are the outer's ([`lens_ys`]),
+/// so the two pieces touch along both, and their pairs' dangling null
+/// edges have one segment. The inner lens at scale 2 reaches past the
+/// cube, so the pinch lines leave the cube's face through its bottom
+/// edges. The block's strut (Out on the segment) holds the lens's (In)
+/// (`insert::holds_whole`), so the vertex between them keeps the
+/// corner's region outside both pieces, whichever order `y` was built
+/// in. Every op, in both operand orders and with `y` built both ways,
+/// builds at the volume clipping each prism to each box gives, and
+/// passes 3′ with `y`'s records carried. Red as the first row: each
+/// strut held the other's cuts, and every op refused
+/// `SharedVertexCrossings`. Red with the In strut holding, the vertex
+/// between them inside both pieces: every op refuses `JoinDesync`. Red
+/// if the strut minted first holds: `y = lens ∪ cut` refuses the same
+/// way, and so does `cut ∪ lens` with its vertex pairs reversed
+/// ([`every_tied_strut_witness_holds_with_its_vertex_pairs_reversed`]).
+#[test]
+fn two_dangling_null_edges_with_one_segment_build_in_every_op() {
+    lens_in_a_lens(one_arc_outer(), (one_arc_inner(), 2.0), Tol::witness());
+}
+
+/// **The one arc with the pinch lines ending inside the cube's face**:
+/// [`two_dangling_null_edges_with_one_segment_build_in_every_op`] with
+/// the inner lens at scale 0.5, whose far corners (0.5, 0.15, 0) and
+/// (0.15, 0.5, 0) lie inside the cube's bottom face; then with a thinner
+/// lens over `([1, 0.6, 0], [0.6, 1, 0])` cut out of the inner lens
+/// (whose pair crosses the face's corner four times, a third strut,
+/// Out, nested in the lens's), with and without a lens in that notch.
+/// The struts at the origin nest in every one, the Out run holding.
+/// Every op of every one builds at its volume, `y` built both ways, and
+/// passes 3′ with `y`'s records carried. Red in `y ∖ cube` when a
+/// carried row's ends do not reach their null-edge copies: the pinch
+/// lines' far ends lie inside the cube's face, and the copies the
+/// result keeps there are unrecorded.
+#[test]
+fn two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_every_op() {
+    let tol = Tol::witness();
+    let inner = (one_arc_inner(), 0.5);
+    let notch = (
         lens_prisms(
             ([1.0, 0.6, 0.0], [0.6, 1.0, 0.0]),
             ([0.8, 0.8, 0.1], [0.8, 0.8, -0.1]),
         ),
         3.0,
     );
+    let fill = (
+        lens_prisms(
+            ([1.0, 0.75, 0.0], [0.75, 1.0, 0.0]),
+            ([0.8, 0.8, 0.05], [0.8, 0.8, -0.05]),
+        ),
+        0.3,
+    );
+    let [(_, cut_first), (_, lens_first)] = lens_ys(one_arc_outer(), inner, tol);
+    let plain = lens_volumes(one_arc_outer(), inner, None, None);
+    for (order, y) in [("cut ∪ lens", &cut_first), ("lens ∪ cut", &lens_first)] {
+        lens_against_the_cube(y, plain, order, tol);
+    }
+    let notched_y = notched(&cut_first, notch, None, tol);
+    lens_against_the_cube(
+        &notched_y,
+        lens_volumes(one_arc_outer(), inner, Some(notch), None),
+        "cut ∪ notched lens",
+        tol,
+    );
+    lens_against_the_cube(
+        &notched(&cut_first, notch, Some(fill), tol),
+        lens_volumes(one_arc_outer(), inner, Some(notch), Some(fill)),
+        "cut ∪ notched lens ∪ lens in the notch",
+        tol,
+    );
+}
+
+/// `y` with the lens `notch` taken out, then the lens `fill` put back
+/// if given.
+fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> BooleanBody<f64> {
+    let notch = lens(notch.0, notch.1, tol);
     let mut decls = flush_declarations(&y.body, &notch.body, tol);
-    decls.carried_a.vv = rest_rows(&y.contacts);
+    decls.carried_a = carried_rows(&y.contacts);
     let BooleanResult::Body(mut y) =
         subtract_with(&y.body, &notch.body, &decls, tol).expect("the notch is cut")
     else {
         panic!("the notched y came back empty");
     };
-    if let Some(fill) = fill {
-        let mut decls = flush_declarations(&y.body, fill, tol);
-        decls.carried_a.vv = rest_rows(&y.contacts);
-        let BooleanResult::Body(next) =
-            union_with(&y.body, fill, &decls, tol).expect("the fill touches the notch's apex")
+    if let Some((rays, scale)) = fill {
+        let fill = lens(rays, scale, tol);
+        let mut decls = flush_declarations(&y.body, &fill.body, tol);
+        decls.carried_a = carried_rows(&y.contacts);
+        let BooleanResult::Body(next) = union_with(&y.body, &fill.body, &decls, tol)
+            .expect("the fill touches the notch's apex")
         else {
             panic!("the filled y came back empty");
         };
@@ -1577,38 +1715,87 @@ fn notched(y: &BooleanBody<f64>, fill: Option<&AtRestBody<f64>>, tol: Tol) -> Bo
     y
 }
 
-/// [`notched`] with a lens over `([1, 0.75, 0], [0.75, 1, 0])` in the
-/// notch.
-fn notched_filled(y: &BooleanBody<f64>, tol: Tol) -> BooleanBody<f64> {
-    let [up, down] = lens_prisms(
-        ([1.0, 0.75, 0.0], [0.75, 1.0, 0.0]),
-        ([0.8, 0.8, 0.05], [0.8, 0.8, -0.05]),
-    )
-    .map(|r| corner_prism(r, 0.3, tol));
-    let BooleanResult::Body(fill) =
-        union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
-    else {
-        panic!("the lens came back empty");
-    };
-    notched(y, Some(&fill.body), tol)
-}
-
 /// **A strut inside another's segment, sharing one end's direction**
 /// ([`lens_in_a_lens`]): the inner lens's rays in the cube's face are
 /// the outer's `D1` and a ray strictly between, so the pieces touch
-/// along one pinch line. `y ∖ cube` drops the carried row at its far
-/// end (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`):
-/// pinned as it stands. Red as the first row: the cut strictly
+/// along one pinch line. Red as the first row: the cut strictly
 /// inside the Out run's segment held it, and every op refused
-/// `SharedVertexCrossings`.
+/// `SharedVertexCrossings`. Red in `y ∖ cube` when a carried row's ends
+/// do not reach their null-edge copies: the pinch line's far end lies
+/// inside the cube's face, and the copies the result keeps there are
+/// unrecorded. Red in `y ∪ cube` (3′ `VertexOnEdge`, `EdgeEdgeOverlap`)
+/// when the join's chord along `y`'s pinch-line edge writes no
+/// substitution row: the op drops the edge and keeps the chord, and a
+/// carried row on the edge has nowhere to land.
 #[test]
 fn a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op() {
     lens_in_a_lens(
-        lens_prisms((D1, D2), ([0.8, 0.8, 0.3], [0.8, 0.8, -0.3])),
-        lens_prisms((D1, [0.6, 1.0, 0.0]), ([0.8, 0.8, 0.15], [0.8, 0.8, -0.15])),
-        &["y ∖ cube"],
+        one_arc_outer(),
+        (
+            lens_prisms((D1, [0.6, 1.0, 0.0]), ([0.8, 0.8, 0.15], [0.8, 0.8, -0.15])),
+            0.5,
+        ),
         Tol::witness(),
     );
+}
+
+/// **The tied-strut witnesses do not read their vertex pairs' order.**
+/// Each runs again with every reduction taking its vertex pairs, and
+/// each pair's crossing records, in reverse
+/// (`test_support::with_vertex_pairs_reversed`). That turns round the
+/// plans' order, and with it the pairs' and the mints' and the plan
+/// index that breaks ties among equal keys, and a two-crossing pair's
+/// `from` and `to`. Each holds its own assertions unchanged: the same
+/// builds at the same volumes and 3′ verdicts, the same refusals. Each
+/// must have reversed, among the ops it tests
+/// (`test_support::ops_under_test`), a reduction with two crossing
+/// pairs at one vertex. The booleans that build the operands run
+/// reversed too, and are not counted. Red if two struts tied at both
+/// ends nest by mint order: the one-arc witness's `cut ∪ lens` then
+/// refuses `JoinDesync`.
+#[test]
+fn every_tied_strut_witness_holds_with_its_vertex_pairs_reversed() {
+    let witnesses: [(&str, fn()); 8] = [
+        (
+            "a pinch line flat in the shared corner's face",
+            a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op,
+        ),
+        (
+            "three pieces, two of whose cuts tie",
+            three_pieces_two_of_whose_cuts_tie_build_in_every_op,
+        ),
+        (
+            "two dangling null edges meeting on the pinch line",
+            two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op,
+        ),
+        (
+            "a strut holding a spike",
+            a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op,
+        ),
+        (
+            "a strut holding two spikes",
+            a_dangling_null_edge_holding_two_pairs_cuts_builds_in_every_op,
+        ),
+        (
+            "a strut inside another along one end",
+            a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op,
+        ),
+        (
+            "two struts with one segment",
+            two_dangling_null_edges_with_one_segment_build_in_every_op,
+        ),
+        (
+            "two struts with one segment ending in the cube's face",
+            two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_every_op,
+        ),
+    ];
+    for (name, witness) in witnesses {
+        let ((), reversed) = topo::test_support::with_vertex_pairs_reversed(witness);
+        assert!(
+            reversed > 0,
+            "{name}: no reduction held two crossing pairs at one vertex"
+        );
+    }
 }
 
 /// **A corner crossing the cube's corner four times builds every op**
@@ -1638,7 +1825,7 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
         common > 0.0 && common < y_volume,
         "the corner crosses the cube"
     );
-    for (op, got) in against_the_cube(&band, &[], tol) {
+    for (op, got) in against_the_cube(&band, &topo::CarriedContacts::default(), tol) {
         let want = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
@@ -1706,13 +1893,13 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
         panic!("i ∪ j came back empty");
     };
     let mut decls = flush_declarations(&two.body, &k, tol);
-    decls.carried_a.vv = rest_rows(&two.contacts);
+    decls.carried_a = carried_rows(&two.contacts);
     let BooleanResult::Body(y) = union_with(&two.body, &k, &decls, tol).expect("∪ k") else {
         panic!("∪ k came back empty");
     };
     let y_volume = mass_properties(&y.body, tol).expect("mass").volume;
     let mut volumes = std::collections::BTreeMap::new();
-    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
         match (op, got) {
             (
                 "y ∩ cube" | "cube ∪ y" | "cube ∖ y",

@@ -4,6 +4,8 @@ kind: issue
 title: Boolean refusals that run before the tier-2 operand gate, and operand-blaming raises whose premise the gate may now rule out
 status: open
 opened: 2026-10-02
+priority: P3
+cost: M
 ---
 
 

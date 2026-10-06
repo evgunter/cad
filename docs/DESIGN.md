@@ -318,13 +318,25 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      is stale and refuses typed. Structural sharing (same surface or
      point key) needs no record: an op that cuts one vertex into copies hands each copy the
      original's point, as it hands a cut face's fragments one surface.
-   - Contact records carry two granularities: vertex (`VvContact`,
-     `VfContact`) — edge-on-face and coincident-edge *segments*
+   - A contact record is a pair of cells, one from each touching
+     shell (or each side of a shell's pinch, whose two sides touch
+     within one shell), whose interiors meet, plus its backing: a
+     coincidence an op decided Zero, recorded (D10). Records carry
+     three granularities: vertex (`VvContact`, `VeContact`,
+     `VfContact`: a vertex on a vertex, on an edge's interior, on a
+     face's interior); edge (`EeContact`: two edges whose interiors
+     meet, crossing or overlapping); and face (`CurveContact`,
+     `PatchContact`; CONTACT-DESIGN C3), whose rungs back a subordinate
+     vertex event. Edge-on-face and coincident-edge *segments* are
      certified by reconstruction from their bounding vertex records
      (between two backed bounds, two lines sharing two points are one
      line; a missing bounding record is an unbacked contact, never
-     inferred) — and face (`CurveContact`, `PatchContact`; CONTACT-DESIGN
-     C3), whose rungs back a subordinate vertex event.
+     inferred); a crossing of two edge interiors has no bound, and its
+     edge-edge record backs it. An op that replaces a cell rewrites
+     every record naming it onto the replacement, by substitution; an
+     edge split moves a `(vertex, edge)` record onto the piece the
+     vertex rests on, and an `(edge, edge)` record onto every pair of
+     pieces whose interiors still meet, by the split's own lineage.
    - **Certification strength equals its skeleton**: a `CurveContact`
      is certified at its jet samples plus hull bounds, a `PatchContact`
      by definitely-positive region overlap in the shared chart, a
@@ -418,8 +430,16 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   latitude; cone v = slant length with the apex a true chart
   singularity (poison normal, never sampled); normals are the chart's
   ∂u × ∂v with no "outward" contract — topology carries sense. A seam
-  is defined SPATIALLY (the u_ref half-plane meridian), which on
-  mirror-nappe cones differs from chart u = 0.
+  (a **wrap edge**) is a property of a face, not a place on its
+  surface: an edge both of whose sides bound one face, across which
+  that face's chart domain closes in one of its periodic directions.
+  Where it sits is where the construction cut the wall — the profile
+  vertex — read off the edge's carrier through the chart (a meridian
+  wraps u, a torus parallel wraps v, a closed spline net's boundary
+  column wraps u), so the mirror-nappe cone's chart u = 0 needs no
+  spatial pin. A wall keeps the cuts its author wrote and the kernel
+  adds none: a one-segment closed loop sweeps to one wall with one wrap
+  edge, a k-piece loop to k walls on one surface key.
 - **Profile format**: a profile loop is a vertex chain whose segments
   are each a carrier plus a signed interval on it — a line (the chord
   between its two vertices), or an arc (centre, radius and signed sweep
@@ -542,10 +562,9 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   meters composite and refuse with the class named, their faces left
   uncached, excused by C4's exemption until each class's route lands.
   The same exemption covers a spline carrier at the closed-form door
-  and the zero-offset spiric, mirror-torus spiric and no-fitted
-  classes. Each class has its own PCERT row: the torus general circle,
-  the cone section, the spline carrier, and the spiric and no-fitted
-  classes together.
+  and the mirror-torus spiric and no-fitted classes. Each class has
+  its own PCERT row: the torus general circle, the cone section, the
+  spline carrier, and the spiric and no-fitted classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing

@@ -159,8 +159,8 @@ pub enum Revolution<T: Real> {
     /// The full revolution: sweeps exactly +2π (no wedge caps). A
     /// closed off-axis profile closes its seam through same-shell
     /// `kfmrh` plus the loopglue zip; an axis-touching profile sweeps
-    /// as a two-band wire whose plane walls are made whole (see
-    /// [`RevolvedKind::Full`]).
+    /// as a two-band wire. Either way its plane walls are made whole
+    /// (see [`RevolvedKind::Full`]).
     Full,
     /// A partial revolution by the **signed** angle θ (radians,
     /// right-hand rule about the placed axis direction);
@@ -300,13 +300,11 @@ pub enum RevolvedKind {
     /// holes are strictly off-axis by validated containment) sweeps
     /// two π-bands so poles/apexes keep valence 2 (tier 2's strut
     /// ban): `walls`/`rims` are the angle-0…π band, the `pi_*` fields
-    /// the π…2π band. In the wire case a PLANE wall is one face with no
-    /// meridian — an annulus whose inner circle is a ring, or a disc
-    /// whose centre is no vertex — so its `meridians` and `pi_*`
-    /// entries are `None`. A LAMINA's plane annulus keeps its slit: it
-    /// is one face whose `meridians` entry is that slit, a doubly
-    /// traversed seam (`work/band/lamina-plane-annulus-keeps-its-slit.md`).
-    /// Hole loops are always lamina-shaped: their
+    /// the π…2π band. In either case a PLANE wall is one face with no
+    /// meridian — an annulus whose inner circle is a ring, or (wire
+    /// case only) a disc whose centre is no vertex — so its `meridians`
+    /// and `pi_*` entries are `None`. Hole loops are always
+    /// lamina-shaped: their
     /// `meridians` entries are their cavity seam chains, and the
     /// `pi_*` fields (outer-loop shaped) never name hole entities.
     Full {
@@ -314,8 +312,8 @@ pub enum RevolvedKind {
         wire: bool,
         /// Angle-0 meridian edges (the `u = 0` seam chain), per
         /// canonical loop, per canonical segment (`None`: omitted
-        /// on-axis segment of the outer loop, or a wire-case plane
-        /// wall; a run's segments read its one meridian).
+        /// on-axis segment of the outer loop, or a plane wall; a run's
+        /// segments read its one meridian).
         meridians: Vec<Vec<Option<EdgeKey>>>,
         /// Wire case: the π…2π band's wall faces, per canonical
         /// segment of the OUTER loop.
@@ -503,6 +501,17 @@ pub enum RevolveError {
         loop_index: usize,
         /// Canonical index of the segment.
         segment_index: usize,
+    },
+    /// A one-segment loop (D1's full turn: a circle as one arc at one
+    /// vertex), clear of the axis. Its wall is one torus face wrapping
+    /// the tube's own angle, cut only by the latitude strut at the
+    /// vertex — and a seam here is a `u_ref` meridian, so no chart
+    /// describes that cut: the description, pcurve and flux layers read
+    /// the strut's two halves as one image. Refused rather than built
+    /// inside out.
+    OneSegmentLoop {
+        /// Canonical index of the loop.
+        loop_index: usize,
     },
     /// Full revolve of a profile whose axis contact is not a single
     /// contiguous run of on-axis segments: an isolated on-axis vertex
@@ -720,6 +729,12 @@ impl fmt::Display for RevolveError {
                  spindle torus (its circle reaches the axis), which is not supported. \
                  Recourse: keep the arc's circle clear of the axis"
             ),
+            Self::OneSegmentLoop { loop_index } => write!(
+                f,
+                "loop {loop_index} is one full-turn arc: its torus wall would wrap the tube's \
+                 own angle, cut only by the strut at its vertex, and no face here represents \
+                 that cut. Recourse: author the circle as two or more arcs"
+            ),
             Self::NonManifoldAxisContact {
                 loop_index,
                 vertex_index,
@@ -881,6 +896,11 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     let mut classes = Vec::with_capacity(loops.len());
     for (li, segs) in loops.iter().enumerate() {
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
+    }
+    // After the axis classes, which refuse a full turn that reaches the
+    // axis by what is wrong with it.
+    if let Some(loop_index) = loops.iter().position(|segs| profile::is_full_turn(segs)) {
+        return Err(RevolveError::OneSegmentLoop { loop_index });
     }
 
     let mut out = if full {

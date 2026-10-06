@@ -458,6 +458,17 @@ BOUNDS_ALLOWLIST=(
   # boxes.rs's three are the box builders (`face_box`, `boundary_hull`,
   # `edge_box`); its point read needs no `Bounds` and is `Real`-bound.
   'crates/topo/src/boolean/boxes.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # carrier_touch.rs's four are the crossing layer's touch reading:
+  # `clusters`, the subdivision driver (a piece's half-length bracket
+  # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
+  # edge by its certified box against the touch's ball before deciding a
+  # distance bound (a box miss is a terminal clear, the disjointness
+  # direction #571 allows); and `off_face` and `ball_off_face`, which
+  # carry the bound to call those two and read no bracket themselves.
+  # Why not `Decide + CertifiedBounds`: the public boolean is
+  # instantiated at `Dual64` (`crates/topo/tests/inside_out_operand.rs`),
+  # which has no certified enclosure (`real.rs`'s entry).
+  'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
   # are one driver seam: each reads the certified face boxes the sweep
@@ -493,7 +504,9 @@ BOUNDS_ALLOWLIST=(
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
   # and rides the same seam: it forwards to `sweep_direction` twice and
   # reads no bracket of its own (`Decide` alone does not compile there).
-  'crates/topo/src/boolean/reduce.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
+  # Three more ride to `carrier_touch::off_face` the same way:
+  # `curved_face_arm`, `wall_crossing` and `settle_deferred`. 5 + 3 = 8.
+  'crates/topo/src/boolean/reduce.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,
@@ -582,7 +595,12 @@ BOUNDS_ALLOWLIST=(
   # a dual.
   'crates/topo/src/props/quad_lane.rs 15 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
-  'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
+  # `run_battery_for` whole (its junction-end pick the one bracket read,
+  # as before), and `face_clearance_margin` is `face_clearance` with its
+  # margin formed by the caller, the door the surgery's strip meter
+  # refuses through; both decide only through `classify`.
+  'crates/sweep/src/blend/battery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
@@ -591,9 +609,29 @@ BOUNDS_ALLOWLIST=(
   # selection definite by a setback (which side of the trim the rim
   # lies on; DL5(b), as `CircleFrame::misses`), the precedent
   # `seam_split_param` set in this file.
-  'crates/sweep/src/blend/surgery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/open/planar.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/open/ruled.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 15 -> 17: `split_param_in_span` is `seam_split_param`'s read split
+  # off with its window test returned as the answer (the same DL5(b)
+  # representation pick, now read by a plan to word its own refusal),
+  # and `strip_clearance` is the ring carry-through pass's planar-strip
+  # arm, reading brackets only where `ring_clearance`, `piece_along` and
+  # `boxed_reach` already do, as `support_boundary_clearance` does.
+  'crates/sweep/src/blend/surgery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
+  # cut-off both open bands end in left `ruled.rs` for its own file when
+  # the plane–plane band took it too — the sliver meter's two
+  # constructors and its rim reader, the rim split and the cut-off's
+  # first step, each reading brackets only through the piece meters and
+  # `seam_split_param`'s window test as before — and the planar band's
+  # `cut_off_plan` calls the shared plan. The same seam, and the same
+  # reads, moved and shared; no new decision reads a bracket.
+  'crates/sweep/src/blend/open/planar.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  'crates/sweep/src/blend/open/ruled.rs 2 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # end_face.rs 5 -> 7: `foot_param` is the one read of where a foot
+  # lands on its rim (`split_param_in_span`'s window test, worded as the
+  # run-out), and `shared_rims_clear` meters two cut-offs' feet on one
+  # rim, deciding only through `classify` over a span metered as the
+  # split meters it; the two sliver constructors became one.
+  'crates/sweep/src/blend/open/end_face.rs 7 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # 7 -> 8: the fitted door gained a fourth body,
   # `sphere_circle_image_lane` (`Decide + Bounds + CertifiedEnclosure`,

@@ -277,7 +277,8 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         Some(
             RunOutPolicy::RunOutStopAtVertex
             | RunOutPolicy::RunOutFeather
-            | RunOutPolicy::CutOffAtTransverseCap,
+            | RunOutPolicy::CutOffAtEndFace
+            | RunOutPolicy::Mitre,
         )
         | None => {}
     }
@@ -296,9 +297,11 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // door that EXISTS — the distinction a caller who could not
         // name this type had to read out of the prose.
         CornerConfig::SeamVertex => "seam_vertex",
-        // The ruled band's own termination — a configuration that
-        // CARVES, whose policy is the cut-off the tag's map assigns.
-        CornerConfig::TransverseCap => "transverse_cap",
+        // A straight band's cut-off — a configuration that CARVES,
+        // whose policy is the cut-off the tag's map assigns.
+        CornerConfig::EndFace => "end_face",
+        // Two of three edges requested: the mitre, named and refused.
+        CornerConfig::Turn => "turn",
         CornerConfig::Indeterminate => "indeterminate",
     }
 }
@@ -342,6 +345,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ContactSecondOrder => "contact_second_order",
         BlendDecision::CornerIndependence => "corner_independence",
         BlendDecision::CapTransverse => "cap_transverse",
+        BlendDecision::CutOffFeet => "cut_off_feet",
     }
 }
 
@@ -447,6 +451,16 @@ fn stale_declaration_and_ring_contact_are_matchable(
             "vertex_vertex"
         }
         StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::VertexOnEdge { vertex, edge } => {
+            named::<VertexKey>(vertex);
+            named::<EdgeKey>(edge);
+            "vertex_on_edge"
+        }
+        StaleDeclaration::EdgeEdge { a, b } => {
+            named::<EdgeKey>(a);
+            named::<EdgeKey>(b);
+            "edge_edge"
+        }
         StaleDeclaration::CurveLocus {
             face_a,
             face_b,
@@ -5293,13 +5307,18 @@ fn the_root_readers_read_statements_not_lines() {
 ///   document layer's one lookup over every owner's words
 ///   (`editor-core`'s `decision::words`), which renders them into its
 ///   own sentences; a modeller reads those sentences, never the table.
+/// - `is_full_turn`, the kernel's one home for "this loop is D1's full
+///   turn", asked over any per-segment slice by the builders (extrude,
+///   revolve, loft). A modeller asks a validated loop through its own
+///   `ValidatedLoop::is_full_turn`, which the façade carries with the
+///   type.
 ///
 /// The list is checked in both directions — a future interior root
 /// export is a finding, and a stale entry fails. It once held
 /// `RawLoop`, the minting tier, which left the shipped root surface
 /// behind that crate's `test-support` feature instead
 /// ([`code_without_cfg_gated`] is what makes the scan agree).
-const PROFILE_NOT_CARRIED: [&str; 1] = ["decision_subject"];
+const PROFILE_NOT_CARRIED: [&str; 2] = ["decision_subject", "is_full_turn"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**

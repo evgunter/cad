@@ -582,10 +582,13 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 
 /// The world points determining a cap plane, in forward swept order:
 /// every loop vertex, plus every arc segment's apex. The apexes keep
-/// 2-vertex loops (the minimal circle) plane-determining — Newell needs
-/// three points and a 2-vertex cap has only two vertices — and they
-/// carry the traversal's winding faithfully (each sits between its
-/// segment's endpoints in loop order).
+/// 2-vertex loops plane-determining — Newell needs three points and a
+/// 2-vertex cap has only two vertices — and they carry the traversal's
+/// winding faithfully (each sits between its segment's endpoints in
+/// loop order). A one-segment loop is a full turn at its one vertex
+/// (D1), whose chord has no apex: its carrier points a quarter of the
+/// way round, its antipode ([`geom_core::Arc2::antipode`]) and three
+/// quarters of the way round stand in, in the same order.
 ///
 /// `qs` are the world vertices and `place` the matching placement, so
 /// a rotated or translated cap passes the rotated or translated pair.
@@ -594,15 +597,134 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     qs: &[Point3<T>],
     place: Affine3<T>,
 ) -> Vec<Point3<T>> {
-    let mut pts = Vec::with_capacity(segs.len() * 2);
+    let placed = |p: Point2<T>| place.transform_point(Point3::new(p.x, p.y, T::zero()));
+    let mut pts = Vec::with_capacity(segs.len() * 2 + 2);
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
         if let SegmentKind::Arc { arc, .. } = s.kind().get() {
-            let apex = arc.apex(s.a(), s.b());
-            pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
+            if profile::is_full_turn(segs) {
+                pts.push(placed(arc.point_from(s.a(), T::from_f64(0.25))));
+                pts.push(placed(arc.antipode(s.a())));
+                pts.push(placed(arc.point_from(s.a(), T::from_f64(0.75))));
+            } else {
+                pts.push(placed(arc.apex(s.a(), s.b())));
+            }
         }
     }
     pts
+}
+
+/// What [`build_full_turn`] minted.
+pub(crate) struct FullTurn {
+    /// The far rim's plus half, kept by the loop the turn was built in.
+    pub(crate) far_kept: HalfEdgeKey,
+    /// The far rim.
+    pub(crate) far: EdgeKey,
+    /// The wall.
+    pub(crate) wall: FaceKey,
+    /// The strut, from the far vertex to the near one.
+    pub(crate) strut: EdgeKey,
+    /// The near rim's plus half, in the wall.
+    pub(crate) near_in_wall: HalfEdgeKey,
+    /// The near rim.
+    pub(crate) near: EdgeKey,
+    /// The face holding the near rim's minus half.
+    pub(crate) near_face: FaceKey,
+}
+
+/// **Sweeps a one-segment loop** — D1's full turn, one vertex and one
+/// self-loop edge — whose far copy is the lone vertex of the empty loop
+/// `r#loop`, and whose near copy is `near`.
+///
+/// **Far first**, because the new face of a self-loop `mef` is always
+/// the one-half-edge loop. `mef(Lone)` lays the far rim (`far_spec`):
+/// `r#loop` keeps its plus half and the new face, minted on `wall`,
+/// takes the minus. A strut `mev` runs from the far vertex back to
+/// `near` (`strut_spec` reads far to near). A self-loop `mef` at the
+/// near vertex lays the near rim (`near_spec`): the new face, on
+/// `near_cap`, takes its minus half and the wall its plus. So the face
+/// that held `r#loop` keeps the far rim — the seed face stays the far
+/// cap and a ring stays its ring — and the wall's cycle is strut⁺
+/// (down), near rim⁺, strut⁻ (up), far rim⁻: a quad wall's, with both
+/// strut halves in it.
+///
+/// Both rim specs run in the swept traversal's direction, so the far
+/// cap runs its rim forward and the near face backward, as the chain
+/// builders leave them.
+#[allow(clippy::too_many_arguments)] // the specs and surfaces each verb supplies
+pub(crate) fn build_full_turn<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    r#loop: topo::LoopKey,
+    near: Point3<T>,
+    far_spec: EdgeCurveSpec<T>,
+    wall: FaceSurface<T>,
+    strut_spec: EdgeCurveSpec<T>,
+    near_spec: EdgeCurveSpec<T>,
+    near_cap: FaceSurface<T>,
+    tol: Tol,
+) -> Result<FullTurn, EulerOpError> {
+    let far = body.mef(MefSite::Lone { r#loop }, far_spec, wall, tol)?;
+    let strut = body.mev(
+        MevSite::Fan {
+            he1: far.he_minus,
+            he2: far.he_minus,
+        },
+        near,
+        strut_spec,
+        tol,
+    )?;
+    let near = body.mef(
+        MefSite::Chords {
+            he1: strut.he_minus,
+            he2: strut.he_minus,
+        },
+        near_spec,
+        near_cap,
+        tol,
+    )?;
+    Ok(FullTurn {
+        far_kept: far.he_plus,
+        far: far.edge,
+        wall: far.face,
+        strut: strut.edge,
+        near_in_wall: near.he_plus,
+        near: near.edge,
+        near_face: near.face,
+    })
+}
+
+/// Re-describes `edge`, both of whose halves bound one face on `wall`,
+/// as that chart's seam (`EdgeDescriptionSpec::seam`): the certified
+/// carrier and interval kept verbatim. Extrude's one-segment strut and
+/// a full revolve's periodic meridian both go through here.
+pub(crate) fn describe_seam<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    wall: SurfaceKey,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    let curve_key = body
+        .get_edge(edge)
+        .unwrap_or_else(|| unreachable!("edge {edge:?} was minted by this sweep and is live"))
+        .curve;
+    let curve = body
+        .get_curve_geom(curve_key)
+        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
+        .certified()
+        .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
+    let carrier = curve.carrier().clone();
+    let (param_start, param_end) = curve.params();
+    body.set_edge_curve(
+        edge,
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::seam(wall),
+            carrier,
+            param_start,
+            param_end,
+        },
+        tol,
+    )?;
+    Ok(())
 }
 
 /// The predicate names one verb's cosurface decision reports under —
@@ -759,7 +881,8 @@ pub(crate) fn joins<T: Real, S: SweptChord<T>>(
 /// the cosurface band, and profile validation escalates a carrier pair
 /// that near-coincides before any sweep sees it, so such a loop is a
 /// kernel defect, refused here rather than built as one full-period
-/// wall with one strut.
+/// wall with one strut. A one-segment loop never reaches here: each
+/// verb sweeps it whole or refuses it before its runs are read.
 pub(crate) fn wall_runs(joins: &[Join]) -> Vec<Run> {
     let n = joins.len();
     let starts: Vec<usize> = (0..n).filter(|&j| joins[j] != Join::Run).collect();
@@ -1304,10 +1427,9 @@ mod tests {
     }
 
     /// One arc at the bulge `bulge` (a form) with the turn `turn`, on
-    /// the chord `(0, 0) → (2, 0)`, lowered through
-    /// [`placed_segment_spec`] at the identity placement. The sweep is
-    /// the lowering's `4·atan b`, and the centre and radius are the
-    /// sagitta closed forms, so the two registrants the arm runs state
+    /// the chord `(0, 0) → (2, 0)`, lowered from the chord
+    /// ([`Arc2::from_chord`]) and through [`placed_segment_spec`] at the
+    /// identity placement, so the two registrants the arm runs state
     /// true identities.
     fn lowered<T: Real>(bulge: T, turn: Sign) -> EdgeCurveSpec<T> {
         let lit = T::from_f64;
@@ -1315,18 +1437,11 @@ mod tests {
             Point2::new(lit(0.0), lit(0.0)),
             Point2::new(lit(2.0), lit(0.0)),
         );
-        let len = lit(2.0);
-        let apothem = len * (lit(1.0) - bulge * bulge) / (lit(4.0) * bulge);
-        let radius = (len * (lit(1.0) + bulge * bulge) / (lit(4.0) * bulge)).abs();
         let seg = SweptSeg {
             a,
             b,
             kind: Traversed::forward(SegmentKind::Arc {
-                arc: Arc2 {
-                    centre: Point2::new(lit(1.0), apothem),
-                    radius,
-                    sweep: lit(4.0) * bulge.atan(),
-                },
+                arc: Arc2::from_chord(a, b, bulge),
                 turn,
             }),
             canonical_vertex: 0,
