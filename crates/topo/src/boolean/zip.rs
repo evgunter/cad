@@ -374,6 +374,11 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
 /// at rest. Across an outer loop `pinch_site` divides the face, a step
 /// this split does not take, so the two agree wherever both act.
 ///
+/// `class` holds every vertex fused onto `v`'s point after the
+/// crossings (`v` among them); a crossing where one face would pass the
+/// point three or more times refuses
+/// [`BooleanError::PinchOfManyHolesInOneRing`].
+///
 /// `v` is a key the zip carries: its miss refuses
 /// [`BooleanError::ZipCorrespondence`].
 ///
