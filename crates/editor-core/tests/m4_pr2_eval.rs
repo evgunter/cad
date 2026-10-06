@@ -220,7 +220,7 @@ fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
 #[test]
 fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     use editor_core::{
-        Dimension, DocEdit, Expr, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
+        Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
     };
     let h = VarName::from_static("h");
     let mut r = fixture::Recorder::new();
@@ -236,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     );
     let block = r.insert(Node::Extrude {
         profile,
-        distance: Expr::named(h.clone(), Dimension::Length),
+        distance: Formula::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let ev = run(&r.doc, None, false);
@@ -304,8 +304,8 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             &editor_core::DocEdit::SetParam {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
-                expr: editor_core::Expr::div(
-                    editor_core::Expr::named(
+                expr: editor_core::Formula::div(
+                    editor_core::Formula::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),

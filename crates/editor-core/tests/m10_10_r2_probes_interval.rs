@@ -23,7 +23,7 @@ use editor_core::analysis::{
 use editor_core::drive::{DriveConfig, RefusalReason, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
@@ -305,7 +305,7 @@ pub(crate) fn d_tab_at(
                 hi: 0.05 * scale,
             },
         );
-        Expr::named(VarName::from_static("bulge"), Dimension::Scalar)
+        Formula::named(VarName::from_static("bulge"), Dimension::Scalar)
     } else {
         scl(bulge_nominal)
     };
@@ -335,10 +335,10 @@ pub(crate) fn d_tab_at(
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [
-                Expr::named(VarName::from_static("hole_x"), Dimension::Length),
+                Formula::named(VarName::from_static("hole_x"), Dimension::Length),
                 len(0.0),
             ],
-            radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
+            radius: Formula::named(VarName::from_static("hole_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));

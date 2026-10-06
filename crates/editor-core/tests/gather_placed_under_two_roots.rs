@@ -11,13 +11,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
-    EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, NameTable, Node, PartSelect,
-    PatternKind, PlacedTwice, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    SplitHalf, StableName, product, product_named,
+    EvalOptions, Evaluation, Formula, MateFrame, MatePrimitive, MateRole, NameTable, Node,
+    PartSelect, PatternKind, PlacedTwice, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SplitHalf, StableName, product, product_named,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head_at, insert, len, on_frame, scl, solve, step, xform};
@@ -230,7 +231,7 @@ fn a_whole_pattern_and_one_of_its_instances_refuse() {
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -242,7 +243,7 @@ fn a_whole_pattern_and_one_of_its_instances_refuse() {
         doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(Expr::count(1)),
+            select: PartSelect::Instance(Formula::count(1)),
         },
     );
     let ev = run(&doc);
@@ -259,7 +260,7 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -271,7 +272,7 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
             doc,
             Node::Part {
                 of: pattern,
-                select: PartSelect::Instance(Expr::count(1)),
+                select: PartSelect::Instance(Formula::count(1)),
             },
         )
     };
@@ -290,7 +291,9 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
         placed_twice(&doc, &ev),
         (
             pattern,
-            Some(PartSelect::Instance(Expr::count(1))),
+            Some(PartSelect::Instance(
+                editor_core::test_support::stored_expr(&Formula::count(1))
+            )),
             first,
             second
         )
@@ -345,7 +348,7 @@ fn legal_placements_still_gather() {
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -357,7 +360,7 @@ fn legal_placements_still_gather() {
             doc,
             Node::Part {
                 of: pattern,
-                select: PartSelect::Instance(Expr::count(i)),
+                select: PartSelect::Instance(Formula::count(i)),
             },
         )
     };
@@ -380,7 +383,7 @@ fn part_block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// A `Rest` seat of `b`'s bottom cap onto `a`'s top cap.
-fn seat(a: editor_core::SitedFace, b: editor_core::SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(a: editor_core::SitedFace, b: editor_core::SitedFace) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -504,7 +507,7 @@ fn rv_selection_rides_down_through_a_transform() {
         doc,
         Node::Pattern {
             input: b,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -517,7 +520,7 @@ fn rv_selection_rides_down_through_a_transform() {
             doc,
             Node::Part {
                 of,
-                select: PartSelect::Instance(Expr::count(i)),
+                select: PartSelect::Instance(Formula::count(i)),
             },
         )
     };

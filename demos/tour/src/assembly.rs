@@ -95,6 +95,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::document::ExtrudeSide;
+use pncad::prelude::AuthoredNode;
 use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::PI;
 use std::path::Path;
@@ -102,12 +103,12 @@ use std::sync::Arc;
 
 use pncad::document::{
     Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE, CancelToken, Datum,
-    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, FreeValue,
+    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
     FreeVar, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
     MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, PartReach, PartResolver, PatternKind, Placement,
     ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, Step, UNDER_RECOURSE,
     ValuePayload, VarName, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
-    parse_expr, product_named, regauge_then_mate, save, solve_document, split,
+    parse_formula, product_named, regauge_then_mate, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -199,8 +200,8 @@ const CRATE_VOLUME: f64 = CRATE_WIDTH * CRATE_DEPTH * CRATE_HEIGHT;
 
 /// The text expression door, with the document's parameters in scope
 /// — the way a user types a dimension (`"section"`, `"120 mm"`).
-fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Expr {
-    parse_expr(src, params).unwrap_or_else(|e| panic!("expression `{src}`: {e:?}"))
+fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
+    parse_formula(src, params).unwrap_or_else(|e| panic!("expression `{src}`: {e:?}"))
 }
 
 /// A mate head, read at the instance the name is qualified by.
@@ -238,7 +239,7 @@ fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
 /// the refusing one is the honest value. A mate goes through
 /// [`insert_mate`]; the edits that move a root — the split and the
 /// inline below — take the workspace's own reach.
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     insert_through(doc, node, tol, &RefusingReach)
 }
 
@@ -249,7 +250,7 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 /// insert takes the reach an evaluation would use.
 fn insert_mate(
     doc: &mut ProfileDoc,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> RecipeNodeId {
@@ -258,7 +259,7 @@ fn insert_mate(
 
 fn insert_through(
     doc: &mut ProfileDoc,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> RecipeNodeId {
@@ -288,7 +289,7 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn
 /// the shelf's two seating points, in the shelf's own coordinates (the
 /// part base with one literal step). The shelf is modelled from its
 /// underside up, so no shelf edit moves them.
-fn mate_frame(origin: [f64; 3], tol: Tol) -> MateFrame {
+fn mate_frame(origin: [f64; 3], tol: Tol) -> MateFrame<Formula> {
     MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], tol)
         .unwrap_or_else(|err| panic!("the seat's vectors are a frame: {err}"))
 }
@@ -589,7 +590,7 @@ fn swing() -> VarName {
 /// three-step chain — `[to the pivot, the swing, from the pivot]`, the
 /// last step acting first — where the author means one turn about one
 /// axis.
-fn turntable(scope: &BTreeMap<VarName, Dimension>) -> Node<ProfileProgram> {
+fn turntable(scope: &BTreeMap<VarName, Dimension>) -> AuthoredNode {
     let [px, py, pz] = PIVOT;
     Node::gauge(
         None,
@@ -606,7 +607,7 @@ fn turntable(scope: &BTreeMap<VarName, Dimension>) -> Node<ProfileProgram> {
 /// A rigid step that only turns, about +z through the origin. `Step`
 /// has no rotation-only spelling, so the zero translation and the
 /// axis are written out here once (the same gap row).
-fn turn_about_z(angle: Expr, scope: &BTreeMap<VarName, Dimension>) -> Step {
+fn turn_about_z(angle: Formula, scope: &BTreeMap<VarName, Dimension>) -> Step<Formula> {
     Step::Rigid {
         translation: [pe("0 mm", scope), pe("0 mm", scope), pe("0 mm", scope)],
         axis: [pe("0.0", scope), pe("0.0", scope), pe("1.0", scope)],
@@ -619,7 +620,7 @@ fn turn_about_z(angle: Expr, scope: &BTreeMap<VarName, Dimension>) -> Step {
 /// rather than declaring across two gauges, and returns the mate's id.
 fn mate_onto(
     doc: &mut ProfileDoc,
-    mate: Node<ProfileProgram>,
+    mate: AuthoredNode,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> RecipeNodeId {
@@ -1525,7 +1526,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
                 a,
                 b,
                 class: ContactClass::Tangent,
-                alignment,
+                alignment: alignment.authored(),
             },
             tol,
             &reach,

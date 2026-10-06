@@ -33,6 +33,7 @@ pub mod edit;
 pub mod eval;
 pub mod expr;
 mod finding;
+pub mod formula;
 pub mod ident;
 pub mod label;
 pub mod mate;
@@ -146,9 +147,10 @@ pub use spoken::{
 // than through the module path.
 pub use eval::entity_door::Found;
 pub use expr::{
-    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamValue, UnitSym, VarEnv, eval,
-    eval_count, unparse,
+    AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
+    ParamValue, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count, unparse,
 };
+pub use formula::{Formula, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
@@ -186,12 +188,12 @@ pub use names::{
     meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    AuthoredNode, Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
     InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, PartSelect, PatternKind,
     PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId,
     TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
-pub use parse::{ParseError, VarNameFault, VarNameReason, parse_expr};
+pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
@@ -207,7 +209,7 @@ pub use product::{
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
-    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepIdFault,
+    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault,
     StepSegmentsError, resolve_loops,
 };
 pub use range::{

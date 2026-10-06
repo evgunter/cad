@@ -35,7 +35,7 @@ use editor_core::ExtrudeSide;
 use corpus::{body_of, eval, failures};
 use editor_core::param_source;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, FreeVar, Node,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeVar, Node,
     ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
@@ -52,8 +52,8 @@ const R: f64 = 0.125;
 /// The offset a wall is thinned by, meters (dyadic).
 const T: f64 = 0.03125;
 
-fn param(name: &'static str) -> Expr {
-    Expr::named(VarName::from_static(name), Dimension::Length)
+fn param(name: &'static str) -> Formula {
+    Formula::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A cube of side 1 at `cx`, with every edge blended by `radius`.
@@ -61,7 +61,7 @@ fn param(name: &'static str) -> Expr {
 fn filleted_cube(
     doc: ProfileDoc,
     cx: f64,
-    radius: Expr,
+    radius: Formula,
 ) -> (ProfileDoc, editor_core::RecipeNodeId) {
     // A frame node and the square drawn on it — the profile names the
     // plane it is sketched on.
@@ -87,7 +87,7 @@ fn filleted_cube(
 
 /// A document declaring `r` and `t`, with one filleted cube per entry
 /// of `radii` laid out along x so the bodies never meet.
-fn document(radii: &[Expr]) -> (ProfileDoc, Vec<editor_core::RecipeNodeId>) {
+fn document(radii: &[Formula]) -> (ProfileDoc, Vec<editor_core::RecipeNodeId>) {
     let doc = ProfileDoc::empty(DocumentId::derive("seat6-param-source"), Tol::witness());
     let (doc, _) = step(
         doc,
@@ -257,7 +257,7 @@ fn the_same_geometry_without_the_channel_refuses() {
 /// syntax.
 #[test]
 fn the_same_declared_offset_agrees_and_a_different_one_does_not() {
-    let thinned = || Expr::sub(param("r"), param("t")).unwrap();
+    let thinned = || Formula::sub(param("r"), param("t")).unwrap();
     let (doc, blends) = document(&[param("r"), thinned(), thinned()]);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
@@ -423,8 +423,8 @@ fn cylinder_radius(body: &Body<f64>) -> f64 {
 /// reading the constant table.
 #[test]
 fn two_different_operators_are_two_tokens() {
-    let plus = || Expr::add(param("r"), param("t")).unwrap();
-    let minus = || Expr::sub(param("r"), param("t")).unwrap();
+    let plus = || Formula::add(param("r"), param("t")).unwrap();
+    let minus = || Formula::sub(param("r"), param("t")).unwrap();
     let (doc, blends) = document(&[plus(), minus(), plus()]);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
@@ -447,7 +447,7 @@ fn two_different_operators_are_two_tokens() {
 /// configuration that mints a torus BAND — the carrier
 /// `FieldRole::BandCarrierMinorRadius` names and nothing else in this
 /// suite reaches.
-fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Expr) -> (ProfileDoc, RecipeNodeId) {
+fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     let (doc, plane, profile) = on_frame_keeping(
         doc,
         [cx, 0.0, 0.0],
@@ -759,7 +759,7 @@ fn a_memo_served_body_compares_correctly_with_a_re_run_sibling() {
         DocEdit::SetParam {
             node: blends[0],
             slot: SlotId::Radius,
-            expr: Expr::add(param("r"), param("t")).unwrap(),
+            expr: Formula::add(param("r"), param("t")).unwrap(),
         },
     );
     let ev2 = memo_eval(&doc2, Some(&ev1));

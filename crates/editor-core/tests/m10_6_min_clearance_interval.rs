@@ -47,7 +47,7 @@ use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
+    Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
     NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
     UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
@@ -143,7 +143,7 @@ fn dumbbell() -> Dumbbell {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::named(name("place"), Dimension::Length),
+                Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],

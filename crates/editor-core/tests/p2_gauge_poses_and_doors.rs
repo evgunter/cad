@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -16,9 +17,10 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
-    MateRole, Node, ParamBox, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace, SlotId,
-    StableName, Step, ValuePayload, VarName, evaluate, regauge_then_mate, root_of,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame,
+    MatePrimitive, MateRole, Node, ParamBox, PatternKind, Placement, ProfileDoc, RecipeNodeId,
+    SitedFace, SlotId, StableName, Step, ValuePayload, VarName, evaluate, regauge_then_mate,
+    root_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -92,12 +94,12 @@ impl Parts {
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
 
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -112,7 +114,7 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
@@ -124,11 +126,15 @@ fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement<Formula>>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
-fn literal(m: &M) -> Placement {
+fn literal<S: Clone>(m: &M) -> Placement<S> {
     Placement::literal(&m.frame())
 }
 
@@ -323,9 +329,13 @@ fn chain(label: &str) -> Chain {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::named(turn(), Dimension::Angle),
+                angle: Formula::named(turn(), Dimension::Angle),
             },
         ),
     );
@@ -460,7 +470,7 @@ fn a_pattern_placer_poses_as_composed() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
                 spacing: len(4.0),
@@ -646,7 +656,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
                 spacing: len(4.0),
@@ -675,7 +685,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
     )
     .0;
