@@ -501,6 +501,17 @@ pub enum RevolveError {
         /// Canonical index of the segment.
         segment_index: usize,
     },
+    /// A one-segment loop (D1's full turn: a circle as one arc at one
+    /// vertex), clear of the axis. Its wall is one torus face wrapping
+    /// the tube's own angle, cut only by the latitude strut at the
+    /// vertex — and a seam here is a `u_ref` meridian, so no chart
+    /// describes that cut: the description, pcurve and flux layers read
+    /// the strut's two halves as one image. Refused rather than built
+    /// inside out.
+    OneSegmentLoop {
+        /// Canonical index of the loop.
+        loop_index: usize,
+    },
     /// Full revolve of a profile whose axis contact is not a single
     /// contiguous run of on-axis segments: an isolated on-axis vertex
     /// (or a run-detached one) revolves to a non-manifold solid (D1).
@@ -717,6 +728,12 @@ impl fmt::Display for RevolveError {
                  spindle torus (its circle reaches the axis), which is not supported. \
                  Recourse: keep the arc's circle clear of the axis"
             ),
+            Self::OneSegmentLoop { loop_index } => write!(
+                f,
+                "loop {loop_index} is one full-turn arc: its torus wall would wrap the tube's \
+                 own angle, cut only by the strut at its vertex, and no face here represents \
+                 that cut. Recourse: author the circle as two or more arcs"
+            ),
             Self::NonManifoldAxisContact {
                 loop_index,
                 vertex_index,
@@ -878,6 +895,11 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     let mut classes = Vec::with_capacity(loops.len());
     for (li, segs) in loops.iter().enumerate() {
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
+    }
+    // After the axis classes, which refuse a full turn that reaches the
+    // axis by what is wrong with it.
+    if let Some(loop_index) = loops.iter().position(|segs| profile::is_full_turn(segs)) {
+        return Err(RevolveError::OneSegmentLoop { loop_index });
     }
 
     let mut out = if full {

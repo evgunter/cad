@@ -2408,6 +2408,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
+    (
+        "carrier_touch.rs",
+        "ball_off_face",
+        "BooleanDecision::Containment",
+        1,
+    ),
     ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
     (
         "circle_torus.rs",

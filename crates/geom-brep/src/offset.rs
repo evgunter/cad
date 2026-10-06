@@ -101,7 +101,7 @@
 //! downstream unchanged.
 
 use geom::Surface;
-use geom_core::{Band, Indeterminate, Margin, Sign};
+use geom_core::{Band, Indeterminate, Margin, NO_DECLARATION_RECOURSE, NOT_YET_ENDING, Sign};
 
 use crate::dihedral::decide;
 use geom::SurfaceKind;
@@ -279,31 +279,33 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
         match self {
             Self::RadiusFloor { kind, realized } => write!(
                 f,
-                "offset_surface: the realized offset radius of the {kind:?} \
-                 ({realized:?} m) is at or below zero — the inward offset collapses \
-                 the surface, so nothing is minted"
+                "the offset would leave the {} a radius of {realized:?} m, at or below zero. \
+                 Recourse: offset by less than the radius",
+                kind.name()
             ),
             Self::TorusRing { realized_minor } => write!(
                 f,
-                "offset_surface: the offset torus leaves the ring convention R > r — the \
-                 realized minor radius ({realized_minor:?} m) reaches the major radius, \
-                 so the mint would self-intersect"
+                "the offset would grow the torus's tube radius to {realized_minor:?} m, as \
+                 large as its ring radius, so the surface would cross itself. Recourse: use a \
+                 smaller offset"
             ),
             Self::NotClosedUnderOffset => write!(
                 f,
-                "offset_surface: a NURBS surface is not closed under offset (the unit \
-                 normal breaks rationality); the approximating-surface route — an \
-                 intensional Offset description with a certified fit — is the door for \
-                 this kind, and it is not built yet"
+                "a spline surface's exact offset is not a spline, and this route has no fitted \
+                 offset to give in its place. {NOT_YET_ENDING}"
             ),
             Self::ApproxNesting => write!(
                 f,
-                "offset_surface: the operand is already an approximating surface — offsetting \
-                 it would nest one Offset description inside another, whose certificate would \
-                 have to compose two precision claims. No consumer needs that yet, so nothing \
-                 is minted"
+                "the surface is already a fitted offset, and offsetting one again is not \
+                 built. {NOT_YET_ENDING}"
             ),
-            Self::Escalated { source } => write!(f, "offset_surface escalated: {source}"),
+            // The offset door takes no declaration, so the escalation's
+            // own lever is the geometry alone.
+            Self::Escalated { source } => write!(
+                f,
+                "whether the offset surface keeps a valid radius is too close to call: {}",
+                source.under(NO_DECLARATION_RECOURSE)
+            ),
         }
     }
 }

@@ -2,10 +2,11 @@
 id: rest-zip-seam-chord-on-cylinder-wall
 kind: issue
 title: The declared-REST zip leaves a straight seam chord where a cap rim cuts a bore wall mid-height; the merge door's refusal hid it
-status: open
+status: parked
 opened: 2026-09-07
 priority: P0
 cost: H
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -109,3 +110,7 @@ twin needs a segment whose cell is `InFace` on both operands.
 
 Not run: crates outside these three, the suites at the 1e-6 and 1e-12
 rows, and poses outside the rows'.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.

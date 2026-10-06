@@ -63,9 +63,10 @@
 //!   the reindexing and `reversed ∘ reversed` is the identity,
 //!   bit-exactly (negation is exact). Under test.
 //! - **|Δθ| < 2π in the bulge form**: b = tan(θ/4) is finite, so no
-//!   segment the bulge input form writes closes a full period, and
-//!   validation refuses a loop of fewer than **2 vertices**: the
-//!   minimal circle is two arcs.
+//!   segment the bulge input form writes closes a full period, and its
+//!   minimal circle is two arcs. The canonical form also holds D1's
+//!   full turn, one arc at one vertex ([`is_full_turn`]); validation
+//!   refuses only a loop with no vertex.
 //! - **Winding is invisible.** There is no direction concept in the
 //!   API: users write loops in either traversal; [`Profile::validate`]
 //!   derives nesting from containment and canonicalizes traversal
@@ -202,7 +203,7 @@ pub use validate::{
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, EscalationSite, FilletLeg,
     FilletLegCarrier, LoopRole, NoCornerReason, ProfileError, SegmentKind, SegmentRef,
-    ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject,
+    ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject, is_full_turn,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed

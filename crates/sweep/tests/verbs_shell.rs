@@ -108,9 +108,8 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 /// its checks decide predicates the boolean shares:
 ///
 /// - `bool_ring_run_winding` — the planar-boundary check decides it
-///   against the same margin the boolean's ring-run test uses. The name
-///   has **three** owners, not two — `topo::validate`,
-///   `topo::boolean::join`, and `topo::merge_faces`' role normalization.
+///   through the one winding predicate the boolean's ring-run test also
+///   reads (`topo::loop_winding`).
 /// - the point-in-solid walk's planar family — check 10 (shell winding)
 ///   probes a vertex of each shell of a multi-shell solid against the
 ///   other shells through `topo::boolean::solid_contain::point_in_solid_faces`,
@@ -118,7 +117,7 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 ///   decides only its planar predicates, listed below. It is a
 ///   containment read, never a crossing.
 ///
-/// That several owners share these names is exactly why a silent prefix
+/// That the validator shares these names is exactly why a silent prefix
 /// filter would be the wrong shape here. Allowing them by name keeps
 /// the claim exact.
 ///
