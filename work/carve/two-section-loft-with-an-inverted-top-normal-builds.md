@@ -2,11 +2,12 @@
 id: two-section-loft-with-an-inverted-top-normal-builds
 kind: issue
 title: A two-section loft whose top section's plane normal points DOWN (against the stacking) builds and tier 3 says Ok — nothing checks the last section's normal against the stacking direction
-status: open
+status: dispatched
 opened: 2026-09-16
 refs: [2752]
 priority: P0
-cost: H
+cost: M
+branch: carve/fold-reads-the-far-normal
 ---
 
 Found by BOOL-6's R2 review (PR 2752), pre-existing at the merge base,
@@ -27,6 +28,18 @@ difficulty S.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to BLEND (the sweep crate and the profile fillet door are BLEND's charter; crates/sweep/src/loft.rs passes to BLEND at this exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Weighed (2026-10-06)
+
+Weighed with `self-overlapping-spines-build-and-validate` (its
+"Weighed" section has the whole answer). The inverted top normal is a
+fold that the canonical traversal causes: each ring winds about its own
+plane's normal, so a plane facing back along the stack gives a ring
+wound against its neighbour's. The fold checked only the near normal.
+The interim fix, which the designers converged on, also decides the far
+section's normal against each slab: branch
+`carve/fold-reads-the-far-normal`. It closes this row. The certificate
+that later retires the fold refuses the same body as a fold.
 
 ## Built (2026-10-06)
 

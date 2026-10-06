@@ -337,8 +337,9 @@ the table.
   split the double cone instead of shifting a parameter — and states
   the consequence it puts on consumers, that a mirror-nappe face's
   material moves `−d` along its own chart normal. A `ChartMove`'s
-  distance is along the FACE's outward direction, so a face below its
-  apex needs the caller's number turned over before the mint sees it;
+  distance is along the chart's stored normal at the face, which
+  below the apex points against `n₊`, so a face below its apex needs
+  the caller's number turned over before the mint sees it;
   unturned, the frustum's cavity came back LARGER than its operand
   (0.001058 against 0.000895). **The rim LIFT** in
   `shell_open` transported a rim rather than solving it — invisible on
