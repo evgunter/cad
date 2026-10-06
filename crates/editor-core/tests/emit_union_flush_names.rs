@@ -20,7 +20,7 @@ use std::collections::BTreeSet;
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{failure, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
-use crate::emit_union_rim_piece_ranks::{Case, cases, runs};
+use crate::emit_union_rim_piece_ranks::{Case, cases, runs, signature};
 use crate::fixture::{face_vertices, insert, table};
 
 use editor_core::{
@@ -441,6 +441,40 @@ fn the_zip_document_builds_one_vertex_set_in_every_order() {
     };
     for (late, early) in [("[1, 2, 0]", "[0, 1, 2]"), ("[2, 1, 0]", "[1, 0, 2]")] {
         assert_eq!(count(late), count(early), "{late} against {early}");
+    }
+}
+
+/// **The ZIP document publishes one table in every member order.**
+/// Every order that fuses names every entity of the union alike, each
+/// name denoting the same geometry ([`signature`]): an edge the output
+/// stage joins is named for the set of the members' rims it spans, or
+/// as a piece of the one it lies within, read off the finished body,
+/// whichever member a fold step met first. Red when any name of the
+/// union, a joined edge's among them, depends on member order.
+#[test]
+fn the_zip_document_publishes_one_table_in_every_order() {
+    let mut tables = Vec::new();
+    runs(&near_slab(), |at, ev, _, unions| {
+        let union = unions[0].1;
+        if failure(ev, union).is_none() {
+            tables.push((at.to_string(), signature(ev, union)));
+        }
+    });
+    assert!(tables.len() >= 4, "only {} orders fuse", tables.len());
+    let joined = tables[0]
+        .1
+        .keys()
+        .filter(|n| n.kind == EntityKind::Edge && matches!(n.path.as_slice(), [RoleSeg::Merged(_)]))
+        .count();
+    // The two bottom rims run along both blocks' rims; past the slab,
+    // each top rim lies within `b`'s alone and is a piece of it.
+    assert_eq!(
+        joined, 2,
+        "the two uncut flush rims are each one set-named edge"
+    );
+    let (first_at, first) = &tables[0];
+    for (at, table) in &tables[1..] {
+        assert_eq!(first, table, "{first_at} against {at}");
     }
 }
 

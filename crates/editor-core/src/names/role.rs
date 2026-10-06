@@ -1164,11 +1164,14 @@ pub enum RoleSeg {
         /// union's table).
         b: NameRef,
     },
-    /// An F7 merged face: the sorted, FLAT set of constituent names
-    /// retires into this name (N3; canonical order = name order). A
-    /// constituent is never itself a BARE merged face, through any
+    /// An F7 merged face, or an edge a boolean's output stage joined
+    /// across several operand or member edges (`names/README.md`,
+    /// "Flush edges at a union"): the sorted, FLAT set of constituent
+    /// names retires into this name (N3; canonical order = name order). A
+    /// constituent is never itself a BARE merged name, through any
     /// `FromA`/`FromB` wrapping — a merge of a merged face lists the
-    /// faces, never the merge. The one carve-out, stated here and
+    /// faces, never the merge, and an edge set lists edges. The one
+    /// carve-out, stated here and
     /// pointed at from every other site: a FRAGMENT of a merged face
     /// (`[Merged(set), Fragment(q)]`) is a face in its own right, a
     /// legitimate constituent, and is not nesting.

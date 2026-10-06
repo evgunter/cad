@@ -1,12 +1,12 @@
-//! **A band carved across joints is named by its chain's edge set.**
+//! **A band along a joined flush edge is named by that one edge.**
 //!
 //! A declared union of two x-offset blocks merges its flush walls and
-//! caps, and the merge keeps the vertices where the operands' rims
-//! met: each long edge of the result is a chain of collinear links on
-//! the same two faces. Filleting or chamfering every edge carves each
-//! such chain as ONE band face, and the emitter names it [`RoleSeg::BandFace`] of
-//! the chain's source edge names — a set, the same covariant identity
-//! a closed rim's band takes.
+//! caps, and its output stage joins the vertices where the operands'
+//! rims met (maximal edges): each long edge of the result is ONE edge,
+//! named for the set of the two blocks' rims it spans. Filleting or
+//! chamfering every edge carves each long edge as one band, and the
+//! emitter names it [`RoleSeg::BlendFace`] of that edge, as it names
+//! every band over one edge.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -51,7 +51,7 @@ fn block(doc: ProfileDoc, (x0, x1): (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
 }
 
 #[test]
-fn a_joined_band_is_named_by_its_chains_edge_set() {
+fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
     let doc = ProfileDoc::empty_derived("band_joined_rim_names", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0));
     let (doc, b) = block(doc, (0.5, 2.0));
@@ -71,11 +71,26 @@ fn a_joined_band_is_named_by_its_chains_edge_set() {
         .map(|(n, _)| n.clone())
         .filter(|n| n.kind == EntityKind::Edge)
         .collect();
-    assert!(
-        edges.len() > 12,
-        "the long edges are split: {}",
-        edges.len()
-    );
+    assert_eq!(edges.len(), 12, "the union is a box: {edges:?}");
+    let long: Vec<_> = edges
+        .iter()
+        .filter_map(|n| match n.path.as_slice() {
+            [RoleSeg::Merged(set)] => Some(set.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(long.len(), 4, "the four long edges are joined: {edges:?}");
+    for set in &long {
+        let sides: Vec<_> = set
+            .iter()
+            .map(|c| match c.path.as_slice() {
+                [RoleSeg::FromA(_)] => 'a',
+                [RoleSeg::FromB(_)] => 'b',
+                _ => panic!("a set constituent is an operand edge: {c:?}"),
+            })
+            .collect();
+        assert_eq!(sides, ['a', 'b'], "one rim of each block: {set:?}");
+    }
     for chamfer in [false, true] {
         let node = if chamfer {
             Node::chamfer(u, len(0.125), edges.clone())
@@ -86,8 +101,8 @@ fn a_joined_band_is_named_by_its_chains_edge_set() {
     }
 }
 
-/// The blend node's table: four joined bands of three links each, all
-/// union edges, and one plain band per unsplit edge.
+/// The blend node's table: one band per union edge, named for it, and
+/// no band of several links.
 fn assert_named(
     doc: &ProfileDoc,
     node: AuthoredNode,
@@ -97,38 +112,23 @@ fn assert_named(
     let (doc, f) = insert(doc.clone(), node);
     let ev = run(&doc);
     let t = table(&ev, f);
-    let bands: Vec<Vec<_>> = t
+    let bands: Vec<_> = t
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
-            Some(RoleSeg::BandFace(set)) if n.kind == EntityKind::Face && n.node == f => {
-                Some(set.clone())
+            Some(RoleSeg::BlendFace(e)) if n.kind == EntityKind::Face && n.node == f => {
+                Some(e.name().clone())
             }
             _ => None,
         })
         .collect();
-    assert_eq!(
-        bands.len(),
-        4,
-        "chamfer {chamfer}: one joined band per long edge: {bands:?}"
-    );
-    for set in &bands {
-        // Split at x = 0.5 and x = 1, where the operands' rims ended:
-        // three links, two joints.
-        assert_eq!(
-            set.len(),
-            3,
-            "chamfer {chamfer}: a joined band spans its links: {set:?}"
-        );
-        let mut sorted = set.clone();
-        sorted.sort();
-        assert_eq!(&sorted, set, "the set is canonical");
-        for e in set {
-            assert!(edges.contains(e), "a member is a union edge: {e:?}");
-        }
-    }
-    let blend_faces = t
+    let mut want = edges.to_vec();
+    want.sort();
+    let mut got = bands.clone();
+    got.sort();
+    assert_eq!(got, want, "chamfer {chamfer}: one band per union edge");
+    let chains = t
         .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BlendFace(_))))
+        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandFace(_))))
         .count();
-    assert_eq!(blend_faces, 8, "the eight unsplit edges keep one band each");
+    assert_eq!(chains, 0, "chamfer {chamfer}: no edge is a chain of links");
 }

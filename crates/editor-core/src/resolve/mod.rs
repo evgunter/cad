@@ -500,7 +500,7 @@ impl core::fmt::Display for Cutter<'_> {
         let leaf = descent_leaf(self.0);
         write!(f, "the {} (", self.1.name(self.0))?;
         match leaf.path.first() {
-            Some(seg) => role_words(f, seg)?,
+            Some(seg) => role_words(f, leaf.kind, seg)?,
             None => write!(f, "no role")?,
         }
         if leaf.node != self.0.node {
@@ -546,9 +546,13 @@ fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
     }
 }
 
-/// A role segment in words. Exhaustive, so a new segment is given words
-/// here or the compile breaks.
-fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Result {
+/// A role segment of a name of `kind` in words. Exhaustive, so a new
+/// segment is given words here or the compile breaks.
+fn role_words(
+    f: &mut core::fmt::Formatter<'_>,
+    kind: EntityKind,
+    seg: &RoleSeg,
+) -> core::fmt::Result {
     use crate::names::{CapEnd, MeridianEnd};
     let cap = |e: &CapEnd| match e {
         CapEnd::Start => "start",
@@ -619,6 +623,7 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         }
         RoleSeg::FromMember { .. } => write!(f, "a union member's entity"),
         RoleSeg::Seam { .. } => write!(f, "a boolean seam"),
+        RoleSeg::Merged(_) if kind == EntityKind::Edge => write!(f, "a joined edge"),
         RoleSeg::Merged(_) => write!(f, "a merged face"),
         RoleSeg::Fragment(_) => write!(f, "a fragment"),
         RoleSeg::SplitBody(_) => write!(f, "a split body"),
@@ -1549,6 +1554,15 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     // 5. Vanished. N3 structural offers first (merge/unmerge), then
     //    the diagnosis ladder.
     offers.extend(merge_offers(new.eval, name));
+    if name.kind == EntityKind::Edge
+        && let Some(base) = unqualified(name)
+    {
+        for offer in merge_offers(new.eval, &base) {
+            if !offers.contains(&offer) {
+                offers.push(offer);
+            }
+        }
+    }
 
     // Cascade dominates: an embedded operand name that itself fails
     // to resolve carries the root cause (its own diagnosis chains).
@@ -2143,6 +2157,12 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 ///   row is found whole and at its own depth; a candidate that merely
 ///   embeds it deeper (a seam across it) needs no separate offer, the
 ///   row itself still resolving at the node whose table minted it.
+///   An edge set covers its edges the same way, and a PIECE of one of
+///   them (a rim piece a join retired) is offered every set that lists
+///   the edge it was a piece of. A rim that only partly overlaps a set's
+///   edge is listed too, so the offers can include a set whose edge holds
+///   another stretch of the rim rather than this piece; the offer is a
+///   candidate for an explicit `Rebind`, never a binding.
 /// - **Runs.** A sweep's run wall holds its pieces' walls the same way
 ///   (`names::merged::constituents`, the one view): a wall a station
 ///   joined into a run is offered the run wall that covers it, and a

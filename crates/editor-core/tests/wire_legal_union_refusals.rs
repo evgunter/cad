@@ -150,10 +150,6 @@ fn a_rim_in_several_pieces_is_named_not_refused() {
 enum Seen {
     /// One body, at the volume the geometry says.
     Fused,
-    /// `NamingError::SeamVertexParentage`: the seam-vertex pass has no
-    /// parentage rule for a vertex
-    /// (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule`).
-    SeamVertex,
     /// `NamingError::MergedChordConstituents`, the same row's chord rule.
     MergedChord,
     /// A declared face a later member split before its pair's step
@@ -223,9 +219,6 @@ fn every_order(
                         "[{label}]: volume {v}, want {fused_volume}"
                     );
                     Seen::Fused
-                }
-                Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
-                    Seen::SeamVertex
                 }
                 Some(NodeErrorKind::Naming(NamingError::MergedChordConstituents { .. })) => {
                     Seen::MergedChord
@@ -310,7 +303,7 @@ fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold
 /// declared against that cap.
 #[test]
 fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contact() {
-    use Seen::{Fused, SeamVertex, Split};
+    use Seen::{Fused, Split};
     let doc = ProfileDoc::empty_derived("wire_fold_contact_4", Tol::witness());
     let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
     let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
@@ -332,27 +325,27 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
         &[
             ("a,s,big,p", Fused),
             ("a,s,p,big", Split),
-            ("a,big,s,p", SeamVertex),
-            ("a,big,p,s", SeamVertex),
+            ("a,big,s,p", Fused),
+            ("a,big,p,s", Fused),
             ("a,p,s,big", Fused),
-            ("a,p,big,s", SeamVertex),
+            ("a,p,big,s", Fused),
             ("s,a,big,p", Fused),
             ("s,a,p,big", Split),
             ("s,big,a,p", Fused),
             ("s,big,p,a", Fused),
             ("s,p,a,big", Fused),
             ("s,p,big,a", Fused),
-            ("big,a,s,p", SeamVertex),
-            ("big,a,p,s", SeamVertex),
+            ("big,a,s,p", Fused),
+            ("big,a,p,s", Fused),
             ("big,s,a,p", Fused),
             ("big,s,p,a", Fused),
-            ("big,p,a,s", SeamVertex),
+            ("big,p,a,s", Fused),
             ("big,p,s,a", Fused),
             ("p,a,s,big", Fused),
-            ("p,a,big,s", SeamVertex),
+            ("p,a,big,s", Fused),
             ("p,s,a,big", Fused),
             ("p,s,big,a", Fused),
-            ("p,big,a,s", SeamVertex),
+            ("p,big,a,s", Fused),
             ("p,big,s,a", Fused),
         ],
     );
@@ -363,7 +356,7 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
 /// member over the same area-overlap declaration.
 #[test]
 fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact() {
-    use Seen::{Fused, MergedChord, SeamVertex, Split};
+    use Seen::{Fused, MergedChord, Split};
     let doc = ProfileDoc::empty_derived("wire_fold_contact_split", Tol::witness());
     let (doc, [a, c, s], pairs) = split_fixture(doc);
     let (doc, big) = block(doc, (-0.5, 1.2), (-0.5, 1.5), 0.8, 1.2);
@@ -375,29 +368,29 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
         5.34,
         &[
             ("a,c,s,big", Fused),
-            ("a,c,big,s", SeamVertex),
+            ("a,c,big,s", Fused),
             ("a,s,c,big", Split),
-            ("a,s,big,c", SeamVertex),
-            ("a,big,c,s", SeamVertex),
-            ("a,big,s,c", SeamVertex),
+            ("a,s,big,c", Fused),
+            ("a,big,c,s", Fused),
+            ("a,big,s,c", Fused),
             ("c,a,s,big", Fused),
-            ("c,a,big,s", SeamVertex),
+            ("c,a,big,s", Fused),
             ("c,s,a,big", MergedChord),
-            ("c,s,big,a", SeamVertex),
-            ("c,big,a,s", SeamVertex),
-            ("c,big,s,a", SeamVertex),
+            ("c,s,big,a", Fused),
+            ("c,big,a,s", Fused),
+            ("c,big,s,a", Fused),
             ("s,a,c,big", Split),
-            ("s,a,big,c", SeamVertex),
+            ("s,a,big,c", Fused),
             ("s,c,a,big", MergedChord),
-            ("s,c,big,a", SeamVertex),
-            ("s,big,a,c", SeamVertex),
-            ("s,big,c,a", SeamVertex),
-            ("big,a,c,s", SeamVertex),
-            ("big,a,s,c", SeamVertex),
-            ("big,c,a,s", SeamVertex),
-            ("big,c,s,a", SeamVertex),
-            ("big,s,a,c", SeamVertex),
-            ("big,s,c,a", SeamVertex),
+            ("s,c,big,a", Fused),
+            ("s,big,a,c", Fused),
+            ("s,big,c,a", Fused),
+            ("big,a,c,s", Fused),
+            ("big,a,s,c", Fused),
+            ("big,c,a,s", Fused),
+            ("big,c,s,a", Fused),
+            ("big,s,a,c", Fused),
+            ("big,s,c,a", Fused),
         ],
     );
 }
