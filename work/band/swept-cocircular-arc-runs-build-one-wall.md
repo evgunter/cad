@@ -2,10 +2,12 @@
 id: swept-cocircular-arc-runs-build-one-wall
 kind: issue
 title: sweep: a run of cocircular arcs still sweeps one wall per arc (one surface key), where the ruling builds one wall per run on every carrier kind
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+pr: 3826
+closed: 2026-10-06
 ---
 
 
