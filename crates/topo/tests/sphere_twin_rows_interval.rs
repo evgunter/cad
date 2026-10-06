@@ -213,3 +213,52 @@ fn a_turned_half_cap_at_a_tight_k_keeps_its_twin() {
     tight_k::<f64>("f64", eps);
     tight_k::<Interval>("Interval", eps);
 }
+
+/// **A split at the pole carries a reset.** The half cap's meridian arc
+/// crosses the north pole at `t = π/3`; splitting it there puts the new
+/// vertex on the chart's singular set, so the joint between the two
+/// children is a reset, decided at the split point on the carrier
+/// (`split_cache`), and tier 3, which re-decides it at the new vertex,
+/// reads the body clean. Read at any other point of the carrier the
+/// joint would be an ordinary identity, which tier 3 refuses.
+fn split_at_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
+    let mut body = half_cap::<T>(0.0).unwrap_or_else(|e| panic!("{lane}: {e}"));
+    let meridian = body
+        .edges()
+        .find_map(|(key, edge)| {
+            let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+                return None;
+            };
+            matches!(curve.carrier(), Curve3::Circle { center, .. } if center.z.hi().abs() < 1e-12)
+                .then_some(key)
+        })
+        .expect("the half cap's meridian arc");
+    let made = body
+        .split_edge(
+            meridian,
+            T::from_f64(core::f64::consts::FRAC_PI_3),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{lane}: the split at the pole: {e:?}"));
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    for he in [made.he_plus, made.he_minus] {
+        let element = body.joint(he).expect("the split writes each child's joint");
+        if body.get_half_edge(he).unwrap().start == made.vertex {
+            assert!(
+                element.is_reset(),
+                "{lane}: the joint at the pole is a reset: {element:?}"
+            );
+        }
+    }
+    assert_eq!(
+        topo::pcurves::validate_pcurves(&body, band),
+        vec![],
+        "{lane}: the split cap reads clean"
+    );
+}
+
+#[test]
+fn a_split_at_the_pole_carries_a_reset() {
+    split_at_the_pole::<f64>("f64");
+    split_at_the_pole::<Interval>("Interval");
+}
