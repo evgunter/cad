@@ -1,13 +1,13 @@
 ---
 id: one-segment-loop-through-builders
 kind: unit
-title: Admit a one-segment closed loop through validate, extrude, revolve and loft: one periodic wall with a seam strut, one self-loop rim per cap
-status: parked
+title: Admit a one-segment closed loop through validate and extrude (one periodic wall with a seam strut, one self-loop rim per cap); revolve and loft refuse it typed, and one-segment-loop-revolves-and-lofts-to-one-wall takes them
+status: dispatched
 opened: 2026-09-25
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [store-constructed-carriers]
+branch: claude/clever-bardeen-4itqb3
 ---
 
 
@@ -20,3 +20,8 @@ centre and zero radius. So before this unit admits n = 1, re-lowering
 must carry the stored carrier and not re-derive it. That is
 `store-constructed-carriers`' change. Either take that change first, or
 do the carrier-carrying half of it here and say so.
+
+**As landed (#4169).** Validate and extrude admit n = 1. Revolve and
+loft refuse it typed (`OneSegmentLoop`) after #4175 decided the wrap
+edge; `one-segment-loop-revolves-and-lofts-to-one-wall` takes them,
+with `build_chain`'s and `resolve_chain_opt`'s n = 1 arms.

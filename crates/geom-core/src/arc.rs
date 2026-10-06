@@ -178,6 +178,13 @@ impl<T: Real> Arc2<T> {
         mid - normal * (len * self.quarter_tan() * T::from_f64(0.5))
     }
 
+    /// **The apex of a full turn started at `a`**: the carrier point
+    /// opposite `a`, `centre + (centre − a)` — the sweep's midpoint at
+    /// |Δθ| = 2π, where [`Arc2::apex`]'s chord is zero.
+    pub fn antipode(self, a: Point2<T>) -> Point2<T> {
+        self.centre + (self.centre - a)
+    }
+
     /// The carrier's point at the end of the sweep, reached from the
     /// direction of `a`: `centre + radius·R(sweep)·(a − centre)/‖a − centre‖`.
     ///

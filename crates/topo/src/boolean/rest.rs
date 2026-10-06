@@ -108,7 +108,7 @@ use super::ops::{
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
-use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, survivor_checked, zip_seam};
+use super::zip::{Fusions, Joint, SeamCorrespondence, ZipReport, fuse_by_joint, zip_seam};
 use super::{
     BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp, BooleanReduction,
     BooleanResult, BooleanResultKind, Locus, Operand, OperandKeys,
@@ -399,16 +399,15 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .ok_or_else(|| desync("REST lane: patch face missing from the graft"))
     };
 
-    let mut vertex_merges: Vec<(VertexKey, VertexKey)> = Vec::new();
     let mut seam_edges: Vec<EdgeKey> = a_seam.per_segment.clone();
     let mut desc = Descendants::default();
     for &fa in &glue_order {
         let fb = fb_of(fa)?;
         let rep = glue_pair(&mut body, fa, fb, &vmap, tol)?;
         settle_glue(&body, &mut seam_edges, &rep.interior_edges)?;
-        desc.absorb_zip(&rep);
-        vertex_merges.extend(rep.vertex_merges.iter().copied());
+        desc.absorb_zip(&rep)?;
     }
+    let vertex_merges = desc.vertex_merges()?;
 
     // ---- Output stages (shared with every seamed boolean). ----
     let contacts = red.contacts.clone();
@@ -441,7 +440,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_faces,
         seam_edges,
         vertex_merges,
-        weld_merges_b: Vec::new(),
+        weld_merges_b: Fusions::default(),
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: a_fragments,
@@ -544,10 +543,10 @@ fn read_segments<T: Decide + crate::props::AtRestPolicy>(
             let [(u, _), (v, _)] = m.ends;
             let ((a_u, b_u), (a_v, b_v)) = (sites[u], sites[v]);
             Ok(Segment {
-                a_u: fused.end(Operand::A, a_u)?,
-                a_v: fused.end(Operand::A, a_v)?,
-                b_u: fused.end(Operand::B, b_u)?,
-                b_v: fused.end(Operand::B, b_v)?,
+                a_u: fused.end(Operand::A, a_u),
+                a_v: fused.end(Operand::A, a_v),
+                b_u: fused.end(Operand::B, b_u),
+                b_v: fused.end(Operand::B, b_v),
                 a_cell: m.germ.a_locus,
                 b_cell: m.germ.b_locus,
             })
@@ -898,27 +897,20 @@ fn rest_surfaces<T: Decide>(
 /// in kill order.
 #[derive(Default)]
 struct Fused {
-    a: Vec<(VertexKey, VertexKey)>,
-    b: Vec<(VertexKey, VertexKey)>,
+    a: Fusions,
+    b: Fusions,
 }
 
 impl Fused {
-    /// The vertex `w` of `operand` stands as once the undo is done
-    /// ([`survivor_checked`]): a nested strut's site is its holder's
-    /// copy, which fuses into the holder's own site.
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::JoinDesync`] on a log that is not well-ordered,
-    /// in every build: it would fold `w` onto a dead key.
-    fn end(&self, operand: Operand, w: VertexKey) -> Result<VertexKey, BooleanError> {
-        survivor_checked(
-            match operand {
-                Operand::A => &self.a,
-                Operand::B => &self.b,
-            },
-            w,
-        )
+    /// The vertex `w` of `operand` stands as once the undo is done: a
+    /// nested strut's site is its holder's copy, which fuses into the
+    /// holder's own site.
+    fn end(&self, operand: Operand, w: VertexKey) -> VertexKey {
+        match operand {
+            Operand::A => &self.a,
+            Operand::B => &self.b,
+        }
+        .survivor(w)
     }
 }
 
@@ -965,7 +957,7 @@ fn undo_struts<T: Decide + crate::props::AtRestPolicy>(
         }
         body.kev_describing(he, &[], tol)
             .map_err(|_| desync("REST lane: strut undo kev refused"))?;
-        fused.push((copy, r.at_vertex));
+        fused.push((copy, r.at_vertex))?;
     }
     Ok(fused)
 }
@@ -1768,7 +1760,7 @@ fn glue_pair<T: Decide + crate::props::AtRestPolicy>(
             interior_edges,
             edge_merges,
         } = rep;
-        report.vertex_merges.extend(vertex_merges);
+        report.vertex_merges.extend(&vertex_merges)?;
         report.seam_edges.extend(seam_edges);
         report.interior_edges.extend(interior_edges);
         report.edge_merges.extend(edge_merges);
@@ -2123,7 +2115,7 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         };
         let (merge, _) = fuse_by_joint(body, joint, p, desync, tol)?;
         debug_assert_eq!(merge, (eb, sa), "the slit fuse keeps the a copy");
-        report.vertex_merges.push(merge);
+        report.vertex_merges.push(merge)?;
         report.seam_edges.push(edge_of(body, ha)?);
         // `ha` runs from `sa` and `hb` back to its correspondent: one
         // segment, the b copy retired onto the a copy.
@@ -2461,7 +2453,7 @@ mod tests {
                     Operand::A => &red.a,
                     Operand::B => &red.b,
                 };
-                let end = fused.end(r.operand, r.at_vertex).unwrap();
+                let end = fused.end(r.operand, r.at_vertex);
                 assert!(
                     body.get_vertex(end).is_some(),
                     "{nest:?}: {:?}'s site {:?} reads as {end:?}, which the undo killed",
@@ -2470,7 +2462,7 @@ mod tests {
                 );
             }
             assert_eq!(
-                (fused.end(nest, c1).unwrap(), fused.end(nest, c2).unwrap()),
+                (fused.end(nest, c1), fused.end(nest, c2)),
                 (site, site),
                 "{nest:?}: one and two fusions deep, a nested site reads as the notch strut's site"
             );
@@ -2500,9 +2492,7 @@ mod tests {
     /// strut's site is the notch strut's copy, and a segment ends there.
     /// Every end [`read_segments`] answers is live, and the nested one
     /// reads as the notch strut's site. Red if the ends are taken as
-    /// the raw sites. A fusion log that is not well-ordered refuses
-    /// typed in every build, where an unchecked fold would land on a
-    /// dead key.
+    /// the raw sites.
     #[test]
     fn the_segment_ends_read_through_the_undo_to_standing_vertices() {
         let tol = Tol::witness();
@@ -2542,16 +2532,6 @@ mod tests {
                 outer.at_vertex
             );
         }
-
-        let unordered = Fused {
-            a: Vec::new(),
-            b: vec![(VertexKey::default(), VertexKey::default())],
-        };
-        let got = unordered.end(Operand::B, VertexKey::default());
-        assert!(
-            matches!(got, Err(BooleanError::JoinDesync { .. })),
-            "a fusion into itself: {got:?}"
-        );
     }
 
     /// **The interior-edge walk panics on a torn half's face**: an edge
