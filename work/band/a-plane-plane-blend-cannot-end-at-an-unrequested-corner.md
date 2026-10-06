@@ -134,3 +134,31 @@ Build order (each step widens admission; this row closes with step 4):
   are every vertex of a face whose boundary is wholly requested, so
   that case is the local carve's and step 5 has nothing left to delete
   but this note.
+
+## Findings (step 3, branch `band/oblique-fillet-ends-in-an-ellipse`)
+
+- `fillet3_cap_transverse` is the kind-picker for both bands: Zero the
+  circle, definite the ellipse (minor `r`, major `r / cos θ`), in band
+  escalated. The ellipse's axes differ by `r·(1/cos θ − 1)`, second
+  order in the tilt, so a tilt the departure decides definitely can
+  still name axes the ellipse door reads as one circle; that window
+  escalates under `CapTransverse` through `ellipse_axes_distinct`, the
+  door's own gate, read before the plan builds the carrier.
+- An end face nearly containing the spine is refused by
+  `fillet3_corner_independence` with its margin: inside `corner_config`
+  on the planar band, and on the ruled band's oblique cap by the same
+  decision, read alone.
+- The ruled band's oblique cap has an ELLIPSE rim on its cylinder
+  support, so the sliver meters (`piece_distance`, `piece_along`), the
+  rim split (`split_param_in_span`) and the shared-rim meter now read
+  ellipse rims; `piece_along` is exact over the unit circle of the
+  ellipse's frame, `piece_distance` a bound (centre distance ± major).
+- Downstream: a cylinder face trimmed by an ellipse measures through
+  the certified quadrature (a pad of 1e-8 to 1e-6 on these rows,
+  midpoints within 1e-9 of the closed forms) and tessellates watertight;
+  the boolean refuses it at the containment door,
+  `work/contact/at-infinity-probe-measures-in-closed-form-only.md`
+  (evidence added there, pinned in `band_planar_oblique_fillet.rs`).
+- The bracket's walls 2 and 5 (the chords filleted, on the corner
+  piece and on the offcuts) build at `4·(1 − π/4)·r²·√2` and are
+  retired; wall 3 (the turn) stays, step 4's.
