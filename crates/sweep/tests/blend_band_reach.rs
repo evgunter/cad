@@ -138,6 +138,44 @@ fn the_reach_meters_an_island_that_is_a_second_solid() {
     assert!(reach_refusal(&err), "refused by the reach meter: {err:?}");
 }
 
+/// Two bands of one request: the sealed cavity's twelve edges and one
+/// TOP edge of the island, `0.05` off the walls. The island's front face
+/// is a support of that edge's band, which replaces its upper strip; its
+/// lower part and the island's sharp bottom edges stay in the material
+/// the void's band adds, so the request refuses. (With all
+/// twelve island edges requested, the island's round recedes from the
+/// void's and the request builds: `blend_per_shell_carry`.)
+#[test]
+fn a_co_requested_band_replaces_only_its_own_strip() {
+    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
+    let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
+    let sealed = crate::common::cavity::cut("cavity", &block, &cavity);
+    let island = brick(Point3::new(1.05, 1.05, 1.05), Point3::new(2.95, 2.95, 2.95));
+    let body = fuse("island", &sealed, &island);
+    let mut req = cavity_edges(&body);
+    req.extend(crate::common::cavity::edges_with_corners(&body, |p| {
+        (p.z - 2.95).abs() < 1e-9
+            && [p.x, p.y]
+                .iter()
+                .all(|c| (c - 1.05).abs() < 1e-9 || (c - 2.95).abs() < 1e-9)
+    }));
+    assert_eq!(
+        req.len(),
+        16,
+        "the void's twelve edges and the island's top four"
+    );
+    // Read at the meter: this request's walk ends a cavity chain at a
+    // corner predicate 4 refuses first, which is not this row's question.
+    let req = BlendRequest {
+        body: &body,
+        edges: req,
+        size: 0.25,
+    };
+    let err =
+        band_reach(&req, band()).expect_err("the island's lower faces stay in the void's band");
+    assert!(reach_refusal(&err), "refused by the reach meter: {err:?}");
+}
+
 /// A thin bent wall (`0.05`, a 150° convex inner corner): `(a, 1) → (a,
 /// 0)` down the bore, down-out along a 30° cone, back up the outer wall.
 fn thin_flare(a: f64) -> Vec<(f64, f64)> {

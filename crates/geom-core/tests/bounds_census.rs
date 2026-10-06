@@ -359,9 +359,7 @@ const ROSTER: &[Site] = &[
     Site {
         path: "crates/sweep/src/blend/reach.rs",
         subject: "same_sheet",
-        why: Selection(
-            "`same_frame` over two reaches' frames; the same disposition",
-        ),
+        why: Selection("`same_frame` over two reaches' frames; the same disposition"),
     },
     Site {
         path: "crates/sweep/src/blend/reach.rs",

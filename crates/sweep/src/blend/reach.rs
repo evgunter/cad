@@ -236,6 +236,8 @@ enum Bound<T: Real> {
     },
     /// `g = r − |x − o|`: outside the ball of radius `r` about `o`.
     OutsideBall { o: Point3<T>, r: T },
+    /// `g = |x − o| − r`: inside the ball of radius `r` about `o`.
+    InsideBall { o: Point3<T>, r: T },
     /// `g = f(ρ, z) − slack` in the meridian sheet about the unit axis `a`
     /// through `o`.
     Sheet {
@@ -267,6 +269,16 @@ fn corner_max<T: Real>(lo: Point3<T>, hi: Point3<T>, f: impl Fn(Point3<T>) -> T)
         )
     };
     (1..8).fold(f(pick(0)), |m, i| m.max(f(pick(i))))
+}
+
+/// The distance from `o` to the nearest point of `cell`: `o` clamped
+/// into the box.
+fn nearest<T: Real>(o: Point3<T>, cell: &Cell<T>) -> T {
+    let gap = |lo: T, hi: T, c: T| (lo - c).max(c - hi).max(T::zero());
+    (gap(cell.lo.x, cell.hi.x, o.x).powi(2)
+        + gap(cell.lo.y, cell.hi.y, o.y).powi(2)
+        + gap(cell.lo.z, cell.hi.z, o.z).powi(2))
+    .sqrt()
 }
 
 /// A cell: its two corners, its centre, its half extents, and the length
@@ -325,6 +337,7 @@ impl<T: Real> Bound<T> {
                 if *inside { rho - *r } else { *r - rho }
             }
             Self::OutsideBall { o, r } => *r - (x - *o).norm(),
+            Self::InsideBall { o, r } => (x - *o).norm() - *r,
             Self::Sheet { o, a, f, slack } => {
                 let (rho, z) = sheet_of(*o, *a, x);
                 f.at(rho, z) - *slack
@@ -359,6 +372,7 @@ impl<T: Real> Bound<T> {
                 if *inside { b[0] - *r } else { *r - b[1] }
             }
             Self::OutsideBall { o, r } => *r - corner_max(cell.lo, cell.hi, |x| (x - *o).norm()),
+            Self::InsideBall { o, r } => nearest(*o, cell) - *r,
             Self::Sheet { o, a, f, slack } => f.range(sheet_box(*o, *a, cell)).0 - *slack,
             Self::Side { s, w } => match surface_range(s, cell) {
                 Some((lo, hi)) => (*w * lo).min(*w * hi),
@@ -377,14 +391,8 @@ impl<T: Real> Bound<T> {
                 let b = sheet_box(*o, *a, cell);
                 if *inside { b[1] - *r } else { *r - b[0] }
             }
-            Self::OutsideBall { o, r } => {
-                let gap = |lo: T, hi: T, c: T| (lo - c).max(c - hi).max(T::zero());
-                let near = (gap(cell.lo.x, cell.hi.x, o.x).powi(2)
-                    + gap(cell.lo.y, cell.hi.y, o.y).powi(2)
-                    + gap(cell.lo.z, cell.hi.z, o.z).powi(2))
-                .sqrt();
-                *r - near
-            }
+            Self::OutsideBall { o, r } => *r - nearest(*o, cell),
+            Self::InsideBall { o, r } => corner_max(cell.lo, cell.hi, |x| (x - *o).norm()) - *r,
             Self::Sheet { o, a, f, slack } => f.range(sheet_box(*o, *a, cell)).1 - *slack,
             Self::Side { s, w } => match surface_range(s, cell) {
                 Some((lo, hi)) => (*w * lo).max(*w * hi),
@@ -672,6 +680,13 @@ struct Reach<T: Real> {
     /// refuses any other boundary feature of the face within the
     /// setbacks; for a corner patch, its bounds but the supports' sides.
     replaces: Vec<(FaceKey, Vec<Bound<T>>)>,
+    /// The bounds that confine `surface` to the patch the band mints,
+    /// where they are not simply the reach's own but the band's
+    /// (a chamfer corner's triangle of feet).
+    confine: Option<Vec<Bound<T>>>,
+    /// Every chain this reach belongs to: its link's, or every chain at
+    /// a corner patch's vertex.
+    chains: Vec<usize>,
 }
 
 /// The outward normal of `face` at `p`, or the body's refusal.
@@ -979,16 +994,27 @@ fn straight_reach<T: Decide + Bounds>(
         replaces: [(link.face_a, st.fa), (link.face_b, st.fb)]
             .into_iter()
             .map(|(f, foot)| {
-                let mut b: Vec<Bound<T>> = edge_extent.iter().map(|(_, b)| b.clone()).collect();
+                // Over the edge's extent and as far again past each end:
+                // near an end vertex the face is what that vertex's edges
+                // bound, every other boundary feature lying beyond the
+                // setbacks.
+                let chord = (foot - st.p).norm();
+                let (lo, hi) = (ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
+                let mut b: Vec<Bound<T>> = window(lo - chord, hi + chord)
+                    .into_iter()
+                    .map(|(_, b)| b)
+                    .collect();
                 b.push(Bound::Tube {
                     o: st.p,
                     a: tau,
-                    r: (foot - st.p).norm(),
+                    r: chord,
                     inside: true,
                 });
                 (f, b)
             })
             .collect(),
+        confine: None,
+        chains: vec![chain],
     })
 }
 
@@ -1099,6 +1125,8 @@ fn circular_reach<T: Decide + Bounds>(
                 (f, vec![in_sheet(ring, T::zero())])
             })
             .collect(),
+        confine: None,
+        chains: vec![chain],
     })
 }
 
@@ -1132,8 +1160,9 @@ fn corner_reach<T: Decide + Bounds>(
     links: &[&Link<T>],
     size: T,
     kind: BlendKind,
-    chain: usize,
+    chains: Vec<usize>,
 ) -> Result<Option<CornerReach<T>>, BlendError> {
+    let chain = chains.first().copied().unwrap_or(0);
     let pv = point_of(body, v)?;
     let faces = faces_at(body, v)?;
     if faces.len() != 3 || links.len() != 3 {
@@ -1153,17 +1182,35 @@ fn corner_reach<T: Decide + Bounds>(
         normal_at(body, faces[2], pv)?,
     ];
     let mut bounds = Vec::new();
+    let mut confine = None;
     let (q, anchors, surface) = match kind {
         BlendKind::Fillet => {
             let ball = corner_ball([pv; 3], normals, size, links[0].convexity);
             let c = ball.center;
             bounds.push((Role::Band, Bound::OutsideBall { o: c, r: size }));
-            // Each band ends in the plane through the centre normal to
-            // its edge; the patch lies on the vertex's side of all three.
+            // Every extreme point of the corner's material — the vertex,
+            // the feet, where each edge meets its band's end plane — lies
+            // within the centre's distance from the vertex, and on the
+            // vertex's side of the plane through the centre normal to it.
+            bounds.push((
+                Role::Other,
+                Bound::InsideBall {
+                    o: c,
+                    r: (pv - c).norm(),
+                },
+            ));
+            bounds.push((Role::Other, half_space(c, c - pv, pv)));
+            // Each band ends in the plane through the centre normal to its
+            // edge, and where the centre lies ahead of the vertex along
+            // that edge the patch lies on the vertex's side of it. Where
+            // it lies behind (an oblique corner), the band runs past the
+            // vertex and the plane bounds nothing here.
             for l in links {
                 let far = if l.start == v { l.end } else { l.start };
                 let tau = point_of(body, far)? - pv;
-                bounds.push((Role::Other, half_space(c, tau, pv)));
+                if (c - pv).dot(tau).lo() > 0.0 {
+                    bounds.push((Role::Other, half_space(c, tau, pv)));
+                }
             }
             (pv + (c - pv) * T::from_f64(0.25), vec![c], ball.surface)
         }
@@ -1196,6 +1243,20 @@ fn corner_reach<T: Decide + Bounds>(
                 return Ok(None);
             };
             bounds.push((Role::Band, half_space(origin, normal, pv)));
+            // The patch is the triangle of the feet: each strip meets it
+            // along the segment between the two feet on its supports.
+            let mid = centroid(&feet);
+            confine = Some(
+                links
+                    .iter()
+                    .filter_map(|l| match l.blend.surface {
+                        Surface::Plane { origin, normal, .. } => {
+                            Some(half_space(origin, normal, mid))
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            );
             (
                 centroid(&[pv, feet[0], feet[1], feet[2]]),
                 vec![pv, feet[0], feet[1], feet[2]],
@@ -1229,6 +1290,8 @@ fn corner_reach<T: Decide + Bounds>(
                 .map(|f| surface_key(body, *f))
                 .collect::<Result<_, _>>()?,
             replaces: faces.iter().map(|f| (*f, kept.clone())).collect(),
+            confine,
+            chains,
             surface,
         },
         anchors,
@@ -1727,8 +1790,10 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         }
         let here = at(v);
         let links: Vec<&Link<T>> = here.iter().map(|(_, l)| *l).collect();
-        let chain = here.first().map_or(0, |(ci, _)| *ci);
-        if let Some((r, anchors)) = corner_reach(body, v, &links, size, kind, chain)? {
+        let mut on: Vec<usize> = here.iter().map(|(ci, _)| *ci).collect();
+        on.sort_unstable();
+        on.dedup();
+        if let Some((r, anchors)) = corner_reach(body, v, &links, size, kind, on)? {
             reaches.push(r);
             corners.push((v, anchors));
         }
@@ -1802,7 +1867,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             // whole is clear.
             let others: Vec<&[Bound<T>]> = reaches
                 .iter()
-                .filter(|r| r.chain != reach.chain)
+                .filter(|r| r.chains.iter().all(|c| !reach.chains.contains(c)))
                 .flat_map(|r| r.replaces.iter())
                 .filter(|(f, _)| *f == face)
                 .map(|(_, b)| b.as_slice())
@@ -1886,10 +1951,13 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         // concave reach (its faces' surviving parts above, its own band
         // surface here, the other way round).
         let removes = chains[reach.chain].first().convexity == Convexity::Convex;
+        let apart = |r: &Reach<T>| {
+            r.chains
+                .iter()
+                .all(|x| reach.chains.iter().all(|y| x != y && !meet(*x, *y)))
+        };
         for other in reaches.iter().filter(|r| {
-            r.chain != reach.chain
-                && !meet(r.chain, reach.chain)
-                && !(removes && chains[r.chain].first().convexity == Convexity::Concave)
+            apart(r) && !(removes && chains[r.chain].first().convexity == Convexity::Concave)
         }) {
             let olo = [other.lo.x.lo(), other.lo.y.lo(), other.lo.z.lo()];
             let ohi = [other.hi.x.hi(), other.hi.y.hi(), other.hi.z.hi()];
@@ -1897,23 +1965,28 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 continue;
             }
             let banded = |role: &Role| *role != Role::Band;
-            let off_patch = |cell: &Cell<T>| {
-                other
+            let confining: Vec<&Bound<T>> = match &other.confine {
+                Some(c) => c.iter().collect(),
+                None => other
                     .bounds
                     .iter()
                     .filter(|(role, _)| banded(role))
-                    .map(|(_, b)| b.low(cell))
+                    .map(|(_, b)| b)
+                    .collect(),
+            };
+            let off_patch = |cell: &Cell<T>| {
+                confining
+                    .iter()
+                    .map(|b| b.low(cell))
                     .reduce(|m, g| m.max(g))
             };
             let off_patch_in_sheet = |rect: Rect<T>| {
                 if !same_sheet(other, reach) {
                     return None;
                 }
-                other
-                    .bounds
+                confining
                     .iter()
-                    .filter(|(role, _)| banded(role))
-                    .map(|(_, b)| b.low_in_sheet(rect))
+                    .map(|b| b.low_in_sheet(rect))
                     .collect::<Option<Vec<T>>>()?
                     .into_iter()
                     .reduce(|m, g| m.max(g))
