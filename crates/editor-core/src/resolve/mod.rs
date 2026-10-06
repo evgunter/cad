@@ -138,37 +138,84 @@ pub enum ResolveError {
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in prose — the name with its minting node said by the
-// speaker (the half a user can act on), the WHY forwarded from the
-// payload's own rendering. `NodeGone` names the node the name is on,
-// and words its edit itself. Composing layers
-// (`NodeErrorKind`'s resolve arms) FORWARD this rather than
-// re-stating it.
+// the PROBLEM in prose — the name said once, in full where no table
+// holds it, the WHY forwarded from the payload's own rendering.
+// `NodeGone` names the node the name is on, and words its edit itself.
+// A sentence that already names the reference (a node's slot, a pane's
+// "this face") leads with that instead ([`AboutReference`]).
 impl crate::spoken::Say for ResolveError {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
+        self.say_about(f, by, None)
+    }
+}
+
+/// **A resolve refusal about a reference its sentence already names**:
+/// the reference leads (`this fillet's edge 2 is stranded: …`, `this
+/// face is stranded: …`) and the name is not said, so no line names its
+/// subject twice.
+pub struct AboutReference<'a, R>(pub &'a ResolveError, pub R);
+
+impl<R: core::fmt::Display> crate::spoken::Say for AboutReference<'_, R> {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        self.0.say_about(f, by, Some(&self.1))
+    }
+}
+
+impl ResolveError {
+    /// The name that did not resolve.
+    #[must_use]
+    pub fn name(&self) -> &StableName {
+        match self {
+            Self::Vanished { name, .. }
+            | Self::Ambiguous { name, .. }
+            | Self::NodeGone { name, .. } => name,
+        }
+    }
+
+    /// The sentence, led by `reference` where the enclosing sentence
+    /// names one, by the name otherwise.
+    fn say_about(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+        reference: Option<&dyn core::fmt::Display>,
+    ) -> core::fmt::Result {
+        let lead = |f: &mut core::fmt::Formatter<'_>, name: &StableName| match reference {
+            Some(reference) => write!(f, "{reference}"),
+            None => write!(f, "{}", by.name(name)),
+        };
         match self {
             Self::Vanished {
                 name, diagnosis, ..
-            } => write!(
-                f,
-                "{} no longer resolves in this evaluation: {}",
-                by.name(name),
-                Said(diagnosis, by)
-            ),
-            Self::Ambiguous { name, tie, .. } => write!(
-                f,
-                "{} is tie-marked: {} equally-admissible \
-                 candidates at its recorded site — a tie is never broken by picking; \
-                 refine the reference until one candidate remains",
-                by.name(name),
-                tie.width
-            ),
+            } => {
+                lead(f, name)?;
+                write!(
+                    f,
+                    " no longer resolves in this evaluation: {}",
+                    Said(diagnosis, by)
+                )
+            }
+            Self::Ambiguous { name, tie, .. } => {
+                lead(f, name)?;
+                write!(
+                    f,
+                    " is tie-marked: {} equally-admissible candidates at its recorded site — a \
+                     tie is never broken by picking; refine the reference until one candidate \
+                     remains",
+                    tie.width
+                )
+            }
             Self::NodeGone { name, edit } => {
-                write!(f, "{} is stranded: {} ", by.name(name), by.node(name.node))?;
+                lead(f, name)?;
+                write!(f, " is stranded: {} ", by.node(name.node))?;
                 match edit {
                     RecipeEditRef::NodeDeleted { .. } => f.write_str("was deleted")?,
                     RecipeEditRef::ForeignNode { .. } => {
@@ -176,7 +223,7 @@ impl crate::spoken::Say for ResolveError {
                     }
                     other => write!(f, "is not in the document ({})", Said(other, by))?,
                 }
-                f.write_str(" — the repair is an explicit rebind")
+                write!(f, ". {}", crate::sentence::Recourse("rebind it"))
             }
         }
     }
@@ -738,11 +785,13 @@ impl crate::spoken::Say for Diagnosis {
                  derivation path ({})",
                 Said(edit, by)
             ),
+            // `through` is cited by the name this diagnoses, so it is
+            // said by its kind: the name was said already.
             Self::Cascade { through } => write!(
                 f,
-                "{} vanished upstream first; its own resolution failure carries the root \
-                 cause",
-                by.name(through)
+                "{} {} it derives from vanished upstream first, and that is the root cause",
+                through.kind.article(),
+                through.kind.noun()
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))

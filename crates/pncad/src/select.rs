@@ -56,8 +56,8 @@
 //! name denotes as a person tells it from its neighbours: its role, the
 //! feature that made it, and each secondary operand it was joined
 //! through (`the end cap of Extrude e548, cut in at Subtract 1669`,
-//! `the part above the split of the side wall over the leg of loop 0
-//! step 2 of Extrude e548, on Split 2fec`). [`role_leaf`] is the name
+//! `the part above the split of the side wall over loop 0 step 2 of
+//! Extrude e548`). [`role_leaf`] is the name
 //! the role is read off; a name's own `Display` is these words.
 //!
 //! **A name also says which node MADE the entity.** [`attribute`]
@@ -230,5 +230,6 @@ pub use editor_core::{
 // which is what a curated list owes; nothing here names one as a
 // type.
 pub use editor_core::{
-    Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx, resolve,
+    AboutReference, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx,
+    resolve,
 };

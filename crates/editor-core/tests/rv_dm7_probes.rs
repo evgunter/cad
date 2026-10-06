@@ -258,7 +258,8 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::StrandedAppearance {
-            name: doc.spoken_name(&painted)
+            name: doc.spoken_name(&painted),
+            took: editor_core::Took::Node
         }],
         "the door named the key"
     );

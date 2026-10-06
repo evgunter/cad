@@ -1116,6 +1116,26 @@ impl NodeRefusal {
 /// node said by `by`, and the failing node named once. The one
 /// spelling [`NodeError`]'s renderings and [`NodeRefusal::line_at`]
 /// share.
+/// **A reference the failed node holds that stopped resolving**: said by
+/// its slot, `this fillet's edge 2 is stranded: …`, where the speaker's
+/// document holds the node ([`crate::Speaker::about`] names it);
+/// otherwise `lead`, then the refusal saying the name once, in full.
+fn resolve_failed(
+    f: &mut core::fmt::Formatter<'_>,
+    by: crate::spoken::Speaker<'_>,
+    error: &crate::resolve::ResolveError,
+    lead: impl core::fmt::Display,
+) -> core::fmt::Result {
+    match by.reference(error.name()) {
+        Some(reference) => write!(
+            f,
+            "{}",
+            crate::spoken::Said(&crate::resolve::AboutReference(error, reference), by)
+        ),
+        None => write!(f, "{lead}: {}", crate::spoken::Said(error, by)),
+    }
+}
+
 fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Speaker<'_>) -> String {
     format!(
         "{} failed: {}",
@@ -2354,11 +2374,14 @@ impl crate::spoken::Say for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "{}'s seam declaration crosses at {} on the remainder and claims {name} in \
-                 the part, which the pinned part's product does not name — the crossing does \
-                 not re-verify against this version of the part",
+                "{}'s seam declaration crosses at {} on the remainder and claims {} in \
+                 the part, which this version of the part does not name, so the crossing does \
+                 not re-verify",
                 by.node_as(*instance, "instance"),
                 by.name(outer),
+                // The part's own nodes and steps are another document's
+                // ids, so its name is said by tag.
+                crate::spoken::Speaker::TAG.name(name),
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -2616,10 +2639,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 f,
                 "the parameter-identity attach refused on a carrier the blend just minted: {e}"
             ),
-            Self::DeclareResolve { error } => write!(
+            Self::DeclareResolve { error } => resolve_failed(
                 f,
-                "a declared name failed to resolve through the operands' tables: {}",
-                Said(&**error, by)
+                by,
+                error,
+                "a declared name failed to resolve through the operands' tables",
             ),
             Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
@@ -2655,13 +2679,12 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UndeclarableContact { row, diag } => {
                 crate::finding::compose(f, &UndeclarableContactFinding { row, diag, by })
             }
-            Self::BlendSelectionResolve { verb, error } => {
-                write!(
-                    f,
-                    "a {verb} selection name failed to resolve: {}",
-                    Said(&**error, by)
-                )
-            }
+            Self::BlendSelectionResolve { verb, error } => resolve_failed(
+                f,
+                by,
+                error,
+                format_args!("a {verb} selection name failed to resolve"),
+            ),
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
                 "the {verb} selection names {}, which is {} {}, not an edge",
@@ -2675,11 +2698,7 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::Shell(e) => write!(f, "the shell op refused: {e}"),
             Self::ShellOpenResolve { error } => {
-                write!(
-                    f,
-                    "a shell open-face name failed to resolve: {}",
-                    Said(&**error, by)
-                )
+                resolve_failed(f, by, error, "a shell open-face name failed to resolve")
             }
             Self::ShellOpenKind { name, found } => write!(
                 f,
@@ -2694,13 +2713,12 @@ impl crate::spoken::Say for NodeErrorKind {
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
             ),
-            Self::FaceFrameResolve { error } => {
-                write!(
-                    f,
-                    "the derived frame's face name failed to resolve: {}",
-                    Said(&**error, by)
-                )
-            }
+            Self::FaceFrameResolve { error } => resolve_failed(
+                f,
+                by,
+                error,
+                "the derived frame's face name failed to resolve",
+            ),
             Self::FaceFrameKind { name, found } => write!(
                 f,
                 "the derived frame's face names {}, which is {} {}, not a face",
@@ -2744,11 +2762,7 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.node_as(*frame, "derived frame node")
             ),
             Self::MeasureRefResolve { error } => {
-                write!(
-                    f,
-                    "a measure reference failed to resolve: {}",
-                    Said(&**error, by)
-                )
+                resolve_failed(f, by, error, "a measure reference failed to resolve")
             }
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,

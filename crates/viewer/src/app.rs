@@ -5059,7 +5059,7 @@ mod properties_pane_tests {
         let line = drawn
             .iter()
             .map(|(run, _)| run)
-            .find(|run| run.starts_with("this face is gone: "))
+            .find(|run| run.starts_with("this face no longer resolves in this evaluation: "))
             .unwrap_or_else(|| panic!("the verdict is drawn: {drawn:?}"));
         assert!(
             line.contains(&landed) && !line.contains("shown plate"),

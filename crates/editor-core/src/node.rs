@@ -3796,6 +3796,60 @@ impl<P> Node<P> {
         }
     }
 
+    /// **Which of this payload's references `name` is, as a person reads
+    /// it**: the node's own noun and the slot — `("fillet", "edge 2")`,
+    /// `("frame", "face")` — for a refusal that says a reference that
+    /// stopped resolving by where it sits rather than by its words. The
+    /// first slot holding `name`; `None` where no slot of a node that
+    /// resolves names holds it.
+    pub(crate) fn reference_slot(&self, name: &StableName) -> Option<(&'static str, String)> {
+        fn at<'n>(
+            mut names: impl Iterator<Item = &'n StableName>,
+            name: &StableName,
+        ) -> Option<usize> {
+            names.position(|n| n == name)
+        }
+        match self {
+            Node::Fillet { selection, .. } => {
+                Some(("fillet", format!("edge {}", at(selection.iter(), name)?)))
+            }
+            Node::Chamfer { selection, .. } => {
+                Some(("chamfer", format!("edge {}", at(selection.iter(), name)?)))
+            }
+            Node::Shell { open, .. } => {
+                Some(("shell", format!("open face {}", at(open.iter(), name)?)))
+            }
+            Node::Datum(Datum::FaceFrame { face, .. }) => {
+                (face == name).then(|| ("frame", "face".to_owned()))
+            }
+            Node::Measure { refs, .. } => Some((
+                "measure",
+                format!("reference {}", at(refs.iter().map(|r| &r.name), name)?),
+            )),
+            Node::Boolean { declare, .. } | Node::Union { declare, .. } => {
+                let noun = if matches!(self, Node::Boolean { .. }) {
+                    "boolean"
+                } else {
+                    "union"
+                };
+                declare.iter().enumerate().find_map(|(k, ((a, b), _))| {
+                    let side = if a.name == *name {
+                        "first"
+                    } else if b.name == *name {
+                        "second"
+                    } else {
+                        return None;
+                    };
+                    Some((
+                        noun,
+                        format!("declared pair {k}'s {side} {}", name.kind.noun()),
+                    ))
+                })
+            }
+            _ => None,
+        }
+    }
+
     /// The [`StableName`]s this payload REFERENCES — declared pairs, a
     /// blend's selection, a shell's open list, a derived frame's face, a
     /// measure's references, a mate's two heads, an instance's interface

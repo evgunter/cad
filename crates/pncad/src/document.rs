@@ -90,7 +90,7 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
     MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
-    RegaugeThenMateOutcome, StepId, StepIdFault, apply, apply_replayed, regauge_then_mate,
+    RegaugeThenMateOutcome, StepId, StepIdFault, Took, apply, apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,

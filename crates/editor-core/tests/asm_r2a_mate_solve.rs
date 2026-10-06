@@ -536,6 +536,7 @@ fn row4c_deleting_the_root_unplaces_the_survivor() {
         vec![Maintenance::Strand {
             node: doc.spoken(mate_node),
             name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
+            took: editor_core::Took::Node
         }],
         "the strand is the whole report: no frame is recorded"
     );

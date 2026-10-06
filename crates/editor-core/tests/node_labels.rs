@@ -467,7 +467,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         &editor_core::RefusingReach,
     )
     .expect("a name is not an edge, so the delete lands");
-    let [Maintenance::Strand { node, name }] = applied.maintenance.as_slice() else {
+    let [Maintenance::Strand { node, name, .. }] = applied.maintenance.as_slice() else {
         panic!("one strand, got {:?}", applied.maintenance);
     };
     assert_eq!((node.id(), name.name()), (carrier, &named));
@@ -480,8 +480,8 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         applied.maintenance[0].to_string().split(';').next(),
         Some(
             format!(
-                "Datum frame (on face) \"mount\" ({}) carries a name for the side wall over the \
-                 leg of loop 0 step 1 of Extrude \"base plate\" ({})",
+                "Datum frame (on face) \"mount\" ({}) carries a name for the side wall over \
+                 loop 0 step 1 of Extrude \"base plate\" ({})",
                 tag(carrier.0),
                 tag(victim.0)
             )
@@ -553,7 +553,7 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "the side wall over the leg of loop 0 step 1 of Extrude \"base plate\" ({})",
+            "the side wall over loop 0 step 1 of Extrude \"base plate\" ({})",
             tag(extrude.0)
         )),
         "{refused}"
@@ -675,7 +675,7 @@ fn a_split_forward_reference_speaks_from_the_document_being_split() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "the side wall over the leg of loop 0 step 1 of Extrude \"late block\" ({})",
+            "the side wall over loop 0 step 1 of Extrude \"late block\" ({})",
             tag(c.0)
         )),
         "{refused}"
@@ -706,7 +706,7 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "the side wall over the leg of loop 0 step 1 of Extrude \"late block\" ({})",
+            "the side wall over loop 0 step 1 of Extrude \"late block\" ({})",
             tag(c.0)
         )),
         "{refused}"
@@ -1238,10 +1238,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     };
     assert_eq!(
         failure.error.spoken(&gone, &gone_ev),
-        format!(
-            "the end cap of node {e} is stranded: node {e} was deleted — the repair is an \
-             explicit rebind"
-        ),
+        format!("the end cap of node {e} is stranded: node {e} was deleted. Recourse: rebind it"),
         "a node the document no longer holds is said by its tag"
     );
 }

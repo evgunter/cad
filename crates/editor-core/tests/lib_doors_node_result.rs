@@ -559,7 +559,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             &[
                 "the output body of node 000000000005",
                 "is stranded: node 000000000005 was deleted",
-                "explicit rebind",
+                "Recourse: rebind it",
             ],
         ),
         (

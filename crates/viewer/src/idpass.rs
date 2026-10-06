@@ -188,8 +188,8 @@ pub enum IdAnswer {
 }
 
 impl Say for IdAnswer {
-    /// Each arm in the words of the layer that raised it: a name
-    /// through [`NameAndPath`], an unnamed patch through its own
+    /// Each arm in the words of the layer that raised it: a name in
+    /// its words ([`Speaker::name`]), an unnamed patch through its own
     /// refusal's sentence, and an unassigned id as the picture's own
     /// fact. The id is `id N` in every arm that carries one, because
     /// it is one `u32` read out of the id buffer, whatever it turns out
@@ -197,7 +197,7 @@ impl Say for IdAnswer {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Nothing => f.write_str("nothing"),
-            Self::Named(name) => write!(f, "{}", NameAndPath(name, by)),
+            Self::Named(name) => write!(f, "{}", by.name(name)),
             Self::Unnamed { id, error } => {
                 write!(f, "id {id}, a drawn patch: {}", Said(error, by))
             }
@@ -210,20 +210,6 @@ impl Say for IdAnswer {
 impl core::fmt::Display for IdAnswer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.say(f, Speaker::TAG)
-    }
-}
-
-/// **A name as a bug report says it**: the name's own words
-/// ([`Speaker::name`]), then the whole role path as `Debug` — the one
-/// operator diagnostic that prints the path's structure, said only by
-/// [`IdAnswer`] and [`Disagreement`], the picking paths' bug report
-/// ([`Disagreement`]'s sentence says why).
-pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
-
-impl core::fmt::Display for NameAndPath<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self(name, by) = self;
-        write!(f, "{} ({:?})", by.name(name), name.path)
     }
 }
 
@@ -259,14 +245,11 @@ pub struct Disagreement {
 
 impl Say for Disagreement {
     /// The id side is [`IdAnswer`]'s own sentence. Every NAME on
-    /// either side is said as a sentence says it, followed by the role
-    /// path ([`NameAndPath`]).
-    ///
-    /// The words tell two names of one table apart; the path rides
-    /// beside them because a disagreement is a bug report, and the path
-    /// is what its reader replays. It rides as `Debug`: it is the
-    /// machine channel, printed here as the operator's diagnostic
-    /// rather than as prose.
+    /// either side is said in its words, which tell two names of one
+    /// table apart. The sentence reaches the user's status line
+    /// ([`Disagreement::notice`]), so it carries no role path: the path
+    /// a bug report replays is this value's `Debug`, for a log, and no
+    /// surface of the viewer prints it.
     ///
     /// Destructured rather than field-read, so a third field added to
     /// [`Disagreement`] and left out of this sentence is E0027 rather
@@ -280,14 +263,14 @@ impl Say for Disagreement {
         )?;
         match &from_ray[..] {
             [] => f.write_str("nothing"),
-            [name] => write!(f, "{}", NameAndPath(name, by)),
+            [name] => write!(f, "{}", by.name(name)),
             tied => {
                 f.write_str("tied between ")?;
                 for (i, name) in tied.iter().enumerate() {
                     if i > 0 {
                         f.write_str(" and ")?;
                     }
-                    write!(f, "{}", NameAndPath(name, by))?;
+                    write!(f, "{}", by.name(name))?;
                 }
                 Ok(())
             }
@@ -429,11 +412,11 @@ mod tests {
     use super::*;
     use pncad::prelude::{CapEnd, EntityKind, NameRef, RecipeNodeId, RoleSeg};
 
-    /// A disagreement renders both halves of every name, the role path
-    /// whole, on the wasm32 build's stack however deep the name nests:
-    /// a name's rendering walks its nesting from its own stack.
+    /// A disagreement says each name in its words, and no role path, on
+    /// the wasm32 build's stack however deep the name nests: a name's
+    /// words walk its nesting from their own stack.
     #[test]
-    fn a_disagreement_over_a_name_nested_past_every_stack_renders_on_the_smallest_stack() {
+    fn a_disagreement_over_a_name_nested_past_every_stack_says_it_on_the_smallest_stack() {
         const DEEP: usize = 20_000;
         let shown = test_utils::own_thread::on_the_smallest_stack(|| {
             let leaf = StableName {
@@ -452,12 +435,7 @@ mod tests {
             }
             .to_string()
         });
-        assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
-        assert_eq!(
-            shown
-                .matches("the end cap of node 000000000001, on node 000000000002")
-                .count(),
-            2
-        );
+        assert!(!shown.contains("FromA"), "no role path: {shown}");
+        assert_eq!(shown.matches("the end cap of node 000000000001").count(), 2);
     }
 }

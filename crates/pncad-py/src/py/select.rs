@@ -730,6 +730,7 @@ pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str,
     vec![
         ("reason", PyString::new(py, reason).unbind().into_any()),
         ("name", none()),
+        ("other", none()),
         ("predicate", none()),
         ("matched", none()),
         ("candidates", none()),
@@ -883,12 +884,18 @@ pub(crate) fn select_refusal(
             pair,
             predicate,
             source,
+            ..
         } => {
             let a = match crate::py::doc::name_text(py, &pair.0) {
                 Ok(t) => t,
                 Err(failed) => return failed,
             };
+            let b = match crate::py::doc::name_text(py, &pair.1) {
+                Ok(t) => t,
+                Err(failed) => return failed,
+            };
             fill(&mut fields, "name", text(&a));
+            fill(&mut fields, "other", text(&b));
             fill(&mut fields, "predicate", text(predicate));
             format!(
                 "a candidate pair's verify-door margin is inside the \

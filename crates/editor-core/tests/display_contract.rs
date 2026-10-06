@@ -177,16 +177,21 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
             carried(RoleSeg::FromA, operand(2, CapEnd::End)),
             carried(RoleSeg::FromB, operand(5, CapEnd::Start)),
         )),
+        at: (RecipeNodeId(tagged(9)), RecipeNodeId(tagged(9))),
         predicate: "bool_plane_offset",
         source: in_band("bool_plane_offset"),
     };
     let shown = refusal.to_string();
     assert!(
         shown.starts_with(
-            "select: the end cap of node 000000000002, on node 000000000009 and the start cap \
-             of node 000000000005, joined at node 000000000009 are too nearly flush to call"
+            "select: whether the end cap of node 000000000002 and the start cap of node \
+             000000000005, through operand B of node 000000000009 are flush is undecided: "
         ),
         "{shown}"
+    );
+    assert!(
+        !shown.contains("declare"),
+        "a query takes no declaration, so its recourse offers none: {shown}"
     );
     assert_eq!(
         test_utils::refusal::problems("PairInBand", &shown, &["select"], false),
@@ -588,9 +593,9 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec![
                 "the end cap",
                 "node 000000000007",
-                "neither certified in nor out",
+                "the query cannot decide whether",
+                "is in or out",
                 "ambiguity band",
-                editor_core::SEL_DATUM_DISTANCE,
             ],
         ),
         (
@@ -649,14 +654,14 @@ fn select_refusal_display_names_its_content_not_its_struct() {
         (
             SelectRefusal::PairInBand {
                 pair: Box::new((face_name(), face_name())),
+                at: (RecipeNodeId(tagged(3)), RecipeNodeId(tagged(4))),
                 predicate: "bool_plane_side_of",
                 source: in_band("bool_plane_side_of"),
             },
             vec![
-                "the end cap",
-                "node 000000000007",
-                "too nearly flush to call",
-                "flush detection reports neither",
+                "select: whether the end cap",
+                "on node 000000000003 and the end cap",
+                "on node 000000000004 are flush is undecided",
             ],
         ),
         (
@@ -1900,7 +1905,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 gone: vec![vertex.clone()],
                 new: vec![],
             },
-            "the parent's seams with the end cap vertex over the start of the leg of the profile \
+            "the parent's seams with the end cap vertex over the start of the profile \
              step 000000000001 of node 000000000005 are gone",
         ),
         (
@@ -1908,7 +1913,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 gone: vec![],
                 new: vec![member_wall],
             },
-            "the parent has new seams with the side wall over the leg of the profile step \
+            "the parent has new seams with the side wall over the profile step \
              000000000002 of node 000000000006, joined at node 000000000008 from node \
              000000000007",
         ),
@@ -1917,10 +1922,10 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 gone: vec![wall(1), wall(3)],
                 new: vec![wall(0)],
             },
-            "the parent's seams with 2 cutters (the side wall over the leg of the profile step \
-             000000000001 of node 000000000006; the side wall over the leg of the profile step \
+            "the parent's seams with 2 cutters (the side wall over the profile step \
+             000000000001 of node 000000000006; the side wall over the profile step \
              000000000003 of node 000000000006) are gone, and the parent has new seams with the \
-             side wall over the leg of the profile step 000000000000 of node 000000000006",
+             side wall over the profile step 000000000000 of node 000000000006",
         ),
         (
             GroupCutters::Read {
@@ -3070,26 +3075,26 @@ fn maintenance_display_says_what_the_edit_did() {
             Maintenance::Strand {
                 node: held(5, "Datum frame (on face)"),
                 name: spoken_face_name(),
+                took: editor_core::Took::Node,
             },
             vec![
                 "Datum frame (on face) 000000000005 carries a name for the end cap of Extrude \
                  000000000007",
-                // The row is made by two edits — a delete and a
-                // reshaping — and the sentence names what either took
-                // without claiming which, nor that a kept step went.
-                "this edit took what it denoted",
-                "a node or profile step it names, or a piece a kept step no longer draws",
+                // The sentence says what the edit took, never that the
+                // name went.
+                "this edit deleted the node that made it",
                 "resolves to nothing until it is rebound",
             ],
         ),
         (
             Maintenance::StrandedAppearance {
                 name: spoken_face_name(),
+                took: editor_core::Took::Piece,
             },
             vec![
                 "the appearance store holds an attachment under a name for the end cap of \
                  Extrude 000000000007",
-                "this edit took what it denoted",
+                "this edit kept a step it names but no longer draws that piece",
                 "rebound or cleared",
             ],
         ),
@@ -3287,7 +3292,7 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             step: StepId(tagged(9)),
         },
         &[
-            "the end rim edge over the leg of the profile step 000000000009 of Extrude \
+            "the end rim edge over the profile step 000000000009 of Extrude \
              000000000003",
             "profile step id 000000000009",
             "never minted",

@@ -5,11 +5,11 @@
 
 use eframe::egui;
 use pncad::document::{
-    Axis3, Dimension, Doc, Frame, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker, VarId,
-    VarName,
+    Axis3, Dimension, Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
+    VarId, VarName,
 };
 use pncad::quantity::UnitDef;
-use pncad::select::Resolution;
+use pncad::select::{AboutReference, Resolution};
 
 use crate::app::{ViewerBehavior, indeterminate_wording, toned};
 use crate::display::free_move_check;
@@ -399,7 +399,7 @@ impl ViewerBehavior<'_> {
             } => Some(*node),
             _ => None,
         });
-        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        let landed = self.session.landed_pair();
         match standing {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
@@ -998,8 +998,9 @@ impl ViewerBehavior<'_> {
 ///
 /// A picked entity's resolution was asked of the landed run
 /// (`DocSession::standing`), so its nodes are said from `landed`, the
-/// document whose ids it is spelled in; by their tags when nothing has
-/// landed.
+/// document whose ids it is spelled in, and each name within that run's
+/// tables; by their tags when nothing has landed. The verdict is about
+/// the picked entity, so it says "this face" and never its name again.
 ///
 /// A free function over the `Ui` so a headless drive can reach it
 /// (`crate::pane::headless`).
@@ -1007,7 +1008,7 @@ pub(crate) fn standing_verdict(
     ui: &mut egui::Ui,
     theme: &Theme,
     standing: &Standing,
-    landed: Option<&Doc<ProfileProgram>>,
+    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
 ) {
     let tone = standing.tone();
     let (noun, resolution) = match standing {
@@ -1035,13 +1036,19 @@ pub(crate) fn standing_verdict(
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
         Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
     };
-    let by = landed.map_or(Speaker::TAG, Speaker::of);
+    let by = landed.map_or(Speaker::TAG, |(doc, evaluation)| {
+        Speaker::of(doc).within(evaluation)
+    });
     let said = match resolution {
         None => Some("no evaluation yet to resolve this against".to_owned()),
         Some(Resolution::Resolved(_)) => None,
-        Some(Resolution::Failed(failure)) => {
-            Some(format!("this {noun} is gone: {}", Said(&failure.error, by)))
-        }
+        Some(Resolution::Failed(failure)) => Some(
+            Said(
+                &AboutReference(&failure.error, format_args!("this {noun}")),
+                by,
+            )
+            .to_string(),
+        ),
         Some(Resolution::Indeterminate(cause)) => Some(indeterminate_wording(noun, cause, by)),
     };
     if let Some(said) = said {
@@ -1945,7 +1952,7 @@ mod verdict_tests {
     /// What [`standing_verdict`] painted for `standing` over `landed`.
     fn drawn_over(
         standing: &Standing,
-        landed: Option<&Doc<ProfileProgram>>,
+        landed: Option<(&Doc<ProfileProgram>, &pncad::document::Evaluation<f64>)>,
     ) -> (Vec<Landed>, Voices) {
         landed_voiced(&Theme::DEFAULT, |ui, theme| {
             standing_verdict(ui, theme, standing, landed)
@@ -1969,6 +1976,13 @@ mod verdict_tests {
             },
             tol,
         );
+        let landed = pncad::document::evaluate(
+            &doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
         let by_tag = format!("node {}", test_utils::refusal::tag(block.0));
         let name = StableName {
             kind: EntityKind::Face,
@@ -1986,10 +2000,10 @@ mod verdict_tests {
         let gone = face(Resolution::Failed(ResolutionFailure {
             error: ResolveError::Vanished {
                 name: name.clone(),
-                diagnosis: editor_core::Diagnosis::PredicateFlip {
-                    predicate: "orient",
-                    from: pncad::geom_core::Sign::Positive,
-                    to: pncad::geom_core::Sign::Negative,
+                diagnosis: editor_core::Diagnosis::BorderDelta {
+                    node: block,
+                    gone: Vec::new(),
+                    new: Vec::new(),
                 },
                 last_good: None,
             },
@@ -1999,14 +2013,18 @@ mod verdict_tests {
             standing: NodeStanding::Failed { node: block },
         }));
         for (arm, standing, opening) in [
-            ("failed", &gone, "this face is gone: "),
+            (
+                "failed",
+                &gone,
+                "this face no longer resolves in this evaluation: ",
+            ),
             (
                 "indeterminate",
                 &waiting,
                 "this face cannot be resolved right now: ",
             ),
         ] {
-            let (over_doc, _) = drawn_over(standing, Some(&doc));
+            let (over_doc, _) = drawn_over(standing, Some((&doc, &landed)));
             let said = &find_opening(&over_doc, opening).text;
             assert!(
                 said.contains("base block") && !said.contains(&by_tag),
@@ -2037,9 +2055,13 @@ mod verdict_tests {
                 },
                 offers: Vec::new(),
             })),
-            Some(&doc),
+            Some((&doc, &landed)),
         );
-        let said = &find_opening(&over_doc, "this face is gone: ").text;
+        let said = &find_opening(&over_doc, "this face is stranded: ").text;
+        assert!(
+            !said.contains("end cap"),
+            "the verdict is about this face, and does not say its name again: {said}"
+        );
         let deleted_by_tag = format!("node {}", test_utils::refusal::tag(deleted.0));
         assert!(
             said.contains(&deleted_by_tag),
@@ -2054,7 +2076,7 @@ mod verdict_tests {
     fn a_vanished_faces_verdict_is_drawn_loud_and_its_offer_count_weak() {
         let (painted, voices) = drawn(&face(Some(vanished(vec![name(EntityKind::Face)]))));
         assert_eq!(
-            find_opening(&painted, "this face is gone: ").ink,
+            find_opening(&painted, "this face is stranded: ").ink,
             Some(voices.actionable)
         );
         assert_eq!(

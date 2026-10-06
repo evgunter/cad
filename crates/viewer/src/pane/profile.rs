@@ -1365,6 +1365,7 @@ mod tests {
         let expected = vec![Maintenance::Strand {
             node: before.spoken(carrier),
             name,
+            took: pncad::document::Took::Step,
         }];
         assert_eq!(out.maintenance, expected, "the door reports the strand");
         let line: Vec<String> = crate::frame::outcome_notices(&out)

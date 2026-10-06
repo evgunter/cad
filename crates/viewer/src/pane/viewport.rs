@@ -1876,7 +1876,7 @@ mod tests {
             .iter()
             .map(|name| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                idpass::NameAndPath(name, by).to_string()
+                by.name(name).to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)
@@ -1910,8 +1910,8 @@ mod tests {
             .zip(spoken.first())
             .expect("the helper returns the one-face answer it was asked for");
         assert!(
-            said.contains("Extrude") && said.ends_with(&format!("({:?})", named.path)),
-            "the face's minter is said as the landed document holds it, then its path: {said}"
+            said.contains("Extrude") && !said.contains(&format!("{:?}", named.path)),
+            "the face's minter is said as the landed document holds it, and no path: {said}"
         );
         assert_eq!(
             news.expect("an unassigned id against a named face is a disagreement")

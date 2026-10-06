@@ -124,7 +124,7 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed,
+    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, Took, apply, apply_replayed,
     cascade_delete_order, regauge_then_mate,
 };
 pub use eval::{
@@ -222,7 +222,7 @@ pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    Diagnosis, FlipSet, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
+    AboutReference, Diagnosis, FlipSet, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
     NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
     ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
     UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,

@@ -264,10 +264,14 @@ fn in_band_gap_refuses_pair_in_band() {
     let text = refusal.as_ref().map(ToString::to_string);
     match refusal {
         Some(SelectRefusal::PairInBand {
-            pair, predicate, ..
+            pair,
+            at,
+            predicate,
+            ..
         }) => {
             assert_eq!(pair.0.node, base);
             assert_eq!(pair.1.node, top);
+            assert_eq!(at, (base, top), "each face is held where the query read it");
             assert_eq!(predicate, "bool_plane_offset");
         }
         other => panic!("expected PairInBand, got {other:?}"),

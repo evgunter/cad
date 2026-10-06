@@ -136,7 +136,7 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
         ),
         (
             "kind",
-            "the fillet selection names the side wall over the leg of the profile step {wall} of \
+            "the fillet selection names the side wall over the profile step {wall} of \
              node {cube}, which is a face, not an edge",
         ),
         (

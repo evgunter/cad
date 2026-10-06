@@ -538,6 +538,17 @@ trait HoldsNodes {
     fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp>;
     /// The name the document holds for the variable `id`, if any.
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
+    /// Which slot of `node`'s payload holds `name`
+    /// ([`Node::reference_slot`]), `None` where it is not held here. A
+    /// door's held nodes keep none, so a refusal they say names the
+    /// reference by its words.
+    fn reference_slot(
+        &self,
+        _node: RecipeNodeId,
+        _name: &StableName,
+    ) -> Option<(&'static str, String)> {
+        None
+    }
 }
 
 impl<P: ProfilePayload> HoldsNodes for Doc<P> {
@@ -584,6 +595,14 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
             Node::Boolean { op, .. } => Some(*op),
             _ => None,
         }
+    }
+
+    fn reference_slot(
+        &self,
+        node: RecipeNodeId,
+        name: &StableName,
+    ) -> Option<(&'static str, String)> {
+        self.node(node)?.reference_slot(name)
     }
 }
 
@@ -879,6 +898,15 @@ impl<'a> Speaker<'a> {
             }
         });
         NodeAs("node", said)
+    }
+
+    /// **The reference `name` is, as the sentence's subject holds it**:
+    /// `this fillet's edge 2`, where the node the enclosing sentence is
+    /// about ([`Speaker::about`]) holds `name` in a slot of its payload
+    /// in this speaker's document; `None` by tag, or where it holds none.
+    pub(crate) fn reference(self, name: &StableName) -> Option<String> {
+        let (owner, slot) = self.doc?.reference_slot(self.subject?, name)?;
+        Some(format!("this {owner}'s {slot}"))
     }
 
     /// The one profile `feature` reads in this speaker's document.

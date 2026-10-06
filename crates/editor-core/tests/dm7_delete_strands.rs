@@ -42,7 +42,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
     applied
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
+            Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::LabelDropped { .. }
@@ -57,7 +57,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
     applied
         .iter()
         .filter_map(|row| match row {
-            Maintenance::StrandedAppearance { name } => Some(name.name().clone()),
+            Maintenance::StrandedAppearance { name, .. } => Some(name.name().clone()),
             Maintenance::Strand { .. }
             | Maintenance::OffsetCleared { .. }
             | Maintenance::LabelDropped { .. }
@@ -700,9 +700,11 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
             Maintenance::Strand {
                 node: doc.spoken(fillet),
                 name: doc.spoken_name(&carried),
+                took: editor_core::Took::Node
             },
             Maintenance::StrandedAppearance {
                 name: doc.spoken_name(&painted),
+                took: editor_core::Took::Node
             },
         ],
         "the payload carriers are walked before the store"
@@ -776,9 +778,11 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
             Maintenance::Strand {
                 node: doc.spoken(mate),
                 name: doc.spoken_name(&head_a),
+                took: editor_core::Took::Node
             },
             Maintenance::StrandedAppearance {
                 name: doc.spoken_name(&painted),
+                took: editor_core::Took::Node
             },
         ],
         "both strand kinds are read at the door, and the delete reports no placement row"

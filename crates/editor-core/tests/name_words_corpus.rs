@@ -1,6 +1,8 @@
 //! **A name's words tell it apart, within a readable sentence**, over
 //! every name the corpus mints (`work/recipe/names-render-a-faces-leaf-
-//! role-in-words.md`, "A name's words tell it apart", ruled on #3906).
+//! role-in-words.md`, "A name's words tell it apart", ruled on #3906;
+//! the gate's shape ruled on #4069, `work/recipe/refusals-with-the-
+//! longest-scoped-names-overrun-the-budget.md`).
 //!
 //! Every node's name table of every corpus document, evaluated once:
 //!
@@ -9,66 +11,66 @@
 //! - the words a speaker holding the evaluation says
 //!   ([`Speaker::within`]) never say two names a node holds alike in
 //!   its whole table, tied names and every body included;
-//! - every refusal that forwards a name, said through the door a frame
-//!   holding the evaluation says it through (`spoken(doc, evaluation)`)
-//!   with the corpus's longest names that door says, meets the refusal
-//!   standard (`test_utils::refusal::problems`), but for the word budget
-//!   of the rows [`OVER_BUDGET`] admits and the recourse marker of the
-//!   rows [`UNMARKED_RECOURSE`] admits;
-//! - the words of every name the corpus holds, in full and scoped, sum
-//!   to [`SAID_WORDS`].
+//! - the names' own lengths hold their ratchet ([`NAME_WORDS`]), and
+//!   every word said holds its digest ([`SAID_DIGEST`]), so a wrong word
+//!   of the same length shows too;
+//! - every refusal that forwards a name, said through the door
+//!   production says it through with the corpus's 90th-percentile name,
+//!   meets the refusal standard (`test_utils::refusal::problems`), but
+//!   for the word budget of the rows [`OVER_BUDGET`] admits and the
+//!   recourse marker of the rows [`UNMARKED_RECOURSE`] admits. The
+//!   longest names' rows are printed, not gated.
 //!
 //! Documents built outside the corpus to attack the joins are held to
 //! the same uniqueness
-//! (`documents_outside_the_corpus_read_apart_too`).
+//! (`documents_outside_the_corpus_read_apart_too`), each Boolean's join
+//! says its operation (`each_boolean_join_says_its_operation`), two
+//! copies of one body read apart where a sentence names a face of each
+//! (`two_copies_of_one_body_read_apart_where_a_sentence_names_both`),
+//! and saying a failed row within the largest table costs no search
+//! after its first saying (`a_failed_row_said_within_the_largest_table_is_cheap_again`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
+use std::time::Instant;
 
 use crate::corpus::{self, Recorder};
 use crate::fixture::{self, len, scl};
 use editor_core::{
     BooleanOp, Diagnosis, EntityKind, EvalOptions, Evaluation, Expr, ExtrudeSide, FaceName,
     HitTestError, InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind,
-    PatternKind, PickHit, ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, SelectRefusal,
-    Speaker, StableName,
+    PatternKind, PickHit, ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg,
+    SelectRefusal, Speaker, StableName,
 };
 
-/// **The rows admitted over the word budget, and the most words each
-/// may render**: a ratchet, so a row that grows fails and a row that
-/// shrinks lowers its number. Each is said as production says it: the
-/// resolve rows forward names their evaluation no longer holds, so in
-/// full; the others, names it holds, within its tables. Filed as
-/// `work/recipe/refusals-with-the-longest-scoped-names-overrun-the-budget.md`.
-const OVER_BUDGET: &[(&str, usize)] = &[
-    ("ResolveError::Vanished", 263),
-    ("ResolveError::NodeGone", 136),
-    ("SelectRefusal::InBand", 106),
-    ("SelectRefusal::TiedDisagrees", 81),
-    ("SelectRefusal::Unreadable", 76),
-    ("SelectRefusal::PairInBand", 145),
-    ("NodeErrorKind::CrossingUnverified", 127),
-    ("HitTestError::Ambiguous", 133),
-];
+/// **The rows admitted over the word budget at the 90th-percentile
+/// name, and the most words each may render**: a ratchet, so a row
+/// that grows fails and a row that shrinks lowers its number.
+const OVER_BUDGET: &[(&str, usize)] = &[("SelectRefusal::PairInBand", 77)];
 
 /// **The rows whose own prose states its recourse in words the standard
-/// does not read as one** ("the repair is an explicit rebind", "aim away
-/// from the shared edge"): the prose's, not the names'. Filed as
+/// does not read as one** ("aim away from the shared edge" is marked;
+/// these are not): the prose's, not the names'. Filed as
 /// `work/wire/refusals-forwarding-a-name-state-no-marked-recourse.md`.
 const UNMARKED_RECOURSE: &[&str] = &[
     "ResolveError::Vanished",
-    "ResolveError::NodeGone",
     "SelectRefusal::TiedDisagrees",
     "SelectRefusal::Unreadable",
     "NodeErrorKind::CrossingUnverified",
-    "HitTestError::Ambiguous",
 ];
 
-/// **The words of every name a corpus node holds itself, summed: in
-/// full, then within its evaluation**. A ratchet over every name, not
-/// only the longest: a row that grows fails, one that shrinks lowers
-/// its number.
-const SAID_WORDS: (usize, usize) = (311_608, 291_146);
+/// **The names' own lengths in words, p50, p99 and max**: a face said
+/// within its table, then every name a node holds said in full. A
+/// ratchet: a number that grows fails, one that shrinks lowers it.
+const NAME_WORDS: [(&str, [usize; 3]); 2] =
+    [("scoped faces", [16, 34, 38]), ("full", [19, 73, 111])];
+
+/// **A digest of every word the corpus's names say** — each name a
+/// node holds, in full from the document, by tag, and within the
+/// evaluation, in the corpus's order: a wrong word of the same length
+/// moves it where [`NAME_WORDS`] cannot see. Re-pinned with the words
+/// that moved, said in the PR that moves them.
+const SAID_DIGEST: u64 = 0x1c20_aa96_ad94_d130;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -82,6 +84,7 @@ impl NameTables for Gone {
 }
 
 /// A name said, its words counted, with the document it was said from.
+#[derive(Clone)]
 struct Counted {
     words: usize,
     doc: usize,
@@ -99,6 +102,8 @@ struct Census {
     scoped: Vec<(usize, StableName)>,
     /// Every full form said, for what a join says.
     said: Vec<String>,
+    /// Every form of every name a node holds itself, in order.
+    every: Vec<String>,
 }
 
 /// Every name of every node's table of `doc`, said in full (from the
@@ -113,8 +118,9 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
         let mut groups: [BTreeMap<String, usize>; 3] = Default::default();
         for (name, _) in value.name_table.iter() {
             let said = full.name(name).to_string();
+            let by_tag = name.to_string();
             *groups[0].entry(said.clone()).or_default() += 1;
-            *groups[1].entry(name.to_string()).or_default() += 1;
+            *groups[1].entry(by_tag.clone()).or_default() += 1;
             // A name another node holds is said within that node's
             // table, which a pass-through repeats row for row.
             if name.node != id {
@@ -126,7 +132,8 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
                 .push((said.split_whitespace().count(), name.clone()));
             out.scoped
                 .push((within.split_whitespace().count(), name.clone()));
-            *groups[2].entry(within).or_default() += 1;
+            *groups[2].entry(within.clone()).or_default() += 1;
+            out.every.extend([said.clone(), by_tag, within]);
             out.said.push(said);
         }
         for (form, group) in ["from the document", "by tag", "within the evaluation"]
@@ -144,6 +151,43 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
     out
 }
 
+/// FNV-1a over `said`, each string ended by a zero byte.
+fn digest<'a>(said: impl IntoIterator<Item = &'a String>) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for text in said {
+        for byte in text.bytes().chain([0]) {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    hash
+}
+
+/// p50, p99 and max of `names`' words.
+fn spread(names: &[Counted]) -> [usize; 3] {
+    let mut words: Vec<usize> = names.iter().map(|n| n.words).collect();
+    words.sort_unstable();
+    let at = |q: usize| words[(words.len() - 1) * q / 100];
+    [at(50), at(99), at(100)]
+}
+
+/// The name at the `q`th percentile of `names` by words, and the
+/// nearest other name of its document, for a row that names two.
+fn at_percentile(names: &[Counted], q: usize) -> (Counted, Counted) {
+    let mut sorted = names.to_vec();
+    sorted.sort_by_key(|n| n.words);
+    let at = (sorted.len() - 1) * q / 100;
+    let one = sorted[at].clone();
+    let two = (1..sorted.len())
+        .flat_map(|d| [at.checked_add(d), at.checked_sub(d)])
+        .flatten()
+        .filter_map(|i| sorted.get(i))
+        .find(|other| other.doc == one.doc)
+        .expect("a document holds two names")
+        .clone();
+    (one, two)
+}
+
 #[test]
 fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
     let mut docs = corpus::documents();
@@ -155,11 +199,13 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
         .collect();
     let mut alike = Vec::new();
     let mut said = Vec::new();
+    let mut every = Vec::new();
     let (mut full, mut scoped) = (Vec::new(), Vec::new());
     for (di, (d, ev)) in docs.iter().zip(&evals).enumerate() {
         let one = census(d.name, &d.doc, ev);
         alike.extend(one.alike);
         said.extend(one.said);
+        every.extend(one.every);
         let counted = |(words, name)| Counted {
             words,
             doc: di,
@@ -175,43 +221,57 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
     );
 
     // A boolean's B is said by its operation, never by the node's kind.
-    assert!(
-        said.iter().any(|s| s.contains(", cut in at Subtract ")),
-        "the corpus cuts a pocket, and its walls say the Subtract that cut them in"
-    );
     let by_kind: Vec<&String> = said.iter().filter(|s| s.contains(" at Boolean ")).collect();
     assert!(
         by_kind.is_empty(),
         "a join says the Boolean's kind, not its operation: {by_kind:?}"
     );
 
-    let sum = |names: &[Counted]| names.iter().map(|n| n.words).sum::<usize>();
-    let words = (sum(&full), sum(&scoped));
-    println!("the words of every name, in full and scoped: {words:?}");
-    assert!(
-        words == SAID_WORDS,
-        "the corpus's names say {words:?} words, in full and scoped; SAID_WORDS pins \
-         {SAID_WORDS:?}: a count that grew is a regression, one that shrank lowers the pin"
-    );
+    let faces: Vec<Counted> = scoped
+        .iter()
+        .filter(|n| n.name.kind == EntityKind::Face)
+        .cloned()
+        .collect();
+    let words = [("scoped faces", spread(&faces)), ("full", spread(&full))];
+    let hash = digest(&every);
+    println!("the names' words, p50 p99 max: {words:?}; digest {hash:#018x}");
+    let mut moved = Vec::new();
+    if words != NAME_WORDS {
+        moved.push(format!(
+            "the names say {words:?} words (p50, p99, max); NAME_WORDS pins {NAME_WORDS:?}: \
+             a number that grew is a regression, one that shrank lowers the pin"
+        ));
+    }
+    if hash != SAID_DIGEST {
+        moved.push(format!(
+            "the names' words digest to {hash:#018x}; SAID_DIGEST pins {SAID_DIGEST:#018x}: \
+             some name says another word — re-pin it with the words that moved"
+        ));
+    }
+    assert!(moved.is_empty(), "{}", moved.join("\n"));
 
-    full.sort_by_key(|said| core::cmp::Reverse(said.words));
-    scoped.sort_by_key(|said| core::cmp::Reverse(said.words));
+    // The tail: printed, not gated.
+    for (form, names, tables) in [("full", &full, false), ("scoped faces", &faces, true)] {
+        let (one, two) = at_percentile(names, 100);
+        let (doc, ev) = (&docs[one.doc].doc, &evals[one.doc]);
+        let tables: &dyn NameTables = if tables { ev } else { &Gone };
+        for (row, text) in refusals(&one.name, &two.name, doc, tables) {
+            println!(
+                "the longest {form} names, {row}: {} words",
+                text.split_whitespace().count()
+            );
+        }
+    }
+
+    // The gate: each row at the 90th-percentile name. The bare resolve
+    // rows say a name no table holds, so in full; the rest a face its
+    // evaluation holds, within it.
     let mut rows = Vec::new();
-    // The resolve rows forward names their evaluation no longer holds,
-    // so in full, over the two longest one document holds; every other
-    // row a face its evaluation holds, so within it, over the two
-    // longest face names one document holds.
-    for (resolve, names) in [(true, &full), (false, &scoped)] {
-        let mut kept = names
-            .iter()
-            .filter(|said| resolve || said.name.kind == EntityKind::Face);
-        let one = kept.next().expect("the corpus names a face");
-        let two = kept
-            .find(|other| other.doc == one.doc)
-            .expect("the longest-named document holds two names");
+    for (resolve, names) in [(true, &full), (false, &faces)] {
+        let (one, two) = at_percentile(names, 90);
         let (doc, ev) = (&docs[one.doc].doc, &evals[one.doc]);
         println!(
-            "the longest names {}: {} words, {} words",
+            "the p90 names {}: {} words, {} words",
             if resolve { "in full" } else { "scoped" },
             one.words,
             two.words,
@@ -223,10 +283,11 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
                 .filter(|(row, _)| row.starts_with("ResolveError::") == resolve),
         );
     }
+    rows.extend(slot_rows(&docs, &evals));
     let mut over = Vec::new();
     for (row, text) in &rows {
         let words = text.split_whitespace().count();
-        println!("{row}: {words} words");
+        println!("{row}: {words} words: {text}");
         let allowed: &[&str] = match row.split("::").next() {
             Some("SelectRefusal") => &["select"],
             Some("HitTestError") => &["hit test"],
@@ -270,17 +331,52 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
     }
     assert!(
         over.is_empty(),
-        "a refusal forwarding the corpus's longest names misses the standard:\n{}",
+        "a refusal forwarding the corpus's 90th-percentile names misses the standard:\n{}",
         over.join("\n")
     );
 }
 
+/// **A node's resolve failure says which slot**: a corpus fillet's
+/// first selected edge, stranded, as the tree row says it.
+fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'static str, String)> {
+    let (doc, ev, fillet, edge) = docs
+        .iter()
+        .zip(evals)
+        .find_map(|(d, ev)| {
+            d.doc.order().iter().find_map(|&id| match d.doc.node(id) {
+                Some(Node::Fillet { selection, .. }) => {
+                    Some((&d.doc, ev, id, selection.first()?.clone()))
+                }
+                _ => None,
+            })
+        })
+        .expect("the corpus fillets an edge");
+    let stranded = NodeError {
+        node: fillet,
+        kind: NodeErrorKind::BlendSelectionResolve {
+            verb: sweep::blend::BlendKind::Fillet,
+            error: Box::new(ResolveError::NodeGone {
+                name: edge.clone(),
+                edit: RecipeEditRef::NodeDeleted { node: edge.node },
+            }),
+        },
+        escalations: Default::default(),
+    }
+    .spoken(doc, ev);
+    assert!(
+        stranded.contains("this fillet's edge 0 is stranded: "),
+        "the row says the slot: {stranded}"
+    );
+    vec![("NodeErrorKind::BlendSelectionResolve", stranded)]
+}
+
 /// Every refusal production says that forwards a name, naming `a` (and
 /// `b` where it names two), through the door a frame holding the
-/// evaluation says it through: `spoken(doc, tables)`. The three kind
-/// refusals of `NodeErrorKind` carry a kind only evaluation constructs,
-/// so they are not here; each says its name in a sentence shorter than
-/// `InBand`'s.
+/// evaluation says it through: `spoken(doc, tables)`. The pick tie is
+/// the status line's too (`frame::pick_refusal` says the refusal's own
+/// words). The three kind refusals of `NodeErrorKind`
+/// carry a kind only evaluation constructs, so they are not here; each
+/// says its name in a sentence shorter than `InBand`'s.
 fn refusals(
     a: &StableName,
     b: &StableName,
@@ -314,6 +410,7 @@ fn refusals(
     vec![
         (
             "ResolveError::Vanished",
+            // The upstream name is one `a` cites, said by its kind.
             ResolveError::Vanished {
                 name: a.clone(),
                 diagnosis: Diagnosis::Cascade { through: b.clone() },
@@ -359,6 +456,7 @@ fn refusals(
             "SelectRefusal::PairInBand",
             SelectRefusal::PairInBand {
                 pair: Box::new((a.clone(), b.clone())),
+                at: (a.node, b.node),
                 predicate: "bool_plane_offset",
                 source: band(),
             }
@@ -642,4 +740,163 @@ fn respoken_after_a_dropped_step() {
         "a kept step that moved is said at its new row: {respoken}"
     );
     assert_eq!(respoken, moved.spoken_name(&crease).to_string());
+}
+
+/// **Each Boolean's B join says its operation**: a pin cut in, joined
+/// and intersected at a Boolean of each operation, every name the
+/// Boolean carries through its B saying the operation and the node.
+#[test]
+fn each_boolean_join_says_its_operation() {
+    for (op, verb, noun) in [
+        (BooleanOp::Subtract, "cut in", "Subtract"),
+        (BooleanOp::Union, "joined", "Union"),
+        (BooleanOp::Intersect, "intersected", "Intersect"),
+    ] {
+        let mut r = Recorder::new();
+        let (block, pin) = block_and_pin(&mut r);
+        let at = boolean(&mut r, op, block, pin);
+        let ev = fixture::run(&r.doc, &EvalOptions::default());
+        let table = &ev
+            .value(at)
+            .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
+            .name_table;
+        let by = Speaker::of(&r.doc);
+        let join = format!(", {verb} at {noun} {}", test_utils::refusal::tag(at.0));
+        let through_b: Vec<String> = table
+            .iter()
+            .map(|(name, _)| name)
+            .filter(|name| matches!(name.path.as_slice(), [RoleSeg::FromB(_)]))
+            .map(|name| by.name(name).to_string())
+            .collect();
+        assert!(
+            !through_b.is_empty(),
+            "{op:?}: the pin's faces come through B"
+        );
+        for said in &through_b {
+            assert!(said.ends_with(&join), "{op:?}: {said}");
+        }
+    }
+}
+
+/// **Two copies of one body read apart where a sentence names a face of
+/// each**: the copies' faces carry names alike, since a name says the
+/// node that made it and not the node holding it, so the flush query's
+/// in-band pair and the pick's tie say each face's node.
+#[test]
+fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
+    let mut r = Recorder::new();
+    let block = r.profile([0.0; 3], XY.0, XY.1, vec![square(0.5, 0.5, 0.5)]);
+    let block = extrude(&mut r, block, 1.0);
+    let one = moved(&mut r, block, [0.0, 0.0, 0.0]);
+    let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
+    let doc = r.doc;
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    let findings = editor_core::find_flush_candidates(&ev, one, two, fixture::tol())
+        .expect("the copies' flush faces are decided");
+    let alike = findings
+        .iter()
+        .find(|finding| finding.pair.0.name == finding.pair.1.name)
+        .expect("the copies' end caps lie flush, and carry one name");
+    let face = alike.pair.0.name.clone();
+    let by = Speaker::of(&doc).within(&ev);
+    let (at_one, at_two) = (doc.spoken(one).to_string(), doc.spoken(two).to_string());
+    let band = geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::value(3e-11),
+        band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
+        predicate: Some("bool_plane_offset"),
+        terminal_sliver: false,
+    };
+    let pair = SelectRefusal::PairInBand {
+        pair: Box::new((face.clone(), face.clone())),
+        at: (one, two),
+        predicate: "bool_plane_offset",
+        source: band,
+    }
+    .spoken(&doc, &ev);
+    let hit = |node| PickHit {
+        name: face.clone(),
+        node,
+        body: 0,
+        t: 1.0,
+        t_lo: 1.0,
+        t_hi: 1.0,
+        point: geom_core::Point3::new(0.0, 0.0, 0.0),
+    };
+    let tie = HitTestError::Ambiguous {
+        hits: vec![hit(one), hit(two)],
+    }
+    .spoken(&doc, &ev);
+    let said = by.name(&face).to_string();
+    for text in [&pair, &tie] {
+        assert!(
+            text.contains(&format!("{said} on {at_one}"))
+                && text.contains(&format!("{said} on {at_two}")),
+            "each face is said with the copy holding it: {text}"
+        );
+    }
+}
+
+/// **A failed row said within the largest corpus table costs no search
+/// again**: the tree says a failed node's row every frame, and the
+/// detail each name is said at is worked out once per table. Measured
+/// on the corpus's largest table: the first saying pays the table's
+/// search, every later one says words alone.
+#[test]
+fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
+    let mut docs = corpus::documents();
+    docs.push(corpus::cup::document());
+    docs.push(corpus::vessel::document());
+    let (doc, ev, node) = docs
+        .iter()
+        .map(|d| (&d.doc, fixture::run(&d.doc, &EvalOptions::default())))
+        .filter_map(|(doc, ev)| {
+            let node = doc
+                .order()
+                .iter()
+                .copied()
+                .filter(|&id| ev.value(id).is_some())
+                .max_by_key(|&id| ev.value(id).map_or(0, |v| v.name_table.iter().count()))?;
+            Some((doc, ev, node))
+        })
+        .max_by_key(|(_, ev, node)| ev.value(*node).map_or(0, |v| v.name_table.iter().count()))
+        .expect("the corpus evaluates");
+    let faces: Vec<StableName> = ev
+        .value(node)
+        .expect("the largest table's node")
+        .name_table
+        .iter()
+        .map(|(name, _)| name.clone())
+        .filter(|name| name.node == node && name.kind == EntityKind::Face)
+        .collect();
+    let row = |a: &StableName, b: &StableName| {
+        NodeError {
+            node,
+            kind: NodeErrorKind::CrossingUnverified {
+                instance: node,
+                outer: Box::new(FaceName::new(a.clone()).expect("a face")),
+                name: Box::new(b.clone()),
+            },
+            escalations: Default::default(),
+        }
+        .spoken(doc, &ev)
+    };
+    let (a, b) = (&faces[0], &faces[faces.len() - 1]);
+    let first = Instant::now();
+    let said = row(a, b);
+    let first = first.elapsed();
+    const FRAMES: u32 = 60;
+    let again = Instant::now();
+    for _ in 0..FRAMES {
+        assert_eq!(row(a, b), said, "the row says the same words each frame");
+    }
+    let again = again.elapsed() / FRAMES;
+    println!(
+        "{} names in the largest table: the first saying {first:?}, each later one {again:?}",
+        ev.value(node).map_or(0, |v| v.name_table.iter().count())
+    );
+    assert!(
+        again * 4 < first,
+        "a later saying searches the table again: the first took {first:?}, each later one \
+         {again:?}"
+    );
 }

@@ -234,7 +234,6 @@ use pncad::document::{
     ResolveFault, Said, SlotId, Speaker, VarName,
 };
 use pncad::quantity::LengthUnit;
-use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
 use crate::camera::CameraError;
@@ -2117,13 +2116,9 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 /// subject is for a message ABOUT what lies under the pointer, which
 /// is [`crate::idpass::Disagreement`]'s.
 ///
-/// # The certified tie is re-worded here
-///
-/// The kernel's own [`HitTestError::Ambiguous`] points its reader at
-/// the tied faces its typed payload lists in full. A status line has no
-/// payload to open, so this door says the tie itself, each face in its
-/// words, which tell the faces of one table apart. Every other arm is
-/// the typed refusal's own words, unaltered.
+/// The refusal's own words, each tied face among them: a tie says
+/// each face and the node it was hit on, so two copies of one body
+/// read apart on the line.
 ///
 /// `landed` is the landed document the index was built against and its
 /// evaluation: each node is said as that document holds it, each name
@@ -2136,25 +2131,9 @@ pub fn pick_refusal(
 ) -> Message {
     let (doc, evaluation) = landed;
     let by = Speaker::of(doc).within(evaluation);
-    let PickError::HitTest(HitTestError::Ambiguous { hits }) = error else {
-        return Message::new(
-            Subject::Document,
-            Said(error, by).to_string(),
-            Retold::Again,
-        );
-    };
-    let tied: Vec<String> = hits
-        .iter()
-        .map(|hit| by.name(&hit.name).to_string())
-        .collect();
     Message::new(
         Subject::Document,
-        format!(
-            "the ray is tied between {} faces the arithmetic cannot order — {} — so the pick \
-             names none of them; aim away from the shared edge, or choose one of the tied faces",
-            tied.len(),
-            tied.join(", ")
-        ),
+        Said(error, by).to_string(),
         Retold::Again,
     )
 }

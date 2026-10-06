@@ -636,7 +636,8 @@ class SelectRefusal(PncadError):
     `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
     `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
-    inapplicable: `name` (the candidate's opaque name text),
+    inapplicable: `name` (the candidate's opaque name text, a flush
+    pair's first face), `other` (a flush pair's second face),
     `predicate` (the funnel site), `matched`/`candidates` (a tied
     name's disagreement counts), `datum` (the non-datum reference, or
     the datum with no value), `found` (what it evaluated to),
@@ -644,6 +645,7 @@ class SelectRefusal(PncadError):
 
     reason: str
     name: Optional[str]
+    other: Optional[str]
     predicate: Optional[str]
     matched: Optional[int]
     candidates: Optional[int]

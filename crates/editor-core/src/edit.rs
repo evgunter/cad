@@ -3518,6 +3518,8 @@ pub enum Maintenance {
         /// removed, or its locator names a step a reshaping dropped or
         /// a kept step's piece it stopped drawing.
         name: SpokenName,
+        /// Which of those the edit took.
+        took: Took,
     },
     /// **An appearance attachment this edit stranded** (DM7): the
     /// document's appearance store holds an attribute under `name`,
@@ -3540,8 +3542,10 @@ pub enum Maintenance {
     StrandedAppearance {
         /// The key the store holds the attachment under: its `node` is
         /// the id a delete removed, or its locator names a step a
-        /// reshaping dropped.
+        /// reshaping dropped or a kept step's piece it stopped drawing.
         name: SpokenName,
+        /// Which of those the edit took.
+        took: Took,
     },
     /// **An anonymous variable this edit removed** (VR7): the edit
     /// detached the last expression reading it, and a variable with no
@@ -3563,6 +3567,30 @@ pub enum Maintenance {
     },
 }
 
+/// **What an edit took from a name it stranded** ([`Maintenance::Strand`],
+/// [`Maintenance::StrandedAppearance`]), said in the row: the node that
+/// minted it (a delete), a profile step it names (a reshaping that
+/// dropped the step), or a piece a kept step stopped drawing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Took {
+    /// The node that minted the name was deleted.
+    Node,
+    /// A profile step the name names was dropped.
+    Step,
+    /// A step the name names was kept and no longer draws its piece.
+    Piece,
+}
+
+impl core::fmt::Display for Took {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Node => "deleted the node that made it",
+            Self::Step => "dropped a profile step it names",
+            Self::Piece => "kept a step it names but no longer draws that piece",
+        })
+    }
+}
+
 impl core::fmt::Display for Maintenance {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -3573,18 +3601,13 @@ impl core::fmt::Display for Maintenance {
                 i = instance
             ),
             // The sentence names what was taken as the name's
-            // REFERENT — a node under a delete, a profile step or a kept
-            // step's piece under a reshaping — because the row does not
-            // say which edit made it and must not claim the node is gone
-            // when the step is, nor the step when only its piece is.
-            // "the end cap of node 7, which this edit deleted" would
-            // read as though the name were deleted, and the name is
-            // exactly what survives.
-            Self::Strand { node, name } => write!(
+            // REFERENT ([`Took`]): "the end cap of node 7, which this
+            // edit deleted" would read as though the name were deleted,
+            // and the name is exactly what survives.
+            Self::Strand { node, name, took } => write!(
                 f,
-                "{} carries a name for {}; this edit took what it denoted (a node or profile \
-                 step it names, or a piece a kept step no longer draws), so the name resolves \
-                 to nothing until it is rebound",
+                "{} carries a name for {}; this edit {took}, so the name resolves to nothing \
+                 until it is rebound",
                 node, name
             ),
             // The same sentence with the store where the carrying
@@ -3592,12 +3615,10 @@ impl core::fmt::Display for Maintenance {
             // is still there and what took its referent. A store holds
             // a thing UNDER a key, and the key is a name for the
             // entity `SpokenName`'s Display says.
-            Self::StrandedAppearance { name } => write!(
+            Self::StrandedAppearance { name, took } => write!(
                 f,
                 "the appearance store holds an attachment under a name for {}; this edit \
-                 took what it denoted (a node or profile step it names, or a piece a kept \
-                 step no longer draws), so the name resolves to nothing until it is rebound \
-                 or cleared",
+                 {took}, so the name resolves to nothing until it is rebound or cleared",
                 name
             ),
             Self::LabelDropped { gauge, label } => write!(
@@ -3673,9 +3694,11 @@ fn stranded_references<P: crate::ProfilePayload>(
             NameCarrier::Payload { node, name } => Maintenance::Strand {
                 node: before.spoken(node),
                 name: before.spoken_name(name),
+                took: Took::Node,
             },
             NameCarrier::Store { name } => Maintenance::StrandedAppearance {
                 name: before.spoken_name(name),
+                took: Took::Node,
             },
         })
         .collect()
@@ -3809,22 +3832,27 @@ fn stranded_steps<P: crate::ProfilePayload>(
     let mut strands = Vec::new();
     let mut keys = Vec::new();
     for carrier in doc.name_carriers() {
-        let gone = carrier
-            .name()
-            .step_pieces()
+        let pieces = carrier.name().step_pieces();
+        let took = if pieces
             .iter()
-            .any(|p| undrawn.contains(p) || p.step().is_some_and(|s| dropped.contains(&s)));
-        if !gone {
+            .any(|p| p.step().is_some_and(|s| dropped.contains(&s)))
+        {
+            Took::Step
+        } else if pieces.iter().any(|p| undrawn.contains(p)) {
+            Took::Piece
+        } else {
             continue;
-        }
+        };
         match carrier {
             NameCarrier::Payload { node, name } => strands.push(Maintenance::Strand {
                 node: before.spoken(node),
                 name: before.spoken_name(name).steps_respoken(doc),
+                took,
             }),
             NameCarrier::Store { name } => {
                 keys.push(Maintenance::StrandedAppearance {
                     name: before.spoken_name(name).steps_respoken(doc),
+                    took,
                 });
             }
         }
@@ -3976,10 +4004,10 @@ impl MaintenanceNet {
         self.rows
             .into_iter()
             .filter(|row| match row {
-                Maintenance::Strand { node, name } => end
+                Maintenance::Strand { node, name, .. } => end
                     .node(node.id())
                     .is_some_and(|carrier| carrier.payload_names().contains(&name.name())),
-                Maintenance::StrandedAppearance { name } => {
+                Maintenance::StrandedAppearance { name, .. } => {
                     end.appearance().contains_key(name.name())
                 }
                 Maintenance::OffsetCleared { instance, .. } => matches!(

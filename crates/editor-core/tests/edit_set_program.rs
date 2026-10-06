@@ -478,6 +478,7 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
         vec![Maintenance::Strand {
             node: r.doc.spoken(fillet),
             name: r.doc.spoken_name(&crease).steps_respoken(&applied.doc),
+            took: editor_core::Took::Step
         }],
         "the crease's name strands, its dropped step said by its tag"
     );
@@ -572,7 +573,8 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::StrandedAppearance {
-            name: doc.spoken_name(&arc).steps_respoken(&applied.doc)
+            name: doc.spoken_name(&arc).steps_respoken(&applied.doc),
+            took: editor_core::Took::Step
         }],
         "the paint on the dropped step's arc strands"
     );
@@ -672,9 +674,11 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys() {
             Maintenance::Strand {
                 node: doc.spoken(frame),
                 name: doc.spoken_name(&right).steps_respoken(&applied.doc),
+                took: editor_core::Took::Step
             },
             Maintenance::StrandedAppearance {
-                name: doc.spoken_name(&right).steps_respoken(&applied.doc)
+                name: doc.spoken_name(&right).steps_respoken(&applied.doc),
+                took: editor_core::Took::Step
             },
         ]
     );
@@ -1689,8 +1693,12 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
             Maintenance::Strand {
                 node: doc.spoken(frame),
                 name: said.clone(),
+                took: editor_core::Took::Piece
             },
-            Maintenance::StrandedAppearance { name: said },
+            Maintenance::StrandedAppearance {
+                name: said,
+                took: editor_core::Took::Piece
+            },
         ],
         "the kept leg's names strand: the frame's, then the paint's"
     );
@@ -1766,6 +1774,7 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
         vec![Maintenance::Strand {
             node: doc.spoken(frame),
             name: doc.spoken_name(&up).steps_respoken(after),
+            took: editor_core::Took::Piece,
         }]
     };
 
@@ -1823,6 +1832,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
         vec![Maintenance::Strand {
             node: doc.spoken(frame),
             name: doc.spoken_name(&run_out),
+            took: editor_core::Took::Piece
         }],
         "the reshaping strands the run its value leaves undrawn"
     );
@@ -1867,6 +1877,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
         fewer.maintenance,
         vec![Maintenance::StrandedAppearance {
             name: doc.spoken_name(&wall_by(ext, hole, PieceRole::Piece(3))),
+            took: editor_core::Took::Piece
         }],
         "the count strands the piece it stops drawing, and only it"
     );
@@ -2005,7 +2016,7 @@ fn report_matches_resolution(
         .maintenance
         .iter()
         .map(|m| match m {
-            Maintenance::Strand { name, .. } | Maintenance::StrandedAppearance { name } => {
+            Maintenance::Strand { name, .. } | Maintenance::StrandedAppearance { name, .. } => {
                 name.name().clone()
             }
             other => panic!("{label}: a reshaping reports only strands, got {other:?}"),
@@ -2444,11 +2455,13 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
         if n.kind == EntityKind::Face {
             Maintenance::StrandedAppearance {
                 name: doc.spoken_name(n).steps_respoken(after),
+                took: editor_core::Took::Step,
             }
         } else {
             Maintenance::Strand {
                 node: doc.spoken(blend),
                 name: doc.spoken_name(n).steps_respoken(after),
+                took: editor_core::Took::Step,
             }
         }
     };
