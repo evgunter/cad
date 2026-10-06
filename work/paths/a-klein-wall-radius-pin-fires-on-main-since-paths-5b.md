@@ -2,7 +2,8 @@
 id: a-klein-wall-radius-pin-fires-on-main-since-paths-5b
 kind: issue
 title: demo-tour's Klein findings-entry-10 pin fires on main since PR 3774: every eps_regression row is red
-status: open
+status: closed
+closed: 2026-10-06
 opened: 2026-10-06
 priority: P0
 cost: E
@@ -43,3 +44,11 @@ courtesy (`work/suite/program.md`), so tell SHELL.
 
 Before deleting, confirm that both radii now equal the authored
 `R + WALL/2`, not two equal wrong values.
+
+## Closed (2026-10-06)
+
+Fixed on main by 65b1b0a8 ("demos/tour: port the klein tripwire's
+retirement", SHELL, PR 4168). Both outer walls now carry the authored
+radius. Findings entry 10 and its pin are retired, and the
+two-hole-plate tolerance study that PR 3774 moved is re-baselined
+there. That commit also records that PR 3774's CI skipped demos.

@@ -530,3 +530,8 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   and it is filed on PATHS as
   `a-klein-wall-radius-pin-fires-on-main-since-paths-5b` (P0). PR 3953
   and PR 4108 stay held on both main reds.
+- 2026-10-06 — Both main reds are fixed on main. JOIN's 1e-6 row was
+  folded and closed in PR 4083 (cleave/ray-walk), and the Klein
+  tripwire was retired in 65b1b0a8 (SHELL, PR 4168). The PATHS row the
+  orchestrator filed is closed against that commit. PR 3953 and
+  PR 4108 are told to merge main and land when green.
