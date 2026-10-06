@@ -59,7 +59,8 @@ pub enum ContainError {
     /// A margin landed in the sliver band — the pair is
     /// ill-conditioned at this ε.
     Escalated(Indeterminate),
-    /// The ray-parity schedule exhausted (every ray grazed).
+    /// Every ray of the walk's schedule grazed — a planar loop's, or a
+    /// sphere face's region ([`super::sphere_region`]).
     RayExhausted,
     /// The face the caller passed does not resolve in this body.
     StaleFace(FaceKey),
@@ -94,7 +95,7 @@ impl From<PointInLoopError> for ContainError {
 // Each arm names WHAT STOPPED, and the repair that moves it where one
 // does, because a consumer that carries this refusal renders it verbatim
 // and adds no sentence of its own. `RayExhausted` and `Uncrossable` want
-// different repairs — move the point or lower ε, re-model the loop — so
+// different repairs — move the geometry, re-model the loop — so
 // one shared tail would name the wrong one.
 //
 // `Escalated` and `Curved` delegate to the carried value's own

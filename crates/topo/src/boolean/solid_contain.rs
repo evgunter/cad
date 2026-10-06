@@ -103,8 +103,9 @@
 //! - The in-face walk's rows are its own module's (`point_in_loop_*`
 //!   for a loop of lines, `point_in_arc_loop_*` for a loop with arcs —
 //!   [`crate::splitting::containment::point_in_loop`] lists them).
-//! - **`bool_point_in_solid_order`**: `t − t_best` (closest-hit
-//!   selection; Zero ⇒ tie ⇒ graze, retry). The winning crossing's
+//! - **`bool_point_in_solid_order`**: two crossings' advances, the
+//!   least found and every other asked against it (Zero ⇒ a tie with
+//!   the closest ⇒ graze, retry). The winning crossing's
 //!   already-decided `denom` sign is the In/Out verdict — no second
 //!   decision on the same margin.
 //! - **`bool_ray_sphere_disc`**: the ray/sphere discriminant, metered
@@ -284,8 +285,9 @@ pub enum PointInSolidError {
     /// depends on the body's orientation. A body whose volume the props
     /// lane cannot certify (a curved face outside its closed-form
     /// inventory — the shapes `topo::ValidationError::VolumeUncomputable`
-    /// breaks down by source) leaves that question unanswerable, and
-    /// this says so rather than reporting a HEALTHY body as broken.
+    /// breaks down by source) leaves that question unanswerable along
+    /// that ray, and where no ray of the schedule decides, this says so
+    /// rather than reporting a HEALTHY body as broken.
     VolumeUncertified,
     /// A `Sphere` face that is not closed on its own surface and has a
     /// boundary edge that is not a circle arc.
@@ -5276,10 +5278,18 @@ fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
         // Closest crossing exits material (d·n > 0) ⇒ q is In.
         Some((Sign::Positive, _)) => Ok(SolidContainment::In),
         Some(_) => Ok(SolidContainment::Out),
-        // No crossing: q is on the at-infinity side (module docs).
+        // No crossing: q is on the at-infinity side (module docs). Where
+        // the body's volume cannot say which side that is, a ray that
+        // meets the boundary still can.
         None => match sel.at_infinity {
             Some(side) => Ok(side),
-            None => at_infinity_side(body, faces, band, tol).map_err(RayFault::Fatal),
+            None => at_infinity_side(body, faces, band, tol).map_err(|e| match e {
+                PointInSolidError::Escalated { .. } => RayFault::InBand(e),
+                PointInSolidError::VolumeUncertified | PointInSolidError::ZeroVolumeBody => {
+                    RayFault::Blocked(e)
+                }
+                e => RayFault::Fatal(e),
+            }),
         },
     }
 }
