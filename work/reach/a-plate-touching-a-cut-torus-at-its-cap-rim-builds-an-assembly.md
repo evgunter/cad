@@ -49,8 +49,10 @@ refuse with `Coincidence(EdgeOnPlane, Moot)` or
 
 `crates/sweep/tests/operand_gate_support_plates.rs` excludes this case
 from its disjoint-at-touch check (the 270° torus, a cut direction,
-`δ = 0`). It still samples those results' membership. Dropping the
-exclusion turns that row red at the six cases above.
+`δ = 0`). It still samples those results' membership. The row draws the first
+six of the probe's directions, so two of the six cases above are in it.
+Dropping the exclusion turns it red at ε 1e-9 at exactly those two,
+`s = 10³` dir 1 and dir 4, in ∪ (both orders) and ∩.
 
 ## Hold
 
