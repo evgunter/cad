@@ -4788,6 +4788,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band, tol)?;
             let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+            crate::pcurves::mint_pcurves(&mut body, tol)
+                .map_err(|source| BooleanError::Pcurves { source })?;
             let carried = split_lineage(red, decls, band)?;
             let contacts = carry(
                 &body,
@@ -4849,6 +4851,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;
     let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    crate::pcurves::mint_pcurves(&mut body, tol)
+        .map_err(|source| BooleanError::Pcurves { source })?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
