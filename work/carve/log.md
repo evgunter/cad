@@ -212,3 +212,38 @@ were blinded at dispatch on `analysis/design-fork/carve-2026-10-06`:
 - `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself`.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-06 — the three design rows weighed; everything weighed is built, none went to Ev
+
+All three designer pairs reached one recommendation, and none of them
+changes text Ev ratified, so none became an `[ev]` PR or a fork-log row.
+
+- **`Intersection`'s pair is unordered.** The two designers agreed in
+  round 0. They split on one detail, whether the constructor refuses
+  equal keys; the orchestrator kept the refusal at the certification
+  door (D4). Built: `carve/surface-pair-is-unordered`, a cloud session.
+- **The loft's v is a function of the whole section set** (Eq. 10.8
+  over every control row, summed in sorted order), and **a sweep's v
+  is its path parameter.** Converged in round 0. Built:
+  `carve/loft-v-is-the-whole-sets`.
+- **A loft promises an embedded boundary, certified at its door.**
+  Round 0 split. Round 1 crossed on the reversed list, so a second
+  round followed (the 2026-09-30 crossover rule), and the pair
+  converged: the contract is embedding, the instrument is the clearance
+  engine in `topo` at a certifying scalar, the f64 lane certifies by an
+  exact lift once its price is measured, the stacking fold retires, and
+  a reversed list builds. The interim the pair agreed on (the fold also
+  reads the far normal) is built as `carve/fold-reads-the-far-normal`
+  and closes `two-section-loft-with-an-inverted-top-normal-builds`.
+  `self-overlapping-spines-build-and-validate` becomes the
+  door-certificate unit, parked on SHELL-3 and on two rows filed on
+  CLEAR today. CARVETAIL's opposite-turning-joint row is re-parked from
+  the D10 hold onto it. Retiring the fold changes S-BOOL's Q2, an agent
+  recommendation (#1373) with no wording of Ev's found. The f64 lift
+  sits beside Ev's #1737 ruling for `shell`, so Ev is told now and again
+  when the certificate unit is specified.
+
+The coincident-sections lane was steered by message: the sliver
+decision lives in `skin.rs`, not in the fold, which retires.
+
+Signed: (CARVE orchestrator)
