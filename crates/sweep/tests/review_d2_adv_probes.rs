@@ -386,7 +386,6 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::Escalated { .. } => "Escalated",
         BlendError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
         BlendError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
-        BlendError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",
         BlendError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
@@ -533,58 +532,45 @@ fn d2_reached_variants() {
 /// resumable*, so a caller who discards the `Err` hands `fillet_edges`
 /// a tier-1-invalid body with no kernel bug in the trace.
 ///
-/// Every such site sits BELOW `blend_surgery`'s entry gate
-/// (`solids != 1 || shells != 1` — `blend_surgery`'s entry gate in
-/// `blend/surgery.rs`). This row pins
-/// the arithmetic that decides whether the witness can get there in
-/// the scenario the refutation describes — *a caller keeps the body it
-/// already had*: a graft ADDS a solid (`graft_disjoint_all_keyed`
-/// mints one empty destination solid per source solid before any
-/// fallible step), so a destination that already held a solid never
-/// presents as one solid with one shell afterwards, spent or whole,
-/// and the door refuses
-/// `UnsupportedBody` above all 46 sites.
+/// The surgery reads only the shells the request's chains lie in
+/// (`blend_surgery`'s `chain_shell`), so what a graft adds beside a
+/// shell is never read when that shell is blended. This row pins the
+/// whole graft's side of that: the destination's own cube, requested
+/// whole, carves inside its shell and the grafted cube rides through.
 ///
-/// It does NOT close the question: a graft into an EMPTY destination
-/// that failed mid-transplant would leave one solid and one shell and
-/// would pass the gate. No such failure is reachable today —
-/// `graft_disjoint_all` runs `Bridge::RemapKeys`, which returns before
-/// the `GraftRecertify` its own docs name (`combine.rs:357`), and every
-/// remaining `JoinDesync` path needs an already-corrupt source — but
-/// that is a fact about today's `combine`, not a fact this row pins.
+/// It does NOT close the question for a spent graft: the shell a
+/// failed transplant left half-built is not read either, but the
+/// door's debug postcondition (`topo::validate_closed`) reads the whole
+/// body. No such failure is reachable today — `graft_disjoint_all` runs
+/// `Bridge::RemapKeys`, which returns before the `GraftRecertify` its
+/// own docs name (`combine.rs:357`), and every remaining `JoinDesync`
+/// path needs an already-corrupt source — but that is a fact about
+/// today's `combine`, not a fact this row pins.
 #[test]
-fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
+fn d2_a_grafted_destination_blends_inside_its_own_shell() {
     let base = cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = base.edges().map(|(k, _)| k).collect();
-    // The whole-body fillet succeeds before the graft: the request is
-    // inside the front door, so any refusal below is the graft's doing
-    // and not the request's.
-    assert!(
-        fillet_edges(&base, &edges, 0.12, Tol::witness()).is_ok(),
-        "the control request must pass, or this row proves nothing"
-    );
-
     let mut dst = base.clone();
     topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()))
         .expect("a disjoint graft");
-    assert!(
-        dst.solids().count() > 1 || dst.shells().count() > 1,
-        "a graft that added nothing countable cannot be the witness the \
-         refutation needs"
-    );
+    assert_eq!(dst.shells().count(), 2, "the graft added a shell");
     let after: Vec<EdgeKey> = edges
         .iter()
         .copied()
         .filter(|k| dst.get_edge(*k).is_some())
         .collect();
-    match fillet_edges(&dst, &after, 0.12, Tol::witness()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedBody { solids, shells }) => {
-            println!(
-                "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \
-                 {solids} solid(s), {shells} shell(s) — refused at `blend_surgery`'s entry gate, \
-                 above every `BodyNotIntact` site"
-            );
-        }
-        other => panic!("a grafted destination must be refused at the entry gate, got {other:?}"),
-    }
+    assert_eq!(after, edges, "the graft keeps the destination's own keys");
+    let mut base_shells: Vec<_> = base.shells().map(|(k, _)| k).collect();
+    base_shells.sort_unstable();
+    let out = fillet_edges(&dst, &after, 0.12, Tol::witness())
+        .unwrap_or_else(|r| panic!("the destination's cube fillets inside its shell: {r}"));
+    assert_eq!(
+        out.shells, base_shells,
+        "only the destination's shell is carved"
+    );
+    assert_eq!(
+        out.body.shells().count(),
+        2,
+        "the grafted shell rides through"
+    );
 }

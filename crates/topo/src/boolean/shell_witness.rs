@@ -42,9 +42,11 @@
 //! decisively, which [`debug_assert_contacts_undecisive`] checks on
 //! every boolean that reaches the ladder.
 //!
-//! An in-band reading is about one point, possibly near a face far
-//! from the complex, and rides along as evidence only: a shell no
-//! witness decides that has one refuses
+//! When no witness decides, the first face a witness could not be read
+//! against is the refusal, as a ray walk ranks the limit that blocked a
+//! ray ([`crate::ray_walk::walk`]). An in-band reading is about one
+//! point, possibly near a face far from the complex, and rides along as
+//! evidence only: a shell with one and no limit refuses
 //! [`BooleanError::ShellWitnessExhausted`].
 //!
 //! # `On`: the settled coincidences
@@ -80,6 +82,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, VertexKey};
+use crate::ray_walk::Ranked;
 use crate::stands::{LadderRefusal, Strict, Witness, ladder};
 
 /// What the ladder read off a complex: the first decisive witness's
@@ -100,8 +103,8 @@ impl From<LadderRefusal> for BooleanError {
 ///
 /// # Errors
 ///
-/// [`BooleanError::Containment`] when a probe refuses other than
-/// in-band; [`BooleanError::JoinDesync`] when the complex does not walk.
+/// [`BooleanError::Containment`] when a probe refuses about the other
+/// operand; [`BooleanError::JoinDesync`] when the complex does not walk.
 pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -117,6 +120,7 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
                 Witness::Side(Strict::In) => Witness::Side(SideCode::In),
                 Witness::Side(Strict::Out) => Witness::Side(SideCode::Out),
                 Witness::On => Witness::On,
+                Witness::Blocked(e) => Witness::Blocked(e),
                 Witness::InBand(e) => Witness::InBand(e),
             },
         )
@@ -166,9 +170,11 @@ pub enum ShellOrientation {
 ///
 /// # Errors
 ///
-/// [`BooleanError::Containment`] when a probe refuses other than
-/// in-band; [`BooleanError::ShellWitnessExhausted`] when no witness
-/// decides and one read in-band; [`BooleanError::CoincidentShell`]
+/// [`BooleanError::Containment`] when a probe refuses about the other
+/// operand, or when no witness decides and one met a face the door
+/// cannot read or a volume that could not side its rays;
+/// [`BooleanError::ShellWitnessExhausted`] when no witness decides and
+/// one read in-band; [`BooleanError::CoincidentShell`]
 /// when every witness lies on the other boundary and the settled pairs
 /// do not certify `On`; [`BooleanError::JoinDesync`] when the shell
 /// does not walk.
@@ -185,18 +191,20 @@ pub(super) fn shell_verdict<T: Decide + crate::props::AtRestPolicy>(
             what: "uncut shell no longer resolves",
         })?
         .faces;
-    match complex_side(body, faces, other, band, tol)? {
-        Reading::Side(s) => Ok(ShellVerdict::Side(s)),
-        Reading::Undecided(t) if t.in_band == 0 => {
-            on_verdict((shell, operand), faces, other, coincident)
-        }
-        Reading::Undecided(t) => Err(BooleanError::ShellWitnessExhausted {
+    let t = match complex_side(body, faces, other, band, tol)? {
+        Reading::Side(s) => return Ok(ShellVerdict::Side(s)),
+        Reading::Undecided(t) => t,
+    };
+    match t.kept.ranked() {
+        Ranked::Blocked(e) => Err(BooleanError::Containment(e)),
+        Ranked::InBand(e) => Err(BooleanError::ShellWitnessExhausted {
             operand,
             shell,
             on_boundary: t.on_boundary,
             in_band: t.in_band,
-            first_in_band: t.first_in_band,
+            first_in_band: Some(e),
         }),
+        Ranked::Neither => on_verdict((shell, operand), faces, other, coincident),
     }
 }
 
@@ -475,5 +483,60 @@ mod tests {
             }
             other => panic!("expected CoincidentShell(Same), got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tally_rows {
+    use crate::boolean::{PointInSolidError, SolidContainment};
+    use crate::entity::FaceKey;
+    use crate::ray_walk::Ranked;
+    use crate::stands::{Strict, Tally, Witness};
+
+    /// **A refusal about one witness lets the next decide**: a face the
+    /// door cannot read near it, a volume that could not side its rays,
+    /// and an in-band reading are each kept and passed over, ranked limit
+    /// first; a refusal about the body ends the ladder.
+    #[test]
+    fn a_refusal_about_one_witness_lets_the_next_decide() {
+        let face = FaceKey::default();
+        let mut t = Tally::default();
+        for e in [
+            PointInSolidError::Escalated {
+                face,
+                diag: crate::invalid_margin::invalid(
+                    geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                    "test_tally",
+                ),
+            },
+            PointInSolidError::WallOutlineUnsupported { face },
+            PointInSolidError::PartialConeFace { face },
+            PointInSolidError::VolumeUncertified,
+            PointInSolidError::ZeroVolumeBody,
+            PointInSolidError::RayExhausted,
+        ] {
+            match Witness::of(Err(e)) {
+                Ok(Witness::Blocked(e)) => t.kept.blocked(e),
+                Ok(Witness::InBand(e)) => {
+                    t.in_band += 1;
+                    t.kept.in_band(e);
+                }
+                other => panic!("a refusal about one witness is passed over: {other:?}"),
+            }
+        }
+        assert!(matches!(
+            Witness::of(Ok(SolidContainment::Out)),
+            Ok(Witness::Side(Strict::Out))
+        ));
+        assert_eq!(t.in_band, 2);
+        assert!(matches!(
+            t.kept.ranked(),
+            Ranked::Blocked(PointInSolidError::WallOutlineUnsupported { .. })
+        ));
+        assert!(matches!(
+            Witness::of(Err(PointInSolidError::CorruptFace { face })),
+            Err(PointInSolidError::CorruptFace { .. })
+        ));
     }
 }

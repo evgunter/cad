@@ -3532,6 +3532,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ContactSecondOrder,
         BlendDecision::CornerIndependence,
         BlendDecision::CapTransverse,
+        BlendDecision::CutOffFeet,
     ] {
         let refused = BlendError::Escalated {
             site: BlendSite::Link {
@@ -4744,7 +4745,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
-            "unsupported_body",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",
@@ -5586,6 +5586,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_center_not_equidistant",
             "arc_leg_on_open_fillet",
+            "arc_sweep_not_short_of_full_turn",
             "arc_via_collinear",
             "band",
             "circle_split_count",

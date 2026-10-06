@@ -14,6 +14,7 @@ use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
 
@@ -96,7 +97,7 @@ fn r2b_squared_stepped_vase_mints_one_annular_rim() {
     ])]);
     let chart = plane_chart_at_y(&body, h);
     println!("[r2b] vase mouth chart: {} face(s)", chart.len());
-    let cup = topo::shell_open(&body, t, &chart, tol)
+    let cup = topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol)
         .unwrap_or_else(|e| panic!("the squared vase must open: {e}"))
         .body;
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
@@ -160,7 +161,8 @@ fn r2b_two_holed_designation_refuses_typed() {
     let body = extruded(vec![outer, h1, h2], 0.6);
     let top = plane_chart_at_z(&body, 0.6);
     println!("[r2b] two-holed top chart: {} face(s)", top.len());
-    let opened = topo::shell_open(&body, 0.05, &top, tol).map(|shelled| shelled.body);
+    let opened = topo::shell_open(&finished("the operand", body.clone(), tol), 0.05, &top, tol)
+        .map(|shelled| shelled.body);
     match &opened {
         Err(ShellError::OpenFaceRimNotExpressible { what, .. }) => {
             println!("[r2b] typed refusal: {what}");
@@ -182,7 +184,8 @@ fn r2b_one_holed_extrusion() {
     let hole = poly(&[(0.35, 0.35), (0.35, 0.65), (0.65, 0.65), (0.65, 0.35)]);
     let body = extruded(vec![outer, hole], 0.6);
     let top = plane_chart_at_z(&body, 0.6);
-    let opened = topo::shell_open(&body, 0.05, &top, tol).map(|shelled| shelled.body);
+    let opened = topo::shell_open(&finished("the operand", body.clone(), tol), 0.05, &top, tol)
+        .map(|shelled| shelled.body);
     match &opened {
         Ok(cup) => {
             println!(
@@ -251,7 +254,8 @@ fn r2b_partial_revolve_reaches_the_rim() {
         };
         let body = swept.body;
         let chart = plane_chart_at_y(&body, h);
-        let opened = topo::shell_open(&body, t, &chart, tol).map(|shelled| shelled.body);
+        let opened = topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol)
+            .map(|shelled| shelled.body);
         match &opened {
             Ok(cup) => {
                 println!(

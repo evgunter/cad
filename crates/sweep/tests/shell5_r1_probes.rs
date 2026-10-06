@@ -171,7 +171,8 @@ fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     let (_, voids) = roles(&body);
     assert_eq!(voids.len(), 2);
     let t = 0.15;
-    let e = topo::shell(&body, t, tol()).expect_err("the diagonal pair is read as facing");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .expect_err("the diagonal pair is read as facing");
     let ShellError::WallClearance {
         face,
         other,
@@ -192,7 +193,8 @@ fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     // Below the wall the same body builds: at t = 0.09 the walls need
     // 0.18 < 0.2 and the grown footprints (disjoint by 0.1 − 0.18 < 0)
     // overlap, but the gap decide passes.
-    let s = topo::shell(&body, 0.09, tol()).expect("clear of every wall");
+    let s = topo::shell(&finished("the operand", body.clone(), tol()), 0.09, tol())
+        .expect("clear of every wall");
     assert_eq!(topo::validate_geometric(&s.body, tol()), Ok(()));
     assert_eq!(s.body.solids().count(), 3);
 }
@@ -228,7 +230,8 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
     let riser_r = face_on(&s_bend, shell, (1.0, 0.0, 0.0), 1.0); // x = 1, y ∈ [0, 0.2]
     let riser_l = face_on(&s_bend, shell, (-1.0, 0.0, 0.0), -0.8); // x = 0.8, y ∈ [0.3, 0.5]
 
-    let e = topo::shell(&s_bend, 0.12, tol()).expect_err("the risers' offsets would cross");
+    let e = topo::shell(&finished("the operand", s_bend.clone(), tol()), 0.12, tol())
+        .expect_err("the risers' offsets would cross");
     let ShellError::WallClearance {
         face, other, gap, ..
     } = e
@@ -245,7 +248,8 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
     risers.sort();
     assert_eq!(named, risers, "the refusal names the two risers");
 
-    let s = topo::shell(&s_bend, 0.09, tol()).expect("below the wall it builds");
+    let s = topo::shell(&finished("the operand", s_bend.clone(), tol()), 0.09, tol())
+        .expect("below the wall it builds");
     let out = &s.body;
     assert_eq!(topo::validate_geometric(out, tol()), Ok(()));
     let (o_r, _) = plane_of(out, s.naming.inner_of(riser_r).unwrap());
@@ -290,7 +294,7 @@ fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
     let hollow = with_void(cube.into_body(), cavity.into_body());
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()));
     let t = 0.1;
-    match topo::shell(&hollow, t, tol()) {
+    match topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol()) {
         Err(e) => println!("[measured] box with cylindrical void at t={t}: refuses {e}"),
         Ok(s) => {
             let out = &s.body;
@@ -465,7 +469,8 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let top = face_on(&part, shell0, (0.0, 0.0, 1.0), 4.0);
 
     // 1. hollow it.
-    let first = topo::shell(&part, 0.25, tol()).expect("hollow");
+    let first =
+        topo::shell(&finished("the operand", part.clone(), tol()), 0.25, tol()).expect("hollow");
     println!(
         "[e2e] hollow: solids={} shells={} thickened={:?}",
         first.body.solids().count(),
@@ -477,7 +482,12 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let ceiling = first.naming.inner_of(top).expect("the top's twin");
 
     // 2. hollow it again.
-    let twice = topo::shell(&first.body, 0.05, tol()).expect("hollow twice");
+    let twice = topo::shell(
+        &finished("the operand", first.body.clone(), tol()),
+        0.05,
+        tol(),
+    )
+    .expect("hollow twice");
     println!(
         "[e2e] hollow twice: solids={} shells={} thickened={:?} roles={:?}",
         twice.body.solids().count(),
@@ -495,8 +505,13 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     // and what now builds. Shelling is per solid and applies to every
     // solid, so the twice-hollowed body's two thin solids each shell
     // again and the designated ceiling's wall opens.
-    let three = topo::shell_open(&twice.body, 0.01, &[ceiling], tol())
-        .expect("hollow, hollow, open is three verbs");
+    let three = topo::shell_open(
+        &finished("the operand", twice.body.clone(), tol()),
+        0.01,
+        &[ceiling],
+        tol(),
+    )
+    .expect("hollow, hollow, open is three verbs");
     let props = topo::mass_properties(&three.body, tol()).expect("props");
     println!(
         "[e2e] hollow, hollow, open: solids={} shells={} tier3={:?} volume={} thickened={:?}",
@@ -543,8 +558,13 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         "the designated ceiling's wall is the cup"
     );
     // 3b. the way that works: fold the opening into the second shell.
-    let opened =
-        topo::shell_open(&first.body, 0.05, &[ceiling], tol()).expect("open the inner wall");
+    let opened = topo::shell_open(
+        &finished("the operand", first.body.clone(), tol()),
+        0.05,
+        &[ceiling],
+        tol(),
+    )
+    .expect("open the inner wall");
     let out = &opened.body;
     println!(
         "[e2e] opened inner wall: solids={} shells={} tier3={:?} roles={:?}",

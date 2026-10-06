@@ -310,17 +310,11 @@ impl SolidJoin {
             .joiner
             .segment_curve(body, plan, lane, leave)
             .map_err(BooleanError::Join)?;
-        let h1 = plan.halves().0;
-        curve.ok_or_else(|| {
-            BooleanError::Join(match body.face_of_half_edge(h1) {
-                Some(face) => SplitJoinError::SectionInvariant {
-                    face,
-                    what: "both chords of a matched segment are its own edge (a loop holding \
-                           both halves of that edge)",
-                },
-                None => crate::chord_join::corrupt_he(h1),
-            })
-        })
+        curve.ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
+            face: plan.face(),
+            what: "both chords of a matched segment are its own edge (a loop holding both \
+                   halves of that edge)",
+        }))
     }
 
     /// The wall-side curve against the germ plane through `origin` with
@@ -2223,7 +2217,9 @@ fn loose_partners<T: Decide>(
 /// discipline; module docs for the derivation). The three lanes:
 ///
 /// - **Different loops** (the mekr lane): a pure loop merge — role
-///   order is orientation-neutral; keep the given order.
+///   order is orientation-neutral; keep the given order. Loops of two
+///   faces take this lane too, and what runs on the plan's face
+///   refuses them ([`JoinPlan::of`]).
 /// - **Same loop, the face's OUTER**: the split partitions real
 ///   boundary between two faces; either partition names the same two
 ///   directed cycles (role order moves only face identity), so the
@@ -2262,7 +2258,7 @@ fn choose_roles<T: Decide>(
     };
     let l = loop_of(ea)?;
     if l != loop_of(ra)? {
-        return Ok(RoleLane::Decided((ea, ra))); // mekr lane
+        return Ok(RoleLane::Decided((ea, ra)));
     }
     let face = body
         .get_loop(l)
@@ -2691,7 +2687,9 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 /// loops' regions read the other boundary or too near it, which a
 /// crossing's two flanks cannot both do unless their faces are all
 /// curved (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
-/// No in-band reading is named as the cause: it is about one point.
+/// No in-band reading is named as the cause: it is about one point. A
+/// witness refused near a face the door cannot read is, as it is for a
+/// shell ([`super::shell_witness`]).
 fn loop_roles(
     face: FaceKey,
     (outer, o): (LoopKey, Reading),
@@ -2708,11 +2706,15 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        (Reading::Undecided(_), Reading::Undecided(_)) => {
-            Err(BooleanError::Join(SplitJoinError::SectionLoopUndecided {
-                face,
-            }))
-        }
+        // One ranking over both loops' witnesses ([`crate::ray_walk::Evidence`]):
+        // a limit is named, an in-band reading is not (it is about one
+        // point), so both of those and an empty one read undecided.
+        (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
+            crate::ray_walk::Ranked::Blocked(e) => BooleanError::Containment(e),
+            crate::ray_walk::Ranked::InBand(_) | crate::ray_walk::Ranked::Neither => {
+                BooleanError::Join(SplitJoinError::SectionLoopUndecided { face })
+            }
+        }),
     }
 }
 

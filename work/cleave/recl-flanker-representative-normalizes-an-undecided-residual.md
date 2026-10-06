@@ -4,6 +4,8 @@ kind: issue
 title: recl's flanker representative normalizes an undecided residual against the common line
 status: open
 opened: 2026-10-01
+priority: P2
+cost: M
 ---
 
 

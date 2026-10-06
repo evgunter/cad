@@ -32,13 +32,17 @@
 //!
 //! The probe is the caller's ([`ladder`]): it reads one witness against
 //! whatever the question is about, and answers a side, [`Witness::On`]
-//! (the witness lies on a probed surface) or [`Witness::InBand`] (a
-//! refusal about that one point, [`PointInSolidError::inconclusive`]).
-//! Either of the last two is inconclusive and the next witness is read;
-//! any other refusal is about the probed surface rather than the point,
-//! and propagates. The first decisive witness decides. When none does,
-//! the [`Tally`] says how many read on a surface and how many in band,
-//! and the caller decides what that means.
+//! (the witness lies on a probed surface), or a refusal about that one
+//! point ([`PointInSolidError::inconclusive`]): [`Witness::Blocked`] (a
+//! limit no tolerance moves — a face the door cannot read near the
+//! witness, or a volume that could not side its rays) or
+//! [`Witness::InBand`]. Each of the last three is inconclusive and the
+//! next witness is read; any other refusal is about the probed surface
+//! rather than the point, and propagates. The first decisive witness
+//! decides. When none does, the [`Tally`] says how many read on a surface
+//! and how many in band, and keeps the refusals ranked as one point's
+//! rays are ([`crate::ray_walk::Evidence`]), limit first; the caller
+//! decides what that means.
 //!
 //! A block inside another, flush on four walls, reaches the third rung:
 //! its vertices and edges all lie on the other boundary, and the interior
@@ -55,6 +59,7 @@ use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
 use crate::props::{QuadLane, ShellClassifyError, ShellRole};
+use crate::ray_walk::Ranked;
 
 /// What one witness read against the probed surfaces.
 #[derive(Debug)]
@@ -63,7 +68,10 @@ pub(crate) enum Witness<S> {
     Side(S),
     /// The witness lies on a probed surface.
     On,
-    /// The reading was in band ([`PointInSolidError::inconclusive`]).
+    /// A limit met near the witness ([`PointInSolidError::confined`],
+    /// [`PointInSolidError::sideless`]).
+    Blocked(PointInSolidError),
+    /// The reading was in band ([`PointInSolidError::in_band`]).
     InBand(PointInSolidError),
 }
 
@@ -78,8 +86,8 @@ pub(crate) enum Strict {
 
 impl Witness<Strict> {
     /// One point-in-solid reading as a witness: `In` and `Out` decide,
-    /// `OnBoundary` and an in-band refusal are inconclusive, and any
-    /// other refusal propagates.
+    /// `OnBoundary` and a refusal about the point are inconclusive, and
+    /// any other refusal propagates.
     pub(crate) fn of(
         read: Result<SolidContainment, PointInSolidError>,
     ) -> Result<Self, PointInSolidError> {
@@ -87,6 +95,7 @@ impl Witness<Strict> {
             Ok(SolidContainment::In) => Ok(Self::Side(Strict::In)),
             Ok(SolidContainment::Out) => Ok(Self::Side(Strict::Out)),
             Ok(SolidContainment::OnBoundary) => Ok(Self::On),
+            Err(e) if e.confined() || e.sideless() => Ok(Self::Blocked(e)),
             Err(e) if e.inconclusive() => Ok(Self::InBand(e)),
             Err(e) => Err(e),
         }
@@ -109,9 +118,10 @@ pub(crate) struct Tally {
     pub(crate) on_boundary: usize,
     /// Witnesses that read [`Witness::InBand`].
     pub(crate) in_band: usize,
-    /// The first in-band reading, as evidence: over points, what
-    /// [`crate::ray_parity::Abandoned`] keeps over one point's rays.
-    pub(crate) first_in_band: Option<PointInSolidError>,
+    /// What the refused witnesses kept, ranked as one point's rays are
+    /// ([`crate::ray_walk::Evidence`]): a limit before an in-band
+    /// reading.
+    pub(crate) kept: crate::ray_walk::Evidence<PointInSolidError>,
 }
 
 /// The ladder's own refusals, which each caller types as its own
@@ -161,9 +171,13 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
                 tally.on_boundary += 1;
                 None
             }
+            Witness::Blocked(e) => {
+                tally.kept.blocked(e);
+                None
+            }
             Witness::InBand(e) => {
                 tally.in_band += 1;
-                tally.first_in_band.get_or_insert(e);
+                tally.kept.in_band(e);
                 None
             }
         })
@@ -329,10 +343,10 @@ fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
 }
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?
-/// `false` discards the candidate unprobed: outside, on a loop, an
-/// [`PointInSolidError::inconclusive`] reading, or an edge of `face`
-/// whose carrier the walk cannot cross — that face then offers no
-/// candidate, as a curved face offers none. Any other refusal is an
+/// `false` discards the candidate unprobed: outside, on a loop, or an
+/// [`PointInSolidError::inconclusive`] reading — an edge of `face` whose
+/// carrier the walk cannot cross among them, and that face then offers
+/// no candidate, as a curved face offers none. Any other refusal is an
 /// error.
 fn certified_in_face<T: Decide>(
     body: &Body<T>,
@@ -344,7 +358,6 @@ fn certified_in_face<T: Decide>(
     match point_in_face(body, face, normal, p, band) {
         Ok(verdict) => Ok(verdict == Some(true)),
         Err(e) if e.inconclusive() => Ok(false),
-        Err(PointInSolidError::EdgeCarrierUnsupported { .. }) => Ok(false),
         Err(e) => Err(LadderRefusal::Containment(e)),
     }
 }
@@ -389,11 +402,12 @@ pub(crate) enum Insides {
     /// inside that shell's closed surface (`false` for the shell
     /// itself).
     Read(Vec<bool>),
-    /// Every witness of the shell lies on another shell, and none read
-    /// in band.
+    /// Every witness of the shell lies on another shell, and none was
+    /// refused.
     Touching,
-    /// A walk refused, or no witness decided and one read in band (the
-    /// first in-band reading).
+    /// A walk refused, or no witness decided and one was refused (the
+    /// [`Tally`]'s ranking: the first limit met, else the first in-band
+    /// reading).
     Refused(PointInSolidError),
 }
 
@@ -429,6 +443,7 @@ pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
                 Witness::Side(Strict::In) => other.role == ShellRole::Outer,
                 Witness::Side(Strict::Out) => other.role == ShellRole::Void,
                 Witness::On => return Ok(Witness::On),
+                Witness::Blocked(e) => return Ok(Witness::Blocked(e)),
                 Witness::InBand(e) => return Ok(Witness::InBand(e)),
             };
         }
@@ -436,11 +451,10 @@ pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
     };
     match ladder(body, reads[i].sel.faces(), band, probe) {
         Ok(Reading::Side(inside)) => Insides::Read(inside),
-        Ok(Reading::Undecided(Tally {
-            first_in_band: Some(e),
-            ..
-        })) => Insides::Refused(e),
-        Ok(Reading::Undecided(_)) => Insides::Touching,
+        Ok(Reading::Undecided(t)) => match t.kept.ranked() {
+            Ranked::Blocked(e) | Ranked::InBand(e) => Insides::Refused(e),
+            Ranked::Neither => Insides::Touching,
+        },
         Err(e) => Insides::Refused(e),
     }
 }
