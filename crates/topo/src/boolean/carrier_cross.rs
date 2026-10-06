@@ -39,10 +39,14 @@
 //! planes' common line; two circles in one plane), or along a shared
 //! stretch whose ends are vertices
 //! of one of them — the boundary vertices, which are always candidates.
-//! A spiric or spline carrier on either side has no closed form here,
-//! and a face holding a lone vertex (a pierce ring) has no boundary
-//! pre-pass: both answer [`BoundaryCrossing::Unread`], and the caller
-//! keeps its frontier door.
+//! A boundary ellipse is a plane section, so a line or circle meets it
+//! only where it meets the ellipse's plane, which the same closed forms
+//! name; a line or circle lying in that plane needs the coplanar conic
+//! pair, which this module does not hold. That, an ellipse as the swept
+//! edge, a spiric or spline carrier on either side, and a face holding a
+//! lone vertex (a pierce ring), which has no boundary pre-pass, all
+//! answer [`BoundaryCrossing::Unread`], and the caller keeps its frontier
+//! door.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -203,7 +207,7 @@ fn meetings<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<Option<Vec<Point3<T>>>, BooleanError> {
-    use geom::Curve3::{Circle, Line};
+    use geom::Curve3::{Circle, Ellipse, Line};
     Ok(Some(match (a, b) {
         (
             &Line { origin, dir },
@@ -269,39 +273,134 @@ fn meetings<T: Decide>(
                 ..
             },
         ) => {
-            let m = n1.cross(n2);
-            let s = m.norm();
-            if !transverse(s, r1.max(r2), band)? {
+            if !transverse(n1.cross(n2).norm(), r1.max(r2), band)? {
                 return Ok(Some(parallel_circles(c1, n1, r1, c2, r2, band)?));
             }
-            // The planes' common line, through the point of it nearest
-            // the origin of the two-plane system, then its meetings with
-            // the first circle's sphere — which, in its plane, are its
-            // meetings with the circle.
-            let (h1, h2) = (n1.dot(c1 - Point3::origin()), n2.dot(c2 - Point3::origin()));
-            let c = n1.dot(n2);
-            let k = s.powi(2);
-            let p0 = Point3::origin() + (n1 * ((h1 - h2 * c) / k) + n2 * ((h2 - h1 * c) / k));
-            let u = m * (T::one() / s);
-            let w = p0 - c1;
-            let b = w.dot(u);
-            let disc = b.powi(2) - (w.dot(w) - r1.powi(2));
-            match decide(
-                "bool_carrier_cross_line_meets_circle",
-                Margin::levered_inv(disc, r1 + r1),
-                band,
-            ) {
-                Ok(Sign::Negative) => Vec::new(),
-                Ok(Sign::Zero) => vec![p0 + u * (-b)],
-                Ok(Sign::Positive) => {
-                    let root = disc.sqrt();
-                    vec![p0 + u * (-b - root), p0 + u * (-b + root)]
-                }
-                Err(diag) => return Err(escalated(diag)),
+            circle_meets_plane(c1, n1, r1, c2, n2, band)?
+        }
+        // An ellipse is a plane section, so whatever meets it meets its
+        // plane: those meetings are the candidates, and the boundary
+        // pre-pass drops any not on the ellipse. A curve lying in that
+        // plane has no closed form here.
+        (
+            &Line { origin, dir },
+            &Ellipse {
+                center,
+                axis,
+                major,
+                ..
+            },
+        )
+        | (
+            &Ellipse {
+                center,
+                axis,
+                major,
+                ..
+            },
+            &Line { origin, dir },
+        ) => {
+            let den = dir.dot(axis);
+            if !transverse(den, major, band)? {
+                return Ok(off_plane(origin, center, axis, band)?.then(Vec::new));
             }
+            let t = (center - origin).dot(axis) / den;
+            vec![origin + dir * t]
+        }
+        (
+            &Circle {
+                center: c1,
+                axis: n1,
+                radius: r1,
+                ..
+            },
+            &Ellipse {
+                center: c2,
+                axis: n2,
+                major,
+                ..
+            },
+        )
+        | (
+            &Ellipse {
+                center: c2,
+                axis: n2,
+                major,
+                ..
+            },
+            &Circle {
+                center: c1,
+                axis: n1,
+                radius: r1,
+                ..
+            },
+        ) => {
+            if !transverse(n1.cross(n2).norm(), r1.max(major), band)? {
+                return Ok(off_plane(c1, c2, n2, band)?.then(Vec::new));
+            }
+            circle_meets_plane(c1, n1, r1, c2, n2, band)?
         }
         _ => return Ok(None),
     }))
+}
+
+/// Whether `p` lies definitely off the plane through `on` with unit
+/// normal `n`.
+fn off_plane<T: Decide>(
+    p: Point3<T>,
+    on: Point3<T>,
+    n: Vec3<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    match decide(
+        "bool_carrier_cross_plane_offset",
+        Margin::of((p - on).dot(n)),
+        band,
+    ) {
+        Ok(Sign::Zero) => Ok(false),
+        Ok(Sign::Positive | Sign::Negative) => Ok(true),
+        Err(diag) => Err(escalated(diag)),
+    }
+}
+
+/// Where the circle (`c1`, unit `n1`, `r1`) meets the plane through
+/// `c2` with unit normal `n2`, the two planes decided transverse: the
+/// planes' common line, through the point of it nearest the origin of
+/// the two-plane system, then its meetings with the circle's sphere —
+/// which, in the circle's plane, are its meetings with the circle.
+fn circle_meets_plane<T: Decide>(
+    c1: Point3<T>,
+    n1: Vec3<T>,
+    r1: T,
+    c2: Point3<T>,
+    n2: Vec3<T>,
+    band: Band,
+) -> Result<Vec<Point3<T>>, BooleanError> {
+    let m = n1.cross(n2);
+    let s = m.norm();
+    let (h1, h2) = (n1.dot(c1 - Point3::origin()), n2.dot(c2 - Point3::origin()));
+    let c = n1.dot(n2);
+    let k = s.powi(2);
+    let p0 = Point3::origin() + (n1 * ((h1 - h2 * c) / k) + n2 * ((h2 - h1 * c) / k));
+    let u = m * (T::one() / s);
+    let w = p0 - c1;
+    let b = w.dot(u);
+    let disc = b.powi(2) - (w.dot(w) - r1.powi(2));
+    Ok(
+        match decide(
+            "bool_carrier_cross_line_meets_circle",
+            Margin::levered_inv(disc, r1 + r1),
+            band,
+        ) {
+            Ok(Sign::Negative) => Vec::new(),
+            Ok(Sign::Zero) => vec![p0 + u * (-b)],
+            Ok(Sign::Positive) => {
+                let root = disc.sqrt();
+                vec![p0 + u * (-b - root), p0 + u * (-b + root)]
+            }
+            Err(diag) => return Err(escalated(diag)),
+        },
+    )
 }
 
 /// Two circles in parallel planes: none where the planes are distinct
@@ -460,6 +559,76 @@ mod meetings_rows {
             holds(&got, [c, 0.0, s]) && holds(&got, [-c, 0.0, s]),
             "parallel × meridian: {got:?}"
         );
+    }
+
+    fn ellipse(c: [f64; 3], axis: [f64; 3], major: f64, minor: f64) -> Curve3<f64> {
+        let Curve3::Circle {
+            center,
+            axis,
+            u_ref,
+            ..
+        } = circle(c, axis, 1.0)
+        else {
+            unreachable!("circle builds a circle")
+        };
+        Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        }
+    }
+
+    /// **An ellipse is met where its plane is met**: the oblique section
+    /// of the unit cylinder `z = 0.2·x`, against a ruling, a rim, and a
+    /// tilted circle, both orders. Each true meeting is among the
+    /// candidates; the ruling's lies on the ellipse, and a circle's
+    /// plane crossings need not.
+    #[test]
+    fn an_ellipse_is_met_at_its_plane() {
+        let b = band();
+        let k = 1.04f64.sqrt();
+        let cut = ellipse([0.0; 3], [-0.2, 0.0, 1.0], k, 1.0);
+        let ruling = line([0.6, 0.8, -3.0], [0.0, 0.0, 1.0]);
+        let rim = circle([0.0, 0.0, 0.1], [0.0, 0.0, 1.0], 1.0);
+        let tilted = circle([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
+        for (a, c, want, what) in [
+            (&ruling, &cut, vec![[0.6, 0.8, 0.12]], "ruling"),
+            (
+                &rim,
+                &cut,
+                vec![[0.5, 0.75f64.sqrt(), 0.1], [0.5, -(0.75f64.sqrt()), 0.1]],
+                "rim",
+            ),
+            (
+                &tilted,
+                &cut,
+                vec![[1.0 / k, 0.0, 0.2 / k], [-1.0 / k, 0.0, -0.2 / k]],
+                "tilted",
+            ),
+        ] {
+            for (x, y) in [(a, c), (c, a)] {
+                let got = meet(x, y, b).unwrap().unwrap();
+                for w in &want {
+                    assert!(holds(&got, *w), "{what} × ellipse: {w:?} in {got:?}");
+                }
+            }
+        }
+        // A line parallel to the ellipse's plane and off it, and a
+        // circle in a parallel plane: no candidate. In the plane: unread.
+        let lifted = |z: f64| line([0.0, 0.0, z], [1.0 / k, 0.0, 0.2 / k]);
+        assert_eq!(
+            meet(&lifted(1.0), &cut, b).unwrap().map(|v| v.len()),
+            Some(0)
+        );
+        assert!(meet(&lifted(0.0), &cut, b).unwrap().is_none());
+        let beside = |z: f64| circle([0.0, 0.0, z], [-0.2, 0.0, 1.0], 0.5);
+        assert_eq!(
+            meet(&beside(1.0), &cut, b).unwrap().map(|v| v.len()),
+            Some(0)
+        );
+        assert!(meet(&beside(0.0), &cut, b).unwrap().is_none());
     }
 
     #[test]

@@ -145,3 +145,15 @@ legal-operand check fails: the union with a far brick refuses
 notch327 `phi230 th210`, `th225`, `th315`, `th330`, `phi300 th135`,
 `th150`, `th30`, `th45`. Main already ships 294 such intersection
 lines in that battery.
+
+## Also behind the crossing layer's ellipse closed forms (TANG, 2026-10-06)
+
+Once `carrier_cross::meetings` met a boundary ellipse, two TANG
+fixtures passed the crossing layer and stopped here, every op in both
+member orders: the turned sunk dome on the slanted tube
+(`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`,
+`a_turned_rim_on_a_wall_bounded_by_an_ellipse_passes_the_crossing_layer`)
+and a prism edge lying on that tube's wall across its ellipse
+(`sweep/tests/a_ruling_lying_on_a_wall.rs`,
+`a_ruling_across_an_ellipse_passes_the_crossing_layer`). Both pin
+`Containment(VolumeUncertified)`; a fix here turns them red knowingly.

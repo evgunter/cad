@@ -2289,16 +2289,19 @@ fn slanted_tube() -> AtRestBody<f64> {
     }
 }
 
-/// **A wall bounded by an ellipse keeps the door.** The turned sunk dome
-/// on a tube whose bottom is cut by a slanted plane: the interior
-/// question has no closed form for a circle against an ellipse, so the
-/// rim arc lying on the wall, which neither certificate places, keeps
-/// the crossing layer's door in every op, both member orders
-/// (`work/tang/a-line-edge-lying-on-a-wall-keeps-the-door.md`, its
-/// ellipse section). The refusal is on the dome's edge, against a wall
-/// face (its edge key is the reduction's working copy's).
+/// **A wall bounded by an ellipse passes the crossing layer and stops
+/// at the containment probe.** The turned sunk dome on a tube whose
+/// bottom is cut by the plane `z = 0.5 + 0.2·x`: the rim arc lying on
+/// the wall, which neither certificate (a) nor (b) places, is read by
+/// the interior question, whose candidates against the ellipse are the
+/// arc's meetings with its plane. The rim sits above that plane, so it
+/// has none and the arc's ends place it. Every op, both member orders,
+/// then refuses `Containment(VolumeUncertified)`: the at-infinity probe
+/// measures the selection's volume in closed form only, which an
+/// obliquely trimmed wall has none of
+/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
 #[test]
-fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
+fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_passes_the_crossing_layer() {
     let tol = Tol::witness();
     let none = BooleanDeclarations::none();
     let tube = slanted_tube();
@@ -2313,46 +2316,22 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
                 topo::transform_rigid(&sunk, &spin, tol).unwrap(),
                 tol,
             );
-            for (op, r, dome_is) in [
-                (
-                    "t ∪ d",
-                    topo::union_with(&tube, &d, &none, tol),
-                    topo::Operand::B,
-                ),
-                (
-                    "d ∪ t",
-                    topo::union_with(&d, &tube, &none, tol),
-                    topo::Operand::A,
-                ),
-                (
-                    "t ∖ d",
-                    topo::subtract_with(&tube, &d, &none, tol),
-                    topo::Operand::B,
-                ),
-                (
-                    "d ∖ t",
-                    topo::subtract_with(&d, &tube, &none, tol),
-                    topo::Operand::A,
-                ),
-                (
-                    "t ∩ d",
-                    topo::intersect_with(&tube, &d, &none, tol),
-                    topo::Operand::B,
-                ),
-                (
-                    "d ∩ t",
-                    topo::intersect_with(&d, &tube, &none, tol),
-                    topo::Operand::A,
-                ),
+            for (op, r) in [
+                ("t ∪ d", topo::union_with(&tube, &d, &none, tol)),
+                ("d ∪ t", topo::union_with(&d, &tube, &none, tol)),
+                ("t ∖ d", topo::subtract_with(&tube, &d, &none, tol)),
+                ("d ∖ t", topo::subtract_with(&d, &tube, &none, tol)),
+                ("t ∩ d", topo::intersect_with(&tube, &d, &none, tol)),
+                ("d ∩ t", topo::intersect_with(&d, &tube, &none, tol)),
             ] {
-                let label = format!("dz = {dz}, turn {turn}: {op}");
-                let Err(BooleanError::CurvedPierceUnsupported { operand, face, .. }) = r else {
-                    panic!("{label}: the crossing layer's door: {r:?}");
-                };
-                assert_eq!(operand, dome_is, "{label}: on the dome's edge");
                 assert!(
-                    faces_of(&tube, SurfaceKind::Cylinder).contains(&face),
-                    "{label}: against a wall face"
+                    matches!(
+                        r,
+                        Err(BooleanError::Containment(
+                            topo::PointInSolidError::VolumeUncertified
+                        ))
+                    ),
+                    "dz = {dz}, turn {turn}: {op}: the containment probe: {r:?}"
                 );
             }
         }

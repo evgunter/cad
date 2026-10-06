@@ -2,10 +2,11 @@
 id: a-line-edge-lying-on-a-wall-keeps-the-door
 kind: issue
 title: An undeclared line edge lying on a partner's wall keeps the door, with no lying-on lane for lines
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+closed: 2026-10-06
 refs: [a-rim-lying-on-a-wall-across-its-seam-ruling-keeps-the-door]
 ---
 
@@ -77,3 +78,54 @@ same circle-against-plane roots `splitting::plane_crossing_lane` already
 certifies, each then kept if it lies on the ellipse. That is complete
 except when the circle lies in the ellipse's plane, which needs the
 coplanar conic pair.
+
+## Review tier
+
+SINGLE, FULL: the lying-on lane's ON decision for a ruling decides
+which faces an edge belongs to; one full review.
+
+## Closed (2026-10-06, TANG)
+
+The `(Zero, Zero)` arm of `reduce::curved_face_arm` now hands a line's
+`SpanVerdict::Constant` to `reduce::lying_on` under the same guard as
+an arc's `LiesOn`: every parent decided distinct from the wall
+(`parents_distinct_from`). Together with the arm's own endpoint rows,
+that is the line decided ON the wall: its residual `Zero` at both ends
+and its distance from the axis constant over the span (the axis-parallel
+rung of `solid_contain::line_wall_roots` decided `Zero`). `lying_on`
+reads a ruling through the interior question alone
+(`carrier_cross::boundary_crossing`, which already held lines);
+certificates (a) and (b) are circle readings. The defect started at
+the arm, which sent every `Constant` to the frontier, and at
+`lying_on`'s circle-only match.
+
+`carrier_cross::meetings` now meets a boundary ellipse: a line or a
+circle meets it where it meets the ellipse's plane. A curve lying in
+that plane stays `Unread`; on a cylinder it cannot arise, since a plane
+holding a ruling cuts the wall in rulings and one holding a rim cuts it
+in a circle.
+
+Rows (`crates/sweep/tests/a_ruling_lying_on_a_wall.rs`), all red on
+2c73fc48 except the band guard:
+
+- the probe, every op in both member orders, at both poses (0.3 and
+  0.5 rad) and both extents, plus the prism turned onto each seam
+  ruling (0 and π): exact census and contact records, closed-form
+  volume, tiers 3 and 3′. A ruling cannot cross a seam ruling: the two
+  are parallel, so they share a stretch or nothing, and the seam rows
+  are that shared stretch;
+- in band of the wall but not on it (a guard, green before too): ends
+  shifted `±3e-9` off the wall escalate at the vertex placement; a
+  `±3e-9` lean escalates on the axis-parallel rung; a `±2e-8` lean is a
+  chord and keeps the door;
+- a ruling across an ellipse, and
+  `pi_seam_and_kiss_through_the_boolean.rs`
+  `a_turned_rim_on_a_wall_bounded_by_an_ellipse_passes_the_crossing_layer`
+  (formerly `…_keeps_the_door`): both now pass the crossing layer and
+  stop at `Containment(VolumeUncertified)`, the at-infinity probe's
+  closed-form gap (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`,
+  evidence added).
+
+Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P1, this section's
+"The ellipse beside it"). Evidence added to
+`a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings`.
