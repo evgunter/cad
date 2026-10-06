@@ -243,11 +243,12 @@ fn refused_on_rows(body: Body<f64>) -> Vec<String> {
         .collect()
 }
 
-/// **Claim 7 — an operand whose own pcurve map is wrong never reaches
-/// the verb.** The closing mint clears the map before re-deriving, so
-/// the verb itself cannot see a missing row; the operand's gate does.
-/// Red without it: the verb took the operand and returned a valid body
-/// whose rows were the sound operand's, bit for bit.
+/// **Claim 7 — an operand whose own pcurve map is wrong cannot be
+/// handed to the verb.** The closing mint clears the map before
+/// re-deriving, so the verb itself cannot see a missing row. The door
+/// takes an `AtRestBody` (pinned by type in `topo`'s
+/// `shell_operand_gate`), so the refusal is the gate that builds the
+/// operand, and this row shows that gate refusing the maimed vessel.
 #[test]
 fn r2_an_operand_missing_a_row_is_refused_at_the_gate() {
     let mut maimed = vessel(1.0, 2.0);
@@ -263,8 +264,8 @@ fn r2_an_operand_missing_a_row_is_refused_at_the_gate() {
 /// **Claim 7, sharper — a WRONG row, not a missing one.** One joint's
 /// element moved a whole period off the one its two images decide: the
 /// operand is tier-3 invalid with a stale row, exactly the defect the
-/// pcurve pass exists to catch. Red without the gate: the verb returned
-/// `Ok` and a tier-3-valid body.
+/// pcurve pass exists to catch. The gate that builds the verb's operand
+/// refuses it, on that one joint.
 #[test]
 fn r2_an_operand_with_a_stale_row_is_refused_at_the_gate() {
     let mut maimed = vessel(1.0, 2.0);

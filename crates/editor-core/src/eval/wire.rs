@@ -2093,12 +2093,14 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// The open list resolves through the same N5 [`ladder`] a blend's
 /// selection takes ([`NodeErrorKind::ShellOpenResolve`],
 /// [`NodeErrorKind::ShellOpenKind`]). An EMPTY list is the sealed
-/// hollow, not a refusal. An operand the at-rest gate refuses (an
-/// inside-out body, a stale pcurve row) is
-/// [`NodeErrorKind::UnfinishedOperand`] ([`finished_operand`]). Failure of the op itself is
+/// hollow, not a refusal. Failure of the op itself is
 /// [`NodeErrorKind::Shell`]; the input body is never passed through. A
 /// scalar that cannot form the door's call at all — a dual — refuses
-/// [`NodeErrorKind::ShellLaneUnsupported`].
+/// [`NodeErrorKind::ShellLaneUnsupported`]. An operand the at-rest gate
+/// refuses is [`NodeErrorKind::UnfinishedOperand`]
+/// ([`finished_operand`]), which no document reaches (every node's door
+/// gates what it ships) and which never meets the lane refusal: a dual's
+/// gate refuses nothing, and a certifying scalar has the door.
 ///
 /// # Naming
 ///

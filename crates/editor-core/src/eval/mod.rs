@@ -1491,8 +1491,9 @@ pub enum NodeErrorKind {
     /// A body operand is not a finished body: the at-rest gate
     /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
     /// body its input node built, so a door that takes finished bodies
-    /// (the Boolean, the split) cannot take it (`docs/DESIGN.md`, tier 3: a finished
-    /// body pays the gate at the door that built it). The input's own
+    /// (the Boolean, the split, the shell) cannot take it
+    /// (`docs/DESIGN.md`, tier 3: a finished body pays the gate at the
+    /// door that built it). The input's own
     /// door shipped a body it should have refused, so nothing an author
     /// set on either node is the cause.
     UnfinishedOperand {

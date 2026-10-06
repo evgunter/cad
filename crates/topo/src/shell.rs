@@ -979,11 +979,14 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
 
     // ---- Decide: one piece of material per solid. ----
     //
-    // The verb takes a body: a solid holding several pieces is sorted
-    // into one solid per piece first ([`crate::pieces`]), on a clone, so
-    // every key the caller holds still names the same face, edge and
-    // vertex. A body whose every solid has one shell is one piece per
-    // solid by arity and is not read.
+    // A finished operand is already one piece per solid (tier 3's check
+    // 10 refuses two `Outer` shells under one solid), so no operand that
+    // can reach this door is changed by the sort below; whether it and
+    // `ShellError::Pieces` are reachable at all is
+    // `work/shell/shell-operand-shape-arms-behind-the-at-rest-gate.md`.
+    // It runs on a clone, so every key the caller holds still names the
+    // same face, edge and vertex; a body whose every solid has one shell
+    // is not read.
     let sorted;
     let body = if body.solids().any(|(_, s)| s.shells.len() > 1) {
         let mut clone = body.clone();

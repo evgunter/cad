@@ -458,8 +458,11 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
     ///
     /// The operand comes in borrowed, never in the payload, and finished
-    /// ([`AtRestBody`]), as at [`Verb::run_split`]; an EMPTY `open` is the sealed hollow, which is
-    /// the kernel door's own contract and not a case decided here.
+    /// ([`AtRestBody`]). Unlike [`Verb::run_split`]'s door, the shell's
+    /// reads no verdict of its own: only a dual carries an operand with
+    /// none, and no dual holds the door. An EMPTY `open` is the sealed
+    /// hollow, which is the kernel door's own contract and not a case
+    /// decided here.
     /// Every check, every refusal and every minted entity is the
     /// door's — this dispatches and re-wraps, and adds no decision of
     /// its own; the tolerance witness travels down unaltered and no

@@ -1,18 +1,37 @@
-//! **The shell serves finished bodies only.** `shell` and `shell_open`
-//! take an `AtRestBody`, so an operand tier 3 refuses is refused where
-//! it is gated and never hollowed.
+//! **The shell serves finished bodies only.** `shell`, `shell_open` and
+//! `ShellDoor::open` take an `AtRestBody`, so an operand tier 3 refuses
+//! cannot be handed to them at all: the refusal is the gate that builds
+//! the operand (`AtRestBody::validate`), and the door has no runtime
+//! arm for it. What pins the door is its type, below: an `AtRestBody`
+//! derefs to a `Body`, so a door re-spelled over `&Body` would still
+//! take every caller's argument, and only these coercions stop
+//! compiling.
 //!
 //! The inside-out wedge is a prism over a clockwise profile, closed and
 //! tier-2 clean with its faces pointing inward (volume −0.2349). Taken
 //! as a `&Body`, `shell(&wedge, 0.02)` answered `Ok` with a valid body
 //! of volume 0.05961: a wall built for the complement, where the
-//! counterclockwise wedge's is 0.05097.
+//! counterclockwise wedge's is 0.05097. The rows below show the gate
+//! refusing that wedge and the counterclockwise one shelling.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
 
 use geom_core::{Tol, Vec2};
-use topo::{AtRestBody, Body, ValidationError, mass_properties, shell};
+use topo::{
+    AtRestBody, Body, FaceKey, ShellDoor, ShellError, Shelled, ValidationError, mass_properties,
+    shell,
+};
+
+/// What every shell door answers at `f64`.
+type Answer = Result<Shelled<f64>, ShellError<f64>>;
+/// The sealed door's operand type at a certifying scalar.
+const _: fn(&AtRestBody<f64>, f64, Tol) -> Answer = shell::<f64>;
+/// The opened door's.
+const _: fn(&AtRestBody<f64>, f64, &[FaceKey], Tol) -> Answer = topo::shell_open::<f64>;
+/// The seat's door, which hands its operand to `shell_open`.
+type Door = ShellDoor<f64>;
+const _: fn(Door, &AtRestBody<f64>, f64, &[FaceKey], Tol) -> Answer = Door::open;
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw`.
