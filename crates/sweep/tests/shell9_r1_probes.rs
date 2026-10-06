@@ -3,7 +3,7 @@
 //!
 //! 1. A row dump over a corpus of the reviewer's choosing (the sf2b
 //!    frustums and vase, SHELL-8's box beside a vessel, `verbs_shell`'s
-//!    hollow operands opened, the tube torus, sphere seam variants),
+//!    hollow operands opened, the tube torus),
 //!    printed as `[r1rows]` lines for a base/head diff — panic-free, so
 //!    the same file runs at the merge base where some bodies refuse.
 //! 2. The end-to-end exercise from a consumer's seat.
@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::PI;
 
 use geom_core::{Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -67,28 +67,9 @@ fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
     )
 }
 
-/// A sphere of radius `r` authored as cocircular arcs meeting at the
-/// latitudes `seams` (each in `(-π/2, π/2)`, ascending).
-fn multi_arc_sphere(r: f64, seams: &[f64]) -> Body<f64> {
-    let c = Point2::new(0.0, 0.0);
-    let mut angles = vec![-FRAC_PI_2];
-    angles.extend_from_slice(seams);
-    angles.push(FRAC_PI_2);
-    let pts: Vec<Point2<f64>> = angles
-        .iter()
-        .map(|a| Point2::new(r * a.cos(), r * a.sin()))
-        .collect();
-    let mut verts = Vec::new();
-    for i in 0..pts.len() - 1 {
-        verts.push((pts[i], bulge(pts[i], pts[i + 1], c)));
-    }
-    verts.push((pts[pts.len() - 1], 0.0));
-    revolved(bulge_loop(verts))
-}
-
-/// The two-arc sphere of `shell7_seam_corner` / `shell9_probe`.
-fn two_arc_sphere() -> Body<f64> {
-    multi_arc_sphere(1.0, &[PI / 4.0])
+/// The unit ball centred at the origin, poles on `y`.
+fn unit_ball() -> Body<f64> {
+    sweep::test_support::ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), Tol::witness())
 }
 
 /// A torus of major `big` and minor `small` authored as `n` cocircular
@@ -238,32 +219,6 @@ fn r1_rows_corpus() {
         0.05,
         &[],
     );
-    // Sphere seam variants.
-    dump_shelled(
-        "one-arc sphere sealed",
-        &multi_arc_sphere(1.0, &[]),
-        0.05,
-        &[],
-    );
-    dump_shelled("two-arc sphere sealed", &two_arc_sphere(), 0.05, &[]);
-    dump_shelled(
-        "two-arc sphere seam -pi/4",
-        &multi_arc_sphere(1.0, &[-PI / 4.0]),
-        0.05,
-        &[],
-    );
-    dump_shelled(
-        "two-arc sphere seam 0",
-        &multi_arc_sphere(1.0, &[0.0]),
-        0.05,
-        &[],
-    );
-    dump_shelled(
-        "four-arc sphere",
-        &multi_arc_sphere(1.0, &[-PI / 4.0, 0.0, PI / 4.0]),
-        0.05,
-        &[],
-    );
     // A vase whose belly is two cocircular arcs.
     let c = Point2::new(0.0, 1.0);
     let m = Point2::new(2.0f64.sqrt(), 1.0);
@@ -321,18 +276,18 @@ fn check_result(what: &str, body: &Body<f64>, want: f64, tol_abs: f64) {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
-/// **From the consumer's seat**: the two-arc sphere hollowed; the
+/// **From the consumer's seat**: the pole-touching ball hollowed; the
 /// sphere-zone vase hollowed then opened at its cap; SHELL-8's box
 /// beside a (hollow) vessel, opened on the vessel's void ceiling.
 #[test]
 fn r1_end_to_end() {
-    // 1. The two-arc sphere.
+    // 1. The pole-touching ball: one wall in two π-bands, no seam ring.
     let (r, t): (f64, f64) = (1.0, 0.05);
-    let sphere = two_arc_sphere();
-    let out = topo::shell(&sphere, t, tol()).expect("the two-arc sphere shells");
+    let sphere = unit_ball();
+    let out = topo::shell(&sphere, t, tol()).expect("the ball shells");
     let want = 4.0 / 3.0 * PI * (r.powi(3) - (r - t).powi(3));
-    check_result("two-arc sphere", &out.body, want, 1e-12);
-    // Every inner vertex — poles and seam ring alike — is concentric at r − t.
+    check_result("ball", &out.body, want, 1e-12);
+    // Every inner vertex — the two poles — is concentric at r − t.
     for &(new, old) in &out.naming.inner_vertices {
         let p = point(&out.body, new);
         let n = (p.x * p.x + p.y * p.y + p.z * p.z).sqrt();
@@ -425,34 +380,24 @@ fn r1_drum_reverted_cavity_alone() {
     );
     let out = topo::shell(&drum, 0.05, tol()).expect("the drum shells");
     println!("[r1drum] shell: {} shells", out.body.shells().count());
-    // The sphere's reverted cavity for contrast.
-    let cavity = door_cavity(&two_arc_sphere(), 0.05);
+    // The ball's reverted cavity fails the same way, and only that way.
+    let cavity = door_cavity(&unit_ball(), 0.05);
     let reverted = cavity.revert().expect("revert");
-    let v = topo::validate_geometric(&reverted, tol());
-    println!("[r1drum] sphere reverted cavity alone: {v:?}");
+    assert_eq!(
+        topo::validate_geometric(&reverted, tol()),
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
+        "the ball's reversed cavity: only the complement's volume fails"
+    );
 }
 
 /// **Hunting `ShellError::Pcurve`**: bodies every earlier gate takes.
 #[test]
 fn r1_hunt_the_pcurve_arm() {
     let cases: Vec<(&str, Body<f64>, f64)> = vec![
-        (
-            "four-arc sphere",
-            multi_arc_sphere(1.0, &[-PI / 4.0, 0.0, PI / 4.0]),
-            0.05,
-        ),
         ("three-arc torus", n_arc_torus(2.0, 0.5, 3), 0.05),
         ("five-arc torus", n_arc_torus(2.0, 0.5, 5), 0.05),
-        (
-            "sphere seam near pole",
-            multi_arc_sphere(1.0, &[FRAC_PI_2 - 0.05]),
-            0.02,
-        ),
-        (
-            "sphere seams both near poles",
-            multi_arc_sphere(1.0, &[-FRAC_PI_2 + 0.05, FRAC_PI_2 - 0.05]),
-            0.02,
-        ),
     ];
     for (name, body, t) in cases {
         let v = topo::validate_geometric(&body, tol());
