@@ -2,10 +2,12 @@
 id: pinch-tessellate-row-escalates-at-eps-1e-6
 kind: issue
 title: pinch_faces_tessellate's notch307 fib117 row escalates the boolean at ε = 1e-6: main is red on that row
-status: open
+status: closed
 opened: 2026-10-06
 priority: P0
-refs: [a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge, a-planar-face-through-two-vertices-on-one-point-meshes-under-one-id]
+refs: [a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge, a-planar-face-through-two-vertices-on-one-point-meshes-under-one-id, two-pinch-poses-escalate-at-eps-1e-6]
+closed: 2026-10-06
+pr: 4083
 ---
 
 
@@ -41,3 +43,11 @@ row (a fixture whose margin is ε-relative), or the row names the
 escalation it takes at 1e-6 as its expected outcome there.
 `crates/sweep/tests/pinch_faces_tessellate.rs` is tcost/tint ground
 by territory; the row is JOIN's.
+
+## Closed (PR 4083, 2026-10-06; closed by CLEAVE)
+
+Its owed repair, the row naming the escalation it takes at 1e-6, landed in PR 4083
+(`pinch_faces_tessellate.rs`, `REFUSES_AT_1E6`, matched on the predicate). An independent verifier
+measured the refusal bit-identical on base, so main's 1e-6 row is green again. Whether the pose
+should build at 1e-6 stays open in `two-pinch-poses-escalate-at-eps-1e-6`, which carries both
+poses. Three rows had been filed for one red; this is the one kept.

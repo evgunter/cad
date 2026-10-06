@@ -58,7 +58,7 @@ fn across(axis: Vec3<f64>, c: f64, tilt: f64, az: f64, s: f64) -> SplitPlane<f64
 /// Splits `body` by `plane`, asserting tiers 1, 3 and 3′ on both halves
 /// and one section face per half whose one ring is the bore's section;
 /// returns the `[below, above]` volumes.
-fn halves(label: &str, body: &Body<f64>, plane: &SplitPlane<f64>) -> [f64; 2] {
+fn halves(label: &str, body: &Body<f64>, plane: &SplitPlane<f64>) -> [Vol; 2] {
     let halves: [Body<f64>; 2] = halves_at_rest(label, body, plane);
     halves.map(|h| {
         assert_eq!(
@@ -71,12 +71,49 @@ fn halves(label: &str, body: &Body<f64>, plane: &SplitPlane<f64>) -> [f64; 2] {
             .map(|f| h.get_face(f).unwrap().rings.len())
             .collect();
         assert_eq!(rings, [1], "{label}: one annular section face");
-        mass_properties(&h, tol()).unwrap().volume
+        volume(&h)
     })
+}
+
+/// A half's certified volume: the quadrature's value and its enclosure's
+/// half-width, which grows with ε (a curved wall's volume is read to the
+/// band's own reporting target).
+#[derive(Clone, Copy)]
+struct Vol {
+    v: f64,
+    pad: f64,
+}
+
+impl core::ops::Add for Vol {
+    type Output = Self;
+    fn add(self, o: Self) -> Self {
+        Self {
+            v: self.v + o.v,
+            pad: self.pad + o.pad,
+        }
+    }
+}
+
+fn volume(h: &Body<f64>) -> Vol {
+    let m = mass_properties(h, tol()).unwrap();
+    Vol {
+        v: m.volume,
+        pad: m.volume_pad,
+    }
 }
 
 fn near(label: &str, got: f64, want: f64, by: f64) {
     assert!((got - want).abs() <= by, "{label}: {got}, want {want}");
+}
+
+/// [`near`] for a certified volume: within `by` beyond its own enclosure.
+fn near_vol(label: &str, got: Vol, want: f64, by: f64) {
+    assert!(
+        (got.v - want).abs() <= by + got.pad,
+        "{label}: {} ± {}, want {want}",
+        got.v,
+        got.pad
+    );
 }
 
 /// **A tube cut across its axis splits into two annular halves.** The
@@ -98,14 +135,14 @@ fn a_tube_cut_across_its_axis_splits_into_two_annular_halves() {
     for (tilt, az, s) in poses {
         let label = format!("about y, tilt {tilt}, azimuth {az}, s = {s}");
         for v in halves(&label, &tube, &across(y, 0.5, tilt, az, s)) {
-            near(&label, v, half, 1e-8);
+            near_vol(&label, v, half, 1e-8);
         }
     }
     let z = Vec3::new(0.0, 0.0, 1.0);
     let tube = revolved(SketchPlane::yz(), &TUBE);
     let label = "about z, tilt 0.25, azimuth 0.7, s = -1";
     for v in halves(label, &tube, &across(z, 0.5, 0.25, 0.7, -1.0)) {
-        near(label, v, half, 1e-8);
+        near_vol(label, v, half, 1e-8);
     }
 }
 
@@ -132,13 +169,13 @@ fn a_counterbore_and_a_cone_socket_split_across_their_axes() {
             let p = across(y, c, tilt, 2.0, s);
             let [b, a] = if c == 0.6 {
                 // The step face lies in the plane beside the section.
-                halves_at_rest(&label, &cb, &p).map(|h| mass_properties(&h, tol()).unwrap().volume)
+                halves_at_rest(&label, &cb, &p).map(|h| volume(&h))
             } else {
                 halves(&label, &cb, &p)
             };
             let (b, a) = if s > 0.0 { (b, a) } else { (a, b) };
-            near(&label, b, below, 1e-8);
-            near(&label, a, whole - below, 1e-8);
+            near_vol(&label, b, below, 1e-8);
+            near_vol(&label, a, whole - below, 1e-8);
         }
     }
     let socket = revolved(SketchPlane::xy(), &SOCKET);
@@ -151,8 +188,8 @@ fn a_counterbore_and_a_cone_socket_split_across_their_axes() {
         let label = format!("socket, s = {s}");
         let [b, a] = halves(&label, &socket, &across(y, 0.5, 0.0, 0.0, s));
         let (b, a) = if s > 0.0 { (b, a) } else { (a, b) };
-        near(&label, b, below, 1e-9);
-        near(&label, a, whole - below, 1e-9);
+        near_vol(&label, b, below, 1e-9);
+        near_vol(&label, a, whole - below, 1e-9);
     }
 }
 
@@ -237,15 +274,14 @@ fn a_section_touching_a_rim_splits_at_the_closed_form() {
                 let label = format!("rim {rim}, azimuth {az}, s = {s}");
                 let plane =
                     topo::test_support::split_plane(Point3::new(d.x, rim, d.z), n * s, tol());
-                let [below, above] = halves_at_rest(&label, &tube, &plane)
-                    .map(|h| mass_properties(&h, tol()).unwrap().volume);
+                let [below, above] = halves_at_rest(&label, &tube, &plane).map(|h| volume(&h));
                 let cap = if (rim == 1.0) == (s > 0.0) {
                     above
                 } else {
                     below
                 };
-                near(&label, cap, cap_side, 1e-8);
-                near(&label, below + above, whole, 1e-8);
+                near_vol(&label, cap, cap_side, 1e-8);
+                near_vol(&label, below + above, whole, 1e-8);
             }
         }
     }

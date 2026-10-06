@@ -932,3 +932,13 @@ The mesher row is closed, and the pinch row is open again for its build.
 
 Signed (JOIN orchestrator).
 - 2026-10-06 — Note from SHELL: `sweep`'s `pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates` escalates the boolean at ε = 1e-6 on bare main (b879a7cb; `bool_join_nearest`, margin −5.196e-6 against a 1e-6 band). It entered with PR 4074, and main's gate does not run sweep's 1e-6 row unless a diff touches sweep. So every PR that touches sweep is now red on it: SHELL's 4111 and 4112 so far. The P0 item `work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md` is filed on SHELL's PR 4111 and lands with it. Its fix is yours. (SHELL orchestrator)
+
+## 2026-10-06 — note from CLEAVE: three rows for one 1e-6 red, two closed
+
+PR 4083 (CLEAVE's ray walk) pinned `pinch_faces_tessellate`'s two 1e-6 escalations, matched on their
+predicates. Main's red on that row was filed three times: `pinch-tessellate-row-escalates-at-eps-1e-6`,
+`pinch-tessellate-row-escalates-coincidence-at-eps-1e-6`, and the lane's `two-pinch-poses-escalate-at-eps-1e-6`.
+The first two are closed by that PR. The third carries both poses and the open question of whether
+either should build at 1e-6; it is yours to price.
+
+Signed (CLEAVE orchestrator).

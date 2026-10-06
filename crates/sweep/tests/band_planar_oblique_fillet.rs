@@ -3,8 +3,8 @@
 //! the band adds its section and the slanted end walls lose the sliver
 //! under an elliptic arc; the near-perpendicular sliver band, where the
 //! kind-picker escalates or decides the circle; what the downstream
-//! doors make of the ellipse edges (the tessellator, and the boolean's
-//! containment door, which refuses them); and the `Interval` replay.
+//! doors make of the ellipse edges (the tessellator, and the boolean
+//! beside, through and apart from the band); and the `Interval` replay.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,7 +19,9 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::{Body, BooleanError, EdgeKey, mass_properties, query, validate_geometric};
 
-use crate::band_planar_cut_off::{D, Verb, carve, edge, tol, volume};
+use crate::band_planar_cut_off::{
+    D, Verb, carve, edge, pad_ceiling, tol, volume, volume_enclosure,
+};
 
 /// The parallelogram prism whose top front edge ends at two parallel
 /// side walls slanted 26.6° off its normal plane.
@@ -167,50 +169,69 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
 /// **Downstream of the ellipse**: the filleted parallelogram, whose
 /// band is trimmed by two elliptic arcs that also bound the slanted
 /// walls. Mass properties measure it through the certified quadrature
-/// (the closed-form rows above); the tessellator meshes it watertight;
-/// and the boolean refuses it as an operand at the containment door —
-/// beside the band, through it and wholly apart from it alike — because
-/// the point-in-solid probe's at-infinity side is measured in closed
-/// form only, and a cylinder face trimmed by an ellipse has none. That
-/// is the boolean's open row
+/// (the closed-form rows above), and the tessellator meshes it
+/// watertight. The boolean takes it with a brick beside the band and
+/// with one through it, in every op, tier-3 valid at the closed forms:
+/// the notch's overlap is its box, the slot's its box less the band's
+/// section over the slot's width. A brick wholly apart refuses at the
+/// containment door, whose rays from the far brick meet nothing and
+/// whose volume fallback is closed-form only — the boolean's open row
 /// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`),
-/// which an obliquely cut rod reaches without any fillet; the cut is
 /// pinned here so it retires with it.
 #[test]
-fn the_ellipse_edges_pass_the_tessellator_and_stop_at_the_boolean_containment_door() {
+fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
     let body = parallelogram::<f64>();
     let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     let out = fillet_edges(&body, &[e], D, tol()).expect("the oblique fillet builds");
     let mesh = mesh::tessellate(&out.body, 5e-3, tol()).expect("the filleted body tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
-    let operand = finished("the filleted parallelogram", out.body, tol());
-    for (what, cutter) in [
+    let (v, pad) = volume_enclosure(&out.body);
+    for (what, cutter, overlap) in [
         (
             "a notch beside the band",
             brick((1.0, 1.4), (0.8, 1.2), (0.5, 1.5), tol()),
+            0.4 * 0.2 * 0.5,
         ),
         (
             "a slot through the band",
             brick((0.9, 1.1), (-0.5, 0.3), (0.6, 1.5), tol()),
-        ),
-        (
-            "a block apart",
-            brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
+            0.2 * 0.3 * 0.4 - Verb::Fillet.section() * 0.2,
         ),
     ] {
-        let cutter = finished(what, cutter, tol());
-        for (op, result) in [
-            ("subtract", topo::subtract(&operand, &cutter, tol())),
-            ("union", topo::union(&operand, &cutter, tol())),
+        let (brick_v, _) = volume_enclosure(&cutter);
+        for (op, want) in [
+            (BooleanOp::Subtract, v - overlap),
+            (BooleanOp::Union, v + brick_v - overlap),
+            (BooleanOp::Intersect, overlap),
         ] {
-            match result {
-                Err(BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)) => {}
-                other => panic!(
-                    "{what} ({op}): the containment door's closed-form probe refuses, got {:?} \
-                     — retire this pin with the boolean's row",
-                    other.map(|_| ())
-                ),
-            }
+            let result = realized(op, &out.body, &cutter, tol());
+            validate_geometric(&result, tol())
+                .unwrap_or_else(|e| panic!("{what} ({op:?}): tier 3, got {e:?}"));
+            let (got, pad_r) = volume_enclosure(&result);
+            assert!(
+                pad + pad_r < pad_ceiling() && (got - want).abs() < 1e-12 + pad + pad_r,
+                "{what} ({op:?}): V {got} ± {} vs the closed form {want}",
+                pad + pad_r
+            );
+        }
+    }
+    let operand = finished("the filleted parallelogram", out.body, tol());
+    let apart = finished(
+        "a brick apart",
+        brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
+        tol(),
+    );
+    for (op, result) in [
+        ("subtract", topo::subtract(&operand, &apart, tol())),
+        ("union", topo::union(&operand, &apart, tol())),
+    ] {
+        match result {
+            Err(BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)) => {}
+            other => panic!(
+                "a brick apart ({op}): the containment door's closed-form fallback refuses, got \
+                 {:?} — retire this pin with the boolean's row",
+                other.map(|_| ())
+            ),
         }
     }
 }

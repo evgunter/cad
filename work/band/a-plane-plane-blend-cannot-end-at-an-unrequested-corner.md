@@ -155,8 +155,10 @@ Build order (each step widens admission; this row closes with step 4):
   ellipse's frame, `piece_distance` a bound (centre distance ± major).
 - Downstream: a cylinder face trimmed by an ellipse measures through
   the certified quadrature (a pad of 1e-8 to 1e-6 on these rows,
-  midpoints within 1e-9 of the closed forms) and tessellates watertight;
-  the boolean refuses it at the containment door,
+  midpoints within 1e-9 of the closed forms), tessellates watertight,
+  and takes a boolean beside and through the band at the closed forms
+  in every op; with a brick wholly apart the boolean refuses at the
+  containment door,
   `work/contact/at-infinity-probe-measures-in-closed-form-only.md`
   (evidence added there, pinned in `band_planar_oblique_fillet.rs`).
 - The bracket's walls 2 and 5 (the chords filleted, on the corner

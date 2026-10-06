@@ -1267,20 +1267,20 @@ fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
 /// turned chart-wall hits into refusals falls through the floor.
 fn answered_floor_and_escalation_cap(name: &str) -> (usize, usize) {
     match name {
-        "cut 0.3 (below)" => (332, 0),
-        "cut 0.3 (above)" => (398, 0),
-        "corner clip" => (677, 1),
-        "corner clip (the chip)" => (21, 1),
-        "tilt 0.9 (below)" => (303, 0),
-        "tilt 0.9 (above)" => (454, 0),
-        "slab at tilt 1.0" => (384, 0),
-        "wedge" => (520, 0),
-        "lens" => (59, 0),
-        "valley at tilt 0.4" => (313, 0),
-        "ridge at tilt 0.4" => (300, 0),
-        "valley at tilt 1.1" => (230, 1),
-        "ridge at tilt 1.1" => (212, 0),
-        "cut 0.3 minus a box (subtract)" => (196, 0),
+        "cut 0.3 (below)" => (553, 0),
+        "cut 0.3 (above)" => (696, 0),
+        "corner clip" => (742, 0),
+        "corner clip (the chip)" => (265, 0),
+        "tilt 0.9 (below)" => (455, 0),
+        "tilt 0.9 (above)" => (613, 0),
+        "slab at tilt 1.0" => (584, 0),
+        "wedge" => (692, 0),
+        "lens" => (511, 0),
+        "valley at tilt 0.4" => (675, 0),
+        "ridge at tilt 0.4" => (545, 0),
+        "valley at tilt 1.1" => (642, 0),
+        "ridge at tilt 1.1" => (465, 0),
+        "cut 0.3 minus a box (subtract)" => (405, 0),
         other => panic!("no floor for {other}"),
     }
 }
@@ -1346,4 +1346,78 @@ fn every_tilted_cut_wall_reads_its_truth() {
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// **A point on a trimmed sphere face's carrier, far from the face, is
+/// read by the rays.** The quarter dome's sphere face is bounded by two
+/// meridian arcs, whose great circles run on round the back of the
+/// sphere. A point there, on the sphere and within the band of one of
+/// those circles' continuation but more than a unit from any arc of the
+/// face, is plainly `Out`: base (`ce256f0c23`) answers it, and the
+/// region's boundary pass must not refuse it on the carrier alone.
+/// (Review lane `cleave-review-4083-r1`; red at `1edb52efb0` with
+/// `Escalated { bool_sphere_region_arc_on }` at every in-band offset.)
+#[test]
+fn a_point_in_band_of_a_meridians_continuation_reads_out() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let body = sweep::test_support::revolved_about_y(
+        sweep::test_support::dome_profile(1.0),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    );
+    let (zero, k) = (band.zero(), band.escalate());
+    for z in [0.0, 3.0 * zero, -3.0 * zero, 0.6 * k, 30.0 * k] {
+        for phi in [0.1, 0.3, 0.5, 0.7] {
+            let v = Vec3::new(-f64::cos(phi), f64::sin(phi), z);
+            let q = Point3::origin() + v / v.norm();
+            assert_eq!(
+                point_in_solid(&body, q, band, tol()),
+                Ok(SolidContainment::Out),
+                "z {z:e}, phi {phi}"
+            );
+        }
+    }
+}
+
+/// **A ray leaving through an edge, with both faces' crossings at one
+/// place, answers nothing.** From these points the schedule's first ray
+/// (`+x`) exits the cut cylinder exactly through the section's ellipse
+/// edge, where the wall's hit and the section face's hit coincide, each
+/// on its own trim boundary. The fold must set that ray aside (a tie with
+/// the closest crossing, and the closest on an edge) and let a later ray
+/// answer `In`. Disabling both rules together answers `Out` here; each
+/// alone is covered by the other at this pose.
+#[test]
+fn a_ray_exiting_through_the_section_edge_is_set_aside() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let body = cut_by(&[Cut::tilted(1.25, 0.3)]);
+    for x0 in [0.2, -0.5, 0.7] {
+        let q = Point3::new(x0, 0.0, 1.25 - 0.3f64.tan());
+        assert_eq!(
+            point_in_solid(&body, q, band, tol()),
+            Ok(SolidContainment::In),
+            "{q:?}"
+        );
+    }
+}
+
+/// **A ray that meets nothing blocks only where no ray settles, and it
+/// says so.** From this point beside the cut cylinder, just above the
+/// floor's plane, some rays meet nothing and others meet the boundary
+/// only within the band: at the witness band no ray settles, and the
+/// refusal is the volume's — one of its rays met nothing, and no other
+/// settled it. A tighter band decides those rays and answers. Both are
+/// pinned: the refusal is not a claim that no ray met the boundary.
+#[test]
+fn a_ray_meeting_nothing_refuses_only_where_no_ray_settles() {
+    let body = cut_by(&[Cut::tilted(1.25, 0.3)]);
+    let q = Point3::new(-1.7, 0.4, 3e-9);
+    let coarse = point_in_solid(&body, q, Band::new(1e-9, 1e-8).unwrap(), tol());
+    assert_eq!(coarse, Err(PointInSolidError::VolumeUncertified));
+    let msg = coarse.unwrap_err().to_string();
+    assert!(msg.contains("no other test ray settled it"), "{msg}");
+    assert_eq!(
+        point_in_solid(&body, q, Band::new(1e-11, 1e-10).unwrap(), tol()),
+        Ok(SolidContainment::Out)
+    );
 }

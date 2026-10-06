@@ -194,7 +194,7 @@ pub(crate) mod policy_lane;
 pub mod props;
 pub mod provenance;
 pub mod query;
-pub(crate) mod ray_parity;
+pub(crate) mod ray_walk;
 pub mod readback;
 pub mod replace_face;
 pub mod revert;
@@ -831,7 +831,6 @@ pub use query::{
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
-pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
