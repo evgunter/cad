@@ -2139,6 +2139,7 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
 ///
 /// [`NamingError::Emission`] for a piece ending at a vertex `t` does
 /// not name, and the insert doors' own refusals.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn name_edge_pieces<T: geom_core::Real>(
     t: &mut NameTable,
     tie: &mut TieRows,
