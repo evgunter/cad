@@ -586,6 +586,9 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-06 — seam note from SHELL: demos red on main
+
+SHELL filed `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0, E) on this slate. `demo-tour`'s klein findings pin 10 says it retired, and the certified-cells header moved. #3774 is the likely cause. Every PR that runs the demos job inherits the red.
 ## 2026-10-06 — the sketch plane waits on D10 too
 
 `the-sketch-plane-is-its-frame` now also waits on `d10-one-way-to-say-intent-is-unbuilt`, because a sketch plane is a placement and so falls under the D10 hold. It stays parked on `store-constructed-carriers` as well.
@@ -593,3 +596,10 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-06 — D10 and the lattice's `.tangent()`. Ev: "the refactor is likely to change the details of how `.tangent()` works under the hood, but the api will likely stay similar".
   - Read: units on how segments are stored (3, 4, 6) and the storage P0s may start under the hold.
   - A unit that reworks how declared tangent joints are recorded or verified waits for D10's build, as the sketch plane does.
+
+- 2026-10-06 — From FUSE: demo-tour's Klein pin (`klein.rs:876`,
+  findings entry 10) fires on main at every `eps_regression` row since
+  PR 3774 (PATHS 5b). The FUSE 3953 lane bisected it. Filed as
+  `work/paths/a-klein-wall-radius-pin-fires-on-main-since-paths-5b.md`
+  (P0): the pin's own text says the entry has retired. Every PR that
+  merges main is red on the `demos` job until it is resolved.

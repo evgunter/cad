@@ -272,20 +272,20 @@ fn every_rim_pair_composes_in_one_request() {
     let tol = Tol::witness();
     assert_eq!(
         roll_once(&ROLLED, ROLL, tol),
-        Ok((9, 18, 9)),
+        Ok((9, 16, 9)),
         "the scene's three rims in ONE request: three annulus bands over the sharp \
-         lid's 6/12/6"
+         lid's 6/10/6"
     );
     for pair in [[1u32, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]] {
         assert_eq!(
             roll_once(&pair, ROLL, tol),
-            Ok((8, 16, 8)),
-            "rims {pair:?} in ONE request: two annulus bands over the sharp lid's 6/12/6"
+            Ok((8, 14, 8)),
+            "rims {pair:?} in ONE request: two annulus bands over the sharp lid's 6/10/6"
         );
     }
     assert_eq!(
         roll_once(&[5, 0], ROLL / 4.0, tol),
-        Ok((8, 16, 8)),
+        Ok((8, 14, 8)),
         "the vent's two rims share its seam meridian as the flange's rim and the \
          dome's foot share the flange cone's"
     );
@@ -475,7 +475,7 @@ fn the_rolled_names_are_one_set_at_two_radii() {
     let (a, b) = (names(ROLL), names(ROLL * 0.75));
     assert_eq!(
         a.len(),
-        9 + 18 + 9 + 1,
+        9 + 16 + 9 + 1,
         "one name per entity and the body's"
     );
     assert_eq!(a, b);
@@ -553,16 +553,16 @@ fn every_rim_set_at_a_quarter_roll_is_nameable() {
 
 /// **Two annulus bands on one PLANE cap compose and name their
 /// output**: the underside (segment 0) carries rims 0 and 1, the top
-/// (segment 4) rims 4 and 5, so each pair's bands both carve the
-/// cap's radial seam. At a quarter of the roll, where the vent's
-/// concave rims have headroom.
+/// (segment 4) rims 4 and 5, so each pair's bands both carve one plane
+/// annulus, one at its outer circle and one at its ring. At a quarter
+/// of the roll, where the vent's concave rims have headroom.
 #[test]
 fn two_bands_on_one_plane_cap_compose() {
     let tol = Tol::witness();
     for pair in [[0u32, 1], [4, 5]] {
         assert_eq!(
             roll_once(&pair, ROLL / 4.0, tol),
-            Ok((8, 16, 8)),
+            Ok((8, 14, 8)),
             "rims {pair:?} share a plane cap"
         );
     }
