@@ -2185,7 +2185,9 @@ pub fn plane_torus_section<T: Decide>(
                     // Off the axis: the spiric, two ovals while the
                     // plane stays short of the inner equator — a
                     // length, decided before any root is taken.
-                    let d = (q - c).dot(n);
+                    // The plane's own constant less the centre's: a rigid
+                    // re-pose reproduces it to the ulp.
+                    let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
                     match decide(
                         "pt_spiric_two_ovals",
                         Margin::of((big_r - r) - d.abs()),

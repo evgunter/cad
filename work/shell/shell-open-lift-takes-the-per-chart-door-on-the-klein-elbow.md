@@ -2,11 +2,13 @@
 id: shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow
 kind: issue
 title: shell_open's rim-stage lift on the klein elbow takes the per-chart door, whose re-anchor leaves a curved corner 0.88 mm off its carrier
-status: open
+status: review
 opened: 2026-10-01
 refs: [equator-seam-reauthor-refuses-the-hollowed-elbow, spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut, spiric-bounded-face-area-is-unimplemented]
 priority: P1
 cost: H
+pr: 4151
+branch: shell/axial-closed
 ---
 
 ## What

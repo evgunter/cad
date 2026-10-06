@@ -263,16 +263,16 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
 }
 
 // ---------------------------------------------------------------------
-// Claim 1: a curved void wall through the PER-CHART door.
+// Claim 1: a curved void wall through the AXIAL door.
 // ---------------------------------------------------------------------
 
-/// **A box with a cylindrical cavity**: neither all-planar nor axial
-/// (the box's side planes are parallel to the cavity's axis), so the
-/// per-chart door moves every chart, the void's cylinder included —
-/// a DILATION (`d = +t`) on a reversed cylinder face. Closed form:
-/// `[4³ − 3.8³] + π[1.1²·2.2 − 1²·2]`.
+/// **A box with a cylindrical cavity**: not all-planar, and axial — the
+/// box's side planes are parallel to the cavity's axis and its ends
+/// normal to it — so the axial door moves every chart at once, the
+/// void's cylinder included: a DILATION (`d = +t`) on a reversed
+/// cylinder face. Closed form: `[4³ − 3.8³] + π[1.1²·2.2 − 1²·2]`.
 #[test]
-fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
+fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
     let cube = finished("the cube", boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0), tol());
     // Axis: the line x = 2, z = 2 along y; r = 1; y ∈ [1, 3].
     let cavity = finished(

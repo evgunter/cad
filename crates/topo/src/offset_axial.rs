@@ -1201,7 +1201,7 @@ fn solve_corner<T: Decide>(
     // LINE profile as for a circle, with the azimuth carried too. ----
     let mut carried: Option<(T, T)> = None;
     if profiles.len() < 2 {
-        let pole = match decide("offset_axial_pole", Margin::of(rho_old), band) {
+        let mut pole = match decide("offset_axial_pole", Margin::of(rho_old), band) {
             Ok(Sign::Zero) => true,
             Ok(_) => false,
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
@@ -1213,9 +1213,11 @@ fn solve_corner<T: Decide>(
             ));
         };
         if let (Profile::Circle { .. }, &[cap0, cap1]) = (&only, &meridians[..]) {
-            // The meridian-pair arm. `None` says the moved caps still
-            // hold the axis, and the pole arm below keeps its answer.
-            if let Some(point) = cap_pair_corner(
+            // The meridian-pair arm. `None` says the moved caps meet ON
+            // the axis, so the corner is its pole — the one it already
+            // was, or the one a lift putting both caps back through the
+            // axis moves it onto — and the pole arm below answers it.
+            match cap_pair_corner(
                 vertex,
                 at.len(),
                 (rho_old, h_old),
@@ -1225,7 +1227,8 @@ fn solve_corner<T: Decide>(
                 frame,
                 band,
             )? {
-                return Ok(point);
+                Some(point) => return Ok(point),
+                None => pole = true,
             }
         }
         if !pole {
@@ -1253,9 +1256,9 @@ fn solve_corner<T: Decide>(
                 }
                 (Profile::Circle { .. }, [_, _, ..]) => {
                     return Err(refuse(
-                        "a circle profile meets more than one plane parallel to the axis here, \
-                         and the caps hold the axis between them, so the corner is neither \
-                         the caps' meeting line nor a carried point",
+                        "a circle profile meets more than two planes parallel to the axis \
+                         here, so the corner is neither the caps' meeting line nor a carried \
+                         point",
                     ));
                 }
             }
@@ -1503,9 +1506,10 @@ fn solve_corner<T: Decide>(
 /// plane equations, so the projection is a solving convenience and not
 /// a trusted convention.
 ///
-/// Answers `None` when the moved caps still hold the axis (`ρ_L = 0`):
-/// the corner is then the pole the pole arm already answers, and this
-/// arm deliberately does not shadow it.
+/// Answers `None` when the moved caps meet on the axis (`ρ_L = 0`):
+/// the corner is then an axis pole — one it already stood on, or one a
+/// lift that puts both caps back through the axis moves it onto — and
+/// the pole arm answers it.
 #[allow(clippy::too_many_arguments)]
 fn cap_pair_corner<T: Decide>(
     vertex: VertexKey,
@@ -2363,6 +2367,44 @@ fn reauthor<T: Decide>(
             }
         }
         geom_brep::MappedCurve::ExtrudedPoint { place, vec, .. } => {
+            // Each moved end's station `s` along the extrusion, `p =
+            // place(point) + vec·s`: its height off the sketch plane
+            // over the vector's own. An end still at its rest station
+            // (`0` for the start, `1` for the end) keeps it, decided on
+            // the height it would be off by — a length.
+            let inv = place.inverse();
+            let rise = inv.transform_vec(vec).z;
+            match decide("offset_axial_reauthor_rise", Margin::of(rise), band) {
+                Ok(Sign::Positive | Sign::Negative) => {}
+                Ok(Sign::Zero) => {
+                    return Err(refuse(
+                        "an extruded point whose extrusion vector lies in its own sketch \
+                         plane, so no station along it is read",
+                    ));
+                }
+                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+            }
+            let station = |name: &'static str, p: Point3<T>, rest: T| {
+                let height = inv.transform_point(p).z;
+                match decide(name, Margin::of(height - rise * rest), band) {
+                    Ok(Sign::Zero) => Ok(None),
+                    Ok(_) => Ok(Some(height / rise)),
+                    Err(source) => Err(ReplaceFaceError::Escalated { source }),
+                }
+            };
+            let s0 = station("offset_axial_reauthor_extrude_start", p_start, T::zero())?;
+            let s1 = station("offset_axial_reauthor_extrude_end", p_end, T::one())?;
+            // The declaration's own restriction (`MappedCurve::restrict`):
+            // the placement slides to the start, the vector spans the
+            // two stations.
+            let place = match s0 {
+                Some(s) => geom_core::Affine3::translation(vec * s) * place,
+                None => place,
+            };
+            let vec = match (s0, s1) {
+                (None, None) => vec,
+                _ => vec * (s1.unwrap_or(T::one()) - s0.unwrap_or(T::zero())),
+            };
             let q = place.inverse().transform_point(p_start);
             geom_brep::MappedCurve::ExtrudedPoint {
                 point: geom_core::Point2::new(q.x, q.y),

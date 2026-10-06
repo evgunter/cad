@@ -1159,7 +1159,7 @@ fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
     );
 }
 
-/// **The `r ± t/2` wall pair — and the wall that stops it retiring.**
+/// **The `r ± t/2` wall pair, spelled as one `shell_open` call.**
 ///
 /// Klein's `elbow` spells the thickness twice: `circle(R + WALL/2)` for
 /// the outer wall and `circle(R − WALL/2)` for the inner, revolved as
@@ -1168,59 +1168,25 @@ fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
 /// the elbow meets the rest of the bottle. That is the "paid once per
 /// wall" debt the demo's own findings list records.
 ///
-/// **It does not retire yet, and this row is why.** A partial revolve
-/// of a disc gives a TORUS wall and two PLANAR meridian end caps, so
-/// every rim is a torus × meridian-plane seam vertex. The corner
-/// SOLVES (the carried-datum arm), the rim EDGE between wall and moved
-/// cap MINTS as the exact `Curve3::Spiric` the moved cap cuts with its
-/// window read forward of its start, and the elbow's EQUATOR SEAMS —
-/// the disc's two profile vertices revolved as `RevolvedPoint`-declared
-/// chart seams — re-author onto the corners the moved caps turned
-/// about the axis. The SEALED arm then hollows to tier 3 and stops at
-/// the props door (check 7, a spiric-bounded cap's area). The OPENED
-/// arm stops a stage earlier, at the rim stage's LIFT. The lifted
-/// solid holds the cavity, whose meridian caps were translated one
-/// wall off the axis, so the axial gate declines it ("a plane parallel
-/// to the axis but not through it") and the per-chart door re-anchors
-/// a curved corner off its carrier
-/// (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
+/// **The opened arm builds it.** A partial revolve of a disc gives a
+/// TORUS wall and two PLANAR meridian end caps. The cavity's caps are
+/// those planes translated one wall inward, so they stand parallel to
+/// the axis and beside it, and its rims are the spirics they cut. The
+/// rim stage's LIFT puts each designated cap's counterpart back onto
+/// the meridian plane through the axial door — the gate admits a plane
+/// parallel to the axis at any stand-off, so the lifted solid is on
+/// the same door the cavity was — and the rims it mints there are the
+/// plane×torus section's meridian CIRCLES. The opened elbow matches
+/// the hand-built one: same topology, no spiric left, volume equal to
+/// it and to Pappus within `1e-12`.
 ///
-/// **The old door, verbatim (measured at the unit's head before the
-/// rim window was read forward):** `ShellError::Face { face:
-/// FaceKey(1v1), error: Op { edge: None, error: RechartFalsifies {
-/// edge: EdgeKey(2v1), error: IntervalNotForward { margin:
-/// −0.7068583470577036 } } } }`, the same face, edge and span for the
-/// open and the sealed arm; before it, the equator seams' re-author
-/// (`offset_axial_reauthor_plane`).
+/// **The sealed arm still stops at the props door** (check 7): its
+/// cavity keeps both off-axis caps, and a spiric-bounded cap's area is
+/// FLUX's `spiric-bounded-face-area-is-unimplemented`.
 ///
-/// **This is not a torus gap — and it is not every curved wall's gap
-/// either.** A partial revolve whose wall is a CYLINDER hollows today:
-/// `sf2b_axial`'s quarter-turn wedge is that body, and its rim vertex
-/// carries TWO profile constraints (the cylinder's line and the cap's)
-/// with the meridian plane supplying only the azimuth. And the SPHERE
-/// half of the circle-profile family is BUILT: `torax_axial`'s lune
-/// solves its rim end to end through the meridian-pair corner arm and
-/// the off-axis-circle mint (a plane cuts a sphere in a circle,
-/// always), and now waits only on the props inventory's sphere flux
-/// premise — a wall its OPERAND already stands behind. What is missing
-/// here is exactly the torus's moved-rim CARRIER.
-///
-/// **What would retire it**, concretely, is two doors: the opened
-/// arm's lift on an axial scope, and the props quadrature lane for a
-/// spiric-bounded face, where the sealed arm and the sectioned vessel
-/// already stand (`spiric_rim`). The C5 table is not involved: the axial
-/// door mints the rim inline, and `plane_torus_section` keeps refusing
-/// the tilted pose. `torax_axial` carries the section's own
-/// measurement — on this elbow's numbers the half-width and
-/// half-height differ by `2.03e-4` m, a circle's do not.
-///
-/// The comparison this row would make once that lands: topology exactly
-/// equal, stored radii within one ulp (the two spellings reach the
-/// inner radius by different routes — `R − WALL/2` against
-/// `(R + WALL/2) − WALL`), volume within `1e-12`. Under the demo rule
-/// the contract is **naturalness, not byte-identity**: one radius
-/// instead of two, and the wall stops being a number the author has to
-/// keep consistent across two call sites.
+/// Under the demo rule the contract is **naturalness, not
+/// byte-identity**: one radius instead of two, and the wall stops being
+/// a number the author has to keep consistent across two call sites.
 #[test]
 fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_hand_built_tube() {
     // The hand construction still builds, unchanged — the debt is real
@@ -1316,6 +1282,107 @@ fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_hand_built_tube(
         (hand - want).abs() <= 1e-12,
         "hand-built volume {hand}, want {want}"
     );
+}
+
+/// **ONE klein cap designated, not both.** The lift moves one cavity
+/// cap back onto its meridian plane while the other cavity cap stays
+/// where the cavity door left it, off the axis, its spiric rims held
+/// (an edge whose two charts do not move keeps its carrier). So the
+/// opened arm builds through every stage and stops where the sealed
+/// arm does: at check 7's props door, on that held cap, whose
+/// spiric-bounded area is FLUX's
+/// `spiric-bounded-face-area-is-unimplemented`.
+#[test]
+fn the_klein_elbow_opens_at_one_cap() {
+    let solid = klein_elbow(vec![circle_loop(KLEIN_R + KLEIN_WALL / 2.0)]);
+    let cap = solid
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                solid.get_surface(f.surface),
+                Some(geom::Surface::Plane { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("a partial revolve has a meridian end cap");
+    let open = topo::shell_open(
+        &finished("the operand", solid, Tol::witness()),
+        KLEIN_WALL,
+        &[cap],
+        Tol::witness(),
+    )
+    .expect_err("the held cap's area");
+    let (face, source) =
+        props_door(&open).unwrap_or_else(|| panic!("the one-cap arm's props door: {open:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
+    );
+}
+
+/// **A sealed hex prism with a coaxial bore**: every side plane stands
+/// parallel to the bore's axis and beside it, the ends normal to it, so
+/// the solid is axial and hollows through the axial door at once. The
+/// wall is the holed prism less the cavity: the hexagon eroded by `t`
+/// (its apothem shortened by `t`) less the bore dilated by `t`, over
+/// the height less `2t`.
+#[test]
+fn a_hex_prism_with_a_coaxial_bore_hollows_to_its_closed_form() {
+    let (big, bore, h, t) = (1.0, 0.3, 0.8, 0.05);
+    let hex = bulge_loop(
+        (0..6)
+            .map(|i| {
+                let a = core::f64::consts::TAU * f64::from(i) / 6.0;
+                (Point2::new(big * a.cos(), big * a.sin()), 0.0)
+            })
+            .collect(),
+    );
+    let hole = bulge_loop(vec![
+        (Point2::new(bore, 0.0), 1.0),
+        (Point2::new(-bore, 0.0), 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![hex, hole])
+        .validate(Tol::witness())
+        .expect("a bored hexagon validates");
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bored hex prism extrudes")
+    .body;
+    assert!(
+        topo::is_axial(&body, band()).expect("the axis gate decides"),
+        "hexagon sides parallel to the bore's axis, ends normal to it"
+    );
+    let pi = core::f64::consts::PI;
+    let apothem = big * (pi / 6.0).cos();
+    let hex_area = |a: f64| 2.0 * 3.0f64.sqrt() * a * a;
+    let operand = hex_area(apothem) * h - pi * bore * bore * h;
+    let cavity = (hex_area(apothem - t) - pi * (bore + t).powi(2)) * (h - 2.0 * t);
+    let want = operand - cavity;
+    let hollow = topo::shell(
+        &finished("the operand", body, Tol::witness()),
+        t,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the bored hex prism hollows: {e:?}"))
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&hollow, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(hollow.shells().count(), 2, "the wall and its cavity");
+    let got = topo::mass_properties(&hollow, Tol::witness())
+        .expect("props")
+        .volume;
+    println!("[measured] bored hex prism hollow {got}, closed form {want}");
+    assert!((got - want).abs() <= 1e-12, "hollow {got}, want {want}");
 }
 
 // ---------------------------------------------------------------------
