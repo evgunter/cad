@@ -2168,9 +2168,11 @@ fn latitude_circle<T: Real>(
 /// latitude circle, a seam) that is the old parameter itself, turn and
 /// all, and on one minted afresh (a section curve, which may change
 /// kind) it is the old point's own place in the new parameter. The
-/// moved point `p` is then read within a half turn of that anchor, so
-/// what is re-derived is only the motion; which way round the two ends
-/// make a window is [`forward_window`]'s.
+/// moved point `p` is then read from that anchor — on a circle as the
+/// angle between the two points' rays about its centre, on a spiric
+/// within a half turn of it — so what is re-derived is only the
+/// motion; which way round the two ends make a window is
+/// [`forward_window`]'s.
 ///
 /// **The first read starts on the near half of the turn.** A periodic
 /// read is an `atan2` about a guess, cut opposite it, and a fresh
@@ -2205,8 +2207,40 @@ fn param_on<T: Decide>(
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => t_old,
     };
-    let anchor = carrier.param_near(q, guess).ok_or_else(unread)?;
-    let t = carrier.param_near(p, anchor).ok_or_else(unread)?;
+    let read = carrier.param_near(q, guess).ok_or_else(unread)?;
+    // On a carried frame the read IS the old parameter, and a second
+    // evaluation at it would only add the carrier's own rounding (a
+    // circle's `sin π`), so a read decided equal to it is it.
+    let anchor = match carrier {
+        Curve3::Circle { radius: scale, .. }
+        | Curve3::Spiric {
+            minor_radius: scale,
+            ..
+        } => match decide(
+            "offset_axial_edge_carried",
+            Margin::levered(read - t_old, *scale),
+            band,
+        ) {
+            Ok(Sign::Zero) => t_old,
+            Ok(_) => read,
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        },
+        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => read,
+    };
+    let t = match carrier {
+        // A circle's motion is the angle between the two points' rays
+        // about its own centre, read off the points themselves.
+        Curve3::Circle { center, axis, .. } => {
+            let n = axis.normalize();
+            let ray = |x: Point3<T>| {
+                let v = x - *center;
+                v - n * v.dot(n)
+            };
+            let (a, b) = (ray(q), ray(p));
+            anchor + a.cross(b).dot(n).atan2(a.dot(b))
+        }
+        _ => carrier.param_near(p, anchor).ok_or_else(unread)?,
+    };
     let gap = carrier.eval(t).distance(p);
     match decide("offset_axial_edge_agreement", Margin::of(gap), band) {
         Ok(Sign::Zero) => Ok(t),
