@@ -118,9 +118,9 @@ use geom::Surface;
 use geom_core::Real;
 
 use crate::body::Body;
-use crate::entity::{EntityId, HalfEdgeKey};
-use crate::geometry::SurfaceKey;
-use crate::live::{OPERATORS_KEEP_LINKS, Proven, link, proven};
+use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey};
+use crate::geometry::CurveKey;
+use crate::live::{OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
 use crate::null::CurveGeom;
 
 impl<T: Real> Body<T> {
@@ -137,17 +137,48 @@ impl<T: Real> Body<T> {
     /// Every such read precedes construction of the result.
     #[track_caller]
     pub fn revert(&self) -> Self {
-        // ---- Preconditions (read-only). ----
-        // Which surfaces carry their own reversal (`Plane`: the normal
-        // is negated in the surface — the M3 encoding) and which push it
-        // onto the face's `sense` bit (every other class — module docs).
-        // Read from the SOURCE: revert is key-for-key, so the
-        // classification is valid for the result too.
-        let plane_surfaces: BTreeSet<SurfaceKey> = self
-            .surfaces
+        // ---- The plan (read-only). ----
+        // Which faces' surfaces carry their own reversal (`Plane`: the
+        // normal is negated in the surface — the M3 encoding) and which
+        // push it onto the face's `sense` bit (every other class — module
+        // docs); which chart images and stored rows are stated in a
+        // plane's chart. Read from the SOURCE: revert is key-for-key, so
+        // the classification is valid for the result too. A row whose
+        // half-edge no longer resolves is on no face, so it is on no
+        // plane face and travels as found — the dead-key exception
+        // `crate::pcurves`'s posture docs state for this door.
+        let is_plane = |surface: &Surface<T>| matches!(surface, Surface::Plane { .. });
+        let plane_faces: BTreeSet<FaceKey> = self
+            .faces
             .iter()
-            .filter(|(_, surface)| matches!(surface, Surface::Plane { .. }))
+            .filter(|&(face, data)| is_plane(self.face_surface_linked(face, data)))
+            .map(|(face, _)| face)
+            .collect();
+        let plane_images: BTreeSet<CurveKey> = self
+            .curves
+            .iter()
+            .filter(|&(key, geom)| {
+                let CurveGeom::Certified(curve) = geom else {
+                    return false;
+                };
+                curve.description().chart().is_some_and(|chart| {
+                    is_plane(self.get_surface(chart.surface).unwrap_or_else(|| {
+                        dangling_link(
+                            GeomRef::Curve(key),
+                            "chart image's surface",
+                            GeomRef::Surface(chart.surface),
+                        )
+                    }))
+                })
+            })
             .map(|(key, _)| key)
+            .collect();
+        let plane_rows: BTreeSet<HalfEdgeKey> = self
+            .pcurves
+            .keys()
+            .filter(|&he| {
+                self.half_edges.contains_key(he) && plane_faces.contains(&self.face_of_linked(he))
+            })
             .collect();
         // Resolve every half-edge's new start and every vertex's new
         // anchor from the SOURCE before building the result (the map
@@ -240,21 +271,12 @@ impl<T: Real> Body<T> {
         // (module docs): every datum stated in a plane's chart
         // coordinates, re-stated under the reflection the negation
         // above is. Chart images are walked by CURVE, so a carrier
-        // shared by several edges is mirrored once; stored rows by
-        // half-edge, resolved to their face through the SOURCE (the
-        // topology is key-for-key, and `out`'s is mid-map). A row
-        // whose half-edge no longer resolves is on no face, so it is
-        // on no plane face and travels as found — the dead-key
-        // exception `crate::pcurves`'s posture docs state for this
-        // door.
-        for (_, geom) in out.curves.iter_mut() {
+        // shared by several edges is mirrored once.
+        for (key, geom) in out.curves.iter_mut() {
             let CurveGeom::Certified(curve) = geom else {
                 continue;
             };
-            let on_plane = curve
-                .description()
-                .chart()
-                .is_some_and(|c| plane_surfaces.contains(&c.surface));
+            let on_plane = plane_images.contains(&key);
             // `None` is the one image with no reflected locus — a
             // spiric WALL image, which lives on a torus chart by
             // construction and therefore cannot be on a plane face.
@@ -267,11 +289,9 @@ impl<T: Real> Body<T> {
             }
         }
         for (he_key, row) in out.pcurves.iter_mut() {
-            let on_plane = self.half_edges.contains_key(he_key)
-                && plane_surfaces.contains(
-                    &proven(&self.faces, self.face_of_linked(he_key), EntityId::Face).surface,
-                );
-            if on_plane && let Some(mirrored) = row.mirrored_v() {
+            if plane_rows.contains(&he_key)
+                && let Some(mirrored) = row.mirrored_v()
+            {
                 *row = mirrored;
             }
         }
@@ -280,8 +300,8 @@ impl<T: Real> Body<T> {
         // negation above — a face is flipped in exactly one encoding —
         // and it is a `bool` negation, so it is exact structure at every
         // backend and a bitwise involution.
-        for (_, face) in out.faces.iter_mut() {
-            if !plane_surfaces.contains(&face.surface) {
+        for (key, face) in out.faces.iter_mut() {
+            if !plane_faces.contains(&key) {
                 face.sense = !face.sense;
             }
         }
