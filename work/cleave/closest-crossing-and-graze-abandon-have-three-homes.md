@@ -1,12 +1,14 @@
 ---
 id: closest-crossing-and-graze-abandon-have-three-homes
 kind: issue
-title: The closest-crossing ray reading and its graze-abandon protocol live in three places: cast_ray, splitting::containment and sphere_region
-status: dispatched
+title: The ray-walk driver (schedule, graze, set-aside, exhaustion) and the closest-crossing fold have six homes
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: H
 branch: cleave/ray-walk
+closed: 2026-10-06
+pr: 4083
 ---
 
 Found by the dual review of PR 4046 (both lanes, style Q1). PR 4046 added
@@ -46,3 +48,78 @@ generic over a per-geometry "crossings along this ray" reader), and what it
 does to the three readers' refusal types. That is the `design: true` on
 this row.
 
+## Built (branch `cleave/ray-walk`)
+
+The framing above was partly wrong: `splitting::containment` counts
+parity and reads no heading, and the repeated thing is the WALK DRIVER,
+copied into `walk_schedule` (both planar loop walks),
+`chart_region::point_in_polygon`, `chart_bound::parity`,
+`solid_contain::point_in_faces` and `SphereFaceRegion::contains`, with
+`splitting::order::in_plane_frame` a schedule ladder of the same shape.
+The per-ray readings are two kinds and stay two.
+
+- `topo::ray_walk` (renamed from `ray_parity`) holds the driver
+  (`walk`), one ray outcome vocabulary (`RayFault`: `Graze`, `Unread`,
+  `InBand`, `Blocked`, `Fatal`), the one ranking of what unsettled
+  readings kept (`Evidence`: the first limit, else the first in-band
+  reading), the one exhaustion sentence (`NoRaySettled`, one recourse:
+  move the geometry), the parity reading, and the closest-crossing fold
+  (`Crossings`, `advance`, `apart`) the solid sweep and the sphere
+  region share. `Blocked` is only a limit met on definite decisions; a
+  reading a tighter tolerance could change grazes or is in band.
+  The shell witness ladder, `join::loop_roles` and `carrier_eq`'s
+  coincidence rung rank through `Evidence` too.
+- Every reader above runs on it; `profile::validate::point_in_loop`
+  is left as it is.
+- The fold ties against the closest crossing, not the running best, and
+  a boundary hit or a tangential incidence grazes only when it is the
+  closest (PR 4046's sphere rule, now `cast_ray`'s too).
+- The sphere region reads its arcs before its rays
+  (`ConicArc::hit`, rows `bool_sphere_region_arc_*`) and has its own
+  refusal (`RegionRefusal`), which the solid door and the pierce arm
+  wrap.
+- Inside `cast_ray` every in-band reading, every trim reading at a hit
+  and the confined limits are about the ray; a ray that meets nothing
+  where the body's volume cannot side the point is set aside.
+- `PointInSolidError::inconclusive` holds the confined limits; the
+  shell witness ladder tries the next witness past one and ranks the
+  first as the refusal, as `join::loop_roles` does.
+- `in_plane_frame` is a frame search, not a ray walk, and is off the
+  driver; it keeps its first in-band arm.
+- The boundary reading of a conic is of the ARC (`ConicArc::hit`): in
+  band of its carrier past its ends is off the edge.
+
+Measured. The sphere region's missing pre-pass reproduced: on the unit
+sphere less a 60° cap, round 200 azimuths and both orientations, a
+point 0.5ε off the arc answered `In`/`Out` at 88 of 800 queries and 0.9ε
+off at 176 of 800 (ε 1e-9, K 10); 2ε off answered 796 of 800. All now
+read on the boundary, refuse on `bool_sphere_region_arc_on`, or read
+their side past the band (`sphere_region` tests). Rows re-baselined,
+refusal → answer only: the torus suite's shell above the tube's top
+circle is now the residual one (9.69e-9 at the default row, was
+3.66e-4, a cube-root shell of refusing root counts); the tilted-cut
+walls answer far more probes (the lens 62 → 514 of 720, each against its
+truth, wrong 0 at every ε row), where a ray meeting nothing refused the
+whole query on the props lane's uncertified volume.
+The same set-aside opened more where a probe ray meets the boundary,
+each held to its closed form: `conic_edge_curved_face`'s ball through
+the cut face and all three rim rods, `axis_lap`'s oblique flat, the
+boss under a slab in every
+member order (`reach_slab_cut_sector_side`), and the tour's two
+tilted-cut walls, now held checks. The rows that pinned their refusals
+were rewritten; CONTACT's two frontier rows and VACUITY's torus-shell
+row are annotated.
+
+## Closed (PR 4083, 2026-10-06)
+
+`topo::ray_walk` holds the one walk driver, the one ranking of what a walk met (`Evidence`: the first
+`Blocked`, else the first `InBand`, else `NoRaySettled`), the shared closest-crossing fold, and the
+parity reading. Every ray reader runs on it. `Blocked` carries only limits read from definite
+decisions.
+- Review tier: DUAL (concurrent, H). Both reviews returned APPROVE-WITH-FIXES; one raised a MAJOR (the
+  sphere pre-pass read an arc's carrier circle). The union went through one fix pass.
+- An independent verifier then confirmed the fix pass at `87d0efe885`:
+  - every listed mutant goes red;
+  - 194,580 queries per side, with 0 wrong answers and no answer that became a refusal;
+  - the three newly built bodies are at closed form;
+  - the two 1e-6 pinch escalations are bit-identical on base.

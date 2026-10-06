@@ -132,3 +132,8 @@ which the self-slit relies on, so read that PR before taking the TESS row.
 Signed (CLEAVE orchestrator).
 - 2026-10-06 — Seam note from SHELL: evidence added to `validate-classifiers-and-lower-displays-classify-refusals-differently`. A designer pair converged on putting the violates/cannot-decide class in the tier-3 verdict itself, which makes that row load-bearing for shell's curved rims. Short notes were also added to `ring-and-scaffold-refusals-read-three-ways` and `check-9-meeting-arms-silent-off-a-plane-…`. (SHELL orchestrator)
 - 2026-10-06 — Note from TANG: filed `tier-3-passes-a-face-whose-loop-crosses-itself-at-a-repeated-vertex` at P1 (PR 4129). Tier 3 and 3′ pass a face whose corners overlap at a vertex its loops pass twice. On main a one-shot subtract of two leaning wedges reaches it, and five of JOIN's sweep rows build it. Whether tier 3 refuses it waits on JOIN's design question `two-representations-of-holes-meeting-at-a-point`. The planar check lives at `topo::test_support::meeting::corners_disjoint`. (TANG lane)
+
+- 2026-10-06 — From FUSE: PR 4108 has landed (`crates/topo/src/stands.rs`,
+  check 10 reads the vertex → edge midpoint → face interior ladder).
+  `check-ten-falls-silent-on-a-shell-whose-every-vertex-touches-another`
+  records it as the answer, so its owner may close that row.

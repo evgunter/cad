@@ -18,12 +18,11 @@
 //! pockets, the lower half's πr²H/2.
 //!
 //! **Walls.** The lettering belongs on the elliptical section face (an
-//! oval nameplate), the natural order is cut first and engrave after,
-//! and the natural C has one arc per side. [`walls`] attempts each every
-//! run, the section face on both halves: the U now cuts the upper
-//! half's section face at its closed-form volume (checked there); the
-//! C on the lower half's, the cap after the cut and the one-arc C still
-//! refuse.
+//! oval nameplate), and the natural order is cut first and engrave
+//! after. [`walls`] attempts both every run and holds each to the
+//! oracle: the C cuts the lower half's section face and the U the upper
+//! half's, and the C cuts the upper half's cap after the cut. The scene
+//! still engraves the whole cylinder's cap before it cuts.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,9 +35,7 @@ use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, split};
-use pncad::topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, Curve3, EdgeDescription, PointInSolidError,
-};
+use pncad::topo::{AtRestBody, Body, BooleanResult, Curve3, EdgeDescription};
 
 use crate::booleans::{finished, try_subtract};
 use crate::scalar::{Scalar, sketch_frame, split_plane};
@@ -342,7 +339,8 @@ fn pocket_narration(stages: &[AtRestBody<f64>], tol: Tol) -> (f64, String) {
     (total, lines.join("; "))
 }
 
-/// The lettering where it was wanted, attempted live.
+/// The lettering where it was wanted, built every run and held to the
+/// oracle.
 fn walls(cut: &Cut<f64>, tol: Tol) {
     // The section face's own frame: u along the ellipse's major axis,
     // v along its minor, so u × v is the section normal. The sketch
@@ -357,73 +355,52 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
             tol,
         )
     };
-    // The section face's `Ellipse` rim is crossed or cleared exactly
-    // since REACH's conic rung (PR 3805); the C on the lower half's face
-    // then stops at the containment probe
-    // (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+    // Both halves' section faces take a glyph since the conic rung
+    // (PR 3805) crosses the `Ellipse` rim exactly and the containment
+    // probe reads past a ray that meets nothing; and the natural order —
+    // cut first, then engrave the upper half's top cap — builds too. Each
+    // pocket is held to the scene's own oracle: it removes the glyph's
+    // area × DEPTH from its half, inside the certified bracket, at tier 3.
+    // The scene still engraves the whole cylinder before it cuts
+    // (`work/cleave/tilted-cut-scene-can-engrave-after-the-cut.md`).
+    let engrave = |at: &str, half: &AtRestBody<f64>, plane: SketchPlane<f64>, glyph: Glyph<f64>| {
+        let removed = glyph.area * DEPTH;
+        let engraved = try_subtract(half, &tool(plane, glyph.outline, tol), tol)
+            .ok()
+            .and_then(|r| r.body().map(|b| b.body.clone()))
+            .unwrap_or_else(|| panic!("the {} engraves {at}", glyph.name));
+        pncad::topo::validate_geometric(&engraved, tol).expect("the engraved half is tier-3 valid");
+        let before = pncad::topo::mass_properties(half, tol).expect("the half measures");
+        let after =
+            pncad::topo::mass_properties(&engraved, tol).expect("the engraved half measures");
+        assert!(
+            (before.volume - after.volume - removed).abs() <= before.volume_pad + after.volume_pad,
+            "the {} pocket in {at} removed {} m^3, not its area x depth {removed} m^3",
+            glyph.name,
+            before.volume - after.volume
+        );
+    };
     let below = &finished("the lower half", cut.below.clone(), tol);
-    let c = tool(section(), glyph_c::<f64>(tol).outline, tol);
-    crate::walls::wall(
-        "tilted cut",
-        1,
-        "engrave the C into the lower half's elliptical section face",
-        try_subtract(below, &c, tol),
-        |e| {
-            matches!(
-                e,
-                BooleanError::Containment(PointInSolidError::VolumeUncertified)
-            )
-        },
-        "move the lettering onto the section face (the oval nameplate) and retire \
-         this probe",
+    engrave(
+        "the lower half's section face",
+        below,
+        section(),
+        glyph_c::<f64>(tol),
     );
-    // Before the conic rung every arc-bearing glyph (C, U, a disc)
-    // refused at the rim on either half's section face, at every pose
-    // tried (offsets (0, 0), (0.3, 0.2) and (−0.2, −0.3) in the face's
-    // frame, depths 0.02, 0.05 and 0.2); a lines-only glyph depended on
-    // the pose and the half (on the lower half a square and the T
-    // refused `Containment(VolumeUncertified)` at all nine poses, on the
-    // upper half a square cut at 8 of 9). Re-measured with the rung only
-    // at the walls' own pose.
-    // The U on the upper half's section face BUILDS since the conic
-    // rung (PR 3805), and is held to the scene's own oracle: its pocket
-    // removes the glyph's area × DEPTH from the half, inside the
-    // certified bracket, at tier 3. The scene still engraves the cap.
     let above = &finished("the upper half", cut.above.clone(), tol);
-    let glyph = glyph_u::<f64>(tol);
-    let removed = glyph.area * DEPTH;
-    let u = tool(section(), glyph.outline, tol);
-    let engraved = try_subtract(above, &u, tol)
-        .ok()
-        .and_then(|r| r.body().map(|b| b.body.clone()))
-        .expect("the U engraves the upper half's section face");
-    pncad::topo::validate_geometric(&engraved, tol).expect("the engraved half is tier-3 valid");
-    let before = pncad::topo::mass_properties(above, tol).expect("the half measures");
-    let after = pncad::topo::mass_properties(&engraved, tol).expect("the engraved half measures");
-    assert!(
-        (before.volume - after.volume - removed).abs() <= before.volume_pad + after.volume_pad,
-        "the U pocket removed {} m^3, not its area x depth {removed} m^3",
-        before.volume - after.volume
+    engrave(
+        "the upper half's section face",
+        above,
+        section(),
+        glyph_u::<f64>(tol),
     );
-    // The order the scene would adopt: cut first, then engrave the
-    // upper half's top cap. Every glyph tried refuses the same way on
-    // either half's round cap after the cut — C, U, T, a square and a
-    // disc, at depths 0.02, 0.05 and 0.2.
     let (bare_above, _) = tilted_cut(&cut.stages[0], tol);
-    let bare_above = finished("the bare upper half", bare_above, tol);
-    let c_cap = tool(level(H - DEPTH), glyph_c::<f64>(tol).outline, tol);
-    crate::walls::wall(
-        "tilted cut",
-        3,
-        "engrave the C into the upper half's round cap, after the cut",
-        try_subtract(&bare_above, &c_cap, tol),
-        |e| {
-            matches!(
-                e,
-                BooleanError::Containment(PointInSolidError::VolumeUncertified)
-            )
-        },
-        "engrave the cap after the cut, the natural order, and retire this probe",
+    let bare_above = &finished("the bare upper half", bare_above, tol);
+    engrave(
+        "the upper half's round cap, after the cut",
+        bare_above,
+        level(H - DEPTH),
+        glyph_c::<f64>(tol),
     );
 }
 
