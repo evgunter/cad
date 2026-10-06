@@ -605,7 +605,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // the null edge as a spike [he_plus, he_minus] into this corner: a
         // run holding every real edge of the orbit, which leaves the In
         // side strictly inside the one physical sector before `first`,
-        // or a run of bisectors alone, inside the sector before `after`.
+        // or a lone bisector, inside the sector before `after`.
         let (site, strut_corner) = match (first, last) {
             (Some(first), Some(last)) => {
                 match piercing_body
@@ -622,20 +622,19 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             _ => {
-                // The run is one bisector entry, the end bound of
-                // physical sector P's second piece (a sector holds one
-                // bisector at most), so `after` is P's orbit successor
-                // Q, and, runs being maximal, neither P's real entry
-                // nor Q's is Out. The other run's mint moves only
-                // halves whose real entries are Out, and splices only
-                // before its first half and the orbit successor of its
-                // last or, a bisector run itself, before its own
-                // `after`, the successor of another sector. None of
-                // these is Q, so the corner the table names is still
-                // `after`'s at `vertex`, whichever run mints first.
+                // The run is one bisector entry, P's second piece (a
+                // sector has one bisector at most), so `after` is P's
+                // orbit successor Q, and runs being maximal, neither
+                // P's real entry nor Q's is Out. The other run's mint
+                // moves only Out real halves, and splices only before
+                // its first half, the successor of its last, or its
+                // own `after`, whose predecessor is another sector:
+                // none is Q. So the corner is still `after`'s at
+                // `vertex` whichever run mints first, and the table's
+                // read stands (minting struts first would reorder
+                // `out.edges` and the ring struts with them).
                 let after = entries[(run.0 + run.1) % n].he;
-                let in_sector = sectors[(run.0 + run.1 - 1) % n].he;
-                if piercing_body.proven_orbit_step(in_sector) != after
+                if piercing_body.proven_orbit_step(sectors[run.0].he) != after
                     || proven(&piercing_body.half_edges, after, EntityId::HalfEdge).start != vertex
                 {
                     unreachable!(
@@ -1130,11 +1129,13 @@ mod tests {
     /// **A bisector run minted after the other run hangs its strut in
     /// its own corner.** The L-prism's reflex corner pierces a cube's
     /// face in two Out runs, one of them the reflex sector's bisector
-    /// alone; which run mints first follows the orbit's start. Every
-    /// start the corner's orbit can take, the last-piece-bisector one
-    /// (whose bisector run mints second) among them, gives every op in
-    /// both orders the same volume, and the volumes keep
-    /// inclusion-exclusion.
+    /// alone; which run mints first follows the orbit's start. One of
+    /// the corner's three starts mints the bisector run second (read
+    /// off the classification's records); at every start, every op in
+    /// both orders builds. The teeth are those builds and the arm's
+    /// `unreachable!`: a corner moved by the other run panics there.
+    /// The volumes (equal across starts, inclusion-exclusion) are a
+    /// consistency check no mutant of the arm has reached.
     #[test]
     fn a_bisector_run_after_the_other_run_keeps_its_corner() {
         use crate::test_support_fixtures::{mapped_cube, prism};
@@ -1152,9 +1153,9 @@ mod tests {
         // The cube of side 4 whose near face holds the corner `(1, 1, 1)`
         // at its centre, its normal tilted 0.05 rad up from the
         // horizontal at 0.37 of a twelfth-turn: two Out runs.
+        let (theta, phi) = (std::f64::consts::TAU * 0.37 / 12.0, 0.05_f64);
+        let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
         let cube = {
-            let (theta, phi) = (std::f64::consts::TAU * 0.37 / 12.0, 0.05_f64);
-            let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
             let u = {
                 let c = [-m[1], m[0], 0.0];
                 let l = (c[0] * c[0] + c[1] * c[1]).sqrt();
@@ -1174,6 +1175,16 @@ mod tests {
                 tol,
             )
         };
+        let near = cube
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&f| {
+                face_plane(&cube, f).is_some_and(|p| {
+                    p.normal.x * m[0] + p.normal.y * m[1] + p.normal.z * m[2] < -0.99
+                })
+            })
+            .expect("the cube's near face, outward along -m");
+        let cube_body = cube.clone();
         let cube = AtRestBody::validate(cube, tol).unwrap();
         let decls = BooleanDeclarations::default();
         let built = prism::<f64>(&profile, 1.0, tol);
@@ -1181,14 +1192,33 @@ mod tests {
         let orbit = built.body.vertex_orbit_linked(corner);
         assert_eq!(orbit.len(), 3, "the reflex corner is trivalent");
         let mut volumes = Vec::new();
-        let mut bisector_last = 0;
+        let mut orders = Vec::new();
         for start in &orbit {
             let mut body = built.body.clone();
             body.get_vertex_mut(corner).unwrap().emanating = Some(*start);
-            let sectors = build_sectors(&body, Operand::A, corner, band).unwrap();
-            if !sectors.last().unwrap().end_edge() {
-                bisector_last += 1;
-            }
+            let classified = classify_vertex_on_face(
+                &mut body.clone(),
+                &mut cube_body.clone(),
+                Operand::A,
+                super::super::VfContact {
+                    vertex: corner,
+                    face: near,
+                },
+                super::super::BooleanOp::Union,
+                &super::super::DeclaredPairs::default(),
+                &super::super::ContactRecords::default(),
+                band,
+                tol,
+            )
+            .unwrap();
+            orders.push(
+                classified
+                    .edges
+                    .iter()
+                    .filter(|e| e.operand == Operand::A)
+                    .map(|e| e.dangling)
+                    .collect::<Vec<_>>(),
+            );
             let body = AtRestBody::validate(body, tol).unwrap();
             let volume = |r: Result<crate::BooleanResult<f64>, BooleanError>| {
                 r.unwrap()
@@ -1204,9 +1234,14 @@ mod tests {
                 volume(crate::subtract_with(&cube, &body, &decls, tol)),
             ]);
         }
-        assert_eq!(
-            bisector_last, 1,
-            "one orbit start puts the reflex sector's bisector piece last"
+        let fan_first = vec![false, true];
+        assert!(
+            orders.iter().filter(|&o| *o == fan_first).count() == 1
+                && orders
+                    .iter()
+                    .all(|o| *o == fan_first || *o == [true, false]),
+            "two runs at every start, the bisector's strut minted second at exactly one: \
+             {orders:?}"
         );
         let close = |x: f64, y: f64| (x - y).abs() < 1e-9;
         for (k, v) in volumes.iter().enumerate() {

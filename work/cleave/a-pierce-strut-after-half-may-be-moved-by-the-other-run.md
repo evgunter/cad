@@ -81,3 +81,16 @@ the fan (the probe confirmed it, 6 of the 18 ops). Every op in both
 orders, at every start, gives the same volume and keeps
 inclusion-exclusion. The check only reads, so these are main's answers
 too.
+
+**Review fix pass.**
+- The splitting twin had the same read:
+  `crates/topo/src/splitting/insert.rs` `insert_null_edges`'s
+  duplicate-only run, which allows any number of runs. The same proof
+  holds there, and it now carries the same invariant and check, with a
+  test (`a_duplicate_run_after_another_run_keeps_its_corner`).
+- Both tests now read the mint order off the records, as `dangling`
+  `[false, true]` at exactly one orbit start.
+- Both checks fire under the over-reaching-fan mutant.
+- `boolean/insert.rs` `mint_directed` now anchors every strut through
+  `corner_bound`, so `mint_run` no longer reads `sectors[from].he`
+  after a mint.
