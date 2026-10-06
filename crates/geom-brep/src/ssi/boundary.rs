@@ -500,7 +500,12 @@ impl Pass<'_> {
                 // across the side, levered as the march's transversality
                 // is.
                 let sine = div_down(inf, speed.get());
-                let margin = Margin::levered(sine, self.extent);
+                let lever = if super::system::lever_variant() == Some("geo") {
+                    self.extent.min(super::system::sampled_wall_arm(self.wall, strip.u, strip.v))
+                } else {
+                    self.extent
+                };
+                let margin = Margin::levered(sine, lever);
                 if let Some(verdict) = band_verdict("ssi_boundary_strip", margin, self.band) {
                     return Err(SsiError::BoundaryTangent { side, verdict });
                 }

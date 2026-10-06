@@ -549,7 +549,13 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // curvature arm is infinite, so the honest arm is the
         // edge's spatial extent — the same meter the analytic
         // `Intersection` arm hands `classify_dihedral`.
-        let margin = geom_core::Margin::levered(sin_theta, extent);
+        let lever = if crate::ssi::system::lever_variant() == Some("geo") {
+            let a = crate::ssi::system::jet_arm_of(&jet);
+            extent.min(T::from_f64(a))
+        } else {
+            extent
+        };
+        let margin = geom_core::Margin::levered(sin_theta, lever);
         match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
             Ok(decided) => {
                 if let Some(verdict) = Refused::of(decided, band) {

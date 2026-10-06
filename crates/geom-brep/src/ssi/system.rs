@@ -379,6 +379,9 @@ impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
     }
 
     fn lever_arm(&self, x: &[f64; 3]) -> f64 {
+        if lever_variant() == Some("extent") {
+            return f64::MAX;
+        }
         crate::dihedral::pair_lever_arm(self.a, self.b, Point3::from_array(*x))
     }
 }
@@ -398,6 +401,17 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
         // `f64::MAX` where the chart is flat (the plane identity). A
         // flat line never shrinks the arm; a poisoned one makes it
         // poison.
+        match lever_variant() {
+            Some("extent") => return f64::MAX,
+            Some(_) => {
+                let mut arm = f64::MAX;
+                for j in [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])] {
+                    arm = arm.min(jet_curvature_arm(j.jet.du, j.jet.dv, j.jet.duu, j.jet.duv, j.jet.dvv));
+                }
+                return arm;
+            }
+            None => {}
+        }
         let mut arm = f64::MAX;
         for j in [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])] {
             for (speed, second) in [
@@ -640,5 +654,134 @@ mod tests {
     #[test]
     fn a_non_plane_surface_has_no_plane_chart() {
         assert!(Chart::plane_of(&sphere(), (0.0, 1.0), (0.0, 1.0)).is_none());
+    }
+}
+
+// ---- design-fork probe (transversality lever, label A) ----
+// `LEVER_VARIANT` = "geo" (the surfaces' smallest radius of normal
+// curvature, folded with the extent, at every site) or "extent" (the
+// extent alone at every site); unset is main's behaviour.
+
+/// The probe's variant.
+pub(crate) fn lever_variant() -> Option<&'static str> {
+    match std::env::var("LEVER_VARIANT").ok().as_deref() {
+        Some("geo") => Some("geo"),
+        Some("extent") => Some("extent"),
+        _ => None,
+    }
+}
+
+/// The smallest radius of normal curvature of a surface at a chart
+/// point, from its first and second fundamental forms: `1 / max|κᵢ|`,
+/// `f64::MAX` where the surface is flat there. Invariant under any
+/// regular reparameterisation of the chart.
+pub(crate) fn jet_curvature_arm(du: Vec3<f64>, dv: Vec3<f64>, duu: Vec3<f64>, duv: Vec3<f64>, dvv: Vec3<f64>) -> f64 {
+    let n = du.cross(dv);
+    let nn = n.norm();
+    if !(nn > 0.0) {
+        return f64::NAN;
+    }
+    let n = n * (1.0 / nn);
+    let (e, f, g) = (du.dot(du), du.dot(dv), dv.dot(dv));
+    let (l, m, nv) = (n.dot(duu), n.dot(duv), n.dot(dvv));
+    let det = e * g - f * f;
+    let h = (e * nv - 2.0 * f * m + g * l) / (2.0 * det);
+    let k = (l * nv - m * m) / det;
+    let kmax = h.abs() + (h * h - k).max(0.0).sqrt();
+    if kmax == 0.0 { f64::MAX } else { 1.0 / kmax }
+}
+
+/// The wall's smallest sampled radius of normal curvature over a chart
+/// rectangle (a probe: sampled on a 33×33 grid, not enclosed).
+pub(crate) fn sampled_wall_arm<T: Real + geom_core::Bounds + geom_core::spline::SpanLocate>(wall: &NurbsSurface<T>, u: (f64, f64), v: (f64, f64)) -> f64 {
+    let n = 32;
+    let mut arm = f64::MAX;
+    for i in 0..=n {
+        for j in 0..=n {
+            let uu = u.0 + (u.1 - u.0) * f64::from(i) / f64::from(n);
+            let vv = v.0 + (v.1 - v.0) * f64::from(j) / f64::from(n);
+            let jt = wall.ders(T::from_f64(uu), T::from_f64(vv));
+            let a = jet_arm_of(&jt);
+            if a.is_finite() {
+                arm = arm.min(a);
+            }
+        }
+    }
+    arm
+}
+
+/// [`jet_curvature_arm`] of a jet at any scalar, read at its upper ends.
+pub(crate) fn jet_arm_of<T: Real + geom_core::Bounds>(jt: &geom::SurfaceJet<T>) -> f64 {
+    let f = |v: Vec3<T>| Vec3::new(geom_core::Bounds::hi(v.x), geom_core::Bounds::hi(v.y), geom_core::Bounds::hi(v.z));
+    jet_curvature_arm(f(jt.du), f(jt.dv), f(jt.duu), f(jt.duv), f(jt.dvv))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
+mod lever_probe {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    fn warped(alpha: f64, width: f64, kappa: f64) -> NurbsSurface<f64> {
+        let lin = [-0.5, -1.0 / 6.0, 1.0 / 6.0, 0.5];
+        let bend = [0.0, 1.0 / 6.0, -1.0 / 3.0, 0.5];
+        let hump = [0.0, 2.0, 0.0];
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for i in 0..4 {
+            for (j, h) in hump.iter().enumerate() {
+                let x = width * lin[i] + width * kappa * h * bend[i];
+                control.push(Point3::new(x, 0.25 * j as f64, alpha * x));
+            }
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; 12]).unwrap()
+    }
+
+    /// **LEVER PROBE**: the march's decision along the witness's line,
+    /// every 1/64 of the branch, at the run's ε: its least margin and
+    /// how many states refuse.
+    #[test]
+    fn lever_probe_witness_march_decision() {
+        use super::super::march::{TransversalityData, decide_transversality};
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        for (alpha, width, kappa) in [
+            (1e-6, 0.04, 4.0),
+            (1e-6, 0.04, 2.0),
+            (1e-6, 0.06, 4.0),
+            (2e-6, 0.03, 4.0),
+            (1e-6, 0.1, 4.0),
+        ] {
+            let wall = warped(alpha, width, kappa);
+            let sys = ParametricPairR4 {
+                a: Chart::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    du: Vec3::new(1.0, 0.0, 0.0),
+                    dv: Vec3::new(0.0, 1.0, 0.0),
+                    u_range: (-1.0, 1.0),
+                    v_range: (-1.0, 1.0),
+                },
+                b: Chart::Nurbs(&wall),
+            };
+            let (mut least, mut refused, mut least_arm) = (f64::MAX, 0, f64::MAX);
+            for k in 0..=64 {
+                let t = f64::from(k) / 64.0;
+                let x = [0.0, 0.5 * t, 0.5, t];
+                let (n1, n2) = sys.normals(&x);
+                let sin = n1.cross(n2).norm() / (n1.norm() * n2.norm());
+                let arm = sys.lever_arm(&x).min(1.0);
+                least = least.min(sin * arm);
+                least_arm = least_arm.min(arm);
+                if decide_transversality(&sys, &x, 0.0, 1.0, band).is_err() {
+                    refused += 1;
+                }
+            }
+            eprintln!(
+                "LEVERPROBE variant={:?} eps={:e} K·eps={:e} α={alpha:e} X={width} κ={kappa}: least margin {least:.3e} m (least arm {least_arm:.3e} m), {refused}/65 states refuse",
+                lever_variant(),
+                band.zero(),
+                band.escalate()
+            );
+        }
     }
 }

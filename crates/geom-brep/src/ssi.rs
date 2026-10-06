@@ -2406,7 +2406,11 @@ fn finish_r3(
     use system::LocalSystem as _;
     let march_tol = seam_tol(ctx.tol, band)?;
     let points = trace_points::<2, 3, _, _>(sys, trace);
-    let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
+    let arm = if system::lever_variant() == Some("extent") {
+        domain.extent
+    } else {
+        crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent)
+    };
     let (carrier, cert) =
         refine::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();

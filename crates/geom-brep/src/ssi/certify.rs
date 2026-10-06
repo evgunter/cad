@@ -1135,20 +1135,36 @@ fn limb_three<T: Decide>(
     }
     let mut not_one_arc = 0u32;
     let mut narrowest: Option<Rung> = None;
+    let mut last_refusal: Option<SsiError> = None;
     for radius in ladder.iter().copied() {
         let Some(rung) = probe(radius)? else {
             continue;
         };
         match (rung.margin > 0.0, rung.one_arc) {
             (true, Some(Ok(()))) => {
-                let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
-                return Ok((rung, t));
+                // probe: with LEVER_DESCEND, a rung whose levered clearance
+                // falls in the band gives way to a narrower one, as a rung
+                // that is not one arc does; the narrowest's verdict stands.
+                match tube_transversality(rung.margin, arm, rung.boxes, band) {
+                    Ok(t) => return Ok((rung, t)),
+                    Err(e) if std::env::var("LEVER_DESCEND").is_ok() => {
+                        if std::env::var("LEVER_DEBUG").is_ok() {
+                            std::eprintln!("LEVERDEBUG rung {radius:e} clearance {:e} refused, descending", rung.margin);
+                        }
+                        last_refusal = Some(e);
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                }
             }
             // A graph whose proof did not run never reads as proved.
             (true, _) => not_one_arc += 1,
             (false, _) => {}
         }
         narrowest = Some(rung);
+    }
+    if let Some(e) = last_refusal {
+        return Err(e);
     }
     let Some(rung) = narrowest else {
         // Rungs were offered and none answered. Structural, and it
@@ -1437,6 +1453,24 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 return Err(SsiError::UnsupportedCertificate {
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
+            };
+            let arm = if super::system::lever_variant() == Some("geo") {
+                let w = n.surface();
+                let wa = super::system::sampled_wall_arm(w, w.knots_u().domain(), w.knots_v().domain());
+                if std::env::var("LEVER_DEBUG").is_ok() {
+                    // the arm sampled along the pcurve, for comparison
+                    let (a, b) = p.domain();
+                    let mut along = f64::MAX;
+                    for k in 0..=64 {
+                        let q = p.eval(T::from_f64(a + (b - a) * f64::from(k) / 64.0));
+                        let jt = w.ders(q.x, q.y);
+                        along = along.min(super::system::jet_arm_of(&jt));
+                    }
+                    std::eprintln!("LEVERDEBUG tube: wall arm {wa:e} (along pcurve {along:e})");
+                }
+                arm.min(T::from_f64(wa))
+            } else {
+                arm
             };
             limb_three(extent, arm, band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
