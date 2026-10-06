@@ -2080,7 +2080,7 @@ impl<T: Decide> Body<T> {
             site
         };
         let mut rows = self.plan_moved_rows(
-            &remnant_keys,
+            remnant_keys,
             !remnant_changes_chart,
             f2,
             |body| Ok(surviving(body, true)),
