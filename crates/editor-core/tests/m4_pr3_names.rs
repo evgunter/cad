@@ -394,6 +394,41 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
     }
 }
 
+/// The flange's three plane annuli — the bottom, the step and the top —
+/// carry no `Meridian(Seam, ·)`; its three cylinders do, the step
+/// annulus's ring (the hub rim) included. 1 body + 6 bands + 6 rims +
+/// 3 seam meridians + 6 meridian vertices = 22.
+#[test]
+fn full_flange_revolve_names_a_seam_meridian_on_its_cylinders_only() {
+    let (doc, rev) = revolve_doc(
+        vec![
+            (1.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 0.5),
+            (2.0, 0.5),
+            (2.0, 2.0),
+            (1.0, 2.0),
+        ],
+        std::f64::consts::TAU,
+    );
+    let ev = run(&doc);
+    let t = table(&ev, rev);
+    assert_eq!(t.len(), 22);
+    for s in 0..6 {
+        // Even sides sweep the plane annuli, odd ones the cylinders.
+        assert_eq!(
+            t.lookup(&minted(
+                EntityKind::Edge,
+                rev,
+                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, s).into())
+            ))
+            .is_some(),
+            s % 2 == 1,
+            "side {s}: a seam meridian on a cylinder only"
+        );
+    }
+}
+
 #[test]
 fn full_holed_revolve_names_the_cavity_loop() {
     // VERBS-RING: a holed profile fully revolved — the hollow ring.

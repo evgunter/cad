@@ -276,6 +276,8 @@ mod join_whole_orbit_cylinder;
 mod k_report;
 #[path = "ladder_split_key.rs"]
 mod ladder_split_key;
+#[path = "lamina_annulus.rs"]
+mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
 #[path = "m3_pr5_extrude_booleans.rs"]

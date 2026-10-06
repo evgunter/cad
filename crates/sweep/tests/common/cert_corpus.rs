@@ -157,7 +157,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     out
 }
 
-// ---- f64-only corrupt constructions (check 8 / check 9 failures). ----
+// ---- f64-only corrupt constructions (check 2 / check 8 failures). ----
 
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
@@ -180,7 +180,7 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     let mut out = Vec::new();
     let vessel = vessel(0.5, 0.4);
     let t = 0.05;
-    for (what, body, y) in [("ring_on_outer_vessel", vessel, 0.4)] {
+    for (what, body, y) in [("raw_glue_on_the_vessel_cap", vessel, 0.4)] {
         let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .expect("sealed shell")
             .body;

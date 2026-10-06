@@ -1471,6 +1471,104 @@ fn the_old_rim_composition_refuses_at_the_glue_on_an_annular_cap() {
     );
 }
 
+/// **The validator's net, shown firing** — tier 3's check 9 through an
+/// outer EDGE, on the anatomy the rim construction removes, and the
+/// composed door's vector equal to the battery's there.
+///
+/// A full revolve builds the annular cap unslit (the row above), so
+/// the old slit shape is restored by hand: one public `mekr_chord` on
+/// the mouth and one on its counterpart joins each bore ring to its
+/// outer cycle. The old composition is then replayed — lift the
+/// counterpart onto the mouth plane, `kfmrh` straight on — and the
+/// counterpart's slit runs along the mouth's own, so the ring it leaves
+/// stands on the outer loop with no vertex position shared.
+///
+/// Which outer-EDGE arm fires is a fact about arm ORDER: the
+/// counterpart's slit runs from radius ri+t to ro-t along the mouth's
+/// slit, so its ENDPOINTS are interior points of that edge — the
+/// vertex-on-edge arm sees them before the edge-along-edge arm gets to
+/// the edge. The row pins "an edge of the outer loop is involved, and
+/// no vertex of it is", which is what separates this fixture from the
+/// vertex arm `topo`'s own samples carry.
+#[test]
+fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
+    let tol = Tol::witness();
+    let t = 0.05;
+    let (body, y) = (tube(0.30, 0.50, 0.40), 0.40);
+    let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect("the sealed shell")
+        .body;
+    let mouth = plane_chart_at_y(&sealed, y);
+    let counterpart = plane_chart_at_y(&sealed, y - t);
+    assert_eq!(
+        (mouth.len(), counterpart.len()),
+        (1, 1),
+        "the annular cap and its counterpart are one face each"
+    );
+    let anchor = |b: &Body<f64>, lp| match b.get_loop(lp).expect("loop").boundary {
+        LoopBoundary::Cycle { first } => first,
+        ref other => panic!("a cycle, got {other:?}"),
+    };
+    for face in [mouth[0], counterpart[0]] {
+        let fd = sealed.get_face(face).expect("face").clone();
+        let [ring] = fd.rings[..] else {
+            panic!(
+                "an unslit annulus carries its bore as one ring, got {:?}",
+                fd.rings
+            )
+        };
+        let site = topo::MekrSite::Cycles {
+            target: anchor(&sealed, fd.outer),
+            ring: anchor(&sealed, ring),
+        };
+        sealed.mekr_chord(site, tol).expect("the slit mekr");
+    }
+    let plane_of =
+        |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            other => panic!("a non-planar cap: {other:?}"),
+        };
+    let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
+    let (o_onto, _) = plane_of(&sealed, mouth[0]);
+    let back = (o_onto - o_from).dot(n_from);
+    topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
+        .expect("the counterpart chart lifts onto the mouth plane");
+    sealed
+        .kfmrh(mouth[0], counterpart[0])
+        .expect("the slit counterpart takes the raw glue");
+    let composed = topo::validate_geometric(&sealed, tol)
+        .expect_err("a ring standing on its outer loop must refuse");
+    let battery = topo::contact_marks(&sealed, tol).expect_err("the battery");
+    assert_eq!(
+        composed, battery,
+        "the split must not move or drop an error on a check-9 body"
+    );
+    let contacts: Vec<&topo::ValidationError> = composed
+        .iter()
+        .filter(|e| matches!(e, topo::ValidationError::RingMeetsOuter { .. }))
+        .collect();
+    assert!(
+        contacts.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::RingMeetsOuter {
+                contact: topo::RingContact::VertexOnEdge { .. },
+                ..
+            }
+        )),
+        "tier 3 names the counterpart's slit end on the mouth's slit; got {composed:?}"
+    );
+    assert!(
+        !contacts.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::RingMeetsOuter {
+                contact: topo::RingContact::Vertex { .. },
+                ..
+            }
+        )),
+        "no vertex position is shared, so no vertex contact; got {contacts:?}"
+    );
+}
+
 // ---------------------------------------------------------------------
 // The oblique junction, after the simultaneous door (#1081, PR-2a)
 // ---------------------------------------------------------------------

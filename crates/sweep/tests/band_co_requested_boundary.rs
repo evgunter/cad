@@ -29,6 +29,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::f64::consts::PI;
+
 use geom_core::{Affine3, Mat3, Point2, Sign, Tol, Vec3};
 use profile::SketchPlane;
 use sweep::Revolution;
@@ -36,7 +38,7 @@ use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{brick, prism_at, prism_on, realized, revolved_about_y, rim_arcs_at};
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, validate_geometric};
+use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -88,6 +90,21 @@ fn the_edge(body: &Body<f64>, on: impl Fn(Vec3<f64>) -> bool) -> EdgeKey {
 }
 
 /// A definite refusal's reading.
+fn volume(body: &Body<f64>) -> f64 {
+    mass_properties(body, tol())
+        .expect("mass properties")
+        .volume
+}
+
+/// The volume a convex fillet of radius `r` removes along the washer's
+/// bottom bore rim (radius 1, material outward): the spandrel's area
+/// `r²(1 − π/4)` swept about the axis at its centroid's radius.
+fn bore_rim_spandrel(r: f64) -> f64 {
+    let area = r * r * (1.0 - PI / 4.0);
+    let centroid = r * (10.0 - 3.0 * PI) / (3.0 * (4.0 - PI));
+    2.0 * PI * (1.0 + centroid) * area
+}
+
 fn reading(m: &sweep::blend::ClassifiedMargin) -> f64 {
     assert_eq!(m.sign, Sign::Negative, "a definite refusal");
     m.reading
@@ -141,6 +158,25 @@ impl Rod {
     /// radius `1 + r`.
     fn clearance(self, r: f64) -> f64 {
         self.near - self.setback(r) - (1.0 + r)
+    }
+
+    /// The section area the concave rod–plane fillet adds, its ball
+    /// tangent to the rod and to the plane through the rod's axis: the
+    /// triangle (rod axis, ball centre, plane contact) less the ball's
+    /// sector and the rod's.
+    fn fillet_area(self, r: f64) -> f64 {
+        let rho = self.rho;
+        let h = ((rho + r).powi(2) - r * r).sqrt();
+        let alpha = (r / (rho + r)).acos();
+        let beta = (r / (rho + r)).asin();
+        h * r / 2.0 - alpha * r * r / 2.0 - beta * rho * rho / 2.0
+    }
+
+    /// The co-requested carve's volume change: the rod's fillet along
+    /// its whole length between the caps at `t = ±2`, less the bore
+    /// rim's spandrel ring.
+    fn carve_dv(self, r: f64) -> f64 {
+        4.0 * self.fillet_area(r) - bore_rim_spandrel(r)
     }
 }
 
@@ -306,6 +342,11 @@ fn a_ruled_link_co_requested_with_an_annulus_rim_is_metered_at_its_trimline() {
     let out = rod_request(&body, THE_ROD, 0.22)
         .unwrap_or_else(|e| panic!("clear trims carve, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("the carve is tier-3 valid");
+    let (got, want) = (volume(&out.body) - volume(&body), THE_ROD.carve_dv(0.22));
+    assert!(
+        (got - want).abs() < 1e-9,
+        "ΔV {got} is the rod's fillet less the rim's spandrel ring, {want}"
+    );
     assert_eq!(
         (out.band_faces.len(), out.blend_faces.len()),
         (1, 1),
@@ -369,6 +410,11 @@ fn the_co_requested_rod_refuses_and_carves_on_its_closed_form_clearance() {
                     assert!(
                         (got - want).abs() < 1e-9,
                         "{rod:?} r {r}: the carved trims stand {got} apart, derived {want}"
+                    );
+                    let (dv, dv_want) = (volume(&out.body) - volume(&body), rod.carve_dv(r));
+                    assert!(
+                        (dv - dv_want).abs() < 1e-9,
+                        "{rod:?} r {r}: ΔV {dv}, the rod's fillet less the rim's ring {dv_want}"
                     );
                 }
                 Err(BlendError::RingClearance { margin, .. }) => {
@@ -458,6 +504,19 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         ),
         (1, 12, 8),
         "the bore's band, a blend per square edge and a corner per square corner"
+    );
+    // The rounded box (Steiner on the inner box `x·y·z`) less the bore
+    // cylinder less the bore rim's spandrel ring.
+    let r = 0.2;
+    let (x, y, z) = (4.2 - 2.0 * r, 4.2 - 2.0 * r, 1.0 - 2.0 * r);
+    let rounded = x * y * z
+        + 2.0 * (x * y + y * z + z * x) * r
+        + PI * (x + y + z) * r * r
+        + 4.0 * PI * r.powi(3) / 3.0;
+    let (got, want) = (volume(&out.body), rounded - PI - bore_rim_spandrel(r));
+    assert!(
+        (got - want).abs() < 1e-9,
+        "the carved volume {got} vs the closed form {want}"
     );
 }
 

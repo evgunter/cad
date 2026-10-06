@@ -307,11 +307,12 @@ pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
 /// extruded wall's faces split by its seam lines — so each rim arc
 /// bounds its own mate face and consecutive arcs meet at a rim vertex
 /// where exactly one MERIDIAN edge descends into the cap. On an
-/// ANNULUS rim the MATE side is always several FACES of one SURFACE —
-/// the half-band walls a chart seam left — while the HOST side is
-/// either the same, or ONE face carrying every arc in its own outer
-/// cycle, which is what a coplanar-face merge leaves and which
-/// [`HostFoot`] is the per-crossing consequence of. [`RimShape`]
+/// ANNULUS rim the MATE side is revolution walls — one face, or the
+/// half-band faces of one surface a chart seam left — while the HOST
+/// side is either the same, or ONE plane face carrying every arc in
+/// one of its cycles: its outer cycle, which is what a coplanar-face
+/// merge leaves, or on a full revolve's plane wall its outer cycle or
+/// its ring. [`HostFoot`] is the per-crossing consequence. [`RimShape`]
 /// carries what is true of each shape beyond that.
 struct RimPlan<'a, T: Real> {
     chain: &'a Chain<T>,
@@ -342,11 +343,12 @@ enum RimShape {
         ring: LoopKey,
     },
     /// **The annulus.** The band has two closed boundary circles and no
-    /// ladder to walk. Both supports are revolution WALLS of ANY
-    /// analytic kind — a full revolve mints each profile segment as a
+    /// ladder to walk. The mate is a revolution WALL of ANY analytic
+    /// kind — a full revolve mints each curved profile segment as a
     /// wall whose latitude rims are closed, and that shape is what the
-    /// carve needs, not a plane and a sphere. The band is minted as one
-    /// more wall of the same shape.
+    /// carve needs, not a plane and a sphere — and the host is such a
+    /// wall or a plane. The band is minted as one more wall of the
+    /// same shape.
     ///
     /// A pole-touching profile's revolve splits every wall into
     /// half-bands, so the rim arrives as SEVERAL arcs meeting at
@@ -357,14 +359,17 @@ enum RimShape {
     /// it. [`AnnulusRim::crossings`] is one entry per arc, and a
     /// one-edge rim is the one-entry case of it.
     ///
-    /// **The host side may be ONE face carrying every arc**, which is
-    /// what a coplanar-face merge leaves of a pole-touching cap: the
-    /// rim is then that face's whole OUTER cycle rather than several
-    /// half-bands, its crossings are TRIVALENT, and each host foot is a
-    /// strut instead of a seam split ([`HostFoot`]). Nothing else about
-    /// the walk changes — the mate splits, both sides' trimlines, the
+    /// **The host side may be ONE plane face carrying every arc** in
+    /// one of its cycles: what a coplanar-face merge leaves of a
+    /// pole-touching cap, its whole OUTER cycle, or a full revolve's
+    /// plane wall, whose one-edge rim is its outer cycle or its ring.
+    /// Its crossings are TRIVALENT, and each host foot is a strut
+    /// instead of a seam split ([`HostFoot`]). Nothing else about the
+    /// walk changes — the mate splits, both sides' trimlines, the
     /// excise, the crossing merges and the closure slit are the same
-    /// six moves, which is why this is one shape and not a third.
+    /// six moves, which is why this is one shape and not a third; a
+    /// one-edge rim's lone strut reaches its host trim by
+    /// [`lone_host_trim`]'s route rather than a chord.
     Annulus(AnnulusRim),
 }
 
@@ -373,7 +378,8 @@ struct AnnulusRim {
     /// One crossing per rim arc — the vertices the rim's arcs meet at,
     /// each with the mate's seam meridian and the host's own foot
     /// source ([`HostFoot`]). A one-edge rim has exactly one: its own
-    /// vertex, where both walls' doubly-traversed seams meet it.
+    /// vertex, where the mate wall's doubly-traversed seam meets it, and
+    /// the host's where the host is a wall.
     crossings: Vec<SeamCrossing>,
     /// Which crossing carries the band's SLIT, and therefore the
     /// azimuth of the band chart's own seam. Every other crossing is
@@ -391,9 +397,9 @@ enum HostFoot {
     /// meridian meets the crossing and splitting it lands the foot on
     /// EXISTING geometry. Its rim-side piece dies with the vertex.
     Seam(EdgeKey),
-    /// ONE host face carries every arc in its own outer cycle, so the
-    /// crossing is TRIVALENT — two rim arcs and the mate's seam — and no
-    /// host seam exists to split. The foot is minted by the LADDER's own
+    /// ONE plane host face carries every arc in one of its cycles, so
+    /// the crossing is TRIVALENT — the rim's two ends and the mate's
+    /// seam — and no host seam exists to split. The foot is minted by the LADDER's own
     /// move, a strut `mev` out to the host trimline at this vertex's own
     /// parameter ([`strut_foot`]), and the strut dies at the crossing
     /// exactly as the ladder's do.
@@ -1822,8 +1828,8 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
             ));
         };
         // A hostless crossing has no host seam to find, and finding one
-        // would mean an earlier carve put a co-surface edge into a face
-        // whose whole outer cycle is this rim — the same unrepairable
+        // would mean an earlier carve put a co-surface edge into the
+        // face cycle that is this whole rim — the same unrepairable
         // composition the arms above name.
         let host = match (&c.host, host_seam) {
             (HostFoot::Seam(_), Some(seam)) => HostFoot::Seam(seam),
@@ -2773,8 +2779,8 @@ fn support_boundary_clearance<T: Decide + Bounds>(
                 })
                 .collect::<Result<Vec<_>, BlendError>>()?;
             // A cycle the carve replaces whole (a hostless annulus's
-            // outer cycle of rim arcs, a ladder's own ring) has nothing
-            // left to meter.
+            // cycle of rim arcs, outer or ring; a ladder's own ring) has
+            // nothing left to meter.
             if let Some((margin, bounded)) = margins.into_iter().reduce(worse) {
                 ring_clearance(face, convexity, margin, bounded, band)?;
             }
