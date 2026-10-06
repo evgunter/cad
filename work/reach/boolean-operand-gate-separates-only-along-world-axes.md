@@ -2,10 +2,12 @@
 id: boolean-operand-gate-separates-only-along-world-axes
 kind: issue
 title: The boolean's operand gate clears an unarmed face only by a world-axis box overlap, so whether a pair refuses depends on how the operands are turned
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: M
+pr: 4122
+branch: reach/operand-gate-separating-direction
 ---
 
 
