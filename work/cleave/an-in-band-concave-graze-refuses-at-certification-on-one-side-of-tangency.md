@@ -2,11 +2,13 @@
 id: an-in-band-concave-graze-refuses-at-certification-on-one-side-of-tangency
 kind: issue
 title: a plane within the band of a hole's wall refuses its knife edge on one side of tangency and a chord certification on the other
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 branch: cleave/inband-graze
+closed: 2026-10-06
+pr: 4179
 ---
 
 
@@ -139,3 +141,12 @@ passes (1, 2, 3, 3′).
 join2, `pi_seam`, `m9_3` kissing rounds, `wall_face_tangent_reach`).
 Their exact tangencies had their root 1.5–2.6e-8 rad off the contact on
 main and on the contact here. No output moved.
+
+## Closed (PR 4179, 2026-10-06)
+
+The graze arm's root is the conic's extremum, chosen by the decided side of the plane
+(`split_conic_graze_side`), not the residue's crossing read off a `Zero` margin. A pose within ε
+lands whole on its material side; a pose in the band escalates at the decision that reads it
+(`split_vertex_side` at the seam, `split_conic_belly_graze` off it, rule (a)'s bend for the
+knife edge); a pose past Kε cuts at its closed-form volumes. The three copies of the root solve
+are filed on HONE (`the-conic-plane-root-solve-has-three-homes`).
