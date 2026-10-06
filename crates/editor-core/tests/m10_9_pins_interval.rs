@@ -505,12 +505,14 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// analyzed box, the two dials read the same receipt at every ε row
 /// (`work/rules/the-negative-arm-lost-its-document-consumer`).
 ///
-/// The frozen count moved 3138 → 3220 when an intrinsic edge
+/// The frozen count moved 3138 → 3199 when an intrinsic edge
 /// description's surfaces became a set (`geom_brep::SurfacePair`); no
 /// decision moved. The cause is the transversality wedge
-/// (`geom_brep::dihedral::wedge_decided`'s `n1.cross(n2)`), now read
-/// in key order: symmetric in value up to sign, not in form, so mixed
-/// orientations build distinct hash-consed forms.
+/// (`geom_brep::dihedral::wedge_decided`'s `n1.cross(n2)`), which the
+/// certificate reads in key order and the extrude's dihedral in builder
+/// order: symmetric in value up to sign, not in form, so mixed
+/// orientations build distinct hash-consed forms. (3220 while the
+/// must-carry constructors still read in builder order too.)
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -552,7 +554,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1340, 2, 54, 1272, 3220),
+        (1340, 2, 54, 1272, 3199),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(
