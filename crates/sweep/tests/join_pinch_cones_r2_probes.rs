@@ -267,6 +267,38 @@ fn facts(bb: &topo::BooleanBody<f64>, at: V3) -> String {
         .vertex_points()
         .filter(|(_, p)| ((p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2)).sqrt() < 1e-9)
         .count();
+    let at_p: Vec<topo::VertexKey> = body
+        .vertex_points()
+        .filter(|(_, p)| ((p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2)).sqrt() < 1e-9)
+        .map(|(k, _)| k)
+        .collect();
+    // A loop passing one vertex at the point twice (a crossing), and a
+    // vertex whose orbit misses some of its own half-edges (two cones
+    // on one vertex): both independent of how the op split it.
+    let mut twice = 0;
+    for (_, l) in body.loops() {
+        if let topo::LoopBoundary::Cycle { first } = l.boundary {
+            let starts: Vec<_> = body
+                .loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .map(|he| body.get_half_edge(he).unwrap().start)
+                .filter(|v| at_p.contains(v))
+                .collect();
+            let mut once = starts.clone();
+            once.sort();
+            once.dedup();
+            twice += starts.len() - once.len();
+        }
+    }
+    let mut gaps = 0;
+    for &v in &at_p {
+        let out: Vec<_> = body.half_edges().filter(|(_, h)| h.start == v).map(|(k, _)| k).collect();
+        let orbit = body.vertex_orbit(out[0]).unwrap_or_default();
+        if orbit.len() != out.len() {
+            gaps += 1;
+        }
+    }
     let solids = body.solids().count();
     let shells = body.shells().count();
     let mesh = match mesh::tessellate(body, 0.05, tol()) {
@@ -279,7 +311,7 @@ fn facts(bb: &topo::BooleanBody<f64>, at: V3) -> String {
             format!("mesh=refused({})", s.chars().take(50).collect::<String>())
         }
     };
-    format!("verts@p={here} solids={solids} shells={shells} {mesh}")
+    format!("verts@p={here} twice={twice} gaps={gaps} solids={solids} shells={shells} {mesh}")
 }
 
 /// Every op both orders at one pose; prints one line per run.
@@ -374,4 +406,90 @@ fn r2_pinch_cones_detail() {
     let (r, t) = turns[w[0] as usize];
     let m = w[1];
     tri_cone_pose("detail", [w[2] * m, w[3] * m * 1.37, w[4] * m * 0.71], w[5], &r, t);
+}
+
+/// **A pinched result as an operand.** `P = A ∖ B` at turn 0, `e` all
+/// `+0.3`, `L = 0.5`: three vertices on the origin's point key, one per
+/// lobe. `C` is a side-6 cube whose face through the origin has inward
+/// normal `m` (Fibonacci direction `i` of 60), turned `psi` about it.
+/// Every op both orders against `P`'s and `C`'s half-spaces
+/// (`vol(P ∩ C) = vol(A ∩ C) − vol(A ∩ B ∩ C)`). Lines `R2P`.
+fn pinched_operand_pose(i: usize, psi: f64) {
+    let id = rot([0.0, 0.0, 1.0], 0.0);
+    let (len, e) = (0.5, [0.3, 0.3 * 1.37, 0.3 * 0.71]);
+    let a_cols = [[2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 2.0]];
+    let b_cols = [
+        [-e[0], 1.0, 1.0].map(|x| x * len),
+        [1.0, -e[1], 1.0].map(|x| x * len),
+        [1.0, 1.0, -e[2]].map(|x| x * len),
+    ];
+    let cube_of = |cols: [V3; 3], o: V3| {
+        fixtures::mapped_cube::<f64>(
+            move |x, y, z| {
+                let p = [0, 1, 2].map(|k| o[k] + x * cols[0][k] + y * cols[1][k] + z * cols[2][k]);
+                Point3::new(p[0], p[1], p[2])
+            },
+            tol(),
+        )
+    };
+    let a = finished("A", cube_of(a_cols, [0.0; 3]));
+    let b = finished("B", cube_of(b_cols, [0.0; 3]));
+    let p = match topo::subtract_with(&a, &b, &BooleanDeclarations::default(), tol()) {
+        Ok(BooleanResult::Body(bb)) => bb.body,
+        other => panic!("P did not build: {:?}", other.err()),
+    };
+    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let z = 1.0 - 2.0 * (i as f64 + 0.5) / 60.0;
+    let r = (1.0 - z * z).sqrt();
+    let m = unit([r * (ga * i as f64).cos(), r * (ga * i as f64).sin(), z]);
+    let seed = if m[2].abs() < 0.9 { [0.0, 0.0, 1.0] } else { [1.0, 0.0, 0.0] };
+    let u0 = unit(cross(seed, m));
+    let w0 = cross(m, u0);
+    let u = [0, 1, 2].map(|k| psi.cos() * u0[k] + psi.sin() * w0[k]);
+    let w = cross(m, u);
+    let c_cols = [u.map(|x| 6.0 * x), w.map(|x| 6.0 * x), m.map(|x| 6.0 * x)];
+    let c_o = [0, 1, 2].map(|k| -3.0 * u[k] - 3.0 * w[k]);
+    let c = finished("C", cube_of(c_cols, c_o));
+    let ap = moved(&ppd_planes(a_cols), &id, [0.0; 3]);
+    let bp = ppd_planes(b_cols);
+    let cp = moved(&ppd_planes(c_cols), &id, c_o);
+    let all = |sets: &[&[Plane]]| convex_volume(&sets.concat());
+    let vp = all(&[&ap]) - all(&[&ap, &bp]);
+    let vc = 216.0;
+    let common = all(&[&ap, &cp]) - all(&[&ap, &bp, &cp]);
+    let in_p = |x: V3| inside(&ap, x) && !inside(&bp, x);
+    let in_c = |x: V3| inside(&cp, x);
+    let decls = BooleanDeclarations::default();
+    let o = [0.0; 3];
+    for (order, x, y, vx, xp_is_p) in [("pc", &p, &c, vp, true), ("cp", &c, &p, vc, false)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union_with, vp + vc - common),
+            ("I", topo::intersect_with, common),
+            ("S", topo::subtract_with, vx - common),
+        ];
+        for (op, run, want) in ops {
+            let cones = cones_at(o, 1e-3, 120, &|q| {
+                let (ix, iy) = if xp_is_p { (in_p(q), in_c(q)) } else { (in_c(q), in_p(q)) };
+                member(op, ix, iy)
+            });
+            let res = run(x, y, &decls, tol());
+            let f = res
+                .as_ref()
+                .ok()
+                .and_then(BooleanResult::body)
+                .map(|bb| facts(bb, o))
+                .unwrap_or_default();
+            println!("R2P i={i} psi={psi} {order} {op} cones={cones} {f} => {}", outcome(res, want, tol()));
+        }
+    }
+}
+
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_pinched_operand_battery() {
+    for i in 0..60 {
+        for psi in [0.0, 1.1] {
+            pinched_operand_pose(i, psi);
+        }
+    }
 }
