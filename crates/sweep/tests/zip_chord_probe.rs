@@ -282,3 +282,45 @@ fn probe_tilted_wedge_standing_on_a_block() {
         );
     }
 }
+
+/// The two `full_turn_bore_mate` reproducers at every pose of
+/// `common::poses`, both orders: blind spans on the one-face bore, and
+/// the split collar against the 60° shaft.
+#[test]
+#[ignore = "zip-chord probe; asserts nothing"]
+fn probe_full_turn_bore_every_pose() {
+    use crate::full_turn_bore_mate::{collar, shaft, split_collar};
+    let tol = Tol::witness();
+    let moved = |b: &Body<f64>, pose: &geom_core::Affine3<f64>| {
+        topo::transform_rigid(b, pose, tol).unwrap()
+    };
+    for (pose_name, pose) in crate::common::poses::poses() {
+        for (span, y0, h) in [
+            ("blind from below", 0.5, 1.0),
+            ("blind from above", 1.5, 1.0),
+            ("wholly inside", 1.2, 0.6),
+        ] {
+            for deg in [0.0, 60.0, 90.0] {
+                both_orders(
+                    &format!("pose {pose_name}: blind shaft, {span}, azimuth {deg}"),
+                    &moved(&collar(), &pose),
+                    &moved(&shaft(deg, y0, h), &pose),
+                    wall_decls,
+                );
+            }
+        }
+        for (span, y0, h) in [
+            ("through", 0.5, 2.0),
+            ("flush", 1.0, 1.0),
+            ("proud above", 1.0, 1.5),
+            ("proud below", 0.5, 1.5),
+        ] {
+            both_orders(
+                &format!("pose {pose_name}: split collar, {span}, azimuth 60"),
+                &moved(&split_collar(), &pose),
+                &moved(&shaft(60.0, y0, h), &pose),
+                wall_decls,
+            );
+        }
+    }
+}
