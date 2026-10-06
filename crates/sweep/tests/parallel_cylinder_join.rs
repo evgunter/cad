@@ -246,10 +246,16 @@ fn the_rim_crossing_rods_build_where_a_probe_ray_meets_the_boundary() {
                         topo::validate_geometric_certificate(&bb.body, tol).is_ok(),
                         "{label}: the certificate"
                     );
-                    let v = topo::mass_properties(&bb.body, tol)
-                        .unwrap_or_else(|e| panic!("{label}: measures, got {e:?}"))
-                        .volume;
-                    assert!((v - want).abs() < 1e-7, "{label}: volume {v} vs {want}");
+                    // The cut wall's flux is a certified quadrature: the
+                    // slack is its enclosure's own half-width.
+                    let m = topo::mass_properties(&bb.body, tol)
+                        .unwrap_or_else(|e| panic!("{label}: measures, got {e:?}"));
+                    assert!(
+                        (m.volume - want).abs() <= m.volume_pad + 1e-12,
+                        "{label}: volume {} ± {} vs {want}",
+                        m.volume,
+                        m.volume_pad
+                    );
                 }
                 other => panic!("{label}: {:?}", other.map(|_| "a body")),
             }
