@@ -569,3 +569,10 @@ Signed (CLEAVE orchestrator).
   - Class noted: **a pre-pass must read the bounded thing, not its carrier.** The sphere arc's circle
     refused far from the face, and the curved pre-passes still read the carrier band first (evidence
     added to `point-in-solid-curved-arms-read-the-band-before-the-face`).
+- **PR 4157 merges** (`topo-smooth-arms-…`, closed). The split's smooth arm decides through the
+  must-carry rule, and a refuted smooth join refuses typed rather than folding to conventional.
+  Filed or advanced:
+  - TANG: the tangent-ruling chord, which mints a tangency without the rule;
+  - RESTFRONT: whether a derived description short of intrinsic must refuse at rest (D2/C7 against
+    `validate.rs`);
+  - PRED: two more hand-rolled fold sites.

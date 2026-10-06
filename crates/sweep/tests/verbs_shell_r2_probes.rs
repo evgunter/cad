@@ -226,7 +226,8 @@ fn r2_partial_revolve_annular_cap() {
 }
 
 /// **A profile touching the axis at ONE end only.** The bottom cap is a
-/// disc that owns the axis apex; the top cap is a slit annulus. Both
+/// disc that owns the axis apex; the top cap is an annulus carrying its
+/// bore as a ring. Both
 /// designations are probed.
 #[test]
 fn r2_axis_at_one_end_only() {
@@ -330,13 +331,21 @@ fn r2_my_own_annulus_splits_into_two_rims() {
         Revolution::Full,
     );
     let chart = plane_chart_at_y(&body, h);
-    assert_eq!(chart.len(), 1, "a closed off-axis meridian closes its seam");
+    assert_eq!(
+        chart.len(),
+        1,
+        "a full revolve builds its annular cap whole"
+    );
     let cup = topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol)
         .expect("my tube opens")
         .body;
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
     assert_eq!(cup.shells().count(), 1);
-    assert_eq!((rings_of(&cup), genus_of(&cup)), (2, 1));
+    assert_eq!(
+        (rings_of(&cup), genus_of(&cup)),
+        (4, 1),
+        "two rim annuli and two floor annuli; the bore keeps genus 1"
+    );
     let mouth = plane_chart_at_y(&cup, h);
     assert_eq!(mouth.len(), 2, "two disjoint rim annuli");
     for delta in [1e-2, 1e-3, 2e-4] {

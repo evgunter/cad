@@ -475,13 +475,13 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
             ],
         ),
         (
-            "dome base annulus (two full-circle edges joined by a seam)",
+            "dome base annulus (a full-circle outer cycle and a full-circle ring)",
             &dome,
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             vec![
                 (Point3::new(0.75 * s45, 0.0, 0.75 * s45), Some(true)),
-                (Point3::new(0.75, 0.0, 0.0), None), // on the seam
+                (Point3::new(0.75, 0.0, 0.0), Some(true)), // where a slit would run
                 (Point3::new(0.0, 0.0, -0.75), Some(true)),
                 (Point3::new(0.0, 0.0, 0.25), Some(false)), // in the bore
                 (Point3::new(1.2, 0.0, 0.0), Some(false)),

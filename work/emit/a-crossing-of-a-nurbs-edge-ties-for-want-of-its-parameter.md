@@ -26,3 +26,13 @@ needs `CertifiedBounds`, which the naming scalar may not carry), seeded
 at the edge's certified interval, and decide the order through
 `name_frag_order_along` as for the other carriers. No fixture reaches a
 NURBS edge crossed twice by one face today.
+
+## After PR 4134 (2026-10-06)
+
+Ev's ruling on PR 4134 names every crossing by its sense. Only crossings
+of one edge by one face with the same sense are still ranked along the
+edge (`OrderAlong`), and a vertex where two edges cross carries each
+edge's sense against the other operand's closed body. Once the sense is
+built (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`,
+branch `emit/crossing-sense`), re-measure this row against the narrower
+case that is left.
