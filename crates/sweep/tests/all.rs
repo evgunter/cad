@@ -922,5 +922,5 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
-#[path = "zip_rest_admission_probes.rs"]
-mod zip_rest_admission_probes;
+#[path = "rest_zip_admission.rs"]
+mod rest_zip_admission;

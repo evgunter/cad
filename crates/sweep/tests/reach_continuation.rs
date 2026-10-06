@@ -1157,6 +1157,52 @@ fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
     }
 }
 
+/// **Three bricks folded in any order build the L.** `a` = (0,1)³, `c`
+/// = x∈(0.5,1.5), y∈(−1,0), `b` = x∈(0.5,1.5), y∈(0,1), all z∈(0,1),
+/// united pairwise with every flush finding declared at each step. In
+/// `(a ∪ c) ∪ b` the block `b` lies flush against both arms of the
+/// stepped `a ∪ c`, the rabbet's reflex-step shape; it used to refuse
+/// `Join(UnpairedLooseEnds { count: 6 })`
+/// (`work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`).
+/// Each step builds at box arithmetic, tiers 3 and 3′; the L has eight
+/// faces and is a legal operand.
+#[test]
+fn three_bricks_with_a_reflex_step_fold_in_every_order() {
+    let part = |n: char| match n {
+        'a' => brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
+        'b' => brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0)),
+        _ => brick((0.5, 1.5), (-1.0, 0.0), (0.0, 1.0)),
+    };
+    let declared = |p: &AtRestBody<f64>, q: &AtRestBody<f64>| {
+        let (rest, cont) = findings(p, q);
+        with(&rest, &cont)
+    };
+    for (order, first) in [
+        ("acb", (2.0, 10)),
+        ("cab", (2.0, 10)),
+        ("abc", (1.5, 6)),
+        ("bac", (1.5, 6)),
+        ("bca", (2.0, 6)),
+        ("cba", (2.0, 6)),
+    ] {
+        let n: Vec<char> = order.chars().collect();
+        let (p, q, r) = (part(n[0]), part(n[1]), part(n[2]));
+        let step = builds(
+            &format!("{order}: step 1"),
+            topo::union_with(&p, &q, &declared(&p, &q), tol()),
+            first.0,
+            first.1,
+        );
+        let l = builds(
+            &format!("{order}: step 2"),
+            topo::union_with(&step.body, &r, &declared(&step.body, &r), tol()),
+            2.5,
+            8,
+        );
+        sweep::test_support::assert_legal_operand(order, &l.body, tol());
+    }
+}
+
 /// **A declared rounded continuation that lies inside the other's wall
 /// builds its subtract and intersect, and refuses A ∪ B typed.**
 /// The rounded plate and a plate of the same outline half as thick,

@@ -2,10 +2,11 @@
 id: a-flush-declared-reflex-union-ships-the-wrong-volume
 kind: issue
 title: A flush-declared union on the reflex-corner probe returns volume 16 against the closed form 15.979, sound at every tier
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: M
+closed: 2026-10-06
 ---
 
 
@@ -95,7 +96,7 @@ no longer reached at these poses because the matching refuses first.
 ## Measured on main (zip-reflex, 2026-10-06)
 
 Main at `3f1e3b0d03`, release, with an env-gated trace of the REST zip's
-entry and exits (`zip/rest-admission`, the instrumentation commit).
+entry and exits (a probe commit on `zip/rest-admission`, reverted there).
 
 - **The row's own bar is met.** `join1_r1_reflex_battery`: every ∪, ∩
   and `a ∖ b` is `SOUND` or `EMPTY ok` (`b ∖ a` is a harness gap,
@@ -109,8 +110,8 @@ entry and exits (`zip/rest-admission`, the instrumentation commit).
   seam-bounded region on each solid lies wholly on `Rest` surfaces with
   congruent cycles. It never checks that the seam is exactly that
   region's boundary, so a transverse segment beside the patch is minted
-  and ignored and B is grafted whole. `zip_rest_admission_probes`
-  `zip_rest_admission_reflex_lever` reaches it: the reflex pose's `b`,
+  and ignored and B is grafted whole. A lever probe (now the pin below)
+  reaches it: the reflex pose's `b`,
   bridged high over `a` to a post resting on `a`'s top whose rounded
   footprint's west wall is flush with `a`'s at `x = −2`. The join refuses
   the post's tangent site (`Join(SectionInvariant { what: "tangent
@@ -130,8 +131,43 @@ entry and exits (`zip/rest-admission`, the instrumentation commit).
   `SectionInvariant`s). It builds 91, and every one of them has no
   segment off the patch.
 - The criterion "every segment bounds a patch on both solids" has a
-  blind spot: `zip_rest_admission_tangent_lever` "inside-top" (a box
+  blind spot: the tangent-lever probe's "inside-top" pose (a box
   dipping into the plate's top, inside the contact) has no segment at
   the dip at all. The zip identifies it and the result gate refuses
   `ResultInvalid { RingOutsideOuter }`. That run is caught, but by the
   gate, not by the admission.
+
+## Rescoped (2026-10-06)
+
+The first cause was JOIN's and is closed. On main the join answers
+every union of the reflex batteries itself (it builds them, or refuses
+`Escalated` at the 0.003° turn), so no reflex pose reaches the zip. The row's subject is the second cause, the zip admitting a union
+that is not a pure REST contact. Its bar is the lever pin below: every
+run builds sound at `vol a + vol b′ − v∩`, or refuses typed. None ships
+a wrong body.
+
+## Built (ZIP, branch `zip/rest-admission`)
+
+`rest::patch_faces` now enforces the module doc's premise as its own
+postcondition: the seam is the patches' boundary. Every segment's seam
+edge must have a patch face beside it on each solid. Otherwise there is
+no patch, the lane is not this frontier, and the join's typed refusal
+stands. The module doc's premise paragraph and step 5 say so.
+
+Pinned in `crates/sweep/tests/rest_zip_admission.rs`:
+
+- `a_reflex_union_behind_a_join_lever_never_ships_the_overlap_twice`:
+  the 8 poses, in both orders. All 16 now refuse with the join's own
+  payload, `Join(SectionInvariant { what: "tangent plane×cylinder germ
+  pair …" })` for `a ∪ b′` and `"tangent section chord endpoints
+  coincide along the ruling"` for `b′ ∪ a`. The pin asserts the volume
+  against `v∩` wherever a body comes back, and that the post still
+  defeats the join. With the check disabled it fails at the first pose,
+  excess 0.0208333 = `v∩`.
+- `a_join_levers_controls_build_sound`: the post off the wall (built
+  by the join) and the lever with a pure contact (built by the zip),
+  both orders, sound at the closed form.
+- `a_box_dipping_into_a_plate_behind_a_tangent_lever_never_ships_the_overlap_twice`:
+  the tangent lever with a box above the plate (the control, built by the
+  zip) and three dips. Each dip refuses, one of them only at the result gate:
+  `work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`.

@@ -2,10 +2,11 @@
 id: a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends
 kind: issue
 title: A union across a rabbet's step with every finding declared refuses Join(UnpairedLooseEnds { count: 6 })
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+closed: 2026-10-06
 ---
 
 
@@ -72,8 +73,8 @@ row carries it.
 
 ## Measured on main (zip-reflex, 2026-10-06)
 
-Main at `3f1e3b0d03`. `zip_rest_admission_probes` `zip_rabbet_fold_orders`
-uses `a` = (0,1)³, `c` = x∈(0.5,1.5), y∈(−1,0), `b` = x∈(0.5,1.5),
+Main at `3f1e3b0d03`. A scratch probe (`zip_rabbet_fold_orders`, since
+replaced by the pin below) used `a` = (0,1)³, `c` = x∈(0.5,1.5), y∈(−1,0), `b` = x∈(0.5,1.5),
 y∈(0,1), all z∈(0,1). `a`'s y range is not in the text above; it is taken
 from the FUSE document this shape came from. Each order is folded by
 `union_with` with `flush_declarations` at every step. All six orders,
@@ -82,3 +83,12 @@ the certificate, and a legal operand. Step 1 gives 2, 2, 1.5, 1.5, 2, 2;
 step 2 gives the L at 2.5. No step enters the REST zip: the join builds
 each one. The rabbet's own row, `a_declared_continuation_across_a_rabbet_step_builds_every_op`,
 passes on main.
+
+## Built (ZIP, branch `zip/rest-admission`)
+
+Nothing to fix: the fold-order shape builds on main. It is pinned by
+`crates/sweep/tests/reach_continuation.rs`
+`three_bricks_with_a_reflex_step_fold_in_every_order`, beside the
+rabbet's own row. All six orders build each step at box arithmetic,
+tiers 3 and 3′: step 1 at 2 (ten faces) or 1.5 or 2 (six faces), step 2
+the L at 2.5 with eight faces, a legal operand.
