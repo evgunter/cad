@@ -988,13 +988,17 @@ impl ViewerBehavior<'_> {
                 // The drawn body a pick is on, in the one sentence
                 // this crate names that scope with (`Say for
                 // BlendTarget`), its node said from the landed
-                // document the pick was read off.
+                // document the pick was read off, or as the selection
+                // kept it once that document no longer holds it.
                 Some(face) => {
                     let target = BlendTarget::of_face(face);
-                    ui.weak(match self.session.landed_pair() {
-                        Some((landed, _)) => Said(&target, Speaker::of(landed)).to_string(),
-                        None => target.to_string(),
-                    })
+                    let kept = self.session.selection_said();
+                    let by = self
+                        .session
+                        .landed_pair()
+                        .map_or(Speaker::TAG, |(landed, _)| Speaker::of(landed))
+                        .or_held(kept);
+                    ui.weak(Said(&target, by).to_string())
                 }
                 None => ui.weak("none picked"),
             };
@@ -1291,7 +1295,12 @@ impl ViewerBehavior<'_> {
         match self.session.selection().node() {
             Some(node) => {
                 if ui
-                    .button(format!("{EXTRUDE} {}", self.session.doc().spoken(node)))
+                    .button(format!(
+                        "{EXTRUDE} {}",
+                        Speaker::of(self.session.doc())
+                            .or_held(self.session.selection_said())
+                            .node(node)
+                    ))
                     .clicked()
                 {
                     match self.notation.length_literal(self.drafts.extrude_distance) {
