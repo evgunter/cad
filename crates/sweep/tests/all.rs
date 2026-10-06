@@ -924,3 +924,6 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+
+#[path = "pole_ball_shells.rs"]
+mod pole_ball_shells;
