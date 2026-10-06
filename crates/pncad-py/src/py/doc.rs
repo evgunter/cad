@@ -873,6 +873,26 @@ impl Doc {
     /// A name the document holds at another kind than the formula
     /// reads it at refuses `var_kind_mismatch`, naming both kinds; a
     /// name it does not hold refuses `unlowered_name`.
+    /// What `eval` and `eval_count` evaluate: the formula, or the lone
+    /// reader of the variable at the dimension it holds. A variable
+    /// this document does not hold refuses `unresolved_var`.
+    fn evaluand(&self, py: Python<'_>, evaluand: Evaluand) -> PyResult<d::Formula> {
+        match evaluand {
+            Evaluand::Formula(formula) => Ok(formula.0),
+            Evaluand::Var(Var(var)) => {
+                let dim = self.inner.var(var).map(|held| match held.def() {
+                    d::VarDef::Free(free) => free.dim(),
+                    d::VarDef::Defined(expr) => expr.dim(),
+                });
+                let Some(dim) = dim else {
+                    let unheld = d::EvalError::UnresolvedVar { var };
+                    return Err(super::expr::eval_err(py, &unheld, Some(&self.inner)));
+                };
+                Ok(d::Formula::var(var, dim))
+            }
+        }
+    }
+
     fn authored(&self, py: Python<'_>, formula: &d::Formula) -> PyResult<d::Expr> {
         self.inner
             .lowered(formula)
@@ -1661,16 +1681,22 @@ impl Doc {
     /// variable the document no longer holds, and
     /// `non_finite_result` is the arithmetic having overflowed or hit
     /// a pole.
-    fn eval(&self, py: Python<'_>, expr: &super::expr::Formula) -> PyResult<Py<PyAny>> {
+    ///
+    /// A `Var` evaluates as the lone reader of it at its own dimension
+    /// (`eval_var`): how a slot's value is read off `Doc.slot`'s
+    /// handle, a typed value's anonymous variable or a formula's
+    /// anonymous definition alike.
+    fn eval(&self, py: Python<'_>, expr: Evaluand) -> PyResult<Py<PyAny>> {
+        let expr = self.evaluand(py, expr)?;
         let env = self.inner.var_env::<f64>();
-        let value = d::eval(&self.authored(py, &expr.0)?, &env)
+        let value = d::eval(&self.authored(py, &expr)?, &env)
             .map_err(|err| super::expr::eval_err(py, &err, Some(&self.inner)))?;
         // Re-dimensioning what `eval` erased: the expression's own
         // dimension is what says which quantity the number is, and it
         // is correct by construction. `Count` cannot reach here — the
         // evaluator refused it above — and `Scalar` is dimensionless
         // by definition, so both fall to the bare float.
-        match expr.0.dim() {
+        match expr.dim() {
             d::Dimension::Length => Py::new(
                 py,
                 super::quantity::Length(pncad::quantity::Length::from_meters(value)),
@@ -1699,9 +1725,11 @@ impl Doc {
     /// refuses `continuous_expr_in_count_eval` naming the dimension
     /// it actually has — a count is never inferred from a continuous
     /// value.
-    fn eval_count(&self, py: Python<'_>, expr: &super::expr::Formula) -> PyResult<i64> {
+    /// A count `Var` evaluates as its lone reader (`eval_var_count`).
+    fn eval_count(&self, py: Python<'_>, expr: Evaluand) -> PyResult<i64> {
+        let expr = self.evaluand(py, expr)?;
         let env = self.inner.var_env::<f64>();
-        d::eval_count(&self.authored(py, &expr.0)?, &env)
+        d::eval_count(&self.authored(py, &expr)?, &env)
             .map_err(|err| super::expr::eval_err(py, &err, Some(&self.inner)))
     }
 
@@ -3408,6 +3436,16 @@ impl Var {
     fn __hash__(&self) -> u64 {
         self.0.0
     }
+}
+
+/// **What `Doc.eval` and `Doc.eval_count` evaluate**: a formula, or a
+/// variable by its identity.
+#[derive(FromPyObject)]
+pub(crate) enum Evaluand {
+    /// A formula.
+    Formula(super::expr::Formula),
+    /// A variable, read at the dimension it holds.
+    Var(Var),
 }
 
 /// **A variable as an edit addresses it**: by its identity (`Var`), or

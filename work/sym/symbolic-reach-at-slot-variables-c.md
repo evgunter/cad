@@ -42,6 +42,27 @@ once more, so each written formula adds a theorem per environment:
 - `m10_bulge_interval` on the boss: `expr_non_finite` 29 → 33
   theorems, and nothing else.
 
+- `m10_9_pins_interval` (`crates/editor-core/tests/m10_9_pins_interval.rs`),
+  `symbolic_zero` at every ε: the plate 955 → 956, the annulus
+  440 → 442, the link 689 → 691, the bracket 1282 → 1285; the pad holds.
+  `registered` and the verdicts hold.
+- The slab's `Plain/Decision` line moves the same way at 1e-6 and 1e-12
+  (980 → 981 calls, 9426 forms unchanged), and `msolve14`'s corpus
+  digest, which feeds node ids, is re-taken at both.
+
+The documents' tolerances: every variable these documents name carries
+one, so the rise is the written formulas alone. Plate: `half_spacing`
+uniform ±5e-5, `hole_a_r` and `hole_b_r` normal σ 1e-5. Annulus:
+`outer_r` and `offset` uniform ±5e-5, `bore_r` normal σ 1e-5. Boss:
+`chord_half` uniform ±5e-5, `bore_r` normal σ 1e-5. Bracket: `arm`
+uniform ±2e-5, `fillet_r` uniform ±1e-5, `bore_a` and `bore_b` normal
+σ 5e-6. Link: `half_w` uniform ±2e-5, `bore_r` normal σ 1e-5. Pad:
+`corner_r` uniform ±2e-5, `bore_r` normal σ 1e-5. Slab: `q` uniform
+±100ε. Stackup and Monte Carlo: the tour's plate study (the plate's
+three) lists the same three rows and draws the same sheet, bit for bit,
+as on B's head; `chaintol`'s `joint_1..4` (normal σ 1e-2 rad) narrate
+identically.
+
 **The untoleranced named variables now bind as constants.** Before C they
 were symbols. That is the half of the rule that could have moved a
 decision, and on the pinned documents it moved none: every column but the

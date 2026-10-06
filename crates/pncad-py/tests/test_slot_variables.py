@@ -13,6 +13,7 @@ from pncad import (
     Doc,
     DocEdit,
     EditError,
+    EvalError,
     Formula,
     FreeVar,
     Node,
@@ -83,6 +84,22 @@ class TestASlotHoldsAVariable(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             Node.extrude(square(doc), 0.5)
         self.assertEqual(caught.exception.variant, "slot_dimension_mismatch")
+
+    def test_a_slots_value_is_its_variable_evaluated(self):
+        doc = Doc("slot-variables-eval")
+        doc.apply(DocEdit.declare_var(VarName("w"), FreeVar.length(0.25 * m)))
+        typed = doc.insert(Node.extrude(square(doc), 0.5 * m))
+        defined = doc.insert(
+            Node.extrude(square(doc), doc.parse_formula("w * 3.0"))
+        )
+        self.assertAlmostEqual(doc.eval(doc.slot(typed, "distance")).meters, 0.5)
+        self.assertAlmostEqual(doc.eval(doc.slot(defined, "distance")).meters, 0.75)
+        stranger = Doc("slot-variables-stranger")
+        foreign = doc.slot(typed, "distance")
+        self.assertNotIn(foreign, stranger.vars)
+        with self.assertRaises(EvalError) as caught:
+            stranger.eval(foreign)
+        self.assertEqual(caught.exception.variant, "unresolved_var")
 
     def test_a_slot_of_a_node_the_document_does_not_hold_is_none(self):
         doc = Doc("slot-variables-none")

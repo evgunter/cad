@@ -1236,6 +1236,10 @@ BOUND_AS = {
     # G1 stays open on its authoring half.
     "eval": "Doc.eval",
     "eval_count": "Doc.eval_count",
+    # A slot's variable evaluated: Python hands `Doc.eval` the handle
+    # `Doc.slot` answers, which reads as its lone reader.
+    "eval_var": "Doc.eval",
+    "eval_var_count": "Doc.eval_count",
     "parse_formula": "Doc.parse_formula",
     "unparse": "Formula.text",
     # The display formatter, on the receiver the carrier-projection

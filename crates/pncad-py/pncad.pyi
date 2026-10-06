@@ -4061,9 +4061,11 @@ class Doc:
         Raises ParseError, carrying `variant` and the byte offset
         `pos`."""
 
-    def eval(self, expr: Formula) -> Length | Angle | float:
+    def eval(self, expr: Formula | Var) -> Length | Angle | float:
         """This expression's value under the document's current
-        parameter values (`eval`).
+        parameter values (`eval`). A `Var` evaluates as the lone reader
+        of it at its own dimension (`eval_var`): how a slot's value is
+        read off `Doc.slot`'s handle.
 
         A Length for a length expression, an Angle for an angle, a
         bare float for a dimensionless one.
@@ -4081,8 +4083,9 @@ class Doc:
         at another) are that lowering's refusals. Other refusals:
         `unresolved_var`, `non_finite_result`."""
 
-    def eval_count(self, expr: Formula) -> int:
-        """This count expression's exact value (`eval_count`).
+    def eval_count(self, expr: Formula | Var) -> int:
+        """This count expression's exact value (`eval_count`); a count
+        `Var`'s, as its lone reader (`eval_var_count`).
 
         Exact integer arithmetic: an overflow raises EvalError
         (`count_overflow`) rather than wrapping, because a wrapped
