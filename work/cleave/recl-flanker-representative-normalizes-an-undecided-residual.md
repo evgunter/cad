@@ -2,11 +2,13 @@
 id: recl-flanker-representative-normalizes-an-undecided-residual
 kind: issue
 title: recl's flanker representative normalizes an undecided residual against the common line
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
 branch: cleave/recl-flanker
+closed: 2026-10-06
+pr: 4177
 ---
 
 
@@ -70,3 +72,11 @@ line is read as it stands: `sector_shape`'s unit direction of an edge
 chord its arm rung decided long, with the caller's `real` premise
 checked at the site (a bisector there panics, naming it). The name is
 rostered (`docs/K-REPORT.md`, `docs/predicate-dimension-audit.md`).
+
+## Closed (PR 4177, 2026-10-06)
+
+`resolve_edge_edge` decides each flanker's offset off the common line, levered at its reach
+(`bool_flank_offset`, refused under `Coincide::Sectors`), after the declared-`Tangent`
+short-circuit. The common line is a real edge bound, read as it stands; one that is not panics. The
+door gap that forces the hand-spelled levered decide-then-normalize is filed on FLUX
+(`unit-direction-doors-drop-the-decided-margin-of-a-zero-length`).

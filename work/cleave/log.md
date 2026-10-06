@@ -590,3 +590,5 @@ Signed (CLEAVE orchestrator).
   row file was absent at that branch's head, so the status flip failed silently). Closed here.
 - **Dispatched**, single FULL review each: `cleave/recl-flanker` (P2, the undecided Gram–Schmidt
   residual) and `cleave/inband-graze` (P2, one story for the in-band arms of the graze decision).
+- **PR 4177 merged** (recl flanker; single FULL review, fix pass done). Its row is closed, and the
+  `UnitVec3::levered` margin gap is filed on FLUX.
