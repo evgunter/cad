@@ -1032,3 +1032,18 @@ certified projection):
 Unit 7's designer pair (`shell-open-refuses-a-curved-designated-face`)
 runs locally; blinding byte on `analysis/design-fork/shell-curved-designation`.
 Units 5 and 6 wait for a lane: 5 follows 4 in `replace_face.rs`.
+
+## Unit 7 weighed (2026-10-06)
+
+The designer pair on `shell-open-refuses-a-curved-designated-face`
+converged in round 1 on the main question: no kind gate, and the rim
+takes its chart's form (a seamed band on a wrapping periodic chart, a
+ring on a window). The decision and the spec basis are in the item. A
+reporting sub-question crossed twice and then converged on its root
+(the tier-3 verdict carries the violates/undecided class), which is
+RESTFRONT's ground; the evidence went onto that program's row. No
+ratified text moves and no `[ev]` PR: the recommendation is clear and
+is an elaboration of D1's seam convention. Design-fork log: no row,
+because nothing went to Ev. The blinding byte stays on its analysis
+branch. Unit 7 dispatches after units 2 and 3 land, since all three
+edit `shell.rs`.
