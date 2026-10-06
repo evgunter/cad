@@ -1480,9 +1480,8 @@ fn a_kev_mirror_re_mints_the_member_it_re_describes() {
 /// [`a_kev_mirror_re_mints_the_member_it_re_describes`] kill, a strut up
 /// the ruling from `s` runs the site mint over the loop the re-described
 /// arc is on, which keeps the arc's images; the wall leaves with the
-/// pass's rows. Where the kill kept the arc's old rows, the site mint's
-/// debug assertion that a kept image spans its edge's interval fires
-/// here.
+/// pass's rows. Where the kill kept the arc's old rows, the strut's
+/// site mint keeps them too, and tier 3 reads them stale.
 #[test]
 fn a_strut_after_a_kev_mirror_keeps_the_re_minted_rows() {
     let (mut body, face, s_q, q_t) = arc_chain_over_the_jump(tol());
