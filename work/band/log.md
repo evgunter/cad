@@ -486,3 +486,15 @@ open-link candidate filed as `ruled-cap-meter-reads-a-co-requested-open-link-at-
 "this link's trim on this face" given one home (`EdgeBlend::trims`,
 `Link::trim_on`, `open_trimline`); the reviewer's boundary sweep adopted
 as rows.
+
+## 2026-10-06 — the plane–plane run-out ruled (Ev, PR #4085)
+
+Ev approved all four decisions: the request-count rule (cut-off, mitre,
+patch), the C8/H7 text, and the vocabulary; decision 3 (whether a box's
+isosceles mitre lints) went to INTENT at Ev's request (#4094), where Ev
+answered: land it under (b), recorded as a value-decided coincidence and
+proven at INTENT's stage 4 (#4097). Fork-log row 72 completed (byte 26:
+Opus = A, Fable = B; both matched after round 3). The row's build order is
+in its `## Ruled` section; step 1 dispatches next. Filed
+`chamfer-ends-in-a-curved-end-face` (P3) from Ev's curved-end-face
+question.
