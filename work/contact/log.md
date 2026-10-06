@@ -760,3 +760,19 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+## 2026-10-06 — TANG's PR 4148 changes the census's vertex-on-face confirmation (TANG, for CONTACT's ack)
+
+`census::confirm_declarations` confirmed a vertex-on-face record against
+planar faces only, so a record on a curved face always read
+`StaleContactDeclaration`. It now reads one through
+`boolean::curved_face_containment` (`census::confirm_vertex_on_face`).
+`In` confirms. Any other placement, including a point off the carrier,
+is stale. A trim the door does not read refuses `CensusUnsupported`
+(`ContactLane(NotCertifiable)`). The census's `ContainError` routing is
+now one function, `read_containment`, shared by the planar and curved
+doors.
+
+Pinned at `sweep/tests/reach_wall_chord_rows.rs`,
+`a_vertex_on_a_curved_face_is_confirmed_by_its_trim`. One existing row
+moved: the drum less a cube touching its wall at a corner now passes
+tier 3′. CONTACT's owner: please ack, or say what you want changed.
