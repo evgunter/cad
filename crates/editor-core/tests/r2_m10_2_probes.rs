@@ -14,12 +14,13 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
-    EntityKind, EvalOptions, Evaluation, Expr, FreeValue, FreeVar, GeomPred, LoopProgram,
+    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
     ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
     SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
@@ -111,7 +112,7 @@ fn edges_of_kind(
 /// unchanged.
 fn with_measure(
     doc: &ProfileDoc,
-    expr: MeasureExpr,
+    expr: MeasureExpr<Formula>,
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let refs: Vec<SitedRef> = refs.into_iter().map(SitedRef::at_mint).collect();
@@ -821,7 +822,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
 
     // Every op that takes a body, pointed at each sink.
     for victim in [measure, assertion] {
-        let attempts: Vec<(&str, Node<ProfileProgram>)> = vec![
+        let attempts: Vec<(&str, AuthoredNode)> = vec![
             (
                 "boolean-a",
                 Node::Boolean {
@@ -1352,7 +1353,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     // Length, so `measured: Length` against `bound: Angle`. BOTH
     // halves of the literal move — the notation with the dimension —
     // because a literal whose unit measures something else is refused
-    // one door earlier, by the wire's `Expr::literal_with_unit`
+    // one door earlier, by the wire's `Formula::literal_with_unit`
     // rebuild, and would never reach the snapshot walk this row is
     // about.
     let dim_corrupt = doctored(&text, |wire| {
@@ -1433,7 +1434,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::named(VarName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar is a Length");
     let (d2, id) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
@@ -1445,9 +1446,9 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: d1.order()[1],
-                distance: Expr::div(
+                distance: Formula::div(
                     len(13.0),
-                    Expr::named(VarName::from_static("s"), Dimension::Scalar),
+                    Formula::named(VarName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,
@@ -1501,7 +1502,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::named(VarName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);

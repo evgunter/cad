@@ -20,7 +20,7 @@ use crate::common;
 use common::{session_insert, shape};
 use pncad::document::{Dimension, Doc, FreeVar, VarName};
 use pncad::document::{
-    DocEdit, EditError, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId, StepArg,
+    DocEdit, EditError, Formula, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId, StepArg,
     StepId, apply,
 };
 use pncad::geom_core::{Point2, Tol};
@@ -141,7 +141,7 @@ fn authored() -> Vec<(&'static str, Vec<ProfileShape>)> {
 }
 
 /// The held loops lowered the way the editor's Apply lowers them.
-fn lowered(held: &[Vec<Step<f64>>], notation: Notation) -> Vec<LoopProgram> {
+fn lowered(held: &[Vec<Step<f64>>], notation: Notation) -> Vec<LoopProgram<Formula>> {
     sketch::path_shapes(held)
         .iter()
         .map(|shape| sketch::loop_program(shape, notation).expect("finite held numbers"))
@@ -177,7 +177,11 @@ fn program(session: &DocSession, node: RecipeNodeId) -> &ProfileProgram {
 
 /// The op the editor's Apply sends for `loops` over `node`'s committed
 /// program, every step kept where it is.
-fn edit_of(session: &DocSession, node: RecipeNodeId, loops: Vec<LoopProgram>) -> SessionOp {
+fn edit_of(
+    session: &DocSession,
+    node: RecipeNodeId,
+    loops: Vec<LoopProgram<Formula>>,
+) -> SessionOp {
     let base = program(session, node).clone();
     SessionOp::EditProfile {
         node,
@@ -252,11 +256,11 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
     let node = RecipeNodeId(1);
     for step in steps {
         let verb = step.verb();
-        let program = ProfileProgram {
+        let program = editor_core::test_support::stored_program(&ProfileProgram {
             plane: RecipeNodeId(0),
             loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
             ids: Vec::new(),
-        };
+        });
         let held = sketch::held_program(
             pncad::document::SpokenNode::absent(node),
             &program,
@@ -272,7 +276,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
 }
 
 /// The committed expression at `slot` of `node`.
-fn committed_expr(session: &DocSession, node: RecipeNodeId, slot: SlotId) -> Expr {
+fn committed_expr(session: &DocSession, node: RecipeNodeId, slot: SlotId) -> pncad::document::Expr {
     session
         .committed_doc()
         .node(node)
@@ -462,7 +466,11 @@ fn a_kept_driven_argument_is_not_written_over() {
         text: "side".to_owned(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    let committed = program(&session, profile).loops.clone();
+    let committed: Vec<LoopProgram<Formula>> = program(&session, profile)
+        .loops
+        .iter()
+        .map(LoopProgram::authored)
+        .collect();
     let mut moved = committed.clone();
     let mut probe = Node::Profile(ProfileProgram {
         plane: program(&session, profile).plane,

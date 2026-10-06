@@ -16,7 +16,7 @@ use crate::common;
 use editor_core::drive::DriveConfig;
 use editor_core::range::{RangeField, RangeSeed, certified_range};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeValue, FreeVar, Node,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, Node,
     NodeResult, ProfileDoc, RecipeNodeId, VarName, evaluate,
 };
 use geom_core::Tol;
@@ -49,7 +49,7 @@ fn slab(depth: f64) -> ProfileDoc {
         &mut doc,
         Node::Extrude {
             profile: p,
-            distance: Expr::named(name("depth"), Dimension::Length),
+            distance: Formula::named(name("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         },
         tol(),

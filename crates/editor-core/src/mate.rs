@@ -192,16 +192,16 @@ impl FrameBase {
 /// <Placement>}`, closed over its two keys.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MateFrame {
+pub struct MateFrame<S = crate::Expr> {
     /// What the offset is written in.
     pub base: FrameBase,
     /// The offset, in the base's frame; the empty chain by default.
-    pub offset: Placement,
+    pub offset: Placement<S>,
 }
 
-impl MateFrame {
+impl<S: Clone> MateFrame<S> {
     /// The part base composed with `offset`.
-    pub fn on_part(offset: impl Into<Placement>) -> Self {
+    pub fn on_part(offset: impl Into<Placement<S>>) -> Self {
         Self {
             base: FrameBase::Part,
             offset: offset.into(),
@@ -217,18 +217,11 @@ impl MateFrame {
     /// The side's own head face composed with `offset`, written in the
     /// face's frame (origin on the face, +Z along its chart axis, +Y
     /// along its reference direction).
-    pub fn on_face(offset: impl Into<Placement>) -> Self {
+    pub fn on_face(offset: impl Into<Placement<S>>) -> Self {
         Self {
             base: FrameBase::Face,
             offset: offset.into(),
         }
-    }
-
-    /// Bit-semantic equality (D7): the same base, and offsets equal by
-    /// [`Placement::bit_eq`], so `0.0` and `-0.0` are different frames.
-    #[must_use]
-    pub fn bit_eq(&self, other: &Self) -> bool {
-        self.base == other.base && self.offset.bit_eq(&other.offset)
     }
 
     /// **Three authored vectors as a frame**: the part base with one
@@ -261,6 +254,15 @@ impl MateFrame {
         Ok(Self::on_part(Placement::literal(
             &crate::placement::Frame::from_affine(frame.to_affine()),
         )))
+    }
+}
+
+impl<L: crate::expr::LeafSet> MateFrame<crate::expr::ExprTree<L>> {
+    /// Bit-semantic equality (D7): the same base, and offsets equal by
+    /// [`Placement::bit_eq`], so `0.0` and `-0.0` are different frames.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        self.base == other.base && self.offset.bit_eq(&other.offset)
     }
 }
 
@@ -358,11 +360,11 @@ impl MatePrimitive {
 /// the clocking rider.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Alignment {
+pub struct Alignment<S = crate::Expr> {
     /// The `a` side's mate frame, in `a`'s part coordinates.
-    pub a: MateFrame,
+    pub a: MateFrame<S>,
     /// The `b` side's mate frame, in `b`'s part coordinates.
-    pub b: MateFrame,
+    pub b: MateFrame<S>,
     /// Which coset this mate pins.
     pub primitive: MatePrimitive,
     /// Which way the axes point at each other.
@@ -380,7 +382,39 @@ pub struct Alignment {
     pub clocking: Option<f64>,
 }
 
-impl Alignment {
+impl<S> Alignment<S> {
+    /// **This alignment in another slot form**: both frames' offsets
+    /// rewritten by `f`, side `a` first ([`Placement::try_map_slots`]).
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<Alignment<S2>, E> {
+        let Self {
+            a,
+            b,
+            primitive,
+            sense,
+            clocking,
+        } = self;
+        let frame = |side: &MateFrame<S>, f: &mut _| -> Result<MateFrame<S2>, E> {
+            Ok(MateFrame {
+                base: side.base,
+                offset: side.offset.try_map_slots(f)?,
+            })
+        };
+        Ok(Alignment {
+            a: frame(a, f)?,
+            b: frame(b, f)?,
+            primitive: *primitive,
+            sense: *sense,
+            clocking: *clocking,
+        })
+    }
+
     /// **The datum's own contribution to the lever** this mate's angular
     /// decisions turn on: both mate frames' distances from their parts'
     /// origins, plus every length the primitive authors, all summed.
@@ -429,6 +463,35 @@ impl Alignment {
             .fold(a_origin + b_origin, |lever, length| lever + length.abs())
     }
 
+    /// Whether every number the alignment holds outside its frames is
+    /// finite — the rider and the primitive's lengths, the edit door's
+    /// admission test (a non-finite alignment could never decide
+    /// anything). A frame's offset is a placement, whose literal steps
+    /// the frame rule holds ([`crate::Node::placement_frame_fault`])
+    /// and whose expressions are slots.
+    pub fn is_finite(&self) -> bool {
+        self.clocking.is_none_or(f64::is_finite)
+            && self
+                .primitive
+                .authored_lengths()
+                .into_iter()
+                .flatten()
+                .all(f64::is_finite)
+    }
+}
+
+impl Alignment {
+    /// **This alignment re-authored**: both frames' offsets formulas
+    /// reading what they read ([`Placement::authored`]).
+    #[must_use]
+    pub fn authored(&self) -> Alignment<crate::Formula> {
+        let Ok(authored) = self
+            .try_map_slots(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
+        authored
+    }
+}
+
+impl<L: crate::expr::LeafSet> Alignment<crate::expr::ExprTree<L>> {
     /// **Bit-semantic equality** (D7), the one comparator every reader
     /// of an alignment's equality asks: both frames by
     /// [`MateFrame::bit_eq`], the primitive's lengths and the rider by
@@ -448,22 +511,6 @@ impl Alignment {
                 .all(|(x, y)| bits(x) == bits(y))
             && self.sense == other.sense
             && bits(self.clocking) == bits(other.clocking)
-    }
-
-    /// Whether every number the alignment holds outside its frames is
-    /// finite — the rider and the primitive's lengths, the edit door's
-    /// admission test (a non-finite alignment could never decide
-    /// anything). A frame's offset is a placement, whose literal steps
-    /// the frame rule holds ([`crate::Node::placement_frame_fault`])
-    /// and whose expressions are slots.
-    pub fn is_finite(&self) -> bool {
-        self.clocking.is_none_or(f64::is_finite)
-            && self
-                .primitive
-                .authored_lengths()
-                .into_iter()
-                .flatten()
-                .all(f64::is_finite)
     }
 }
 

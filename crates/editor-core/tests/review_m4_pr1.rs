@@ -7,8 +7,8 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, FreeVar, RecipeNodeId, SitedRef, SlotId, VarEnv, VarName,
-    eval, eval_count,
+    Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SitedRef, SlotId, VarEnv,
+    VarName, eval, eval_count,
 };
 use geom_core::Tol;
 
@@ -17,7 +17,19 @@ use geom_core::Tol;
 // transparent local newtype carries the same test payloads.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 struct Fake(&'static str);
+impl editor_core::SlotPayload<editor_core::Expr> for Fake {}
+impl editor_core::SlotPayload<editor_core::Formula> for Fake {}
 impl editor_core::ProfilePayload for Fake {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+    ) -> Result<Self, E> {
+        Ok(*authored)
+    }
+    fn authored(&self) -> Self {
+        *self
+    }
     fn drawn_pieces(
         &self,
         _env: &editor_core::VarEnv<f64>,
@@ -31,7 +43,7 @@ type Doc = editor_core::Doc<Fake>;
 type Edit = DocEdit<Fake>;
 
 /// Insert a datum point whose x-component is `x` (bit-exact carrier).
-fn point_edit(x: Expr) -> Edit {
+fn point_edit(x: Formula) -> Edit {
     DocEdit::InsertNode {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [x, len(0.0), len(0.0)],
@@ -180,7 +192,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     // NaN can no longer enter a document at all (door 1): the
     // conflation hazard for NaN is gone at the source.
     assert_eq!(
-        Expr::literal(f64::NAN, Dimension::Length).unwrap_err(),
+        Formula::literal(f64::NAN, Dimension::Length).unwrap_err(),
         editor_core::DimensionError::NonFiniteLiteral
     );
 }
@@ -190,62 +202,62 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
 #[test]
 fn r2_dimension_smuggling_probes() {
     use editor_core::DimensionError as DE;
-    let c = || Expr::count(3);
+    let c = || Formula::count(3);
     // Nested promotion: CountToScalar(CountToScalar(c)) — inner is
     // Scalar, outer demands Count.
-    let inner = Expr::count_to_scalar(c()).unwrap();
+    let inner = Formula::count_to_scalar(c()).unwrap();
     assert!(matches!(
-        Expr::count_to_scalar(inner.clone()),
+        Formula::count_to_scalar(inner.clone()),
         Err(DE::NotCount { .. })
     ));
     // Synthetic dimensionless: Length × promoted Count → Length (ok),
     // then × Length must still refuse (no laundering through chains).
-    let l_times_promoted = Expr::mul(len(2.0), inner.clone()).unwrap();
+    let l_times_promoted = Formula::mul(len(2.0), inner.clone()).unwrap();
     assert_eq!(l_times_promoted.dim(), Dimension::Length);
     assert!(matches!(
-        Expr::mul(l_times_promoted.clone(), len(1.0)),
+        Formula::mul(l_times_promoted.clone(), len(1.0)),
         Err(DE::MulNeedsScalar { .. })
     ));
     // Div chain: (Length/Scalar) is Length; dividing BY it refused.
-    let l_div_s = Expr::div(len(1.0), scl(2.0)).unwrap();
+    let l_div_s = Formula::div(len(1.0), scl(2.0)).unwrap();
     assert_eq!(l_div_s.dim(), Dimension::Length);
     assert!(matches!(
-        Expr::div(scl(1.0), l_div_s.clone()),
+        Formula::div(scl(1.0), l_div_s.clone()),
         Err(DE::DivNeedsScalarDivisor { .. })
     ));
     // Div by raw Count and by promoted-Count-… : raw refused loudly;
     // promoted IS Scalar so it passes (correct: explicit promotion).
     assert!(matches!(
-        Expr::div(len(1.0), c()),
+        Formula::div(len(1.0), c()),
         Err(DE::CountNeedsExplicitPromotion { .. })
     ));
-    assert!(Expr::div(len(1.0), inner.clone()).is_ok());
+    assert!(Formula::div(len(1.0), inner.clone()).is_ok());
     // Count division is NOT closed (spec lists add/sub/mul/min/max).
-    assert!(Expr::div(c(), c()).is_err());
+    assert!(Formula::div(c(), c()).is_err());
     // min/max cross-dimension, including Count vs Scalar.
-    assert!(Expr::min(len(1.0), ang(1.0)).is_err());
-    assert!(Expr::max(c(), scl(1.0)).is_err());
+    assert!(Formula::min(len(1.0), ang(1.0)).is_err());
+    assert!(Formula::max(c(), scl(1.0)).is_err());
     // atan2 edges: mixed Length/Angle refused; Count/Count refused
     // (needs explicit promotion); Angle/Angle and Scalar/Scalar both
     // ACCEPTED under deviation 4's "any shared continuous dimension".
-    assert!(Expr::atan2(len(1.0), ang(1.0)).is_err());
+    assert!(Formula::atan2(len(1.0), ang(1.0)).is_err());
     assert!(matches!(
-        Expr::atan2(c(), c()),
+        Formula::atan2(c(), c()),
         Err(DE::CountNeedsExplicitPromotion { .. })
     ));
     assert_eq!(
-        Expr::atan2(ang(1.0), ang(2.0)).unwrap().dim(),
+        Formula::atan2(ang(1.0), ang(2.0)).unwrap().dim(),
         Dimension::Angle
     );
     assert_eq!(
-        Expr::atan2(scl(1.0), scl(2.0)).unwrap().dim(),
+        Formula::atan2(scl(1.0), scl(2.0)).unwrap().dim(),
         Dimension::Angle
     );
     // Neg is dimension-transparent: Neg(Length) still refuses ×Length.
-    let neg_l = Expr::neg(len(1.0)).expect("a shallow negation");
-    assert!(Expr::mul(neg_l, len(1.0)).is_err());
+    let neg_l = Formula::neg(len(1.0)).expect("a shallow negation");
+    assert!(Formula::mul(neg_l, len(1.0)).is_err());
     // Trig on promoted Count refused (Scalar, not Angle).
-    assert!(Expr::sin(inner).is_err());
+    assert!(Formula::sin(inner).is_err());
 }
 
 /// R2 — a single expression referencing one param under TWO
@@ -256,14 +268,14 @@ fn r2_contradictory_param_dims_caught_downstream() {
     // mul(Scalar, Length) → Length: constructible with BOTH reads, by
     // id or by name.
     let q = editor_core::VarId(1);
-    let by_id = Expr::mul(
-        Expr::var(q, Dimension::Scalar),
-        Expr::var(q, Dimension::Length),
+    let by_id = Formula::mul(
+        Formula::var(q, Dimension::Scalar),
+        Formula::var(q, Dimension::Length),
     )
     .unwrap();
-    let expr = Expr::mul(
-        Expr::named(VarName::from_static("q"), Dimension::Scalar),
-        Expr::named(VarName::from_static("q"), Dimension::Length),
+    let expr = Formula::mul(
+        Formula::named(VarName::from_static("q"), Dimension::Scalar),
+        Formula::named(VarName::from_static("q"), Dimension::Length),
     )
     .unwrap();
     // eval: whichever binding q has, one read mismatches — typed.
@@ -276,7 +288,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
         },
     );
     assert!(matches!(
-        eval::<f64>(&by_id, &env),
+        eval::<f64>(&editor_core::test_support::stored_expr(&by_id), &env),
         Err(editor_core::EvalError::VarKindMismatch { .. })
     ));
     // apply: a slot carrying the contradiction is refused whichever
@@ -317,8 +329,10 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
         i64::from(i32::MAX) + 1,
         i64::from(i32::MIN) - 1,
     ] {
-        let e = Expr::count_to_scalar(Expr::count(n)).unwrap();
-        let outcome = std::panic::catch_unwind(|| eval::<f64>(&e, &env));
+        let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
+        let outcome = std::panic::catch_unwind(|| {
+            eval::<f64>(&editor_core::test_support::stored_expr(&e), &env)
+        });
         let r = outcome.expect("must never panic");
         assert_eq!(
             r,
@@ -328,10 +342,13 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
     }
     // Boundary values promote exactly.
     for n in [i64::from(i32::MIN), i64::from(i32::MAX)] {
-        let e = Expr::count_to_scalar(Expr::count(n)).unwrap();
+        let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
         #[allow(clippy::cast_precision_loss)] // |n| ≤ 2^31: exact
         let expected = n as f64;
-        assert_eq!(eval::<f64>(&e, &env).unwrap(), expected);
+        assert_eq!(
+            eval::<f64>(&editor_core::test_support::stored_expr(&e), &env).unwrap(),
+            expected
+        );
     }
 }
 
@@ -346,7 +363,7 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
 fn r3_ancestor_replace_silently_repoints_exprpath() {
     use editor_core::{Axis3, ExprPath};
     // Slot: x = 1.0 + 2.0; path [1] refers to the literal 2.0.
-    let e0 = Expr::add(len(1.0), len(2.0)).unwrap();
+    let e0 = Formula::add(len(1.0), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
@@ -373,7 +390,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
                     slot: SlotId::Origin(Axis3::X),
                     path: vec![],
                 },
-                expr: Expr::add(len(5.0), len(7.0)).unwrap(),
+                expr: Formula::add(len(5.0), len(7.0)).unwrap(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -410,7 +427,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
 fn r3_referent_survives_out_of_claim_edits_bitwise() {
     use editor_core::{Axis3, ExprPath};
     let marker = f64::from_bits(0x3FF00000000000AB); // recognizable bits
-    let e0 = Expr::add(len(marker), len(2.0)).unwrap();
+    let e0 = Formula::add(len(marker), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
@@ -442,7 +459,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
                     slot: SlotId::Origin(Axis3::X),
                     path: vec![1],
                 },
-                expr: Expr::mul(scl(3.0), len(8.0)).unwrap(),
+                expr: Formula::mul(scl(3.0), len(8.0)).unwrap(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -656,7 +673,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .doc;
     let (doc, _) = apply_all(
         doc,
-        &[point_edit(Expr::named(name.clone(), Dimension::Length))],
+        &[point_edit(Formula::named(name.clone(), Dimension::Length))],
     );
     // Dimension flip under the referencing slot: refused, because a
     // variable's kind is fixed whatever reads it.
@@ -751,11 +768,11 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     assert_bit_identical(&a1.doc, &a2.doc);
     assert_eq!(a1.record, a2.record);
     // eval purity in (expr, params): repeated evals bit-identical.
-    let expr = Expr::div(len(0.1), scl(0.3)).unwrap();
+    let expr = Formula::div(len(0.1), scl(0.3)).unwrap();
     let env = VarEnv::<f64>::default();
     let (v1, v2) = (
-        eval::<f64>(&expr, &env).unwrap(),
-        eval::<f64>(&expr, &env).unwrap(),
+        eval::<f64>(&editor_core::test_support::stored_expr(&expr), &env).unwrap(),
+        eval::<f64>(&editor_core::test_support::stored_expr(&expr), &env).unwrap(),
     );
     assert_eq!(v1.to_bits(), v2.to_bits());
 }
@@ -773,37 +790,48 @@ fn r6_nonfinite_doors_closed() {
     let env = VarEnv::<f64>::default();
     // Door 2: pole and indeterminate-form conduits refused.
     assert_eq!(
-        eval::<f64>(&Expr::div(len(1.0), scl(0.0)).unwrap(), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(&Formula::div(len(1.0), scl(0.0)).unwrap()),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "1/0"
     );
     assert_eq!(
-        eval::<f64>(&Expr::div(len(0.0), scl(0.0)).unwrap(), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(&Formula::div(len(0.0), scl(0.0)).unwrap()),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "0/0"
     );
     // Arithmetic overflow to inf from finite literals: also refused.
     assert_eq!(
-        eval::<f64>(&Expr::mul(len(f64::MAX), scl(2.0)).unwrap(), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(
+                &Formula::mul(len(f64::MAX), scl(2.0)).unwrap()
+            ),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "overflow"
     );
     // Mid-tree poison that CANCELS still refuses at the boundary
     // check only if the FINAL value is non-finite: (1/0) flows into
     // min(inf, 1) = 1 → finite → Ok (poison-flows-through-values).
-    let cancelled = Expr::min(Expr::div(len(1.0), scl(0.0)).unwrap(), len(1.0)).unwrap();
+    let cancelled = Formula::min(Formula::div(len(1.0), scl(0.0)).unwrap(), len(1.0)).unwrap();
     assert_eq!(
-        eval::<f64>(&cancelled, &env),
+        eval::<f64>(&editor_core::test_support::stored_expr(&cancelled), &env),
         Ok(1.0),
         "finite final value passes"
     );
     // Door 1: construction and edit-time injection refused, typed.
     assert_eq!(
-        Expr::literal(f64::NAN, Dimension::Length).unwrap_err(),
+        Formula::literal(f64::NAN, Dimension::Length).unwrap_err(),
         DimensionError::NonFiniteLiteral
     );
     assert_eq!(
-        Expr::literal(f64::NEG_INFINITY, Dimension::Angle).unwrap_err(),
+        Formula::literal(f64::NEG_INFINITY, Dimension::Angle).unwrap_err(),
         DimensionError::NonFiniteLiteral
     );
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
@@ -841,20 +869,24 @@ fn r8_interval_lane_representative_and_zero_divisor() {
     use geom_core::Interval;
     let env_f = VarEnv::<f64>::default();
     let env_i = VarEnv::<Interval>::default();
-    let cases: Vec<Expr> = vec![
-        Expr::add(len(0.1), len(0.2)).unwrap(),
-        Expr::mul(scl(3.0), Expr::div(len(1.0), scl(7.0)).unwrap()).unwrap(),
-        Expr::sin(ang(std::f64::consts::FRAC_PI_6)).unwrap(),
-        Expr::atan2(len(1.0), len(2.0)).unwrap(),
-        Expr::min(ang(1.0), Expr::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
-        Expr::max(len(-0.0), len(0.0)).unwrap(),
-        Expr::mul(Expr::count_to_scalar(Expr::count(21)).unwrap(), len(0.002)).unwrap(),
-        Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap())
+    let cases: Vec<Formula> = vec![
+        Formula::add(len(0.1), len(0.2)).unwrap(),
+        Formula::mul(scl(3.0), Formula::div(len(1.0), scl(7.0)).unwrap()).unwrap(),
+        Formula::sin(ang(std::f64::consts::FRAC_PI_6)).unwrap(),
+        Formula::atan2(len(1.0), len(2.0)).unwrap(),
+        Formula::min(ang(1.0), Formula::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
+        Formula::max(len(-0.0), len(0.0)).unwrap(),
+        Formula::mul(
+            Formula::count_to_scalar(Formula::count(21)).unwrap(),
+            len(0.002),
+        )
+        .unwrap(),
+        Formula::neg(Formula::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap())
             .expect("a shallow negation"),
     ];
     for (i, e) in cases.iter().enumerate() {
-        let vf = eval::<f64>(e, &env_f).unwrap();
-        let vi = eval::<Interval>(e, &env_i).unwrap();
+        let vf = eval::<f64>(&editor_core::test_support::stored_expr(e), &env_f).unwrap();
+        let vi = eval::<Interval>(&editor_core::test_support::stored_expr(e), &env_i).unwrap();
         let (lo, hi, dec) = vi.repr_bits();
         let (lo, hi) = (f64::from_bits(lo), f64::from_bits(hi));
         assert!(dec >= 2, "case {i}: decoration {dec} (poisoned?)");
@@ -867,16 +899,16 @@ fn r8_interval_lane_representative_and_zero_divisor() {
     // empty/Trv refusal is REFUSED at the eval boundary — the same
     // typed door as the f64 lane's inf/NaN, never a confident (or
     // any) enclosure.
-    let div0 = Expr::div(len(1.0), scl(0.0)).unwrap();
+    let div0 = Formula::div(len(1.0), scl(0.0)).unwrap();
     assert!(
         matches!(
-            eval::<Interval>(&div0, &env_i),
+            eval::<Interval>(&editor_core::test_support::stored_expr(&div0), &env_i),
             Err(editor_core::EvalError::NonFiniteResult)
         ),
         "interval 1/[0,0] refused at the boundary"
     );
     // NaN literal can no longer enter ANY lane (door 1).
-    assert!(Expr::literal(f64::NAN, Dimension::Length).is_err());
+    assert!(Formula::literal(f64::NAN, Dimension::Length).is_err());
 }
 
 /// R4 (deviation 6) — the `structural` flag admits FALSE POSITIVES
@@ -901,7 +933,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .unwrap()
         .doc;
     let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
-    let pattern = |count: Expr| Edit::InsertNode {
+    let pattern = |count: Formula| Edit::InsertNode {
         node: Box::new(Node::Pattern {
             input: ids[0],
             count,
@@ -914,7 +946,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // Count slot referencing the Count doc param: accepted.
     let a = doc
         .apply(
-            &pattern(Expr::named(cnt_param.clone(), Dimension::Count)),
+            &pattern(Formula::named(cnt_param.clone(), Dimension::Count)),
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -926,7 +958,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // CONTINUOUS param. The only promotion is Count→Scalar (wrong
     // direction), and a Length-dim ref in a Count slot is refused at
     // the slot-dimension check — unrepresentable, not just unvalidated.
-    let smuggle = Expr::named(VarName::from_static("d_len"), Dimension::Length);
+    let smuggle = Formula::named(VarName::from_static("d_len"), Dimension::Length);
     let res = doc.apply(
         &Edit::SetStructuralParam {
             node: pat_id,
