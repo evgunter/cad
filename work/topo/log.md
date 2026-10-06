@@ -7427,3 +7427,10 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - PR 4154's reviewer is waiting on its checks; no verdict yet.
 - Lane sessions report a **seven-day usage warning**. I will hold new implementer dispatches (the placeholder row) until the two PRs in review land.
 - Nothing new on PR 3970.
+
+## 15:24 (2026-10-06)
+
+- **PR 4165 CI red** at `fbba8863`. The failing test is `editor-core::all m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document`: two_hole_plate at eps 1e-9 has symbolic_zero 1223 against the pinned 1103, so +120.
+  - This looks like the PR's own new `description_moves_carrier` decisions, each settling symbolically at zero. Re-baselining is due, and it must say what moved and why (implementer discipline: a moved golden is re-baselined, not weighed).
+  - Check that `registered`/`numeric` did not trade against it. The pin's message warns that a theorem weakened to an axiom would look like this.
+  - The impl lane is still polling CI on this PR, so it should see the failure. If it does not fix it, the fix goes into the review fix lane.
