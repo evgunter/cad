@@ -145,7 +145,7 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
             );
             let shown = StepImportError::TierInvalid { solid, errors }.to_string();
             assert!(
-                !shown.contains("the certified quadrature enclosure cannot reach the"),
+                !shown.contains("this tolerance targets"),
                 "a BUDGET refusal at the at-rest gate is check 7 back to consuming a \
                  precision, which is what the sign level removed: {shown}"
             );

@@ -2,11 +2,14 @@
 id: shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow
 kind: issue
 title: shell_open's rim-stage lift on the klein elbow takes the per-chart door, whose re-anchor leaves a curved corner 0.88 mm off its carrier
-status: open
+status: closed
 opened: 2026-10-01
 refs: [equator-seam-reauthor-refuses-the-hollowed-elbow, spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut, spiric-bounded-face-area-is-unimplemented]
 priority: P1
 cost: H
+pr: 4151
+branch: shell/axial-closed
+closed: 2026-10-06
 ---
 
 ## What
@@ -157,3 +160,14 @@ already fits. Ground: `offset_axial.rs` (OFFSET, CURVED),
 `geom-brep/src/intersect.rs` (CURVED), `geom/src/curves.rs`. Announce
 the seams. Blinding byte on `analysis/design-fork/shell-klein-lift`;
 no design-fork log row, as nothing went to Ev.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4151)
+
+The axial (together) door is now closed under its own output, so `shell_open`'s rim lift takes the door the cavity took and the opened klein elbow shells. The result matches the hand-built elbow: same topology, no spiric edges, and a volume within 1e-16 of Pappus. It is pinned by `verbs_shell::the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_hand_built_tube`.
+
+The PR implements every point of the `## Decided` spec. Two further arms (the cap-pair pole and the extruded-point re-author) read the posture they are given, and each is pinned by one row. The work was reviewed by a concurrent pair, row DR-91; the fix pass came from the adjudicated union of both reviews.
+
+Residues, each filed:
+- the door's strict-subset body when the caps' meeting line enters the tube: `work/shelf/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md` (P1);
+- the adjacent-mouth glue limit: `work/shelf/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md` (P3);
+- the sealed elbow's props door: FLUX's `spiric-bounded-face-area-is-unimplemented`.
