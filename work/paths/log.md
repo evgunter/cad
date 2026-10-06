@@ -623,3 +623,13 @@ and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
   merges main is red on the `demos` job until it is resolved.
 
 - 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.
+
+- 2026-10-06 — Unit 3 merged (#4169, `252db21ff`; DR-92, no MAJOR from either reviewer). The fix pass also fixed three things the review found:
+  - split's lever reading on a one-vertex cap;
+  - the tangent-plane split through the strut;
+  - contact near a full turn's vertex, now a crossing.
+
+  `one-segment-loop-revolves-and-lofts-to-one-wall` is dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
+  - D10 check: the unit changes how a face's chart closes (the wrap edge) and how closed walls are swept and read. It touches no intent, placement or declared contact, and `BooleanCoincidence::Seam` stays as it is, so it may start under the hold.
+  - Review tier: dual (H). It is new topology through every face reader, where a wrong body ships silently.
+- 2026-10-06 — `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0) closed: CLEAVE PR 4083 had already fixed both rows on main (`65b1b0a838`).

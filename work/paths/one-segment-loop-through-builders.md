@@ -2,12 +2,12 @@
 id: one-segment-loop-through-builders
 kind: unit
 title: Admit a one-segment closed loop through validate and extrude (one periodic wall with a seam strut, one self-loop rim per cap); revolve and loft refuse it typed, and one-segment-loop-revolves-and-lofts-to-one-wall takes them
-status: dispatched
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-branch: claude/clever-bardeen-4itqb3
+closed: 2026-10-06
 ---
 
 
