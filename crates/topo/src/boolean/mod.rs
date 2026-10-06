@@ -697,6 +697,8 @@ pub struct CarriedContacts {
     /// coincidence an op decided and recorded (D10), which asserts no
     /// class.
     pub ve: Vec<VeContact>,
+    /// Edge-edge records within the operand, carried back in, as `ve`.
+    pub ee: Vec<EeContact>,
 }
 
 /// A carried vertex-vertex declaration: the pair AND the class it
@@ -728,8 +730,8 @@ pub struct CarriedVf {
 impl CarriedContacts {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        let Self { vv, vf, ve } = self;
-        vv.is_empty() && vf.is_empty() && ve.is_empty()
+        let Self { vv, vf, ve, ee } = self;
+        vv.is_empty() && vf.is_empty() && ve.is_empty() && ee.is_empty()
     }
 }
 
@@ -5193,6 +5195,14 @@ fn validate_declarations<T: Decide>(
             }
             if body.get_edge(rest.edge).is_none() {
                 return Err(bad(operand, "carried v-on-e edge key does not resolve"));
+            }
+        }
+        for touch in &c.ee {
+            if body.get_edge(touch.a).is_none() || body.get_edge(touch.b).is_none() {
+                return Err(bad(operand, "carried e-e edge key does not resolve"));
+            }
+            if touch.a == touch.b {
+                return Err(bad(operand, "carried e-e pair names one edge twice"));
             }
         }
         Ok(())

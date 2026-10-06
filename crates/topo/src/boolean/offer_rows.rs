@@ -2552,6 +2552,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
+    ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
     (
         "ops.rs",
         "split_lineage",

@@ -233,10 +233,9 @@
 //!   ([`crate::boolean::VeContact`]): a coincidence an op decided Zero
 //!   and recorded (D10). The reduction never mints one: it
 //!   splits the *other* edge at every on-edge event
-//!   (`split_other_at_point`) and records a v-v pair instead. The join
-//!   (`BooleanBody::join_edges`) mints one, from the v-v record whose
-//!   vertex it joined away; it is a door of its own, and no op's output
-//!   stage calls it yet. An edge split moves the record onto the piece
+//!   (`split_other_at_point`) and records a v-v pair instead. Every
+//!   boolean output stage's join mints one, from the v-v record whose
+//!   vertex it joined away. An edge split moves the record onto the piece
 //!   the vertex rests on; carried into a later op, it backs the event
 //!   there.
 //! - **The face rung**: a declared face pair holding the vertex on one
@@ -267,7 +266,7 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use crate::body::Body;
 use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
@@ -2096,7 +2095,7 @@ fn ee_cross_backed<T: Decide>(
     // Pass 1: one collected outcome per unordered candidate pair.
     let mut backed = false;
     let mut same_side = false;
-    let mut undecided: Vec<geom_core::Indeterminate> = Vec::new();
+    let mut undecided: Vec<Indeterminate> = Vec::new();
     for &(fa, fb) in &declared.faces {
         if fa >= fb {
             continue; // unordered walk (both orientations are stored)
@@ -5768,8 +5767,22 @@ fn confirm_edge_edge<T: Decide>(
         errors.push(stale);
         return;
     }
+    if interiors_meet(ea, eb, band, errors) == Some(false) {
+        errors.push(stale);
+    }
+}
+
+/// Whether two line edges' interiors meet, crossing or overlapping:
+/// the question an edge-edge record's confirm pass asks. `None` where
+/// a decision escalated (pushed).
+fn interiors_meet<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
     let ncross = ea.dir.cross(eb.dir);
-    let meet = match gap_is_zero(
+    match gap_is_zero(
         "pm_census_ee_parallel",
         Margin::levered(ncross.norm(), ea.len.min(eb.len)),
         band,
@@ -5778,10 +5791,67 @@ fn confirm_edge_edge<T: Decide>(
         Some(false) => crossing_in_both_interiors(ea, eb, ncross, band, errors),
         Some(true) => Some(collinear_overlap(ea, eb, band, errors).is_some()),
         None => None,
-    };
-    if meet == Some(false) {
-        errors.push(stale);
     }
+}
+
+/// A segment's census geometry, for the questions an op asks of two
+/// segments before any body holds them as edges.
+fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
+    let chord = p1 - p0;
+    EdgeGeo {
+        key: EdgeKey::default(),
+        v0: VertexKey::default(),
+        v1: VertexKey::default(),
+        p0,
+        dir: chord.normalize(),
+        len: chord.norm(),
+        f_plus: FaceKey::default(),
+        f_minus: FaceKey::default(),
+    }
+}
+
+/// [`interiors_meet`] over two segments: whether their interiors cross
+/// or overlap, decided as the confirm pass of an edge-edge record
+/// decides it, so a record placed by this answer is one the census
+/// confirms.
+///
+/// # Errors
+///
+/// The first escalated decision.
+pub(crate) fn segment_interiors_meet<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    let meet = interiors_meet(&segment(a), &segment(b), band, &mut errors);
+    escalation(meet, errors)
+}
+
+/// Whether `q` lies on a segment's interior, decided as the census's
+/// vertex-on-edge pass decides it.
+///
+/// # Errors
+///
+/// The first escalated decision.
+pub(crate) fn on_segment_interior<T: Decide>(
+    q: Point3<T>,
+    s: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    let on = on_edge_interior(q, &segment(s), band, &mut errors);
+    escalation(on, errors)
+}
+
+/// A census answer, or the escalation it pushed.
+fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool, Indeterminate> {
+    for e in errors {
+        if let ValidationError::CensusEscalated { cause } = e {
+            return Err(cause);
+        }
+    }
+    Ok(answer.unwrap_or(false))
 }
 
 /// The at-rest confirmation of the two CURVED granularities (C3), the

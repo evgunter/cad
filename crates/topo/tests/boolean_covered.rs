@@ -123,7 +123,10 @@ fn a_union_records_each_flush_pair_it_holds_through_one_face_in_either_operand_o
 /// top is discarded from x 0.499 on, and from x 0.501 `b`'s cut top
 /// holds it. The edge of `b`'s top along the slab at x 0.501 runs into
 /// it, and on each y-wall so do the two edges of the notch the slab cut
-/// in `b`'s wall.
+/// in `b`'s wall. The rows also hold `b`'s edges at x 0.5 on the bottom
+/// and below the notch: the declared merge glues the faces beside them,
+/// and the output stage joins their ends away (maximal edges), so no
+/// live edge holds them.
 #[test]
 fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
     let tol = Tol::witness();
@@ -160,45 +163,49 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
     assert_eq!(
         got,
         vec![
-            (
-                [0, -1, 0],
-                vec![
-                    [[500, 0, 0], [500, 0, 500]],
-                    [[501, 0, 500], [501, 0, 1000]]
-                ]
-            ),
-            ([0, 0, -1], vec![[[500, 0, 0], [500, 1000, 0]]]),
+            ([0, -1, 0], vec![[[501, 0, 500], [501, 0, 1000]]]),
+            ([0, 0, -1], vec![]),
             ([0, 0, 1], vec![[[501, 0, 1000], [501, 1000, 1000]]]),
-            (
-                [0, 1, 0],
-                vec![
-                    [[500, 1000, 0], [500, 1000, 500]],
-                    [[501, 1000, 500], [501, 1000, 1000]]
-                ]
-            ),
+            ([0, 1, 0], vec![[[501, 1000, 500], [501, 1000, 1000]]]),
         ],
         "each face of `a` that `b` covers holds `b`'s edges entering it at a shared vertex"
     );
 }
 
-/// Each stretch's two ends in thousandths, sorted, read through the
-/// zip's fusions.
+/// Each stretch's live edge, by its two ends in thousandths, sorted:
+/// the edge between its ends read through the zip's fusions, or the
+/// edge a join made of it. A stretch no live edge holds merged away
+/// with the faces beside it, and is left out.
 fn stretches(
     out: &topo::BooleanBody<f64>,
     rows: &[(topo::VertexKey, topo::VertexKey)],
 ) -> Vec<Ends> {
+    let body = &out.body;
     let fused = out.naming.fused_into();
+    let settle = |v| fused.get(&v).copied().unwrap_or(v);
     let at = |v| {
-        let v = fused.get(&v).copied().unwrap_or(v);
-        let p = topo::readback::vertex_point(&out.body, v).expect("a held end is live");
+        let p = topo::readback::vertex_point(body, v).expect("an edge's end is live");
         [p.x, p.y, p.z].map(|c| (c * 1000.0).round() as i64)
+    };
+    let ends = |e: topo::EdgeKey| {
+        let d = body.get_edge(e).expect("a live edge");
+        [d.he_plus, d.he_minus].map(|h| body.get_half_edge(h).expect("a live half-edge").start)
     };
     let mut out: Vec<Ends> = rows
         .iter()
-        .map(|&(u, w)| {
-            let mut e = [at(u), at(w)];
+        .filter_map(|&(u, w)| {
+            let (u, w) = (settle(u), settle(w));
+            let edge = body
+                .edges()
+                .map(|(k, _)| k)
+                .find(|&k| {
+                    let [s, t] = ends(k);
+                    (s, t) == (u, w) || (s, t) == (w, u)
+                })
+                .or_else(|| out.naming.stretch_through_joins(body, (u, w)))?;
+            let mut e = ends(edge).map(at);
             e.sort();
-            e
+            Some(e)
         })
         .collect();
     out.sort();

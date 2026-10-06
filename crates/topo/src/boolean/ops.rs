@@ -113,6 +113,7 @@ use super::SphereQuestion;
 use super::boxes;
 use super::combine::{Bridge, GraftMap, graft_solids_with};
 use super::contain::{ContainError, FaceContainment, contfp};
+use super::edge_join::join_stage;
 use super::finish::setopfinish;
 use super::join::bool_connect;
 use super::section_cert::Refusal as SectionRefusal;
@@ -290,6 +291,10 @@ pub struct BooleanNaming {
     /// fallback and the declared-REST union — sorted and deduplicated;
     /// a path that never classifies (disjoint boxes) has none.
     pub covered: Vec<(FaceKey, FaceKey)>,
+    /// The output stage's joins in the order made, result keys: each
+    /// row's vertex and `gone` edge are dead, and its `kept` edge holds
+    /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
+    pub edge_joins: Vec<super::EdgeJoin>,
 }
 
 impl BooleanNaming {
@@ -305,6 +310,57 @@ impl BooleanNaming {
             .filter(|(dead, kept)| dead != kept)
             .map(|&(dead, _)| (dead, survivor(&self.vertex_merges, dead)))
             .collect()
+    }
+
+    /// The live edge `edge` is part of after the output stage's joins:
+    /// itself, or the edge a join killed it into, followed through
+    /// every later join.
+    #[must_use]
+    pub fn joined_edge(&self, edge: EdgeKey) -> EdgeKey {
+        let mut at = edge;
+        for j in &self.edge_joins {
+            if j.gone == at {
+                at = j.kept;
+            }
+        }
+        at
+    }
+
+    /// Each vertex the output stage's joins removed → the live edge
+    /// whose interior holds it ([`Self::joined_edge`]).
+    #[must_use]
+    pub fn joined_into(&self) -> BTreeMap<VertexKey, EdgeKey> {
+        self.edge_joins
+            .iter()
+            .map(|j| (j.vertex, self.joined_edge(j.kept)))
+            .collect()
+    }
+
+    /// The live edge a stretch between result vertices `u` and `w`
+    /// (fusions settled) lies along when a join removed either end: the
+    /// edge holding that end, where the other end is one of its ends or
+    /// is held by it too. `None` where neither end was joined away, or
+    /// the two do not lie along one edge.
+    #[must_use]
+    pub fn stretch_through_joins<T: Real>(
+        &self,
+        body: &Body<T>,
+        (u, w): (VertexKey, VertexKey),
+    ) -> Option<EdgeKey> {
+        let joined = self.joined_into();
+        let on = |v: VertexKey, e: EdgeKey| {
+            joined.get(&v) == Some(&e)
+                || body.get_edge(e).is_some_and(|d| {
+                    [d.he_plus, d.he_minus]
+                        .into_iter()
+                        .any(|h| body.get_half_edge(h).is_some_and(|h| h.start == v))
+                })
+        };
+        [joined.get(&u), joined.get(&w)]
+            .into_iter()
+            .flatten()
+            .copied()
+            .find(|&e| on(u, e) && on(w, e))
     }
 }
 
@@ -599,6 +655,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     desc.absorb_faces(&crossed);
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
+
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
@@ -613,7 +670,9 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .merge_coplanar_faces_declared(&declared_pairs, tol)
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
+
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
+    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
     let contacts = carry(
         &body,
         &contacts,
@@ -654,6 +713,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards: fin.discards,
         covered,
+        edge_joins,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -2725,8 +2785,147 @@ pub(super) fn split_lineage<T: Decide>(
                 None => carried.ve.push(VeContact { vertex, edge }),
             }
         }
+        for row in core::mem::take(&mut carried.ee) {
+            ee_lineage(clone, side, &red.edge_splits, row, carried, band)?;
+        }
+        carried.read_ends(clone);
     }
     Ok(out)
+}
+
+/// One piece of a split edge: its key and its two end vertices.
+type Piece = (EdgeKey, VertexKey, VertexKey);
+
+/// `edge`'s pieces after the reduction's splits ([`super::EdgeSplit`]),
+/// with every vertex a split minted on it: a split keeps the parent's
+/// leading span, so its child is the piece right after the parent.
+fn pieces<T: Real>(
+    clone: &Body<T>,
+    side: Operand,
+    splits: &[super::EdgeSplit],
+    edge: EdgeKey,
+) -> Result<(Vec<Piece>, Vec<VertexKey>), BooleanError> {
+    let mut keys = vec![edge];
+    let mut minted = Vec::new();
+    for split in splits.iter().filter(|s| s.operand == side) {
+        if let Some(i) = keys.iter().position(|&k| k == split.parent) {
+            keys.insert(i + 1, split.child);
+            minted.push(split.vertex);
+        }
+    }
+    let ends = |e: EdgeKey| {
+        let edge = clone.get_edge(e)?;
+        Some((
+            e,
+            clone.get_half_edge(edge.he_plus)?.start,
+            clone.get_half_edge(edge.he_minus)?.start,
+        ))
+    };
+    let pieces = keys
+        .into_iter()
+        .map(|e| {
+            ends(e).ok_or(BooleanError::JoinDesync {
+                what: "a split piece does not resolve in its clone",
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    Ok((pieces, minted))
+}
+
+/// **Edge-split lineage of an edge-edge record**: where the reduction
+/// split either of its edges, the record lands on every pair of pieces,
+/// one from each edge, whose interiors still meet, and each vertex a
+/// split minted on the contact is recorded against the other edge's
+/// piece it rests on (or the vertex it meets). An edge-edge record
+/// names no vertex, so where the contact lies is decided against the
+/// pieces themselves, by the census's own segment questions
+/// ([`crate::census`]), so what lands is what the census confirms. Only
+/// the record's own lineage is read: its two edges' pieces, never
+/// another cell of the body. A bound the record already had is a vertex
+/// record of its own, carried by its own lineage, and is not restated.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] (`VertexOnVertex`) where a segment
+/// question is in band; [`BooleanError::JoinDesync`] where a logged key
+/// does not resolve in its clone.
+fn ee_lineage<T: Decide>(
+    clone: &Body<T>,
+    side: Operand,
+    splits: &[super::EdgeSplit],
+    row: EeContact,
+    carried: &mut Rows,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let (a, a_minted) = pieces(clone, side, splits, row.a)?;
+    let (b, b_minted) = pieces(clone, side, splits, row.b)?;
+    if a.len() == 1 && b.len() == 1 {
+        carried.ee.push(row);
+        return Ok(());
+    }
+    let escalated = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::VertexOnVertex,
+        diag,
+    };
+    let point = |v: VertexKey| {
+        clone
+            .get_vertex(v)
+            .and_then(|d| clone.get_point(d.point))
+            .copied()
+            .ok_or(BooleanError::JoinDesync {
+                what: "a split piece's vertex does not resolve in its clone",
+            })
+    };
+    let segment = |&(_, v0, v1): &Piece| Ok::<_, BooleanError>((point(v0)?, point(v1)?));
+    for pa in &a {
+        for pb in &b {
+            let (sa, sb) = (segment(pa)?, segment(pb)?);
+            if crate::census::segment_interiors_meet(sa, sb, band).map_err(escalated)?
+                && !carried.ee.iter().any(|r| (r.a, r.b) == (pa.0, pb.0))
+            {
+                carried.ee.push(EeContact { a: pa.0, b: pb.0 });
+            }
+            // A minted vertex of one piece, against the other piece.
+            for (mine, minted, theirs, their_seg) in
+                [(pa, &a_minted, pb, sb), (pb, &b_minted, pa, sa)]
+            {
+                for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
+                    let q = point(v)?;
+                    if crate::census::on_segment_interior(q, their_seg, band).map_err(escalated)? {
+                        if !carried.ve.contains(&VeContact {
+                            vertex: v,
+                            edge: theirs.0,
+                        }) {
+                            carried.ve.push(VeContact {
+                                vertex: v,
+                                edge: theirs.0,
+                            });
+                        }
+                        continue;
+                    }
+                    for w in [theirs.1, theirs.2] {
+                        let gap = Margin::norm3(q - point(w)?);
+                        if w != v
+                            && geom_core::k_stats::decide_magnitude(
+                                "bool_carried_ee_split_vertex",
+                                gap,
+                                band,
+                            )
+                            .map_err(escalated)?
+                                == geom_core::k_stats::Magnitude::Zero
+                            && !carried
+                                .vv
+                                .iter()
+                                .any(|r| (r.a, r.b) == (v, w) || (r.a, r.b) == (w, v))
+                        {
+                            carried.vv.push(VvContact { a: v, b: w });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -2737,15 +2936,45 @@ pub(super) struct Rows {
     vv: Vec<VvContact>,
     vf: Vec<VfContact>,
     ve: Vec<VeContact>,
+    ee: Vec<EeContact>,
+    /// The two end vertices of each line edge a `ve` or `ee` row names,
+    /// read from the operand's clone once split lineage has placed the
+    /// rows ([`held_by_ends`]).
+    ends: BTreeMap<EdgeKey, (VertexKey, VertexKey)>,
 }
 
 impl Rows {
     pub(super) fn of(carried: &CarriedContacts) -> Self {
-        let CarriedContacts { vv, vf, ve } = carried;
+        let CarriedContacts { vv, vf, ve, ee } = carried;
         Self {
             vv: vv.iter().map(|c| c.pair).collect(),
             vf: vf.iter().map(|c| c.rest).collect(),
             ve: ve.clone(),
+            ee: ee.clone(),
+            ends: BTreeMap::new(),
+        }
+    }
+
+    /// Records the ends of every line edge the rows name, from `clone`.
+    fn read_ends<T: Real>(&mut self, clone: &Body<T>) {
+        let edges: Vec<EdgeKey> = self
+            .ve
+            .iter()
+            .map(|r| r.edge)
+            .chain(self.ee.iter().flat_map(|r| [r.a, r.b]))
+            .collect();
+        for e in edges {
+            let Some(d) = clone.get_edge(e) else {
+                continue;
+            };
+            let line = clone
+                .edge_curve_linked(e, d)
+                .certified()
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+            let start = |h| clone.get_half_edge(h).map(|h| h.start);
+            if let (true, Some(u), Some(w)) = (line, start(d.he_plus), start(d.he_minus)) {
+                self.ends.insert(e, (u, w));
+            }
         }
     }
 }
@@ -2810,6 +3039,7 @@ pub(super) fn carry<T: Real>(
 /// # Errors
 ///
 /// As [`carry`].
+#[cfg(test)]
 pub(super) fn carry_in_place<T: Real>(
     body: &Body<T>,
     records: &ContactRecords,
@@ -2902,7 +3132,7 @@ fn carry_rows<T: Real>(
     // Every group's live cells: its vertex ends with their copies, in
     // end order, then the edges attached to it.
     let mut live: Vec<(usize, End)> = Vec::new();
-    let mut push = |g: usize, side: Operand, c: Option<Cell>| {
+    let push = |live: &mut Vec<(usize, End)>, g: usize, side: Operand, c: Option<Cell>| {
         if let Some(c) = c
             && !live.contains(&(g, (side, c)))
         {
@@ -2915,14 +3145,53 @@ fn carry_rows<T: Real>(
         };
         for k in desc.copies_of(side, v) {
             push(
+                &mut live,
                 group[i],
                 side,
                 desc.live(body, side, view(side), Cell::Vertex(k))?,
             );
         }
     }
+    // An edge a row names that left the result with no substitution row
+    // is held by the live line edge between its two ends' coincidence
+    // groups, where there is one ([`held_by_ends`]).
+    let images = |side: Operand, v: VertexKey, live: &[(usize, End)]| {
+        let mut out: Vec<VertexKey> = desc
+            .copies_of(side, v)
+            .into_iter()
+            .filter_map(
+                |k| match desc.live(body, side, view(side), Cell::Vertex(k)) {
+                    Ok(Some(Cell::Vertex(x))) => Some(x),
+                    _ => None,
+                },
+            )
+            .collect();
+        if let Some(i) = ends
+            .iter()
+            .position(|&e| e == arena((side, Cell::Vertex(v))))
+        {
+            out.extend(live.iter().filter_map(|&(g, (_, c))| match c {
+                Cell::Vertex(x) if g == group[i] => Some(x),
+                _ => None,
+            }));
+        }
+        out
+    };
+    let edge_cell = |side: Operand, e: Cell, live: &[(usize, End)]| {
+        if let Some(c) = desc.live(body, side, view(side), e)? {
+            return Ok(Some(c));
+        }
+        let Cell::Edge(e) = e else {
+            return Ok(None);
+        };
+        let rows = carried[usize::from(side == Operand::B)];
+        Ok::<_, BooleanError>(rows.ends.get(&e).and_then(|&(u, w)| {
+            held_by_ends(body, &images(side, u, live), &images(side, w, live)).map(Cell::Edge)
+        }))
+    };
     for (&i, [_, (side, e)]) in attached.iter().zip(&ve_rows) {
-        push(group[i], *side, desc.live(body, *side, view(*side), *e)?);
+        let c = edge_cell(*side, *e, &live)?;
+        push(&mut live, group[i], *side, c);
     }
     for (i, &(g, x)) in live.iter().enumerate() {
         for &(_, y) in live[i + 1..].iter().filter(|(h, _)| *h == g) {
@@ -2958,11 +3227,18 @@ fn carry_rows<T: Real>(
             record(body, &mut out, (vs, x), (fs, y));
         }
     }
-    // Edge-edge records, in one arena (no reduction mints one).
-    for c in &discovered.ee {
-        let edge = |e| desc.live(body, Operand::A, view(Operand::A), Cell::Edge(e));
+    // Edge-edge records: the joins' (no reduction mints one), then
+    // each operand's carried ones, both edges in its own arena.
+    let ee_rows = discovered.ee.iter().map(|c| (Operand::A, *c)).chain(
+        sides
+            .into_iter()
+            .zip(carried)
+            .flat_map(|(side, rows)| rows.ee.iter().map(move |c| (side, *c))),
+    );
+    for (side, c) in ee_rows {
+        let edge = |e| edge_cell(side, Cell::Edge(e), &live);
         if let (Some(x), Some(y)) = (edge(c.a)?, edge(c.b)?) {
-            record(body, &mut out, (Operand::A, x), (Operand::A, y));
+            record(body, &mut out, (side, x), (side, y));
         }
     }
     // The face-granularity records: the faces chase, and so does the
@@ -2992,6 +3268,28 @@ fn carry_rows<T: Real>(
         }
     }
     Ok(out)
+}
+
+/// The live line edge from one of `us` to one of `ws`: what holds the
+/// interior of a line edge that left the result with no substitution
+/// row, whose two ends are `us` and `ws` now. Two lines through two
+/// points are one line, so the edge is decided by keys and carriers
+/// alone, never by a position: the bound rule the census certifies a
+/// coincident-edge segment by. `None` where no one live edge joins
+/// them.
+fn held_by_ends<T: Real>(body: &Body<T>, us: &[VertexKey], ws: &[VertexKey]) -> Option<EdgeKey> {
+    let mut held = body.edges().filter_map(|(k, d)| {
+        let start = |h| body.get_half_edge(h).map(|h| h.start);
+        let (s, t) = (start(d.he_plus)?, start(d.he_minus)?);
+        let line = body
+            .edge_curve_linked(k, d)
+            .certified()
+            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+        (line && ((us.contains(&s) && ws.contains(&t)) || (us.contains(&t) && ws.contains(&s))))
+            .then_some(k)
+    });
+    let first = held.next()?;
+    held.next().is_none().then_some(first)
 }
 
 /// Records the cell pair `x`, `y` (result keys) under its kind, once:
@@ -3918,6 +4216,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let mut desc = Descendants::default();
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band, tol)?;
+            let edge_joins = joined_pcurves(&mut body, &mut desc, band, tol)?;
             let carried = split_lineage(red, decls, band)?;
             let contacts = carry(
                 &body,
@@ -3939,6 +4238,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
                 covered: red.covered.clone(),
+                edge_joins,
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -3949,6 +4249,22 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }))
         }
     }
+}
+
+/// [`join_stage`] for an output stage that mints no pcurves of its
+/// own: the joined body's are re-minted where any join was made.
+pub(super) fn joined_pcurves<T: Decide + AtRestPolicy>(
+    body: &mut Body<T>,
+    desc: &mut Descendants,
+    band: Band,
+    tol: Tol,
+) -> Result<Vec<super::EdgeJoin>, BooleanError> {
+    let joins = join_stage(body, desc, band, tol)?;
+    if !joins.is_empty() {
+        crate::pcurves::mint_pcurves(body, tol)
+            .map_err(|source| BooleanError::Pcurves { source })?;
+    }
+    Ok(joins)
 }
 
 /// Finishes a single-operand fallback result (the merge output stage
@@ -3977,6 +4293,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;
+    let edge_joins = joined_pcurves(&mut body, &mut desc, band, tol)?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
@@ -3998,6 +4315,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
+            edge_joins: edge_joins.clone(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -4008,6 +4326,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
+            edge_joins: edge_joins.clone(),
             ..BooleanNaming::default()
         },
     };
