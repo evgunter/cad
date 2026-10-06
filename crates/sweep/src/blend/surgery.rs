@@ -5051,7 +5051,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                  close as an annulus",
             ));
         }
-        EdgeDescriptionSpec::seam(s1)
+        EdgeDescriptionSpec::wrap(s1)
     } else if transverse {
         // The chamfer's edges and the ruled band's cut-off arcs: two
         // surfaces crossing at a definite angle, so the intrinsic

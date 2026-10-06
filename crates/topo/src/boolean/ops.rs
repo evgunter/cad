@@ -2309,7 +2309,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     // (the attach-door adjacency rule, M6-3) — except
                     // a wrap edge, whose two halves bound one face by
                     // what a wrap edge is (D1).
-                    geom_brep::EdgeDescription::Chart(c) if c.seam => {
+                    geom_brep::EdgeDescription::Chart(c) if c.wrap => {
                         !(c.surface == s1 && sides.plus.face == sides.minus.face)
                     }
                     geom_brep::EdgeDescription::Chart(c) => !(c.surface == s1 || c.surface == s2),

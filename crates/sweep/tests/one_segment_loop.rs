@@ -95,7 +95,7 @@ fn census<T: Real>(body: &Body<T>) -> (usize, usize, usize) {
 fn is_seam<T: Real>(body: &Body<T>, edge: EdgeKey) -> bool {
     let e = body.get_edge(edge).unwrap();
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-    matches!(c.description(), EdgeDescription::Chart(ch) if ch.seam)
+    matches!(c.description(), EdgeDescription::Chart(ch) if ch.wrap)
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, depth: f64, side: ExtrudeSide) -> sweep::Extruded<f64> {

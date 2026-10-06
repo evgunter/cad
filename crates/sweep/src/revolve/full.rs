@@ -47,7 +47,7 @@ use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
-use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
+use super::upgrade::{upgrade_intersection, upgrade_meridian_wrap};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
 use crate::swept::{face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
@@ -321,7 +321,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         }
         let wall = face_surface_key(&body, f);
         let edge = he_edge(&body, *he);
-        upgrade_meridian_seam(&mut body, edge, wall, tol)?;
+        upgrade_meridian_wrap(&mut body, edge, wall, tol)?;
         meridians[j] = Some(edge);
     }
 
@@ -427,7 +427,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
     body.kev_describing(n0.he_plus, &[], tol)?;
     body.kef(turn.far_kept)?;
     let wall = face_surface_key(&body, turn.wall);
-    upgrade_meridian_seam(&mut body, near, wall, tol)?;
+    upgrade_meridian_wrap(&mut body, near, wall, tol)?;
 
     #[cfg(debug_assertions)]
     debug_assert_eq!(
@@ -783,7 +783,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         }
         let wall = face_surface_key(&body, faces[i]);
         let edge = he_edge(&body, hes[i]);
-        upgrade_meridian_seam(&mut body, edge, wall, tol)?;
+        upgrade_meridian_wrap(&mut body, edge, wall, tol)?;
         if body.get_edge(tops[i]).is_some() {
             body.describe_at_rest(tops[i], wall, tol)?;
         }

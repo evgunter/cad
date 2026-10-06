@@ -373,7 +373,7 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
         CertifyError::IntersectionSameSurface { key },
-        CertifyError::SeamOnNonPeriodic,
+        CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
         CertifyError::IntervalNotForward {

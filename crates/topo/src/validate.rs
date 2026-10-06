@@ -2557,7 +2557,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
-        | CertifyError::SeamOnNonPeriodic
+        | CertifyError::WrapOnNonPeriodic
         | CertifyError::IntervalNotForward {
             verdict: Refused::Negative { .. },
         }
@@ -2617,7 +2617,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         None => Cow::Borrowed(match e {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
-            | CertifyError::SeamOnNonPeriodic
+            | CertifyError::WrapOnNonPeriodic
             | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
@@ -5832,7 +5832,7 @@ pub(crate) fn tier3_local_checks_marked<
             // either wall, and the minted convention names one. A wrap
             // edge owes more (D1): both its halves bound ONE face, the
             // face whose chart closes across it.
-            geom_brep::EdgeDescription::Chart(c) if c.seam => {
+            geom_brep::EdgeDescription::Chart(c) if c.wrap => {
                 let (f_plus, f_minus) = sides.faces();
                 c.surface == fs_plus && f_plus == f_minus
             }
@@ -6098,7 +6098,7 @@ pub(crate) fn tier3_local_checks_marked<
             ContactMark::Unmarked
         } else if matches!(
             curve.description(),
-            geom_brep::EdgeDescription::Chart(c) if c.seam
+            geom_brep::EdgeDescription::Chart(c) if c.wrap
         ) {
             ContactMark::Seam
         } else if all_transverse {

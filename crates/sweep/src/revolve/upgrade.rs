@@ -190,13 +190,13 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     }
 }
 
-/// Re-describes a full-revolve meridian as `Seam { surface }` when the
-/// wall surface is periodic; a plane wall's meridian becomes an image
-/// at rest in that wall's chart (module docs — `Seam` is malformed on
-/// a non-periodic chart, and one surface on both sides determines no
+/// Re-describes a full-revolve meridian as its wall's wrap edge (D1)
+/// when the wall surface is periodic; a plane wall's meridian becomes
+/// an image at rest in that wall's chart (module docs — a plane's chart
+/// closes in no direction, and one surface on both sides determines no
 /// locus, so D2's conventional split applies). Carrier and interval
 /// kept verbatim either way.
-pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
+pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
@@ -217,6 +217,6 @@ pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
         body.describe_at_rest(edge, wall, tol)?;
         return Ok(());
     }
-    crate::swept::describe_seam(body, edge, wall, tol)?;
+    crate::swept::describe_wrap_edge(body, edge, wall, tol)?;
     Ok(())
 }

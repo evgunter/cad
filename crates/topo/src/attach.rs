@@ -1102,13 +1102,13 @@ impl<T: Decide> Body<T> {
                     return None;
                 };
                 let sides = crate::readback::edge_sides_of(self, edge, e);
-                if !ch.seam || sides.plus.face == sides.minus.face {
+                if !ch.wrap || sides.plus.face == sides.minus.face {
                     return None;
                 }
                 let mut spec = c.restated_spec();
-                if let geom_brep::EdgeDescriptionSpec::Chart { ref mut seam, .. } = spec.description
+                if let geom_brep::EdgeDescriptionSpec::Chart { ref mut wrap, .. } = spec.description
                 {
-                    *seam = false;
+                    *wrap = false;
                 }
                 Some((edge, spec))
             })
@@ -1315,7 +1315,8 @@ impl<T: Decide> Body<T> {
 /// home for [`Body::set_edge_curve`] and the minting doors that take a
 /// caller's description ([`Body::mef`]): an intrinsic description's two
 /// surfaces are exactly `faces`, a chart image names one of them, a
-/// chart seam names the one surface on both sides, and a scaffold names
+/// wrap edge names the one surface on both sides (that its halves bound
+/// one face is tier 3's), and a scaffold names
 /// none. `faces` are the surfaces the edge's two faces wear, `he_plus`'s
 /// first; `edge` is the edge the refusal names, `None` for the one a
 /// minting door mints. Pure.
@@ -1588,9 +1589,9 @@ pub(crate) enum Named {
     /// `TangentIntersection` alike: the described pair IS the faces'
     /// pair).
     Pair(SurfaceKey, SurfaceKey),
-    /// A chart image's chart, and whether the image claims to be the
-    /// chart's parameterization seam.
-    Chart { surface: SurfaceKey, seam: bool },
+    /// A chart image's chart, and whether the edge is a wrap edge of a
+    /// face on it (D1).
+    Chart { surface: SurfaceKey, wrap: bool },
     /// A scaffold, or a null edge: there is no surface to name.
     Nothing,
 }
@@ -1612,7 +1613,7 @@ impl Named {
             }
             geom_brep::EdgeDescription::Chart(c) => Self::Chart {
                 surface: c.surface,
-                seam: c.seam,
+                wrap: c.wrap,
             },
             geom_brep::EdgeDescription::Scaffold(_) => Self::Nothing,
         }
@@ -1624,8 +1625,8 @@ impl Named {
             | geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
                 Self::Pair(s1, s2)
             }
-            geom_brep::EdgeDescriptionSpec::Chart { surface, seam, .. } => {
-                Self::Chart { surface, seam }
+            geom_brep::EdgeDescriptionSpec::Chart { surface, wrap, .. } => {
+                Self::Chart { surface, wrap }
             }
             geom_brep::EdgeDescriptionSpec::Scaffold(_) => Self::Nothing,
         }
@@ -1647,18 +1648,17 @@ impl Named {
     /// and `minus`, its own keys read through `slot_of`. A chart image
     /// names ONE of the two faces' surfaces (a wall–wall seam is the
     /// u-boundary iso of either wall, and the minted convention picks
-    /// one); an image that claims to BE the chart's parameterization
-    /// seam names the one surface on both sides, by what a seam is; a
-    /// scaffold names none.
+    /// one); a wrap edge names the one surface on both sides, its two
+    /// halves bounding one face on it (D1); a scaffold names none.
     fn adjacent_to(self, [plus, minus]: [Slot; 2], slot_of: impl Fn(SurfaceKey) -> Slot) -> bool {
         match self {
             Self::Pair(s1, s2) => {
                 let (s1, s2) = (slot_of(s1), slot_of(s2));
                 (s1 == plus && s2 == minus) || (s1 == minus && s2 == plus)
             }
-            Self::Chart { surface, seam } => {
+            Self::Chart { surface, wrap } => {
                 let surface = slot_of(surface);
-                if seam {
+                if wrap {
                     surface == plus && surface == minus
                 } else {
                     surface == plus || surface == minus

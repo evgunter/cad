@@ -25,11 +25,12 @@
 //!
 //! One meter: `|C(t) − S(P(t))| ≤ ε`, C4 verbatim, at the
 //! certification schedule and on the carrier's OWN parameter (the
-//! parameter [`Pcurve`] is defined on). The two seam predicates —
-//! half-plane and side — are not a second form; they are an
-//! **obligation carried by a chart image that claims to BE a periodic
-//! chart's seam** ([`ChartCurve::seam`]), metered beside the one
-//! meter and never instead of it.
+//! parameter [`Pcurve`] is defined on). A wrap edge
+//! ([`ChartCurve::wrap`]) is not a second form either: it is a chart
+//! image owing the same meter, whose flag says its two halves bound
+//! one face across which the chart closes; where it sits is the
+//! construction's, and what places its halves a period apart is the
+//! loop walk's certified joint.
 //!
 //! The alternative that was rejected: keeping `Seam` a peer variant.
 //! It is cheaper and it forfeits the headline — one conventional
@@ -67,16 +68,18 @@ pub struct ChartCurve<T: Real> {
     pub surface: SurfaceKey,
     /// The edge's image in that chart, on the carrier's parameter.
     pub pcurve: Pcurve<T>,
-    /// D1's obligation flag: this edge claims to BE the chart's
-    /// parameterization seam (the `u_ref`-half-plane meridian), so the
-    /// two seam predicates are metered beside the one meter. False on
-    /// every other chart image — an iso boundary, a cap rim, a planar
-    /// chord — which owe the meter and nothing else.
+    /// D1's **wrap edge**: both halves of this edge bound one face,
+    /// across which that face's chart closes in one of its periodic
+    /// directions — read off the carrier's chart class (a meridian
+    /// wraps `u`, a torus parallel wraps `v`, a closed spline net's
+    /// boundary column wraps `u`). It sits wherever the construction
+    /// cut the wall. The image is the one meter's like every other; the
+    /// loop walk's certified joint places the two halves a period
+    /// apart, and tier 3 holds the two halves to one face.
     ///
-    /// It is a claim about THIS EDGE, not about the surface: a
-    /// periodic chart has exactly one seam meridian and any number of
-    /// other edges.
-    pub seam: bool,
+    /// It is a claim about THIS EDGE and its face, not about the
+    /// surface.
+    pub wrap: bool,
 }
 
 /// The **authority record** (U2 Q3): who determined this edge's
@@ -237,10 +240,8 @@ pub enum EdgeDescriptionSpec<T: Real> {
         /// derived anywhere in this kernel. The certified form that
         /// comes back carries an image either way.
         image: Option<crate::pcurve_cache::Pcurve<T>>,
-        /// D1's obligation: this edge claims to BE the chart's
-        /// parameterization seam, so the two seam predicates are
-        /// metered beside the one meter.
-        seam: bool,
+        /// D1's wrap edge ([`ChartCurve::wrap`]).
+        wrap: bool,
         /// The authority record this construction states (U2 Q3):
         /// `Some` when a sketch entity under a sweep map DECLARED the
         /// locus that this chart image describes. Carried separately
@@ -261,18 +262,18 @@ impl<T: Real> EdgeDescriptionSpec<T> {
         EdgeDescriptionSpec::Chart {
             surface,
             image: None,
-            seam: false,
+            wrap: false,
             declared: None,
         }
     }
 
-    /// The chart's parameterization seam: a derived image carrying
-    /// D1's seam obligation.
-    pub fn seam(surface: SurfaceKey) -> Self {
+    /// A wrap edge of a face on `surface` (D1): a derived image of a
+    /// chart that closes across it.
+    pub fn wrap(surface: SurfaceKey) -> Self {
         EdgeDescriptionSpec::Chart {
             surface,
             image: None,
-            seam: true,
+            wrap: true,
             declared: None,
         }
     }
@@ -283,7 +284,7 @@ impl<T: Real> EdgeDescriptionSpec<T> {
         EdgeDescriptionSpec::Chart {
             surface,
             image: Some(image),
-            seam: false,
+            wrap: false,
             declared: None,
         }
     }
@@ -315,7 +316,7 @@ impl<T: Real> EdgeDescriptionSpec<T> {
                 p0: geom_core::Point2::new(u, v0 - slope * t0),
                 pl: geom_core::Vec2::new(T::zero(), slope),
             }),
-            seam: true,
+            wrap: true,
             declared: None,
         }
     }
@@ -330,12 +331,12 @@ impl<T: Real> EdgeDescriptionSpec<T> {
             EdgeDescriptionSpec::Chart {
                 surface,
                 image,
-                seam,
+                wrap,
                 ..
             } => EdgeDescriptionSpec::Chart {
                 surface,
                 image,
-                seam,
+                wrap,
                 declared: Some(mc),
             },
             other => other,

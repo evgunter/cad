@@ -50,7 +50,7 @@ fn seam_edges(
         let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
             continue;
         };
-        if !matches!(c.description(), geom_brep::EdgeDescription::Chart(cc) if cc.seam) {
+        if !matches!(c.description(), geom_brep::EdgeDescription::Chart(cc) if cc.wrap) {
             continue;
         }
         let hp = body.get_half_edge(e.he_plus).unwrap();

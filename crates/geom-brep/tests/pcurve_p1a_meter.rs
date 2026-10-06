@@ -103,7 +103,7 @@ fn a_cone_edge_inside_the_legacy_band_now_escalates() {
 
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::seam(keys[0]),
+            description: EdgeDescriptionSpec::wrap(keys[0]),
             carrier,
             param_start: t0,
             param_end: t1,
@@ -235,7 +235,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let cert = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::seam(keys[0]),
+                description: EdgeDescriptionSpec::wrap(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -281,7 +281,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::seam(keys[0]),
+            description: EdgeDescriptionSpec::wrap(keys[0]),
             carrier,
             param_start: 0.0,
             param_end: 1.0,
@@ -344,7 +344,7 @@ mod at_intervals {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let certified = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::seam(keys[0]),
+                description: EdgeDescriptionSpec::wrap(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -400,7 +400,7 @@ mod at_intervals {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let certified = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::seam(keys[0]),
+                description: EdgeDescriptionSpec::wrap(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,

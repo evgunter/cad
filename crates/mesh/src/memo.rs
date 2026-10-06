@@ -801,7 +801,7 @@ impl FaceInputs {
                     ids,
                     chord_params,
                     pcurve: lifted.remove(&hek),
-                    seam: matches!(curve.description(), EdgeDescription::Chart(c) if c.seam),
+                    seam: matches!(curve.description(), EdgeDescription::Chart(c) if c.wrap),
                     lineage,
                 });
             }

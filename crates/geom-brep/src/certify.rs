@@ -348,7 +348,7 @@ pub enum CertifyError {
     },
     /// A `Seam` description on a non-periodic surface (a plane) — no
     /// seam exists.
-    SeamOnNonPeriodic,
+    WrapOnNonPeriodic,
     /// The stored parameter interval is not forward: t₁ − t₀, metered
     /// as arc length, did not classify positive. The ratified
     /// vertices-derive-bounds convention — increasing parameter runs
@@ -496,10 +496,10 @@ impl core::fmt::Display for CertifyError {
                 "Intersection names surface {key:?} twice (a same-surface \
                  locus is a Seam)"
             ),
-            Self::SeamOnNonPeriodic => write!(
+            Self::WrapOnNonPeriodic => write!(
                 f,
-                "Seam described on a non-periodic surface (a plane has no \
-                 seam)"
+                "wrap edge described on a non-periodic surface (a plane's \
+                 chart closes in no direction)"
             ),
             Self::IntervalNotForward {
                 verdict: Refused::Zero(_),
@@ -632,7 +632,7 @@ impl CertifyError {
             | Self::Unimplemented
             | Self::NurbsLaneNotSupplied
             | Self::IntersectionSameSurface { .. }
-            | Self::SeamOnNonPeriodic
+            | Self::WrapOnNonPeriodic
             | Self::TangentCertificateUnsupported
             | Self::Band(_) => return None,
         })
@@ -966,9 +966,8 @@ impl<T: Real> EdgeCurveSpec<T> {
 
     /// The same spec with a SCAFFOLDING description re-stated as an
     /// image in `surface`'s chart, the pushforward demoted to the
-    /// authority record it always was (U2 Q3). `seam` carries D1's
-    /// obligation: this edge claims to BE that chart's
-    /// parameterization seam.
+    /// authority record it always was (U2 Q3). `wrap` says the edge is
+    /// a wrap edge of a face on that chart (D1).
     ///
     /// This is the transience fence's one conversion (D3): the
     /// scaffolding constructors above describe a locus for an edge
@@ -996,14 +995,14 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// assertions are on — which is every test binary, i.e. exactly
     /// where the mistake gets made.
     #[must_use]
-    pub fn at_rest_in_chart(self, surface: SurfaceKey, seam: bool) -> Self {
+    pub fn at_rest_in_chart(self, surface: SurfaceKey, wrap: bool) -> Self {
         debug_assert!(
             match &self.description {
                 EdgeDescriptionSpec::Chart {
                     surface: already,
-                    seam: already_seam,
+                    wrap: already_wrap,
                     ..
-                } => *already == surface && *already_seam == seam,
+                } => *already == surface && *already_wrap == wrap,
                 _ => true,
             },
             "at_rest_in_chart on a spec that already names a chart discards both \
@@ -1011,8 +1010,8 @@ impl<T: Real> EdgeCurveSpec<T> {
         );
         let description = match self.description {
             EdgeDescriptionSpec::Scaffold(mc) => {
-                let chart = if seam {
-                    EdgeDescriptionSpec::seam(surface)
+                let chart = if wrap {
+                    EdgeDescriptionSpec::wrap(surface)
                 } else {
                     EdgeDescriptionSpec::chart(surface)
                 };
@@ -1539,7 +1538,7 @@ impl<T: Real> EdgeCurve<T> {
             EdgeDescription::Chart(ref c) => EdgeDescription::Chart(ChartCurve {
                 surface: remap(c.surface)?,
                 pcurve: c.pcurve.clone(),
-                seam: c.seam,
+                wrap: c.wrap,
             }),
             // A scaffold names no surface — there is none yet.
             EdgeDescription::Scaffold(m) => EdgeDescription::Scaffold(m),
@@ -1589,7 +1588,7 @@ impl<T: Real> EdgeCurve<T> {
             EdgeDescription::Chart(ref c) => EdgeDescription::Chart(ChartCurve {
                 surface: c.surface,
                 pcurve: c.pcurve.mirror_v()?,
-                seam: c.seam,
+                wrap: c.wrap,
             }),
             ref other => other.clone(),
         };
@@ -1674,7 +1673,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
                     surface: c.surface,
                     image: Some(c.pcurve.clone()),
-                    seam: c.seam,
+                    wrap: c.wrap,
                     declared: match self.authority {
                         EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
                         EdgeAuthority::Derived => None,
@@ -1736,7 +1735,7 @@ impl<T: Real> EdgeCurve<T> {
             EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 image: Some(c.pcurve.clone()),
-                seam: c.seam,
+                wrap: c.wrap,
                 declared,
             },
             EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc),
@@ -2089,9 +2088,8 @@ fn run_checks<T: Decide>(
             /// carries); `None` for an analytic chart, whose image is
             /// minted here through [`crate::chart_pcurve`].
             image: Option<Pcurve<T>>,
-            /// D1's obligation: this edge claims to BE the chart's
-            /// seam meridian.
-            seam: bool,
+            /// D1's wrap edge ([`ChartCurve::wrap`]).
+            wrap: bool,
             /// U2 Q3's authority payload, carried here for ONE reason:
             /// so the meter that used to run on it still runs.
             ///
@@ -2172,7 +2170,7 @@ fn run_checks<T: Decide>(
         EdgeDescriptionSpec::Chart {
             surface,
             ref image,
-            seam,
+            wrap,
             ref declared,
         } => {
             let s = if image.is_some() {
@@ -2180,14 +2178,14 @@ fn run_checks<T: Decide>(
             } else {
                 resolve(surface)?
             };
-            if seam && matches!(s, Surface::Plane { .. }) {
-                return Err(CertifyError::SeamOnNonPeriodic);
+            if wrap && matches!(s, Surface::Plane { .. }) {
+                return Err(CertifyError::WrapOnNonPeriodic);
             }
             Resolved::Chart {
                 surface: s,
                 key: surface,
                 image: image.clone(),
-                seam,
+                wrap,
                 declared: *declared,
             }
         }
@@ -2349,7 +2347,7 @@ fn run_checks<T: Decide>(
             ref surface,
             key,
             ref image,
-            seam,
+            wrap,
             // The authority record is built from the SPEC by
             // `authority_of`, not from this arm; here it has already
             // done its job at the meter above.
@@ -2395,7 +2393,7 @@ fn run_checks<T: Decide>(
             EdgeDescription::Chart(ChartCurve {
                 surface: key,
                 pcurve,
-                seam,
+                wrap,
             })
         }
     };
@@ -3075,7 +3073,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 26] = [
+    const ALL_CHECKS: [CertCheck; 24] = [
         CertCheck::ParamSpan,
         CertCheck::ParamWinding,
         CertCheck::EndpointStart,
@@ -3399,7 +3397,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
         let seam = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::seam(keys[0]),
+                description: EdgeDescriptionSpec::wrap(keys[0]),
                 carrier: Curve3::Line {
                     origin: p0,
                     dir: Vec3::unit_z(),
@@ -3415,7 +3413,7 @@ mod tests {
         .expect("the seam certifies");
         let chart = seam.description().chart().expect("a seam IS a chart image");
         assert_eq!(chart.surface, keys[0]);
-        assert!(chart.seam, "a seam carries D1's obligation");
+        assert!(chart.wrap, "a seam carries D1's obligation");
 
         let plane = Surface::Plane {
             origin: Point3::new(0.25, -0.5, 1.0),
@@ -3448,7 +3446,7 @@ mod tests {
             .chart()
             .expect("an iso curve IS a chart image");
         assert!(
-            !iso_chart.seam,
+            !iso_chart.wrap,
             "an iso boundary owes the meter and nothing else"
         );
 
@@ -3492,7 +3490,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
         let derived = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::seam(keys[0]),
+                description: EdgeDescriptionSpec::wrap(keys[0]),
                 carrier: Curve3::Line {
                     origin: p0,
                     dir: Vec3::unit_z(),
@@ -3535,7 +3533,7 @@ mod tests {
         let d = drift;
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::seam(keys[0]),
+            description: EdgeDescriptionSpec::wrap(keys[0]),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: Vec3::unit_z(),
@@ -4268,7 +4266,7 @@ mod tests {
         let p0 = Point3::new(r, 0.0, 0.0);
         let p1 = Point3::new(r, 0.0, 3.0);
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::seam(keys[0]),
+            description: EdgeDescriptionSpec::wrap(keys[0]),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: Vec3::unit_z(),
@@ -4287,7 +4285,7 @@ mod tests {
         };
         let cut = EdgeCurve::certify(antipode, q0, q1, &lookup, band()).unwrap();
         let chart = cut.description().chart().expect("a wrap edge is a chart image");
-        assert!(chart.seam, "the antipodal ruling carries the wrap flag");
+        assert!(chart.wrap, "the antipodal ruling carries the wrap flag");
         assert!(
             (chart.pcurve.eval(0.0).x - core::f64::consts::PI).abs() < 1e-12,
             "its image is the iso line at its own chart u: {:?}",
@@ -4311,10 +4309,10 @@ mod tests {
             u_ref: Vec3::unit_x(),
         }]);
         let mut bad = spec.clone();
-        bad.description = EdgeDescriptionSpec::seam(pkeys[0]);
+        bad.description = EdgeDescriptionSpec::wrap(pkeys[0]);
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &plookup, band()).unwrap_err(),
-            CertifyError::SeamOnNonPeriodic
+            CertifyError::WrapOnNonPeriodic
         );
     }
 

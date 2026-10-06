@@ -1469,7 +1469,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         tol,
     )?;
     let wall_key = face_surface_key(body, turn.wall);
-    swept::describe_seam(body, turn.strut, wall_key, tol)?;
+    swept::describe_wrap_edge(body, turn.strut, wall_key, tol)?;
     Ok(turn)
 }
 

@@ -92,7 +92,7 @@ fn the_whole_torus_is_one_face_cut_once_each_way() {
         let e = body.get_edge(edge).unwrap();
         let curve = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         assert!(
-            curve.description().chart().is_some_and(|c| c.seam),
+            curve.description().chart().is_some_and(|c| c.wrap),
             "{edge:?} is the face's wrap edge: {:?}",
             curve.description()
         );

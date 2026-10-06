@@ -551,7 +551,7 @@ fn adopt_edges(
             // edge, which takes the conventional rung below.
             let (f_plus, f_minus) = sides.faces();
             if periodic && f_plus == f_minus {
-                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::seam(fs_plus)));
+                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::wrap(fs_plus)));
             }
         }
         if conventional

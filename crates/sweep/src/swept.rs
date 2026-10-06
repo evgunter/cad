@@ -694,10 +694,11 @@ pub(crate) fn build_full_turn<T: Decide + topo::AtRestPolicy>(
 }
 
 /// Re-describes `edge`, both of whose halves bound one face on `wall`,
-/// as that chart's seam (`EdgeDescriptionSpec::seam`): the certified
-/// carrier and interval kept verbatim. Extrude's one-segment strut and
-/// a full revolve's periodic meridian both go through here.
-pub(crate) fn describe_seam<T: Decide + topo::AtRestPolicy>(
+/// as that face's wrap edge (D1, `EdgeDescriptionSpec::wrap`): the
+/// certified carrier and interval kept verbatim. A one-segment loop's
+/// strut — extrude's and a revolve's — and a full revolve's periodic
+/// meridian all go through here.
+pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
@@ -717,7 +718,7 @@ pub(crate) fn describe_seam<T: Decide + topo::AtRestPolicy>(
     body.set_edge_curve(
         edge,
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::seam(wall),
+            description: EdgeDescriptionSpec::wrap(wall),
             carrier,
             param_start,
             param_end,

@@ -142,7 +142,7 @@ fn seam_edges(body: &Body<f64>) -> Vec<(EdgeKey, topo::SurfaceKey)> {
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
             match c.description() {
-                EdgeDescription::Chart(c) if c.seam => Some((k, c.surface)),
+                EdgeDescription::Chart(c) if c.wrap => Some((k, c.surface)),
                 _ => None,
             }
         })
@@ -706,7 +706,7 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
-        description: EdgeDescriptionSpec::seam(sphere_key),
+        description: EdgeDescriptionSpec::wrap(sphere_key),
         carrier,
         param_start: t0,
         param_end: t1,
@@ -1344,7 +1344,7 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
     // of its edges can be silently "upgraded" to one: a Seam is one
     // surface on both sides, which no edge of the annulus is, so the
     // forgery is refused at adjacency before the chart's periodicity
-    // is asked (SeamOnNonPeriodic has its own row in `geom-brep`).
+    // is asked (WrapOnNonPeriodic has its own row in `geom-brep`).
     let lp = ProfileLoop::polygon([
         Point2::new(1.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -1376,7 +1376,7 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
-        description: EdgeDescriptionSpec::seam(plane_key),
+        description: EdgeDescriptionSpec::wrap(plane_key),
         carrier,
         param_start: t0,
         param_end: t1,
