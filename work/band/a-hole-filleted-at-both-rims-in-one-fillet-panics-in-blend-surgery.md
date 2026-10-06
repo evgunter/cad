@@ -2,10 +2,12 @@
 id: a-hole-filleted-at-both-rims-in-one-fillet-panics-in-blend-surgery
 kind: issue
 title: A through-hole filleted at both rims in one Fillet panics in blend surgery: a birth row names an edge the source body does not carry
-status: open
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
+pr: 4088
+closed: 2026-10-06
 ---
 
 
