@@ -257,10 +257,35 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
             Ok(()),
             "{side} is tier-3 valid"
         );
-        for (_, ends) in tangent_edges(piece) {
+        for (edge, ends) in tangent_edges(piece) {
             assert!(
                 ends.iter().all(on_the_ruling),
                 "{side}: a tangent edge off the ruling, {ends:?}"
+            );
+            // The section plane against a cylinder is jet-determinate
+            // (κ_rel = 1/r), so the must-carry rule demands the
+            // intrinsic description over the seam's CURRENT pair.
+            let e = piece.get_edge(edge).unwrap();
+            let face_surface = |he| {
+                let face = piece.face_of_half_edge(he).unwrap();
+                piece.get_face(face).unwrap().surface
+            };
+            let mut pair = [face_surface(e.he_plus), face_surface(e.he_minus)];
+            let description = piece
+                .get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .expect("the seam is described")
+                .description();
+            let geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } = *description
+            else {
+                panic!("{side}: the seam stores {description:?}, not its intrinsic tangency");
+            };
+            let mut cited = [s1, s2];
+            pair.sort();
+            cited.sort();
+            assert_eq!(
+                cited, pair,
+                "{side}: the seam's tangency names its two faces"
             );
             seams += 1;
         }
