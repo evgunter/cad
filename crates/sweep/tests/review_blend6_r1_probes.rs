@@ -25,7 +25,7 @@ use sweep::blend::{
     BlendError, BlendKind, BlendRefusal, BlendSite, ClassifiedMargin, Convexity, CornerConfig,
 };
 use sweep::test_support::cube;
-use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 /// One value of every `BlendError` variant, in declaration order —
 /// the same shape as `recourse_tests::seeds()` (which is `#[cfg(test)]`
@@ -164,10 +164,6 @@ fn seeds() -> Vec<BlendError> {
         BlendError::BodyNotIntact {
             at: EntityId::HalfEdge(HalfEdgeKey::default()),
             detail: "a reference the plan followed",
-        },
-        BlendError::AcrossShells {
-            at: EntityId::Edge(EdgeKey::default()),
-            shells: [ShellKey::default(), ShellKey::default()],
         },
         BlendError::RingClearance {
             face: FaceKey::default(),

@@ -132,8 +132,8 @@ pub struct Blended<T: Real> {
 /// [`BlendError::UnsupportedCorner`] when the request is outside
 /// the assembly's front door ([`super::surgery`] names each case);
 /// [`BlendError::BodyNotIntact`] when the body does not hold together
-/// where the plan reads it, or [`BlendError::AcrossShells`] when a
-/// requested chain or corner is bounded by faces of two shells;
+/// where the plan reads it, among them a requested chain or corner
+/// bounded by faces of two shells;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
 /// clear a trimline, or a cap cycle does not clear the sliver a ruled
 /// cut-off removes; [`BlendError::Op`], carrying the operator's own
@@ -400,9 +400,8 @@ pub type Chamfered<T> = Blended<T>;
 /// [`BlendError::UnsupportedGeometry`] or
 /// [`BlendError::UnsupportedCorner`] when the request is outside
 /// the assembly's front door; [`BlendError::BodyNotIntact`] when the
-/// body does not hold together where the plan reads it, or
-/// [`BlendError::AcrossShells`] when a requested chain or corner is
-/// bounded by faces of two shells;
+/// body does not hold together where the plan reads it, among them a
+/// requested chain or corner bounded by faces of two shells;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
 /// clear a trimline; [`BlendError::Op`] / [`BlendError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.

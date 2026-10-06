@@ -4712,7 +4712,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "blend_error_tag",
         values: &[
-            "across_shells",
             "band",
             "body_not_intact",
             "certify",

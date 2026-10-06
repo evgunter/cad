@@ -137,7 +137,7 @@ use geom_brep::recourse::{
     UNREADABLE_MARGIN_NOTE,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
-use topo::{EdgeKey, EntityId, FaceKey, ShellKey, VertexKey};
+use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
@@ -1418,27 +1418,17 @@ pub enum BlendError {
     /// **The body handed to the surgery does not hold together where
     /// the plan read it** (D2 addendum row 1): a stored reference that
     /// did not resolve, a cycle that did not close, or a verdict whose
-    /// keys disagree with the body's own structure. This is not a
-    /// blend frontier and carries no recourse — the input is
-    /// invalid, and the surgery refuses rather than building on it.
+    /// keys disagree with the body's own structure — among them a
+    /// requested chain or corner bounded by faces of two shells, which
+    /// tier 1 rules out (`EdgeAcrossShells`, one orbit per vertex).
+    /// This is not a blend frontier and carries no recourse — the
+    /// input is invalid, and the surgery refuses rather than building
+    /// on it.
     BodyNotIntact {
         /// The entity the plan was reading.
         at: EntityId,
         /// What the plan was reading when the reference failed.
         detail: &'static str,
-    },
-    /// **A requested chain or corner lies in two shells** (D2 addendum
-    /// row 1): one of its edges or vertices is bounded by faces of two
-    /// different shells. A blend carves each chain inside the one
-    /// shell it lives in, and tier 1 puts every edge's two faces in one
-    /// shell (`EdgeAcrossShells`) and every vertex in one orbit, so the
-    /// body that arrived is invalid. No recourse, as for
-    /// [`BlendError::BodyNotIntact`].
-    AcrossShells {
-        /// The link edge or corner vertex whose faces disagree.
-        at: EntityId,
-        /// The shell the chain was found in, then the other one.
-        shells: [ShellKey; 2],
     },
     /// **The surgery's OWN invariant did not hold** (D2 addendum row 4,
     /// announced instead of panicked): a carve step reached a state its
@@ -1679,11 +1669,6 @@ impl fmt::Display for BlendError {
                 "{detail} — {at} did not resolve, so the body is not intact there. There \
                  is no way through"
             ),
-            Self::AcrossShells { at, shells } => write!(
-                f,
-                "the requested chain or corner at {at} is bounded by faces of two shells, \
-                 {shells:?}, so the body is not intact there. There is no way through"
-            ),
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \
@@ -1758,7 +1743,7 @@ pub const ALL_RECOURSES: [(&str, &str); 16] = [
 #[allow(clippy::expect_used)]
 mod recourse_tests {
     use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign};
-    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
     use super::{
         BlendDecision, BlendError, BlendSite, CHAMFER_ARM_RECOURSE, ClassifiedMargin, Convexity,
@@ -1846,7 +1831,6 @@ mod recourse_tests {
             BlendError::RepeatedEdge { .. } => Recourse::None,
             BlendError::NonpositiveSize { .. } => Recourse::None,
             BlendError::BodyNotIntact { .. } => Recourse::None,
-            BlendError::AcrossShells { .. } => Recourse::None,
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::Certify { .. } => Recourse::None,
@@ -1963,10 +1947,6 @@ mod recourse_tests {
             BlendError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a reference the plan followed",
-            },
-            BlendError::AcrossShells {
-                at: EntityId::Edge(EdgeKey::default()),
-                shells: [ShellKey::default(), ShellKey::default()],
             },
             BlendError::SurgeryInvariant {
                 at: EntityId::Face(FaceKey::default()),

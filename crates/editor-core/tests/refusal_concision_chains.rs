@@ -67,7 +67,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Transform/NullScaffold",
     "Loft/Pcurve",
     "Blend/BodyNotIntact",
-    "Blend/AcrossShells",
     "Blend/SurgeryInvariant",
     "Blend/Certify",
     "Naming/SplitLineage",
@@ -2366,13 +2365,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             E::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a twin half-edge the plan followed",
-            },
-        ),
-        (
-            "AcrossShells",
-            E::AcrossShells {
-                at: EntityId::Edge(edge),
-                shells: [topo::ShellKey::default(), topo::ShellKey::default()],
             },
         ),
         (

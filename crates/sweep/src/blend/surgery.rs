@@ -161,8 +161,9 @@
 //! - **Row 2**, above: valid input, unbuilt door, carries the
 //!   recourse that is true of it.
 //! - **Row 1**, [`BlendError::BodyNotIntact`]: a stored reference
-//!   that did not resolve, a cycle that did not close, or a verdict
-//!   whose keys disagree with the body's own structure. These sites
+//!   that did not resolve, a cycle that did not close, a verdict
+//!   whose keys disagree with the body's own structure, or a chain or
+//!   corner bounded by faces of two shells. These sites
 //!   refuse typed, naming the entity. Every public door keeps a body
 //!   tier-1 valid (D9), so a body that fails referential integrity
 //!   here has met a kernel bug; D2's torn-body rule makes such a read
@@ -178,6 +179,8 @@
 //! A support shrinks; it does not die — enforced, not argued, at
 //! [`SourceFaces::kef_minted`], the one face-destroying door of this
 //! file and of the two open bands under `open/`.
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use geom::Curve3;
 use geom::Surface;
@@ -526,14 +529,17 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 ) -> Result<Blended<T>, BlendError> {
     // Every chain is carved inside the one shell its links lie in; the
     // body's other shells and solids are carried through untouched.
-    let mut link_shells: Vec<(EdgeKey, ShellKey)> = Vec::new();
+    let mut link_shells: BTreeMap<EdgeKey, ShellKey> = BTreeMap::new();
     for chain in &verdict.chains {
         let shell = chain_shell(source, chain)?;
         link_shells.extend(chain.links().map(|l| (l.edge, shell)));
     }
-    let mut shells: Vec<ShellKey> = link_shells.iter().map(|(_, s)| *s).collect();
-    shells.sort_unstable();
-    shells.dedup();
+    let shells: Vec<ShellKey> = link_shells
+        .values()
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     let radius = verdict.size;
     let kind = verdict.kind;
 
@@ -623,6 +629,9 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             .chain(others.iter().map(AdmittedOpen::edge))
             .collect();
         here.dedup();
+        // No tier-1-valid body refuses here: check 10 puts each link's
+        // supports in one shell and check 6 gives the vertex one orbit,
+        // so every chain meeting at it was found in the same shell.
         corner_shell(v, &here, &link_shells)?;
         // Two different refusals, and they are not the same class: the
         // valence is the corner's own configuration (the OQ6
@@ -699,7 +708,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // before the clone — not re-assembled per phase from whatever that
     // phase happens to hold. It is the door's own argument, which is
     // what makes a narrower set unspellable.
-    let sources = SourceFaces::of(source)?;
+    let sources = SourceFaces::of(source, verdict)?;
     // One surgery scope for the whole blend (`topo::surgery`): tier 1
     // is this door's postcondition, and the tier-2 debug assertion
     // below subsumes it, so the close adds no second sweep. The guard
@@ -984,10 +993,10 @@ fn chain_shell<T: Real>(source: &Body<T>, chain: &Chain<T>) -> Result<ShellKey, 
         for f in [l.face_a, l.face_b] {
             let there = shell_of(source, f)?;
             if there != shell {
-                return Err(BlendError::AcrossShells {
-                    at: EntityId::Edge(l.edge),
-                    shells: [shell, there],
-                });
+                return Err(not_intact(
+                    EntityId::Edge(l.edge),
+                    "a link's supports in the chain's one shell",
+                ));
             }
         }
     }
@@ -1001,24 +1010,24 @@ fn chain_shell<T: Real>(source: &Body<T>, chain: &Chain<T>) -> Result<ShellKey, 
 fn corner_shell(
     vertex: VertexKey,
     here: &[EdgeKey],
-    link_shells: &[(EdgeKey, ShellKey)],
+    link_shells: &BTreeMap<EdgeKey, ShellKey>,
 ) -> Result<(), BlendError> {
-    let shell_of_link = |e: EdgeKey| -> ShellKey {
-        let Some(&(_, s)) = link_shells.iter().find(|(k, _)| *k == e) else {
+    let mut shells = here.iter().map(|e| {
+        let Some(s) = link_shells.get(e) else {
             unreachable!("a corner's requested edges are links of the verdict's chains")
         };
-        s
-    };
-    let mut shells = here.iter().map(|e| shell_of_link(*e));
+        *s
+    });
     let Some(first) = shells.next() else {
         unreachable!("a corner is seeded by the link that discovered it")
     };
-    match shells.find(|s| *s != first) {
-        Some(other) => Err(BlendError::AcrossShells {
-            at: EntityId::Vertex(vertex),
-            shells: [first, other],
-        }),
-        None => Ok(()),
+    if shells.all(|s| s == first) {
+        Ok(())
+    } else {
+        Err(not_intact(
+            EntityId::Vertex(vertex),
+            "the chains meeting at a corner in one shell",
+        ))
     }
 }
 
@@ -4659,19 +4668,21 @@ pub(super) fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option
 pub(super) struct SourceFaces(Vec<FaceKey>);
 
 impl SourceFaces {
-    /// The one constructor. Refuses a face-less body: an empty snapshot
-    /// would make [`SourceFaces::kef_minted`] vacuous, which is the one
-    /// way past that door that shows nowhere.
+    /// The one constructor. Refuses a face-less body under a verdict
+    /// with chains: an empty snapshot would make
+    /// [`SourceFaces::kef_minted`] vacuous, which is the one way past
+    /// that door that shows nowhere. A verdict with no chains kills
+    /// nothing, so an empty request on an empty body passes.
     ///
     /// # Errors
     ///
-    /// [`BlendError::SurgeryInvariant`] on a body with no faces —
-    /// unreachable once the entry gate has admitted a solid and a
-    /// shell, which is why the row is the surgery's own and not the
-    /// input's.
-    fn of<T: Decide>(source: &Body<T>) -> Result<Self, BlendError> {
+    /// [`BlendError::SurgeryInvariant`] on a body with no faces under a
+    /// verdict with a chain — unreachable because the battery resolved
+    /// every link's two supports as faces of this body, which is why
+    /// the row is the surgery's own and not the input's.
+    fn of<T: Decide>(source: &Body<T>, verdict: &BatteryVerdict<T>) -> Result<Self, BlendError> {
         let mut faces: Vec<FaceKey> = source.faces().map(|(k, _)| k).collect();
-        if faces.is_empty() {
+        if faces.is_empty() && !verdict.chains.is_empty() {
             return Err(invariant_broken(
                 EntityId::Face(FaceKey::default()),
                 "the blend surgery snapshotted a source body with no faces",
@@ -4965,14 +4976,15 @@ mod tests {
     use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, cube};
 
-    /// **A chain whose supports lie in two shells refuses, naming
-    /// both.** No valid body has such a link (tier 1 puts an edge's two
-    /// faces in one shell), so the row hands `chain_shell` a link of one
-    /// grafted cube whose second support is re-pointed at a face of the
-    /// other; `corner_shell` is handed two chains found in different
-    /// shells meeting at one vertex.
+    /// **A chain or corner whose faces lie in two shells refuses as
+    /// not intact, at its edge or vertex.** No valid body has such a
+    /// link (tier 1 puts an edge's two faces in one shell), so the row
+    /// hands `chain_shell` a link of one grafted cube whose second
+    /// support is re-pointed at a face of the other; `corner_shell` is
+    /// handed two chains found in different shells meeting at one
+    /// vertex.
     #[test]
-    fn a_chain_or_corner_across_two_shells_refuses_naming_both() {
+    fn a_chain_or_corner_across_two_shells_refuses_at_its_site() {
         let mut body = cube(L, Tol::witness());
         let first: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
         topo::instance::graft_disjoint_all(&mut body, &cube(L * 0.5, Tol::witness()))
@@ -4999,22 +5011,21 @@ mod tests {
         assert!(
             matches!(
                 super::chain_shell(&body, &open_chain(link)),
-                Err(BlendError::AcrossShells { at: topo::EntityId::Edge(e), shells })
-                    if e == edge && shells == [here, there]
+                Err(BlendError::BodyNotIntact { at: topo::EntityId::Edge(e), .. }) if e == edge
             ),
-            "the link across shells refuses at its edge, naming both shells"
+            "the link across shells refuses at its edge"
         );
 
         let (a, b) = (EdgeKey::default(), edge);
         let v = topo::VertexKey::default();
-        assert!(super::corner_shell(v, &[a, b], &[(a, here), (b, here)]).is_ok());
+        let found = |sa, sb| std::collections::BTreeMap::from([(a, sa), (b, sb)]);
+        assert!(super::corner_shell(v, &[a, b], &found(here, here)).is_ok());
         assert!(
             matches!(
-                super::corner_shell(v, &[a, b], &[(a, here), (b, there)]),
-                Err(BlendError::AcrossShells { at: topo::EntityId::Vertex(at), shells })
-                    if at == v && shells == [here, there]
+                super::corner_shell(v, &[a, b], &found(here, there)),
+                Err(BlendError::BodyNotIntact { at: topo::EntityId::Vertex(at), .. }) if at == v
             ),
-            "a corner met by chains of two shells refuses at its vertex, naming both"
+            "a corner met by chains of two shells refuses at its vertex"
         );
     }
 

@@ -147,8 +147,9 @@ pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
 /// refuse at the G1 door, because the trivalent-ends clause only
 /// speaks once a chain has ends at all. A concave component that
 /// reaches the surface always ends at mixed corners, so it must
-/// enclose; an enclosed void is two shells, which the body door
-/// refuses; hence a vented cavity.
+/// enclose: a sealed void (a second shell, carved in `blend_per_shell`)
+/// or, as here, a cavity vented through a face its edges do not touch,
+/// which keeps the block one shell.
 ///
 /// **That argument does not make this the smallest such body.** A
 /// triangular prism cavity carves the same way with nine edges and six
