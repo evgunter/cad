@@ -21,8 +21,9 @@ use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::{ball_off_face, clusters, edge_clear_of_ball, reach, speed_bound};
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey};
+use crate::entity::EdgeKey;
 use crate::euler::MevSite;
+use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -169,13 +170,6 @@ fn section(b_in_major: bool) -> Curve3<f64> {
 /// `a`-in-`major` storage of [`section`], in the given storage,
 /// described as the plane against the cylinder.
 fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
-    let (body, _, edge) = elliptic_face(b_in_major);
-    (body, edge)
-}
-
-/// [`elliptic_edge`]'s body, with the face its strut bounds and the
-/// edge. The face keeps the `mvfs` placeholder surface.
-fn elliptic_face(b_in_major: bool) -> (Body<f64>, FaceKey, EdgeKey) {
     let carrier = section(b_in_major);
     let (t0, t1) = (param(0.3, b_in_major), param(1.2, b_in_major));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
@@ -215,7 +209,7 @@ fn elliptic_face(b_in_major: bool) -> (Body<f64>, FaceKey, EdgeKey) {
             Tol::witness(),
         )
         .unwrap();
-    (body, seed.face, e.edge)
+    (body, e.edge)
 }
 
 /// **A ball about a point of an elliptic edge is not cleared of it, in
@@ -248,39 +242,39 @@ fn an_elliptic_edge_is_not_cleared_of_a_ball_on_it_in_either_storage() {
     }
 }
 
-/// **A face vertex just past the band from a ball's foot keeps the
-/// door; it does not escalate the touch reading.** The face is the
-/// unit cylinder bounded by [`elliptic_face`]'s strut, and the foot sits
-/// on the cylinder `3·zero` above the strut's end: inside the ball of
-/// radius `2·escalate`, and between the band's zero and escalate from
-/// the vertex. The boundary already answers that the ball is not off
-/// the face; the face placement of the foot, read before it, escalated
-/// on `bool_contact_vertex` (the `rest_zip_admission` tangent lever at
-/// ε 1e-6, through PR 4128's `carrier_touch`).
+/// **A ball holding a vertex of the face is not off it, wherever the
+/// band puts the vertex against the foot.** The quarter sheet of the
+/// unit cylinder about z over azimuths `[0, π/2]` and heights `[0, 1]`;
+/// the foot sits on the carrier just past the sheet's corner `(1, 0, 0)`,
+/// midway through the band from it, so the face's placement door cannot
+/// tell the foot from that vertex. The ball (radius 1e-3) holds the
+/// vertex, so it is not off the face, and the answer is `false`, not
+/// the placement's escalation. Controls: the same ball half a radian
+/// past the sheet is off it, and one in the sheet's middle is not.
 #[test]
-fn a_vertex_in_the_band_of_the_foot_keeps_the_door() {
+fn a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face() {
+    let tol = Tol::witness();
     let band = band();
-    let (mut body, face, _) = elliptic_face(false);
-    // Lifts `RechartUnvouched`: the strut's description names the
-    // fixture's own plane and cylinder, not the face's placeholder, and
-    // the row reads only the face's chart and its boundary.
-    body.set_face_surface_unvouched_for_tests(
-        face,
-        crate::euler::FaceSurface::New {
-            surface: Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
-            sense: true,
-        },
-    )
-    .unwrap();
-    let foot = section(false).eval(0.3) + Vec3::new(0.0, 0.0, 3.0 * band.zero());
-    assert!(
-        !ball_off_face(&body, face, foot, 2.0 * band.escalate(), 1.0, band)
-            .expect("the boundary answers before the placement"),
-        "a vertex inside the ball keeps the door"
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        None,
+        (0.0, FRAC_PI_2),
+        (0.0, 1.0),
+        tol,
     );
+    let on = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
+    let in_band = -0.5 * (band.zero() + band.escalate());
+    for (what, foot, off) in [
+        ("in the band of the corner vertex", on(in_band, 0.0), false),
+        ("half a radian past the sheet", on(-0.5, 0.5), true),
+        ("in the sheet's middle", on(0.7, 0.5), false),
+    ] {
+        let got = ball_off_face(&body, face, foot, 1e-3, 1.0, band);
+        assert!(
+            matches!(got, Ok(b) if b == off),
+            "a ball about a foot {what}: {got:?}"
+        );
+    }
 }

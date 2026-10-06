@@ -70,8 +70,7 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Real, Vec3};
 /// - `sweep::skin::segment_curve`, public through `sweep` and `pncad`,
 ///   converts that same locus: its on-arc control points are `eval`'s
 ///   own points and its others the spoke `a − centre` turned about the
-///   centre. It reads `b` only for its zero-chord gate, and never the
-///   radius.
+///   centre. It never reads `b` or the radius.
 ///
 /// The radius is read by the carrier a sweep builds beside the
 /// description, and certification meters the one against the other. A
@@ -89,8 +88,8 @@ pub enum SketchSegment<T: Real> {
         b: Point2<T>,
     },
     /// The circular arc from `a` to `b` on `arc`'s carrier, turning
-    /// through its signed sweep (positive counterclockwise), in
-    /// (−2π, 2π) \ {0}.
+    /// through its signed sweep (positive counterclockwise), with
+    /// 0 < |Δθ| ≤ 2π — a full turn closes on its start, `b = a` (D1).
     Arc {
         /// Start point (s = 0), stored verbatim.
         a: Point2<T>,

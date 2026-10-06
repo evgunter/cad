@@ -37,10 +37,7 @@
 //! placed `Out` of the face by its door
 //! ([`super::contain::curved_face_placement`]), says none. Every edge is
 //! decided clear by a lower bound on its distance from the foot
-//! ([`edge_clear_of_ball`]), before the foot is placed: a vertex or edge
-//! inside the ball already keeps the door, and only past it is every
-//! member of the boundary farther than `escalate` from the foot, where
-//! the placement's coincidence rows decide.
+//! ([`edge_clear_of_ball`]).
 //!
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! and a curve with no speed bound localize nothing, and the door stays.
@@ -266,6 +263,12 @@ fn clusters<T: Decide + Bounds>(
 
 /// Whether the ball of `radius` about `foot`, on the carrier, holds no
 /// point of `face` (module docs).
+///
+/// The face's boundary is read against the ball before the foot is
+/// placed. The ball's radius is at least `escalate`, so a vertex or
+/// edge the placement could not tell from the foot lies inside it and
+/// answers `false`; the placement is asked only of a foot every member
+/// stands clear of.
 fn ball_off_face<T: Decide + Bounds>(
     y: &Body<T>,
     face: FaceKey,
@@ -280,13 +283,6 @@ fn ball_off_face<T: Decide + Bounds>(
     ) {
         return Ok(false);
     }
-    // The boundary first, the placement after. A face vertex or edge
-    // inside the ball already answers no; read first, the placement of a
-    // foot within `escalate` of it would escalate on the band's
-    // coincidence rows (`bool_contact_vertex`) where the touch reading
-    // only had to keep the caller's door. Past the boundary loop every
-    // member is decided farther than `radius ≥ escalate` from the foot,
-    // so the placement's boundary pre-pass decides each of them apart.
     let f = crate::live::proven(&y.faces, face, EntityId::Face);
     for member in y.face_boundary_linked(face, f) {
         let clear_of_ball = match member {

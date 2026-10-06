@@ -62,3 +62,20 @@ built on that branch. Its join already pairs a face's two halves at the
 one site into a self-loop chord, and `chord_join::chord_spec` now gives
 that chord the whole section conic instead of the scaffolding circle.
 That may be the shape of the boolean's self-loop arm.
+
+## Also seen by PATHS unit 3 (`one-segment-loop-through-builders`, 2026-10-06)
+
+A one-segment circle (D1's full turn) extrudes to a cylinder of ONE
+wall, its seam strut on the meridian through the profile vertex. Every
+cap-parallel plane cuts that wall in a circle crossing the one seam
+once. The cylinder r = 1, z ∈ [0, 2], minus or intersected with the slab
+z ∈ [0.5, 1] refuses `Join(SingleSiteSectionLoop { count: 2 })`; the
+same cylinder cut ALONG its wall (x ≥ 0 or y ≥ 0 removed, a bar united
+through the seam) builds, tier 3 and closed-form volume. Pinned by
+`crates/sweep/tests/one_segment_loop.rs`
+`a_boolean_on_an_extruded_seam_wall_builds_along_it_and_refuses_across_it`.
+
+This becomes common when PATHS unit 4 (`circle-lowers-to-one-segment`)
+lowers `circle` to one segment: a pocket floor or a slab through any
+circular boss is this cut, and today's two-arc cylinder (two seams, two
+sites per section circle) builds it.
