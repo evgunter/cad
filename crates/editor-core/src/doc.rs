@@ -1690,6 +1690,31 @@ impl<P> Doc<P> {
             .unwrap_or_else(|_| expr.clone())
     }
 
+    /// **`expr` expanded only along `path`**: each anonymous definition
+    /// the path enters replaced by what it holds, every leaf off the
+    /// path kept as the variable it reads. `path` addresses this as it
+    /// addresses [`Self::written`] (an anonymous definition's reader is
+    /// its definition, a free one's a leaf), so an edit at `path`
+    /// rebuilt from it re-lowers nothing off the path from a value —
+    /// a shared read, or a distribution, survives (`SetExpression`).
+    /// `None` where `path` leaves the tree.
+    pub(crate) fn expansion_along(&self, expr: &Expr, path: &[u8]) -> Option<Expr> {
+        let Some((&i, rest)) = path.split_first() else {
+            return Some(expr.clone());
+        };
+        if let Some(var) = expr.as_var() {
+            return match self.vars.get(&var).map(Var::def) {
+                Some(crate::VarDef::Defined(defined)) if !self.var_names.contains_key(&var) => {
+                    self.expansion_along(defined, path)
+                }
+                // A free variable, or a named one, is a leaf as written.
+                _ => None,
+            };
+        }
+        let expanded = self.expansion_along(expr.descend(&[i])?, rest)?;
+        expr.with_replaced(&[i], expanded)?.ok()
+    }
+
     /// `expr` with every reader of an anonymous variable replaced by
     /// what it holds ([`Self::slot_expansion`]).
     fn anonymous_expansion(&self, expr: &Expr) -> Result<Expr, crate::DimensionError> {

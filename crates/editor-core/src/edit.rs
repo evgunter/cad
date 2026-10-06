@@ -5878,22 +5878,32 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             // The path addresses the slot as written
-            // (`Doc::slot_expansion`): the subtree it names is replaced
+            // (`Doc::slot_expansion`). The slot is expanded only along
+            // it (`Doc::expansion_along`), the subtree it names replaced,
             // and the slot re-lowered from the whole, so every variable
-            // the rest of it reads is read again by id.
-            let Some(root) = new.slot_expansion(path.node, path.slot) else {
+            // the rest of it reads — an anonymous one included — is read
+            // again by id.
+            let Some(var) = new.slot(path.node, path.slot) else {
                 return Err(EditError::UnknownSlot {
                     id: doc.spoken(path.node),
                     slot: path.slot,
                 });
             };
+            let dim = new
+                .vars
+                .get(&var)
+                .map_or(path.slot.dimension(), |v| v.kind().dimension());
+            let off_tree = || EditError::PathOffTree {
+                node: doc.spoken(path.node),
+                slot: path.slot,
+                path: path.path.clone(),
+            };
+            let root = new
+                .expansion_along(&Expr::var(var, dim), &path.path)
+                .ok_or_else(off_tree)?;
             let rebuilt = Formula::from(&root)
                 .with_replaced(&path.path, expr.clone())
-                .ok_or_else(|| EditError::PathOffTree {
-                    node: doc.spoken(path.node),
-                    slot: path.slot,
-                    path: path.path.clone(),
-                })?
+                .ok_or_else(off_tree)?
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
             set_slot(new, doc, path.node, path.slot, &rebuilt, &[])?;

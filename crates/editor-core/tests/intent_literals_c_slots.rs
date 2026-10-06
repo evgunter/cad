@@ -632,6 +632,118 @@ fn an_entry_reads_the_entries_before_it() {
     assert_eq!(reads, vec![(base, Dimension::Length)]);
 }
 
+// ------------------------------------- an edit at a path keeps its reads
+
+/// The variables `definition` reads, in order.
+fn reads_of(doc: &ProfileDoc, var: VarId) -> Vec<VarId> {
+    let definition = doc
+        .var(var)
+        .and_then(|v| v.def().defined())
+        .expect("a formula's slot reads its anonymous definition");
+    let mut reads = Vec::new();
+    definition.var_reads(&mut reads);
+    reads.into_iter().map(|(var, _)| var).collect()
+}
+
+/// A path edit to `x`'s right operand (`v · 2` → `v · 3`).
+fn retimes(node: RecipeNodeId) -> DocEdit<ProfileProgram> {
+    DocEdit::SetExpression {
+        path: editor_core::ExprPath {
+            node,
+            slot: SlotId::Origin(editor_core::Axis3::X),
+            path: vec![1],
+        },
+        expr: crate::fixture::scl(3.0),
+    }
+}
+
+/// **An edit at a path re-lowers only the path** (r1 M1): a slot written
+/// `v · 2`, where `v` is another node's toleranced anonymous variable,
+/// edited at the `2` still reads `v` — by id, its distribution intact —
+/// and no variable but the slot's own definition is retired. Breaks if
+/// the door rebuilds the slot from its written expansion, which inlines
+/// `v` as its value (`0.5 · 3`).
+#[test]
+fn an_edit_at_a_path_keeps_another_nodes_anonymous_read() {
+    let doc = empty("intent-literals-c-path-shared");
+    let applied = step(&doc, point([len(0.5), len(0.0), len(0.0)], Vec::new()));
+    let a = applied.record.minted.expect("the point");
+    let x = SlotId::Origin(editor_core::Axis3::X);
+    let v = applied.doc.slot(a, x).expect("a reads its x");
+    let doc = toleranced(&applied.doc, v);
+    let twice = Formula::mul(Formula::var(v, Dimension::Length), crate::fixture::scl(2.0)).unwrap();
+    let applied = step(&doc, point([twice, len(0.0), len(0.0)], Vec::new()));
+    let b = applied.record.minted.expect("the second point");
+    let before = applied.doc.slot(b, x).expect("b reads its x");
+    assert_eq!(reads_of(&applied.doc, before), vec![v]);
+
+    let edited = step(&applied.doc, retimes(b));
+    let after = edited.doc.slot(b, x).expect("b still reads its x");
+    assert_eq!(
+        reads_of(&edited.doc, after),
+        vec![v],
+        "b still reads v by id"
+    );
+    assert_eq!(
+        edited.doc.free(v).and_then(FreeVar::distribution),
+        Some(&Distribution::Normal { sigma: 0.001 }),
+        "v keeps its tolerance"
+    );
+    let retired: Vec<VarId> = edited
+        .maintenance
+        .iter()
+        .filter_map(|m| match m {
+            Maintenance::AnonymousVarRemoved { var } => Some(var.id()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(retired, vec![before], "only b's own definition retires");
+}
+
+/// The same through a fresh entry: a slot whose definition reads its own
+/// edit's toleranced fresh entry, edited at a path off that read, still
+/// reads the entry's variable, spread and all.
+#[test]
+fn an_edit_at_a_path_keeps_a_fresh_entrys_read() {
+    let doc = empty("intent-literals-c-path-fresh");
+    let twice = Formula::mul(
+        Formula::fresh(0, Dimension::Length),
+        crate::fixture::scl(2.0),
+    )
+    .unwrap();
+    let spread = VarDecl::Free(
+        FreeVar::continuous(Dimension::Length, 0.5)
+            .with_distribution(Some(Distribution::Normal { sigma: 0.001 }))
+            .expect("a length takes a normal"),
+    );
+    let applied = step(
+        &doc,
+        point(
+            [twice, Formula::fresh(0, Dimension::Length), len(0.0)],
+            vec![spread],
+        ),
+    );
+    let node = applied.record.minted.expect("the point");
+    let [entry] = applied.record.fresh[..] else {
+        panic!("one entry minted: {:?}", applied.record.fresh)
+    };
+    let edited = step(&applied.doc, retimes(node));
+    let after = edited
+        .doc
+        .slot(node, SlotId::Origin(editor_core::Axis3::X))
+        .expect("x");
+    assert_eq!(reads_of(&edited.doc, after), vec![entry]);
+    assert_eq!(
+        edited.doc.slot(node, SlotId::Origin(editor_core::Axis3::Y)),
+        Some(entry),
+        "y still shares it"
+    );
+    assert_eq!(
+        edited.doc.free(entry).and_then(FreeVar::distribution),
+        Some(&Distribution::Normal { sigma: 0.001 })
+    );
+}
+
 // -------------------------------------------------- row 14's C half
 
 /// A slot reading an id the document never minted refuses at load; a
