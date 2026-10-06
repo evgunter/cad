@@ -4634,6 +4634,25 @@ fn rungs(
             return Some((Discharge::Theorem, Rung::Early));
         }
         if e.is_zero() {
+            // REVIEW PROBE (decide/10-review, not for merge): would a
+            // read-free rung BELOW the early one settle this decision?
+            if decision && std::env::var_os("CAD_REVIEW_HOLES").is_some() {
+                if rules.sqrt_square || rules.pythagoras {
+                    let reduced = rational::with_coeff_bound(bits, || {
+                        algebra::reduce(plain, rules, sess.budget, &sess.atoms)
+                    });
+                    if reduced.as_ref().is_some_and(|f| f.is_zero()) {
+                        eprintln!("REVIEW-HOLE top attempt={attempt}");
+                    }
+                }
+                if rules.registered && !sess.registry.is_empty() {
+                    let g = walk(sess, id, WalkKind::DoorShut, attempt, (rules, bits));
+                    if g.is_zero() && !g.gated {
+                        eprintln!("REVIEW-HOLE door attempt={attempt}");
+                    }
+                }
+                eprintln!("REVIEW-GATED attempt={attempt}");
+            }
             return Some((Discharge::SignGated, Rung::Early));
         }
     }
