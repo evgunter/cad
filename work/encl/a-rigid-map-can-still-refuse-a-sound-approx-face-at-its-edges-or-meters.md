@@ -7,7 +7,7 @@ opened: 2026-09-28
 priority: P3
 cost: M
 design: true
-blocked_on: [shell-refuses-every-lofted-body-at-a-wall-seam-carrier]
+blocked_on: [shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam]
 ---
 
 
@@ -63,3 +63,12 @@ carriers.
   from the new net (as `replace_face` does at mint), or whether the
   map should prefer a re-fit that keeps the boundary rows. Either is a
   change to what the transform door promises about edge identity.
+
+## Re-parked (SHELL orchestrator, 2026-10-06, PR 4117)
+
+Its trigger, `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`,
+closed with PR 4117: a lofted body now passes the spline seam
+re-anchor. It still reaches no curved `Approx` face with edges,
+because the twisted loft and the vase stop next at the oblique cap
+corner, which is the new gate. Re-parked on that item; the reason
+above ("no body the tree can move today …") still holds.
