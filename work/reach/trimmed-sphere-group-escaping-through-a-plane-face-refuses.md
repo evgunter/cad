@@ -2,9 +2,10 @@
 id: trimmed-sphere-group-escaping-through-a-plane-face-refuses
 kind: issue
 title: A trimmed sphere face group that a plane face cuts with no edge crossing refuses: the escape re-chart serves only closed groups
-status: review
+status: closed
 branch: reach/trimmed-sphere-escape
 pr: 4044
+closed: 2026-10-06
 opened: 2026-10-02
 priority: P1
 cost: H
@@ -85,3 +86,17 @@ Filed from the sweep: `sphere-pair-meeting-inside-both-faces-refuses-spheres-mee
 Filed from the dual review: `circle-plane-first-harmonic-has-three-hand-built-copies`,
 `apply-cut-ins-walks-its-loops-twice-and-overloads-its-predicate-names`,
 `cut-in-refusals-no-probe-reaches`.
+
+## Closed (2026-10-06)
+
+Merged by PR 4044. In the plane arm of `sphere_extent_scan`, a trimmed
+group's in-face escape reads the section certificate. On R-loop (the
+circle certified inside both faces) it records a `SphereCutIn` on the
+holding face. `apply_cut_ins` then cuts that face along its own chart's
+meridian through the circle and the pipeline re-enters. Any other
+verdict refuses with the certificate's own reason. Later cut-ins on one
+face run on the piece that holds both crossings. Rows:
+`crates/sweep/tests/snowman.rs` (lens, banded ball, pole strut, wedge
+pole to pole, two cut-ins in both orders, nearest of several hits) and
+`cut_holder_rows`. Verified independently: 0 wrong bodies over random
+poses at three ε (`analysis/reach-verify/4044`).
