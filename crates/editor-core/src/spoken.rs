@@ -15,9 +15,9 @@
 //!   A document's own labels are outside its key, so what it memoizes
 //!   keeps bare ids, and the frame that owns the document says them
 //!   when the sentence is made. A part's labels are in its pin, which is
-//!   in the instance's key, so a fault from inside a part holds the
-//!   part's nodes as the pinned part says them
-//!   ([`crate::PartFault::held`]).
+//!   in the instance's key, so a fault from inside a part, and a row a
+//!   part carries up, hold the part's nodes as the pinned part says
+//!   them ([`crate::PartFault::held`], [`crate::CarriedRefusal::held`]).
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a stored reference). The edit, load and save doors all
@@ -262,6 +262,14 @@ impl SpokenNode {
     #[must_use]
     pub fn label(&self) -> Option<&Label> {
         self.label.as_deref()
+    }
+
+    /// This node where the sentence knows what it is: as it was
+    /// spoken, or `<noun> <tag>` when its document did not hold it
+    /// ([`Speaker::node_as`]'s spelling).
+    #[must_use]
+    pub fn as_noun(&self, noun: &'static str) -> impl fmt::Display + use<> {
+        NodeAs(noun, Some(self.clone()))
     }
 
     /// **This node spoken again from `doc`, a later version of the
@@ -536,7 +544,8 @@ impl<P> HoldsNodes for Recording<'_, P> {
 /// **Every node `value`'s sentence names, as `doc` holds it now**
 /// ([`HeldNodes`]). The snapshot is as of now, so the value that keeps
 /// it is one no later label of `doc` reaches: a door's refusal, which
-/// is never memoized, or a part's fault, whose pin fixes the part.
+/// is never memoized, or a part's fault or carried row, whose pin
+/// fixes the part.
 #[must_use]
 pub fn held_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> HeldNodes {
     let recording = Recording {
