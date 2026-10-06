@@ -433,14 +433,14 @@ pub struct BatteryVerdict<T: Real> {
     /// it off the verdict instead of being told a second time.
     pub kind: BlendKind,
     /// The open-chain ends predicate 6 classified
-    /// [`CornerConfig::TransverseCap`] — every end of every RULED link,
-    /// sorted and deduplicated. The ruled band's plan
-    /// (`open::ruled::RuledPlan`) reads a link's
-    /// two ends off this list rather than re-deciding the cap; an end
-    /// missing from it is a verdict the body disagrees with. The
-    /// uniform trihedra the corner path carves are not listed: that
+    /// [`CornerConfig::EndFace`] — every end of every RULED link, and
+    /// every plane–plane end where the request names the link's edge
+    /// alone — sorted and deduplicated. The open bands' plans read a
+    /// link's cut-off ends off this list rather than re-deciding them;
+    /// an end missing from it is a verdict the body disagrees with. The
+    /// uniform trihedra the corner patch carves are not listed: that
     /// configuration has no tag of its own ([`corner_at`]).
-    pub transverse_caps: Vec<VertexKey>,
+    pub end_faces: Vec<VertexKey>,
 }
 
 /// A face's outward normal at `p`: the implicit gradient folded
@@ -1396,6 +1396,177 @@ pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
     chains
 }
 
+/// **Predicate 4 over one walked chain**: every junction judged by
+/// [`chain_g1`] at its own two carriers, returning the junctions (as
+/// positions in [`Chain::junctions`]) where two plane–plane links turn
+/// a DEFINITE corner. A definite turn at a junction involving a curved
+/// link refuses; an in-band reading escalates at either.
+///
+/// # Errors
+///
+/// [`BlendError::ChainNotG1`] at a curved junction,
+/// [`BlendError::Escalated`], and [`BlendError::ChainNotConnected`]
+/// when a link has no carrier.
+fn chain_turns<T: Decide + Bounds>(
+    body: &Body<T>,
+    chain: &Chain<T>,
+    band: Band,
+) -> Result<Vec<usize>, BlendError> {
+    let ring: Vec<&Link<T>> = chain.links().collect();
+    let mut turns = Vec::new();
+    for (at, j) in chain.junctions.iter().enumerate() {
+        let v = &j.vertex;
+        // The junction's two links are the ones the walk found
+        // incident to it; a record that names any other link is a
+        // walk defect, and this tripwire makes it loud in every
+        // build that keeps debug assertions rather than a verdict
+        // taken on a far-end tangent. The pin is the suites' rows,
+        // which read the record and the carve, not this line.
+        let (a, b) = (ring[j.arriving], ring[j.leaving]);
+        debug_assert!(
+            [a, b].iter().all(|l| l.start == *v || l.end == *v),
+            "a junction's two links both touch it: {j:?}"
+        );
+        let (Some((ca, ta0, ta1)), Some((cb, tb0, tb1))) =
+            (carrier_of(body, a.edge), carrier_of(body, b.edge))
+        else {
+            return Err(BlendError::ChainNotConnected { edge: a.edge });
+        };
+        // Tangents taken at the junction END of each carrier, so
+        // "not G1" means a genuine kink and not a parameterization
+        // artefact: on each side pick the parameter whose point is
+        // the junction vertex.
+        let tv = body
+            .get_vertex(*v)
+            .and_then(|x| body.get_point(x.point))
+            .copied();
+        let pick = |c: &Curve3<T>, t0: T, t1: T| -> Vec3<T> {
+            match tv {
+                Some(pt) => {
+                    let d0 = (c.eval(t0) - pt).norm();
+                    let d1 = (c.eval(t1) - pt).norm();
+                    // `min` is a total lattice op: no comparison
+                    // operator, no branch on a scalar the interval
+                    // lane cannot answer.
+                    if d0.min(d1).lo() == d0.lo() {
+                        -c.deriv(t0)
+                    } else {
+                        c.deriv(t1)
+                    }
+                }
+                None => c.deriv(t1),
+            }
+        };
+        match chain_g1(
+            pick(&ca, ta0, ta1),
+            pick(&cb, tb0, tb1),
+            a.arm_len.min(b.arm_len),
+            *v,
+            band,
+        ) {
+            Ok(()) => {}
+            Err(BlendError::ChainNotG1 { .. })
+                if a.arm.is_plane_plane() && b.arm.is_plane_plane() =>
+            {
+                turns.push(at);
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    // A SELF-CLOSED single link registers no junction: `walk_chains`
+    // counts its one vertex once, so the loop above has nothing to
+    // walk and the chain's own closure would go unmetered. The
+    // wrap-around is still a junction of the spine — the link's
+    // carrier arrives at its start vertex and leaves it again — so
+    // it is metered here, on the one link's own carrier endpoints:
+    // the tangent arriving at `t1` against the tangent leaving at
+    // `t0`, under the SAME predicate as every other junction. It is
+    // vacuously satisfied by a `Curve3::Circle` (the closed carrier
+    // this kernel mints today), and is the live check the day a
+    // closed NURBS carrier arrives with a kink at its seam.
+    if matches!(chain.closure, ChainClosure::Closed) && chain.junctions.is_empty() {
+        let l = chain.first();
+        if l.start == l.end {
+            let Some((c, t0, t1)) = carrier_of(body, l.edge) else {
+                return Err(BlendError::ChainNotConnected { edge: l.edge });
+            };
+            chain_g1(c.deriv(t1), c.deriv(t0), l.arm_len, l.start, band)?;
+        }
+    }
+    Ok(turns)
+}
+
+/// **Break a chain at its turns** — `turns` indexes
+/// [`Chain::junctions`] — into the runs between them, each an OPEN
+/// chain whose ends are the turn vertices (or the chain's own ends).
+/// The junctions inside a run keep their pairing, re-indexed to the
+/// run's own walk order. A closed chain with a turn opens there: its
+/// runs are read starting after its first turn, so the wrap-around
+/// junction, if it is not a turn, falls inside a run like any other.
+fn break_at_turns<T: Real>(chain: Chain<T>, turns: &[usize]) -> Vec<Chain<T>> {
+    if turns.is_empty() {
+        return vec![chain];
+    }
+    let n = chain.link_count();
+    let links: Vec<Link<T>> = chain.links().cloned().collect();
+    // Each turn ends the run its arriving link belongs to.
+    let turn_at = |arriving: usize| -> Option<VertexKey> {
+        turns
+            .iter()
+            .map(|&t| chain.junctions[t])
+            .find(|j| j.arriving == arriving)
+            .map(|j| j.vertex)
+    };
+    let (start, mut head) = match chain.closure {
+        ChainClosure::Open { head, .. } => (0, head),
+        ChainClosure::Closed => {
+            let first = chain.junctions[turns[0]];
+            (first.leaving, first.vertex)
+        }
+    };
+    let mut runs: Vec<(Vec<usize>, VertexKey, VertexKey)> = Vec::new();
+    let mut run: Vec<usize> = Vec::new();
+    for step in 0..n {
+        let i = (start + step) % n;
+        run.push(i);
+        if let Some(v) = turn_at(i) {
+            runs.push((core::mem::take(&mut run), head, v));
+            head = v;
+        }
+    }
+    if let ChainClosure::Open { tail, .. } = chain.closure {
+        runs.push((run, head, tail));
+    } else {
+        // A closed chain's walk starts after a turn and so ends on one.
+        debug_assert!(run.is_empty(), "a closed chain's runs end at turns");
+    }
+    runs.into_iter()
+        .filter_map(|(run, head, tail)| {
+            let (&first, rest) = run.split_first()?;
+            let position = |i: usize| run.iter().position(|&k| k == i);
+            let mut junctions: Vec<Junction> = chain
+                .junctions
+                .iter()
+                .filter_map(|j| {
+                    Some(Junction {
+                        vertex: j.vertex,
+                        arriving: position(j.arriving)?,
+                        leaving: position(j.leaving)?,
+                    })
+                })
+                .filter(|j| j.leaving == j.arriving + 1)
+                .collect();
+            junctions.sort_by_key(|j| j.arriving);
+            Some(Chain::new(
+                links[first].clone(),
+                rest.iter().map(|&i| links[i].clone()).collect(),
+                junctions,
+                ChainClosure::Open { head, tail },
+            ))
+        })
+        .collect()
+}
+
 /// **Run the battery** — C8's six predicates over the request's
 /// inputs, in C8's order, before any construction.
 ///
@@ -1480,81 +1651,17 @@ pub fn run_battery_for<T: Decide + Bounds>(
 
     // --- 4. chain G1 closure (closed) / termination (open). The
     // junctions the walk recorded are exactly the vertices where two
-    // requested links meet; every other chain end goes to predicate 6.
-    for chain in &chains {
-        let ring: Vec<&Link<T>> = chain.links().collect();
-        for j in &chain.junctions {
-            let v = &j.vertex;
-            // The junction's two links are the ones the walk found
-            // incident to it; a record that names any other link is a
-            // walk defect, and this tripwire makes it loud in every
-            // build that keeps debug assertions rather than a verdict
-            // taken on a far-end tangent. The pin is the suites' rows,
-            // which read the record and the carve, not this line.
-            let (a, b) = (ring[j.arriving], ring[j.leaving]);
-            debug_assert!(
-                [a, b].iter().all(|l| l.start == *v || l.end == *v),
-                "a junction's two links both touch it: {j:?}"
-            );
-            let (Some((ca, ta0, ta1)), Some((cb, tb0, tb1))) =
-                (carrier_of(body, a.edge), carrier_of(body, b.edge))
-            else {
-                return Err(BlendError::ChainNotConnected { edge: a.edge });
-            };
-            // Tangents taken at the junction END of each carrier, so
-            // "not G1" means a genuine kink and not a parameterization
-            // artefact: on each side pick the parameter whose point is
-            // the junction vertex.
-            let tv = body
-                .get_vertex(*v)
-                .and_then(|x| body.get_point(x.point))
-                .copied();
-            let pick = |c: &Curve3<T>, t0: T, t1: T| -> Vec3<T> {
-                match tv {
-                    Some(pt) => {
-                        let d0 = (c.eval(t0) - pt).norm();
-                        let d1 = (c.eval(t1) - pt).norm();
-                        // `min` is a total lattice op: no comparison
-                        // operator, no branch on a scalar the interval
-                        // lane cannot answer.
-                        if d0.min(d1).lo() == d0.lo() {
-                            -c.deriv(t0)
-                        } else {
-                            c.deriv(t1)
-                        }
-                    }
-                    None => c.deriv(t1),
-                }
-            };
-            chain_g1(
-                pick(&ca, ta0, ta1),
-                pick(&cb, tb0, tb1),
-                a.arm_len.min(b.arm_len),
-                *v,
-                band,
-            )?;
-        }
-        // A SELF-CLOSED single link registers no junction: `walk_chains`
-        // counts its one vertex once, so the loop above has nothing to
-        // walk and the chain's own closure would go unmetered. The
-        // wrap-around is still a junction of the spine — the link's
-        // carrier arrives at its start vertex and leaves it again — so
-        // it is metered here, on the one link's own carrier endpoints:
-        // the tangent arriving at `t1` against the tangent leaving at
-        // `t0`, under the SAME predicate as every other junction. It is
-        // vacuously satisfied by a `Curve3::Circle` (the closed carrier
-        // this kernel mints today), and is the live check the day a
-        // closed NURBS carrier arrives with a kink at its seam.
-        if matches!(chain.closure, ChainClosure::Closed) && chain.junctions.is_empty() {
-            let l = chain.first();
-            if l.start == l.end {
-                let Some((c, t0, t1)) = carrier_of(body, l.edge) else {
-                    return Err(BlendError::ChainNotConnected { edge: l.edge });
-                };
-                chain_g1(c.deriv(t1), c.deriv(t0), l.arm_len, l.start, band)?;
-            }
-        }
+    // requested links meet. Between two plane–plane links the predicate
+    // CLASSIFIES: Zero, one band runs through; definite, the chain
+    // breaks there into two ends, which predicate 6 judges with every
+    // other chain end; in band, it escalates. At a junction involving a
+    // curved link a definite turn refuses.
+    let mut broken: Vec<Chain<T>> = Vec::with_capacity(chains.len());
+    for chain in chains {
+        let turns = chain_turns(body, &chain, band)?;
+        broken.extend(break_at_turns(chain, &turns));
     }
+    let chains = broken;
 
     // --- 5. convexity-sign consistency along each chain (the
     // per-link sign was decided during resolution; here it must AGREE
@@ -1584,28 +1691,29 @@ pub fn run_battery_for<T: Decide + Bounds>(
     }
 
     // --- 6. corner configuration at every OPEN chain's two ends. Each
-    // end is judged beside the link that reaches it: a ruled link's
-    // ends are transverse caps, a planar link's are corners.
-    let mut transverse_caps = Vec::new();
+    // end is judged beside the link that reaches it and against the
+    // request, whose count of the vertex's edges decides the end.
+    let mut end_faces = Vec::new();
     for chain in &chains {
         if let ChainClosure::Open { head, tail } = chain.closure {
             let last = chain.rest().last().unwrap_or(chain.first());
             for (v, link) in [(head, chain.first()), (tail, last)] {
-                if let Some(CornerConfig::TransverseCap) = corner_at(body, v, link, r, band, kind)?
+                if let Some(CornerConfig::EndFace) =
+                    corner_at(body, v, link, &req.edges, r, band, kind)?
                 {
-                    transverse_caps.push(v);
+                    end_faces.push(v);
                 }
             }
         }
     }
-    transverse_caps.sort_unstable();
-    transverse_caps.dedup();
+    end_faces.sort_unstable();
+    end_faces.dedup();
 
     Ok(BatteryVerdict {
         chains,
         size: req.size,
         kind,
-        transverse_caps,
+        end_faces,
     })
 }
 
@@ -1718,12 +1826,21 @@ fn is_seam_vertex<T: Decide>(
 }
 
 /// The refusal for a ruled link's end that is not a transverse cap —
-/// an oblique cap, or a curved end face. Both are run-outs the
-/// mid-curve taxonomy reserves, not corner configurations, so they
-/// carry the run-out vocabulary and the corner recourse's "general
-/// run-outs" clause.
+/// an oblique cap, or a curved end face. Both are run-outs, not corner
+/// configurations, so they carry the run-out vocabulary and the corner
+/// recourse's residue.
 pub const RULED_END_NOT_TRANSVERSE: &str =
     "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling";
+
+/// The refusal for a plane–plane fillet's cut-off at a plane end face
+/// oblique to its edge: the band's section there is an ellipse, which
+/// the cut-off does not build.
+pub const PLANAR_FILLET_END_OBLIQUE: &str = "a round band's edge ends at a plane end face \
+     oblique to it, where its section is an ellipse, which is not built";
+
+/// The refusal for a plane–plane band's cut-off at a curved end face.
+pub const PLANAR_END_FACE_CURVED: &str = "a plane–plane band's edge ends at a curved end face; \
+     the cut-off is built in a plane end face only";
 
 /// **`fillet3_cap_transverse`** — does a ruled link's end face lie
 /// perpendicular to the band's ruling, so the band can be cut off in
@@ -1758,6 +1875,29 @@ pub fn cap_transverse<T: Decide + Bounds>(
     lever: T,
     band: Band,
 ) -> Result<(), BlendError> {
+    if end_face_transverse(vertex, cap_normal, ruling, lever, band)? {
+        return Ok(());
+    }
+    Err(super::surgery::unbuilt_run_out(
+        EntityId::Vertex(vertex),
+        RULED_END_NOT_TRANSVERSE,
+    ))
+}
+
+/// [`cap_transverse`]'s decision, answered rather than refused: `true`
+/// where the end face is perpendicular to the spine, so each band
+/// refuses a definite departure in its own words.
+///
+/// # Errors
+///
+/// [`BlendError::Escalated`] on an in-band departure.
+fn end_face_transverse<T: Decide + Bounds>(
+    vertex: VertexKey,
+    cap_normal: Vec3<T>,
+    ruling: Vec3<T>,
+    lever: T,
+    band: Band,
+) -> Result<bool, BlendError> {
     let margin = Margin::levered(
         cap_normal.normalize().cross(ruling.normalize()).norm(),
         lever,
@@ -1768,11 +1908,8 @@ pub fn cap_transverse<T: Decide + Bounds>(
         margin,
         band,
     )? {
-        Sign::Zero => Ok(()),
-        _ => Err(super::surgery::unbuilt_run_out(
-            EntityId::Vertex(vertex),
-            RULED_END_NOT_TRANSVERSE,
-        )),
+        Sign::Zero => Ok(true),
+        _ => Ok(false),
     }
 }
 
@@ -1830,21 +1967,25 @@ pub(super) fn cap_incidence<T: Decide>(
 }
 
 /// Predicate 6 at one termination vertex, beside the link that reaches
-/// it, returning the CARVED configuration it classified: a RULED
-/// link's end must be a transverse cap — decided by [`cap_transverse`]
-/// and returned as [`CornerConfig::TransverseCap`], the tag the verdict
-/// carries for `open::ruled::RuledPlan` to read — and any other link's
-/// end is classified as a corner: gather valence, per-edge convexity,
-/// and the three support normals, then classify. A uniform trihedron
-/// that passes returns `None`: the carved trihedral configuration has
-/// no tag of its own ([`CornerConfig::ThreeConvexEdges`] names the
-/// convex one and no name exists for the concave one — evgunter/cad
-/// issue 1355), so it is the ONE carved configuration the battery
-/// admits without tagging.
+/// it and against the `requested` edges, returning the CARVED
+/// configuration it classified. A RULED link's end must be a transverse
+/// cap — decided by [`cap_transverse`] and returned as
+/// [`CornerConfig::EndFace`], the tag the verdict carries for the open
+/// bands' plans to read. Any other link's end is classified as a
+/// trivalent vertex of one convexity with independent support normals,
+/// and then by how many of its three edges the request names: all
+/// three, the corner patch; two, the [`CornerConfig::Turn`], refused;
+/// one, [`CornerConfig::EndFace`] — its end face a plane, and under a
+/// fillet perpendicular to the edge. The uniform trihedron returns
+/// `None`: the carved trihedral configuration has no tag of its own
+/// ([`CornerConfig::ThreeConvexEdges`] names the convex one and no name
+/// exists for the concave one — evgunter/cad issue 1355), so it is the
+/// ONE carved configuration the battery admits without tagging.
 fn corner_at<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
     link: &Link<T>,
+    requested: &[EdgeKey],
     radius: T,
     band: Band,
     kind: BlendKind,
@@ -1909,7 +2050,7 @@ fn corner_at<T: Decide + Bounds>(
             return Err(indeterminate());
         };
         cap_transverse(vertex, *normal, axis, link.arm_len, band)?;
-        return Ok(Some(CornerConfig::TransverseCap));
+        return Ok(Some(CornerConfig::EndFace));
     }
     if valence != 3 {
         return corner_config(
@@ -1922,12 +2063,43 @@ fn corner_at<T: Decide + Bounds>(
         )
         .map(|()| None);
     }
+    // Between planes, how many of the three edges the request names
+    // decides the end; the link's own edge is one of them. Any other
+    // band's end is judged as a corner alone, and the surgery's door
+    // says what it builds.
+    let plane_plane = link.arm.is_plane_plane();
+    let named = edges.iter().filter(|e| requested.contains(e)).count();
+    // One: the cut-off. Its end face's SHAPE is the end's own fact, read
+    // before the neighbours are resolved as links — a curved end face's
+    // rims need not have an arm, and the refusal is the end's, not a
+    // neighbour's.
+    let end_normal = if plane_plane && named == 1 {
+        // `None` only at a non-manifold vertex or a stale key
+        // (`cap_incidence`).
+        let Some((_, _, end)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
+        else {
+            return Err(not_intact(
+                EntityId::Vertex(vertex),
+                "a chain end's three faces do not meet as two supports and an end face",
+            ));
+        };
+        let Some(Surface::Plane { normal, .. }) =
+            body.get_face(end).and_then(|f| body.get_surface(f.surface))
+        else {
+            return Err(super::surgery::unbuilt_run_out(
+                EntityId::Vertex(vertex),
+                PLANAR_END_FACE_CURVED,
+            ));
+        };
+        Some(*normal)
+    } else {
+        None
+    };
     let mut convex = 0usize;
     let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
     let mut faces: Vec<FaceKey> = Vec::new();
-    for (i, e) in edges.iter().enumerate() {
-        let link = resolve_link(body, *e, radius, band, kind);
-        match link {
+    for e in &edges {
+        match resolve_link(body, *e, radius, band, kind) {
             Ok(l) => {
                 if matches!(l.convexity, Convexity::Convex) {
                     convex += 1;
@@ -1937,7 +2109,6 @@ fn corner_at<T: Decide + Bounds>(
                         faces.push(f);
                     }
                 }
-                let _ = i;
             }
             // An edge at the corner whose own supports are out of the
             // arms' scope makes the CORNER unclassifiable — reported
@@ -1982,7 +2153,38 @@ fn corner_at<T: Decide + Bounds>(
             )
         })?;
     }
-    corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)
+    corner_config(vertex, valence, convex, normals, radius, band)?;
+    if !plane_plane {
+        return Ok(None);
+    }
+    match (named, end_normal) {
+        (3, _) => Ok(None),
+        (2, _) => Err(super::surgery::unbuilt_corner_config(
+            vertex,
+            CornerConfig::Turn,
+        )),
+        (1, Some(normal)) => {
+            // A cylinder band's section by the end face is a circle
+            // only where the face is perpendicular to the spine; a
+            // plane band's is a chord at any angle.
+            if let BlendKind::Fillet = kind {
+                let Surface::Cylinder { axis, .. } = link.blend.surface else {
+                    return Err(indeterminate());
+                };
+                if !end_face_transverse(vertex, normal, axis, link.arm_len, band)? {
+                    return Err(super::surgery::unbuilt_run_out(
+                        EntityId::Vertex(vertex),
+                        PLANAR_FILLET_END_OBLIQUE,
+                    ));
+                }
+            }
+            Ok(Some(CornerConfig::EndFace))
+        }
+        _ => Err(not_intact(
+            EntityId::Vertex(vertex),
+            "a chain end's edge fan does not carry the requested link that reaches it",
+        )),
+    }
 }
 
 /// **What a junction of an open chain is**, read once for every reader:

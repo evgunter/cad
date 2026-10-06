@@ -1,17 +1,27 @@
 //! **The planar open band** — the blank phase: a plane–plane link
-//! carved in place between two trivalent corners whose three edges are
-//! all requested, and the corner patches that terminate it — the
-//! fillet's sphere octant or the chamfer's flat patch through the three
-//! trimline feet ([`corner_plan`]). Per support face one strut `mev` per
-//! boundary vertex and one trimline `mef` per blended edge carve the
-//! face into the SHRUNK face plus one strip per edge; per edge one `kef`
-//! merges the two strips across the dying sharp edge; per corner three
-//! arc `mef`s, two `kef`s and one `kev` fuse the corner triangles into
-//! the patch and retire the struts and the sharp vertex; per joint (two
-//! links of one chain on the same two supports, [`Joint`]) one `kef`
-//! and one `kev` fuse the two links' strips into one band face and
-//! retire the joint vertex, leaving its two feet on the band's
-//! trimlines.
+//! carved LOCALLY on its two support faces, each of its two ends a
+//! trivalent vertex of one convexity whose edges the request names
+//! either all — the corner patch, the fillet's sphere octant or the
+//! chamfer's flat patch through the three trimline feet
+//! ([`corner_plan`]) — or one: the cut-off in the plane end face
+//! ([`cut_off_plan`], [`super::end_face`]).
+//!
+//! The carve: per cut-off, its first step — both rims split at their
+//! feet and the end curve `mef`'d across the end face. Per support face,
+//! one strut `mev` at each corner or joint station of its requested
+//! edges, and one trimline `mef` per requested edge between the feet at
+//! its two stations, carving the face into the SHRUNK face — every edge
+//! the request does not name kept where it was — plus one strip per
+//! requested edge. Per edge one `kef` merges the two strips across the
+//! dying sharp edge; per corner three arc `mef`s, two `kef`s and one
+//! `kev` fuse the corner triangles into the patch and retire the struts
+//! and the sharp vertex; per cut-off its last step folds the sliver into
+//! the band and retires the old vertex; per joint (two links of one
+//! chain on the same two supports, [`Joint`]) one `kef` and one `kev`
+//! fuse the two links' strips into one band face and retire the joint
+//! vertex, leaving its two feet on the band's trimlines. A face whose
+//! every boundary edge is requested is the case where every vertex of
+//! its cycle is a station, and the carve takes nothing else from it.
 //!
 //! The other open band is [`super::ruled`]; what the two share, and the
 //! seam both rest on, is stated at [`super`].
@@ -25,6 +35,7 @@ use topo::{
     VertexKey,
 };
 
+use super::end_face::{CutRims, EndCurve, EndCut, cut_off, fold_sliver};
 use crate::blend::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary,
 };
@@ -34,7 +45,7 @@ use crate::blend::build::{octant_chart, outward_of};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, ContactCarrier, Described, SourceFaces, chord_site, face_of_half,
-    halves_of, not_intact, op, point_of, unbuilt_chain, unbuilt_geometry, unbuilt_run_out,
+    halves_of, not_intact, op, open_trimline, point_of, unbuilt_geometry, unbuilt_run_out,
 };
 use crate::blend::{BlendError, BlendKind};
 
@@ -287,17 +298,81 @@ pub(in crate::blend) fn joint_plan<'a, T: Decide>(
     Ok(JointPlan { joint, feet })
 }
 
+/// One cut-off end of a planar band, planned: the link that ends there
+/// and the end ([`EndCut`]).
+pub(in crate::blend) struct CutOffPlan<'a, T: Real> {
+    pub(in crate::blend) link: AdmittedOpen<'a, T>,
+    pub(in crate::blend) end: EndCut<T>,
+}
+
+/// Plan the cut-off of `link` at `vertex`: each support's trimline
+/// carried along itself to the end face — a chord for a chamfer, and for
+/// a fillet the arc about the spine's crossing (the battery admitted the
+/// end only where the end face is perpendicular to the spine).
+///
+/// # Errors
+///
+/// [`EndCut::plan`]'s, and [`BlendError::UnsupportedGeometry`] when a
+/// trimline is not a line or a fillet's band is not a cylinder.
+pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
+    body: &Body<T>,
+    link: AdmittedOpen<'a, T>,
+    vertex: VertexKey,
+    kind: BlendKind,
+) -> Result<CutOffPlan<'a, T>, BlendError> {
+    let l = link.link();
+    let (q_a, along) = open_trimline(l, l.face_a)?;
+    let (q_b, _) = open_trimline(l, l.face_b)?;
+    let curve = match (kind, &l.blend.surface) {
+        (BlendKind::Chamfer, _) => EndCurve::Chord,
+        (BlendKind::Fillet, Surface::Cylinder { origin, radius, .. }) => EndCurve::Arc {
+            center: *origin,
+            radius: *radius,
+        },
+        (BlendKind::Fillet, _) => {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(l.edge),
+                "a plane–plane fillet's band is not a cylinder about its edge",
+            ));
+        }
+    };
+    let end = EndCut::plan(
+        body,
+        vertex,
+        l.edge,
+        (l.face_a, l.face_b),
+        (q_a, q_b),
+        along,
+        curve,
+        link.convexity(),
+    )?;
+    Ok(CutOffPlan { link, end })
+}
+
 /// **What the plan read for the blank carve**, in one value because the
-/// four are one reading of one source body and travel together: the
-/// PLANAR open bands and their links, the corners their ends terminate
-/// at, the joints inside them, and the support faces they are carved
-/// along.
+/// five are one reading of one source body and travel together: the
+/// PLANAR open bands and their links, the corners and cut-offs their
+/// ends terminate at, the joints inside them, and the support faces they
+/// are carved along.
 pub(in crate::blend) struct BlankPlan<'a, T: Real> {
     pub(in crate::blend) bands: &'a [&'a OpenBand<'a, T>],
     pub(in crate::blend) opens: &'a [AdmittedOpen<'a, T>],
     pub(in crate::blend) corners: &'a [Corner<'a, T>],
+    pub(in crate::blend) cut_offs: &'a [CutOffPlan<'a, T>],
     pub(in crate::blend) joints: &'a [JointPlan<'a, T>],
     pub(in crate::blend) supports: &'a [RequestedBoundary<T>],
+}
+
+/// The one half-edge of `face`'s cycles that starts at `foot` — where a
+/// trimline chord hangs. Read LIVE: each chord splits the face under it,
+/// and a foot of valence one or two meets the shrinking face once.
+fn half_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    foot: VertexKey,
+) -> Result<HalfEdgeKey, BlendError> {
+    let (he, _, _, _) = chord_site(body, face, |row| row.1 == foot, 0, 0)?;
+    Ok(he)
 }
 
 #[allow(clippy::type_complexity)]
@@ -309,19 +384,20 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     tol: Tol,
     kind: BlendKind,
 ) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), BlendError> {
-    let (bands, opens, corners, joints, supports) = (
+    let (bands, opens, corners, cut_offs, joints, supports) = (
         plan.bands,
         plan.opens,
         plan.corners,
+        plan.cut_offs,
         plan.joints,
         plan.supports,
     );
-    // The carve is one shape for both verbs — struts to the feet,
-    // trimline chords between them, a kef per link, three corner
-    // chords and the fusion. What differs is what each new edge IS:
-    // the fillet's band touches its supports tangentially and turns
-    // its corner on an arc; the chamfer's meets them at an angle and
-    // closes its corner on a chord.
+    // The carve is one shape for both verbs — feet, trimline chords
+    // between them, a kef per link, the corner fusion and the cut-offs'
+    // folds. What differs is what each new edge IS: the fillet's band
+    // touches its supports tangentially, turns its corner on an arc and
+    // ends in an arc; the chamfer's meets them at an angle and closes
+    // its corner and its ends on chords.
     let trim_carrier = || match kind {
         BlendKind::Fillet => ContactCarrier::TrimLine,
         BlendKind::Chamfer => ContactCarrier::Chord,
@@ -330,12 +406,34 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     if opens.is_empty() {
         return Ok((Vec::new(), Vec::new(), described));
     }
+    // Per (station vertex, support face): the foot vertex the carve
+    // landed there — a strut's far end or a split rim's new vertex.
+    let mut foot_of: Vec<(VertexKey, FaceKey, VertexKey)> = Vec::new();
+    let foot_at = |foot_of: &[(VertexKey, FaceKey, VertexKey)], v: VertexKey, f: FaceKey| {
+        foot_of
+            .iter()
+            .find(|(vv, ff, _)| *vv == v && *ff == f)
+            .map(|(_, _, x)| *x)
+            .ok_or_else(|| not_intact(EntityId::Vertex(v), "a station's foot on its support"))
+    };
 
-    // ---- Per support face: struts at every boundary vertex, then a
-    // trimline chord per boundary edge. The boundary each face is
-    // carved along was walked, admitted and footed in the plan phase
-    // ([`RequestedBoundary`]) — so this loop reads no source geometry
-    // and has no coverage refusal of its own to make. ----
+    // ---- Per cut-off: both rims split at their feet and the end curve
+    // `mef`'d across the end face ([`cut_off`]). ----
+    let mut cuts: Vec<CutRims> = Vec::with_capacity(cut_offs.len());
+    for c in cut_offs {
+        let l = c.link.link();
+        let (rims, row) = cut_off(body, &c.end, l.edge, (l.face_a, l.face_b), rec, tol)?;
+        described.push(row);
+        foot_of.push((c.end.vertex, l.face_a, rims.a.vertex));
+        foot_of.push((c.end.vertex, l.face_b, rims.b.vertex));
+        cuts.push(rims);
+    }
+
+    // ---- Per support face: a strut at every corner and joint station,
+    // then a trimline chord per requested edge between its two feet. The
+    // stations and the edges were walked, admitted and footed in the
+    // plan phase ([`RequestedBoundary`]) — so this loop reads no source
+    // geometry and has no coverage refusal of its own to make. ----
     // Per (edge, face): the half-edge of the edge now inside that
     // face's strip (for the kef), keyed structurally.
     let mut strip_half: Vec<(EdgeKey, FaceKey, HalfEdgeKey)> = Vec::new();
@@ -343,10 +441,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut strut_of: Vec<(VertexKey, FaceKey, EdgeKey)> = Vec::new();
     for support in supports {
         let f = support.face();
-        let walk = support.stations();
-        let n = walk.len();
-        let mut struts = Vec::with_capacity(n);
-        for station in walk {
+        for station in support.stations().iter().filter(|s| s.strut) {
             let v = station.vertex;
             let p = *body
                 .get_vertex(v)
@@ -354,41 +449,23 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                 .ok_or_else(|| not_intact(EntityId::Vertex(v), "a support boundary vertex"))?;
             let fp = station.foot;
             // **NOT re-described at rest, and that is a REPORTED
-            // finding rather than an oversight** (P-1b, #1116; the
-            // CAUSE below is corrected — the first version of this
-            // comment misread it).
+            // finding rather than an oversight** (P-1b, #1116).
             //
-            // The standing reason: this strut is a straight CHORD
-            // between two points of the support surface, so on a
-            // CURVED support it is a secant — it does not lie on the
-            // surface its two faces share, and no chart image of that
-            // surface describes it. It therefore reaches rest through
-            // the scaffolding door and tier 3's transience fence names
-            // it, on a body whose edge genuinely is not where its
-            // faces are. The fix is fillet-verb work (put the strut ON
-            // the support), not a description change, so it is not
-            // taken here. An independent interval A/B reproduced the
-            // escalation exactly, so declining stands.
+            // This strut is a straight CHORD between two points of the
+            // support surface, so on a CURVED support it is a secant —
+            // it does not lie on the surface its two faces share, and
+            // no chart image of that surface describes it. It therefore
+            // reaches rest through the scaffolding door and tier 3's
+            // transience fence names it. The fix is fillet-verb work
+            // (put the strut ON the support), not a description change.
             //
-            // **What was recorded wrongly.** This said stating the
-            // image "makes `ChartResidual` escalate at ε = 1e-6 on the
-            // die fixture, which is the geometry saying so". It is
-            // not the geometry saying anything. The escalation carries
-            // `margin: Invalid`, which is the kernel's POISON outcome
-            // — *the question was never validly posed* — and not a
-            // distance that came out too large. On the die's PLANAR
-            // support the f64 residual is exactly `0e0`: the chord
-            // between two points of a plane lies in that plane, so
-            // there is no disagreement there to report. Reading a
-            // poison verdict as a measurement is the specific mistake,
-            // and it is worth naming because poison and
-            // "definitely too big" are reported through the same
-            // escalation door and read identically at a glance.
-            //
-            // The CLASS — poison reaching this predicate at all — is
-            // #1143 and M10 owns it. What stays here is the mechanism
-            // question this site is the witness for: where poison
-            // enters `pcurve_map_residual` on a secant input.
+            // An escalation stating the image once carried `margin:
+            // Invalid` — the kernel's POISON outcome, the question never
+            // validly posed — not a distance too large: on a PLANAR
+            // support the f64 residual is exactly `0e0`. The class,
+            // poison reaching the predicate at all, is #1143 and M10's;
+            // this site is the witness for where poison enters
+            // `pcurve_map_residual` on a secant input.
             let created = body
                 .mev(
                     MevSite::Fan {
@@ -402,37 +479,35 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                 .map_err(|e| op("strut mev", e))?;
             strut_of.push((v, f, created.edge));
             rec.feet.push((created.vertex, v, f));
-            struts.push((created.he_minus, fp));
+            foot_of.push((v, f, created.vertex));
         }
-        let mut first_trim: Option<HalfEdgeKey> = None;
-        for i in 0..n {
-            let (he1, fp_i) = struts[i];
-            let he2 = if i + 1 < n {
-                struts[i + 1].0
-            } else {
-                first_trim.ok_or_else(|| {
-                    unbuilt_chain(
-                        walk[i].edge,
-                        "a support face with a single boundary edge is not implemented",
-                    )
-                })?
-            };
-            let fp_j = struts[(i + 1) % n].1;
+        for chord in support.chords() {
+            // The strip is the run from the foot at `from` through the
+            // edge to the foot at `to` (`MefSite::Chords` moves `he1`'s
+            // side onto the new face), so the support keeps its key.
+            let (x, y) = (
+                foot_at(&foot_of, chord.from, f)?,
+                foot_at(&foot_of, chord.to, f)?,
+            );
+            let (he1, he2) = (half_from(body, f, x)?, half_from(body, f, y)?);
+            let (px, py) = (
+                point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a foot"))?,
+                point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a foot"))?,
+            );
             let created = body
                 .mef(
                     MefSite::Chords { he1, he2 },
-                    EdgeCurveSpec::line_between(fp_i, fp_j),
+                    EdgeCurveSpec::line_between(px, py),
                     FaceSurface::Inherit,
                     tol,
                 )
                 .map_err(|e| op("trimline mef", e))?;
-            first_trim.get_or_insert(created.he_plus);
-            described.push((created.edge, trim_carrier(), walk[i].edge));
-            // The chord runs foot(start of walk[i]) → foot(start of
-            // walk[i+1]): it parallels walk[i]'s own source edge, in
-            // this support face. Birth data, straight off the plan.
-            rec.trims.push((created.edge, walk[i].edge, f));
-            strip_half.push((walk[i].edge, f, walk[i].half_edge));
+            described.push((created.edge, trim_carrier(), chord.edge));
+            // The chord runs foot(from) → foot(to): it parallels its
+            // own source edge, in this support face. Birth data,
+            // straight off the plan.
+            rec.trims.push((created.edge, chord.edge, f));
+            strip_half.push((chord.edge, f, chord.half_edge));
         }
     }
 
@@ -627,6 +702,15 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         rec.corners.push((patch, vertex));
         rec.dead.vertices.push(vertex);
         corner_faces.push(patch);
+    }
+
+    // ---- Per cut-off: fold the sliver into the band ([`fold_sliver`]),
+    // before the joints' kefs retire any link's merged strip loop. ----
+    for (c, rims) in cut_offs.iter().zip(&cuts) {
+        let e = c.link.edge();
+        let band = hex_face(body, e)
+            .ok_or_else(|| not_intact(EntityId::Edge(e), "a merged strip's face"))?;
+        fold_sliver(body, sources, band, c.end.vertex, rims, rec, tol)?;
     }
 
     // ---- Per joint: fuse the two links' strips into one band face.

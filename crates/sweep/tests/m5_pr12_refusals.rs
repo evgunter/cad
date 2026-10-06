@@ -219,22 +219,20 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
     }
 }
 
-/// `CornerConfig::Indeterminate` on a real body: a plane–plane chain
-/// that TERMINATES at a vertex whose third incident edge is
-/// plane–cylinder. The chain's own links resolve; the corner does
-/// not — and the refusal lands at the CORNER rather than blaming the
-/// neighbouring edge, which is the reporting rule under test.
+/// A plane–plane chain that TERMINATES at a vertex whose third face is
+/// curved: on a partial spool, a cap edge between two planes ending
+/// where the TORUS wall's meridian arrives. Its end face is that wall,
+/// and the end face's SHAPE is read before the neighbours are resolved
+/// as links, so the refusal is the run-out the end owes — a curved end
+/// face — and not `CornerConfig::Indeterminate` for the neighbour no
+/// arm resolves, which this body used to witness (work item
+/// `corner-config-indeterminate-has-no-real-body-witness`).
 #[test]
-fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
-    // A PARTIAL revolve of the spool: its sweep-end caps are planar, and
-    // a planar chain on one of them terminates where the TORUS wall's
-    // meridian arrives — an edge no analytic arm resolves, which makes
-    // the CORNER unclassifiable rather than that edge's own refusal.
+fn a_planar_chain_ending_at_a_curved_neighbour_refuses_its_curved_end_face() {
     let body = sweep::test_support::spool(sweep::Revolution::Partial(1.0), tol());
-    // A cap edge whose two supports are both planes.
-    let planar = body
+    let planar: Vec<_> = body
         .edges()
-        .find(|(_, e)| {
+        .filter(|(_, e)| {
             [e.he_plus, e.he_minus].iter().all(|he| {
                 body.get_half_edge(*he)
                     .and_then(|h| body.get_loop(h.parent_loop))
@@ -243,28 +241,22 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
                     .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
             })
         })
-        .map(|(k, _)| k);
-    let mut saw = false;
-    for (k, _) in body.edges() {
+        .map(|(k, _)| k)
+        .collect();
+    assert!(!planar.is_empty(), "the partial spool has planar cap edges");
+    for k in planar {
         let req = BlendRequest {
             body: &body,
             edges: vec![k],
             size: 0.05,
         };
-        if let Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::Indeterminate,
-            policy,
-            ..
-        }) = run_battery(&req, band())
-        {
-            assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex));
-            saw = true;
+        match run_battery(&req, band()) {
+            Err(BlendError::UnsupportedRunOut { detail, .. }) => {
+                assert_eq!(detail, sweep::blend::battery::PLANAR_END_FACE_CURVED);
+            }
+            other => panic!("a planar cap edge ends at the torus wall, got {other:?}"),
         }
     }
-    assert!(
-        planar.is_some() && saw,
-        "the partial spool has a planar chain terminating at a torus neighbour"
-    );
 }
 
 /// The canal-surface lane's front door: a plane–TORUS support pair is
@@ -466,7 +458,7 @@ fn trio_chain_g1() {
     // In band: a kink whose sin θ · arm sits inside the band.
     let tiny = in_band();
     let escalated = chain_g1(x, Vec3::new(1.0, tiny, 0.0), 1.0, v, b).unwrap_err();
-    assert_same_recourse(&definite, &escalated, "tangent-continuous chain");
+    assert_same_recourse(&definite, &escalated, "tangent-continuous wherever");
     // The arm gate: an angle at an arm decided zero is not a question.
     let collapsed = chain_g1(x, y, 0.0, v, b).unwrap_err();
     match &collapsed {
@@ -482,7 +474,7 @@ fn trio_chain_g1() {
     // one its gated predicate's definite refusal carries: a caller
     // whose junction arm collapsed and a caller whose junction kinked
     // both need a chain the door can take.
-    assert_same_recourse(&definite, &collapsed, "tangent-continuous chain");
+    assert_same_recourse(&definite, &collapsed, "tangent-continuous wherever");
 }
 
 #[test]

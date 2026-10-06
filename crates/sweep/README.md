@@ -153,9 +153,10 @@ exactly when the trim CONTAINS it, metered before any mutation under
 pass, which meters every ring of every touched support face against
 every blend trimline in closed form, every other outer-boundary edge
 of a closed rim's supports — one requested in the same call at its own
-trim — against that support's trim, and every edge
-a convex ruled cut-off leaves on its cap against the sliver it
-removes). A merged cap that is an ANNULUS
+trim — against that support's trim, every edge a convex cut-off
+leaves on its end face against the sliver it removes, and every
+outer-boundary edge a planar band's local carve leaves on a support
+against the strip it removes). A merged cap that is an ANNULUS
 therefore carves on both its rims, one call each. A CURVED single face
 carrying every arc is authorable through `topo`'s `kef` and refuses at
 the half-band gate on both routes
@@ -246,7 +247,8 @@ band ends in that plane's section of it, an exact stored arc of the
 band's radius about the spine's crossing
 (`RunOutPolicy::CutOffAtEndFace`; `CornerConfig::policy` maps
 the tag). The carve (`blend/open/ruled.rs`, beside the planar band's
-`blend/open/planar.rs`; the rim phases stay in `blend/surgery.rs`)
+`blend/open/planar.rs`, both cutting off through `blend/open/end_face.rs`;
+the rim phases stay in `blend/surgery.rs`)
 mints no strut: the cap's two
 rim edges are split at the trimlines' feet, the arc is `mef`'d across
 the cap, one trimline `mef` per support carves its strip along the

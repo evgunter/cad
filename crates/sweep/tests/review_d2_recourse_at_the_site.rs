@@ -62,18 +62,15 @@ fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
     }
 }
 
-/// **The finding's own complaint, through the front door.** A cube
-/// with one edge requested leaves its two corners partly requested —
-/// a run-out. Before #740 the user was handed the ASSEMBLY recourse
-/// ("…single plane–plane links ending at fully-requested
-/// trivalent corners…") for it. This row goes red if any site on that
-/// path ever re-attaches it.
+/// **The finding's own complaint, through the front door.** An edge
+/// ending at a curved end face is a run-out. Before #740 the user was
+/// handed the ASSEMBLY recourse for a run-out. This row goes red if any
+/// site on that path ever re-attaches it.
 #[test]
 fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
-    let body = cube(L, Tol::witness());
-    let edges = query::all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
-        .expect_err("one edge of a box leaves its corners partly requested");
+    let (body, edge) = crate::common::operands::half_round_end();
+    let err = fillet_edges(&body, &[edge], R, Tol::witness())
+        .expect_err("an edge ending at a curved end face is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected a corner frontier, got {err:?}"

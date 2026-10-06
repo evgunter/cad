@@ -4,9 +4,9 @@
 //! The outline is written once, in the PATHS algebra, and lifted into
 //! a `Node::Profile` by [`LoopProgram::from_recorded`] — the seam
 //! between the two authoring surfaces, and the spelling Python's
-//! `Node.profile(outline)` takes. Frame, profile, extrude: that is the
-//! document the gallery writes, and the body the tour renders is its
-//! extrude node's value.
+//! `Node.profile(outline)` takes. Frame, profile, extrude, then the
+//! trim and the break below: that is the document the gallery writes,
+//! and the body the tour renders is its last node's value.
 //!
 //! **Oracle**: `V = 0.75 · (5 + r²(1 − π/4))`. The L is two 1-wide
 //! legs of length 3 sharing a unit square, area 5, and rounding the
@@ -27,15 +27,14 @@
 //! cap chords is named by its ends — `[SectionEdge, Fragment(Ends)]` —
 //! and a selector reaches them by role path alone.
 //!
-//! The chamfer does not build. A plane–plane band ends only at a
-//! trivalent corner whose three edges are all requested, and every
-//! corner of a section face carries a body edge no subset of the
-//! section edges names, so that run-out stands for every such
-//! selection; which refusal fires FIRST depends on the setback, a
-//! larger one meeting `FaceClearanceUncertified` before it. Four walls
-//! pin the cells at this plane and setback: the chords chamfered
-//! (`UnsupportedRunOut`) and filleted (the same), both section faces'
-//! whole rims (`ChainNotG1`), and the offcuts, one solid of two
+//! The chamfer builds: each chord's band ends where it meets a side
+//! wall of its leg, cut off in that wall's plane in a chord at 45° to
+//! it, and the corner piece loses `4·(d²/2)·√2`, which the scene
+//! asserts and renders. Three walls pin the cells the cut-off does not
+//! build at this plane and setback: the chords filleted (an oblique end
+//! face under a round band, `UnsupportedRunOut`), both section faces'
+//! whole rims chamfered (the turn, two of each corner's three edges
+//! requested — `CornerConfig::Turn`), and the offcuts, one solid of two
 //! shells (`UnsupportedBody`)
 //! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`,
 //! `work/band/a-blend-refuses-a-solid-of-several-shells.md`).
@@ -52,9 +51,9 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{NodeErrorKind, PartSelect, RefusingReach};
 use pncad::geom_core::Tol;
 use pncad::prelude::{
-    BlendError, CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation,
-    Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag,
-    Selector, SplitHalf, Start, ValuePayload, apply, evaluate, p2, select,
+    BlendError, CancelToken, CornerConfig, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
+    Evaluation, Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat,
+    SegTag, Selector, SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
 };
 use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
@@ -161,9 +160,74 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     (doc, body)
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// This scene's recipe, as a document the GUI can open: the bracket,
+/// trimmed flush at `x + y = CUT`, its corner piece's four cap chords
+/// chamfered by name.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    document(tol).0
+    let (doc, body) = document(tol);
+    trimmed_and_broken(&doc, body, tol).doc
+}
+
+/// The trim and the break, as nodes over the bracket's extrude.
+struct Trimmed {
+    doc: Doc<ProfileProgram>,
+    offcuts: RecipeNodeId,
+    corner: RecipeNodeId,
+    chords: Vec<StableName>,
+    chamfer: RecipeNodeId,
+}
+
+/// The cap chords of the corner piece, each named by its two end
+/// vertices under the cap face it lies in.
+fn chord_selector() -> Selector {
+    Selector::of(NamePat::of_kind(EntityKind::Edge).path(vec![
+        SegPat::tag(SegTag::SectionEdge),
+        SegPat::tag(SegTag::Fragment),
+    ]))
+}
+
+/// [`Node::Split`] along `x + y = CUT`, [`Node::Part`] for each half,
+/// and [`Node::Chamfer`] on the corner piece's four cap chords.
+fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> Trimmed {
+    let mut doc = doc.clone();
+    let tool = insert(
+        &mut doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(CUT), len(0.0), len(0.0)],
+            normal: [scl(1.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
+    );
+    let split = insert(&mut doc, Node::Split { target: body, tool }, tol);
+    let offcuts = insert(
+        &mut doc,
+        Node::Part {
+            of: split,
+            select: PartSelect::SplitHalf(SplitHalf::Above),
+        },
+        tol,
+    );
+    let corner = insert(
+        &mut doc,
+        Node::Part {
+            of: split,
+            select: PartSelect::SplitHalf(SplitHalf::Below),
+        },
+        tol,
+    );
+    let chords = select(&eval(&doc, tol), corner, &chord_selector());
+    let chamfer = insert(
+        &mut doc,
+        Node::chamfer(corner, len(SETBACK), chords.clone()),
+        tol,
+    );
+    Trimmed {
+        doc,
+        offcuts,
+        corner,
+        chords,
+        chamfer,
+    }
 }
 
 fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
@@ -210,38 +274,19 @@ struct WallProbe {
     pinned: fn(&BlendError) -> bool,
 }
 
-/// The wall's document: the bracket, split at `x + y = CUT`, the
-/// corner piece's section chords chamfered by name. Asserts what the
-/// split builds and pins what the chamfer refuses; answers the
-/// sentence the stop's note carries.
-fn split_and_break(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> String {
-    let mut doc = doc.clone();
-    let tool = insert(
-        &mut doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(CUT), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
-    let split = insert(&mut doc, Node::Split { target: body, tool }, tol);
-    let offcuts = insert(
-        &mut doc,
-        Node::Part {
-            of: split,
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
-        tol,
-    );
-    let corner = insert(
-        &mut doc,
-        Node::Part {
-            of: split,
-            select: PartSelect::SplitHalf(SplitHalf::Below),
-        },
-        tol,
-    );
-    let ev = eval(&doc, tol);
+/// The trim and the break: asserts what the split builds, the chamfer
+/// of the corner piece's four cap chords at its closed form, and pins
+/// what the walls refuse; answers the sentence the stop's note carries.
+fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
+    let Trimmed {
+        doc,
+        offcuts,
+        corner,
+        chords,
+        chamfer,
+    } = trimmed;
+    let (offcuts, corner, chamfer) = (*offcuts, *corner, *chamfer);
+    let ev = eval(doc, tol);
 
     // The halves partition the body: each offcut is a trapezoid of
     // parallel sides 3 − CUT and 4 − CUT across a unit-wide leg.
@@ -254,11 +299,6 @@ fn split_and_break(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> S
     // A cap crossed twice: each chord is named by its two end
     // vertices, under the cap face it lies in.
     let edges = |path: Vec<SegPat>| Selector::of(NamePat::of_kind(EntityKind::Edge).path(path));
-    let chord_sel = edges(vec![
-        SegPat::tag(SegTag::SectionEdge),
-        SegPat::tag(SegTag::Fragment),
-    ]);
-    let chords = select(&ev, corner, &chord_sel);
     assert_eq!(
         chords.len(),
         4,
@@ -271,35 +311,38 @@ fn split_and_break(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> S
     .concat();
     rim.sort();
     assert_eq!(rim.len(), 8, "two section faces, four edges each: {rim:?}");
-    let off_chords = select(&ev, offcuts, &chord_sel);
+    let off_chords = select(&ev, offcuts, &chord_selector());
 
     // Each chord's chamfer, ending on the leg's two parallel side walls
     // a unit apart, is a right-angle prism of section d²/2 that a 45°
     // chord crosses in √2 — exact while the strip stays short of the
-    // fillet's tangent points, d·√2 < CUT − 2.5.
+    // fillet's tangent points, d·√2 < CUT − 2.5. Each end is cut off in
+    // its side wall, oblique to the chord.
     let delta_v = 4.0 * SETBACK * SETBACK / 2.0 * SQRT_2;
-    let retire = format!(
-        "end the gallery document in the chamfer: its body is the corner piece less \
-         4·(d²/2)·√2 = {delta_v:.6} (d = {SETBACK}; exact while d·√2 < CUT − 2.5)"
-    );
-    let probes: [WallProbe; 4] = [
-        WallProbe {
-            n: 1,
-            what: "the corner piece's four cap chords, chamfered by name",
-            node: Node::chamfer(corner, len(SETBACK), chords.clone()),
-            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
-        },
+    let broken = volume(&body_at(&ev, chamfer), tol);
+    assert_volume("the chamfered corner piece", broken, kept - delta_v);
+
+    let retire = "retire the probe, and render what the kernel now builds";
+    let probes: [WallProbe; 3] = [
         WallProbe {
             n: 2,
             what: "the same four chords, filleted by name",
-            node: Node::fillet(corner, len(SETBACK), chords),
+            node: Node::fillet(corner, len(SETBACK), chords.clone()),
             pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
         },
         WallProbe {
             n: 3,
             what: "both section faces' whole rims, chamfered by name",
             node: Node::chamfer(corner, len(SETBACK), rim),
-            pinned: |e| matches!(e, BlendError::ChainNotG1 { .. }),
+            pinned: |e| {
+                matches!(
+                    e,
+                    BlendError::UnsupportedCorner {
+                        corner: CornerConfig::Turn,
+                        ..
+                    }
+                )
+            },
         },
         WallProbe {
             n: 4,
@@ -329,34 +372,38 @@ fn split_and_break(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> S
             what,
             outcome,
             |e| matches!(e, NodeErrorKind::Blend { error, .. } if pinned(error)),
-            &retire,
+            retire,
         );
     }
     format!(
         "split at x + y = {CUT}: offcuts V = {off:.6}, corner piece V = {kept:.6}, sum = whole; \
-         its four cap chords are named by their ends, and breaking them by name refuses \
-         (walls 1-4)"
+         its four cap chords, named by their ends, chamfer at d = {SETBACK} to V = {broken:.6} \
+         (less 4·(d²/2)·√2), and filleting them, or breaking the section faces' whole rims, \
+         refuses (walls 2-4)"
     )
 }
 
-/// The bracket's stop, its body the document's extrude node.
+/// The bracket's stop: the document's chamfered corner piece.
 pub fn stop(tol: Tol) -> Stop {
     let (doc, node) = document(tol);
     let ev = eval(&doc, tol);
-    let body = body_at(&ev, node);
     assert_volume(
         "the bracket",
-        volume(&body, tol),
+        volume(&body_at(&ev, node), tol),
         DEPTH * (5.0 + R * R * (1.0 - PI / 4.0)),
     );
-    let note = split_and_break(&doc, node, tol);
+    let trimmed = trimmed_and_broken(&doc, node, tol);
+    let note = split_and_break(&trimmed, node, tol);
+    let ev = eval(&trimmed.doc, tol);
+    let body = body_at(&ev, trimmed.chamfer);
     Stop {
         name: "bracket",
         caption: String::new(),
         montage: true,
-        story: "L-bracket with a filleted inner corner (polyline + tangent arc profile)",
+        story: "L-bracket with a filleted inner corner (polyline + tangent arc profile), trimmed \
+                flush and its cut edges chamfered",
         ops: "PATHS algebra (toward/fillet/far-end anchor) -> LoopProgram::from_recorded -> \
-              Node::Profile -> Node::Extrude",
+              Node::Profile -> Node::Extrude -> Node::Split -> Node::Part -> Node::Chamfer",
         delta: 1e-2,
         note: Some(note),
         view: View {
@@ -364,6 +411,8 @@ pub fn stop(tol: Tol) -> Stop {
             azim: -55.0,
             up: 'z',
         },
-        bodies: vec![SceneBody::plain("bracket", [0.36, 0.56, 0.86], body).named(&ev, node)],
+        bodies: vec![
+            SceneBody::plain("bracket", [0.36, 0.56, 0.86], body).named(&ev, trimmed.chamfer),
+        ],
     }
 }

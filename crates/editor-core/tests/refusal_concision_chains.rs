@@ -2355,8 +2355,8 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedRunOut",
             E::UnsupportedRunOut {
                 at: EntityId::Vertex(vertex),
-                detail: "a chain terminates at a trivalent vertex whose three edges are not all \
-                         requested; run-outs at such corners are not implemented",
+                detail: "a plane–plane band's edge ends at a curved end face; the cut-off is \
+                         built in a plane end face only",
             },
         ),
         (

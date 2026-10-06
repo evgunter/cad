@@ -56,6 +56,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::half_round_end;
 use geom_core::{Affine3, Band, Point2, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -295,90 +296,100 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
     );
 }
 
-/// **`FILLET3_CHAIN_RECOURSE` — all three of its clauses, on one cube.**
+/// **`FILLET3_CHAIN_RECOURSE` — at the junction it still fires at.**
 ///
-/// Two adjacent cube edges are connected but not tangent-continuous.
-/// The sentence then says three things, and each is executed:
-///
-/// - splitting at a CORNER "refuses again as a run-out" — the
-///   sentence's own named alternative refusal, asserted as such;
-/// - "request every edge of EVERY corner the chain terminates at" —
-///   the whole cube, which builds. The clause carried no `EVERY`
-///   before this unit: read literally it endorsed the three edges at
-///   the shared corner, and that request re-refuses as a run-out at
-///   the three FAR corners, which the row also pins.
+/// Chain G1 refuses only where a CURVED link meets another at a
+/// definite angle: between two plane–plane links a turn breaks the
+/// chain into two ends instead. The witness is a prism's top front edge
+/// and the half-round arc it meets at a kink. The sentence then says
+/// to supply a tangent-continuous chain, and the row executes one: a
+/// whole smooth rim, the dome's equator, builds. Its retired clause —
+/// "request every edge of EVERY corner the chain terminates at" — is
+/// gone with the run-out it answered: one edge of a cube, and the three
+/// edges of one corner, each build now (`band_planar_cut_off`).
 #[test]
-fn the_chain_recourse_is_followed_by_requesting_every_terminating_corner() {
-    let body = cube(1.0, tol());
-    let edges = query::all_edges(&body);
-
-    let err = refusal(&body, &edges[..2], 0.1, "two adjacent edges", false);
+fn the_chain_recourse_is_followed_by_a_tangent_continuous_chain() {
+    let (body, front) = half_round_end();
+    let arc = query::all_edges(&body)
+        .into_iter()
+        .find(|&e| {
+            query::edge_adjacent_matches(
+                &body,
+                e,
+                query::SurfaceKindSet::just(geom::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+            ) && {
+                let he = body.get_edge(e).unwrap().he_plus;
+                let v = body.get_half_edge(he).unwrap().start;
+                body.get_point(body.get_vertex(v).unwrap().point).unwrap().z > 0.5
+            }
+        })
+        .expect("the half-round's top arc");
+    let err = refusal(
+        &body,
+        &[front, arc],
+        0.1,
+        "a line and an arc at a kink",
+        false,
+    );
     assert!(
         matches!(err, BlendError::ChainNotG1 { .. }),
-        "adjacent cube edges break tangency at their shared corner, got {err:?}"
+        "a line meeting an arc at a kink is not tangent-continuous, got {err:?}"
     );
     carries(&err, FILLET3_CHAIN_RECOURSE, "chain not G1");
-
-    // Clause: splitting at a corner refuses again as a run-out.
-    for half in [&edges[..1], &edges[1..2]] {
-        let split = refusal(&body, half, 0.1, "one half of the split", false);
-        assert!(
-            matches!(split, BlendError::UnsupportedRunOut { .. }),
-            "the sentence names this outcome for the split, got {split:?}"
-        );
-    }
-
-    // Clause: one corner's three edges is NOT enough — the far corners
-    // are then the partly-requested ones. This is why the clause is
-    // scoped to every corner the chain terminates at.
-    let corner = edges_at_first_vertex(&body);
-    assert_eq!(corner.len(), 3, "a cube corner is trivalent");
-    let partial = refusal(&body, &corner, 0.1, "one corner's three edges", false);
     assert!(
-        matches!(partial, BlendError::UnsupportedRunOut { .. }),
-        "three edges at ONE corner still run out at the far ones, got {partial:?}"
+        !FILLET3_CHAIN_RECOURSE.contains("EVERY corner"),
+        "the retired clause is gone: {FILLET3_CHAIN_RECOURSE}"
     );
-
-    assert!(
-        FILLET3_CHAIN_RECOURSE.contains("EVERY corner the chain terminates at"),
-        "the clause is scoped to every terminating corner: {FILLET3_CHAIN_RECOURSE}"
+    let d = dome(1.0, tol());
+    builds(
+        &d,
+        &[one_edge_rim_at(&d, 1.0, 0.0)],
+        0.1,
+        "a whole smooth rim",
     );
-    builds(&body, &edges, 0.1, "every edge of every terminating corner");
 }
 
-/// **`FILLET3_CORNER_RECOURSE` — "a chain that terminates only in FULLY
-/// REQUESTED trivalent vertices whose three edges are all convex".**
+/// **`FILLET3_CORNER_RECOURSE` — the ends it names, each built, and the
+/// residue it names, refused.**
 ///
-/// One cube edge leaves both its corners partly requested. The
-/// sentence's positive clause is then executed: the whole cube, whose
-/// every corner is a fully-requested all-convex trihedron over
-/// plane–plane supports, builds.
-///
-/// The `FULLY REQUESTED` condition is this unit's: without it the
-/// sentence endorsed a chain terminating in an all-convex trivalent
-/// vertex, which is exactly what the three-edges-at-one-corner request
-/// is — and that request refuses with this same variant (pinned in the
-/// chain row above). Its sibling `FILLET3_ASSEMBLY_RECOURSE` carried
-/// the condition already.
-///
-/// The negative clause ("mixed-convexity corners and general run-outs
-/// are not implemented") endorses no request and is unpinnable.
+/// An edge ending at a curved end face refuses as a run-out with this
+/// sentence. Its two positive clauses are then executed on a cube: the
+/// edge alone, cut off in the plane end faces at both ends, and every
+/// edge of every corner, the corner patch. Of the residue, the turn (two
+/// of a vertex's three edges) is executed too, under the corner tag
+/// whose recourse this same sentence is.
 #[test]
 fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
-    let body = cube(1.0, tol());
-    let edges = query::all_edges(&body);
-    let err = refusal(&body, &edges[..1], 0.1, "one cube edge", false);
+    let (round, edge) = half_round_end();
+    let err = refusal(&round, &[edge], 0.1, "a curved end face", false);
     assert!(
         matches!(err, BlendError::UnsupportedRunOut { .. }),
-        "one edge leaves its corners partly requested, got {err:?}"
+        "a curved end face is a run-out, got {err:?}"
     );
     carries(&err, FILLET3_CORNER_RECOURSE, "run-out");
-    assert!(
-        FILLET3_CORNER_RECOURSE.contains("FULLY REQUESTED"),
-        "the endorsed corner is conditioned on being wholly requested: \
-         {FILLET3_CORNER_RECOURSE}"
-    );
+    let body = cube(1.0, tol());
+    let edges = query::all_edges(&body);
+    builds(&body, &edges[..1], 0.1, "the edge alone, cut off");
     builds(&body, &edges, 0.1, "every corner fully requested");
+    let turn = refusal(
+        &body,
+        &edges_at_first_vertex(&body)[..2],
+        0.1,
+        "a turn",
+        false,
+    );
+    assert!(
+        matches!(
+            turn,
+            BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::Turn,
+                ..
+            }
+        ),
+        "two edges of one corner are the turn, got {turn:?}"
+    );
+    carries(&turn, FILLET3_CORNER_RECOURSE, "turn");
 }
 
 /// **`FILLET3_CORNER_INDEPENDENCE_RECOURSE` — followed by each of its
@@ -505,10 +516,9 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // that is not trivalent, or is of mixed convexity, still refuses.
     // Pinned one by one, so dropping either is red.
     for condition in [
-        "fully requested trivalent plane\u{2013}plane corners",
-        "of one convexity",
+        "trivalent plane\u{2013}plane vertices of one convexity",
         "chains whose links share both faces",
-        "junction carry-through and run-outs are not implemented",
+        "junction carry-through and the other run-outs are not implemented",
     ] {
         assert!(
             FILLET3_ASSEMBLY_RECOURSE.contains(condition),

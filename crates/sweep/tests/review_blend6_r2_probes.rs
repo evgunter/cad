@@ -28,6 +28,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::half_round_end;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -288,10 +289,11 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
     let edges = query::all_edges(&body);
     let t = Tol::witness();
 
+    let (round, end) = half_round_end();
     out.push((
         "fillet run-out",
-        fillet_edges(&body, &edges[..1], D, t)
-            .expect_err("a partially-requested corner is a run-out")
+        fillet_edges(&round, &[end], D, t)
+            .expect_err("a curved end face is a run-out")
             .error,
     ));
     out.push((
@@ -301,9 +303,9 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
             .error,
     ));
     out.push((
-        "fillet chain-break",
+        "fillet turn",
         fillet_edges(&body, &top_loop(&body), D, t)
-            .expect_err("square junctions are not tangent-continuous")
+            .expect_err("square corners with two edges requested are turns")
             .error,
     ));
     out
@@ -327,16 +329,17 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
             .expect_err("a repeated edge doubles a link")
             .error,
     ));
+    let (round, end) = half_round_end();
     out.push((
         "run-out",
-        chamfer_edges(&body, &edges[..1], D, t)
-            .expect_err("a partially-requested corner is a run-out")
+        chamfer_edges(&round, &[end], D, t)
+            .expect_err("a curved end face is a run-out")
             .error,
     ));
     out.push((
-        "chain-break",
+        "turn",
         chamfer_edges(&body, &top_loop(&body), D, t)
-            .expect_err("square junctions are not tangent-continuous")
+            .expect_err("square corners with two edges requested are turns")
             .error,
     ));
     out.push((
