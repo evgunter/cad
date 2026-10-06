@@ -56,3 +56,14 @@ its slice-integral volume, and `mesh::tessellate` refuses the result
 "props_meridian_great" } }` (`crates/sweep/tests/snowman.rs`,
 `a_bar_through_a_ball_builds_under_every_boolean`, which stops at the
 volume and the tiers for that reason).
+
+## Evidence (2026-10-05, `reach/trimmed-sphere-escape`)
+
+The trimmed escape's rows build tier 3 clean to their closed forms and
+refuse here on every op in both orders, `props_rim_axis_parallel`: the
+lens against a slab tilted 20° about x and 20° about z, and a banded
+ball (`ball(1) ∩ |y| ≤ 0.6`) against a slab toward latitude 10°
+(`snowman.rs` `a_tilted_slab_against_the_lens_builds_off_the_seam`,
+`a_slab_tilted_across_the_lens_seams_builds`,
+`a_slab_cutting_a_cap_off_a_banded_ball_builds`, which stop at the
+tiers and the volume through `assert_solid` for that reason).

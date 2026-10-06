@@ -23,9 +23,12 @@ The lane refuses such a correspondence typed
 any chord is minted. `crates/sweep/tests/rest_nested_strut.rs`
 `a_pinch_apex_meeting_one_vertex_refuses_as_the_frontier_in_either_order`
 pins it (a notched block holding a wedge, touching along the apex line,
-and a prism whose corner rests on the apex; the join refuses on the
-fillets' tangency and hands the union to the lane): the two apex
-vertices each correspond to the prism's corner.
+and a prism whose corner rests on the apex; the join refuses
+`Euler(NotSameFace)` in both orders, its halves on two faces at the
+fillets' tangency
+(`work/join/a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share.md`),
+and hands the union to the lane): the two apex vertices each correspond
+to the prism's corner.
 
 Without that refusal the two orders answered different classes for the
 one geometry:
