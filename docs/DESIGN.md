@@ -335,7 +335,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      edge-edge record backs it. An op that replaces a cell rewrites
      every record naming it onto the replacement, by substitution; an
      edge split moves a `(vertex, edge)` record onto the piece the
-     vertex rests on, by the split's own lineage.
+     vertex rests on, and an `(edge, edge)` record onto every pair of
+     pieces whose interiors still meet, by the split's own lineage.
    - **Certification strength equals its skeleton**: a `CurveContact`
      is certified at its jet samples plus hull bounds, a `PatchContact`
      by definitely-positive region overlap in the shared chart, a

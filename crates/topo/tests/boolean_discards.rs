@@ -41,7 +41,11 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
                 .iter()
                 .map(|&(u, w)| {
                     let (u, w) = (settle(u), settle(w));
-                    by_ends.get(&(u.min(w), u.max(w))).copied()
+                    by_ends.get(&(u.min(w), u.max(w))).copied().or_else(|| {
+                        let e = out.naming.stretch_through_joins(body, (u, w))?;
+                        let d = body.get_edge(e)?;
+                        Some((e, [face_of(d.he_plus), face_of(d.he_minus)]))
+                    })
                 })
                 .collect()
         })
