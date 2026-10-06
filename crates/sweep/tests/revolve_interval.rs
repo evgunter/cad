@@ -46,7 +46,11 @@ fn interval_washer_builds_tier_valid() {
     .unwrap();
     assert_tiers(&t.body);
     assert_eq!(t.body.vertices().count(), 4);
-    assert_eq!(t.body.edges().count(), 8);
+    assert_eq!(
+        t.body.edges().count(),
+        6,
+        "the two plane annuli carry no slit"
+    );
     assert_eq!(t.body.faces().count(), 4);
 }
 

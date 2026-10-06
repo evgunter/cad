@@ -326,10 +326,10 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/sweep/src/blend/open/ruled.rs",
+        path: "crates/sweep/src/blend/open/end_face.rs",
         subject: "impl<T: Bounds> CapSliver<T>",
         why: Selection(
-            "the ruled cut-off's cap meter `clearance`. It reads no bracket itself — its \
+            "the cut-off's end-face sliver meter `clearance`. It reads no bracket itself — its \
              reads are `CircleFrame::misses`' and the on-axis guards', reached through \
              `piece_distance` and `piece_along` in `surgery.rs` — and its result is the \
              margin `ring_clearance` decides, so it inherits that door's DL5(b) \
@@ -377,15 +377,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
-        subject: "worse",
-        why: Payload(
-            "the ring meter's least margin of a cycle carries the `bounded` flag of the \
-             margin it took: the margin itself is the lattice `min`, and the bracket read \
-             only chooses which flag rides into the `RingClearance` payload's prose",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/surgery.rs",
         subject: "impl<T: Bounds> CircleFrame<T>",
         why: Selection(
             "an arc's closed-form extremes (`distance`, `along`). `misses` reads the \
@@ -401,6 +392,17 @@ const ROSTER: &[Site] = &[
              lies. The on-axis `lo() <= 0` guards select the whole-circle pair, which \
              bounds the arc's wherever `c` is and equals the ends' pair where a point \
              scalar takes it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "worse",
+        why: Selection(
+            "the worse of two margins of one ring cycle: the margin is `min`, value \
+             arithmetic, and the one bracket read (the `lo()` comparison) only SELECTS \
+             which input's `bounded` flag rides with it. Both go to `ring_clearance`, \
+             which decides the margin, so it inherits that door's DL5(b) disposition \
+             and no other",
         ),
     },
     Site {

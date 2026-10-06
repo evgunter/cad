@@ -1313,9 +1313,11 @@ pub mod bounds_allowlist {
     //! Re-scoped 2026-09-05 (FILLET-SPLIT, under Ev's ruling on PR 1916 that
     //! a move with no design implication needs no ask): the two open bands'
     //! carves left `surgery.rs` for `blend/open/planar.rs` and
-    //! `blend/open/ruled.rs` unchanged, so this one seam is now spelled
-    //! over five files — the file list is the entry's spelling, the seam is
-    //! the ratified thing, and nothing about its scope was extended.
+    //! `blend/open/ruled.rs` unchanged, and the cut-off both open bands
+    //! end in later left `ruled.rs` for `blend/open/end_face.rs`, so this
+    //! one seam is now spelled over six files — the file list is the
+    //! entry's spelling, the seam is the ratified thing, and nothing about
+    //! its scope was extended.
     //!
     //! It is the one allowlisted seam with **no refusing lane**, and the
     //! written reason it needs none is the delegation rule below: every

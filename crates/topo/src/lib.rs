@@ -195,7 +195,7 @@ pub(crate) mod policy_lane;
 pub mod props;
 pub mod provenance;
 pub mod query;
-pub(crate) mod ray_parity;
+pub(crate) mod ray_walk;
 pub mod readback;
 pub mod replace_face;
 pub mod revert;
