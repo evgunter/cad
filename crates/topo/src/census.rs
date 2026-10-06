@@ -1465,8 +1465,19 @@ fn contain<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<FaceContainment> {
-    match contfp(body, f.key, f.normal, q, band) {
-        Ok(c) => Some(c),
+    read_containment(f.key, contfp(body, f.key, f.normal, q, band), errors)
+}
+
+/// A containment door's answer about `face`, its refusal pushed
+/// (`None`): the census's one routing of [`ContainError`], for the
+/// planar door and the curved one alike.
+fn read_containment<V>(
+    face: FaceKey,
+    read: Result<V, ContainError>,
+    errors: &mut Vec<ValidationError>,
+) -> Option<V> {
+    match read {
+        Ok(v) => Some(v),
         Err(ContainError::Escalated(cause)) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None
@@ -1500,7 +1511,7 @@ fn contain<T: Decide>(
             | ContainError::Curved(_)),
         ) => {
             errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Face(f.key)),
+                subject: CensusSubject::Entity(EntityId::Face(face)),
                 cause: CensusUnsupportedCause::Containment(e),
             });
             None
@@ -3051,8 +3062,9 @@ pub(crate) enum Undecided {
     /// Arm 2: the point-in-solid door could not place a vertex near
     /// the boundary (escalated, or its loop walk escalated).
     WitnessTooClose,
-    /// Arm 2: every ray the point-in-solid door cast grazed, for a
-    /// vertex its pre-pass placed off the boundary.
+    /// Arm 2: no ray the point-in-solid door cast settled — each grazed
+    /// or gave nothing to read — for a vertex its pre-pass placed off the
+    /// boundary.
     WitnessGrazed,
     /// Arm 2: an instance of (near-)zero signed volume. Tier 3's +V
     /// check passes a volume in band of zero, so the part is the
@@ -3193,9 +3205,9 @@ impl Undecided {
                  overlap"
             }
             Self::WitnessGrazed => {
-                "a corner of one is off the other's boundary, but every test ray from it \
-                 grazed that boundary. Recourse: move the parts until their bounding boxes \
-                 no longer overlap"
+                "a corner of one is off the other's boundary, but no test ray from it \
+                 settled where it lies: each grazed that boundary or could not be read. \
+                 Recourse: move the parts until their bounding boxes no longer overlap"
             }
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \
@@ -4657,6 +4669,22 @@ fn touch_verdict<T: Decide>(
     }
 }
 
+/// The role of `shell` the cross-solid gate reads: the one shell-role
+/// reader ([`crate::props::shell_role`]) through the scalar's own lane,
+/// so the gate drops exactly the shells check 10, the result sort and
+/// the shell classification read as `Void`. `None` where it does not
+/// read.
+pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    shell: crate::entity::ShellKey,
+    band: Band,
+    tol: Tol,
+) -> Option<crate::props::ShellRole> {
+    crate::props::shell_role(body, shell, band, tol, T::quad_lane())
+        .ok()
+        .map(|(role, _)| role)
+}
+
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
 /// (A5's letter). Two cross-solid candidate classes have no examining
@@ -5181,22 +5209,16 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .or_insert(h);
     }
     // The shells the gate reads: every shell but a VOID. A solid's only
-    // shell is its outer one; among several, a shell's role is the sign
-    // of its own volume (`crate::validate::shell_role`, tier 3's check
-    // 10 read), and a shell whose role does not read is kept — the
-    // conservative direction, since keeping a shell only sends more
+    // shell is its outer one; among several, a shell's role is read
+    // ([`gate_role`]), and a shell whose role does not read is kept —
+    // the conservative direction, since keeping a shell only sends more
     // pairs to the probe. Why voids may be dropped is the loop's
     // argument below.
     let gate_shells: Vec<(SolidKey, Hull<T>)> = shell_boxes
         .iter()
         .filter(|&(&shell, &(solid, _))| {
             let lone = body.get_solid(solid).is_some_and(|d| d.shells.len() < 2);
-            lone || crate::boolean::SolidFaces::of_shell(body, shell)
-                .ok()
-                .and_then(|sel| {
-                    crate::validate::shell_role(body, shell, sel.faces(), band, tol, None).ok()
-                })
-                != Some(crate::props::ShellRole::Void)
+            lone || gate_role(body, shell, band, tol) != Some(crate::props::ShellRole::Void)
         })
         .map(|(_, &b)| b)
         .collect();
@@ -5656,37 +5678,77 @@ fn confirm_declarations<T: Decide>(
         confirm_edge_edge(body, geo, *c, band, errors);
     }
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
-        let stale = ValidationError::StaleContactDeclaration {
-            declaration: StaleDeclaration::VertexOnFace {
-                vertex: c.vertex,
-                face: c.face,
-            },
-        };
-        let (Some(&q), Some(f)) = (
-            geo.vmap.get(&c.vertex),
-            geo.faces.iter().find(|f| f.key == c.face),
-        ) else {
+        confirm_vertex_on_face(body, geo, *c, band, errors);
+    }
+}
+
+/// One `(vertex, face)` record's witness: both cells live, and the
+/// vertex strictly inside the face — on its plane and inside its region
+/// for a planar face, inside its trim by the curved containment door
+/// ([`crate::boolean::curved_face_containment`], which puts a point off
+/// the carrier `Out`) for a curved one.
+fn confirm_vertex_on_face<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    c: crate::boolean::VfContact,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::VertexOnFace {
+            vertex: c.vertex,
+            face: c.face,
+        },
+    };
+    let Some(&q) = geo.vmap.get(&c.vertex) else {
+        errors.push(stale);
+        return;
+    };
+    let Some(f) = geo.faces.iter().find(|f| f.key == c.face) else {
+        if !geo.curved_faces.contains(&c.face) {
             errors.push(stale);
-            continue;
-        };
-        match signed_is_zero(
-            "pm_census_confirm_vf",
-            Margin::of((q - f.origin).dot(f.normal)),
-            band,
+            return;
+        }
+        // `None` is the door's remainder, not a refusal: no
+        // `ContainError` stands behind it to carry, so it is named the
+        // way the census names a configuration outside its lanes.
+        match read_containment(
+            c.face,
+            crate::boolean::curved_face_containment(body, c.face, q, band),
             errors,
         ) {
-            Some(true) => {}
-            Some(false) => {
-                errors.push(stale);
-                continue;
-            }
-            None => continue,
-        }
-        match contain(body, f, q, band, errors) {
-            Some(FaceContainment::In) => {}
-            Some(_) => errors.push(stale),
+            Some(Some(FaceContainment::In)) => {}
+            Some(Some(_)) => errors.push(stale),
+            Some(None) => errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Face(c.face)),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a vertex-on-face record on a curved face whose trim \
+                               the containment door does not read",
+                    },
+                ),
+            }),
             None => {}
         }
+        return;
+    };
+    match signed_is_zero(
+        "pm_census_confirm_vf",
+        Margin::of((q - f.origin).dot(f.normal)),
+        band,
+        errors,
+    ) {
+        Some(true) => {}
+        Some(false) => {
+            errors.push(stale);
+            return;
+        }
+        None => return,
+    }
+    match contain(body, f, q, band, errors) {
+        Some(FaceContainment::In) => {}
+        Some(_) => errors.push(stale),
+        None => {}
     }
 }
 

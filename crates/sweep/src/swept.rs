@@ -1304,10 +1304,9 @@ mod tests {
     }
 
     /// One arc at the bulge `bulge` (a form) with the turn `turn`, on
-    /// the chord `(0, 0) → (2, 0)`, lowered through
-    /// [`placed_segment_spec`] at the identity placement. The sweep is
-    /// the lowering's `4·atan b`, and the centre and radius are the
-    /// sagitta closed forms, so the two registrants the arm runs state
+    /// the chord `(0, 0) → (2, 0)`, lowered from the chord
+    /// ([`Arc2::from_chord`]) and through [`placed_segment_spec`] at the
+    /// identity placement, so the two registrants the arm runs state
     /// true identities.
     fn lowered<T: Real>(bulge: T, turn: Sign) -> EdgeCurveSpec<T> {
         let lit = T::from_f64;
@@ -1315,18 +1314,11 @@ mod tests {
             Point2::new(lit(0.0), lit(0.0)),
             Point2::new(lit(2.0), lit(0.0)),
         );
-        let len = lit(2.0);
-        let apothem = len * (lit(1.0) - bulge * bulge) / (lit(4.0) * bulge);
-        let radius = (len * (lit(1.0) + bulge * bulge) / (lit(4.0) * bulge)).abs();
         let seg = SweptSeg {
             a,
             b,
             kind: Traversed::forward(SegmentKind::Arc {
-                arc: Arc2 {
-                    centre: Point2::new(lit(1.0), apothem),
-                    radius,
-                    sweep: lit(4.0) * bulge.atan(),
-                },
+                arc: Arc2::from_chord(a, b, bulge),
                 turn,
             }),
             canonical_vertex: 0,

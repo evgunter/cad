@@ -307,7 +307,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
     if op == BooleanOp::Subtract {
-        b_kept = b_kept.revert().map_err(BooleanError::Revert)?;
+        b_kept = b_kept.revert();
     }
 
     // ---- The combine door. ----

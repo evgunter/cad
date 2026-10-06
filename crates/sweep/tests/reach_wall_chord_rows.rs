@@ -271,51 +271,195 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
             );
         }
     }
-    // What the door ships below tier 3′ (it gates at tier 3; the census
-    // is parked, `work/reach/boolean-door-runs-the-census-over-its-result.md`),
-    // pinned as it stands at every pose: the drum ∖ the inner cube keeps
-    // the corner's vertex-on-face row though the corner left the wall
-    // (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`),
-    // and the drum ∪ the outer cube keeps the same row beside a curved
-    // pair the census's cross-solid lane cannot decide
-    // (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-    // Red when either is fixed.
+    // Tier 3′ (the door gates at tier 3; the census is parked,
+    // `work/reach/boolean-door-runs-the-census-over-its-result.md`), at
+    // every pose. The drum ∖ the inner cube is the drum with a cubic void
+    // whose corner touches the wall, recorded vertex-on-face, and passes.
+    // The drum ∪ the outer cube carries the same record, confirmed, beside
+    // a curved pair the census's cross-solid lane cannot decide
+    // (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`):
+    // red when that is fixed.
     let tol = Tol::witness();
     for l in [0.65, 0.8] {
         for spin in [0.0, 0.4] {
-            let census = |r: Result<BooleanResult<f64>, BooleanError>| {
+            let body = |r: Result<BooleanResult<f64>, BooleanError>| {
                 let Ok(BooleanResult::Body(b)) = r else {
                     panic!("l {l} spin {spin}: a body");
                 };
-                topo::validate_pseudomanifold(&b.body, &b.contacts, tol).expect_err("below tier 3′")
+                b
             };
-            let inner = cube_at(p, -n, spin, l);
-            let stale = census(topo::subtract(&drum, &inner, tol));
-            assert!(
-                matches!(
-                    stale.as_slice(),
-                    [topo::ValidationError::StaleContactDeclaration {
-                        declaration: topo::StaleDeclaration::VertexOnFace { .. }
-                    }]
+            let void = body(topo::subtract(&drum, &cube_at(p, -n, spin, l), tol));
+            assert_eq!(
+                (
+                    void.body.shells().count(),
+                    void.contacts.a_on_b.len() + void.contacts.b_on_a.len()
                 ),
-                "l {l} spin {spin}: drum ∖ inner keeps a stale vertex-on-face row: {stale:?}"
+                (2, 1),
+                "l {l} spin {spin}: drum ∖ inner is the drum and a void, its corner on the wall"
             );
-            let outer = cube_at(p, n, spin, l);
-            let undecided = census(topo::union(&drum, &outer, tol));
-            let (undecidable, stale): (Vec<_>, Vec<_>) = undecided
-                .iter()
-                .partition(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
+            topo::validate_pseudomanifold(&void.body, &void.contacts, tol)
+                .unwrap_or_else(|e| panic!("l {l} spin {spin}: drum ∖ inner, tier 3′: {e:?}"));
+            let pair = body(topo::union(&drum, &cube_at(p, n, spin, l), tol));
+            let undecided = topo::validate_pseudomanifold(&pair.body, &pair.contacts, tol)
+                .expect_err("below tier 3′");
             assert!(
-                !undecidable.is_empty()
-                    && matches!(
-                        stale.as_slice(),
-                        [topo::ValidationError::StaleContactDeclaration {
-                            declaration: topo::StaleDeclaration::VertexOnFace { .. }
-                        }]
-                    ),
-                "l {l} spin {spin}: drum ∪ outer is the undecidable curved pair, with the \
-                 corner's stale row: {undecided:?}"
+                !undecided.is_empty()
+                    && undecided
+                        .iter()
+                        .all(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+                "l {l} spin {spin}: drum ∪ outer is the undecidable curved pair alone: {undecided:?}"
             );
         }
     }
+}
+
+/// What tier 3′ reads of `record` alone, injected into an otherwise
+/// empty record set of `body`: `Ok`, or the errors naming its vertex or
+/// face.
+fn vf_reading(
+    body: &topo::Body<f64>,
+    record: topo::VfContact,
+) -> Result<(), Vec<topo::ValidationError>> {
+    let contacts = topo::ContactRecords {
+        b_on_a: vec![record],
+        ..topo::ContactRecords::default()
+    };
+    let errors: Vec<_> = topo::validate_pseudomanifold(body, &contacts, Tol::witness())
+        .err()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|e| match e {
+            topo::ValidationError::StaleContactDeclaration {
+                declaration: topo::StaleDeclaration::VertexOnFace { vertex, face },
+            } => (*vertex, *face) == (record.vertex, record.face),
+            topo::ValidationError::CensusUnsupported {
+                subject: topo::CensusSubject::Entity(topo::EntityId::Face(face)),
+                ..
+            } => *face == record.face,
+            _ => false,
+        })
+        .collect();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// **Tier 3′ reads a vertex-on-face record on a curved face by the
+/// curved containment door.** The drum less a cube whose corner touches
+/// the wall from inside, the corner's record injected onto each face it
+/// could name: its own wall face confirms it; the other wall face, a
+/// vertex on the wall's boundary, and the corner of a cube set `δ` in
+/// from the wall past the band's escalation edge read it stale; a cube
+/// set in by half the band confirms it. A record on a face whose trim the door
+/// does not read (a swept elbow's NURBS wall) refuses typed.
+#[test]
+fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
+    let tol = Tol::witness();
+    let drum = finished("the drum", cyl(1.0, 2.0), tol);
+    let phi = 0.7_f64;
+    let n = Vec3::new(phi.cos(), phi.sin(), 0.0);
+    let p = Point3::new(phi.cos(), phi.sin(), 0.3);
+    let stale = |r: &Result<(), Vec<topo::ValidationError>>| {
+        matches!(
+            r.as_ref().map_err(Vec::as_slice),
+            Err([topo::ValidationError::StaleContactDeclaration { .. }])
+        )
+    };
+    let eps = tol.eps();
+    // In the band (half of it), past its escalation edge (`10ε`), far.
+    for delta in [0.0, 0.5 * eps, 20.0 * eps, 1e-4] {
+        let corner_at = p - n * delta;
+        let Ok(BooleanResult::Body(b)) =
+            topo::subtract(&drum, &cube_at(corner_at, -n, 0.0, 0.65), tol)
+        else {
+            panic!("δ {delta}: drum ∖ inner builds");
+        };
+        let body = &b.body;
+        let (corner, _) = body
+            .vertex_points()
+            .min_by(|(_, a), (_, b)| a.distance(corner_at).total_cmp(&b.distance(corner_at)))
+            .unwrap();
+        let walls: Vec<_> = body
+            .faces()
+            .filter(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { .. })
+                )
+            })
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(walls.len(), 2, "δ {delta}: the drum's two wall faces");
+        let reads: Vec<_> = walls
+            .iter()
+            .map(|&face| {
+                vf_reading(
+                    body,
+                    topo::VfContact {
+                        vertex: corner,
+                        face,
+                    },
+                )
+            })
+            .collect();
+        if delta < eps {
+            assert_eq!(
+                reads.iter().filter(|r| r.is_ok()).count(),
+                1,
+                "δ {delta}: the corner confirms on its own wall face: {reads:?}"
+            );
+            assert_eq!(
+                reads.iter().filter(|r| stale(r)).count(),
+                1,
+                "δ {delta}: and is stale on the other: {reads:?}"
+            );
+        } else {
+            assert!(
+                reads.iter().all(stale),
+                "δ {delta}: a corner off the wall is stale on both: {reads:?}"
+            );
+        }
+        if delta == 0.0 {
+            // A vertex on a wall face's own boundary is not inside it.
+            let face = walls[0];
+            let rim = body
+                .vertex_points()
+                .map(|(v, _)| v)
+                .find(|&v| body.faces_of_vertex(v).is_some_and(|fs| fs.contains(&face)))
+                .expect("a vertex on the wall face's boundary");
+            let r = vf_reading(body, topo::VfContact { vertex: rim, face });
+            assert!(stale(&r), "a boundary vertex is stale: {r:?}");
+        }
+    }
+    let elbow = sweep::test_support::swept_elbow(tol);
+    let (face, vertex) = elbow
+        .faces()
+        .filter(|(_, f)| matches!(elbow.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .find_map(|(face, _)| {
+            elbow
+                .vertex_points()
+                .map(|(v, _)| v)
+                .find(|&v| {
+                    elbow
+                        .faces_of_vertex(v)
+                        .is_some_and(|fs| !fs.contains(&face))
+                })
+                .map(|v| (face, v))
+        })
+        .expect("a NURBS wall and a vertex off it");
+    let r = vf_reading(&elbow, topo::VfContact { vertex, face });
+    assert!(
+        matches!(
+            r.as_ref().map_err(Vec::as_slice),
+            Err([topo::ValidationError::CensusUnsupported {
+                cause: topo::CensusUnsupportedCause::ContactLane(
+                    topo::ContactRefusal::NotCertifiable { .. }
+                ),
+                ..
+            }])
+        ),
+        "a NURBS wall's trim has no reading: {r:?}"
+    );
 }

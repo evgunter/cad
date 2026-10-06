@@ -127,6 +127,7 @@ from pncad import (
     band,
     band_pi,
     band_rim,
+    band_rim_pi,
     carried,
     evaluate,
     meridian_vertex,
@@ -1070,6 +1071,7 @@ _second: Piece = Piece(_names_doc.step(_names_profile, 0, _carrier), Role.piece(
 minted_band: str = band(_revolved, _first)
 minted_half: str = band_pi(_revolved, _pieces[0][0])
 minted_rim: str = band_rim(_revolved, _second)
+minted_rim_half: str = band_rim_pi(_revolved, _second)
 minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, _second)
 minted_survivor: str = carried(_revolved, minted_band)
 _blended: NodeId = _names_doc.insert(

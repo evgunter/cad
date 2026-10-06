@@ -96,7 +96,7 @@ a pair after the true partner. It never filters it out.
 
 Reached on a whole body, in the suite:
 `crates/editor-core/tests/reach_slab_cut_sector_side.rs`,
-`a_slab_across_a_round_boss_builds_in_four_orders_and_stops_typed_in_two`,
+`a_slab_across_a_round_boss_builds_in_every_order`,
 order `[1, 2, 0]`: the plate's top cuts the boss wall's circle `z = 1`
 at `x = 1.4` and `x = 1.6`, whose germs point away from each other into
 the face, and the chord paired them with the true partners further
