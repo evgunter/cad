@@ -2508,21 +2508,11 @@ fn restate<T: Decide>(
                 witness: mid,
             }
         }
-        EdgeDescription::Chart(c) => match (beside_reminted(c.surface, sides), declared) {
-            // An image in a chart that holds while the edge's other
-            // face is re-minted names no key that face wears after the
-            // move, so the edge is stated as what it now is: the
-            // section of the two charts, both of which the moved
-            // carrier was just metered onto. A declaration rides only a
-            // chart image, so a declared edge moves into the re-minted
-            // face's own chart instead.
-            (Some(moving), None) => EdgeDescriptionSpec::Intersection {
-                s1: moving,
-                s2: c.surface,
-                witness: mid,
-            },
-            (Some(moving), Some(mc)) => EdgeDescriptionSpec::chart(moving).declared_by(mc),
-            (None, declared) => EdgeDescriptionSpec::Chart {
+        EdgeDescription::Chart(c) => match crate::replace_face::beside_moving(c.surface, sides) {
+            Some(moving) => {
+                crate::replace_face::held_neighbour_image(moving, c.surface, declared, mid)
+            }
+            None => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 // **`None` is the REQUEST to derive the image from the
                 // carrier**, and it is the right one here for every chart
@@ -2542,17 +2532,6 @@ fn restate<T: Decide>(
         },
         EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
     })
-}
-
-/// The re-minted side's key, where the chart `named` is the edge's
-/// other side and holds still.
-fn beside_reminted(named: SurfaceKey, sides: [(SurfaceKey, bool); 2]) -> Option<SurfaceKey> {
-    match sides {
-        [(held, false), (moving, true)] | [(moving, true), (held, false)] if held == named => {
-            Some(moving)
-        }
-        _ => None,
-    }
 }
 
 /// A mapped description re-authored in its own sketch plane from the

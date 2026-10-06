@@ -8,6 +8,10 @@
 //! states the moved rim on the minted wall: as the section of the two
 //! charts, or, where a declaration rides the image, as an image in the
 //! wall's own chart.
+//!
+//! The planar door (`offset_planes_together`) takes the same shape on a
+//! cube: its top edge re-described as an image in a side's chart, the
+//! top moved and every other chart held.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -22,7 +26,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::readback::edge_sides;
 use topo::{
     Body, ChartMove, CurveGeom, EdgeKey, SurfaceKey, ValidationError, offset_charts_together,
-    replace_faces_offset, validate_closed, validate_geometric,
+    offset_planes_together, replace_faces_offset, validate_closed, validate_geometric,
 };
 
 const R: f64 = 3.0 / 64.0;
@@ -211,6 +215,59 @@ fn the_per_chart_door_restates_a_rim_in_the_caps_chart_as_the_section() {
 /// described in a side's chart, with the top offset by `d`.
 #[test]
 fn the_per_chart_door_moves_a_declared_edge_into_the_moved_faces_chart() {
+    let (mut body, edge, top, _) = cube_with_the_top_edge_in_the_sides_chart(true);
+    let faces: Vec<_> = body
+        .faces()
+        .filter(|(_, f)| f.surface == top)
+        .map(|(k, _)| k)
+        .collect();
+    let d = 1.0 / 64.0;
+    let got = replace_faces_offset(&mut body, &faces, d, Tol::witness());
+    assert!(got.is_ok(), "the top's offset: {got:?}");
+    let minted = body.get_face(faces[0]).unwrap().surface;
+    assert_declared_in_the_moved_top(&body, edge, minted, d);
+}
+
+/// The planar door takes moves of zero, which keep their chart: a
+/// cube's top edge described in a side's chart, the top offset by `d`
+/// and every other chart held.
+#[test]
+fn the_planar_door_restates_an_edge_in_a_held_sides_chart_as_the_section() {
+    let (mut body, edge, top, side) = cube_with_the_top_edge_in_the_sides_chart(false);
+    let side_face = body
+        .faces()
+        .find(|(_, f)| f.surface == side)
+        .map(|(k, _)| k)
+        .unwrap();
+    let d = 1.0 / 64.0;
+    let minted = offset_the_planes(&mut body, top, d);
+    let valid = validate_geometric(&body, Tol::witness());
+    assert!(valid.is_ok(), "the offset cube is tier-3 valid: {valid:?}");
+    let description = description_of(&body, edge).description();
+    let held = body.get_face(side_face).unwrap().surface;
+    assert!(
+        matches!(
+            *description,
+            EdgeDescription::Intersection { s1, s2, .. } if (s1, s2) == (minted, held)
+        ),
+        "the edge is the section of the minted top and the held side: {description:?}"
+    );
+}
+
+#[test]
+fn the_planar_door_moves_a_declared_edge_into_the_moved_faces_chart() {
+    let (mut body, edge, top, _) = cube_with_the_top_edge_in_the_sides_chart(true);
+    let d = 1.0 / 64.0;
+    let minted = offset_the_planes(&mut body, top, d);
+    assert_declared_in_the_moved_top(&body, edge, minted, d);
+}
+
+/// A cube, its top edge on `y = 0` re-described as an image in the
+/// side's chart (declared by its own segment in the top's plane when
+/// `declared`), and the edge, top and side keys.
+fn cube_with_the_top_edge_in_the_sides_chart(
+    declared: bool,
+) -> (Body<f64>, EdgeKey, SurfaceKey, SurfaceKey) {
     let mut body: Body<f64> = sweep::test_support::cube(1.0, Tol::witness());
     let edge = body
         .edges()
@@ -231,25 +288,52 @@ fn the_per_chart_door_moves_a_declared_edge_into_the_moved_faces_chart() {
         spec.carrier.eval(spec.param_start),
         spec.carrier.eval(spec.param_end),
     );
-    spec.description = EdgeDescriptionSpec::chart(side).declared_by(MappedCurve::PlacedSegment {
-        segment: SketchSegment::Line {
-            a: Point2::new(p0.x, p0.y),
-            b: Point2::new(p1.x, p1.y),
-        },
-        place: Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-    });
+    let chart = EdgeDescriptionSpec::chart(side);
+    spec.description = if declared {
+        chart.declared_by(MappedCurve::PlacedSegment {
+            segment: SketchSegment::Line {
+                a: Point2::new(p0.x, p0.y),
+                b: Point2::new(p1.x, p1.y),
+            },
+            place: Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        })
+    } else {
+        chart
+    };
     body.set_edge_curve(edge, spec, Tol::witness())
         .expect("the top edge lies in the side's chart");
-    let faces: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| f.surface == top)
-        .map(|(k, _)| k)
+    (body, edge, top, side)
+}
+
+/// `top` offset by `d` through the planar door with every other chart
+/// held; the minted top's key.
+fn offset_the_planes(body: &mut Body<f64>, top: SurfaceKey, d: f64) -> SurfaceKey {
+    let moves: Vec<ChartMove<f64>> = crate::common::charts::charts(body)
+        .into_iter()
+        .map(|faces| ChartMove {
+            distance: if body.get_face(faces[0]).unwrap().surface == top {
+                d
+            } else {
+                0.0
+            },
+            faces,
+        })
         .collect();
-    let d = 1.0 / 64.0;
-    let got = replace_faces_offset(&mut body, &faces, d, Tol::witness());
-    assert!(got.is_ok(), "the top's offset: {got:?}");
-    let minted = body.get_face(faces[0]).unwrap().surface;
-    let curve = description_of(&body, edge);
+    let got = offset_planes_together(body, &moves, band(), Tol::witness());
+    assert!(
+        got.is_ok(),
+        "the top's offset, its edge in the side's chart: {got:?}"
+    );
+    body.faces()
+        .map(|(_, f)| f.surface)
+        .find(|&k| is_top(body, k) && k != top)
+        .expect("the top moved onto a minted chart")
+}
+
+/// The declared top edge is an image in the minted top's chart, its
+/// declaration translated with the top, and tier 3 still names it.
+fn assert_declared_in_the_moved_top(body: &Body<f64>, edge: EdgeKey, minted: SurfaceKey, d: f64) {
+    let curve = description_of(body, edge);
     assert!(
         matches!(curve.description(), EdgeDescription::Chart(c) if c.surface == minted),
         "the declared edge is an image in the moved top's chart: {:?}",
@@ -265,7 +349,7 @@ fn the_per_chart_door_moves_a_declared_edge_into_the_moved_faces_chart() {
         curve.authority()
     );
     assert_eq!(
-        validate_geometric(&body, Tol::witness()).unwrap_err(),
+        validate_geometric(body, Tol::witness()).unwrap_err(),
         vec![ValidationError::TransverseNotIntrinsic { edge }],
         "the declaration survived the offset"
     );
@@ -273,4 +357,51 @@ fn the_per_chart_door_moves_a_declared_edge_into_the_moved_faces_chart() {
 
 fn is_top(body: &Body<f64>, key: SurfaceKey) -> bool {
     matches!(body.get_surface(key), Some(Surface::Plane { normal, .. }) if normal.z.abs() == 1.0)
+}
+
+/// Where both of the edge's charts move, the edge slides within the
+/// side's chart too, and its image there is derived afresh.
+#[test]
+fn the_planar_door_derives_the_image_afresh_when_both_charts_move() {
+    for declared in [false, true] {
+        let (mut body, edge, top, side) = cube_with_the_top_edge_in_the_sides_chart(declared);
+        let side_face = body
+            .faces()
+            .find(|(_, f)| f.surface == side)
+            .map(|(k, _)| k)
+            .unwrap();
+        let moves: Vec<ChartMove<f64>> = crate::common::charts::charts(&body)
+            .into_iter()
+            .map(|faces| {
+                let k = body.get_face(faces[0]).unwrap().surface;
+                ChartMove {
+                    distance: if k == top || k == side {
+                        1.0 / 64.0
+                    } else {
+                        0.0
+                    },
+                    faces,
+                }
+            })
+            .collect();
+        let got = offset_planes_together(&mut body, &moves, band(), Tol::witness());
+        assert!(got.is_ok(), "declared {declared}: the offset: {got:?}");
+        let minted = body.get_face(side_face).unwrap().surface;
+        let curve = description_of(&body, edge);
+        assert!(
+            matches!(curve.description(), EdgeDescription::Chart(c) if c.surface == minted),
+            "declared {declared}: the edge is an image in the minted side's chart: {:?}",
+            curve.description()
+        );
+        let expected = if declared {
+            Err(vec![ValidationError::TransverseNotIntrinsic { edge }])
+        } else {
+            Ok(())
+        };
+        assert_eq!(
+            validate_geometric(&body, Tol::witness()),
+            expected,
+            "declared {declared}: tier 3 names the declaration and nothing else"
+        );
+    }
 }

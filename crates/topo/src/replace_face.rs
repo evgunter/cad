@@ -2016,24 +2016,14 @@ fn plan_edge<T: Decide>(
                 },
             )?)
         }
-        // An image in an untouched neighbour's chart names no key the
-        // moved face wears after the move, and the edge has left the
-        // locus the image draws. It is stated as what it now is: the
-        // section of the moved chart and the neighbour's. A declaration
-        // rides only a chart image, so a declared edge moves into the
-        // face's own chart instead, its image derived from the
-        // transported carrier.
-        EdgeDescription::Chart(ref c) => match carried_declaration()? {
-            None => {
+        // An image in an untouched neighbour's chart.
+        EdgeDescription::Chart(ref c) => {
+            let declared = carried_declaration()?;
+            if declared.is_none() {
                 neighbour_section(c.surface)?;
-                EdgeDescriptionSpec::Intersection {
-                    s1: old_key,
-                    s2: c.surface,
-                    witness: new_mid,
-                }
             }
-            Some(mc) => EdgeDescriptionSpec::chart(old_key).declared_by(mc),
-        },
+            held_neighbour_image(old_key, c.surface, declared, new_mid)
+        }
         EdgeDescription::Intersection { s1, s2, witness } => {
             EdgeDescriptionSpec::Intersection { s1, s2, witness }
         }
@@ -2231,6 +2221,47 @@ pub(crate) fn group_by_point<T: Real>(
         }
     }
     groups.into_iter().map(|(_, group)| group).collect()
+}
+
+/// An edge whose description is an image in `held`'s chart, `held`
+/// holding still while the edge's other side `moving` moves, restated
+/// for the move.
+///
+/// The image names no key the moving side wears after the move, and
+/// the edge has left the locus it draws, so the edge is stated as what
+/// it now is: the section of the two charts. A declaration rides only a
+/// chart image (an intersection has no slot for one), so a declared
+/// edge moves into the moving side's own chart instead, its image
+/// derived from the moved carrier. `moving` is the key the side wears
+/// now; the door's remap re-points it at the chart it mints.
+pub(crate) fn held_neighbour_image<T: Real>(
+    moving: SurfaceKey,
+    held: SurfaceKey,
+    declared: Option<geom_brep::MappedCurve<T>>,
+    witness: Point3<T>,
+) -> EdgeDescriptionSpec<T> {
+    match declared {
+        None => EdgeDescriptionSpec::Intersection {
+            s1: moving,
+            s2: held,
+            witness,
+        },
+        Some(mc) => EdgeDescriptionSpec::chart(moving).declared_by(mc),
+    }
+}
+
+/// The moving side's key, where the chart `named` is the edge's other
+/// side and holds still; each side is its key and whether it moves.
+pub(crate) fn beside_moving(
+    named: SurfaceKey,
+    sides: [(SurfaceKey, bool); 2],
+) -> Option<SurfaceKey> {
+    match sides {
+        [(held, false), (moving, true)] | [(moving, true), (held, false)] if held == named => {
+            Some(moving)
+        }
+        _ => None,
+    }
 }
 
 /// `description` with every occurrence of `old` re-pointed at `new` —

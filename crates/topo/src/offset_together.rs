@@ -132,6 +132,8 @@ struct MovedPlane<T: Real> {
     c: T,
     /// The rigid displacement the plane itself underwent.
     delta: Vec3<T>,
+    /// Whether the move asks the plane to move at all.
+    moves: bool,
 }
 
 /// **Offset every chart of `body` at once** (module docs).
@@ -208,6 +210,11 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
                 });
             };
             let delta = *normal * m.distance;
+            let moves = match decide("offset_together_chart_motion", Margin::of(m.distance), band) {
+                Ok(Sign::Zero) => false,
+                Ok(_) => true,
+                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+            };
             planes.push((
                 face,
                 MovedPlane {
@@ -215,6 +222,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
                     normal: *normal,
                     c: normal.dot(radius(*origin + delta)),
                     delta,
+                    moves,
                 },
             ));
         }
@@ -365,7 +373,14 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
         specs.push((
             edge,
             EdgeCurveSpec {
-                description: restate(description, authority, mid, displacement, edge)?,
+                description: restate(
+                    description,
+                    authority,
+                    [(pa.old_key, pa.moves), (pb.old_key, pb.moves)],
+                    mid,
+                    displacement,
+                    edge,
+                )?,
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -439,42 +454,30 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
 
 /// `description` re-stated for the moved edge: an intrinsic one keeps
 /// its (about to be remapped) surfaces with the witness at the new
-/// mid-parameter; a mapped one translates by the edge's own rigid
-/// displacement.
+/// mid-parameter; a chart image is derived afresh from the moved
+/// carrier, or, in a chart that holds while the edge's other side
+/// moves, restated against the moving side
+/// ([`crate::replace_face::held_neighbour_image`]); a declaration or a
+/// scaffold translates by the edge's own rigid displacement. `sides`
+/// is each side's key and whether its plane moves.
 ///
 /// **A near-twin of `replace_face::plan_edge`'s description arm, and
 /// the difference is why it is not shared.** That one re-states a
 /// description in which exactly ONE named surface moved, so it must
 /// pick out the moved key and route the pair through the C5 table;
-/// here EVERY named surface moves, the pair is unchanged, and the
-/// remap is a bulk pass at the end. Sharing them would mean a
-/// parameter selecting which of two different obligations to
-/// discharge. The duplication is one `match` over five variants and
-/// this note is its disclosure.
+/// here any of the named planes may move, every one is re-minted, and
+/// the remap is a bulk pass at the end.
 fn restate<T: Real>(
     description: EdgeDescription<T>,
     authority: EdgeAuthority<T>,
+    sides: [(SurfaceKey, bool); 2],
     mid: Point3<T>,
     displacement: Vec3<T>,
     edge: EdgeKey,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    // **The pushforward is carried, wherever it lives** (PCURVE P-1b,
-    // at the merge). This function was written against the
-    // pre-collapse taxonomy, where a conventional locus WAS a
-    // `MappedCurve` and translating the description was the whole job.
-    // U2 restated such loci as chart images and moved the pushforward
-    // beside them as the authority record, so the job splits in two:
-    // the image is in the chart's own coordinates and a rigid
-    // displacement of the chart leaves it alone, while the declaration
-    // is 3-space sketch data and still has to be translated.
-    //
-    // Getting only the first half right is exactly the defect this
-    // unit shipped and had to fix in `replace_face`'s offset lane
-    // (`declared: None` silently destroying the record); the same
-    // question is answered the same way here rather than rediscovered.
-    // Unlike that lane, `offset_together` moves planes RIGIDLY by
-    // construction, so a displacement always exists and only the
-    // rotation-family refusal remains reachable.
+    // A declaration is 3-space sketch data, so it translates with the
+    // edge. The planes move rigidly by construction, so a displacement
+    // always exists and only the rotation-family refusal is reachable.
     let carried = |mc: geom_brep::MappedCurve<T>| {
         crate::replace_face::translate_mapped(mc, displacement).ok_or(
             ReplaceFaceError::CarrierLaneUnsupported {
@@ -497,15 +500,27 @@ fn restate<T: Real>(
                 witness: mid,
             }
         }
-        EdgeDescription::Chart(c) => EdgeDescriptionSpec::Chart {
-            surface: c.surface,
-            image: Some(c.pcurve),
-            seam: c.seam,
-            declared: match authority {
+        EdgeDescription::Chart(c) => {
+            let declared = match authority {
                 EdgeAuthority::Derived => None,
                 EdgeAuthority::Declared(mc) => Some(carried(mc)?),
-            },
-        },
+            };
+            match crate::replace_face::beside_moving(c.surface, sides) {
+                Some(moving) => {
+                    crate::replace_face::held_neighbour_image(moving, c.surface, declared, mid)
+                }
+                // The image is the REQUEST to derive it from the moved
+                // carrier: the edge slides within its chart whenever
+                // the other side moves, so the old image would draw
+                // the old locus.
+                None => EdgeDescriptionSpec::Chart {
+                    surface: c.surface,
+                    image: None,
+                    seam: c.seam,
+                    declared,
+                },
+            }
+        }
         EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
     })
 }
