@@ -252,6 +252,12 @@ pub(super) struct UnsupportedPair {
 ///   meets nothing of the other operand cannot enter any crossing,
 ///   any section, or any germ pair. Its kind is then irrelevant to
 ///   the operation and the gate has nothing to say about it.
+/// - **The boxes separate along the world's axes only**, so an
+///   overlap is followed by the narrow phase
+///   ([`super::separating::apart`]), which reads both faces along
+///   directions that turn with the operands. A pair it parts is
+///   certified apart as a box non-overlap is, and the verdict is the
+///   pair's rather than the pose's.
 /// - **Overlap is a MAY, not a DOES.** Boxes over-approximate, so
 ///   this scan still finds pairs that exact geometry would separate.
 ///   That is conservative in the correct direction — it never admits
@@ -259,10 +265,11 @@ pub(super) struct UnsupportedPair {
 ///   built from it say the faces "may meet" rather than claiming a
 ///   meeting the kernel has not computed.
 ///
-/// The pad is the sweep's own ([`super::boxes::sweep_pad`]), so the
-/// gate's boxes are the same boxes candidate generation reads: the
-/// gate cannot admit a pair the sweep would then prune, nor refuse
-/// one it would examine.
+/// The pad is the sweep's own ([`super::boxes::sweep_pad`]), and the
+/// sweep's curved arm reads the same narrow phase behind its tree, for
+/// an edge and for either face it lies on: a pair the gate parts is one
+/// the sweep parts too, and one the gate refuses the sweep would
+/// examine.
 ///
 /// **A COVERED pair is not an offending pair.** `covered` names the
 /// cross-operand pairs the caller's declarations speak for. The gate
@@ -1134,16 +1141,19 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // typed-frontier arm.
             let Some(plane) = face_plane(y, face) else {
                 // The tree's overlap is a world-axis one: a curved face
-                // the edge is apart from along a direction that turns
-                // with the operands meets it nowhere, whichever arm its
-                // kind has.
-                if super::separating::apart(
-                    (x, Item::Edge(edge_key)),
-                    (y, Item::Face(face)),
-                    &axes,
-                    pad,
-                    band,
-                ) {
+                // the edge, or either face the edge lies on, is apart
+                // from along a direction that turns with the operands
+                // meets the edge nowhere, whichever arm its kind has.
+                // The parents' reading is the operand gate's, so a pair
+                // the gate cleared is cleared here too.
+                let apart_from_face = |item| {
+                    super::separating::apart((x, item), (y, Item::Face(face)), &axes, pad, band)
+                };
+                if apart_from_face(Item::Edge(edge_key))
+                    || [edge.he_plus, edge.he_minus]
+                        .into_iter()
+                        .any(|he| apart_from_face(Item::Face(x.face_of_linked(he))))
+                {
                     continue;
                 }
                 let event = curved_face_arm(

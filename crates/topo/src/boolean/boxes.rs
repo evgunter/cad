@@ -36,7 +36,8 @@
 //! more exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
-//!   pair's worth of exact work and can never change a verdict.
+//!   pair's worth of exact work and can never change a verdict; a
+//!   curved candidate the narrow phase parts is pruned behind it.
 //! - `census`'s pre-filter (`census::Trees`) PRUNES on the same
 //!   terms: the at-rest sweeps examine the C10 tree's candidates over
 //!   these boxes, and a loose box only admits more pairs to the exact
@@ -48,7 +49,9 @@
 //! - `boolean::reduce`'s operand GATE grants on non-overlap: an
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
-//!   operation whose faces never meet.
+//!   operation whose faces never meet, unless the narrow phase behind
+//!   the overlap (`boolean::separating`, reaches along directions that
+//!   turn with the operands) parts the pair.
 //! - `boolean::reduce`'s undeclared-continuation scan
 //!   (`refuse_undeclared_continuations`, its boxes built by the
 //!   driver in `boolean/mod.rs` and passed in) mostly PRUNES: a face pair
@@ -67,13 +70,15 @@
 //!   `face_rows` box), so a bigger box
 //!   turns a separated sphere × approximated-face pair into
 //!   `CurvedBooleanUnsupported`, and a plane face's boundary-edge box
-//!   met by a section circle's box into `FallbackExtentUnsupported`.
+//!   met by a section circle's box ([`circle_box`], the circle's own
+//!   extent) into `FallbackExtentUnsupported` unless the narrow phase
+//!   parts the edge and the circle.
 //! - `boolean::ops`'s section certificate (`walk_pairs` over the boxes
 //!   `face_rows` builds once per face, taken by `section_pairs` on both
 //!   paths and by `sphere_faces_apart`, the sphere-extent fallback's
 //!   reading of a crossing sphere pair's faces) EXAMINES every pair
-//!   whose two face boxes overlap, and
-//!   builds from the overlap the pair's reach, which pivots and levers
+//!   whose two face boxes overlap and the narrow phase does not part,
+//!   and builds from the overlap the pair's reach, which pivots and levers
 //!   its angular margins (`section_cert`'s module docs). A bigger box
 //!   sends a separated pair through the exact classification, which
 //!   certifies it apart; and it widens the reach, which lengthens the
@@ -3198,6 +3203,39 @@ pub(crate) mod tests {
              looseness in — pruning, or refusing — and nothing computes that (S234). \
              Update both, and read S234 before trusting the list you are updating."
         );
+    }
+
+    /// **A tilted section circle is boxed by its own extent**, in both
+    /// directions: coordinate `i` of [`circle_box`] spans exactly
+    /// `ρ·√(1 − nᵢ²)` about the centre, and every sampled point of the
+    /// circle lies inside it. A `2ρ` cube about the centre passes the
+    /// locus half and reds the ceiling half on every axis here, since
+    /// the normal leans off all three.
+    #[test]
+    fn a_tilted_circles_box_is_its_own_extent() {
+        let n = Vec3::new(1.0, 2.0, 3.0).normalize();
+        let u = Vec3::new(2.0, -1.0, 0.0).normalize();
+        let v = n.cross(u);
+        let (c, rho) = (Point3::new(0.3, -0.2, 1.1), 0.7);
+        let b = circle_box(c, u, v, rho, 0.0);
+        let (lo, hi) = ([b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]);
+        for (i, (centre, ni)) in [(c.x, n.x), (c.y, n.y), (c.z, n.z)].into_iter().enumerate() {
+            let half = rho * (1.0 - ni * ni).sqrt();
+            assert!(
+                (lo[i] - (centre - half)).abs() <= 1e-15
+                    && (hi[i] - (centre + half)).abs() <= 1e-15,
+                "axis {i}: [{}, {}] against the circle's own [{}, {}]",
+                lo[i],
+                hi[i],
+                centre - half,
+                centre + half
+            );
+        }
+        for k in 0..720 {
+            let t = f64::from(k) * core::f64::consts::TAU / 720.0;
+            let p = c + u * (rho * t.cos()) + v * (rho * t.sin());
+            assert!(holds(&b, p), "the circle at t = {t} lies outside its box");
+        }
     }
 
     /// **A DISPATCH row, not a locus row.** Every surface kind has a
