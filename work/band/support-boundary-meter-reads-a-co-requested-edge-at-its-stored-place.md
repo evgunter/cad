@@ -71,5 +71,8 @@ red before the fix).
 The support-boundary walk reads an outer-boundary edge requested in
 the same call at its trim on that face (`co_requested_trim`): an open
 link's trimline over its stored window projected onto it, a co-requested
-rim arc at its rim's whole trim circle. The sibling in arm (c) is
-`ruled-cap-meter-reads-a-co-requested-ring-at-its-stored-circle`.
+rim arc at its rim's whole trim circle. Arm (c) is the sibling. For a
+ring it is closed by predicate 3
+(`ruled-cap-meter-reads-a-co-requested-ring-at-its-stored-circle`), and
+the open-link candidate is
+`ruled-cap-meter-reads-a-co-requested-open-link-at-its-stored-place`.

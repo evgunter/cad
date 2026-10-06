@@ -253,10 +253,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 "a ruled link's band is not a cylinder about its ruling",
             ));
         };
-        let (q_a, q_b) = (
-            open_trimline(l, l.face_a)?.0,
-            open_trimline(l, l.face_b)?.0,
-        );
+        let (q_a, q_b) = (open_trimline(l, l.face_a)?.0, open_trimline(l, l.face_b)?.0);
 
         // The supports: each carries its half of the crease, and is
         // ring-free — a ring on a curved support is not carried

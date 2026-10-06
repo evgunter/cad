@@ -2,8 +2,10 @@
 id: ruled-cap-meter-reads-a-co-requested-ring-at-its-stored-circle
 kind: issue
 title: blend: the ruled cut-off's cap meter reads a ring requested in the same call at its stored circle, not its trim
-status: open
+status: closed
 opened: 2026-10-02
+pr: 3822
+closed: 2026-10-06
 priority: P3
 cost: M
 ---
@@ -40,3 +42,23 @@ Either build that countersink-in-a-corner case and see whether it
 carves wrong, or read a co-requested ring at its trim circle in arm
 (c) (`co_requested_trim` already answers "where does this edge bound
 this face after its carve"), pinned by the row that reds without it.
+
+## Closed
+
+The premise is wrong. It took the rim's SETBACK for its trim radius. On
+a plane cap, a closed rim's trim circle sits at the band's SPINE radius
+`s` (the ball centre's foot), and predicate 3
+(`fillet3_spine_regularity`, `battery.rs` `spine_regularity`) refuses
+unless `s > r`. So every co-requested rim's trim disc on the cap has a
+radius greater than `r`. The support-boundary walk keeps that disc
+inside the cap, exactly. The sliver is the part of the cap's corner
+that no disc of radius `r` inside the cap covers, so the disc never
+reaches it, whatever the rim's dihedral. In PR 3822's review, the
+obtuse case was built: shallow spherical dimples sunk into the D-rod's
+cap corner, their trim circles crossing the cut-off arc. Every one
+refused `SpineIrregular`, and the same dimples away from the corner
+carved.
+
+The one candidate left in the class is a co-requested OPEN link in a
+cap cycle, which this disc argument does not cover. It is filed as
+`ruled-cap-meter-reads-a-co-requested-open-link-at-its-stored-place`.

@@ -284,7 +284,8 @@ impl<T: Real> Link<T> {
     /// **This link's trim on its support `face`** — the trimline there
     /// and the setback to it; `None` when `face` is neither support.
     pub(crate) fn trim_on(&self, face: FaceKey) -> Option<&super::arms::Trim<T>> {
-        (self.face_a == face || self.face_b == face).then(|| self.blend.trims(self.face_a == face).0)
+        (self.face_a == face || self.face_b == face)
+            .then(|| self.blend.trims(self.face_a == face).0)
     }
 }
 
