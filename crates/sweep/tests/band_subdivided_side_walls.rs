@@ -188,6 +188,34 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     assert!((volume(body, t) - 8.5).abs() < 1e-12, "{}", volume(body, t));
 }
 
+/// **A single-operand result has maximal edges.** The subdivided prism
+/// unioned with a cube strictly inside it: no boundary crosses, so the
+/// union is the prism's own material, answered by the single-operand
+/// fallback. The prism carries its station vertex on both cap rims, and
+/// the fallback's output stage joins both: the result is a 2 × 2 × 2
+/// box with 8 vertices and 12 edges. Red when the fallback skips the
+/// join.
+#[test]
+fn a_union_answered_by_one_operand_joins_its_station_vertices() {
+    let t = Tol::witness();
+    let prism = finished("the subdivided prism", subdivided_prism(t).body, t);
+    assert_eq!(
+        topo::joinable_vertices(&prism).len(),
+        2,
+        "the station on each cap rim"
+    );
+    let cube = cube_at(0.5, 0.5, 0.5, 1.0);
+    let r = union(&prism, &cube, t).expect("the cube lies inside the prism");
+    let out = r.body().expect("non-empty");
+    assert_eq!(out.kind, topo::BooleanResultKind::OperandA);
+    assert_eq!(out.naming.edge_joins.len(), 2, "both stations joined");
+    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(out.body.vertices().count(), 8);
+    assert_eq!(out.body.edges().count(), 12);
+    assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
+    assert!((volume(&out.body, t) - 8.0).abs() < 1e-12);
+}
+
 /// **Revolve, full and partial: the same branch.** The subdivided
 /// square at `x ∈ [1, 3]` revolved about the sketch's y axis: its
 /// subdivided bottom side sweeps to ONE annulus wall, its subdivided

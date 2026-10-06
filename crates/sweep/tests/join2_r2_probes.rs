@@ -476,6 +476,60 @@ fn a_like_far_ends_tie_is_decided_by_the_partner_faces_trim() {
     }
 }
 
+/// **The declared-REST lane's output has maximal edges.** One pose of
+/// [`a_like_far_ends_tie_is_decided_by_the_partner_faces_trim`]: the
+/// normal join refuses typed, so the REST lane answers the union, and
+/// the plates' rims meet at vertices that lie on one line between one
+/// face pair. The lane's output stage joins them: the union reports its
+/// joins and leaves no joinable vertex. Red when the REST lane skips the
+/// join.
+#[test]
+fn the_rest_lane_joins_every_joinable_vertex_it_leaves() {
+    let lower = vec![
+        ((0.0, 0.0), 0.0),
+        ((2.0, 0.0), q()),
+        ((3.0, 1.0), 0.0),
+        ((3.0, 3.0), 0.0),
+        ((4.0, 3.0), 0.0),
+        ((4.0, 0.0), 0.0),
+        ((6.0, 0.0), 0.0),
+        ((6.0, 4.0), 0.0),
+        ((0.0, 4.0), 0.0),
+    ];
+    let upper = sharp(&[
+        (0.0, 0.0),
+        (6.0, 0.0),
+        (6.0, 4.0),
+        (3.5, 4.0),
+        (3.5, 0.3),
+        (2.5, 0.3),
+        (2.5, 4.0),
+        (0.0, 4.0),
+    ]);
+    let (a, b) = (plate(&lower, 0.0), plate(&upper, 1.0));
+    for (order, x, y) in [("ab", &a, &b), ("ba", &b, &a)] {
+        let d = declared(x, y).unwrap_or_else(|e| panic!("{order}: declarations: {e:?}"));
+        let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
+        assert!(
+            matches!(join, Ok(Some(_))),
+            "{order}: the normal join refuses, so the REST lane answers: {join:?}"
+        );
+        let Ok(topo::BooleanResult::Body(out)) = topo::union_with(&fin(x), &fin(y), &d, tol())
+        else {
+            panic!("{order}: the REST lane builds the union");
+        };
+        assert!(
+            !out.naming.edge_joins.is_empty(),
+            "{order}: the REST lane's output stage joins the rims' vertices"
+        );
+        assert_eq!(
+            topo::joinable_vertices(&out.body),
+            vec![],
+            "{order}: no joinable vertex is left"
+        );
+    }
+}
+
 /// **Segments between pierce-ring vertices only refuse typed.** The
 /// zip's pose of [`join2_r2_island_through_the_zip`]: the channel's west
 /// arm top is an island inside the plate's bottom face, so every one of
