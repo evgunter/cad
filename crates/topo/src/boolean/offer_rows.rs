@@ -2427,6 +2427,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         2,
     ),
+    ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
     (
         "finish.rs",
         "weld_pinches",

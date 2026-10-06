@@ -41,7 +41,10 @@ use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
 use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
-use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
+use super::{
+    BooleanError, BooleanOp, BooleanReduction, Coincide, DeclarationRead, Operand, SideCode,
+    one_vertex,
+};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
@@ -603,9 +606,9 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
 ///
 /// # Errors
 ///
-/// A corner read's refusal ([`sectors::orbit_corners`]), and
-/// [`BooleanError::Escalated`] where an edge runs along a bound within
-/// the band without lying on it.
+/// A corner read's refusal ([`sectors::orbit_corners`]), and the
+/// sectors' coincidence refusal where an edge runs along a bound within
+/// the band without lying on it, as [`sectors::within`] refuses.
 fn corners_nest<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -656,14 +659,9 @@ fn corner_holds<T: Decide>(
         .min(corner.end_reach.length())
         .min(reach);
     let sign = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
-        decide(
-            "pinch_corner_holds",
-            Margin::levered(x.cross(y).dot(n), arm),
-            band,
-        )
-        .map_err(|diag| BooleanError::Escalated {
-            decision: super::BooleanDecision::VertexOnVertex,
-            diag,
+        let margin = Margin::levered(x.cross(y).dot(n), arm);
+        decide("pinch_corner_holds", margin, band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
         })
     };
     let (after_start, before_end) = (sign(a, d)?, sign(d, b)?);
