@@ -4,6 +4,8 @@ kind: issue
 title: Three wedges meeting at one point of a plate's top refuse in every member order, with three different refusals
 status: open
 opened: 2026-10-02
+priority: P1
+cost: M
 ---
 
 
