@@ -3062,8 +3062,9 @@ pub(crate) enum Undecided {
     /// Arm 2: the point-in-solid door could not place a vertex near
     /// the boundary (escalated, or its loop walk escalated).
     WitnessTooClose,
-    /// Arm 2: every ray the point-in-solid door cast grazed, for a
-    /// vertex its pre-pass placed off the boundary.
+    /// Arm 2: no ray the point-in-solid door cast settled — each grazed
+    /// or gave nothing to read — for a vertex its pre-pass placed off the
+    /// boundary.
     WitnessGrazed,
     /// Arm 2: an instance of (near-)zero signed volume. Tier 3's +V
     /// check passes a volume in band of zero, so the part is the
@@ -3204,9 +3205,9 @@ impl Undecided {
                  overlap"
             }
             Self::WitnessGrazed => {
-                "a corner of one is off the other's boundary, but every test ray from it \
-                 grazed that boundary. Recourse: move the parts until their bounding boxes \
-                 no longer overlap"
+                "a corner of one is off the other's boundary, but no test ray from it \
+                 settled where it lies: each grazed that boundary or could not be read. \
+                 Recourse: move the parts until their bounding boxes no longer overlap"
             }
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \

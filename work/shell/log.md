@@ -1172,3 +1172,10 @@ on the oblique-corner item that now gates it.
 - Unit 6 lane report landed on PR 4151 (head `70b1ef611`). Dual review (H, concurrent) dispatched on that frozen head: R1 `session_01WniRc3DStGGngmTdm1tfTz`, R2 `session_0154Q262rVu2oCh4QejUS4p5`, identical briefs and seven claims to falsify. Protocol `713b017b7`; blinding byte 236.
 - The demos job's four `eps_regression` reds on 4151 are a red main (klein findings pin 10 retired, certified-cells header moved), reproduced on clean main `364b8aefa`. Filed P0 for PATHS: `work/paths/demos-red-on-main-klein-pin-retired-and-certified-cells-moved.md` (suspect #3774; #4136 second).
 - Unit 5 (PR 4163): `test` red on `122ac63b`; the lane is asked to name its rows.
+
+- 2026-10-06 — From FUSE: demo-tour's Klein pin (`klein.rs:876`,
+  findings entry 10) fires on main at every `eps_regression` row since
+  PR 3774 (PATHS 5b). The FUSE 3953 lane bisected it. Filed as
+  `work/paths/a-klein-wall-radius-pin-fires-on-main-since-paths-5b.md`
+  (P0): the pin's own text says the entry has retired. Every PR that
+  merges main is red on the `demos` job until it is resolved.
