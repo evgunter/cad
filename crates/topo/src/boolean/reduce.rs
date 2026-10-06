@@ -1853,9 +1853,10 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// (on a cylinder only rulings do, and a ruling answers `Constant`; no
 /// line lies on a torus); what the door then does is point-in-face
 /// containment on a chart, which is a trim question and not a gluing
-/// one. An arc lying on the carrier (`LiesOn`) it takes only when every
-/// parent is decided a DIFFERENT carrier: a curve where two carriers
-/// meet, so it asks no cosurface question either.
+/// one. An arc lying on the carrier (`LiesOn`) or a ruling (`Constant`
+/// with both ends on it) it takes only when every parent is decided a
+/// DIFFERENT carrier: a curve where two carriers meet, so it asks no
+/// cosurface question either.
 ///
 /// Returns what the caller must do about the pair — see
 /// [`CurvedEvent`]. The split itself needs `&mut x` and the worklist,
@@ -2405,14 +2406,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   Neither end can place on this face against the verdict (the
         //   mixed-sign arm above says why).
         // - **`LiesOn`: an arc lying on the carrier**, exactly on by the
-        //   circle root door. It is an ON event (C4's one-sided cover,
-        //   narrowed to touches) when every surface of a face it bounds is
-        //   decided distinct from `face`'s by the carrier ladder: the arc
-        //   is then a curve where two different carriers meet, not a
-        //   cosurface question. It takes the coplanar conic's posture,
-        //   endpoint processing only, once its interior is certified to
-        //   meet this face's boundary nowhere it does not run along, and
-        //   is split where it does meet it ([`lying_on`]).
+        //   circle root door; **`Constant`: a ruling lying on a wall**,
+        //   its residual decided Zero at both ends and its distance from
+        //   the axis constant over the span. Either is an ON event (C4's
+        //   one-sided cover, narrowed to touches) when every surface of a
+        //   face it bounds is decided distinct from `face`'s by the
+        //   carrier ladder: the edge is then a curve where two different
+        //   carriers meet, not a cosurface question. It takes the
+        //   coplanar conic's posture, endpoint processing only, once its
+        //   interior is certified to meet this face's boundary nowhere it
+        //   does not run along, and is split where it does meet it
+        //   ([`lying_on`]).
         //
         // Every other answer keeps the door: the undeclared cosurface
         // question (CONTACT-DESIGN C2/C4), a parent the ladder does not
@@ -2425,7 +2429,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
                     Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
                 }
-                SpanVerdict::LiesOn if parents_distinct_from(x, edge, y, face, band) => {
+                SpanVerdict::LiesOn | SpanVerdict::Constant
+                    if parents_distinct_from(x, edge, y, face, band) =>
+                {
                     let arc = ArcOnCarrier {
                         x,
                         x_is,
@@ -2716,8 +2722,9 @@ impl<T: geom_core::Real> Interior<T> {
 /// The declared arms' interior question, asked only of an edge the
 /// carrier-identity rung puts ON `face`'s carrier (`on_carrier`): where
 /// it crosses `face`'s boundary strictly inside its span
-/// ([`super::carrier_cross`]). A carrier pair with no closed form keeps
-/// the frontier door.
+/// ([`super::carrier_cross`]), over line and circle boundary edges only:
+/// an ellipse on the boundary keeps the frontier door, as does any other
+/// carrier pair with no closed form.
 fn interior<T: Decide>(
     on_carrier: bool,
     y: &Body<T>,
@@ -2727,11 +2734,20 @@ fn interior<T: Decide>(
     band: Band,
     frontier: impl Fn() -> BooleanError,
 ) -> Result<Interior<T>, BooleanError> {
-    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
+    use super::carrier_cross::{BoundaryCrossing, BoundaryReads, boundary_crossing};
     if !on_carrier {
         return Ok(Interior::Unseen);
     }
-    match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
+    let reads = BoundaryReads::LinesAndCircles;
+    match boundary_crossing(
+        y,
+        x_is.other(),
+        face,
+        curve.carrier(),
+        curve.params(),
+        reads,
+        band,
+    )? {
         BoundaryCrossing::At { t, p, at } => {
             Ok(Interior::Crossing(CurvedEvent::Pierce { t, p, at }))
         }
@@ -2752,10 +2768,11 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
     tol: Tol,
 }
 
-/// **An arc lying on `face`'s carrier, its parents distinct from it:**
-/// the endpoint records, once the arc's interior is certified to cross
-/// `face`'s boundary nowhere, or a split where it crosses it. Three
-/// readings, in order, and anything else keeps the door (`None`):
+/// **An arc or a ruling lying on `face`'s carrier, its parents distinct
+/// from it:** the endpoint records, once its interior is certified to
+/// cross `face`'s boundary nowhere, or a split where it crosses it.
+/// Three readings for an arc, in order, and the last alone for a
+/// ruling; anything else keeps the door (`None`):
 ///
 /// - **off the boundary but at its ends**: the face's boundary meets the
 ///   arc's own circle nowhere but at the vertices of `y` the arc's ends
@@ -2774,19 +2791,19 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 ///   cross no face's interior: the end records, with the chain's inner
 ///   vertices that the other direction's sweep records on this arc, are
 ///   every incidence it has.
-/// - **the interior question**: where the arc's span meets the face's
-///   boundary strictly inside it ([`super::carrier_cross`]: any line or
-///   circle boundary edge, or a boundary vertex). A meeting is a
-///   `Pierce` the caller splits both edges at, as at a wall pierce
+/// - **the interior question**: where the span meets the face's
+///   boundary strictly inside it ([`super::carrier_cross`]: any line,
+///   circle or ellipse boundary edge, or a boundary vertex). A meeting
+///   is a `Pierce` the caller splits both edges at, as at a wall pierce
 ///   landing on the boundary, and each fragment is read again here; a
 ///   certified absence is (a)'s conclusion. A seam ruling a rim crosses
 ///   mid-arc is such a meeting: (a) reads the whole circle, which the
 ///   ruling meets wherever the rim is turned, and (b) has no chain.
 ///
-/// Over line and circle boundaries (a) is a fast path: what it certifies
-/// the interior question would too. It still decides alone where a
-/// boundary edge is another conic, which (a) reads through its plane
-/// crossings and the interior question does not read at all.
+/// Over line, circle and ellipse boundaries (a) is a fast path: what it
+/// certifies the interior question would too. It still decides alone
+/// where a boundary ellipse lies in the arc's own plane, which (a) reads
+/// through its plane crossings and the interior question leaves unread.
 ///
 /// The interior question's candidates overlap. On a surface of
 /// revolution a boundary ruling's end vertex projects onto the arc at
@@ -2831,14 +2848,17 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
         .get_curve_geom(e.curve)
         .and_then(CurveGeom::certified)
         .ok_or_else(|| lost("an arc on a carrier: the edge's curve is lost"))?;
-    let geom::Curve3::Circle {
-        center,
-        axis,
-        radius,
-        ..
-    } = *curve.carrier()
-    else {
-        return Ok(None);
+    // A ruling of a wall has no circle for (a) and (b) to read: the
+    // interior question alone decides it.
+    let circle = match *curve.carrier() {
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        } => Some((center, axis, radius)),
+        geom::Curve3::Line { .. } => None,
+        _ => return Ok(None),
     };
     let mut placed = [(Placement::Undecided, None); 2];
     for (slot, (w, pw)) in placed.iter_mut().zip(ends) {
@@ -2866,23 +2886,34 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
         let mixed = at_ends.is_empty() && !all(Placement::Recorded);
         (!mixed).then_some(CurvedEvent::Recorded)
     };
-    if boundary_meets_circle_only_at(y, face, (center, axis, radius), &at_ends, band)? {
-        return Ok(interior_clear());
-    }
-    if let [(_, Some(wu)), (_, Some(wv))] = placed {
-        let (dir, _) = curve.walk_tangents(
-            x.get_half_edge(e.he_plus)
-                .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
-                .start
-                == ends[0].0,
-        );
-        if arc_chain_reaches(y, wu, wv, dir, (center, axis, radius), band)? {
-            return Ok(Some(CurvedEvent::Recorded));
+    if let Some(circle) = circle {
+        if boundary_meets_circle_only_at(y, face, circle, &at_ends, band)? {
+            return Ok(interior_clear());
+        }
+        if let [(_, Some(wu)), (_, Some(wv))] = placed {
+            let (dir, _) = curve.walk_tangents(
+                x.get_half_edge(e.he_plus)
+                    .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
+                    .start
+                    == ends[0].0,
+            );
+            if arc_chain_reaches(y, wu, wv, dir, circle, band)? {
+                return Ok(Some(CurvedEvent::Recorded));
+            }
         }
     }
-    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
+    use super::carrier_cross::{BoundaryCrossing, BoundaryReads, boundary_crossing};
+    let reads = BoundaryReads::WithEllipses;
     Ok(
-        match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
+        match boundary_crossing(
+            y,
+            x_is.other(),
+            face,
+            curve.carrier(),
+            curve.params(),
+            reads,
+            band,
+        )? {
             BoundaryCrossing::At { t, p, at } => Some(CurvedEvent::Pierce { t, p, at }),
             BoundaryCrossing::Clear => interior_clear(),
             BoundaryCrossing::Unread => None,
@@ -3146,8 +3177,8 @@ enum SpanVerdict<T: geom_core::Real> {
     /// The line is parallel to the axis, so its residual is CONSTANT
     /// along the span. Nothing about the span's interior differs from
     /// its endpoints — which makes it a clearance answer for a caller
-    /// whose endpoints are definitely off the wall and a cosurface
-    /// question for one whose endpoints are on it.
+    /// whose endpoints are definitely off the wall, and a ruling lying
+    /// on the wall for one whose endpoints are on it.
     Constant,
     /// The conic LIES on the surface: its residual is a zero constant,
     /// decided exactly on by its root door

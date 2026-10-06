@@ -337,6 +337,16 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/sweep/src/blend/open/end_face.rs",
+        subject: "impl<T: Bounds> SectionFrame<T>",
+        why: Selection(
+            "the cut-off's round-section depth (`scaled`, `depth`) for the sliver meter. It \
+             reads no bracket itself — scaled radii by arithmetic alone — and its result is \
+             one term of `CapSliver::clearance`, the margin `ring_clearance` decides, so it \
+             inherits that door's DL5(b) disposition and no other",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/blend/surgery.rs",
         subject: "impl<T: Bounds> CircleFrame<T>",
         why: Selection(
