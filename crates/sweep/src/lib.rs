@@ -34,7 +34,11 @@
 //!   `extrusion_normal_component` (margin in meters — it *is* the
 //!   displacement): definitely positive or negative proceeds; zero
 //!   (in-plane, or a sliver-thin extrusion) is
-//!   [`ExtrudeError::DegenerateExtrusion`]; in-band escalates.
+//!   [`ExtrudeError::DegenerateExtrusion`]; in-band escalates. The
+//!   `Distance` door decides its depth through the same predicate and
+//!   takes the sign from its [`ExtrudeSide`] alone: a depth is a size,
+//!   so a definitely negative one is
+//!   [`ExtrudeError::NegativeDepth`].
 //! - **Which cap carries the profile winding.** The **bottom cap lies
 //!   on the sketch plane**, the top cap on the plane translated by `w`.
 //!   Under the ratified interior-left rule (outer loops
@@ -157,7 +161,7 @@ mod swept;
 #[doc(hidden)]
 pub mod test_support;
 
-pub use extrude::{ExtrudeError, Extruded, Extrusion, SideWall, extrude};
+pub use extrude::{ExtrudeError, ExtrudeSide, Extruded, Extrusion, SideWall, extrude};
 pub use loft::{LoftError, Lofted, loft_body, sweep_body};
 pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 pub use revolve::{

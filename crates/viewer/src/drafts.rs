@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
-    Node, ParamName, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
+    BooleanOp, Dimension, DimensionError, Doc, Formula, Label, LabelFault, LoopProgram,
+    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
@@ -73,7 +73,7 @@ pub(crate) struct Drafts {
     /// The name an unknown-parameter refusal offered to create
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
-    pub(crate) new_param_offer: Option<ParamName>,
+    pub(crate) new_param_offer: Option<VarName>,
     /// The mate tool's class/alignment choice, as widget state: an
     /// index into [`crate::matetool::admitted_classes`], an index into
     /// [`crate::forms::MATE_PRIMITIVES`], and the sense toggle. Draft chrome state
@@ -375,7 +375,7 @@ pub(crate) struct ProfileEdit {
 #[derive(Debug)]
 struct HeldReport {
     at: HistoryId,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: Vec<Vec<Option<StepId>>>,
     rows: Vec<Maintenance>,
 }
@@ -384,7 +384,7 @@ impl ProfileEdit {
     /// The draft of `program`, held as `loops` ([`sketch::held_loops`]
     /// of it), every step loaded as itself.
     fn load(node: RecipeNodeId, program: &ProfileProgram, loops: Vec<Vec<Step<f64>>>) -> Self {
-        let loaded_as = sketch::kept_in_place(program);
+        let loaded_as = program.kept_in_place();
         let shaped = program.ids.len() == loops.len()
             && program
                 .ids
@@ -475,7 +475,7 @@ impl ProfileEdit {
     pub(crate) fn report(
         &mut self,
         at: HistoryId,
-        door: impl FnOnce(Vec<LoopProgram>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
+        door: impl FnOnce(Vec<LoopProgram<Formula>>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
     ) -> &[Maintenance] {
         let Ok(loops) = self.programs(Notation::CANONICAL) else {
             return &[];
@@ -511,7 +511,7 @@ impl ProfileEdit {
     pub(crate) fn programs(
         &self,
         notation: Notation,
-    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
         sketch::loop_programs(&self.shapes(), notation)
     }
 
@@ -920,7 +920,7 @@ impl Drafts {
     pub(crate) fn profile_programs(
         &self,
         notation: Notation,
-    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
         sketch::loop_programs(&self.profile_loops(), notation)
     }
 
@@ -1016,16 +1016,16 @@ impl Drafts {
 /// Three dimensionless literals — a normal, a direction, a rotation
 /// axis. Not a [`Drafts`] method, because there is no notation to
 /// carry from the form: a dimensionless number has one spelling, and
-/// `Expr::literal` stores that row itself.
+/// `Formula::literal` stores that row itself.
 ///
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
-        Expr::literal(v[2], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[2], Dimension::Scalar)?,
     ])
 }
 
@@ -1035,10 +1035,10 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
     ])
 }
 
@@ -1085,7 +1085,8 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        CancelToken, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram, RecipeNodeId, evaluate,
+        CancelToken, Doc, DocEdit, EvalOptions, Formula, Node, ProfileProgram, RecipeNodeId,
+        evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{ArcData, Step, Target};
@@ -1379,7 +1380,9 @@ mod tests {
                 | NodeKindWanted::Frame => {}
             }
             assert!(
-                authorable.iter().any(|node| admits(Some(node), wanted)),
+                authorable
+                    .iter()
+                    .any(|node| admits(Some(&editor_core::test_support::stored(node)), wanted)),
                 "the {} seat wants {} and no add-datum choice authors one",
                 seat.name(),
                 wanted.name(),
@@ -1550,7 +1553,7 @@ mod tests {
         assert_ne!(at, held.node, "and not the node the form is displaying");
         assert_ne!(at, held.feature(), "nor the feature that minted the name");
         assert_eq!(name, seat.1);
-        let want = Expr::written_angle(pncad::quantity::WrittenAngle::canonical_in(
+        let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,
             pncad::quantity::DEG,
         ))
@@ -1795,7 +1798,7 @@ mod tests {
             Step::LineTo(Target::Start),
         ]);
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        let kept = sketch::kept_in_place(edit.base());
+        let kept = edit.base().kept_in_place();
         edit.steps_mut(0)[1] = Step::ArcTo(ArcData::Via {
             q: Point2::new(0.0, 0.01),
             target: Target::Point(Point2::new(0.01, 0.0)),
@@ -1810,7 +1813,7 @@ mod tests {
         };
         let (doc, mut drafts, profile) = held_path(vec![split(0.01, 3, 0.0)]);
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        let kept = sketch::kept_in_place(edit.base());
+        let kept = edit.base().kept_in_place();
         edit.steps_mut(0)[0] = split(0.02, 3, 0.5);
         assert_eq!(edit.ids(), kept, "a split circle's radius and phase moved");
         edit.steps_mut(0)[0] = split(0.02, 4, 0.5);

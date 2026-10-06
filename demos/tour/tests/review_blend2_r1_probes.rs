@@ -14,7 +14,7 @@ use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{ArcSweep, BlendError, Center, ConstructedLoop, Open, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, EdgeKey};
+use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 #[path = "common/rim_select.rs"]
 mod rim_select;
@@ -61,8 +61,9 @@ fn vase() -> Body<f64> {
 }
 
 /// A ball of radius `rad` centred at `(x, y, 0)`, authored as a
-/// pole-touching revolve (its equator is two half-walls).
-fn ball(x: f64, y: f64, rad: f64) -> Body<f64> {
+/// pole-touching revolve (its equator is two half-walls), finished as a
+/// boolean operand.
+fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
     let t = tol();
     let meridian: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, -rad))
@@ -90,12 +91,13 @@ fn ball(x: f64, y: f64, rad: f64) -> Body<f64> {
     )
     .expect("the ball revolves")
     .body;
-    pncad::prelude::transform_rigid(
+    let moved = pncad::prelude::transform_rigid(
         &b,
         &pncad::geom_core::Affine3::translation(pncad::geom_core::Vec3::new(x, y, 0.0)),
         t,
     )
-    .expect("the ball moves")
+    .expect("the ball moves");
+    AtRestBody::validate(moved, t).expect("the ball is a finished body")
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -287,7 +289,8 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
 /// pinned rather than asserted.
 #[test]
 fn p4_no_public_door_builds_a_mixed_ladder_and_annulus_support() {
-    let out = subtract(&vase(), &ball(0.45, 1.8, 0.08), tol());
+    let vase = AtRestBody::validate(vase(), tol()).expect("the vase is a finished body");
+    let out = subtract(&vase, &ball(0.45, 1.8, 0.08), tol());
     match out {
         Ok(_) => panic!(
             "a ball subtracted into a revolve's cap BUILT — the mixed ladder+annulus \

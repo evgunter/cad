@@ -155,9 +155,9 @@ fn intrinsic_seam_at(
         (c.carrier().clone(), a, b)
     };
     // The plane the flat wall IS: `y = -1`, outward normal `-y`.
-    // Lifts both refusals: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
+    // Lifts RechartStrandsDescriptions: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -170,7 +170,7 @@ fn intrinsic_seam_at(
         )
         .expect("the exactly-planar wall restates as a plane");
     let (s1, s2) = if swap { (bowed, plane) } else { (plane, bowed) };
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -423,8 +423,8 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .faces()
         .find(|(_, f)| f.surface == old)
         .expect("the bowed wall has a face");
-    // Lifts both refusals: the bowed wall's replaced chart is the row's subject.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the bowed wall's replaced chart is the row's subject.
+    body.set_face_surface_unvouched_for_tests(
         fk,
         FaceSurface::New {
             surface: new,
@@ -753,7 +753,7 @@ fn redescribe_against(
 ) -> Result<(), topo::EulerOpError> {
     let edge = body.get_half_edge(he).unwrap().edge;
     let (carrier, t0, t1) = seam_carrier(body, he);
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {

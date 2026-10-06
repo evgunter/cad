@@ -482,7 +482,10 @@ mod tests {
         };
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let ((after, inside), counts) = with_session_rules(budget, SymRules::shipped(), || {
-            let rho = Sym::param(ParamSymbol::of("rho"), Interval::from_bounds(1.0, 1.25));
+            let rho = Sym::param(
+                ParamSymbol::new(test_utils::symbol_id("rho")),
+                Interval::from_bounds(1.0, 1.25),
+            );
             let zero = <Sym<Interval> as Real>::zero();
             let arc = Arc2 {
                 centre: Point2::new(zero, zero),

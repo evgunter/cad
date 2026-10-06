@@ -1075,8 +1075,15 @@ mod pattern_tests {
         let prof = profile::Profile::new(plane, vec![square])
             .validate(geom_core::Tol::witness())
             .unwrap();
-        let built =
-            sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
+        let built = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
         let table = name_extrude(
             node,
             &built,
@@ -1983,7 +1990,10 @@ mod walk_tests {
             .expect("a unit square validates");
         let cube = sweep::extrude(
             &prof,
-            sweep::Extrusion::Distance(1.0_f64),
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
             geom_core::Tol::witness(),
         )
         .expect("a unit cube extrudes");

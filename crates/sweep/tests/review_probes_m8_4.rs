@@ -117,8 +117,8 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             .faces()
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
-        // Lifts both refusals: the bowed wall's replaced chart is the row's subject.
-        body.set_face_surface_stranding_for_tests(
+        // Lifts RechartStrandsDescriptions: the bowed wall's replaced chart is the row's subject.
+        body.set_face_surface_unvouched_for_tests(
             fk,
             FaceSurface::New {
                 surface: flipped,
@@ -145,9 +145,9 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         let (a, b) = c.params();
         (c.carrier().clone(), a, b)
     };
-    // Lifts both refusals: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
+    // Lifts RechartStrandsDescriptions: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -160,7 +160,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         )
         .expect("the exactly-planar wall restates as a plane");
     let eps = Tol::witness().get().eps;
-    match body.set_edge_curve_nurbs_lane(
+    match body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -313,7 +313,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
         (c.carrier().clone(), a, b)
     };
     let err = body
-        .set_edge_curve_nurbs_lane(
+        .set_edge_curve(
             edge,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {

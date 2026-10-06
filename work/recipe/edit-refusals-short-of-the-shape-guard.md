@@ -2,12 +2,13 @@
 id: edit-refusals-short-of-the-shape-guard
 kind: issue
 title: edit: refusals the viewer draws that state no recourse, by the shape guard's census
-status: open
-pr: 3492
-branch: edit/part-refusal-recourse
+status: closed
+pr: 3909
+branch: recipe/meta-bound-and-rule-recourse
 opened: 2026-09-29
 priority: P2
 cost: M
+closed: 2026-10-02
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)
@@ -173,7 +174,7 @@ this row, so it stays open, and the unit sets the `## Built` section.
 
 ## Built (2026-10-01, the placement unit's P2) — the placement arms
 
-Ruling 10 of `docs/EDIT-PLACEMENT-SPEC.md`'s P2, against the five arms still on the list:
+Ruling 10 of `docs/doc-ledger/edit-placement-spec.md`'s P2, against the five arms still on the list:
 - **Deleted with what they refused:** `MaintenanceUnrecorded` (and, under MSOLVE's comment, `MaintenanceRefused` with its eleven forwarded rows). No edit records a frame, so nothing is maintained and nothing is unrecorded.
 - **Re-shaped, and stating a recourse:** `PlacementOnNonInstance` is `OffsetOnNonInstance` (`DocEdit::SetOffset` on a node that instantiates no part), ending "aim the offset at a node that instantiates a part". `PlacementAxis` — now raised by an instance's offset and a gauge's placement as well as a transform's — ends "give the rotation axis a direction of nonzero length".
 - **New, stating a recourse from birth:** `GaugeOnNonPlaced`, `GaugeNotLive`, `NotAGauge`, `GaugeCycle` (the `SetGauge` door), and `MateFault::OffsetDisagrees` / `OffsetUnchecked` under `MateRefused` (`OFFSET_RECOURSE`; repair the node whose placement did not evaluate, or clear the offset).
@@ -182,3 +183,9 @@ Ruling 10 of `docs/EDIT-PLACEMENT-SPEC.md`'s P2, against the five arms still on 
 `crates/viewer/tests/refusal_concision_edits.rs` renders every new arm, its `FILED_NO_RECOURSE` holds the two rule arms under this row's comment, and its `MaintenanceRefused` admissions are gone. `FrameSite::Registry` went with the registry; a literal step of an offset or a gauge is `FrameSite::Step`.
 
 **What remains on this row:** the two placement-rule arms, `EmptyPlacementList` and `PlacementRuleMismatch`.
+
+## Built (2026-10-02, PR 3909) — the two placement-rule arms; the row closes
+
+`EmptyPlacementList` and `PlacementRuleMismatch` state a recourse, each shape its own; the PR body has the detail.
+
+Nothing remains on this row.

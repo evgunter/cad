@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::{FRAC_PI_2, PI};
+use sweep::ExtrudeSide;
 
 use geom_core::{Point2, Tol};
 use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
@@ -39,7 +40,16 @@ fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
     let v = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
         .unwrap();
-    let mut body = extrude(&v, Extrusion::Distance(2.0), t).unwrap().body;
+    let mut body = extrude(
+        &v,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .unwrap()
+    .body;
     body.merge_coplanar_faces(t).unwrap();
     body
 }
@@ -72,11 +82,10 @@ fn band_radial_err(body: &Body<f64>, f: FaceKey) -> f64 {
         return f64::NAN;
     };
     let mut worst: f64 = 0.0;
-    for (v, vd) in body.vertices() {
+    for (v, p) in body.vertex_points() {
         if !body.faces_of_vertex(v).is_some_and(|fs| fs.contains(&f)) {
             continue;
         }
-        let p = *body.get_point(vd.point).unwrap();
         let d = p - *origin;
         let along = d.dot(*axis);
         let rad = (d - *axis * along).norm();

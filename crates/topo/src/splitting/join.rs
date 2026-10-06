@@ -26,21 +26,22 @@
 //!
 //! Which loose end a half consumes is decided two ways:
 //!
-//! - **On a planar face with more than two crossings, its partner,
-//!   fixed before the sweep** ([`line_partners`]): the face's crossings
-//!   in order along the face's own section line
+//! - **On a face with more than two crossings, its partner, fixed
+//!   before the sweep** ([`fixed_partners`]). A planar face's crossings
+//!   are taken in order along the face's own section line
 //!   ([`super::order::sort_along_line`]), each taking the first
-//!   unpaired one before it of opposite sense. The sweep's global order
+//!   unpaired one before it of opposite sense: the sweep's global order
 //!   is monotone along that line only for exact points, and computed
 //!   crossings on a line parallel to the order's `v` axis come out in
-//!   rounding order (`super::order`'s module docs) — the defect that
-//!   chorded a ringed cap across its hole. The partner of such a half
-//!   is consumed only by it, and it consumes only its partner.
+//!   rounding order (`super::order`'s module docs). A curved face's
+//!   crossings lie on a conic, which no lexicographic order follows:
+//!   they are paired along the conic, each entry into the face with
+//!   the exit that ends the arc inside it ([`conic_pairs`]). The
+//!   partner of such a half is consumed only by it, and it consumes
+//!   only its partner.
 //! - **Elsewhere, the book's rule**: the first registered half in the
 //!   *same face* (at the time of the scan) with the *opposite* up/down
-//!   sense, among the halves with no fixed partner. A curved face's
-//!   crossings lie on a conic, which has no line order; their pairing
-//!   is `work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`.
+//!   sense, among the halves with no fixed partner.
 //!
 //! # What this lane adds to the core's `cut`
 //!
@@ -49,10 +50,10 @@
 //! resolves them by membership of the minted above-copy vertex set,
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
-//! polygon is the one-sided tangency residue PR 2's adjudication
-//! record promised to refuse here, typed
-//! [`SplitJoinError::DegenerateSection`] — refuses a positive-area
-//! polygon carrying a tangent contact as a zero-width spur
+//! polygon (a below-side pinch, or a curved face's concave graze)
+//! is refused typed, [`SplitJoinError::DegenerateSection`] — refuses
+//! a positive-area polygon carrying a grazing contact as a zero-width
+//! spur
 //! ([`SplitJoinError::SectionSpur`], `split_section_spur`;
 //! `Sweep::refuse_section_spur`), and writes the F9 record.
 
@@ -63,8 +64,9 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, CutOutcome, FragmentRows, JoinLane, SectionCtx, SplitJoinError, corrupt_edge,
-    corrupt_face, corrupt_he, corrupt_loop, vertex_point,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, Leave, SectionCase,
+    SectionCtx, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
+    vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
@@ -93,7 +95,7 @@ pub(crate) struct CompletedSection {
 ///
 /// [`SplitJoinError`] — the body may be left mid-surgery on `Err`
 /// (callers operate on a scratch clone; the public ops discard it).
-pub(super) fn split_connect<T: Decide>(
+pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
     red: &mut SplitReduction<T>,
     band: Band,
     tol: Tol,
@@ -109,12 +111,12 @@ pub(super) fn split_connect<T: Decide>(
     // Sort points: each null edge's coincident-copy position.
     let mut points = Vec::with_capacity(red.null_edges.len());
     for r in &red.null_edges {
-        points.push(vertex_point(&red.body, r.attr.below_end)?);
+        points.push(vertex_point(&red.body, r.attr.below_end));
     }
     let sorted = order::sort_indices_by_point(&points, &red.plane, band, exact)
         .map_err(|diag| SplitJoinError::OrderEscalated { diag })?;
 
-    let partner = line_partners(red, &above_set, band)?;
+    let partner = fixed_partners(red, &above_set, band)?;
     let mut st = Sweep {
         ends: Vec::new(),
         partner,
@@ -154,22 +156,44 @@ pub(super) fn split_connect<T: Decide>(
         let mut joined = [false, false];
         for (slot, half) in [(0, up), (1, down)] {
             if let Some(end) = st.take_neighbor(&red.body, half)? {
+                let leave = Leave {
+                    at: [
+                        (
+                            end,
+                            split_leave(&red.body, red.plane.normal, &st.above_set, end)?,
+                        ),
+                        (
+                            half,
+                            split_leave(&red.body, red.plane.normal, &st.above_set, half)?,
+                        ),
+                    ],
+                    datum: Datum::Section,
+                };
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
-                joiner.join(&mut red.body, end, half, JoinLane::Split(section), tol)?;
+                joiner.join(
+                    &mut red.body,
+                    end,
+                    half,
+                    crate::chord_join::Chords::Split {
+                        ctx: section,
+                        leave,
+                    },
+                    tol,
+                )?;
                 joined[slot] = true;
                 // Retire the consumed end's edge if its other half is
                 // no longer loose.
                 let end_edge = he_edge(&red.body, end)?;
                 let mate = red.body.mate(end).ok_or_else(|| corrupt_he(end))?;
                 if !st.is_loose(mate) {
-                    st.cut(&mut red.body, end_edge)?;
+                    st.cut(&mut red.body, end_edge, tol)?;
                 }
             }
         }
         if joined[0] && joined[1] {
-            st.cut(&mut red.body, record.edge)?;
+            st.cut(&mut red.body, record.edge, tol)?;
         }
     }
 
@@ -196,21 +220,14 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
     Ok(body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face)
 }
 
-/// The fixed partners of the null-edge halves on planar faces with
-/// more than two crossings (module docs), both ways round.
+/// The fixed partners of the null-edge halves on faces with more than
+/// two crossings (module docs), both ways round: a planar face's along
+/// its section line ([`line_pairs`]), a curved face's along its section
+/// conic ([`conic_pairs`]).
 ///
 /// A face's halves are taken in insertion order (null-edge record
 /// order, up half first — the half starting at `below_end`, the order
-/// the sweep offers them in), keyed by their along-line coordinate
-/// `(p − origin)·d̂`, `d = n_face × n_plane`. A half left unpaired on
-/// its line keeps the book's rule.
-///
-/// **A face whose line the band cannot certify keeps the book's rule
-/// too, silently** (**`split_join_face_line`**: `|d|` levered by the
-/// crossings' spread is Zero). That is a face lying in the plane, or
-/// within the band of it, whose crossings are the plane's contact with
-/// it rather than a section line; its pairing is main's, with main's
-/// exposure to the global order. An escalated reading refuses.
+/// the sweep offers them in), each at its start vertex's point.
 ///
 /// The partners are fixed on the faces the sweep starts with. A chord
 /// minted earlier in the sweep can divide a face so that two partners
@@ -220,19 +237,13 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] naming the face, where its line or
-/// the order of two of its crossings along it is undecided.
-fn line_partners<T: Decide>(
+/// [`line_pairs`]' and [`conic_pairs`]', each naming the face.
+fn fixed_partners<T: Decide>(
     red: &SplitReduction<T>,
     above_set: &SecondaryMap<VertexKey, ()>,
     band: Band,
 ) -> Result<SecondaryMap<HalfEdgeKey, HalfEdgeKey>, SplitJoinError> {
     let body = &red.body;
-    // The half's up/down sense, read as the sweep reads it (`is_down`).
-    let down_half = |he: HalfEdgeKey| -> Result<bool, SplitJoinError> {
-        let start = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start;
-        Ok(above_set.contains_key(start))
-    };
     let mut faces: Vec<(FaceKey, Vec<HalfEdgeKey>)> = Vec::new();
     for r in &red.null_edges {
         let edge = body.get_edge(r.edge).ok_or_else(|| corrupt_edge(r.edge))?;
@@ -258,73 +269,310 @@ fn line_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
+        let mut crossings = Vec::with_capacity(halves.len());
+        for &h in &halves {
+            let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
+            crossings.push(Crossing {
+                half: h,
+                point: vertex_point(body, start),
+                // The half's up/down sense, read as the sweep reads it
+                // (`Sweep::is_down`).
+                down: above_set.contains_key(start),
+                leave: split_leave(body, red.plane.normal, above_set, h)?,
+            });
+        }
         let surface = body
             .get_face(face)
             .ok_or_else(|| corrupt_face(face))?
             .surface;
-        let Some(&geom::Surface::Plane { normal, .. }) = body.get_surface(surface) else {
-            continue;
+        let pairs = match body.get_surface(surface) {
+            Some(&geom::Surface::Plane { normal, .. }) => {
+                line_pairs(red, face, normal, &crossings, band)?
+            }
+            _ => conic_pairs(red, face, &crossings, band)?,
         };
-        let points = halves
-            .iter()
-            .map(|&h| {
-                vertex_point(
-                    body,
-                    body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut spread = T::zero();
-        for p in &points {
-            spread = spread.max((*p - points[0]).norm());
-        }
-        let d = normal.cross(red.plane.normal.get());
-        match decide(
-            "split_join_face_line",
-            Margin::levered(d.norm(), spread),
-            band,
-        ) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => continue,
-            Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
-        }
-        let d = d.normalize();
-        let keys: Vec<T> = points
-            .iter()
-            .map(|p| (*p - red.plane.origin).dot(d))
-            .collect();
-        let order = super::order::sort_along_line(&keys, band)
-            .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
-        let mut loose: Vec<HalfEdgeKey> = Vec::new();
-        for i in order {
-            let h = halves[i];
-            let down = down_half(h)?;
-            let mut matched = None;
-            for (j, &e) in loose.iter().enumerate() {
-                if down_half(e)? != down {
-                    matched = Some(j);
-                    break;
-                }
-            }
-            match matched {
-                Some(j) => {
-                    let e = loose.remove(j);
-                    partner.insert(e, h);
-                    partner.insert(h, e);
-                }
-                None => loose.push(h),
-            }
+        for (a, b) in pairs {
+            partner.insert(a, b);
+            partner.insert(b, a);
         }
     }
     Ok(partner)
+}
+
+/// The direction the section leaves a null-edge half's site in, into
+/// the half's face: `n_plane × n_out` at a down half, where the face's
+/// boundary runs down through the plane and the section enters the
+/// face, and its reverse at an up half, where the section leaves it
+/// ([`conic_pairs`]' walk). `n_out` is the face's outward normal at the
+/// site, read off its carrier ([`geom_brep::implicit_outward_normal`]):
+/// a crossing lies on the face's boundary, so on its carrier. Its length
+/// is the sine between the plane and the carrier there.
+///
+/// One reading for both of its consumers, the pairing of a curved
+/// face's crossings and the chord a join mints between two of them
+/// ([`crate::chord_join::Leave`]), so the chord takes the arc the
+/// pairing walked.
+fn split_leave<T: Decide>(
+    body: &Body<T>,
+    plane_normal: geom_core::UnitVec3<T>,
+    above_set: &SecondaryMap<VertexKey, ()>,
+    half: HalfEdgeKey,
+) -> Result<geom_core::Vec3<T>, SplitJoinError> {
+    let face = he_face(body, half)?;
+    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    let wall = body
+        .get_surface(face_data.surface)
+        .ok_or_else(|| corrupt_face(face))?;
+    let start = body
+        .get_half_edge(half)
+        .ok_or_else(|| corrupt_he(half))?
+        .start;
+    let out = geom_brep::implicit_outward_normal(wall, face_data.sense, vertex_point(body, start));
+    let heading = plane_normal.get().cross(out.vec());
+    Ok(if above_set.contains_key(start) {
+        heading
+    } else {
+        -heading
+    })
+}
+
+/// One null-edge half on a face, as the pairing reads it.
+struct Crossing<T: Decide> {
+    half: HalfEdgeKey,
+    point: Point3<T>,
+    /// Starts at an above copy (`Sweep::is_down`).
+    down: bool,
+    /// The section's direction into the face there ([`split_leave`]).
+    leave: geom_core::Vec3<T>,
+}
+
+/// A planar face's crossings paired along its section line: keyed by
+/// their along-line coordinate `(p − origin)·d̂`, `d = n_face × n_plane`,
+/// ordered by [`super::order::sort_along_line`], each taking the first
+/// unpaired one before it of opposite sense. A crossing left unpaired
+/// on its line keeps the book's rule.
+///
+/// **A face whose line the band cannot certify keeps the book's rule,
+/// silently** (**`split_join_face_line`**: `|d|` levered by the
+/// crossings' spread is Zero). That is a face lying in the plane, or
+/// within the band of it, whose crossings are the plane's contact with
+/// it rather than a section line; its pairing is the sweep order's.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] naming the face, where its line or
+/// the order of two of its crossings along it is undecided.
+fn line_pairs<T: Decide>(
+    red: &SplitReduction<T>,
+    face: FaceKey,
+    normal: geom_core::Vec3<T>,
+    crossings: &[Crossing<T>],
+    band: Band,
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+    let mut spread = T::zero();
+    for c in crossings {
+        spread = spread.max((c.point - crossings[0].point).norm());
+    }
+    let d = normal.cross(red.plane.normal.get());
+    match decide(
+        "split_join_face_line",
+        Margin::levered(d.norm(), spread),
+        band,
+    ) {
+        Ok(Sign::Positive) => {}
+        Ok(_) => return Ok(Vec::new()),
+        Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
+    }
+    let d = d.normalize();
+    let keys: Vec<T> = crossings
+        .iter()
+        .map(|c| (c.point - red.plane.origin).dot(d))
+        .collect();
+    let order = super::order::sort_along_line(&keys, band)
+        .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
+    let mut pairs = Vec::new();
+    let mut loose: Vec<&Crossing<T>> = Vec::new();
+    for i in order {
+        let c = &crossings[i];
+        match loose.iter().position(|e| e.down != c.down) {
+            Some(j) => pairs.push((loose.remove(j).half, c.half)),
+            None => loose.push(c),
+        }
+    }
+    Ok(pairs)
+}
+
+/// A curved face's crossings paired along its section conic.
+///
+/// Walk the conic in the direction `h = n_plane × n_out` (the face's
+/// outward normal at the crossing). The face lies to the left of its
+/// boundary's direction `b` about `n_out`, so the walk enters the face
+/// where `h·(n_out × b) > 0`, and that is `−(n_plane·b)`: it enters
+/// exactly where the boundary runs down through the plane — at a down
+/// half — and leaves at an up half. So, in walk order, each down
+/// crossing is paired with the next crossing, the end of the arc that
+/// lies in the face. The book's rule, pairing by the sweep's
+/// lexicographic order, can instead pair across an arc OUTSIDE the
+/// face: both ends of an exit-then-entry arc are of opposite sense too.
+///
+/// **The heading** is read at every crossing, as the sign of
+/// `h·Ĉ′(θ)` against the conic's unit tangent in its eccentric anomaly
+/// (**`split_join_conic_heading`**: a sine, levered by the wall's
+/// radius — [`geom_brep::curvature_lever_arm`], the chart's own length
+/// scale — so the margin is how far the section runs from tangent to
+/// the wall there; on a sphere it is the section circle's radius). On
+/// the conics that reach here (a tilted ellipse or a rim circle on a
+/// cylinder, a polar circle on a sphere, an ellipse or an axis-normal
+/// circle on a cone) `h` vanishes nowhere, so one
+/// sign holds all round; opposite definite signs are a broken
+/// invariant. The outward normal is the wall's gradient at the
+/// crossing ([`geom_brep::implicit_outward_normal`]): a crossing lies
+/// on the face's boundary, so on its wall.
+///
+/// **The order** is along the walk coordinate `w = ±θ`, by
+/// [`super::order::sort_along`] with the gap between two crossings read
+/// as `Δw·|C′(w_mid)|` — the arc between them at the conic's speed
+/// halfway, which is the arc length to second order in `Δw`. A verdict
+/// is close only where that gap is a few band widths, so `Δw` is a few
+/// band widths over the minor semi-axis and the reading's error is far
+/// inside the band; a larger `Δw` is decided apart either way, since the
+/// speed is at least the minor semi-axis. Neither reading understates
+/// the arc the way a fixed semi-axis would near the other vertex.
+///
+/// **The cycle.** `θ` is read in `(−π, π]`, so the sorted order starts
+/// at the conic's branch cut. A run of coincident crossings straddling
+/// it would be split across both ends: where the gap across the cut
+/// reads Zero, the cut moves to the first gap that does not, those
+/// crossings' `w` take a period, and the runs are regrouped. The pairing
+/// reads the order cyclically, so where the cycle starts changes no
+/// pair.
+///
+/// A planar face, a straight section and the kinds the gate refuses
+/// pair nothing here: they keep the book's rule.
+///
+/// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
+/// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
+/// here only.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] naming the face, where a heading or a
+/// gap is undecided; [`SplitJoinError::SectionCrossings`] where a
+/// heading is in the band ([`ConicCrossingsCase::Grazing`]) or the
+/// senses do not alternate in walk order
+/// ([`ConicCrossingsCase::NotAlternating`]); the C5 table's refusals.
+fn conic_pairs<T: Decide>(
+    red: &SplitReduction<T>,
+    face: FaceKey,
+    crossings: &[Crossing<T>],
+    band: Band,
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+    let body = &red.body;
+    let first = crossings[0].half;
+    let at = body
+        .get_half_edge(first)
+        .ok_or_else(|| corrupt_he(first))?
+        .start;
+    let Some(WallSection {
+        wall,
+        case: SectionCase::Conic(conic),
+    }) = wall_section(body, band, red.plane.origin, red.plane.normal, face, at)?
+    else {
+        return Ok(Vec::new());
+    };
+    let refuse = |case| SplitJoinError::SectionCrossings { face, case, band };
+    let escalate = |diag| SplitJoinError::Escalated { face, diag };
+    let mut heading = None;
+    let mut walk = Vec::with_capacity(crossings.len());
+    for c in crossings {
+        let theta = conic.param(c.point);
+        let tangent = conic.tangent(theta);
+        let h = if c.down { c.leave } else { -c.leave };
+        let sine = h.dot(tangent) / tangent.norm();
+        let arm = geom_brep::curvature_lever_arm(&wall, c.point);
+        let sign = match decide("split_join_conic_heading", Margin::levered(sine, arm), band) {
+            Ok(Sign::Zero) => return Err(refuse(ConicCrossingsCase::Grazing)),
+            Ok(sign) => sign,
+            Err(diag) => return Err(escalate(diag)),
+        };
+        if *heading.get_or_insert(sign) != sign {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "crossings of one curved face read opposite headings along a section \
+                       conic the face meets transversally all round",
+            });
+        }
+        walk.push(theta);
+    }
+    if heading == Some(Sign::Negative) {
+        for w in &mut walk {
+            *w = T::zero() - *w;
+        }
+    }
+    // How far crossing `a` lies past `b` along the walk (fn docs). The
+    // conic's speed is even and 2π-periodic in `θ`, so it reads the
+    // same at `w` as at the `θ` it came from.
+    let gap = |w: &[T], a: usize, b: usize| {
+        (w[a] - w[b]) * conic.tangent((w[a] + w[b]) * T::from_f64(0.5)).norm()
+    };
+    let n = crossings.len();
+    let order = super::order::sort_along(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
+    let (lo, hi) = (order[0], order[n - 1]);
+    let mut across = walk.clone();
+    across[lo] = across[lo] + T::tau();
+    let order = if decide(
+        "split_join_line_gap",
+        Margin::of(gap(&across, lo, hi)),
+        band,
+    )
+    .map_err(escalate)?
+        == Sign::Zero
+    {
+        let mut cut = None;
+        for k in 1..n {
+            let step = gap(&walk, order[k], order[k - 1]);
+            if decide("split_join_line_gap", Margin::of(step), band).map_err(escalate)?
+                != Sign::Zero
+            {
+                cut = Some(k);
+                break;
+            }
+        }
+        // Every crossing of the face at one point: nothing alternates.
+        let Some(k) = cut else {
+            return Err(refuse(ConicCrossingsCase::NotAlternating));
+        };
+        for &i in &order[..k] {
+            walk[i] = walk[i] + T::tau();
+        }
+        let mut cycled = order;
+        cycled.rotate_left(k);
+        super::order::group_coincident(cycled, |a, b| gap(&walk, a, b), band).map_err(escalate)?
+    } else {
+        order
+    };
+    let down = |k: usize| crossings[order[k % n]].down;
+    if (0..n).any(|k| down(k) == down(k + 1)) {
+        return Err(refuse(ConicCrossingsCase::NotAlternating));
+    }
+    let entry = usize::from(!down(0));
+    Ok((0..n / 2)
+        .map(|m| {
+            let k = entry + 2 * m;
+            (
+                crossings[order[k % n]].half,
+                crossings[order[(k + 1) % n]].half,
+            )
+        })
+        .collect())
 }
 
 /// The sweep state.
 struct Sweep<T: Decide> {
     /// Loose ends, in registration order (growable — no `ends[30]`).
     ends: Vec<HalfEdgeKey>,
-    /// Fixed partners of the halves on line-ordered faces
-    /// ([`line_partners`]).
+    /// Fixed partners of the halves on faces crossed more than twice
+    /// ([`fixed_partners`]).
     partner: SecondaryMap<HalfEdgeKey, HalfEdgeKey>,
     /// The shared chord-join core.
     joiner: ChordJoiner,
@@ -402,8 +650,8 @@ impl<T: Decide> Sweep<T> {
 impl<T: Decide> Sweep<T> {
     /// `cut` with the split lane's role resolution, area certification,
     /// and F9 record-keeping layered on the shared core.
-    fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey) -> Result<(), SplitJoinError> {
-        match self.joiner.cut_core(body, edge)? {
+    fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey, tol: Tol) -> Result<(), SplitJoinError> {
+        match self.joiner.cut_core(body, edge, tol)? {
             CutOutcome::Merged => Ok(()),
             CutOutcome::Completed { face, ring } => {
                 let outer_loop = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
@@ -460,7 +708,7 @@ impl<T: Decide> Sweep<T> {
     /// Certify the completed polygon's area definitely positive
     /// (margin 2·|A|/P — mean width in meters, profile's
     /// `loop_orientation` lever-arm story); Zero ⇒ the degenerate
-    /// one-sided-tangency section, refused typed.
+    /// section of a pinch or a curved face's graze, refused typed.
     ///
     /// **Conic boundary edges (M5 PR 5)**: the vertex shoelace below is
     /// exact for straight chords and stays BIT-IDENTICAL for all-planar
@@ -512,31 +760,21 @@ impl<T: Decide> Sweep<T> {
             let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 continue;
             };
-            let (c_e, axis_e, sa, sb) = match *curve.carrier() {
-                geom::Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    ..
-                } => (center, axis, radius, radius),
-                geom::Curve3::Ellipse {
-                    center,
-                    axis,
-                    major,
-                    minor,
-                    ..
-                } => (center, axis, major, minor),
-                geom::Curve3::Line { .. }
-                | geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_) => {
-                    continue;
-                }
+            let Some(crate::loop_winding::ConicFrame {
+                center: c_e,
+                axis: axis_e,
+                sa,
+                sb,
+                ..
+            }) = crate::loop_winding::ConicFrame::of(curve.carrier())
+            else {
+                continue;
             };
             let (t0, t1) = curve.params();
             let span = t1 - t0;
             let forward = edge.he_plus == he;
-            let a_pt = vertex_point(body, he_data.start)?;
-            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?)?;
+            let a_pt = vertex_point(body, he_data.start);
+            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?);
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
@@ -573,21 +811,21 @@ impl<T: Decide> Sweep<T> {
     /// so the vertex before it and the vertex after it coincide
     /// ([`SplitJoinError::SectionSpur`]).
     ///
-    /// Where it comes from: a plane tangent to the solid along an edge
-    /// mints null edges along that edge. When the tangent side is the
-    /// run's above side the contact's null edges close a polygon of
-    /// their own, zero-area, and [`Self::certify_section_area`] refuses
-    /// it ([`SplitJoinError::DegenerateSection`]). [`super::split`]
-    /// reads that refusal as a below-side pinch and reruns under the
-    /// mirrored plane; if the plane also cuts the solid somewhere the
-    /// contact reaches, the mirrored run joins the contact's null edges
+    /// Where it comes from: a concave graze of a curved face (a plane
+    /// tangent to a hole's wall along a ruling) mints a contact.
+    /// When the graze is on the run's above side, the contact closes a
+    /// polygon of its own, zero-area, and [`Self::certify_section_area`]
+    /// refuses it ([`SplitJoinError::DegenerateSection`]).
+    /// [`super::split`] reads that refusal as a below-side pinch and
+    /// reruns under the mirrored plane. If the plane also cuts the solid
+    /// somewhere the contact reaches, the mirrored run joins the contact
     /// into that real section's loop as an out-and-back excursion. Its
     /// net area is the real section's, positive, and the area test
-    /// passes it — the pinch lane would turn the one-sided-tangency
-    /// refusal into a success whose halves carry a zero-width slit.
-    /// This refuses that excursion, so the tangency stays refused (the
-    /// public `split` then surfaces the direct run's
-    /// `DegenerateSection`).
+    /// passes it. This refuses that excursion, so the graze stays
+    /// refused (the public `split` then surfaces the direct run's
+    /// `DegenerateSection`). A plane tangent along a convex edge, or to
+    /// a convex wall, never gets here: rule (b) classifies the entry
+    /// with its material.
     ///
     /// The margin is the distance between the tip's two neighbours
     /// (`split_section_spur`, a length through [`Margin::norm3`]).
@@ -621,10 +859,10 @@ impl<T: Decide> Sweep<T> {
             ))
         };
         let start = |he: HalfEdgeKey| -> Result<Point3<T>, SplitJoinError> {
-            vertex_point(
+            Ok(vertex_point(
                 body,
                 body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
-            )
+            ))
         };
         for i in 0..n {
             let (inbound, outbound) = (hes[(i + n - 1) % n], hes[i]);
@@ -674,7 +912,7 @@ pub(super) fn loop_points_of<T: Decide>(
     l: LoopKey,
 ) -> Result<Vec<Point3<T>>, SplitJoinError> {
     let starts = loop_starts(body, l)?;
-    starts.into_iter().map(|v| vertex_point(body, v)).collect()
+    Ok(starts.into_iter().map(|v| vertex_point(body, v)).collect())
 }
 
 #[cfg(test)]

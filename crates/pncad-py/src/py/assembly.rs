@@ -237,9 +237,9 @@ pub(crate) fn product_named(
 /// Why a mate reference named no product face.
 ///
 /// Payload attributes present on every arm, `None` where inapplicable:
-/// `at` (the operand a reference is read at when it is spelled there
-/// but the operand is not a product root) and `width` (how many
-/// entities a tie holds). There is no `kind`: a mate head is a face
+/// `at` (the operand a moved reference is read at), `by` (the node
+/// that moves it, or that consumed it on its way to the product) and
+/// `width` (how many faces answer). There is no `kind`: a mate head is a face
 /// by its type, so no refusal here reports what a head named
 /// instead.
 ///
@@ -252,32 +252,42 @@ pub(crate) struct RefusedRef(d::RefusedRef, SpokenFrom);
 
 #[pymethods]
 impl RefusedRef {
-    /// The stable tag: `ref_vanished`, `ref_read_below_a_root`,
+    /// The stable tag: `ref_vanished`, `ref_moved_above`,
     /// `ref_ambiguous`.
     #[getter]
     fn variant(&self) -> &'static str {
         refused_ref_tag(&self.0)
     }
 
-    /// The operand the reference is read at, when its own table
-    /// spells the name but it is not a root of the product — the
-    /// product spells that entity at its roots, under a pattern as
-    /// the instance row at the pattern node.
+    /// The operand the reference is read at, when a node above it
+    /// places the face again before the product holds it.
     #[getter]
     fn at(&self) -> Option<NodeId> {
         match self.0 {
-            d::RefusedRef::ReadBelowARoot { at } => Some(NodeId(at)),
-            d::RefusedRef::Vanished | d::RefusedRef::Ambiguous { .. } => None,
+            d::RefusedRef::MovedAbove { at, .. } => Some(NodeId(at)),
+            d::RefusedRef::Vanished { by: _ } | d::RefusedRef::Ambiguous { width: _ } => None,
         }
     }
 
-    /// How many entities a tie holds. A mate declaration must name
-    /// ONE face, and a tie is never broken by picking.
+    /// The node above the operand that places the face again
+    /// (`ref_moved_above`), or that consumed it on its way to the
+    /// product (`ref_vanished`, when the operand spells the name).
+    #[getter]
+    fn by(&self) -> Option<NodeId> {
+        match self.0 {
+            d::RefusedRef::MovedAbove { by, .. } => Some(NodeId(by)),
+            d::RefusedRef::Vanished { by } => by.map(NodeId),
+            d::RefusedRef::Ambiguous { width: _ } => None,
+        }
+    }
+
+    /// How many faces answer. A mate declaration must name ONE face,
+    /// and a tie is never broken by picking.
     #[getter]
     fn width(&self) -> Option<usize> {
         match self.0 {
             d::RefusedRef::Ambiguous { width } => Some(width),
-            d::RefusedRef::Vanished | d::RefusedRef::ReadBelowARoot { .. } => None,
+            d::RefusedRef::Vanished { .. } | d::RefusedRef::MovedAbove { .. } => None,
         }
     }
 
@@ -683,14 +693,14 @@ impl Assembly {
 
 /// Raise `AssemblyError` carrying the refusal's stable tag and the
 /// arm's own payload.
-fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> PyErr {
+fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>) -> PyErr {
     use d::AssemblyError as E;
     // A gather refusal is not wrapped: the caller wants the gather's
     // own answer, and the wrapper adds nothing they can act on. It
     // still raises on THIS class — the door they called was the gate.
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
-    let from = SpokenFrom(Some(Arc::new(doc.clone())));
+    let from = SpokenFrom(Some(Arc::clone(&doc)));
     let mut node = none();
     let (refusals, findings) = match err {
         // The group is the subject; the space's own gather refusal is
@@ -726,7 +736,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> 
             return typed_err(
                 py,
                 ErrorClass::Assembly,
-                err.spoken(doc),
+                err.spoken(&*doc),
                 &[
                     (
                         "variant",
@@ -766,7 +776,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> 
     typed_err(
         py,
         ErrorClass::Assembly,
-        err.spoken(doc),
+        err.spoken(&*doc),
         &[
             (
                 "variant",
@@ -836,12 +846,12 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         assembly_err(
             py,
             &d::AssemblyError::Product(Box::new(m.into())),
-            evaluation.doc(),
+            evaluation.doc_shared(),
         )
     })?;
     let assembly = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
-        .map_err(|err| assembly_err(py, &err, evaluation.doc()))?;
+        .map_err(|err| assembly_err(py, &err, evaluation.doc_shared()))?;
     let names = assembly
         .names
         .iter()

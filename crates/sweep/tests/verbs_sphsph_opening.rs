@@ -16,14 +16,14 @@
 //! * **Offset along X or Y.** The seam circle now meets the other
 //!   sphere, so a seam edge crosses a CURVED face and the circle ×
 //!   sphere roots pierce it. The pair reaches the join, which hands each
-//!   side the pair's radical plane, and the split turns on that plane
-//!   against the CHART: offset along X it is tilted and the arc-side
-//!   rule's polar gate refuses it, typed (`SectionNotPolar`); offset
-//!   along Y (the polar axis) the section is polar for both operands,
-//!   and the union builds because both balls are revolved from the same
-//!   seam — each seam meridian pierces the other sphere ON the other's
-//!   seam. Spin either ball about Y and the pierce lands inside a
-//!   half-band: the pierce-ring door (`snowman.rs`).
+//!   side the pair's radical plane. Offset along Y (the polar axis) the
+//!   section is polar for both operands; offset along X it is tilted
+//!   against both charts. Either way each chord takes the arc its
+//!   paired germs leave along, and the union builds, because
+//!   both balls are revolved from the same seam — each seam meridian
+//!   pierces the other sphere ON the other's seam. Spin either ball
+//!   about Y and the pierce lands inside a half-band: the pierce-ring
+//!   door (`snowman.rs`).
 //!
 //! Nested balls answer, and must keep answering.
 
@@ -32,17 +32,18 @@
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanError};
+use topo::{AtRestBody, BooleanError};
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart).
-fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
+fn ball_at(r: f64, centre: Vec3<f64>) -> AtRestBody<f64> {
     ball_at_tol(r, centre, Tol::witness())
 }
 
 /// [`ball_at`], built at `tol`.
-fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> Body<f64> {
+fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -r), 1.0),
         (Point2::new(0.0, r), 0.0),
@@ -55,10 +56,11 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> Body<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let ball = revolve(&vp, axis, Revolution::Full, tol).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), tol).unwrap()
+    let ball = topo::transform_rigid(&ball, &Affine3::translation(centre), tol).unwrap();
+    finished("the ball", ball, tol)
 }
 
-fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
+fn union_err(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("the pair is refused")
 }
 
@@ -167,21 +169,18 @@ fn z_offset_pairs_refuse_at_the_curved_extent_scan() {
 
 /// An in-seam-plane or polar-axis offset drives a seam meridian through
 /// the other ball's sphere face, and the circle × sphere roots pierce
-/// it. What the join makes of the section then turns on the chart: a
-/// polar-axis offset builds, and an in-seam-plane offset refuses at the
-/// polar gate
-/// (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+/// it. Both offsets build, each chord on the arc its germs leave along,
+/// to one lens.
 #[test]
-fn seam_crossing_pairs_reach_the_join() {
+fn seam_crossing_pairs_build() {
     let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));
-    let err = union_err(&a, &ball_at(1.0, Vec3::new(3.4, 2.0, 0.5)));
-    assert!(
-        matches!(
-            &err,
-            BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
-        ),
-        "offset along X, in the seam plane: expected the polar gate, got {err:?}"
-    );
+    let joined = topo::union(&a, &ball_at(1.0, Vec3::new(3.4, 2.0, 0.5)), Tol::witness())
+        .unwrap_or_else(|e| {
+            panic!("offset along X, in the seam plane: the union builds, got {e:?}")
+        });
+    let tilted = topo::mass_properties(&joined.body().expect("a body").body, Tol::witness())
+        .unwrap()
+        .volume;
     let joined = topo::union(&a, &ball_at(1.0, Vec3::new(2.0, 3.4, 0.5)), Tol::witness())
         .unwrap_or_else(|e| panic!("offset along Y, the polar axis: the union builds, got {e:?}"));
     let joined = &joined.body().expect("a body").body;
@@ -191,10 +190,12 @@ fn seam_crossing_pairs_reach_the_join() {
     // Two unit balls 1.4 apart share a lens of two caps of height 0.3.
     let lens = 2.0 * PI * 0.3_f64.powi(2) * (3.0 - 0.3) / 3.0;
     let want = 2.0 * 4.0 * PI / 3.0 - lens;
-    assert!(
-        (v - want).abs() < 1e-9 * want,
-        "union volume {v}, want {want}"
-    );
+    for (offset, v) in [("Y", v), ("X", tilted)] {
+        assert!(
+            (v - want).abs() < 1e-9 * want,
+            "offset along {offset}: union volume {v}, want {want}"
+        );
+    }
 }
 
 /// Nested balls never reach either door; the outer ball is the answer.

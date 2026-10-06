@@ -8,7 +8,7 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
@@ -21,6 +21,12 @@ use topo::{
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
+}
+
+/// A ball of radius `arm` about the origin, no point of either face
+/// known: the extent a bare arm names.
+fn at(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm))
 }
 
 fn declared() -> PlaneIdentity<'static> {
@@ -72,13 +78,20 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let off = sphere([1e-3, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1.0, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &off, PlaneIdentity::NONE, arm, band()).unwrap(),
+            carrier_eq(&a, &off, PlaneIdentity::NONE, &at(arm), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite center offset must be Distinct at arm {arm}"
         );
+        // The point of `a` on the offset's far side stands the whole
+        // offset off it.
+        let on = [Point3::new(-2.0, 0.0, 0.0)];
+        let extent = topo::ConsumedExtent {
+            on: [&on, &[]],
+            ..at(arm)
+        };
         assert!(
             matches!(
-                carrier_eq(&a, &off, declared(), arm, band()),
+                carrier_eq(&a, &off, declared(), &extent, band()),
                 Err(CarrierEqError::Contradicted { .. })
             ),
             "declared, arm {arm}: contradicted"
@@ -88,7 +101,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let near = sphere([1e-13, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &near, declared(), arm, band()).unwrap(),
+            carrier_eq(&a, &near, declared(), &at(arm), band()).unwrap(),
             CarrierRelation::SameOpposite,
             "in-band center offset bridges at arm {arm}"
         );
@@ -111,11 +124,17 @@ fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
     };
     // Unit arm: in-band tilt bridges under the declaration.
     assert_eq!(
-        carrier_eq(&a, &b, declared(), 1.0, band()).unwrap(),
+        carrier_eq(&a, &b, declared(), &at(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite
     );
-    // Large arm: the same tilt is a definite misalignment there.
-    match carrier_eq(&a, &b, declared(), 1e6, band()).unwrap_err() {
+    // Large arm: the same tilt is a definite misalignment there, at a
+    // point of the face half the arm along the axis.
+    let on = [Point3::new(3.0, 0.0, 5e5)];
+    let extent = topo::ConsumedExtent {
+        on: [&on, &[]],
+        ..at(1e6)
+    };
+    match carrier_eq(&a, &b, declared(), &extent, band()).unwrap_err() {
         CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
         }
@@ -135,7 +154,7 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     let k1 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3000.0, true);
     let k2 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3001.0, false);
     for (a, b) in [(&m1, &m2), (&k1, &k2)] {
-        match carrier_eq(a, b, declared(), 1.0, band()).unwrap_err() {
+        match carrier_eq(a, b, declared(), &at(1.0), band()).unwrap_err() {
             CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_cyl_radius"));
             }
@@ -145,7 +164,7 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     // Near-tie walk order: axis-offset in band, radius definite — the
     // ladder must walk PAST the in-band margin and name the radius.
     let near = cyl([1e-13, 0.0, 0.0], [0.0, 0.0, 1.0], 3.001, false);
-    match carrier_eq(&m1, &near, declared(), 1.0, band()).unwrap_err() {
+    match carrier_eq(&m1, &near, declared(), &at(1.0), band()).unwrap_err() {
         CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_radius"));
         }
@@ -304,8 +323,16 @@ fn probe_patch_contact_is_never_certified_at_rest() {
 /// fields).
 #[test]
 fn probe_records_partialeq_bites_on_mutation() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness());
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let decls = flush_declarations(&a, &b, Tol::witness());
     let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap()
     else {
@@ -343,8 +370,16 @@ fn probe_records_partialeq_bites_on_mutation() {
 /// carried this shape no longer declares it.
 #[test]
 fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
-    let c = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
-    let slot = brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness());
+    let c = finished(
+        "c",
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let slot = finished(
+        "slot",
+        brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness()),
+        Tol::witness(),
+    );
     let z_face = |body: &Body<f64>, z: f64| {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
@@ -396,7 +431,8 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
     let a = sphere([0.0, 0.0, 0.0], 2.0, true);
     let b = sphere([0.0, 0.0, 0.0], 2.0, false);
     let (rel, verdict) =
-        topo::boolean::carrier_eq::carrier_eq_verdict(&a, &b, declared(), 1.0, band()).unwrap();
+        topo::boolean::carrier_eq::carrier_eq_verdict(&a, &b, declared(), &at(1.0), band())
+            .unwrap();
     assert_eq!(rel, CarrierRelation::SameOpposite);
     assert_eq!(
         verdict,
@@ -405,7 +441,7 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
     );
     let off = sphere([0.0, 0.0, 0.0], 2.5, false);
     assert!(matches!(
-        carrier_eq(&a, &off, declared(), 1.0, band()),
+        carrier_eq(&a, &off, declared(), &at(1.0), band()),
         Err(CarrierEqError::Contradicted { .. })
     ));
 }
@@ -417,8 +453,16 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
 /// and the A/B orientation of a declared pair still verifies.
 #[test]
 fn probe_declared_pair_direction_still_normalized() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let decls = flush_declarations(&a, &b, Tol::witness());
     assert!(!decls.coincident_faces.is_empty());
     assert!(

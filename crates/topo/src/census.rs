@@ -174,37 +174,37 @@
 //! **reconstruction from their bounding vertex events**:
 //!
 //! - An **edge-edge collinear overlap** is certified iff each of its
-//!   two bounds is backed. Where both edges hold a vertex at the
-//!   bound, that means the pair is v-v-declared, or backed by a
-//!   declared face pair holding the two vertices on its two boundaries
-//!   (`vv_face_backed`), or is one shared vertex — structural. Where
-//!   only one edge holds a vertex there — the endpoint rests on the
-//!   other edge's INTERIOR — the bound is a vertex-on-edge event and
-//!   is backed by exactly that lane's rung: a declared face pair
-//!   holding the vertex on one boundary and naming a face the other
-//!   edge bounds (`ve_face_backed`). Derivation:
-//!   the overlap of two collinear spans is an interval whose each
-//!   bound is an endpoint of at least one span, so one of the two arms
-//!   applies at every bound. Between two backed bounds the
-//!   carriers coincide identically (two lines sharing two points are
-//!   one line), so the interior overlap is exactly the convex closure
-//!   of the bounded events on both carriers — no interior record can
-//!   carry more information than the bounds on the planar corpus.
-//! - An **edge-on-face overlap** is certified iff each of its two
-//!   bounds is backed. Where the edge holds a vertex at the bound,
-//!   that vertex must be v-on-f-declared on this face, v-v-declared
-//!   with a coincident vertex of the face's boundary, backed by a
-//!   declared face pair naming this face and one holding the vertex
-//!   (`vf_face_backed`), or itself a vertex of the face's boundary
-//!   (structural). Where it holds none — the bound falls where a
-//!   boundary vertex of the face rests on the edge — the bound is a
+//!   two bounds is backed. Where both edges hold a vertex at the bound,
+//!   that means the pair is v-v-declared, or backed by a declared face
+//!   pair holding the two vertices on its two boundaries
+//!   (`vv_face_backed`), or is one vertex or two on one point —
+//!   structural. Where only one edge holds a vertex there — the
+//!   endpoint rests on the other edge's INTERIOR — the bound is a
 //!   vertex-on-edge event and is backed by exactly that lane's rung: a
-//!   declared face pair holding that vertex on one boundary and naming
-//!   a face the edge bounds (`ve_face_backed`). Same argument as the
-//!   edge-edge bullet's, one dimension up: a bound of the overlap is a
-//!   point where some entity of the pair ends, and which side's entity
-//!   that is is a fact about the configuration, not about what a
-//!   declaration can hold.
+//!   declared face pair holding the vertex on one boundary and naming a
+//!   face the other edge bounds (`ve_face_backed`). Derivation: the
+//!   overlap of two collinear spans is an interval whose each bound is
+//!   an endpoint of at least one span, so one of the two arms applies
+//!   at every bound. Between two backed bounds the carriers coincide
+//!   identically (two lines sharing two points are one line), so the
+//!   interior overlap is exactly the convex closure of the bounded
+//!   events on both carriers — no interior record can carry more
+//!   information than the bounds on the planar corpus.
+//! - An **edge-on-face overlap** is certified iff each of its two
+//!   bounds is backed. Where the edge holds a vertex at the bound, that
+//!   vertex must be v-on-f-declared on this face, v-v-declared with a
+//!   coincident vertex of the face's boundary, backed by a declared
+//!   face pair naming this face and one holding the vertex
+//!   (`vf_face_backed`), or itself a vertex of the face's boundary or
+//!   on one point with one (structural). Where it holds none — the
+//!   bound falls where a boundary vertex of the face rests on the edge
+//!   — the bound is a vertex-on-edge event and is backed by exactly
+//!   that lane's rung: a declared face pair holding that vertex on one
+//!   boundary and naming a face the edge bounds (`ve_face_backed`).
+//!   Same argument as the edge-edge bullet's, one dimension up: a bound
+//!   of the overlap is a point where some entity of the pair ends, and
+//!   which side's entity that is is a fact about the configuration, not
+//!   about what a declaration can hold.
 //!   The remaining looseness, stated as the REACH gap it is: where the
 //!   face's boundary crosses the edge away from any vertex, that
 //!   crossing is never a bound at all — the overlap lane cuts the
@@ -264,6 +264,7 @@
 use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use crate::body::Body;
@@ -273,6 +274,7 @@ use crate::chart_region::{ChartRegionError, RegionLane};
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
 };
+use crate::geometry::PointKey;
 use crate::null::CurveGeom;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, StaleDeclaration, ValidationError, decide,
@@ -319,6 +321,9 @@ struct Geo<T: Real> {
     faces: Vec<FaceGeo<T>>,
     /// Key → position (the sweeps' random-access view of `verts`).
     vmap: std::collections::BTreeMap<VertexKey, Point3<T>>,
+    /// Key → the point the vertex sits on: two vertices on one point
+    /// are structural sharing ([`Geo::same_point`]).
+    vpoint: std::collections::BTreeMap<VertexKey, PointKey>,
     /// Faces on non-`Plane` carriers — outside the exact planar
     /// sweeps, inside the conformal face-pair arm.
     curved_faces: Vec<FaceKey>,
@@ -474,9 +479,9 @@ impl CensusTrace {
 /// no positional content at all; and a vertex coplanar with a face
 /// whose region walk refuses or escalates though the vertex is
 /// nowhere near the face (`contfp`'s `RayExhausted` refusal, its
-/// ray-walk escalations, and its `ArcLoopUnsupported` refusal anywhere
-/// inside the reach of a spiric or spline edge, which can be far wider
-/// than the face). The exact sweep
+/// ray-walk escalations, and its `Uncrossable` refusal anywhere
+/// inside the reach of a spline edge, which can be far wider than the
+/// face). The exact sweep
 /// escalates or refuses those — it asked a carrier question and could
 /// not answer it — and the box separation answers the entity question
 /// the census is asking with a DEFINITE verdict: the entities are
@@ -602,7 +607,7 @@ impl Candidates {
         let edge_boxes: Vec<Aabb> = geo
             .edges
             .iter()
-            .map(|e| edge_box(body, e.key, pad).unwrap_or_else(|_| Aabb::poison()))
+            .map(|e| edge_box(body, e.key, pad))
             .collect();
         let face_boxes: Vec<Aabb> = geo
             .faces
@@ -636,7 +641,7 @@ impl Candidates {
 /// docs); returns every failure in deterministic sweep order. Assumes
 /// tiers 1–3-local already passed (the caller gates). Production
 /// entry: the realized strategy, no trace.
-pub(crate) fn census_and_certify<T: Decide + Bounds>(
+pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -665,7 +670,7 @@ pub(crate) fn census_and_certify<T: Decide + Bounds>(
 /// [`Undecided::CorruptInstance`] — a kernel defect — about a body the
 /// caller never validated. The sentence is only as true as the caller.
 #[cfg(feature = "sweep-testing")]
-pub fn census_traces<T: Decide + Bounds>(
+pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -692,7 +697,7 @@ pub fn census_traces<T: Decide + Bounds>(
 /// superset comparator must catch (`boolean::reduce`'s pin (iii)).
 /// Runs without the tier-1 gate, as [`census_traces`] does.
 #[cfg(feature = "sweep-testing")]
-pub fn census_traces_planted<T: Decide + Bounds>(
+pub fn census_traces_planted<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -719,7 +724,7 @@ pub fn census_traces_planted<T: Decide + Bounds>(
 /// arm's material test, whose at-infinity fold reads a closed-form
 /// volume through the props lane (`Tol` is never witnessed here).
 #[allow(clippy::too_many_arguments)] // the census's whole state: the doors' four, the region door, and the trace's three
-fn census_with<T: Decide + Bounds>(
+fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -1082,11 +1087,13 @@ fn face_cycles<'a, T: Real>(
 }
 
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
-    let verts: Vec<(VertexKey, Point3<T>)> = body
+    let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body
         .vertices
         .iter()
-        .filter_map(|(k, v)| body.points.get(v.point).map(|p| (k, *p)))
+        .filter_map(|(k, v)| body.points.get(v.point).map(|p| (k, v.point, *p)))
         .collect();
+    let verts: Vec<(VertexKey, Point3<T>)> = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
+    let vpoint = resolved.iter().map(|&(k, point, _)| (k, point)).collect();
     let mut edges = Vec::new();
     for (key, edge) in body.edges.iter() {
         if !edge_is_line(body, key) {
@@ -1176,8 +1183,22 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         edges,
         faces,
         vmap,
+        vpoint,
         curved_faces,
         vertex_faces,
+    }
+}
+
+impl<T: Real> Geo<T> {
+    /// Whether `a` and `b` are one vertex or sit on one point — the
+    /// structural rung of D1 tier 3′ ("same surface or point key"): an
+    /// op's copies of one vertex share its point.
+    fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
+        a == b
+            || matches!(
+                (self.vpoint.get(&a), self.vpoint.get(&b)),
+                (Some(pa), Some(pb)) if pa == pb
+            )
     }
 }
 
@@ -1224,24 +1245,20 @@ pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "across the whole of both fa
 /// `Display`.
 pub(crate) const CURVE_RECORD_WITNESS: &str = "along the declared edge";
 
-/// A nonnegative gap margin as a trilean coincidence verdict:
-/// `Some(true)` coincident, `Some(false)` apart, `None` escalated
-/// (already pushed).
+/// A gap margin as a trilean coincidence verdict: `Some(true)`
+/// coincident, `Some(false)` apart, `None` escalated (already pushed).
+/// Every caller's gap is nonnegative by construction (a norm, an `abs`
+/// over a norm, a norm levered by a chord length), the magnitude door's
+/// precondition.
 fn gap_is_zero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    match decide(name, margin, band) {
-        Ok(Sign::Zero) => Some(true),
-        Ok(Sign::Positive) => Some(false),
-        Ok(Sign::Negative) => {
-            errors.push(ValidationError::CensusEscalated {
-                cause: crate::invalid_margin::invalid(band, name),
-            });
-            None
-        }
+    match geom_core::k_stats::decide_magnitude(name, margin, band) {
+        Ok(Magnitude::Zero) => Some(true),
+        Ok(Magnitude::Positive) => Some(false),
         Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None
@@ -1286,7 +1303,11 @@ fn pair_vertex_vertex<T: Decide>(
     let Some(zero) = gap_is_zero("pm_census_vv_gap", Margin::norm3(pa - pb), band, errors) else {
         return;
     };
-    if zero && !declared.vv.contains(&(ka, kb)) && !declared.vv_face_backed(geo, ka, kb) {
+    if zero
+        && !geo.same_point(ka, kb)
+        && !declared.vv.contains(&(ka, kb))
+        && !declared.vv_face_backed(geo, ka, kb)
+    {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexVertex { a: ka, b: kb },
             witness: witness(pa),
@@ -1399,8 +1420,8 @@ fn contain<T: Decide>(
             None
         }
         // A loop with an edge no walk crosses, an exhausted ray
-        // schedule, unwalkable topology: three refusals
-        // that metred no margin, CARRIED rather than replaced. An
+        // schedule, a loop with no region or no walk, a curved chart
+        // read: refusals that metred no margin, CARRIED rather than replaced. An
         // escalation is what a predicate says when it measured and
         // could not decide, so minting one for a door that measured
         // nothing put a fabricated quantity in the field a reader
@@ -1418,10 +1439,13 @@ fn contain<T: Decide>(
         // `editor_core::attribute` classifies: a new `ContainError`
         // arm must be routed here deliberately rather than default
         // into the wrong half.
+        Err(ContainError::StaleFace(face)) => crate::boolean::driver_face_stale(face),
         Err(
-            e @ (ContainError::ArcLoopUnsupported { .. }
+            e @ (ContainError::Uncrossable(_)
             | ContainError::RayExhausted
-            | ContainError::Corrupt),
+            | ContainError::EmptyLoop(_)
+            | ContainError::LoopUnreadable(_)
+            | ContainError::Curved(_)),
         ) => {
             errors.push(ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(f.key)),
@@ -1590,7 +1614,8 @@ fn any_boundary_vertex_at<T: Decide>(
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
 /// boundary vertex of `f`, face-backed onto `f`, or the vertex is
-/// itself on `f`'s boundary (structural).
+/// itself on `f`'s boundary or shares its point with a boundary vertex
+/// of `f` at the bound (structural).
 ///
 /// Where it does not, a boundary vertex of `f` rests at the bound: the
 /// event is a vertex-on-edge, and it takes that lane's rung
@@ -1629,7 +1654,9 @@ fn ef_bound_backed<T: Decide>(
     {
         return true;
     }
-    any_boundary_vertex_at(f, geo, q, band, errors, |w| declared.vv.contains(&(ve, w)))
+    any_boundary_vertex_at(f, geo, q, band, errors, |w| {
+        geo.same_point(ve, w) || declared.vv.contains(&(ve, w))
+    })
 }
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
@@ -2194,8 +2221,8 @@ fn ee_crossing_lane<T: Decide>(
 
 /// Parallel pair: if collinear, the span overlap `[lo, hi]` on `ea`'s
 /// axis is a finding when positive-length; certified iff both bounds
-/// carry a coincident vertex pair that is v-v-declared or one shared
-/// vertex (structural) — the D3 rule.
+/// carry a coincident vertex pair that is v-v-declared, one vertex, or
+/// two on one point (structural) — the D3 rule.
 fn ee_collinear_lane<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
@@ -2247,8 +2274,8 @@ fn ee_collinear_lane<T: Decide>(
 }
 
 /// D3 backing for one bound of a collinear overlap: both edges hold a
-/// vertex at the bound and the pair is declared (or is one shared
-/// vertex — structural), or — where only ONE edge has a vertex there,
+/// vertex at the bound and the pair is declared (or is one vertex, or
+/// two on one point — structural), or — where only ONE edge has a vertex there,
 /// so the bound rests on the other edge's interior — that vertex is
 /// face-backed onto the other edge.
 ///
@@ -2275,7 +2302,9 @@ fn ee_bound_backed<T: Decide>(
     let vb = edge_vertex_at(eb, sb, band, errors);
     match (va, vb) {
         (Some(va), Some(vb)) => {
-            va == vb || declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+            geo.same_point(va, vb)
+                || declared.vv.contains(&(va, vb))
+                || declared.vv_face_backed(geo, va, vb)
         }
         (Some(va), None) => declared.ve_face_backed(geo, va, eb),
         (None, Some(vb)) => declared.ve_face_backed(geo, vb, ea),
@@ -2467,13 +2496,25 @@ pub(crate) fn face_reach<T: Decide>(
     f: crate::entity::FaceKey,
     band: Band,
 ) -> Option<(Point3<T>, Point3<T>)> {
+    face_reach_in(body, f, band, &crate::boolean::boxes::BoxFrame::World)
+}
+
+/// [`face_reach`] read in `frame` ([`crate::boolean::boxes::BoxFrame`]):
+/// every point and direction the rule reads enters through the frame,
+/// and every extent is the same one.
+pub(crate) fn face_reach_in<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    band: Band,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
     let surface = body
         .get_face(f)
         .and_then(|d| body.surfaces.get(d.surface))?;
     // A cylinder whose axis has no decided length is a broken carrier,
     // and a description with no claim in it answers `None`.
     match crate::boolean::boxes::face_box_rule(surface, band).ok()? {
-        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f),
+        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f, frame),
         crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
             if patch.is_placeholder() {
                 // The mvfs placeholder's control net is poison
@@ -2498,8 +2539,8 @@ pub(crate) fn face_reach<T: Decide>(
                 // is already written for.
                 return None;
             }
-            let mut it = patch.control().iter();
-            let first = *it.next()?;
+            let mut it = patch.control().iter().map(|p| frame.point(*p));
+            let first = it.next()?;
             let (mut lo, mut hi) = (first, first);
             for p in it {
                 lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
@@ -2509,7 +2550,7 @@ pub(crate) fn face_reach<T: Decide>(
         }
         crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => {
             Some(span_pts(crate::boolean::boxes::ball_extent(
-                &crate::boolean::boxes::SpanBox::point(center),
+                &crate::boolean::boxes::SpanBox::point(frame.point(center)),
                 radius,
             )))
         }
@@ -2521,7 +2562,10 @@ pub(crate) fn face_reach<T: Decide>(
             u_ref,
         } => {
             use crate::boolean::boxes::{Span, SpanBox, meet, torus_extent, torus_window_extent};
-            let (c, ax) = (SpanBox::point(center), SpanBox::vector(axis));
+            let (c, ax) = (
+                SpanBox::point(frame.point(center)),
+                SpanBox::vector(frame.vector(axis)),
+            );
             let whole = torus_extent(&c, &ax, major_radius, minor_radius);
             // The chart window from the boundary's own stored
             // certified pcurves: the same walk, the same guards and
@@ -2534,8 +2578,8 @@ pub(crate) fn face_reach<T: Decide>(
                         torus_window_extent(
                             &c,
                             &ax,
-                            &SpanBox::vector(u_ref),
-                            &SpanBox::vector(axis.cross(u_ref)),
+                            &SpanBox::vector(frame.vector(u_ref)),
+                            &SpanBox::vector(frame.vector(axis.cross(u_ref))),
                             Span::exact(major_radius),
                             Span::exact(minor_radius),
                             (u, v),
@@ -2557,20 +2601,22 @@ pub(crate) fn face_reach<T: Decide>(
             // necessarily at a boundary VERTEX.
             let h = boundary_axial(body, f, origin, axis.get())?;
             let slab = span_pts(crate::boolean::boxes::slab_extent(
-                &crate::boolean::boxes::SpanBox::point(origin),
-                &crate::boolean::boxes::UnitSpanBox::exact(axis),
+                &crate::boolean::boxes::SpanBox::point(frame.point(origin)),
+                &frame.unit(axis),
                 h,
                 radius,
             ));
             // The azimuth clip, mirroring the boolean lane's
-            // `clip_to_boundary` — the slab is the whole turn, the face
-            // is a patch of it, and the boundary's own reach bounds the
-            // patch's footprint perpendicular to the axis (azimuth is a
-            // chart coordinate, so it takes no interior extremum). Both
-            // lanes must clip the same way or
-            // `the_two_box_lanes_agree_face_for_face` reds — which is
-            // exactly that row's job.
-            Some(match boundary_reach(body, f) {
+            // `clip_to_boundary`: the slab is the whole turn and the face
+            // is a patch of it. Clipping ANY coordinate to the
+            // boundary's reach is sound, in any frame: a linear
+            // functional on a cylinder is `α·v + g(u)`, which has no
+            // interior extremum when `α ≠ 0` and, when `α = 0`, ranges
+            // over the face's `u`-projection, which its boundary
+            // reaches. Coordinate 2 is left unclipped only because the
+            // boolean lane leaves it so, and the two lanes must clip
+            // alike or `the_two_box_lanes_agree_face_for_face` reds.
+            Some(match boundary_reach(body, f, frame) {
                 Some((blo, bhi)) => (
                     Point3::new(slab.0.x.max(blo.x), slab.0.y.max(blo.y), slab.0.z),
                     Point3::new(slab.1.x.min(bhi.x), slab.1.y.min(bhi.y), slab.1.z),
@@ -2584,8 +2630,8 @@ pub(crate) fn face_reach<T: Decide>(
             half_angle,
         } => {
             let h = boundary_axial(body, f, apex, axis)?;
-            let apex = crate::boolean::boxes::SpanBox::point(apex);
-            let axis = crate::boolean::boxes::SpanBox::vector(axis);
+            let apex = crate::boolean::boxes::SpanBox::point(frame.point(apex));
+            let axis = crate::boolean::boxes::SpanBox::vector(frame.vector(axis));
             Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
                 &apex,
                 &axis,
@@ -2601,14 +2647,19 @@ pub(crate) fn face_reach<T: Decide>(
 /// [`crate::boolean::boxes::face_window_steps`] and
 /// [`crate::boolean::boxes::torus_chart_window`], which is where the
 /// two guards and every fail mode live.
-fn torus_chart_window<T: Decide>(
+///
+/// # Panics
+///
+/// As [`crate::boolean::boxes::face_window_steps`]: `f` is a face
+/// [`face_reach_in`] resolved, and a torn hop past it is a kernel bug.
+pub(crate) fn torus_chart_window<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
     major: T,
     minor: T,
 ) -> Option<crate::boolean::boxes::TorusWindowPair<T>> {
     crate::boolean::boxes::torus_chart_window(
-        &crate::boolean::boxes::face_window_steps(body, f)?,
+        &crate::boolean::boxes::face_window_steps(body, f),
         major,
         minor,
     )
@@ -2693,6 +2744,7 @@ fn boundary_axial<T: Decide>(
 fn boundary_reach<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let face = body.get_face(f)?;
     let mut acc: Option<(Point3<T>, Point3<T>)> = None;
@@ -2710,13 +2762,13 @@ fn boundary_reach<T: Decide>(
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
                 let v = body.vertices.get(vertex)?;
-                let p = *body.points.get(v.point)?;
+                let p = frame.point(*body.points.get(v.point)?);
                 grow((p, p));
             }
             LoopBoundary::Cycle { first } => {
                 for he in body.loop_cycle(first)? {
                     let ek = body.half_edges.get(he)?.edge;
-                    grow(edge_reach(body, ek)?);
+                    grow(edge_reach_in(body, ek, frame)?);
                 }
             }
         }
@@ -2725,16 +2777,17 @@ fn boundary_reach<T: Decide>(
 }
 
 /// One edge's reach — [`crate::boolean::boxes::EdgeBoxRule`] at this
-/// lane's scalar.
-fn edge_reach<T: Decide>(
+/// lane's scalar, read in `frame` as [`face_reach_in`] reads a face.
+pub(crate) fn edge_reach_in<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let e = body.edges.get(ek)?;
     let end = |he| -> Option<Point3<T>> {
         let hd = body.half_edges.get(he)?;
         let v = body.vertices.get(hd.start)?;
-        body.points.get(v.point).copied()
+        body.points.get(v.point).map(|p| frame.point(*p))
     };
     let (a, b) = (end(e.he_plus)?, end(e.he_minus)?);
     let chord = (
@@ -2773,9 +2826,10 @@ fn edge_reach<T: Decide>(
             else {
                 return None;
             };
-            let m = axis.cross(*u_ref);
+            let m = frame.vector(axis.cross(*u_ref));
             let (f_min, f_max) = geom::spiric_f_range(*major_radius, *minor_radius, *offset);
-            let base = *center + *u_ref * *offset;
+            let base = frame.point(*center + *u_ref * *offset);
+            let axis = frame.vector(*axis);
             let per = |b: T, me: T, ae: T| {
                 let (p, q) = (me * f_min, me * f_max);
                 let amp = ae.abs() * *minor_radius;
@@ -2796,7 +2850,11 @@ fn edge_reach<T: Decide>(
             semi_v,
             u_ref,
         } => {
-            let v_ref = axis.cross(u_ref);
+            let (center, u_ref, v_ref) = (
+                frame.point(center),
+                frame.vector(u_ref),
+                frame.vector(axis.cross(u_ref)),
+            );
             // The ARC's own extent, not the closed conic's — the same
             // construction the boolean lane reads, so the two cannot
             // drift (`the_two_box_lanes_agree_face_for_face` is what
@@ -2843,7 +2901,7 @@ fn edge_reach<T: Decide>(
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
 /// corner pair, and back.
-fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
+pub(crate) fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
     (
         Point3::new(s.x.lo, s.y.lo, s.z.lo),
         Point3::new(s.x.hi, s.y.hi, s.z.hi),
@@ -4625,7 +4683,7 @@ fn touch_verdict<T: Decide>(
 /// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
 /// gate-skips are not implemented.
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
-fn sweep_cross_solid_backstop<T: Decide + Bounds>(
+fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
@@ -5021,7 +5079,9 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             let lone = body.get_solid(solid).is_some_and(|d| d.shells.len() < 2);
             lone || crate::boolean::SolidFaces::of_shell(body, shell)
                 .ok()
-                .and_then(|sel| crate::validate::shell_role(body, sel.faces(), band, tol, None))
+                .and_then(|sel| {
+                    crate::validate::shell_role(body, shell, sel.faces(), band, tol, None).ok()
+                })
                 != Some(crate::props::ShellRole::Void)
         })
         .map(|(_, &b)| b)
@@ -6145,12 +6205,13 @@ mod tests {
             },
         )
         .unwrap();
-        let part = quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol);
-        // Lift the part off the floor: z ∈ [1.2, 1.8].
-        let mut part = part;
-        for (_, p) in part.points.iter_mut() {
-            p.z += 1.2;
-        }
+        // The part lifted off the floor: z ∈ [1.2, 1.8].
+        let part = crate::transform_rigid(
+            &quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol),
+            &geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.2)),
+            tol,
+        )
+        .unwrap();
         crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let errors = census_and_certify(
             &body,
@@ -6799,7 +6860,7 @@ mod tests {
             .collect();
         for &f in &seeds {
             // Lifts RechartUnvouched: the census reads the masquerade patch on each seed, wherever its boundary lies.
-            body.set_face_surface_stranding_for_tests(
+            body.set_face_surface_unvouched_for_tests(
                 f,
                 FaceSurface::New {
                     surface: masquerade_like_placeholder(),
@@ -7608,18 +7669,15 @@ mod tests {
         );
     }
 
-    /// **The spiric ball's reach is the bound, nearly tight.** On the
-    /// torus `R = 10, r = 1` cut at `offset = 5`, the oval's speed near
-    /// `v = π/2` is within 4% of the bound `r(R − r)/√((R − r)² − offset²)`,
-    /// so a short arc there (`w = 0.2`) ends within about 4% of the ball's
-    /// reach from its midpoint. A point just past the arc's end, along
-    /// its tangent, lies inside that ball: every ray from it could meet
-    /// the arc, and the face refuses. A ball any smaller — the speed
-    /// taken as `r` (the offset factor dropped, 17% smaller), or the
-    /// reach cut by a tenth — would leave the point outside it and let
-    /// a ray that clips the uncrossable arc answer.
+    /// **Just past a spiric arc's end, the cap answers.** On the torus
+    /// `R = 10, r = 1` cut at `offset = 5`, a short arc (`w = 0.2`) near
+    /// `v = π/2`, where the oval's speed is within 4% of its bound, and a
+    /// point just past the arc's end along its tangent — inside the ball
+    /// the whole arc lies in, so no ray from it misses that ball. The
+    /// walk crosses the arc on the oval itself, and the point lies past
+    /// the chord's end, outside the lens between chord and arc.
     #[test]
-    fn a_spiric_ball_that_is_nearly_tight_still_holds_the_arc() {
+    fn just_past_a_spiric_arcs_end_the_cap_answers() {
         use std::f64::consts::FRAC_PI_2;
         let (v0, v1) = (FRAC_PI_2 - 0.1, FRAC_PI_2 + 0.1);
         let body = spiric_cap(10.0, 1.0, 5.0, (v0, v1));
@@ -7631,38 +7689,36 @@ mod tests {
             minor_radius: 1.0,
             offset: 5.0,
         };
-        let end = spiric.eval(v1);
+        let (start, end) = (spiric.eval(v0), spiric.eval(v1));
         let tangent = (spiric.eval(v1 + 1e-6) - spiric.eval(v1 - 1e-6)).normalize();
         let mid = spiric.eval(0.5 * (v0 + v1));
-        let reach = 9.0 / (81.0f64 - 25.0).sqrt() * 0.1;
+        let reach = geom::spiric_rate_bounds(1.0, 5.0, (9.0, 11.0), 1.0).0 * 0.1;
         let q = end + tangent * 0.003;
-        // The fixture's own premise: `q` sits inside the ball and outside
-        // both smaller ones.
-        let from_mid = (q - mid).norm();
+        let chord = end - start;
         assert!(
-            from_mid < reach && from_mid > 0.9 * reach && from_mid > 0.1,
-            "{from_mid} against the reach {reach}"
+            (q - mid).norm() < reach && (q - start).dot(chord) > chord.dot(chord),
+            "the fixture's premise: inside the arc's ball, past the chord's end"
         );
         let cap = body
             .faces()
             .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
             .map(|(k, _)| k)
             .expect("the cap");
-        let got = crate::boolean::contfp(&body, cap, Vec3::unit_x(), q, band());
-        assert!(
-            matches!(got, Err(ContainError::ArcLoopUnsupported { .. })),
-            "just past the arc's end, inside its ball, the cap refuses: {got:?}"
+        assert_eq!(
+            crate::boolean::contfp(&body, cap, Vec3::unit_x(), q, band()),
+            Ok(FaceContainment::Out),
+            "just past the arc's end, the cap answers"
         );
     }
 
-    /// The census's point-in-face refusal, executed: a vertex in the
-    /// spiric cap's plane inside the ball its spiric arc is held in, so
-    /// every scheduled ray from it could meet that arc. The census
-    /// carries the door's own refusal — `CensusUnsupported` about the
-    /// FACE, cause `Containment(ArcLoopUnsupported)` — and no
+    /// The census's point-in-face reading, executed: the cube's
+    /// vertices in the spiric cap's plane lie inside the ball the cap's
+    /// spiric arc lies in, and outside the cap. The walk crosses the
+    /// arc, so the census reads every one of them off the cap — no
+    /// `CensusUnsupported` about the face, no contact with it, and no
     /// `CensusEscalated` over a margin nothing metred.
     #[test]
-    fn a_spiric_caps_refusal_reaches_the_census_as_itself() {
+    fn a_spiric_cap_reads_the_near_vertices_off_it() {
         let body = spiric_cap_and_near_cube();
         let (errors, _) = census_traces(
             &body,
@@ -7672,23 +7728,16 @@ mod tests {
             Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
-        let refused = errors
-            .iter()
-            .filter(|e| {
-                matches!(
-                    e,
-                    ValidationError::CensusUnsupported {
-                        subject: CensusSubject::Entity(EntityId::Face(_)),
-                        cause: CensusUnsupportedCause::Containment(
-                            ContainError::ArcLoopUnsupported { .. }
-                        ),
-                    }
-                )
-            })
-            .count();
         assert!(
-            refused > 0,
-            "the spiric cap refuses the near vertices: {errors:?}"
+            errors.iter().all(|e| !matches!(
+                e,
+                ValidationError::CensusUnsupported { .. }
+                    | ValidationError::UndeclaredContact {
+                        contact: CensusContact::VertexOnFace { .. },
+                        ..
+                    }
+            )),
+            "the spiric cap reads the near vertices off it: {errors:?}"
         );
         for e in &errors {
             if let ValidationError::CensusEscalated { cause } = e {
@@ -9021,5 +9070,147 @@ mod tests {
             assert!(!tip.is_empty(), "{side}: {got:?}");
             assert!(tip.iter().all(|t| !t.is_rest()), "{side}: {tip:?}");
         }
+    }
+
+    /// **Two points at one position are not one point**: the notched
+    /// block's pinch half clears with no records while its tip copies
+    /// share the cut vertex's point; rebinding one copy to a fresh,
+    /// bit-equal point leaves a coincidence of values, which the
+    /// census refuses as an undeclared vertex–vertex contact.
+    #[test]
+    fn a_tip_copy_on_its_own_bit_equal_point_is_an_undeclared_contact() {
+        let notched = [
+            (0.0, 0.0),
+            (8.0, 0.0),
+            (8.0, 2.0),
+            (7.0, 1.0),
+            (6.0, 1.0),
+            (5.0, 2.0),
+            (4.0, 1.0),
+            (3.0, 2.0),
+            (0.0, 2.0),
+        ];
+        let tol = Tol::witness();
+        let fx = crate::test_support_fixtures::prism::<f64>(&notched, 1.0, tol);
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            tol,
+        );
+        let result = crate::split(&fx.body, &plane, tol).expect("the notched block splits");
+        let mut above = result.above.body().expect("above has material").clone();
+        let tip = Point3::new(4.0, 1.0, 0.0);
+        let copies: Vec<VertexKey> = above
+            .vertices()
+            .filter(|(_, v)| {
+                let p = above.points[v.point];
+                (p.x, p.y, p.z) == (tip.x, tip.y, tip.z)
+            })
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(copies.len(), 2, "two tip copies at z = 0");
+        let none = ContactRecords::default();
+        assert_eq!(
+            crate::validate_pseudomanifold(&above, &none, tol),
+            Ok(()),
+            "copies on one point are structural sharing"
+        );
+
+        above
+            .move_vertices(&[copies[1]], tip)
+            .expect("the copy resolves");
+        assert_ne!(
+            above.vertices[copies[0]].point, above.vertices[copies[1]].point,
+            "the move minted a fresh point"
+        );
+        let errors = crate::validate_pseudomanifold(&above, &none, tol)
+            .expect_err("bit-equal values never glue");
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::VertexVertex { a, b },
+                    ..
+                } if [*a, *b] == [copies[0], copies[1]] || [*a, *b] == [copies[1], copies[0]]
+            )),
+            "{errors:?}"
+        );
+    }
+
+    /// **An edge lying in a face, bounded at points it shares with that
+    /// face's corners, is structural** — the edge-on-face bound rung's
+    /// shared-point arm. A wedge stands on its ridge along the diagonal
+    /// of a kite prism's top face; the ridge's two ends sit on the
+    /// kite's corner points. Each bound of the ridge's overlap with the
+    /// top face is a ridge vertex on one point with a corner of that
+    /// face, and nothing is declared.
+    #[test]
+    fn an_edge_in_a_face_bounded_on_its_corners_points_is_structural() {
+        use crate::test_support_fixtures::{
+            FaceGeometry, describe_as_intersections, identity_map, prism_ops,
+        };
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        prism_ops(
+            &mut body,
+            &[(0.0, 0.0), (1.0, -1.0), (2.0, 0.0), (1.0, 1.0)],
+            (0.0, 1.0),
+            identity_map,
+            FaceGeometry::Certified,
+            tol,
+        );
+        // The wedge's profile in the (y, z) plane, extruded along x: a
+        // cyclic permutation of the axes, so exact and orientation
+        // preserving. Its ridge runs (0, 0, 1) → (2, 0, 1).
+        prism_ops(
+            &mut body,
+            &[(0.0, 1.0), (0.5, 2.0), (-0.5, 2.0)],
+            (0.0, 2.0),
+            |x, y, z| Point3::new(z, x, y),
+            FaceGeometry::Certified,
+            tol,
+        );
+        describe_as_intersections(&mut body, tol);
+        let at = |x: f64, y: f64, z: f64| -> Vec<VertexKey> {
+            body.vertices()
+                .filter(|(_, v)| {
+                    let p = body.points[v.point];
+                    (p.x, p.y, p.z) == (x, y, z)
+                })
+                .map(|(k, _)| k)
+                .collect()
+        };
+        let ends = [at(0.0, 0.0, 1.0), at(2.0, 0.0, 1.0)];
+        assert!(
+            ends.iter().all(|e| e.len() == 2),
+            "a corner and a ridge end at each: {ends:?}"
+        );
+        let none = ContactRecords::default();
+        let errors = crate::validate_pseudomanifold(&body, &none, tol)
+            .expect_err("on distinct points the touch is undeclared");
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::EdgeFaceOverlap { .. },
+                    ..
+                }
+            )),
+            "{errors:?}"
+        );
+
+        // Rebind each ridge end onto the kite corner's point: the copies
+        // an op would mint share it.
+        for pair in &ends {
+            let point = body.vertices[pair[0]].point;
+            let old = body.vertices[pair[1]].point;
+            body.vertices[pair[1]].point = point;
+            body.remove_point_if_orphaned(old);
+        }
+        assert_eq!(
+            crate::validate_pseudomanifold(&body, &none, tol),
+            Ok(()),
+            "the ridge in the top face is bounded on shared points"
+        );
     }
 }

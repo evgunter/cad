@@ -7,8 +7,10 @@
 //!
 //! A [`UnitVec3`] is a vector produced by a normalize whose length
 //! DECIDED positive under a band — finite, not underflowed out of the
-//! format, and definitely nonzero — or by an operation that maps a
-//! unit vector to a unit vector exactly. It is not a bit-for-bit claim
+//! format, and definitely nonzero, or through [`UnitVec3::levered`]
+//! nonzero once levered by the caller's arm, so a long arm admits a
+//! norm below the band — or by an operation that maps a unit vector to
+//! a unit vector exactly. It is not a bit-for-bit claim
 //! `‖u‖ == 1`; it is the same kind of claim every decided fact in this
 //! kernel makes, read per scalar:
 //!
@@ -24,6 +26,11 @@
 //! - [`UnitVec3::new`] — the normalizing constructor: decide the length
 //!   under the caller's band and funnel-site name, then divide. The one
 //!   place a USER's vector becomes a direction, with typed refusals.
+//! - [`UnitVec3::levered`] — the same mint for a vector whose length is
+//!   a pure number rather than metres (a carrier's unit-at-rest normal
+//!   or axis): its length is decided levered by an arm, a positive
+//!   length the caller names, with its own refusals
+//!   ([`LeveredUnitError`]).
 //! - `-u` — negation is exact at every scalar.
 //! - The exact basis axes and the cross product of an orthonormal
 //!   pair, both private to [`linalg`](super) and both exact by
@@ -182,6 +189,44 @@ impl core::fmt::Display for UnitVec3Error {
 
 impl std::error::Error for UnitVec3Error {}
 
+/// The K funnel name of [`UnitVec3::levered`]'s arm decision: the arm
+/// is a length, decided positive under the caller's band before it
+/// levers anything.
+pub const UNIT_DIRECTION_ARM: &str = "unit_direction_arm";
+
+/// **Why [`UnitVec3::levered`] minted no witness**: its arm, or the
+/// vector.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LeveredUnitError {
+    /// The arm is not a length the band decides positive: `None` when
+    /// it is no finite number or decides zero or negative, `Some` with
+    /// the diagnostic when its sign is in the band
+    /// ([`UNIT_DIRECTION_ARM`]). A fact about the caller's arm, never
+    /// about the vector.
+    Arm(Option<Indeterminate>),
+    /// The vector's own refusal, as [`UnitVec3::new`]'s.
+    Direction(UnitVec3Error),
+}
+
+impl core::fmt::Display for LeveredUnitError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Arm(None) => f.write_str(
+                "the arm a direction's length is levered by is not a positive finite length",
+            ),
+            Self::Arm(Some(source)) => write!(
+                f,
+                "the arm a direction's length is levered by is undecided: {}. Recourse: {}",
+                source.payload(),
+                crate::predicate::NO_DECLARATION_RECOURSE
+            ),
+            Self::Direction(e) => e.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for LeveredUnitError {}
+
 /// **The direction-length decision, once**: is the length a finite
 /// number, did it underflow, which side of zero is it on, and — only
 /// then — the normalized ray or a typed refusal. The one
@@ -255,8 +300,19 @@ pub fn decide_unit_direction<T: Decide>(
     site: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, UnitVec3Error> {
-    // `norm3` below recomputes this same value (`Vec3::norm` is
-    // deterministic), so the gate and the margin are the one length;
+    decide_direction_by(v, site, band, Margin::norm3)
+}
+
+/// The three questions of [`decide_unit_direction`], the third asked of
+/// `margin(v)`.
+fn decide_direction_by<T: Decide>(
+    v: Vec3<T>,
+    site: &'static str,
+    band: Band,
+    margin: impl FnOnce(Vec3<T>) -> Margin<T>,
+) -> Result<Vec3<T>, UnitVec3Error> {
+    // `margin` recomputes this same norm (`Vec3::norm` is
+    // deterministic), so the gates and the margin read the one length;
     // it is spelled twice rather than reached into.
     let len = v.norm();
     if !is_finite_length(len) {
@@ -268,7 +324,7 @@ pub fn decide_unit_direction<T: Decide>(
     if is_underflowed_length(len, v.norm_witness()) {
         return Err(UnitVec3Error::UnderflowedLength);
     }
-    match decide(site, Margin::norm3(v), band) {
+    match decide(site, margin(v), band) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(UnitVec3Error::Degenerate),
         Err(source) => Err(UnitVec3Error::Escalated(source)),
@@ -353,6 +409,52 @@ impl<T: Decide> UnitVec3<T> {
     pub fn new(v: Vec3<T>, site: &'static str, band: Band) -> Result<Self, UnitVec3Error> {
         decide_unit_direction(v, site, band).map(Self)
     }
+
+    /// **The normalizing constructor for a dimensionless vector**: a
+    /// carrier's unit-at-rest normal or axis, read as direction
+    /// cosines. [`UnitVec3::new`]'s norm is a length; this one's is a
+    /// pure number, so the length question is asked of it levered by
+    /// `arm` ([`Margin::levered`]), the D4 θ·r form.
+    ///
+    /// **What the arm must be**: a finite length the band decides
+    /// positive (refused otherwise, [`LeveredUnitError::Arm`], decided
+    /// under [`UNIT_DIRECTION_ARM`]), naming a reach over which the
+    /// direction is consumed, measured from the pivot its carrier's
+    /// position is read at. The finiteness and underflow gates on the
+    /// vector, their order and its refusals are
+    /// [`decide_unit_direction`]'s.
+    ///
+    /// **What the witness then says**: `|v|·arm` cleared the band, so
+    /// `|v|` cleared `band / arm` — not the band itself. An arm longer
+    /// than a metre admits a vector [`UnitVec3::new`] refuses, and one
+    /// little longer than the band refuses even a unit vector. For a
+    /// given vector a shorter arm only shrinks the margin, so an arm
+    /// that under-states the consumed reach never decides positive where
+    /// the full reach would not.
+    ///
+    /// # Errors
+    ///
+    /// [`LeveredUnitError::Arm`] for an arm that is not a positive
+    /// finite length; [`LeveredUnitError::Direction`] with
+    /// [`UnitVec3::new`]'s refusal of the levered length.
+    pub fn levered(
+        v: Vec3<T>,
+        site: &'static str,
+        band: Band,
+        arm: T,
+    ) -> Result<Self, LeveredUnitError> {
+        if !is_finite_length(arm) {
+            return Err(LeveredUnitError::Arm(None));
+        }
+        match decide(UNIT_DIRECTION_ARM, Margin::of(arm), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(LeveredUnitError::Arm(None)),
+            Err(source) => return Err(LeveredUnitError::Arm(Some(source))),
+        }
+        decide_direction_by(v, site, band, |v| Margin::levered(v.norm(), arm))
+            .map(Self)
+            .map_err(LeveredUnitError::Direction)
+    }
 }
 
 /// Negation is exact at every scalar, so the negated direction is unit
@@ -372,6 +474,61 @@ mod tests {
 
     fn bits3(v: Vec3<f64>) -> [u64; 3] {
         [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
+    }
+
+    /// **The levered door decides `|v|·arm`, after deciding the arm.**
+    /// The same unit normal decides by its arm, and the arm itself is
+    /// refused unless it is a positive finite length. The rows that
+    /// pin what the witness claims: a vector shorter than the band
+    /// passes on a long arm where [`UnitVec3::new`] refuses it, and one
+    /// clearing the band refuses on a short one.
+    #[test]
+    fn the_levered_door_decides_the_arm_then_the_levered_length() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let ask = |v: Vec3<f64>, arm: f64| UnitVec3::levered(v, "test_direction", band, arm);
+        let z = |len: f64| Vec3::new(0.0, 0.0, len);
+        let up = ask(z(1.0), 1e-3)
+            .expect("a unit normal over a 1 mm reach")
+            .get();
+        assert_eq!(bits3(up), bits3(Vec3::unit_z()), "a 1 mm reach");
+        for arm in [0.0, -1.0, 1e-10, f64::NAN, f64::INFINITY] {
+            assert_eq!(
+                ask(z(1.0), arm).err(),
+                Some(LeveredUnitError::Arm(None)),
+                "arm {arm:e}"
+            );
+        }
+        assert!(
+            matches!(ask(z(1.0), 5e-9), Err(LeveredUnitError::Arm(Some(_)))),
+            "arm in band"
+        );
+        assert_eq!(
+            ask(z(1e-10), 1.0).err(),
+            Some(LeveredUnitError::Direction(UnitVec3Error::Degenerate)),
+            "levered below the band"
+        );
+        assert!(
+            matches!(
+                ask(z(5e-9), 1.0),
+                Err(LeveredUnitError::Direction(UnitVec3Error::Escalated(_)))
+            ),
+            "levered into the band"
+        );
+        assert!(
+            ask(z(1e-11), 1e3).is_ok(),
+            "a long arm admits a sub-band vector"
+        );
+        assert_eq!(
+            UnitVec3::new(z(1e-11), "test_direction", band).err(),
+            Some(UnitVec3Error::Degenerate),
+            "which the metre door refuses"
+        );
+        assert_eq!(
+            ask(z(2e-8), 0.01).err(),
+            Some(LeveredUnitError::Direction(UnitVec3Error::Degenerate)),
+            "and a short arm refuses a vector the metre door admits"
+        );
+        assert!(UnitVec3::new(z(2e-8), "test_direction", band).is_ok());
     }
 
     /// **The four answers the direction door gives, and the two that

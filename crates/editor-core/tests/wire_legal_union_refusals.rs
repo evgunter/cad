@@ -71,7 +71,7 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
 
     // The orders that fold `a` in last, and only those.
     for order in [vec![c, s, a], vec![s, c, a]] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+        let (docx, union) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         let shown = match failure(&ev, union) {
             // Rendered at the NODE boundary, which is the only route by
@@ -100,7 +100,7 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
     // The same three members, folded the other way round, build a body.
     // Without this the row above could be pinning a malformed recipe.
     for order in [vec![a, c, s], vec![c, a, s]] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+        let (docx, union) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -135,7 +135,7 @@ fn a_rim_in_several_pieces_is_named_not_refused() {
     let (doc, g) = block(doc, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
     let pairs = flush_pairs(&doc, (a, a), (b, b));
 
-    let (docx, union, _) = declared_union(doc, &[a, b, g], pairs);
+    let (docx, union) = declared_union(doc, &[a, b, g], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     // a ∪ b is 1.5; g (z = 0.5..3.5) adds 0.1 × 3 × 3 less its
@@ -213,7 +213,7 @@ fn every_order(
                 .collect::<Vec<_>>()
                 .join(",");
             let order: Vec<RecipeNodeId> = o.iter().map(|&k| members[k].1).collect();
-            let (docx, union, _) = declared_union_classed(doc.clone(), &order, pairs.to_vec());
+            let (docx, union) = declared_union_classed(doc.clone(), &order, pairs.to_vec());
             let ev = run(&docx);
             let outcome = match failure(&ev, union) {
                 None => {

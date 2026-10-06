@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::shell_operands::tube;
 use geom::Surface;
@@ -28,7 +29,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::fillet_edges;
 use sweep::test_support::{
-    PRISM_V_DEGREE, PRISM_Z, arcs_at, loft_prism_sections, stacked_at, tube_frame,
+    PRISM_V_DEGREE, PRISM_Z, arcs_at, finished, loft_prism_sections, stacked_at, tube_frame,
 };
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve, tube_along_arc,
@@ -41,12 +42,9 @@ use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ValidationError};
 fn scaffold_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges()
         .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(CurveGeom::certified)
-                    .map(topo::EdgeCurve::description),
-                Some(EdgeDescription::Scaffold(_))
-            )
+            body.get_curve_geom(e.curve)
+                .and_then(CurveGeom::certified)
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .map(|(k, _)| k)
         .collect()
@@ -104,9 +102,16 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    extrude(&validated(loops), Extrusion::Distance(h), Tol::witness())
-        .expect("the probe profile extrudes")
-        .body
+    extrude(
+        &validated(loops),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the probe profile extrudes")
+    .body
 }
 
 /// A two-vertex full circle (two semicircular arcs), counterclockwise.
@@ -317,6 +322,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         ])],
         1.0,
     );
+    let plate = finished("the plate", plate, Tol::witness());
     let disc = extruded(vec![circle_loop(0.0, 0.0, 0.6)], 1.0);
     let tall_disc = topo::transform_rigid(
         &disc,
@@ -333,6 +339,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         Tol::witness(),
     )
     .unwrap();
+    let tall = finished("the tall disc", tall, Tol::witness());
     drop(tall_disc);
     let holed = boolean_op_with(
         BooleanOp::Subtract,
@@ -356,6 +363,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         Tol::witness(),
     )
     .unwrap();
+    let boss = finished("the boss", boss, Tol::witness());
     let united = boolean_op_with(
         BooleanOp::Union,
         &plate,

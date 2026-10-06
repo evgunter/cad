@@ -1,14 +1,14 @@
-//! **The annotation door for a document parameter** — `DocParam::
-//! with_distribution` and the `DocEdit::SetDocParamDistribution` that
+//! **The annotation door for a document parameter** — `FreeVar::
+//! with_distribution` and the `DocEdit::SetVarDistribution` that
 //! routes through it.
 //!
 //! The declaration has four fields; two already had a narrow edit
-//! (`SetDocParamValue` through `DocParam::with_value`,
-//! `SetDocParamUnit` through `DocParam::with_display_unit`) and this
+//! (`SetVarValue` through `FreeVar::with_value`,
+//! `SetVarUnit` through `FreeVar::with_display_unit`) and this
 //! is the third. Without this door the only way to add, change or
-//! clear an E1/E2 annotation is `SetDocParam`, which is
-//! create-or-replace: the authoring spelling for an annotated
-//! parameter, `DocParam::continuous_with`, writes the CANONICAL
+//! clear an E1/E2 annotation is `DefineVar`, which replaces the
+//! whole definition: the authoring spelling for an annotated
+//! parameter, `FreeVar::continuous_with`, writes the CANONICAL
 //! notation, so a parameter authored in millimetres reverts to metres
 //! the moment anyone annotates it — with no refusal and no
 //! diagnostic. The first row below is that fact, and every row after
@@ -16,15 +16,15 @@
 //!
 //! **The ruling these rows execute**: there is ONE annotation door and
 //! `None` clears. The argument is stated once, in
-//! `DocParam::with_distribution`'s rustdoc, and run here by
+//! `FreeVar::with_distribution`'s rustdoc, and run here by
 //! `clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration`
 //! rather than restated in prose.
 //!
 //! # Where the twin rows live
 //!
 //! `edit_doc_param_unit.rs` holds the mirror-image trap — re-spelling
-//! a notation through create-or-replace and losing the annotation —
-//! and its `annotating_through_create_or_replace_reverts_the_notation`
+//! a notation through `DefineVar` and losing the annotation —
+//! and its `annotating_through_define_var_reverts_the_notation`
 //! is this file's own finding, written from the other side by the lane
 //! that found it. `m10_1_r2_probes.rs` §6 pins the same carry-forward
 //! CLASS over the VALUE field. These rows cross-cite both rather than
@@ -43,14 +43,21 @@ test_utils::gated_to![
 
 use editor_core::{
     AnalysisPolicy, CarryForwardDoor, Dimension, Distribution, DistributionFault,
-    DistributionField, DistributionRefusal, Doc, DocEdit, DocParam, DocParamValue, DocumentId,
-    EditError, ParamName, PersistError, ProfileDoc, UnitSym, analyzed_box, apply, load, save,
+    DistributionField, DistributionRefusal, Doc, DocEdit, DocumentId, EditError, FreeValue,
+    FreeVar, PersistError, ProfileDoc, SpokenVar, UnitSym, VarName, analyzed_box, apply, load,
+    save,
 };
 use geom_core::Tol;
 use quantity::{MM, WrittenLength};
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
+}
+
+/// The fixture's variable `name`, as its refusals speak it.
+fn sv(name: &'static str) -> SpokenVar {
+    let doc = fixture();
+    doc.spoken_var(doc.var_named(name).expect("the fixture declares it"))
 }
 
 fn mm() -> UnitSym {
@@ -70,9 +77,9 @@ fn band() -> Distribution {
 
 /// The notation a parameter is written in.
 fn notation(doc: &editor_core::ProfileDoc, name: &'static str) -> UnitSym {
-    match doc.params()[&p(name)] {
-        DocParam::Continuous { display_unit, .. } => display_unit,
-        DocParam::Count { .. } => panic!("{name} is continuous"),
+    match *doc.free_named(name).expect("declared") {
+        FreeVar::Continuous { display_unit, .. } => display_unit,
+        FreeVar::Count { .. } => panic!("{name} is continuous"),
     }
 }
 
@@ -80,7 +87,7 @@ fn notation(doc: &editor_core::ProfileDoc, name: &'static str) -> UnitSym {
 /// consequence an annotation has, as opposed to a field going `Some`.
 fn is_fixed(doc: &editor_core::ProfileDoc, name: &'static str) -> bool {
     analyzed_box(doc, &AnalysisPolicy::default())
-        .get(&p(name))
+        .get(doc.var_named(name).expect("declared"))
         .copied()
         .expect("the parameter has an axis")
         .offsets
@@ -92,17 +99,23 @@ fn is_fixed(doc: &editor_core::ProfileDoc, name: &'static str) -> bool {
 /// a Count.
 fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
     vec![
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: p("wall"),
-            value: DocParam::written_length(WrittenLength::in_unit(3.0, MM)),
+            def: editor_core::VarDecl::Free(FreeVar::written_length(WrittenLength::in_unit(
+                3.0, MM,
+            ))),
         },
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: p("bore"),
-            value: DocParam::continuous_with(Dimension::Length, 0.01, sigma()),
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
+                Dimension::Length,
+                0.01,
+                sigma(),
+            )),
         },
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: p("ribs"),
-            value: DocParam::Count { value: 4 },
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 4 }),
         },
     ]
 }
@@ -125,10 +138,10 @@ fn fixture() -> ProfileDoc {
 /// authored in.
 ///
 /// Written through the only spelling available before this door
-/// (`SetDocParam` with `DocParam::continuous_with`) it FAILS: the
+/// (`DefineVar` with `FreeVar::continuous_with`) it FAILS: the
 /// notation reverts to the canonical unit, silently. That is the
 /// filed finding, and `edit_doc_param_unit.rs`'s
-/// `annotating_through_create_or_replace_reverts_the_notation` holds
+/// `annotating_through_define_var_reverts_the_notation` holds
 /// it as a standing row.
 #[test]
 fn annotating_a_standing_parameter_keeps_its_notation() {
@@ -141,8 +154,8 @@ fn annotating_a_standing_parameter_keeps_its_notation() {
     assert!(is_fixed(&before, "wall"), "and carries no annotation");
     let after = apply(
         &before,
-        &DocEdit::SetDocParamDistribution {
-            name: p("wall"),
+        &DocEdit::SetVarDistribution {
+            var: p("wall").into(),
             distribution: Some(sigma()),
         },
         Tol::witness(),
@@ -151,7 +164,7 @@ fn annotating_a_standing_parameter_keeps_its_notation() {
     .expect("an annotation edit on a declared continuous parameter applies")
     .doc;
     assert!(
-        after.params()[&p("wall")]
+        (*after.free_named("wall").expect("declared"))
             .distribution()
             .is_some_and(|d| d.bit_eq(&sigma())),
         "the annotation landed, bit for bit"
@@ -177,8 +190,8 @@ fn the_annotation_door_carries_the_value_forward() {
     let before = fixture();
     let after = apply(
         &before,
-        &DocEdit::SetDocParamDistribution {
-            name: p("wall"),
+        &DocEdit::SetVarDistribution {
+            var: p("wall").into(),
             distribution: Some(band()),
         },
         Tol::witness(),
@@ -186,8 +199,8 @@ fn the_annotation_door_carries_the_value_forward() {
     )
     .expect("applies")
     .doc;
-    match after.params()[&p("wall")] {
-        DocParam::Continuous {
+    match *after.free_named("wall").expect("declared") {
+        FreeVar::Continuous {
             dim,
             value,
             display_unit,
@@ -205,7 +218,7 @@ fn the_annotation_door_carries_the_value_forward() {
                 "and the annotation is the one offered"
             );
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     // Unlike the notation, an annotation is bit-semantic: `bit_eq`
     // sees it, so the edit reaches replay identity and `diff.rs`.
@@ -222,7 +235,7 @@ fn the_annotation_door_carries_the_value_forward() {
 
 /// **The clearing ruling, executed.** `None` goes through the SAME
 /// door, and clears while keeping the notation and the value — the
-/// reading stated in `DocParam::with_distribution`'s rustdoc. A second
+/// reading stated in `FreeVar::with_distribution`'s rustdoc. A second
 /// `ClearDocParamDistribution` arm would be the `SetAppearanceMeta`
 /// shape, and the declaration is not a map.
 #[test]
@@ -230,8 +243,8 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
     let before = fixture();
     let in_mm = apply(
         &before,
-        &DocEdit::SetDocParamUnit {
-            name: p("bore"),
+        &DocEdit::SetVarUnit {
+            var: p("bore").into(),
             unit: mm(),
         },
         Tol::witness(),
@@ -242,8 +255,8 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
     assert!(!is_fixed(&in_mm, "bore"), "the parameter starts annotated");
     let cleared = apply(
         &in_mm,
-        &DocEdit::SetDocParamDistribution {
-            name: p("bore"),
+        &DocEdit::SetVarDistribution {
+            var: p("bore").into(),
             distribution: None,
         },
         Tol::witness(),
@@ -252,7 +265,7 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
     .expect("clearing goes through the same door")
     .doc;
     assert_eq!(
-        cleared.params()[&p("bore")].distribution(),
+        (*cleared.free_named("bore").expect("declared")).distribution(),
         None,
         "the annotation is gone"
     );
@@ -265,21 +278,21 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
         mm(),
         "the notation survived the clearing"
     );
-    match cleared.params()[&p("bore")] {
-        DocParam::Continuous { dim, value, .. } => {
+    match *cleared.free_named("bore").expect("declared") {
+        FreeVar::Continuous { dim, value, .. } => {
             assert_eq!(dim, Dimension::Length);
             assert_eq!(value.to_bits(), 0.01_f64.to_bits(), "and so did the value");
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     // Clearing an already-unannotated parameter is accepted: `None` is
     // a value of the field, not a removal that has to find something.
     assert!(
         apply(
             &cleared,
-            &DocEdit::SetDocParamDistribution {
-                name: p("bore"),
-                distribution: None,
+            &DocEdit::SetVarDistribution {
+                var: p("bore").into(),
+                distribution: None
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -289,19 +302,19 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
     );
 }
 
-/// `DocParam::with_distribution` on its own — the carry-forward in one
+/// `FreeVar::with_distribution` on its own — the carry-forward in one
 /// place, and the two typed refusals the edit door only routes.
 #[test]
 fn with_distribution_is_the_carry_forward_and_its_refusals_are_typed() {
-    let written = DocParam::written_length(WrittenLength::in_unit(3.0, MM));
+    let written = FreeVar::written_length(WrittenLength::in_unit(3.0, MM));
     let annotated = written
         .with_distribution(Some(sigma()))
         .expect("a continuous parameter takes an annotation");
     match annotated {
-        DocParam::Continuous { display_unit, .. } => {
+        FreeVar::Continuous { display_unit, .. } => {
             assert_eq!(display_unit, mm(), "the notation rode through")
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     assert_eq!(
         annotated
@@ -313,11 +326,11 @@ fn with_distribution_is_the_carry_forward_and_its_refusals_are_typed() {
     // A count has no field to hang one on, and says so — for a
     // clearing edit too.
     assert_eq!(
-        DocParam::Count { value: 4 }.with_distribution(Some(sigma())),
+        FreeVar::Count { value: 4 }.with_distribution(Some(sigma())),
         Err(DistributionRefusal::CountHasNoAnnotation)
     );
     assert_eq!(
-        DocParam::Count { value: 4 }.with_distribution(None),
+        FreeVar::Count { value: 4 }.with_distribution(None),
         Err(DistributionRefusal::CountHasNoAnnotation),
         "clearing a count's annotation is the same wrong parameter"
     );
@@ -352,8 +365,8 @@ fn the_annotation_door_refuses_typed() {
     let refuse = |name: &'static str, distribution: Option<Distribution>| {
         apply(
             &doc,
-            &DocEdit::SetDocParamDistribution {
-                name: p(name),
+            &DocEdit::SetVarDistribution {
+                var: p(name).into(),
                 distribution,
             },
             Tol::witness(),
@@ -365,15 +378,15 @@ fn the_annotation_door_refuses_typed() {
     // caller actually used, not "a carry-forward edit".
     assert_eq!(
         refuse("nonesuch", Some(sigma())),
-        EditError::DocParamNotDeclared {
-            name: p("nonesuch"),
+        EditError::UnknownVar {
+            var: p("nonesuch").into(),
             door: CarryForwardDoor::Annotation,
         }
     );
     // A count is structural, fixed under any error analysis.
     assert_eq!(
         refuse("ribs", Some(sigma())),
-        EditError::DocParamCountHasNoDistribution { name: p("ribs") }
+        EditError::VarCountHasNoDistribution { var: sv("ribs") }
     );
     // The E2 invariants, by the same check the persistence doors run,
     // split by CLASS: a non-finite offset is a non-finite float on a
@@ -381,14 +394,14 @@ fn the_annotation_door_refuses_typed() {
     assert_eq!(
         refuse("wall", Some(Distribution::Uniform { lo: 1.0, hi: 2.0 })),
         EditError::InvalidDistribution {
-            name: p("wall"),
+            var: sv("wall"),
             fault: DistributionFault::NominalOutsideSupport { lo: 1.0, hi: 2.0 },
         }
     );
     assert_eq!(
         refuse("wall", Some(Distribution::Normal { sigma: 0.0 })),
         EditError::InvalidDistribution {
-            name: p("wall"),
+            var: sv("wall"),
             fault: DistributionFault::SigmaNotPositive { sigma: 0.0 },
         }
     );
@@ -400,8 +413,8 @@ fn the_annotation_door_refuses_typed() {
                 hi: 0.0
             })
         ),
-        EditError::NonFiniteDocParam {
-            name: p("wall"),
+        EditError::NonFiniteVar {
+            var: sv("wall"),
             field: editor_core::DocParamField::Offset(editor_core::DistributionField::Lo),
         },
         "a non-finite offset joins the ruled non-finite class, naming the offset, as it does at \
@@ -412,16 +425,16 @@ fn the_annotation_door_refuses_typed() {
     let annotation = refuse("nonesuch", Some(sigma())).to_string();
     assert!(
         annotation.contains("an annotation edit")
-            && annotation.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
+            && annotation.contains(editor_core::edit::UNKNOWN_VAR_RECOURSE),
         "the sentence names the annotation door and keeps its recourse: {annotation:?}"
     );
     for other in [
-        DocEdit::SetDocParamValue {
-            name: p("nonesuch"),
-            value: DocParamValue::Continuous(1.0),
+        DocEdit::SetVarValue {
+            var: p("nonesuch").into(),
+            value: FreeValue::Continuous(1.0),
         },
-        DocEdit::SetDocParamUnit {
-            name: p("nonesuch"),
+        DocEdit::SetVarUnit {
+            var: p("nonesuch").into(),
             unit: mm(),
         },
     ] {
@@ -445,9 +458,9 @@ fn the_annotation_door_refuses_typed() {
 /// `Err` without an `EditError` around it.
 #[test]
 fn the_count_refusal_names_its_parameter_and_the_door_renders_alone() {
-    let shown = EditError::DocParamCountHasNoDistribution { name: p("ribs") }.to_string();
+    let shown = EditError::VarCountHasNoDistribution { var: sv("ribs") }.to_string();
     assert!(
-        shown.contains("parameter ribs"),
+        shown.starts_with("ribs is a count"),
         "{shown:?} describes the parameter instead of naming it"
     );
     let door = DistributionRefusal::CountHasNoAnnotation.to_string();
@@ -473,22 +486,22 @@ fn patch_edits(text: &str, from: &str, to: &str) -> String {
 fn the_annotation_edit_saves_replays_and_loads() {
     let snapshot = fixture();
     let edits = [
-        DocEdit::SetDocParamDistribution {
-            name: p("wall"),
+        DocEdit::SetVarDistribution {
+            var: p("wall").into(),
             distribution: Some(sigma()),
         },
-        DocEdit::SetDocParamDistribution {
-            name: p("wall"),
+        DocEdit::SetVarDistribution {
+            var: p("wall").into(),
             distribution: Some(band()),
         },
-        DocEdit::SetDocParamDistribution {
-            name: p("bore"),
+        DocEdit::SetVarDistribution {
+            var: p("bore").into(),
             distribution: None,
         },
     ];
     let text = save(&snapshot, edits.as_ref(), Tol::witness()).expect("a legal log saves");
     assert!(
-        text.contains("SetDocParamDistribution") && text.contains("\"distribution\""),
+        text.contains("SetVarDistribution") && text.contains("\"distribution\""),
         "the wire form is the derive's, symbol and all"
     );
     let loaded = load(&text, Tol::witness()).expect("and loads");
@@ -499,7 +512,7 @@ fn the_annotation_edit_saves_replays_and_loads() {
         "each edit round-tripped, payload and all"
     );
     assert!(
-        loaded.doc.params()[&p("wall")]
+        (*loaded.doc.free_named("wall").expect("declared"))
             .distribution()
             .is_some_and(|d| d.bit_eq(&band())),
         "replay wrote the LAST annotation"
@@ -510,7 +523,7 @@ fn the_annotation_edit_saves_replays_and_loads() {
         "and the notation survived the replay"
     );
     assert_eq!(
-        loaded.doc.params()[&p("bore")].distribution(),
+        (*loaded.doc.free_named("bore").expect("declared")).distribution(),
         None,
         "the clearing replayed too"
     );
@@ -526,8 +539,8 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
     let doc = fixture();
     let legal = save(
         &doc,
-        &[DocEdit::SetDocParamDistribution {
-            name: p("wall"),
+        &[DocEdit::SetVarDistribution {
+            var: p("wall").into(),
             distribution: Some(sigma()),
         }],
         Tol::witness(),
@@ -535,35 +548,35 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
     .expect("the legal log saves");
     let cases: [(&str, &str, DocEdit<editor_core::ProfileProgram>, EditError); 3] = [
         (
-            "\"name\": \"wall\"",
-            "\"name\": \"nonesuch\"",
-            DocEdit::SetDocParamDistribution {
-                name: p("nonesuch"),
+            "\"Name\": \"wall\"",
+            "\"Name\": \"nonesuch\"",
+            DocEdit::SetVarDistribution {
+                var: p("nonesuch").into(),
                 distribution: Some(sigma()),
             },
-            EditError::DocParamNotDeclared {
-                name: p("nonesuch"),
+            EditError::UnknownVar {
+                var: p("nonesuch").into(),
                 door: CarryForwardDoor::Annotation,
             },
         ),
         (
-            "\"name\": \"wall\"",
-            "\"name\": \"ribs\"",
-            DocEdit::SetDocParamDistribution {
-                name: p("ribs"),
+            "\"Name\": \"wall\"",
+            "\"Name\": \"ribs\"",
+            DocEdit::SetVarDistribution {
+                var: p("ribs").into(),
                 distribution: Some(sigma()),
             },
-            EditError::DocParamCountHasNoDistribution { name: p("ribs") },
+            EditError::VarCountHasNoDistribution { var: sv("ribs") },
         ),
         (
             "\"sigma\": 0.00001",
             "\"sigma\": -1.0",
-            DocEdit::SetDocParamDistribution {
-                name: p("wall"),
+            DocEdit::SetVarDistribution {
+                var: p("wall").into(),
                 distribution: Some(Distribution::Normal { sigma: -1.0 }),
             },
             EditError::InvalidDistribution {
-                name: p("wall"),
+                var: sv("wall"),
                 fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },
             },
         ),
@@ -616,8 +629,8 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
 #[test]
 fn a_non_finite_offset_on_the_edit_refuses_at_the_persistence_door() {
     let doc = fixture();
-    let edits = [DocEdit::SetDocParamDistribution {
-        name: p("wall"),
+    let edits = [DocEdit::SetVarDistribution {
+        var: p("wall").into(),
         distribution: Some(Distribution::TruncatedNormal {
             sigma: 1e-5,
             lo: f64::NEG_INFINITY,

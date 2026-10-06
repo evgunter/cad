@@ -539,4 +539,53 @@ time, so it goes to designer round 6 and may go to Ev. #3527 waits.
   - the fillet keeps its offset centre and registers the tangency facts it proves;
   - the tangent arc keeps the algebraic X and registers what Sym cannot close;
   - `sweep-arclen-legs-fold-an-over-full-angle` folds into 5b, so the authored angle is stored after its refusal.
+- 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
 - 2026-10-02 — The sketch plane is its frame (#3775): Ev approved ("sounds good! deleting SketchPlane and just using orthoframe directly could also work. either is fine"). Fork row 43 is filled. The implementation is `the-sketch-plane-is-its-frame`, parked on 5b. It keeps the newtype unless the wrapper turns out to earn nothing.
+
+- 2026-10-03 — Seam note from PCERT. M10-9's filleted bracket and pad refuse at `pcurve_envelope` since PRs 3759 and 3812 (extrude now mints rows). A designer pair traced it to the profile fillet's chord-and-bulge lowering: the fillet cylinder's Frame, Radius and FidelityU terms stand on `|L(1+b²)/4b|`, `sqrt 2` and `copysign`/`abs` atoms. Both designers found the fix is 5b (`store-constructed-carriers`) under D1 (PR 3453), with one line for the fillet arm: tangent points spelled from the centre and the authored radius (`t = centre ± r·n̂`), with the turn as a decided literal sign. `work/pcert/fillet-meridian-radius-term-is-registered-only` (P0) is parked on 5b and has the measurements. Please rank 5b to carry that loss (it is P1 today). PCERT will re-measure when it lands. (PCERT orchestrator)
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — the sketch plane waits on D10 too
+
+`the-sketch-plane-is-its-frame` now also waits on `d10-one-way-to-say-intent-is-unbuilt`, because a sketch plane is a placement and so falls under the D10 hold. It stays parked on `store-constructed-carriers` as well.

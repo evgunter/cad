@@ -22,10 +22,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
-use editor_core::{
-    CancelToken, EvalOptions, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, evaluate,
-};
+use editor_core::{CancelToken, EvalOptions, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate};
 use geom_core::Tol;
 
 fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
@@ -42,6 +42,7 @@ fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, cube)
@@ -69,11 +70,7 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
 /// (implementer-discipline §8). Every assertion carries its own
 /// label so a red names the refusal without the test name helping.
 fn messages(
-    blend: fn(
-        RecipeNodeId,
-        editor_core::Expr,
-        Vec<editor_core::StableName>,
-    ) -> Node<ProfileProgram>,
+    blend: fn(RecipeNodeId, editor_core::Formula, Vec<editor_core::StableName>) -> AuthoredNode,
 ) -> Vec<(&'static str, String)> {
     let size = fixture::len(0.1);
     let mut out = Vec::new();

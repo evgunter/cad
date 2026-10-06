@@ -31,17 +31,18 @@ fn bx(s: f64, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<Probe> 
 #[test]
 fn dump_full_census() {
     for scale in [1e-3, 1.0] {
+        let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
+        let a1 = fin("a1", bx(scale, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
+        let b1 = fin("b1", bx(scale, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0)));
+        let a2 = fin("a2", bx(scale, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0)));
+        let b2 = fin("b2", bx(scale, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0)));
         k_stats::start_recording();
-        let a1 = bx(scale, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-        let b1 = bx(scale, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
         let r = match subtract(&a1, &b1, Tol::witness()).expect("corner") {
             BooleanResult::Body(b) => b,
             other => panic!("corner: {other:?}"),
         };
         topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default(), Tol::witness())
             .expect("census");
-        let a2 = bx(scale, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-        let b2 = bx(scale, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
         subtract(&a2, &b2, Tol::witness()).expect("pocket");
         for s in k_stats::take_samples() {
             println!(

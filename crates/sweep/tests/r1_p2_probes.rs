@@ -143,9 +143,9 @@ fn intrinsic_seam_at(
         let (a, b) = c.params();
         (c.carrier().clone(), a, b)
     };
-    // Lifts both refusals: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
+    // Lifts RechartStrandsDescriptions: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -158,7 +158,7 @@ fn intrinsic_seam_at(
         )
         .expect("the exactly-planar wall restates as a plane");
     let (s1, s2) = if swap { (bowed, plane) } else { (plane, bowed) };
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -188,8 +188,8 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .faces()
         .find(|(_, f)| f.surface == old)
         .expect("the bowed wall has a face");
-    // Lifts both refusals: the bowed wall's replaced chart is the row's subject.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the bowed wall's replaced chart is the row's subject.
+    body.set_face_surface_unvouched_for_tests(
         fk,
         FaceSurface::New {
             surface: new,
@@ -610,9 +610,9 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         .faces()
         .find(|(_, f)| f.surface == bowed)
         .expect("the bowed wall has a face");
-    // Lifts both refusals: the widened chart at Dual64 is the row's subject.
+    // Lifts RechartStrandsDescriptions: the widened chart at Dual64 is the row's subject.
     let key = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             fk,
             FaceSurface::New {
                 surface: widened,
@@ -791,7 +791,7 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
     // The description is re-stated against the chart the face now
     // carries, so the mate is the one `mate_surface` would find rather
     // than a hand-picked one (`rechart` mints a new surface key).
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         body.get_half_edge(he).unwrap().edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {

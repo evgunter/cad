@@ -14,6 +14,7 @@
 //!   and another crate's suites.
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
@@ -27,9 +28,16 @@ pub fn cyl(r: f64, h: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -h)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(2.0 * h), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.0 * h,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 pub fn spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -82,14 +90,16 @@ pub fn seams_off_the_pinch(h: f64, phi: f64) -> (Body<f64>, Body<f64>) {
 /// **Whether two refusals of one configuration in two poses are one
 /// door** — the re-pose rows' comparison, for both scalar lanes. Their
 /// `Debug` agrees, except where a refusal carries a decided margin
-/// (the pierce curvature's, `CurvedSectorSideUnsupported`): each pose
+/// (the pierce curvature's, `CurvedSectorSideUnsupported`, and an
+/// undeclared coincidence's, `UndeclaredCoincidence`): each pose
 /// reads it off its own coordinates, so the twins' margins agree to
 /// within the zero band the verdict was classified against rather than
-/// bit for bit. A verdict of the other sign, or a margin a band-width
-/// away, is another door.
+/// bit for bit. The arm is matched first: a verdict of the other sign,
+/// a coincidence decided zero against one in band, or a margin a
+/// band-width away, is another door.
 pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
     use geom_brep::recourse::Refused;
-    use geom_core::{ErrorTextReading, MarginDiag};
+    use geom_core::{ErrorTextReading, Indeterminate, MarginDiag};
     let zero = geom_core::Band::linear(Tol::witness())
         .expect("a linear band")
         .zero();
@@ -104,6 +114,18 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
         ) => (l1 - l2).abs() <= zero && (h1 - h2).abs() <= zero,
         _ => false,
     };
+    // The arm an undeclared coincidence's margin was refused on, read
+    // off the band its diag carries: decided zero, in band, or past it.
+    let arm = |d: &Indeterminate| {
+        let (z, e) = (d.band.zero(), d.band.escalate());
+        match d.margin.diagnostic_f64_for_error_text() {
+            ErrorTextReading::Value(m) if m.abs() <= z => Some(0),
+            ErrorTextReading::Enclosure { lo, hi } if -z <= lo && hi <= z => Some(0),
+            ErrorTextReading::Value(m) if m.abs() >= e => Some(2),
+            ErrorTextReading::Value(_) | ErrorTextReading::Enclosure { .. } => Some(1),
+            ErrorTextReading::Invalid => None,
+        }
+    };
     match (a, b) {
         (
             topo::BooleanError::CurvedSectorSideUnsupported { verdict: va },
@@ -113,6 +135,25 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
             (Refused::Negative { margin: x }, Refused::Negative { margin: y }) => near(*x, *y),
             _ => false,
         },
+        (
+            topo::BooleanError::UndeclaredCoincidence {
+                diag: x,
+                pair: pa,
+                relation: ra,
+            },
+            topo::BooleanError::UndeclaredCoincidence {
+                diag: y,
+                pair: pb,
+                relation: rb,
+            },
+        ) => {
+            pa == pb
+                && ra == rb
+                && x.predicate == y.predicate
+                && arm(x).is_some()
+                && arm(x) == arm(y)
+                && near(x.margin, y.margin)
+        }
         _ => format!("{a:?}") == format!("{b:?}"),
     }
 }

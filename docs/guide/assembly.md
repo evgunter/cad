@@ -23,7 +23,9 @@ Everything below runs. The Python blocks are executed by
 `crates/pncad-py/tests/test_workspace.py`,
 `test_assembly_eval.py` and `test_assembly_author.py` (which build
 one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
-in Rust is `demos/tour/src/assembly.rs`.
+in Rust is `demos/tour/src/assembly.rs`, which goes one step further:
+it stands the stand on a turntable gauge a `swing` parameter turns,
+and sets a crate on the shelf through a gauge nested on it.
 
 The scene is the tour's bench: two square posts, one shelf resting on
 them. Two part documents, and two assemblies built from those — a
@@ -62,7 +64,7 @@ from pncad import (
     ContentPin,
     Doc,
     DocRef,
-    Expr,
+    Formula,
     Node,
     PIN_MISMATCH_RECOURSE,
     Workspace,
@@ -76,8 +78,8 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
     return doc
 
 
@@ -177,7 +179,7 @@ from pncad import (
     DocRef,
     EditError,
     EntityKind,
-    Expr,
+    Formula,
     Frame,
     MateFrame,
     MatePrimitive,
@@ -204,8 +206,8 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
     return doc
 
 
@@ -227,16 +229,6 @@ def frame_at(x, y, z):
     """An AUTHORED mate frame: +z axis, +x clocking reference."""
     return MateFrame(origin=(x * m, y * m, z * m), axis=(0.0, 0.0, 1.0),
                      reference=(1.0, 0.0, 0.0))
-
-
-def part_cap(part, side):
-    """A cap face of a PART, by the part's own name: selected on the
-    part document's own evaluation, with no instance wrapped round it
-    — what a mate frame that names a face stores."""
-    cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
-    found = evaluate(part).select(part.roots[0], Selector.of(cap))
-    assert len(found) == 1, f"expected one face, got {found}"
-    return found[0]
 
 
 store = Workspace(tempfile.mkdtemp())
@@ -269,16 +261,18 @@ b_top = instance_cap(ev, post_b, CapEnd.End)
 shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 
 # Where each post's top meets the shelf's underside, each written in
-# its OWN part's coordinates. The post's seat IS its top cap face, by
-# the post's own name: the solve reads the cap's pose off the post's
+# its OWN part's coordinates. The post's seat IS its top cap face —
+# the face the post side's reference already names, so the frame
+# takes nothing, and one `own_face` serves every side framed on its
+# own head: the solve reads the cap's pose off the post's
 # evaluation every time, so a post whose height changes moves the
-# seat with it. The shelf's seats are authored numbers: both posts
-# meet ONE face of the shelf, its underside, and a face frame is that
-# face's canonical origin with no offset inside the face, so two seats
-# spelled as the face would land on the same point. The posts sit
-# flush with the shelf's two ends, which is the obvious way to draw a
-# bench.
-post_seat = MateFrame.from_face(part_cap(post, CapEnd.End))
+# seat with it. The shelf's seats are authored numbers in the shelf's
+# own coordinates — the part base with one literal step. (Each could
+# equally be the underside face with an offset inside it,
+# `MateFrame.on_face(...)`; the shelf is modelled from its underside
+# up, so no shelf edit moves these.) The posts sit flush with the
+# shelf's two ends, which is the obvious way to draw a bench.
+own_face = MateFrame.from_face()
 seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 
@@ -290,19 +284,19 @@ def seat(a, b):
 
 # Each mate names the part it MOVES first: "mate the shelf to the
 # post" places the shelf's group on the post's. The insert asks the
-# solve's own admission of each mate, and a side that names a face is
+# solve's own admission of each mate, and a side framed on its face is
 # resolved there — through the store, since the face is the part's.
 mate_a = stand.insert(
     Node.mate(
         shelf_i, shelf_underside, post_a, a_top, ContactClass.Rest,
-        seat(seat_a, post_seat),
+        seat(seat_a, own_face),
     ),
     resolver=store,
 )
 mate_b = stand.insert(
     Node.mate(
         post_b, b_top, shelf_i, shelf_underside, ContactClass.Rest,
-        seat(post_seat, seat_b),
+        seat(own_face, seat_b),
     ),
     resolver=store,
 )
@@ -349,42 +343,56 @@ assert stand.roots[:3] == [shelf_i, post_a, post_b]
 
 Two things in that block are worth pausing on.
 
-**A mate frame is a face of the part, or three authored vectors.**
-`MateFrame.from_face(name)` names a face in the PART's own spelling
-and the solve resolves it from the part's own evaluation at every
-evaluation — its origin, its chart axis and the carrier's own roll
-reference — so nothing is stored twice and the mate follows the face
-when the part is edited; a face with no canonical frame (a NURBS
-carrier) refuses typed and keeps taking authored vectors. The name is
-the whole frame: a face frame's roll is the carrier's, and its origin
-is the face's canonical one. Authored vectors are the spelling for a
-point that is not a face's origin (the shelf's two seats above, both
-on its one underside), and for a roll the carrier does not give. A
-face frame also resolves at the NOMINAL value only: under an analysis
-lane — `stackup.sensitivities`' dual passes, a certified `clearance`'s
-interval leaf — the part's product pins no single number, the face
-side refuses `unpinned`, and those two doors refuse an assembly that
-holds one, where the same mate authored as vectors still solves. The
+**A mate frame is a base and an offset.** The base is the side's
+part frame, or its own face; the offset is a `Placement` written in
+the base's frame — any rigid motion, the empty chain by default.
+`MateFrame.from_face()` is the face base with no offset: the side's
+frame is the face its reference names, and the solve resolves it from
+the part's own evaluation at every evaluation — its origin, its chart
+axis as local +Z and the carrier's own reference direction as local
++Y — so nothing is stored twice and the mate follows the face when
+the part is edited, when the reference is rebound, and across a split
+or an inline. `MateFrame.on_face(offset)` adds an offset in that
+face's frame: a slide along the face, a turn about its normal, a
+set-back from it — and the side follows the face, offset and all.
+`MateFrame(origin, axis, reference)` is three authored vectors, the
+part base with one literal step, and `MateFrame.on_part(offset)` the
+part base with any chain. A rigid step's expressions may read a
+document parameter, so a parameter can drive where a side sits. The
+offset is any rigid motion, and the mate's contact class says which
+are legal: a `Rest` side set back from its face declares a contact
+that is not there, and the at-rest gate refutes it. A face with no
+canonical frame (a NURBS carrier) refuses typed and keeps taking a
+part base. Every frame resolves on every lane: `stackup.sensitivities`'
+dual passes read a pose with its tangent, and a certified
+`clearance`'s interval leaf an enclosure of it — a face base's pose,
+and an offset whose step reads a parameter the lane binds. Two honest
+limits stand at the placement door, where a solved pose becomes a
+placed body: a box wider than about ε over a placer's translation
+refuses there (each placed edge is certified on its placed carrier,
+and the box widens both apart), and a boxed rotation refuses
+`NotRigid`, so such an interval leaf refuses rather than encloses. The
 solve's
 *algorithm* is unchanged — coset intersection over decided
 predicates, no numeric fitting — and its inputs are the document plus
-its mated parts' evaluations. What is still not checked is an
-AUTHORED frame against the faces the mate names: such a mate can
+its mated parts' evaluations. What is still not checked is a PART
+frame against the faces the mate names: such a mate can
 solve perfectly and still be refuted at the gate, which is the
 boundary between "where you said the parts meet" and "where they
 actually do", kept visible.
 
 **What the solve would refuse about a mate on its own, the insert
 refuses.** A head that resolves to no member, one member named
-twice, a class outside the vocabulary, a frame with no definite
-direction, a primitive-and-rider pair the coset table has no row
+twice, a class outside the vocabulary, a frame offset that does not
+evaluate, a frame with no definite direction, a primitive-and-rider
+pair the coset table has no row
 for, a clocking rider that contradicts the frame coincidence it rides
 — each is a fact about the mate alone, which the solve records
 against the mate whenever it reads the datum. So `Doc.insert` asks
 the solve's own per-mate admission and raises `EditError` with
 variant `mate_refused`, `fault` carrying the solve's `MateFault`
 whole. The rider on a coincidence is decided over the mated parts'
-extent, and a side that names a face is resolved from the part's own
+extent, and a side framed on its face is resolved from the part's own
 evaluation, so those two need `resolver=` at the insert; everything
 else is decided on the datum alone. The doors decide edits and the solve
 decides states: a verdict about a *pair* — under-determined, two
@@ -439,7 +447,7 @@ from pncad import (
     DocEdit,
     DocRef,
     EvaluationError,
-    Expr,
+    Formula,
     Frame,
     Node,
     Placement,
@@ -458,8 +466,8 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
     return doc
 
 
@@ -539,7 +547,7 @@ from pncad import (
     Doc,
     DocRef,
     EvaluationError,
-    Expr,
+    Formula,
     Node,
     Workspace,
     content_pin,
@@ -552,8 +560,8 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
     return doc
 
 
@@ -641,7 +649,7 @@ from pncad import (
     DocEdit,
     DocRef,
     EntityKind,
-    Expr,
+    Formula,
     Frame,
     MateFrame,
     MatePrimitive,
@@ -669,8 +677,8 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
     return doc
 
 
@@ -796,7 +804,7 @@ from pncad import (
     DocRef,
     EditError,
     EntityKind,
-    Expr,
+    Formula,
     Frame,
     MateFrame,
     MatePrimitive,
@@ -824,8 +832,8 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
     return doc
 
 
@@ -1005,7 +1013,7 @@ from pncad import (
     Doc,
     DocEdit,
     DocRef,
-    Expr,
+    Formula,
     Frame,
     InlineError,
     Node,
@@ -1026,8 +1034,8 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
     return doc
 
 
@@ -1131,7 +1139,7 @@ import tempfile
 from pncad import (
     Doc,
     DocRef,
-    Expr,
+    Formula,
     Node,
     UpdateError,
     Workspace,
@@ -1146,8 +1154,8 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
     return doc
 
 
@@ -1210,13 +1218,11 @@ is one node whose placements are a rule; a mate names an instance. The
 bench's flat-pack layout and its assembled stand are two documents for
 this reason, not one.
 
-**A face frame gives up two things authored vectors keep.** Its roll
-is the carrier's own reference, so it cannot turn a mate about its
-axis; and it resolves on the nominal lane only, so sensitivities and
-certified clearance refuse an assembly that holds one. An authored
-frame keeps both, and pays for them the old way: nothing checks it
-against the faces the mate names, which is why the gate exists, and
-why a mate that solves is not yet a mate that certifies.
+**A part base is not checked against the faces the mate names**,
+which is why the gate exists, and why a mate that solves is not yet a
+mate that certifies. A face base's in-plane axes are the witness
+ladder's: the carrier's reference is local +Y, not +X, so an offset
+along the face's reference is written along y.
 
 **A mate is a product root.** Roots are the live nodes nothing else
 consumes, and a mate is consumed by nothing, so `Doc.roots` on the

@@ -554,9 +554,10 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// a tolerance.
 ///
 /// The Cartesian lane is bitwise conservative for the cases that
-/// already worked. `solve_square` factors the matrix once from `a`
-/// alone and substitutes each right-hand-side column independently, so
-/// dropping the weight column cannot move the `x`/`y`/`z` columns; the
+/// already worked. The collocation solve factors the matrix once from
+/// the parameters alone and substitutes each right-hand-side column
+/// independently, so dropping the weight column cannot move the
+/// `x`/`y`/`z` columns; the
 /// row entries themselves are unchanged because `p.x * 1.0` is `p.x`
 /// bit-for-bit; and the final divide it removes was a division by
 /// exactly `1.0` in precisely the cases whose weights came out exact.
@@ -564,29 +565,15 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// (pinned by
 /// `m7_skin_integral::the_uniform_loft_is_bitwise_unchanged`).
 ///
-/// # Numbered note 5 (spec §2): the solve is DENSE, and where that lands
+/// # Numbered note 5 (spec §2): the solve is banded
 ///
 /// The collocation system is `k × k` in the SECTION count `k` — not in
-/// the control count — solved by fixed-order LU with `4·n` (integral
-/// input: `3·n`) simultaneous right-hand sides (`n` = control points
-/// per section). Cost is
-/// `O(k³)` for the factorization plus `O(k²·n)` for the substitutions;
-/// memory is `O(k² + k·n)`.
-///
-/// Spec §2 permits a banded solver only if PR 4's stack already
-/// provides one. It does not — `geom_core::linalg::lsq` offers
-/// `solve_square` and `solve_normal`, both dense — so this is the
-/// dense small-system lane, and the size limit is worth stating rather
-/// than discovering. Realistic lofts put `k` in the single digits to
-/// low tens (the Book's §10.3 examples; a twenty-section loft is
-/// already an unusual part), where `k³ ≤ 8·10³` is unmeasurable next
-/// to the knot-algebra work that precedes it. A banded solver starts
-/// to matter around `k` in the high hundreds, where `k³` reaches
-/// `10⁸` — scattered-data fitting territory (M7), not feature
-/// modelling. The matrix IS banded (half-bandwidth `q` for v-degree
-/// `q`, since only `q + 1` basis functions are nonzero per row), so
-/// the upgrade is a solver swap behind this same entry when a use case
-/// asks for it; nothing about the structure selection would change.
+/// the control count — with `4·n` (integral input: `3·n`) simultaneous
+/// right-hand sides (`n` = control points per section).
+/// `interpolate_columns` factors it by the fit's fixed-order banded LU
+/// (`geom::Collocation`): `O(k·q²)` for the
+/// factorization at v-degree `q`, plus `O(k·q·n)` for the
+/// substitutions, in `O(k·q + k·n)` memory.
 ///
 /// The u-direction structure is the sections' shared one, untouched.
 /// The result therefore passes through every section exactly (in ℝ) at

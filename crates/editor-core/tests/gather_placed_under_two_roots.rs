@@ -11,12 +11,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
-    EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, NameTable, Node, PartSelect,
-    PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SplitHalf,
-    StableName, product, product_named,
+    EvalOptions, Evaluation, Formula, MateFrame, MatePrimitive, MateRole, NameTable, Node,
+    PartSelect, PatternKind, PlacedTwice, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SplitHalf, StableName, product, product_named,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head_at, insert, len, on_frame, scl, solve, step, xform};
@@ -40,6 +42,7 @@ fn block(doc: ProfileDoc, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -56,6 +59,7 @@ fn placed_twice(
     match product(doc, ev, Tol::witness()) {
         Err(ProductError::PlacedUnderTwoRoots {
             placed,
+            twice: _,
             select,
             first,
             second,
@@ -102,6 +106,22 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     assert!(
         !message.contains("collides"),
         "the recipe's vocabulary, not the name table's: {message}"
+    );
+    assert!(
+        message.contains(
+            "Recourse: union the two to fuse them, or pattern it to keep the copies apart"
+        ),
+        "a body's recourse: {message}"
+    );
+    assert!(
+        matches!(
+            err,
+            ProductError::PlacedUnderTwoRoots {
+                twice: PlacedTwice::Body,
+                ..
+            }
+        ),
+        "an extrude is a body: {err:?}"
     );
     assert_eq!(placed_twice(&doc, &ev), (extrude, None, t1, t2));
 }
@@ -211,7 +231,7 @@ fn a_whole_pattern_and_one_of_its_instances_refuse() {
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -223,7 +243,7 @@ fn a_whole_pattern_and_one_of_its_instances_refuse() {
         doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(Expr::count(1)),
+            select: PartSelect::Instance(Formula::count(1)),
         },
     );
     let ev = run(&doc);
@@ -240,7 +260,7 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -252,7 +272,7 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
             doc,
             Node::Part {
                 of: pattern,
-                select: PartSelect::Instance(Expr::count(1)),
+                select: PartSelect::Instance(Formula::count(1)),
             },
         )
     };
@@ -271,7 +291,9 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
         placed_twice(&doc, &ev),
         (
             pattern,
-            Some(PartSelect::Instance(Expr::count(1))),
+            Some(PartSelect::Instance(
+                editor_core::test_support::stored_expr(&Formula::count(1))
+            )),
             first,
             second
         )
@@ -304,7 +326,7 @@ fn legal_placements_still_gather() {
         doc,
         Node::Union {
             members: vec![t1, t2],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &[union][..], "the union consumes both moves");
@@ -326,7 +348,7 @@ fn legal_placements_still_gather() {
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -338,7 +360,7 @@ fn legal_placements_still_gather() {
             doc,
             Node::Part {
                 of: pattern,
-                select: PartSelect::Instance(Expr::count(i)),
+                select: PartSelect::Instance(Formula::count(i)),
             },
         )
     };
@@ -361,14 +383,26 @@ fn part_block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// A `Rest` seat of `b`'s bottom cap onto `a`'s top cap.
-fn seat(a: editor_core::SitedFace, b: editor_core::SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(a: editor_core::SitedFace, b: editor_core::SitedFace) -> AuthoredNode {
     Node::Mate {
         a,
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([1.0, 1.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                [1.0, 1.0, BASE_HEIGHT],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -436,6 +470,28 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
     let (placed, select, first, second) = placed_twice(&doc, &ev);
     assert_eq!(placed, top, "the instance, not a base or a mate");
     assert_eq!((select, first, second), (None, t1, t2));
+    // The recourse is the instance's: a second instance or a pattern
+    // places it twice, and a union fuses the two — the document
+    // `msolve13_read_at_operand`'s A1(a) row gates.
+    let err = product(&doc, &ev, Tol::witness()).expect_err("placed twice");
+    assert!(
+        matches!(
+            err,
+            ProductError::PlacedUnderTwoRoots {
+                twice: PlacedTwice::Instance,
+                ..
+            }
+        ),
+        "an instance taken whole: {err:?}"
+    );
+    let message = err.to_string();
+    assert!(
+        message.contains(
+            "Recourse: instantiate it again or pattern it to place it twice; union the two \
+             to fuse them"
+        ),
+        "an instance's recourse: {message}"
+    );
 }
 
 /// **The selection rides down through a transform below a part.**
@@ -451,7 +507,7 @@ fn rv_selection_rides_down_through_a_transform() {
         doc,
         Node::Pattern {
             input: b,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -464,7 +520,7 @@ fn rv_selection_rides_down_through_a_transform() {
             doc,
             Node::Part {
                 of,
-                select: PartSelect::Instance(Expr::count(i)),
+                select: PartSelect::Instance(Formula::count(i)),
             },
         )
     };
@@ -522,6 +578,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
         Node::Extrude {
             profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     insert(
@@ -530,7 +587,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
             op: editor_core::BooleanOp::Subtract,
             a,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }

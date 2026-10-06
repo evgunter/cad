@@ -37,3 +37,10 @@ the moved frames are re-baselined and named in the PR
 ## Found by
 
 Review of PR 3768 (`tquery/split-cyl-feature`), 2026-10-02.
+
+## Note (SHOW, 2026-10-02)
+
+`tiltedcut` now carries its own engraving (PR 3819: CUT cut into the
+cylinder's cap as three blind pockets before the tilted split), so it
+keeps its own cell: folding it into `cutaway` would drop the
+engraving. `cutaway`'s round feature is still open.

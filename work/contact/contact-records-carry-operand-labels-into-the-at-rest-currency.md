@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P3
 cost: M
-refs: [split-halves-have-no-contact-records-so-no-pseudomanifold-self-check]
+refs: [3856]
 ---
 
 

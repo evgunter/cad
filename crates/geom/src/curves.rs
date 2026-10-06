@@ -42,6 +42,7 @@
 //! - **The conventional fields** here are `dir`, `axis` and `u_ref`
 //!   (unit; `u_ref ⊥ axis`), unchecked per the crate docs' rule.
 
+pub(crate) mod banded;
 pub mod boxes;
 pub mod compose;
 pub mod fit;
@@ -52,7 +53,7 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use fit::{FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
+pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -152,11 +153,15 @@ pub enum Curve3<T: Real> {
         /// The unit normal of the ellipse's plane (right-hand winding
         /// rule; conventional, unchecked).
         axis: Vec3<T>,
-        /// The semi-major axis length in meters (`major > minor` by
-        /// the constructor's refusal).
+        /// The semi-major axis length in meters: `major > minor` where
+        /// [`Curve3::ellipse`] minted it, which refuses otherwise. Tier 3
+        /// certifies it positive but not the ordering, and a struct
+        /// literal checks neither; readers past the constructor take
+        /// the semi-axes as magnitudes in either order
+        /// (`geom_brep::Conic`).
         major: T,
-        /// The semi-minor axis length in meters (positive by the
-        /// constructor's refusal).
+        /// The semi-minor axis length in meters: positive where
+        /// [`Curve3::ellipse`] or tier 3 decided it.
         minor: T,
         /// The unit semi-major direction ⊥ `axis` where θ = 0 lives —
         /// the seam, carried as conventional data per D2.
@@ -179,7 +184,8 @@ pub enum Curve3<T: Real> {
     /// ellipse's its eccentric anomaly: `|dP/dv|² = r²cos²v +
     /// r²ρ²sin²v/(ρ² − offset²)`, `ρ = R + r·cos v`, so
     /// `|dP/dv| ∈ [r, r(R − r)/√((R − r)² − offset²)]` — bounded away
-    /// from zero, a regular parameter on the oval.
+    /// from zero, a regular parameter on the oval ([`spiric_rate_bounds`]
+    /// is the bound's one spelling, over any window of it).
     ///
     /// Conventions (D2: carried as data, unchecked by the evaluators,
     /// decided at the mint):
@@ -809,6 +815,63 @@ impl<T: Decide> Curve3<T> {
 }
 
 impl<T: Real> Curve3<T> {
+    /// **The same locus run back**: the carrier whose point at `t` is
+    /// this one's at `−t`, so the interval `[t0, t1]` read forward here
+    /// is `[−t1, −t0]` there. The one statement of the reversal: a line
+    /// flips its direction; a circle and an ellipse flip their axis (θ ↦
+    /// −θ about the flipped axis, `v_ref = axis × u_ref` flipping with
+    /// it); a spiric flips its axis, its `u_ref` and its offset, the
+    /// two spellings its docs name as one oval in opposite senses.
+    /// `None` for a NURBS, whose knot vector a reversal would mirror.
+    #[must_use]
+    pub fn reversed(&self) -> Option<Self> {
+        Some(match self.clone() {
+            Curve3::Line { origin, dir } => Curve3::Line { origin, dir: -dir },
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Curve3::Circle {
+                center,
+                axis: -axis,
+                radius,
+                u_ref,
+            },
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => Curve3::Ellipse {
+                center,
+                axis: -axis,
+                major,
+                minor,
+                u_ref,
+            },
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => Curve3::Spiric {
+                center,
+                axis: -axis,
+                u_ref: -u_ref,
+                major_radius,
+                minor_radius,
+                offset: T::zero() - offset,
+            },
+            Curve3::Nurbs(_) => return None,
+        })
+    }
+}
+
+impl<T: Real> Curve3<T> {
     /// **A circle carrier's point at parameter `t`**, as
     /// [`Curve3::eval`] builds it — `(s, c) = t.sin_cos()`,
     /// `radial = u_ref·c + v_ref·s` with `v_ref = axis × u_ref`, result
@@ -865,25 +928,50 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     )
 }
 
-/// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
-/// radian squared — the one spelling of the bound, read by the mesh
-/// chord sizing and by STEP export's node-count schedule.
+/// **Bounds on a spiric's speed and acceleration over a stretch of the
+/// oval whose `ρ = R + r·cos v` lies in `[rho_lo, rho_hi]` and whose
+/// `|sin v| ≤ sin_max`**, as `(S, A)` with `|C′| ≤ S` and `|C″| ≤ A`
+/// there — the one spelling of both bounds, over a whole period
+/// (`ρ ∈ [R − r, R + r]`, `sin_max = 1`: [`spiric_curvature_sup`]) or
+/// over one piece of an arc (`topo`'s spiric crossing row, whose pieces
+/// read their own window).
 ///
-/// From `C″ = m·f″ − axis·(r·sin v)` with
-/// `|f″| = r·|(ρ·cos v − r·sin²v)/f + r·ρ²·sin²v/f³|
-///        ≤ r·((ρ_max + r)/f_min + r·ρ_max²/f_min³)`,
-/// `ρ_max = R + r`, `f_min = √((R − r)² − d²)`, plus the axis
-/// channel's `r`. Plain `f64`: a sizing quantity, conservative by the
-/// bound's own slack rather than by rounding. Off-regime data
-/// (`f_min` poison or zero) yields a non-finite answer, which every
-/// caller reads as a refusal rather than a step.
+/// With `f = √(ρ² − d²)`, `ρ′ = −r·sin v` and `f′ = ρρ′/f`,
+/// `C′ = m·f′ + axis·(r·cos v)`, so
+/// `|C′|² = r²(cos²v + (ρ²/f²)·sin²v) = r²(1 + (d²/f²)·sin²v)`, largest
+/// at the smallest `f`: `S = r·√(1 + (d·sin_max/f(rho_lo))²)` — over a
+/// whole period, `r·(R − r)/f_min`. `C″ = m·f″ − axis·(r·sin v)` with
+/// `f″ = (ρ′² + ρρ″)/f − (ρρ′)²/f³` and `|ρ″| ≤ r`:
+/// `A = r·sin_max + (r²·sin_max² + r·rho_hi)/f(rho_lo) +
+/// r²·rho_hi²·sin_max²/f(rho_lo)³`. The `sin` factor is what keeps a
+/// near-tangent cut's pinch, where `f` is small but `ρ′` vanishes, from
+/// charging its `1/f³` to the pieces about it. Generic so the interval
+/// lane carries its enclosures; off-regime data (`rho_lo ≤ |d|`) yields
+/// poison.
+pub fn spiric_rate_bounds<T: Real>(
+    minor: T,
+    offset: T,
+    (rho_lo, rho_hi): (T, T),
+    sin_max: T,
+) -> (T, T) {
+    let f_lo = (rho_lo.powi(2) - offset.powi(2)).sqrt();
+    let speed = minor * (T::one() + (offset * sin_max / f_lo).powi(2)).sqrt();
+    let accel = minor * sin_max
+        + (minor.powi(2) * sin_max.powi(2) + minor * rho_hi) / f_lo
+        + minor.powi(2) * rho_hi.powi(2) * sin_max.powi(2) / f_lo.powi(3);
+    (speed, accel)
+}
+
+/// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
+/// radian squared — [`spiric_rate_bounds`] over a whole period, read by
+/// the mesh chord sizing and by STEP export's node-count schedule.
+/// Plain `f64`: a sizing quantity, conservative by the bound's own slack
+/// rather than by rounding. Off-regime data (`f_min` poison or zero)
+/// yields a non-finite answer, which every caller reads as a refusal
+/// rather than a step.
 #[must_use]
 pub fn spiric_curvature_sup(major: f64, minor: f64, offset: f64) -> f64 {
-    let rho_max = major + minor;
-    let (f_min, _) = spiric_f_range(major, minor, offset);
-    minor
-        + (minor.powi(2) + minor * rho_max) / f_min
-        + minor.powi(2) * rho_max.powi(2) / f_min.powi(3)
+    spiric_rate_bounds(minor, offset, (major - minor, major + minor), 1.0).1
 }
 
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and
@@ -1323,6 +1411,48 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **A reversed carrier is the same locus run back**: its point at
+    /// `t` is the original's at `−t`, on every kind it reverses — a
+    /// carrier that flipped the wrong vector would meet the original at
+    /// most at isolated parameters.
+    #[test]
+    fn a_reversed_carrier_runs_the_same_locus_back() {
+        let n = Vec3::new(2.0, 2.0, 1.0) / 3.0;
+        let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        let c = Point3::new(0.5, -1.0, 2.0);
+        let curves = [
+            Curve3::Line { origin: c, dir: u },
+            Curve3::Circle {
+                center: c,
+                axis: n,
+                radius: 0.7,
+                u_ref: u,
+            },
+            Curve3::Ellipse {
+                center: c,
+                axis: n,
+                major: 0.9,
+                minor: 0.4,
+                u_ref: u,
+            },
+            Curve3::Spiric {
+                center: c,
+                axis: n,
+                u_ref: u,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                offset: 0.3,
+            },
+        ];
+        for curve in curves {
+            let back = curve.reversed().expect("a closed-form carrier reverses");
+            for t in [-2.5, -0.3, 0.0, 0.7, 1.9, 4.0] {
+                let d = (back.eval(t) - curve.eval(-t)).norm();
+                assert!(d < 1e-14, "{curve:?} at {t}: {d}");
+            }
+        }
+    }
 
     /// A unit-ish circle fixture in a tilted frame: axis +z rotated is
     /// avoided on purpose — the frame is exactly representable so the

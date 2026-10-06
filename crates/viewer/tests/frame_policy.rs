@@ -16,6 +16,7 @@
 
 use crate::common;
 use crate::common::plate_index;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::sync::Arc;
@@ -24,8 +25,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use common::asm;
 use pncad::document::NodeStanding;
 use pncad::document::{
-    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Expr, Frame, Node, ParamName,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Formula, Frame, Node,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, VarName,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
@@ -717,6 +718,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         ),
         (
             frame::checks_badge(Some(&ChecksReport {
+                document: DocumentId(1),
                 findings: vec![CheckFinding {
                     check: CheckId::Connectedness,
                     root: RecipeNodeId(tagged(3)),
@@ -882,6 +884,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         Node::Extrude {
             profile: healthy_profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -890,8 +893,9 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         &doc,
         Node::Extrude {
             profile: broken_profile,
-            distance: Expr::div(common::len(0.008), common::scl(0.0))
+            distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1253,6 +1257,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     );
     assert_eq!(
         frame::checks_badge(Some(&ChecksReport {
+            document: DocumentId(1),
             findings: Vec::new(),
             skipped: Vec::new(),
         })),
@@ -1262,6 +1267,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     );
     assert_eq!(
         frame::checks_badge(Some(&ChecksReport {
+            document: DocumentId(1),
             findings: Vec::new(),
             skipped: vec![CheckId::Connectedness],
         })),
@@ -1513,6 +1519,7 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
 #[test]
 fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     let report = ChecksReport {
+        document: DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::Connectedness,
             root: RecipeNodeId(tagged(3)),
@@ -2203,6 +2210,7 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -3035,6 +3043,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -3055,7 +3064,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     }
     assert_eq!(
         frame::creation_offer(refusal.as_ref()),
-        Some(ParamName::from_static("margin")),
+        Some(VarName::from_static("margin")),
         "the offer is the undeclared name"
     );
     assert_eq!(

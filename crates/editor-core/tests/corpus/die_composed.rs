@@ -46,6 +46,8 @@
 //! (`sweep/tests/m6_surgery.rs`) meters the composed volume against
 //! its derived closed form at a stated relative tolerance.
 
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     Axis3, BooleanOp, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef,
     Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
@@ -224,6 +226,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
         distance: len(DIE_L),
+        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along the +Z face normal ----
@@ -258,7 +261,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Subtract,
         a: cube,
         b: pip,
-        declare: None,
+        declare: Vec::new(),
     });
     // The fourteen selected edges — twelve box edges and the pip
     // rim's two arcs; the cavity meridians are NOT in the set (see
@@ -306,7 +309,7 @@ pub fn document() -> CorpusDoc {
 }
 
 /// The half-disc loop PROGRAM (die_pips' twin).
-fn half_disc_program() -> LoopProgram {
+fn half_disc_program() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {

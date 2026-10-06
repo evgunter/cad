@@ -2,10 +2,12 @@
 id: subtract-of-a-hollow-operand-files-the-island-under-one-solid
 kind: issue
 title: subtract(A, hollow B strictly inside A) files B's cavity as a second Outer shell of A's solid instead of a solid of its own
-status: open
+status: closed
 opened: 2026-09-08
 priority: P0
 cost: H
+closed: 2026-10-03
+pr: 3891
 ---
 
 
@@ -46,3 +48,67 @@ everywhere (`crates/topo/tests/shell_winding.rs`,
 asks for is the GROUPING — the island filed as a solid of its own —
 which is the boolean's output convention to pursue, not an at-rest
 invalidity.
+
+## Ruled (Ev, PR 3901, 2026-10-03)
+
+A solid is one piece of material. Its `Outer` shell and the `Void`
+shells of the cavities in its material together bound that material
+and nothing else. A cavity belongs to the piece whose material
+surrounds it. Pieces that only touch, at a corner, along an edge, or
+across a face that contact records hold apart, are distinct solids. A
+body is any number of solids. Booleans, `shell` and `split` take
+bodies, return bodies, and sort their results into solids, so every
+output is an operand.
+
+A product operand refuses in the editor, naming the explicit
+cross-instance union. Ev's words: "if an explicit fuse could be added
+to make the boolean op work then refuse". Ev also asked that "nearest
+enclosing" be replaced ("nearest how?"); the text above defines a
+cavity's owner by the material around it instead.
+
+**What this changes for PR 3891.** Its rule, that a piece inside a
+cavity is its own solid while pieces side by side stay together, does
+not land. The rework sorts every `Outer` into its own solid:
+- **The reader:** #3891's nesting reader becomes the shared sort,
+  reusing check 10's witness loop and quad-lane roles.
+- **Refusals:** a piece whose owner cannot be read refuses typed.
+- **The rest of the build:**
+  - check 10 tightens to one `Outer` per solid;
+  - the single-solid gates on boolean, `shell` and `split` go;
+  - `graft_disjoint_all_onto_keyed` goes;
+  - `Connectedness` counts solids;
+  - `wire_boolean` refuses a product operand.
+- **The review's fix list** (m1–m3, N1, Q1, Q4, Q5, Q7) carries over.
+- **Owed with the change:** `rows-do-not-cross-a-boolean-remap` stays
+  fenced, because products refuse.
+
+## Closed (FUSE, PR 3891, 2026-10-03)
+
+Built to Ev's ruling (PR 3901): a solid is one piece of material.
+- **The sort.** `crates/topo/src/pieces.rs` sorts every boolean, split
+  and shell result into one `Outer` per solid, with each `Void` under
+  the piece whose material surrounds it. It shares check 10's witness
+  loop. It refuses typed (`PieceSortError`) where ownership cannot be
+  read, and refuses an `Outer` nested in an `Outer` as overlapping
+  material.
+- **Check 10** requires exactly one `Outer` per solid.
+- **Gates.** Booleans, split and shell take bodies, and
+  `graft_disjoint_all_onto_keyed` is gone.
+- **The editor** refuses a product operand (`ProductOperand`, with the
+  explicit union as the recourse) wherever material is fused or
+  reshaped. The part count `NodeValue::parts` is carried through
+  instantiate, transform, pattern and part. A face-frame datum only
+  reads a face and is admitted.
+- **Rows:** `crates/topo/tests/hollow_island.rs`, and the docm6 fence
+  rows.
+- **Review:** dual (kernel; editor and baselines). One MAJOR: the
+  product fence leaked through a nested sub-assembly, a `Transform` and
+  `PlacedUnion`. It was fixed, and the reviewer re-checked it by
+  execution.
+- **Residue:**
+  - `connectedness-counts-outer-shells-where-it-could-count-solids` (P3);
+  - `one-home-for-where-a-shell-stands` (P2);
+  - restfront's `tier-3-admits-two-solids-of-one-body-whose-material-overlaps`
+    (P1);
+  - the STEP `BREP_WITH_VOIDS` writer on export's
+    `step-export-refuses-every-hollow-body`.

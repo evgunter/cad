@@ -36,9 +36,7 @@ use geom_brep::OutwardNormal;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol, Vec3};
-use topo::readback::{
-    DanglingRef, ReadbackError, edge_carrier_kind, edge_pose, face_carrier_kind, face_pose,
-};
+use topo::readback::{ReadbackError, edge_carrier_kind, edge_pose, face_carrier_kind, face_pose};
 use topo::{
     Body, CurveKind, EdgeKey, EntityId, FaceKey, FaceSurface, MevSite, NewVertexSide, Surface,
     query,
@@ -147,7 +145,7 @@ fn face_carrier_kind_refuses_dangling_and_nothing_else() {
     assert_eq!(
         face_carrier_kind(&empty, face),
         Err(ReadbackError::Dangling {
-            what: DanglingRef::Entity(EntityId::Face(face)),
+            what: EntityId::Face(face),
         })
     );
     assert_eq!(face_carrier_kind(&body, face), Ok(SurfaceKind::Plane));
@@ -346,7 +344,7 @@ fn edge_carrier_kind_refuses_dangling_and_no_carrier_and_nothing_else() {
     let (body, edge) = line_edge();
     let empty = Body::<f64>::new();
     let stale = ReadbackError::Dangling {
-        what: DanglingRef::Entity(EntityId::Edge(edge)),
+        what: EntityId::Edge(edge),
     };
     assert_eq!(edge_carrier_kind(&empty, edge), Err(stale));
     assert_eq!(

@@ -44,3 +44,41 @@ Three lanes, independent of each other, so they can run at once:
 Per unit, at dispatch, by the review tiers of
 `memories/orchestration-model.md`; the log names each tier and its
 reason. The A/B experiment is suspended, so the track carries no band.
+
+## The intent-refactor hold (Ev, `[ev]` PR #3990, 2026-10-03)
+
+Started units finish: JOIN-2 (PR 3880, with the REST-zip segments row
+it closes) and the reflex-wedge membership (PR 3962). Rows that
+meaningfully use declared contact, declared flush pairs, continuations
+or the REST zip are parked with `blocked_on: [3990]` (the ruling's
+item is not on main yet, so the PR number stands for it, as MSOLVE
+parks):
+
+- `four-germ-vertex-pairs-run-b-in-a-order` (P0): closed 2026-10-05 by
+  PR 4036 (see the log: its fix needed no REST-zip ruling once the
+  undeclared lane's four fixes landed together);
+- `peg-in-socket-union-refuses-join-desync-at-a-coarse-eps`;
+- `a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync`;
+- `declared-flush-intersect-refuses-in-one-operand-order`;
+- `reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop`
+  (its poses are declared-flush).
+
+Still startable, because they are undeclared booleans or join topology
+alone: the residue of the pierce families, `a-pinch-no-kept-face-can-cross-refuses`
+(PR 4038's; its island sub-family built in PR 4051, the nested residue a
+design fork going to Ev). The six-crossing row
+(`a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`,
+PR 4036's) closed with PR 4050; its pinch-operand residue is
+`a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`.
+The pinch families landed in PR 4038, and the vertex-vertex
+lane in PR 4036 (with the four-germ row and the reflex vertex's B
+senses). Parked on
+`d10-one-way-to-say-intent-is-unbuilt` on 2026-10-04, on a closer
+read: the tube on a ball (its rim lies ON the ball, a coincidence
+verdict) and the closed in-face loop (a conic lying in the partner's
+face). Parallel cylinders landed in PR 4031. The ring
+re-homing pocket and conic ranking landed in PR 4008, the fan-end
+consolidation in PR 4004, and the cylinder-sphere frame in PR 4025
+(its lane, `cylinder-sphere-germ-pair-has-no-join-lane`, is a design
+row). So JOIN is not
+blocked.

@@ -84,3 +84,7 @@ variants — `offset_cleared`, `strand`, `stranded_appearance`,
 questions by `variant` (the instance whose offset the mate door cleared,
 a stranded name's carrier, the orphaned declaration itself), and
 `offset` is `None` on every arm but one.
+
+## Narrowed (2026-10-02, RECIPE `declared-pairs-are-a-booleans-own-payload`)
+
+The `Declare` node is gone: declared pairs are a boolean's or union's own payload, so no delete can orphan a declaration, and `Maintenance::OrphanedDeclare` (`orphaned_declare`) no longer exists. What this row says of the orphan arm no longer applies; the rest stands.

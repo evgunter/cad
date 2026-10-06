@@ -11,10 +11,10 @@ cost: D
 ## Finding
 
 The M7-8 class — a plane × described-NURBS `Intersection` edge
-attached through the lane door
-(`Body::set_edge_curve_nurbs_lane`, `crates/topo/src/euler.rs`;
+attached through the plane × NURBS lane
+(`Body::set_edge_curve`, which reads it off `AtRestPolicy::nurbs_lane`;
 a lane-free `EdgeCurve::recertify` answers `NurbsLaneNotSupplied` on it) — is reachable from
-no public door today. The lane door's one production caller is STEP
+no public door today. The lane's one production minting caller is STEP
 adoption (`crates/step-import/src/adopt.rs`, the `Intersection`
 candidate on a plane/NURBS pair), and on the bodies the tree can
 import that candidate never certifies where the pair is plane ×

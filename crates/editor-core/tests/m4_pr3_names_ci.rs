@@ -8,9 +8,7 @@
 
 use crate::fixture;
 
-use editor_core::{
-    CancelToken, DocParam, EvalOptions, Evaluation, ParamName, ProfileDoc, evaluate,
-};
+use editor_core::{CancelToken, EvalOptions, Evaluation, ProfileDoc, VarName, evaluate};
 use fixture::{DEPTH, die, step};
 use geom_core::Tol;
 
@@ -84,18 +82,23 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// renumbers nodes moves every row). The companion below tells the
 /// two apart only in part — it drops the entry keys, not the ids — so
 /// a re-pin states which of the two it is. Last re-pinned for both:
-/// the die's +z pip extrudes at a negative distance, whose sweep runs
-/// the loop backwards, and its walls, rims, struts and cap vertices are
+/// the die's pips extrude against their sketch normal, whose sweep
+/// runs the loop backwards, and its walls, rims, struts and cap vertices are
 /// now named by the pieces at their CANONICAL positions (they were
 /// named by the swept positions, each wall by another piece); and node
-/// ids are digests of the document's mint chain, and the die's
-/// `Declare` node spells its pairs as continuations, so every id
-/// downstream of it moved.
-const DIE_TABLE_DIGEST: u64 = 0x5357_3a07_25c8_58e0;
+/// ids are digests of the document's mint chain, and the die's pip
+/// subtracts carry their declared pairs as their own payload, so every
+/// subtract's id, and every id minted after one, is the chain's
+/// without a declaration node in it; and every extrude carries its side
+/// as payload, which moves every extrude's id and every id after it;
+/// and declaring the die's variables mints their ids on the chain,
+/// which moves every id minted after a declare (ids only: no name's
+/// wording moved).
+const DIE_TABLE_DIGEST: u64 = 0xaeb2_2275_f9fa_495e;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0xc671_2d5a_b235_bba4;
+const DIE_NAMES_DIGEST: u64 = 0x6e0b_9403_fad5_a406;
 
 #[test]
 fn die_name_tables_are_golden() {
@@ -126,10 +129,10 @@ fn pip_depth_motion_without_flips_leaves_every_table_identical() {
     // A dyadic, still-shallow depth: no verdict flips anywhere.
     let (doc2, _) = step(
         d.doc,
-        editor_core::DocEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
+        editor_core::DocEdit::SetVarValue {
+            var: VarName::from_static("pip_depth").into(),
             // 0.1875, dyadic.
-            value: DocParam::continuous(editor_core::Dimension::Length, DEPTH * 1.5),
+            value: editor_core::FreeValue::Continuous(DEPTH * 1.5),
         },
     );
     let ev2 = evaluate::<f64>(
