@@ -454,3 +454,17 @@ The previous orchestrator has exited; this session holds the track (`status: act
   to Ev only if the reports leave a fork that is Ev's.
 
 Signed (CLEAVE orchestrator).
+- **PR 4081 merges** (`split-lane-second-chord-recomputes-the-first-chords-arc`, closed). The split's
+  segment curve and its chord plan are each decided once (`ChordJoiner::segment_curve`, `JoinPlan`),
+  shared with the Boolean lane. The row's `NoChartedRun` premise had been dead on main since
+  `5ec92edc58`. What the double decision cost was measured on a new fixture, a pocketed drum split
+  across its ring: the two halves' wall arcs could sit a period apart, and half volumes failed to sum by
+  up to 5.9e-9. Goldens re-baselined: `tilted_below` and editor-core `cut_cylinder`.
+  - Review: single FULL, then the orchestrator's read of the fix pass's delta. The delta plans the
+    second chord before the first chord's surgery; the invariant that makes this exact is documented on
+    `JoinPlan`, and topo and sweep are green.
+  - Filed: `split-halves-volumes-sum-to-the-whole-only-within-their-pads` (P3, `design`). Its misses
+    track unequal quadrature pads, so it may belong to FLUX's quadrature ground; it stays here until
+    measured further.
+  - Class noted from the review: "decided once" has to cover the plan as well as the value. A
+    computed value that is shared while the plan choosing it is re-derived is the shape to grep for.
