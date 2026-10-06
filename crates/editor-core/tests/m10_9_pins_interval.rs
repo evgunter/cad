@@ -686,3 +686,40 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
     );
 }
+
+/// DECIDE-10 Phase 1 probe (not landed): the bracket's replay at
+/// `certifies_at`, read on and read shut, under `CAD_DECIDE10`.
+#[test]
+#[ignore = "DECIDE-10 probe"]
+fn decide10_bracket_replay() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let study = measured_studies(tol)
+        .into_iter()
+        .find(|s| s.name == "r2_filleted_bracket")
+        .expect("the bracket");
+    let doc = (study.at)(study.certifies_at * eps);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let box_ = ParamBox::of(&analyzed);
+    for (label, rules) in [
+        ("shipped ", SymRules::shipped()),
+        ("no_reads", SymRules::without_the_reads()),
+    ] {
+        let _ = geom_core::sym::d10_take();
+        let t0 = std::time::Instant::now();
+        let (refusal, c) = replay_counts(&doc, &box_, rules, tol);
+        let (asked, moved) = geom_core::sym::d10_take();
+        println!(
+            "BRACKET cand={:?} eps={eps:e} {label} ({:.1}s): {} / {} / {} / {} frozen {} \
+             free walks {asked} moved {moved} gated freezes {} -> {refusal:?}",
+            std::env::var("CAD_DECIDE10").ok(),
+            t0.elapsed().as_secs_f64(),
+            c.symbolic_zero,
+            c.sign_gated,
+            c.registered,
+            c.numeric,
+            c.frozen,
+            geom_core::sym::d10_gfreeze()
+        );
+    }
+}

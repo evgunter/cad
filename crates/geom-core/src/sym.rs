@@ -2498,6 +2498,11 @@ struct Session {
     /// registry is empty — so a document with no registrants (all of
     /// straight geometry) pays nothing and serializes M10-8's bytes.
     forms_door: IdMap<Arc<Form>>,
+    forms_early_free: IdMap<Arc<Form>>,
+    forms_door_free: IdMap<Arc<Form>>,
+    d10_arms: IndetMap<Form>,
+    d10_free: bool,
+    d10_gfroze: bool,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`], read by rule C, by the decision read and
@@ -2653,6 +2658,8 @@ const REDUCTION_FORMS: usize = 50_000;
 struct RetryMemo {
     early: IdMap<Arc<Form>>,
     door: IdMap<Arc<Form>>,
+    early_free: IdMap<Arc<Form>>,
+    door_free: IdMap<Arc<Form>>,
 }
 
 impl RetryMemo {
@@ -2707,6 +2714,11 @@ impl Session {
             forms: IdMap::default(),
             forms_early: IdMap::default(),
             forms_door: IdMap::default(),
+            forms_early_free: IdMap::default(),
+            forms_door_free: IdMap::default(),
+            d10_arms: IndetMap::default(),
+            d10_free: false,
+            d10_gfroze: false,
             params: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
@@ -3603,6 +3615,14 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 return Some(f);
             }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
+            if early
+                && sess.d10_free
+                && d10() == 5
+                && matches!(node.op, SymOp::Min | SymOp::Max)
+                && let Some(f) = signed::order(node.op, a, b, sess, budget)
+            {
+                sess.d10_arms.insert(id, f);
+            }
             mint_atom(sess, id, early, || AtomInfo {
                 op: node.op,
                 payload: node.payload,
@@ -3656,6 +3676,15 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 node.payload,
                 &[a.digest(), b.digest(), third.digest()],
             );
+            if early
+                && sess.d10_free
+                && d10() == 5
+                && let Some(le) = signed::decision(a, sess)
+            {
+                let mut f = if le { b.clone() } else { third.clone() };
+                f.gated = true;
+                sess.d10_arms.insert(id, f);
+            }
             mint_atom(sess, id, early, || AtomInfo {
                 op: node.op,
                 payload: node.payload,
@@ -3966,6 +3995,9 @@ fn form_in(
             );
             made
         };
+        let kid_gated = [&fa, &fb, &fc]
+            .iter()
+            .any(|f| f.as_ref().is_some_and(|f| f.gated));
         drop((fa, fb, fc));
         if taint {
             sess.plain_tainted.insert(id, ());
@@ -3974,6 +4006,10 @@ fn form_in(
             sess.plain_atoms.truncate(atoms_before);
         }
         let froze = made.is_none();
+        if early && froze && kid_gated {
+            D10_GFREEZE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            sess.d10_gfroze = true;
+        }
         let f = match made {
             Some(p) => p,
             None => frozen(sess, id),
@@ -4163,6 +4199,40 @@ enum WalkKind {
     Early,
     /// The early walk with the registry applied.
     Door,
+    EarlyFree,
+    DoorFree,
+}
+
+/// DECIDE-10 Phase 1 probe counters: free walks asked, and how many of
+/// them moved a label (theorem or registered where the read-on walk did not).
+pub static D10_ASKED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub static D10_MOVED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub static D10_GFREEZE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Early-walk freezes over a gated kid since the last call, and reset.
+pub fn d10_gfreeze() -> u64 {
+    D10_GFREEZE.swap(0, std::sync::atomic::Ordering::Relaxed)
+}
+/// `(asked, moved)`, and reset.
+pub fn d10_take() -> (u64, u64) {
+    use std::sync::atomic::Ordering::Relaxed;
+    (D10_ASKED.swap(0, Relaxed), D10_MOVED.swap(0, Relaxed))
+}
+
+/// DECIDE-10 Phase 1 probe: the candidate under measurement
+/// (`CAD_DECIDE10` = 1a | 1c | 1b | 2 | 3; unset = base).
+pub fn d10() -> u8 {
+    static C: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
+    *C.get_or_init(|| match std::env::var("CAD_DECIDE10").as_deref() {
+        Ok("1a") => 1,
+        Ok("1c") => 2,
+        Ok("1b") => 3,
+        Ok("2") => 4,
+        Ok("3") => 5,
+        Ok("1d") => 6,
+        Ok("1e") => 7,
+        Ok("1h") => 8,
+        _ => 0,
+    })
 }
 
 /// **Which memo a walk reads and fills**: the first attempt's three,
@@ -4174,6 +4244,10 @@ enum MemoSlot {
     Door,
     RetryEarly(usize),
     RetryDoor(usize),
+    EarlyFree,
+    DoorFree,
+    RetryEarlyFree(usize),
+    RetryDoorFree(usize),
 }
 
 impl MemoSlot {
@@ -4186,6 +4260,10 @@ impl MemoSlot {
             (WalkKind::Door, None) => Self::Door,
             (WalkKind::Early, Some(k)) => Self::RetryEarly(k),
             (WalkKind::Door, Some(k)) => Self::RetryDoor(k),
+            (WalkKind::EarlyFree, None) => Self::EarlyFree,
+            (WalkKind::DoorFree, None) => Self::DoorFree,
+            (WalkKind::EarlyFree, Some(k)) => Self::RetryEarlyFree(k),
+            (WalkKind::DoorFree, Some(k)) => Self::RetryDoorFree(k),
         }
     }
 }
@@ -4209,6 +4287,16 @@ impl Session {
             MemoSlot::RetryDoor(k) => {
                 retry(&mut self.retries, k);
                 &mut self.retries[k].door
+            }
+            MemoSlot::EarlyFree => &mut self.forms_early_free,
+            MemoSlot::DoorFree => &mut self.forms_door_free,
+            MemoSlot::RetryEarlyFree(k) => {
+                retry(&mut self.retries, k);
+                &mut self.retries[k].early_free
+            }
+            MemoSlot::RetryDoorFree(k) => {
+                retry(&mut self.retries, k);
+                &mut self.retries[k].door_free
             }
         }
     }
@@ -4266,12 +4354,21 @@ fn walk(
     // `door_form`, `rungs` at attempt 0). Only a retry swaps the rules
     // in and widens the ring; the scope below still restores the memo
     // on every attempt.
+    let free = matches!(kind, WalkKind::EarlyFree | WalkKind::DoorFree);
+    let rules = if free {
+        SymRules {
+            decision_read: false,
+            ..rules
+        }
+    } else {
+        rules
+    };
     let first = attempt == 0;
     debug_assert!(
-        !first || (rules == sess.rules && bits == rational::COEFF_BITS),
+        free || !first || (rules == sess.rules && bits == rational::COEFF_BITS),
         "the first attempt is the session's rules at COEFF_BITS"
     );
-    let kept = if first {
+    let kept = if first && !free {
         sess.rules
     } else {
         core::mem::replace(&mut sess.rules, rules)
@@ -4288,21 +4385,23 @@ fn walk(
     };
     let (early, registry) = match kind {
         WalkKind::Plain => (false, false),
-        WalkKind::Early => (true, false),
-        WalkKind::Door => (true, true),
+        WalkKind::Early | WalkKind::EarlyFree => (true, false),
+        WalkKind::Door | WalkKind::DoorFree => (true, true),
     };
     let WalkScope { sess, memo, .. } = &mut scope;
+    sess.d10_free = free;
     let out = if first {
         form_in(sess, memo, root, early, registry)
     } else {
         rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry))
     };
+    sess.d10_free = false;
     #[cfg(feature = "sym-profile-testing")]
     profile::walk_done(
         match kind {
             WalkKind::Plain => profile::Walk::Plain,
-            WalkKind::Early => profile::Walk::Early,
-            WalkKind::Door => profile::Walk::Door,
+            WalkKind::Early | WalkKind::EarlyFree => profile::Walk::Early,
+            WalkKind::Door | WalkKind::DoorFree => profile::Walk::Door,
         },
         t0,
     );
@@ -4488,7 +4587,7 @@ fn ladder(sess: &mut Session, id: SymId, retries: bool) -> Option<(Discharge, Ru
         return Some((Discharge::Theorem, Rung::Plain, 0));
     }
     let first = (sess.rules, rational::COEFF_BITS);
-    if let Some((d, rung)) = rungs(sess, id, &plain, 0, first) {
+    if let Some((d, rung)) = rungs(sess, id, &plain, 0, first, retries) {
         return Some((d, rung, 0));
     }
     if !retries {
@@ -4507,12 +4606,47 @@ fn ladder(sess: &mut Session, id: SymId, retries: bool) -> Option<(Discharge, Ru
         {
             continue;
         }
-        if let Some((d, rung)) = rungs(sess, id, &plain, attempt, (rules, bits)) {
+        if let Some((d, rung)) = rungs(sess, id, &plain, attempt, (rules, bits), retries) {
             sess.counts.retried += 1;
             return Some((d, rung, attempt));
         }
     }
     None
+}
+
+/// Candidate 3's substitution: every read atom of `f` replaced by its
+/// recorded arm, to a fixpoint (at most eight passes).
+fn d10_subst(f: &Form, arms: &IndetMap<Form>, budget: SymBudget) -> Option<Form> {
+    fn poly(p: &Poly, arms: &IndetMap<Form>, budget: SymBudget) -> Option<(Form, bool)> {
+        let mut acc = Form::zero();
+        let mut hit = false;
+        for (mono, c) in p.terms() {
+            let mut t = Form::poly(Poly::constant(c.clone()));
+            for &(id, e) in mono {
+                let g = if let Some(a) = arms.get(&id) {
+                    hit = true;
+                    powi_form(a, e, budget)?
+                } else {
+                    Form::poly(Poly::term(vec![(id, e)], Rat::one()))
+                };
+                t = t.mul(&g, budget)?;
+            }
+            acc = acc.add(&t, budget)?;
+        }
+        Some((acc, hit))
+    }
+    let mut cur = f.clone();
+    for _ in 0..8 {
+        let (n, hn) = poly(&cur.num, arms, budget)?;
+        let (d, hd) = poly(&cur.den, arms, budget)?;
+        if !(hn || hd) {
+            break;
+        }
+        let mut next = n.mul(&d.recip()?, budget)?;
+        next.gated |= cur.gated;
+        cur = next;
+    }
+    Some(cur)
 }
 
 /// The EARLY rung, the TOP-RESIDUAL rung and the DOOR rung of one
@@ -4525,9 +4659,80 @@ fn rungs(
     plain: &Form,
     attempt: u8,
     (rules, bits): (SymRules, u64),
+    path: bool,
 ) -> Option<(Discharge, Rung)> {
-    if rules.early {
+    let cand = match d10() {
+        8 if path => 2,
+        8 => 0,
+        6 if path => 2,
+        7 if path => 3,
+        6 | 7 => 0,
+        c => c,
+    };
+    let free_theorem = |sess: &mut Session, kind: WalkKind| -> bool {
+        D10_ASKED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let f = walk(sess, id, kind, attempt, (rules, bits));
+        f.is_zero() && !f.gated
+    };
+    let moved = || {
+        D10_MOVED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    };
+    if rules.early && rules.decision_read && cand == 3 && free_theorem(sess, WalkKind::EarlyFree) {
+        return Some((Discharge::Theorem, Rung::Early));
+    }
+    if rules.early && rules.decision_read && cand == 4 {
+        // Candidate 2: the read at the decision root alone.
+        let e = walk(sess, id, WalkKind::EarlyFree, attempt, (rules, bits));
+        if e.is_zero() {
+            return Some((
+                if e.gated { Discharge::SignGated } else { Discharge::Theorem },
+                Rung::Early,
+            ));
+        }
+        if let Some(node) = sess.nodes.get(&id).copied()
+            && matches!(node.op, SymOp::Min | SymOp::Max | SymOp::Select)
+        {
+            let slot = MemoSlot::of(WalkKind::EarlyFree, attempt);
+            let kids: Vec<Form> = (0..3)
+                .map(|i| {
+                    if i < node.op.arity() {
+                        sess.memo_slot(slot)
+                            .get(&node.kids[i])
+                            .map_or_else(Form::zero, |f| (**f).clone())
+                    } else {
+                        Form::zero()
+                    }
+                })
+                .collect();
+            let kept = core::mem::replace(&mut sess.rules, rules);
+            let r = combine(&node, [&kids[0], &kids[1], &kids[2]], sess, true);
+            sess.rules = kept;
+            if r.as_ref().is_some_and(Form::is_zero) {
+                return Some((Discharge::SignGated, Rung::Early));
+            }
+        }
+    } else if rules.early && rules.decision_read && cand == 5 {
+        // Candidate 3: atoms kept, the arms beside them, substituted at
+        // the decision where the read-free form does not settle.
+        let e = walk(sess, id, WalkKind::EarlyFree, attempt, (rules, bits));
+        if e.is_zero() {
+            return Some((
+                if e.gated { Discharge::SignGated } else { Discharge::Theorem },
+                Rung::Early,
+            ));
+        }
+        if d10_subst(&e, &sess.d10_arms, sess.budget).is_some_and(|f| f.is_zero()) {
+            return Some((Discharge::SignGated, Rung::Early));
+        }
+    } else if rules.early {
         let e = walk(sess, id, WalkKind::Early, attempt, (rules, bits));
+        if rules.decision_read
+            && ((cand == 1 && e.is_zero() && e.gated) || (cand == 2 && (e.gated || (d10() == 8 && sess.d10_gfroze))))
+            && free_theorem(sess, WalkKind::EarlyFree)
+        {
+            moved();
+            return Some((Discharge::Theorem, Rung::Early));
+        }
         if e.is_zero() {
             return Some((
                 if e.gated {
@@ -4576,8 +4781,23 @@ fn rungs(
     // shipped run because `signed_root` is dial-off
     // (`SymRules::shipped`). Pinned rather than assumed.
     if rules.registered && rules.early && !sess.registry.is_empty() {
+        if rules.decision_read && matches!(cand, 3..=5) {
+            if free_theorem(sess, WalkKind::DoorFree) {
+                return Some((Discharge::Registered, Rung::Door));
+            }
+            if cand != 3 {
+                return None;
+            }
+        }
         let d = walk(sess, id, WalkKind::Door, attempt, (rules, bits));
         if d.is_zero() && !d.gated {
+            return Some((Discharge::Registered, Rung::Door));
+        }
+        if rules.decision_read
+            && ((cand == 1 && d.is_zero() && d.gated) || (cand == 2 && (d.gated || (d10() == 8 && sess.d10_gfroze))))
+            && free_theorem(sess, WalkKind::DoorFree)
+        {
+            moved();
             return Some((Discharge::Registered, Rung::Door));
         }
     }
@@ -4965,8 +5185,10 @@ impl<T: Real> Sym<T> {
             // plain and early memos never consult the registry, so they
             // stay whole (and M10-8's, bit for bit).
             sess.forms_door.clear();
+            sess.forms_door_free.clear();
             for r in &mut sess.retries {
                 r.door.clear();
+                r.door_free.clear();
             }
             SymRegistration::Recorded
         })

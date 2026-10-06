@@ -360,3 +360,26 @@ fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 0, 0, 32]));
     assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 0, 0, 34]));
 }
+
+/// DECIDE-10 Phase 1 probe (not landed): the plate's whole split at the
+/// nominal, shipped, under `CAD_DECIDE10`.
+#[test]
+#[ignore = "DECIDE-10 probe"]
+fn decide10_plate_split() {
+    let tol = Tol::witness();
+    let _ = geom_core::sym::d10_take();
+    let on = split_at_the_nominal(SymRules::shipped(), tol);
+    let (asked, moved) = geom_core::sym::d10_take();
+    let mut sum = [0u64; 4];
+    for (p, s) in &on {
+        println!("PLATE {p}: {s:?}");
+        for i in 0..4 {
+            sum[i] += s[i];
+        }
+    }
+    println!(
+        "PLATE cand={:?} total {sum:?} free walks {asked} moved {moved} gfreeze {}",
+        std::env::var("CAD_DECIDE10").ok(),
+        geom_core::sym::d10_gfreeze()
+    );
+}
