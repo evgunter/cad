@@ -10,7 +10,7 @@ use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf, band,
-    band_rim, evaluate, meridian_vertex,
+    band_rim, band_rim_pi, evaluate, meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, len, len2, minted, on_frame_keeping, table};
 use geom_core::Tol;
@@ -472,11 +472,38 @@ fn full_wire_revolve_names_pi_band_and_poles() {
             .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Meridian(MeridianEnd::Pi, _)))),
         "no Meridian(Pi) role minted"
     );
-    assert!(
-        t.iter()
-            .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_)))),
-        "no BandRimPi role minted"
+    // Each off-axis rim is two half-arcs between the seam vertices, and
+    // the builder spells the second exactly as emission minted it.
+    let mut rims_pi: Vec<_> = t
+        .iter()
+        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_))))
+        .map(|(n, _)| n.clone())
+        .collect();
+    rims_pi.sort();
+    let mut built = vec![
+        band_rim_pi(rev, pv(&doc, rev, 0, 1)),
+        band_rim_pi(rev, pv(&doc, rev, 0, 2)),
+    ];
+    built.sort();
+    assert_eq!(
+        rims_pi, built,
+        "the BandRimPi arcs are the two rims' builders"
     );
+    for v in [1, 2] {
+        let whole = [
+            band_rim(rev, pv(&doc, rev, 0, v)),
+            band_rim_pi(rev, pv(&doc, rev, 0, v)),
+        ];
+        assert!(
+            whole.iter().all(|n| t.lookup(n).is_some()),
+            "rim {v} resolves at both halves"
+        );
+        assert_ne!(
+            t.lookup(&whole[0]),
+            t.lookup(&whole[1]),
+            "rim {v}'s halves are two edges"
+        );
+    }
     // No poles: both on-axis profile vertices are disc centres, and a
     // plane wall is built whole, so neither is a vertex.
     let poles = t

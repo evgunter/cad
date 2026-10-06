@@ -47,7 +47,7 @@
 //! fillet's frozen selection — is written before any evaluation of
 //! the minting node exists, so there is nothing to select against and
 //! the name has to be spelled. [`band`], [`band_pi`], [`band_rim`],
-//! [`meridian_vertex`] and [`carried`] are that direction of the
+//! [`band_rim_pi`], [`meridian_vertex`] and [`carried`] are that direction of the
 //! vocabulary [`SegPat::tag`] matches in: each mints one
 //! [`StableName`](editor_core::StableName) with the
 //! [`EntityKind`] its role denotes already fixed.
@@ -95,7 +95,7 @@ pub use editor_core::{
     PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare, RimSupport,
     RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
     Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all,
+    all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, declare, declare_all,
     declared_pairs, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
     face_frame, face_name, find_flush_candidates, meridian_vertex, select, select_where,
     vertex_position,
