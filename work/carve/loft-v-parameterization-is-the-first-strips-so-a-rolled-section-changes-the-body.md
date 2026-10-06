@@ -119,3 +119,19 @@ annular loft and its hole-less twin over the same stations. With hole
 rows in the average, the hole moves the outer skin and the identity is
 off by 5.1e-5 relative; with the outer loop's rows only, it holds to
 1.9e-16. The PR lays out the options; the cell is left as it was.
+
+**Open: the sweep rule breaks the tour's coil (PR 4193's red gate).**
+`demos/tour/src/projectbox.rs`'s 6-turn coil (`sweep_body`, 193
+stations) no longer builds:
+
+```text
+Euler(Certification { error: Escalated { check: ParamSpan, …,
+predicate: Some("nurbs_span_meter") } })
+```
+
+The round-wire spring beside it refuses its volume with a
+`QuadratureBudget` (width 3.6e-3 after 1 round). With
+`i/(k − 1)` station parameters the coil's averaged v knots land
+EXACTLY on dyadic lines (0.3125, 0.328125, …), and the walls are
+integral. Under the first-strip rule the parameters carried
+chord-length noise. The cause is not pinned.
