@@ -466,9 +466,8 @@ pub struct DocSession {
 ///   genuinely differs: `Open` sets both, `NewDocument` clears both.
 struct Derived {
     selection: Selection,
-    /// The nodes [`Derived::selection`] names, as the session spoke them
-    /// when it was made ([`DocSession::selection_said`]); written with
-    /// it, at its one write.
+    /// The nodes [`Derived::selection`] names, as the last document that
+    /// held them spoke them ([`DocSession::selection_said`]).
     said: HeldNodes,
     /// What the cursor is over: transient, never persisted, and its
     /// ONE home. A widget that kept its own copy would be the
@@ -897,11 +896,13 @@ impl DocSession {
         &self.derived.selection
     }
 
-    /// **The selection's nodes as they were spoken when it was made**
-    /// ([`Selection::nodes`]): what a sentence about the selection says a
-    /// node by once the document it is spoken from no longer holds it
-    /// (`Speaker::or_held`) — the label the node had when it was picked,
-    /// as the seat, mate and blend tools say theirs.
+    /// **The selection's nodes as the last document that held them
+    /// spoke them** ([`Selection::nodes`]): what a sentence about the
+    /// selection says a node by once the document it is spoken from no
+    /// longer holds it (`Speaker::or_held`). Spoken when the selection
+    /// is made, and again from the shown document after every
+    /// operation (`SpokenNode::respoken`'s rule), so a deleted node
+    /// is said by the last label it had.
     pub fn selection_said(&self) -> &HeldNodes {
         &self.derived.said
     }
@@ -1434,6 +1435,18 @@ impl DocSession {
     /// table plus that one rule, held once for both drags rather than
     /// spelled per gesture and per table.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
+        let outcome = self.perform_op(op);
+        // Every document change is an operation, so this is the one
+        // place the kept nodes follow the newest document that holds
+        // them. A landing changes only the landed run, an earlier
+        // version of the shown document.
+        self.derived.said = self.derived.said.respoken(self.doc());
+        outcome
+    }
+
+    /// [`DocSession::perform`]'s operation, before the selection's kept
+    /// nodes are spoken again.
+    fn perform_op(&mut self, op: SessionOp) -> OpOutcome {
         if self.gesture.held().is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }

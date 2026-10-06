@@ -980,7 +980,8 @@ impl ViewerBehavior<'_> {
     /// caller over the button it holds.
     fn datum_face_frame_rows(&mut self, ui: &mut egui::Ui) {
         if let Selection::Face(face) = self.session.selection() {
-            self.drafts.datum_face = Some(face.clone());
+            self.drafts
+                .hold_datum_face(face.clone(), self.session.selection_said());
         }
         ui.horizontal(|ui| {
             ui.label("face");
@@ -988,11 +989,11 @@ impl ViewerBehavior<'_> {
                 // The drawn body a pick is on, in the one sentence
                 // this crate names that scope with (`Say for
                 // BlendTarget`), its node said from the landed
-                // document the pick was read off, or as the selection
-                // kept it once that document no longer holds it.
+                // document the pick was read off, or as the form kept
+                // it once that document no longer holds it.
                 Some(face) => {
                     let target = BlendTarget::of_face(face);
-                    let kept = self.session.selection_said();
+                    let kept = self.drafts.datum_face_said();
                     let by = self
                         .session
                         .landed_pair()

@@ -260,7 +260,7 @@ impl Selection {
     /// ([`FaceSelection::feature`]) and the node whose body was hit.
     /// The session keeps them spoken as the selection is made
     /// (`DocSession::selection_said`), so a sentence about a selection
-    /// whose node was deleted since says the node as it was.
+    /// whose node was deleted since says the last label it had.
     pub fn nodes(&self) -> Vec<RecipeNodeId> {
         match self {
             Self::Node(id) => vec![*id],

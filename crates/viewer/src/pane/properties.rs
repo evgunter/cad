@@ -986,9 +986,9 @@ impl ViewerBehavior<'_> {
 }
 
 /// **A selected node's heading**: as the document holds it while it is
-/// present ([`crate::tree::node_label`]), and once it is deleted as it
-/// was spoken when it was selected (`DocSession::selection_said`), since
-/// the document no longer says it.
+/// present ([`crate::tree::node_label`]), and once it is deleted as the
+/// last document that held it spoke it (`DocSession::selection_said`),
+/// since the document no longer says it.
 fn selected_node_heading(
     doc: &Doc<ProfileProgram>,
     files: &crate::parts::PartFiles,
@@ -1021,7 +1021,7 @@ fn selected_node_heading(
 /// A picked entity's resolution was asked of the landed run
 /// (`DocSession::standing`), so its nodes are said from `landed`, the
 /// document whose ids it is spelled in; a node it no longer holds, as
-/// `said` kept it when the selection was made
+/// `said` keeps it, the last document that held it
 /// (`DocSession::selection_said`); by their tags when neither says it.
 ///
 /// A free function over the `Ui` so a headless drive can reach it
@@ -1928,7 +1928,7 @@ mod verdict_tests {
     use super::standing_verdict;
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::session::{
-        DocSession, EdgeSelection, FaceSelection, Selection, SessionOp, Standing,
+        DocSession, EdgeSelection, FaceSelection, ProfilePlane, Selection, SessionOp, Standing,
     };
     use crate::theme::Theme;
 
@@ -1970,7 +1970,7 @@ mod verdict_tests {
     }
 
     /// What [`standing_verdict`] painted for `standing` over `landed`,
-    /// keeping nothing from when it was selected.
+    /// keeping nothing of the selection's nodes.
     fn drawn_over(
         standing: &Standing,
         landed: Option<&Doc<ProfileProgram>>,
@@ -1979,7 +1979,7 @@ mod verdict_tests {
     }
 
     /// What [`standing_verdict`] painted for `standing` over `landed`,
-    /// with `said` kept from when it was selected.
+    /// with `said` kept of the selection's nodes.
     fn drawn_keeping(
         standing: &Standing,
         landed: Option<&Doc<ProfileProgram>>,
@@ -2153,7 +2153,7 @@ mod verdict_tests {
                     assert_eq!(
                         super::selected_node_heading(session.doc(), &files, said, node, false),
                         labelled,
-                        "a deleted node heads the pane as it was selected"
+                        "a deleted node heads the pane by the label it had"
                     );
                     assert_eq!(
                         super::selected_node_heading(
@@ -2210,6 +2210,95 @@ mod verdict_tests {
             format!("Extrude \"base block\" ({t})"),
             "the landed run still held the block, so the pick keeps its label"
         );
+    }
+
+    /// **A tree pick is kept from the shown document**: a node inserted
+    /// since the last landing is held by the shown document alone, and
+    /// the feature tree draws it there, so the selection keeps it as
+    /// the shown document says it.
+    #[test]
+    fn a_tree_pick_of_a_node_not_yet_landed_keeps_its_label() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _, _) = crate::test_support::boss_on_block("verdict-unlanded", tol);
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let added = session.perform(SessionOp::AddDatum {
+            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+        });
+        assert!(added.refusal.is_none(), "{:?}", added.refusal);
+        let datum = *session.doc().order().last().expect("the added datum");
+        let named = session.perform(SessionOp::SetLabel {
+            node: datum,
+            label: Some(Label::new("floor").expect("a label")),
+        });
+        assert!(named.refusal.is_none(), "{:?}", named.refusal);
+        assert!(
+            session
+                .landed_pair()
+                .is_some_and(|(landed, _)| landed.node(datum).is_none()),
+            "the landed run does not hold the datum yet"
+        );
+        let labelled = session.doc().spoken(datum).to_string();
+        assert!(labelled.contains("\"floor\""), "{labelled}");
+        session.perform(SessionOp::Select(Selection::Node(datum)));
+        let deleted = session.perform(SessionOp::DeleteNode { node: datum });
+        assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+        session.pump();
+        let files = crate::parts::PartFiles::default();
+        assert_eq!(
+            super::selected_node_heading(
+                session.doc(),
+                &files,
+                session.selection_said(),
+                datum,
+                false
+            ),
+            labelled,
+            "the deleted datum heads the pane as the shown document said it"
+        );
+    }
+
+    /// **The kept nodes follow the last document that held them**: a
+    /// label written or changed after the pick is the one a deleted
+    /// node is said by, not the one it had when it was picked.
+    #[test]
+    fn a_deleted_selection_says_the_last_label_its_node_had() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("verdict-last-label", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let label = |name: &str| Some(Label::new(name).expect("a label"));
+        for (what, at_pick, after) in [
+            ("unlabelled, then labelled", None, "base"),
+            ("labelled, then renamed", label("a"), "b"),
+        ] {
+            let mut session = DocSession::inline(doc.clone(), tol);
+            let named = session.perform(SessionOp::SetLabel {
+                node: block,
+                label: at_pick,
+            });
+            assert!(named.refusal.is_none(), "{what}: {:?}", named.refusal);
+            session.pump();
+            session.perform(SessionOp::Select(Selection::Node(block)));
+            let renamed = session.perform(SessionOp::SetLabel {
+                node: block,
+                label: label(after),
+            });
+            assert!(renamed.refusal.is_none(), "{what}: {:?}", renamed.refusal);
+            let deleted = session.perform(SessionOp::DeleteNode { node: block });
+            assert!(deleted.refusal.is_none(), "{what}: {:?}", deleted.refusal);
+            session.pump();
+            assert_eq!(
+                super::selected_node_heading(
+                    session.doc(),
+                    &crate::parts::PartFiles::default(),
+                    session.selection_said(),
+                    block,
+                    false
+                ),
+                format!("Extrude \"{after}\" ({t})"),
+                "{what}: the deleted node is said by its last label"
+            );
+        }
     }
 
     /// **A name that no longer resolves is a verdict to act on**, so

@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Formula, Label, LabelFault, LoopProgram,
+    BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
 };
 use pncad::geom_core::Point2;
@@ -156,6 +156,12 @@ pub(crate) struct Drafts {
     /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
     /// carries them.
     pub(crate) datum_face: Option<FaceSelection>,
+    /// The nodes [`Self::datum_face`] names, as the last document that
+    /// held them spoke them: the selection's when the face was copied
+    /// from it (`DocSession::selection_said`), spoken again from each
+    /// later document ([`Self::respeak`]). The form holds its face
+    /// after the selection moves on, so it keeps its own.
+    datum_face_said: HeldNodes,
     /// The frame-on-face form's spin, radians — sketch +x's rotation
     /// about the face's outward normal. Opens at zero, the
     /// carrier's own u-reference.
@@ -631,6 +637,7 @@ impl Default for Drafts {
             datum_in_frame_origin: Point2::origin(),
             datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
+            datum_face_said: HeldNodes::default(),
             datum_spin: 0.0,
             profile_shape: None,
             profile_path: vec![
@@ -928,6 +935,28 @@ impl Drafts {
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
         self.datum_face = None;
+        self.datum_face_said = HeldNodes::default();
+    }
+
+    /// **The face-frame form takes the selection's face**, with its
+    /// nodes as the session has them spoken (`DocSession::selection_said`).
+    pub(crate) fn hold_datum_face(&mut self, face: FaceSelection, said: &HeldNodes) {
+        self.datum_face = Some(face);
+        self.datum_face_said = said.clone();
+    }
+
+    /// The held face's nodes as the last document that held them spoke
+    /// them; empty with no face held.
+    pub(crate) fn datum_face_said(&self) -> &HeldNodes {
+        &self.datum_face_said
+    }
+
+    /// **The held picks' nodes, spoken again from `doc`**, the session's
+    /// shown document after an operation (`SpokenNode::respoken`'s
+    /// rule): a node `doc` holds takes its label now, and one it no
+    /// longer holds keeps the last it had.
+    pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.datum_face_said = self.datum_face_said.respoken(doc);
     }
 
     /// **The face this form holds**: [`Self::datum_face`] while the
@@ -1866,5 +1895,82 @@ mod tests {
         assert_eq!(except, Some(profile));
         assert!(drawn(except).is_empty(), "the committed loops are left out");
         assert_eq!(drafts.edited_in_place(None), None, "no preview taken");
+    }
+
+    /// **The face-frame form keeps its face's nodes past the
+    /// selection**: once the selection moves on, the form still says
+    /// its face's minting node by the last label it had, after a rename
+    /// and a delete, where the selection's snapshot no longer names it.
+    #[test]
+    fn a_held_datum_face_says_its_deleted_node_by_its_last_label() {
+        use pncad::document::{Label, Speaker};
+
+        use crate::session::{DocSession, FaceSelection, Selection};
+
+        let tol = pncad::tolerance::witness();
+        let (doc, block, boss) = crate::test_support::boss_on_block("datum-face-said", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let face = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: block,
+            body: 0,
+        };
+        let mut session = DocSession::inline(doc, tol);
+        let mut drafts = Drafts::default();
+        let perform = |session: &mut DocSession, drafts: &mut Drafts, op| {
+            let outcome = session.perform(op);
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            drafts.respeak(session.doc());
+        };
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("base").expect("a label")),
+            },
+        );
+        session.pump();
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::Select(Selection::Face(face.clone())),
+        );
+        drafts.hold_datum_face(face, session.selection_said());
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::Select(Selection::Node(boss)),
+        );
+        for op in [
+            SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("plinth").expect("a label")),
+            },
+            SessionOp::DeleteNode { node: block },
+        ] {
+            perform(&mut session, &mut drafts, op);
+        }
+        session.pump();
+        let (landed, _) = session.landed_pair().expect("the delete landed");
+        assert!(
+            landed.node(block).is_none(),
+            "the landed run lost the block"
+        );
+        let said = |kept| Speaker::of(landed).or_held(kept).node(block).to_string();
+        assert_eq!(
+            said(drafts.datum_face_said()),
+            format!("Extrude \"plinth\" ({t})"),
+            "the form says the held face's node by its last label"
+        );
+        assert_eq!(
+            said(session.selection_said()),
+            format!("node {t}"),
+            "the selection moved on, so its snapshot does not name the block"
+        );
     }
 }
