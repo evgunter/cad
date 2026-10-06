@@ -49,8 +49,8 @@ twice), not nearest Euclidean distance.
 
 ## Review tier
 
-SINGLE, FULL: the ring lane's pairing and closure decide which body a
-common boolean builds; one full review each.
+The orchestrator's read: regression rows and doc only; the fixes
+landed upstream.
 
 ## Closed
 

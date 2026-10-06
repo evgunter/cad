@@ -7,8 +7,8 @@ opened: 2026-10-02
 priority: P0
 cost: M
 closed: 2026-10-06
-branch: tang/planar-ring-arc-closure
-pr: 4133
+branch: tang/in-face-ring-pairing
+pr: 4132
 ---
 
 
@@ -46,8 +46,8 @@ integrates exactly for a circle carrier.
 
 ## Review tier
 
-SINGLE, FULL: the ring lane's pairing and closure decide which body a
-common boolean builds; one full review each.
+The orchestrator's read: regression rows and doc only; the fixes
+landed upstream.
 
 ## Closed
 
