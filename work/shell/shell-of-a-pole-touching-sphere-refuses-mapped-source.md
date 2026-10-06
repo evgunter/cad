@@ -78,8 +78,9 @@ The premise drifted as suspected: `topo::shell` hollows the one-arc
 pole-touching ball at every pair measured, at ε = 1e-6, 1e-9 and
 1e-12, to `4/3·π(r³ − (r−t)³)` within `1e-12·r³ + volume_pad`,
 tier-3 valid and watertight — the item's own `(1, 0.1)` row included
-(`1.1351621454971117`). The arc-run meridians (one and three seams,
-seams near both poles) hollow the same. The `Shell` recipe node over
+(`1.1351621454971117`). A meridian authored as a run of cocircular
+arcs hollows the same, but the revolve merges the run into this very
+body, so it is not a separate row. The `Shell` recipe node over
 `die_pips`' revolved ball does too. The rows:
-`crates/sweep/tests/pole_ball_shells.rs` and
+`crates/sweep/tests/pole_ball_shells.rs` (on `test_support::ball_poled_y`) and
 `lib_g17_shell_node::a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls`.

@@ -8,7 +8,8 @@
 //! registry rather than in it, so this module runs the rows the
 //! registry would have run on them — both lanes, persistence, the
 //! bump — and pins the reason they are outside: a dual has no shell
-//! door.
+//! door. One row also shells `corpus/die_pips.rs`' revolved ball,
+//! whose closed form is π-valued and so is metered, not equated.
 //!
 //! # The oracles, derived rather than measured
 //!
@@ -29,7 +30,7 @@
 //! ```
 //!
 //! Every dimension is dyadic, so both are exact in `f64` and asserted
-//! with `==`, never metered.
+//! with `==`, never metered. The ball's `4/3·π(R³ − (R−t)³)` is not.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -644,8 +645,10 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
     assert_eq!(body.shells().count(), 2, "an outer and a cavity shell");
     let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
     let want = 4.0 / 3.0 * std::f64::consts::PI * (PIP_R.powi(3) - (PIP_R - t).powi(3));
+    // `sweep`'s `pole_ball_shells` rule: rounding scales with R³, the
+    // pad is the quadrature's own bound.
     assert!(
-        (m.volume - want).abs() <= 1e-15 + m.volume_pad,
+        (m.volume - want).abs() <= 1e-12 * PIP_R.powi(3) + m.volume_pad,
         "volume {} vs the closed form {want}",
         m.volume
     );

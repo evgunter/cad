@@ -5,6 +5,7 @@ title: pinch_faces_tessellate's notch307 fib117 row escalates the boolean at ε 
 status: open
 opened: 2026-10-06
 priority: P0
+refs: [a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge, a-planar-face-through-two-vertices-on-one-point-meshes-under-one-id]
 ---
 
 
@@ -21,13 +22,19 @@ Err(Escalated { decision: Coincidence(Join, Moot), diag: Indeterminate {
   predicate: Some("bool_join_nearest") } })
 ```
 
-The row's join margin (≈ −5.2e-6) sits inside the ε = 1e-6 row's
-ambiguity band, so the boolean escalates rather than builds. The test
-arrived with the pinch-wedge work (PR 4074's item,
-`a-planar-face-through-two-vertices-on-one-point-meshes-under-one-id`);
-a PR that touches only `mesh` does not run sweep's 1e-6 row, so the
-gate there could not see it. Seen on PR 4111's CI (run 37421965598,
-the sweep `eps=1e-6` group), which touches `sweep`.
+The row's join margin (about −5.2e-6) sits inside the ε = 1e-6 row's
+ambiguity band, so the boolean escalates instead of building. The test
+arrived with the pinch-wedge work (PR 4074, item
+`a-planar-face-through-two-vertices-on-one-point-meshes-under-one-id`).
+That PR did touch sweep. The row still never ran at 1e-6 before merge,
+because of `.github/workflows/ci.yml`'s `eps_extra` rule (the "EXTRA EPS
+ROWS" block of the `change filter` job): a crate gets the extra ε rows
+only if it is one of `step-import geom-brep profile topo`, or if the diff
+touches a `crates/<c>/…(probe|golden)` path. PR 4111 reached sweep's
+1e-6 row only because it edits `*_probes.rs`. It saw the failure in run
+37421965598, in the sweep `eps=1e-6` group. That gate gap is
+`a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`
+(ciw).
 
 Owed: either the row's fixture is moved clear of the band at every ε
 row (a fixture whose margin is ε-relative), or the row names the
