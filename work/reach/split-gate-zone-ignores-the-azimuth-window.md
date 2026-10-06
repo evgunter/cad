@@ -2,10 +2,11 @@
 id: split-gate-zone-ignores-the-azimuth-window
 kind: issue
 title: The split gate bounds a sphere face by its whole latitude zone, so a cut clear of a partial-azimuth cap refuses
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: M
+pr: 4123
 ---
 
 
