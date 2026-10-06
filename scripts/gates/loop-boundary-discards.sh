@@ -117,6 +117,11 @@
 #     counted. None exists; it would arrive as an unregistered site, not
 #     as a silent pass.
 #
+# `BoundaryMember::(Isolated|Edge)` IS MATCHED: it is the same boundary
+# a member at a time (`Body::face_boundary_linked`), so a let-else on
+# `Edge` or a no-binding `Isolated` arm discards a lone-vertex loop
+# exactly as one on `Cycle` or `Empty` does.
+#
 # OUT OF SCOPE BY DEFINITION, so absent rather than missed: a `continue`
 # taken for a different reason (an arena miss), the same class over any
 # other enum, and the aborting branches named above.
@@ -148,6 +153,8 @@ REGISTER=(
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
   "crates/topo/src/boolean/join.rs|region_faces||1|unaudited"
+  "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"
+  "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { continue|1|audited: the walk above refused every lone-vertex loop of this face, and the edge splits between the two walks add half-edges to its cycles only, so no Empty loop reaches this one"
   "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/boolean/rest.rs|bfs_order||1|unaudited"
@@ -248,7 +255,7 @@ REGISTER=(
 # escape processing at all, and a bracket expression is then correct
 # under either route and under every awk.
 PATH_PREFIX='([A-Za-z_][A-Za-z0-9_]*::)*'
-ENUM="(${PATH_PREFIX}LoopBoundary|Self)::(Cycle|Empty)"
+ENUM="((${PATH_PREFIX}LoopBoundary|Self)::(Cycle|Empty)|${PATH_PREFIX}BoundaryMember::(Isolated|Edge))"
 NO_BINDING='[{] *([.][.]|[A-Za-z_][A-Za-z0-9_]* *: *_[A-Za-z0-9_]*) *[}]'
 DEFER='(continue|break|return)([^A-Za-z0-9_]|$)'
 LET_RE="^let (${ENUM} [{][^;{}]*[}]|[A-Za-z_][A-Za-z0-9_:]*[(]${ENUM} [{][^;{}]*[}][)]) = [^;]*else *[{] *${DEFER}"
