@@ -2,11 +2,13 @@
 id: self-closed-link-sharing-its-vertex-records-two-junctions
 kind: issue
 title: walk_chains records two junctions at one vertex and closes the chain when a self-closed link shares its vertex with one other requested link
-status: dispatched
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
 branch: carve/self-closed-link-counts-its-vertex-twice
+pr: 4185
+closed: 2026-10-06
 ---
 
 
