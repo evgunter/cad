@@ -20,7 +20,7 @@
 
 use geom_core::Tol;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, FILLET3_BODY_RECOURSE, FILLET3_CORNER_RECOURSE};
+use sweep::blend::{BlendError, FILLET3_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use topo::query;
 
@@ -98,23 +98,4 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
         "expected the repeated-edge refusal naming the key, got {err:?}"
     );
     only_recourse(&err.error, None, "repeated edge");
-}
-
-/// **The body frontier, reached through the public graft door.** Two
-/// disjoint cubes in one body are valid input the in-place surgery has
-/// not been built for; the advice must be the BODY one, not the chain
-/// one.
-#[test]
-fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
-    let mut body = cube(L, Tol::witness());
-    let other = cube(L, Tol::witness());
-    topo::instance::graft_disjoint_all(&mut body, &other).expect("a disjoint graft");
-    let edges = query::all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
-        .expect_err("the in-place surgery is built for one solid");
-    assert!(
-        matches!(err.error, BlendError::UnsupportedBody { solids, .. } if solids == 2),
-        "expected the body frontier carrying the solid count, got {err:?}"
-    );
-    only_recourse(&err.error, Some(FILLET3_BODY_RECOURSE), "two-solid body");
 }

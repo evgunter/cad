@@ -8,9 +8,9 @@
 //! the kernel's classifier.
 //!
 //! - P1: the THIRD door of the PR's narrative, executed — a SQUARE
-//!   vent's ring refuses at the exact ring-clearance pass once the two
-//!   convexity doors are widened, which is the stated reason the
-//!   shipped fixture's vent is round.
+//!   vent's ring, which once refused at the exact ring-clearance pass
+//!   (the stated reason the shipped fixture's vent is round), is now
+//!   metered edge by edge, and the twelve edges carve.
 //! - P2: the fixture's own claim, checked geometrically rather than by
 //!   the kernel's classifier — all twelve cavity edges are concave
 //!   (their supports' outward-normal sum points INTO the cavity void)
@@ -54,32 +54,23 @@ fn square_vented_cavity() -> Body<f64> {
 }
 
 /// **P1 — the third door, executed.** With both convexity doors
-/// widened, the square-vented fixture's twelve concave edges no longer
-/// refuse on convexity at all: the request runs all the way to the
-/// exact ring-clearance pass, which reads the vent's mouth as a ring of
-/// the cavity ceiling and refuses because its carrier edges are LINES,
-/// not a circle. This is the measured reason the shipped fixture's vent
-/// is round, and it pins the door ORDER the PR narrates (corner config,
-/// then chain admission, then ring clearance).
+/// widened, the square-vented fixture's twelve concave edges run all
+/// the way to the exact ring-clearance pass, which reads the vent's
+/// mouth as a ring of the cavity ceiling — four LINE edges, metered
+/// one by one against the ceiling's trimlines — and carries it through:
+/// the mouth sits 0.5 inside the ceiling's edges against a 0.25
+/// setback. The chamfer builds a closed body.
 #[test]
-fn p1_a_square_vent_refuses_at_the_ring_clearance_door_not_a_convexity_one() {
+fn p1_a_square_vent_passes_the_ring_clearance_door_and_both_convexity_ones() {
     let body = square_vented_cavity();
     let edges = edges_with_corners(&body, cavity_corner);
     assert_eq!(edges.len(), 12, "the square-vented cavity's twelve edges");
-    let err = chamfer_edges(&body, &edges, D, Tol::witness())
-        .expect_err("the square vent's ring must refuse");
-    let text = err.error.to_string();
-    assert!(
-        text.contains("not a circle"),
-        "expected the ring-clearance circle refusal, got: {text}"
-    );
-    assert!(
-        !matches!(
-            err.error,
-            BlendError::UnsupportedCorner { .. } | BlendError::UnsupportedChain { .. }
-        ),
-        "the refusal must come from PAST both convexity doors, got {:?}",
-        err.error
+    let out = chamfer_edges(&body, &edges, D, Tol::witness())
+        .unwrap_or_else(|e| panic!("the square vent's ring is clear of the carve: {}", e.error));
+    assert_eq!(
+        validate_closed(&out.body),
+        Ok(()),
+        "the carved body, tier 2"
     );
 }
 

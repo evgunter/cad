@@ -30,6 +30,7 @@ use super::common::latitude_seam::{
 };
 use super::common::pcurve_rows::rows;
 use super::shell7_common::*;
+use sweep::test_support::finished;
 
 /// **Drum, stage by stage.** The door's cavity re-certifies edge for
 /// edge, and so does its `revert()`: the two half-circles of the
@@ -227,7 +228,8 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
         props.volume,
         props.volume_pad
     );
-    let shelled = topo::shell(&body, t, tol()).expect("shell runs the closing mint");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .expect("shell runs the closing mint");
     assert!(!rows(&out).is_empty(), "the sphere's faces carry rows");
     assert_eq!(
         rows(&shelled.body),

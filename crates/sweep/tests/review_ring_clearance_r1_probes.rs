@@ -493,9 +493,10 @@ mod recorded {
     }
 
     /// **`fillet3_ring_clearance` decisions per carve on the boss's
-    /// three rims**: one per ring of each distinct host, plus one per
-    /// outer-cycle edge the carve does not replace on each distinct
-    /// host AND mate support (`support_boundary_clearance`). The boss's
+    /// three rims**: one per cycle the carve does not replace whole —
+    /// its outer cycle and each ring — of each distinct host AND mate
+    /// support (`support_boundary_clearance`), at that cycle's least
+    /// margin. The boss's
     /// wall is two half-cylinder faces and each of its circles two
     /// half arcs, so:
     ///
@@ -506,13 +507,13 @@ mod recorded {
     ///   ring, `0.4` inside the trim circle of radius `0.9`; each wall
     ///   half carries its bottom arc at `0.9` — three readings;
     /// - dome rim (a ladder): the host's outer cycle is the two halves
-    ///   of the outer rim; the dome's own edges all meet the rim — two
-    ///   readings. The dome is a sphere of radius `0.5` centred on the
+    ///   of the outer rim, one reading; the dome's own edges all meet
+    ///   the rim. The dome is a sphere of radius `0.5` centred on the
     ///   top plane, so the concave rim's ball sits `0.1` above the plane
     ///   and `0.6` from that centre: the trim radius is `√(0.6² − 0.1²)
-    ///   = √0.35`, each reading `1 − √0.35`.
+    ///   = √0.35`, the reading `1 − √0.35`.
     ///
-    /// `circle_margins` mints no sample of its own. All three rims are
+    /// All three rims are
     /// read before the assertion, so a red names every rim that moved.
     #[test]
     fn r1_ring_clearance_decisions_per_carve() {
@@ -536,7 +537,7 @@ mod recorded {
         let counts: Vec<usize> = readings.iter().map(Vec::len).collect();
         assert_eq!(
             counts,
-            [2, 3, 2],
+            [2, 3, 1],
             "decisions per carve: base, top outer, dome rim"
         );
         let near =
@@ -553,8 +554,8 @@ mod recorded {
         );
         let dome = 1.0 - 0.35f64.sqrt();
         assert!(
-            near(&readings[2], &[dome, dome]),
-            "dome rim: each outer-rim half, 1 − √0.35 off the trim: {:?}",
+            near(&readings[2], &[dome]),
+            "dome rim: the outer cycle's two halves, 1 − √0.35 off the trim: {:?}",
             readings[2]
         );
     }

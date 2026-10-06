@@ -368,11 +368,26 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let mut two = cube(L, Tol::witness());
     let other = cube(L, Tol::witness());
     topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
+    // Two edges of one corner of the first solid: a turn, refused inside
+    // the shell it lies in.
     let two_edges = query::all_edges(&two);
+    let ends = |e: EdgeKey| {
+        let he = two.get_edge(e).expect("an edge").he_plus;
+        [
+            two.get_half_edge(he).expect("a half").start,
+            two.half_edge_end(he).expect("an end"),
+        ]
+    };
+    let corner_pair = two_edges
+        .iter()
+        .skip(1)
+        .find(|&&e| ends(e).iter().any(|v| ends(two_edges[0]).contains(v)))
+        .map(|&e| [two_edges[0], e])
+        .expect("an edge meeting the first at a corner");
     out.push((
         "two-solid body",
-        chamfer_edges(&two, &two_edges[..1], D, t)
-            .expect_err("the in-place surgery is built for one solid")
+        chamfer_edges(&two, &corner_pair, D, t)
+            .expect_err("two edges of one corner turn, in either solid")
             .error,
     ));
 

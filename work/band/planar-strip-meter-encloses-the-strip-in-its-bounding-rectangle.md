@@ -17,7 +17,8 @@ strip (the slabs along the edge and across it), not against the
 strip's own quadrilateral. With an oblique cut-off the quadrilateral
 is a trapezoid, and an edge of a NON-CONVEX support can enter the
 rectangle's corner beyond the trapezoid without touching the strip:
-that request refuses `RingClearance` though it would carve. Conservative
+that request refuses `FaceClearanceUncertified` (the arm refuses as
+predicate 2, whose closed form it is) though it would carve. Conservative
 (never a silent pass), measured by no fixture.
 
 Close: meter against the quadrilateral itself — its four edges' half

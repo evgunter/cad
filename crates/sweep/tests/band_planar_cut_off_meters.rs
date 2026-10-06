@@ -193,3 +193,42 @@ fn two_cut_offs_on_one_rim_build_apart_and_refuse_crossing() {
         }
     }
 }
+
+/// **A requested edge of a support's ring refuses at the ring meter.**
+/// A pocket whose outline has a tab reaching into it: the tab's tip is
+/// a mouth edge between two corners whose three edges are all convex,
+/// so the edge alone is cut off at both ends — and the strip meter,
+/// which walks only a support's outer cycle, never reads it, because
+/// the ring meter reads the requested edge at its own trimline and
+/// refuses the ring it lies in first (filed:
+/// `work/band/a-requested-ring-edge-refuses-at-the-ring-meter.md`).
+#[test]
+fn a_requested_ring_edge_refuses_at_the_ring_meter() {
+    let outline: Vec<(Point2<f64>, f64)> = [
+        (1.0, 1.0),
+        (5.0, 1.0),
+        (5.0, 4.0),
+        (3.5, 4.0),
+        (3.5, 2.5),
+        (2.5, 2.5),
+        (2.5, 4.0),
+        (1.0, 4.0),
+    ]
+    .iter()
+    .map(|&(x, y)| (Point2::new(x, y), 0.0))
+    .collect();
+    let body = realized(
+        topo::boolean::BooleanOp::Subtract,
+        &block(6.0, 5.0, 2.0, tol()),
+        &sweep::test_support::prism_at(outline, 1.0, 2.0, tol()),
+        tol(),
+    );
+    validate_geometric(&body, tol()).expect("the tabbed pocket is tier-3 valid");
+    let e = edge(&body, [3.5, 2.5, 2.0], [2.5, 2.5, 2.0]);
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        match verb.run(&body, &[e]) {
+            Err(BlendError::RingClearance { .. }) => {}
+            other => panic!("{verb:?}: the tab's tip refuses at its ring, got {other:?}"),
+        }
+    }
+}

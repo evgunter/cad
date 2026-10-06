@@ -105,19 +105,21 @@
 //! mutation but the last. The ring carry-through honesty check,
 //! **`fillet3_ring_clearance`**: a Q1
 //! trilean whose margin (meters) is the closed-form clearance between
-//! a support face's ring and a blend's trimline — circle-vs-line and
-//! circle-vs-circle, exact, never sampled — between each other
-//! outer-boundary edge of a closed rim's support and that support's
-//! trim, and, on the end face of every cut-off, convex or concave,
-//! between each edge the cut leaves on it and a region enclosing the
-//! sliver it removes. The planar strip meter decides under predicate
-//! 2's name, **`fillet3_face_clearance`**, as that screen's closed form
-//! ([`strip_clearance`]); two cut-offs' feet on one rim under
-//! **`fillet3_cut_off_feet`** ([`super::open::end_face::shared_rims_clear`]).
-//! A boundary edge is read exactly when it is a
-//! line or circle and through a certified bound ([`boxed_reach`]) when
-//! it is an ellipse, spiric or NURBS curve, and the refusal says which;
-//! an edge requested in the same call is read at its own trim. Positive
+//! each edge of a support face's ring and a blend's trimline, exact,
+//! never sampled — between each other outer-boundary edge of a closed
+//! rim's support and that support's trim, and, on the end face of every
+//! cut-off, convex or concave, between each edge the cut leaves on it
+//! and a region enclosing the sliver it removes. The planar strip meter
+//! decides under predicate 2's name, **`fillet3_face_clearance`**, as
+//! that screen's closed form ([`strip_clearance`]); two cut-offs' feet
+//! on one rim under **`fillet3_cut_off_feet`**
+//! ([`super::open::end_face::shared_rims_clear`]). A ring edge must
+//! be a line or circle, and one of another carrier refuses typed. An
+//! outer-boundary edge is read exactly when it is a line or circle and
+//! through a certified bound ([`boxed_reach`]) when it is an ellipse,
+//! spiric or NURBS curve, and the refusal says which. An edge requested
+//! in the same call is read at its own trim, and each cycle refuses at
+//! its least margin. Positive
 //! carries the ring or edge through; zero/negative refuses typed
 //! ([`BlendError::RingClearance`]); in-band escalates with the same
 //! recourse (two-tolerance, D4 ¶1 addendum). And the must-carry rule
@@ -154,8 +156,7 @@
 //! refuses through the frontier vocabulary
 //! ([`BlendError::UnsupportedChain`],
 //! [`BlendError::UnsupportedRunOut`],
-//! [`BlendError::UnsupportedGeometry`],
-//! [`BlendError::UnsupportedBody`], and
+//! [`BlendError::UnsupportedGeometry`], and
 //! [`BlendError::UnsupportedCorner`] for a corner's own
 //! configuration), naming itself and carrying the offending entity. The refusals are the honest boundary of the unit,
 //! not gates hiding reachable geometry.
@@ -169,8 +170,9 @@
 //! - **Row 2**, above: valid input, unbuilt door, carries the
 //!   recourse that is true of it.
 //! - **Row 1**, [`BlendError::BodyNotIntact`]: a stored reference
-//!   that did not resolve, a cycle that did not close, or a verdict
-//!   whose keys disagree with the body's own structure. These sites
+//!   that did not resolve, a cycle that did not close, a verdict
+//!   whose keys disagree with the body's own structure, or a chain or
+//!   corner bounded by faces of two shells. These sites
 //!   refuse typed, naming the entity. Every public door keeps a body
 //!   tier-1 valid (D9), so a body that fails referential integrity
 //!   here has met a kernel bug; D2's torn-body rule makes such a read
@@ -187,6 +189,9 @@
 //! [`SourceFaces::kef_minted`], the one face-destroying door of this
 //! file and of the two open bands under `open/`.
 
+use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
+
 use geom::Curve3;
 use geom::Surface;
 use geom::curves::boxes;
@@ -197,7 +202,7 @@ use geom_brep::{
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
-    ShellKey, SolidKey, SurfaceKey, VertexKey,
+    ShellKey, SurfaceKey, VertexKey,
 };
 
 use super::admit::{
@@ -425,8 +430,7 @@ enum HostFoot {
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible
 /// exactly when the trim CONTAINS it — metered in closed form by
-/// [`ring_clearance_pass`] under
-/// [`RimPlan::trim_replaces_host_boundary`], never routed on.
+/// [`support_boundary_clearance`], never routed on.
 #[derive(Clone, Copy)]
 enum HostSide {
     /// Several half-band faces of one surface, one arc each, dropping a
@@ -451,58 +455,6 @@ struct SeamCrossing {
 }
 
 impl<T: Real> RimPlan<'_, T> {
-    /// The host-side ring loop, for a ladder rim only: an annulus
-    /// rim's host support carries the rim in its own boundary cycle,
-    /// not as a ring.
-    fn ladder_ring(&self) -> Option<LoopKey> {
-        match self.shape {
-            RimShape::Ladder { ring } => Some(ring),
-            RimShape::Annulus(_) => None,
-        }
-    }
-
-    /// **Does this rim's host TRIM become its host face's new OUTER
-    /// boundary?** True for the hostless annulus alone: ONE face carries
-    /// every arc in its own outer cycle, so the carve excises everything
-    /// between the trim circle and that cycle and the trim is what is
-    /// left. A ring of such a face is admissible exactly when the trim
-    /// CONTAINS it ([`CircleMargins::other_inside_trim`]); on every other
-    /// rim the excised strip lies outside the ring and the separation is
-    /// the question.
-    ///
-    /// [`HostSide`] is the per-rim mode and is not stored, so this reads
-    /// the per-crossing datum it resolves to: [`HostFoot::Strut`] is
-    /// minted at a crossing exactly when the host side is
-    /// [`HostSide::Struts`].
-    ///
-    /// **Deriving rather than storing is deliberate.** A `HostSide`
-    /// field on [`RimPlan`] would be a second copy of a fact the
-    /// crossings already carry, and the two could disagree — which is
-    /// exactly the failure [`HostFoot`]'s own doc is about ("only one of
-    /// them can carry a key"). The derivation is total: every crossing
-    /// is minted by the routing that chose the mode, and the empty case
-    /// is refused below rather than defaulted.
-    fn trim_replaces_host_boundary(&self) -> bool {
-        let RimShape::Annulus(a) = &self.shape else {
-            return false;
-        };
-        if a.crossings.is_empty() {
-            // NOT a case: [`AnnulusRim::crossings`] is one entry per
-            // rim arc and a chain always carries its first link, so a
-            // resolved annulus rim has at least one. An empty vector
-            // would make `all` vacuously true here and quietly hand the
-            // whole rim the CONTAINMENT relation; say so loudly instead
-            // of letting the default fall either way.
-            unreachable!(
-                "annulus rim: `crossings` carries one entry per rim arc and a chain \
-                 always carries its first link"
-            )
-        }
-        a.crossings
-            .iter()
-            .all(|c| matches!(c.host, HostFoot::Strut))
-    }
-
     /// The host support of the chain's FIRST link — the one every
     /// per-rim quantity that is a property of the rim rather than of an
     /// arc is read against.
@@ -537,21 +489,19 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<Blended<T>, BlendError> {
-    // **The gate and the reads are one step.** The check that says
-    // "exactly one solid, exactly one shell" BINDS what it counted, so
-    // the mutation phase below adopts the keys the door already saw
-    // instead of re-deriving them ninety lines later and finding a
-    // state the door had ruled out. There is no "the entry check
-    // passed and the read came back empty" left to spell.
-    let solids: Vec<SolidKey> = source.solids().map(|(k, _)| k).collect();
-    let shells: Vec<ShellKey> = source.shells().map(|(k, _)| k).collect();
-    let ([solid], [shell]) = (&solids[..], &shells[..]) else {
-        return Err(BlendError::UnsupportedBody {
-            solids: solids.len(),
-            shells: shells.len(),
-        });
-    };
-    let (solid, shell) = (*solid, *shell);
+    // Every chain is carved inside the one shell its links lie in; the
+    // body's other shells and solids are carried through untouched.
+    let mut link_shells: BTreeMap<EdgeKey, ShellKey> = BTreeMap::new();
+    for chain in &verdict.chains {
+        let shell = chain_shell(source, chain)?;
+        link_shells.extend(chain.links().map(|l| (l.edge, shell)));
+    }
+    let shells: Vec<ShellKey> = link_shells
+        .values()
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     let radius = verdict.size;
     let kind = verdict.kind;
 
@@ -649,6 +599,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             .chain(others.iter().map(AdmittedOpen::edge))
             .collect();
         here.dedup();
+        // No tier-1-valid body refuses here: check 10 puts each link's
+        // supports in one shell and check 6 gives the vertex one orbit,
+        // so every chain meeting at it was found in the same shell.
+        corner_shell(v, &here, &link_shells)?;
         // The valence is the corner's own configuration (the OQ6
         // vocabulary the battery's classifier already speaks); a
         // trivalent end the verdict did not tag as an end face is one
@@ -747,7 +701,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // before the clone — not re-assembled per phase from whatever that
     // phase happens to hold. It is the door's own argument, which is
     // what makes a narrower set unspellable.
-    let sources = SourceFaces::of(source)?;
+    let sources = SourceFaces::of(source, verdict)?;
     // One surgery scope for the whole blend (`topo::surgery`): tier 1
     // is this door's postcondition, and the tier-2 debug assertion
     // below subsumes it, so the close adds no second sweep. The guard
@@ -1003,8 +957,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     rec.dead.vertices.dedup();
     Ok(Blended {
         body,
-        solid,
-        shell,
+        shells,
         blend_faces,
         corner_faces,
         band_faces,
@@ -1015,6 +968,62 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 // ------------------------------------------------------------------
 // Plan helpers (read-only).
 // ------------------------------------------------------------------
+
+/// The shell a face lies in, read off its back-pointer.
+fn shell_of<T: Real>(source: &Body<T>, face: FaceKey) -> Result<ShellKey, BlendError> {
+    source.get_face(face).map(|f| f.shell).ok_or_else(|| {
+        not_intact(
+            EntityId::Face(face),
+            "a link's support face does not resolve",
+        )
+    })
+}
+
+/// **The one shell a chain lies in**: the shell of its first link's
+/// `face_a`, which every support of every link must share.
+fn chain_shell<T: Real>(source: &Body<T>, chain: &Chain<T>) -> Result<ShellKey, BlendError> {
+    let shell = shell_of(source, chain.first().face_a)?;
+    for l in chain.links() {
+        for f in [l.face_a, l.face_b] {
+            let there = shell_of(source, f)?;
+            if there != shell {
+                return Err(not_intact(
+                    EntityId::Edge(l.edge),
+                    "a link's supports in the chain's one shell",
+                ));
+            }
+        }
+    }
+    Ok(shell)
+}
+
+/// **A corner lies in one shell**: the chains that meet at `vertex`
+/// (its requested edges `here`, each resolved in `link_shells`) were
+/// each found in one shell, and they must all have been found in the
+/// same one.
+fn corner_shell(
+    vertex: VertexKey,
+    here: &[EdgeKey],
+    link_shells: &BTreeMap<EdgeKey, ShellKey>,
+) -> Result<(), BlendError> {
+    let mut shells = here.iter().map(|e| {
+        let Some(s) = link_shells.get(e) else {
+            unreachable!("a corner's requested edges are links of the verdict's chains")
+        };
+        *s
+    });
+    let Some(first) = shells.next() else {
+        unreachable!("a corner is seeded by the link that discovered it")
+    };
+    if shells.all(|s| s == first) {
+        Ok(())
+    } else {
+        Err(not_intact(
+            EntityId::Vertex(vertex),
+            "the chains meeting at a corner in one shell",
+        ))
+    }
+}
 
 /// Resolve one closed chain onto its two supports, with every
 /// structural precondition of the band replacement checked.
@@ -1443,8 +1452,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     // condition — the rim as its host's whole outer cycle — rather than
     // promising the carve at a body that does not meet it. A RING of
     // that host is not a routing question: it is metered in closed form
-    // by [`ring_clearance_pass`], under the relation
-    // [`RimPlan::trim_replaces_host_boundary`] names.
+    // by [`support_boundary_clearance`].
     if let HostSide::Struts = host_side {
         let Some(&host) = hosts.first() else {
             unreachable!(
@@ -2017,49 +2025,100 @@ fn loop_walk<T: Decide>(
 // The ring carry-through check.
 // ------------------------------------------------------------------
 
-/// A ring read as one circle: every edge of the ring must carry a
-/// `Circle` carrier on one shared centre/radius (the pip rims and the
-/// widened trim circles — the only rings this kernel mints on planar
-/// faces at rest). Anything else refuses typed rather than sampling.
-fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T), BlendError> {
+/// **One boundary edge of `face` as the piece the clearance meters**:
+/// its stored carrier over its stored window, or, for an edge requested
+/// in the same call, its own trim on `face` ([`co_requested_trim`]). An
+/// edge with no certified carrier refuses.
+fn metered_piece<'b, T: Decide>(
+    body: &'b Body<T>,
+    edge: EdgeKey,
+    face: FaceKey,
+    opens: &[AdmittedOpen<'_, T>],
+    rims: &[RimPlan<'_, T>],
+) -> Result<MeteredPiece<'b, T>, BlendError> {
+    let Some((stored, window)) = stored_piece(body, edge)? else {
+        return Err(unbuilt_geometry(
+            EntityId::Edge(edge),
+            "a support's boundary edge carries no certified carrier",
+        ));
+    };
+    Ok(
+        match co_requested_trim(edge, face, stored, window, opens, rims)? {
+            Some((trim, w)) => (Cow::Owned(trim), w),
+            None => (Cow::Borrowed(stored), window),
+        },
+    )
+}
+
+/// A boundary piece as [`metered_piece`] reads it: the stored one, or a
+/// co-requested edge's trim.
+type MeteredPiece<'b, T> = (Cow<'b, Curve3<T>>, (T, T));
+
+/// A ring edge and the piece it is metered as ([`metered_piece`]).
+type RingPiece<'b, T> = (EdgeKey, Cow<'b, Curve3<T>>, (T, T));
+
+/// **One ring of a support face `face` as its pieces**, in cycle order,
+/// each a line or a circle: the ring carry-through pass's one reading
+/// of a ring. A ring of one closed circle edge is its one piece. Read
+/// piece by piece, the pass answers whether any edge of the ring meets
+/// the strip the carve excises, which needs no side of the ring: two
+/// rings of one face do not nest, so no ring encloses a ladder trim,
+/// which encloses its rim. A piece of another carrier refuses typed
+/// ([`ring_edge_unmetered`]).
+fn ring_pieces<'b, T: Decide>(
+    body: &'b Body<T>,
+    ring: LoopKey,
+    face: FaceKey,
+    opens: &[AdmittedOpen<'_, T>],
+    rims: &[RimPlan<'_, T>],
+) -> Result<Vec<RingPiece<'b, T>>, BlendError> {
     let walk = loop_walk(body, ring)
         .ok_or_else(|| not_intact(EntityId::Loop(ring), "a support face's ring"))?;
-    let mut found: Option<(Point3<T>, T)> = None;
-    for (_, _, edge) in walk {
-        let e = body
-            .get_edge(edge)
-            .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ring edge"))?;
-        let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(edge),
-                "a ring edge carries no certified carrier",
-            ));
-        };
-        let Curve3::Circle { center, radius, .. } = *c.carrier() else {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(edge),
-                "a ring edge's carrier is not a circle, the only ring the clearance check \
-             covers",
-            ));
-        };
-        // Key equality is not available across arcs of one rim (each
-        // arc is its own curve row), so the shared-circle fact is
-        // structural per mint and simply adopted from the first arc:
-        // the clearance margin below uses one centre for the whole
-        // ring, which is exact for every ring this kernel mints.
-        found.get_or_insert((center, radius));
-    }
     // Row 0 (`D96`): NO — the non-emptiness is `topo::loop_cycle`'s,
     // and carrying it locally means `loop_walk` returning a split
     // head/tail through six call sites that index and length it. The
     // cost is written up in `docs/SMELL-T-LOG.md`'s `T-c` record.
-    let Some(circle) = found else {
-        unreachable!(
-            "ring_circle: `loop_walk` above returned a cycle, and a cycle always \
-             carries at least its anchor half-edge"
-        )
-    };
-    Ok(circle)
+    assert!(
+        !walk.is_empty(),
+        "ring_pieces: `loop_walk` above returned a cycle, and a cycle always carries at least \
+         its anchor half-edge"
+    );
+    walk.into_iter()
+        .map(|(_, _, edge)| {
+            let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
+            match *carrier {
+                Curve3::Line { .. } | Curve3::Circle { .. } => Ok((edge, carrier, window)),
+                Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                    Err(ring_edge_unmetered(edge))
+                }
+            }
+        })
+        .collect()
+}
+
+/// The refusal for a ring edge whose carrier has no closed form in the
+/// per-piece meters.
+fn ring_edge_unmetered(edge: EdgeKey) -> BlendError {
+    unbuilt_geometry(
+        EntityId::Edge(edge),
+        "a ring edge's carrier is neither a line nor a circle, the ring edges the clearance \
+         check covers",
+    )
+}
+
+/// **The worse of two margins of one cycle**, each with whether it is a
+/// bound: a cycle's refusal carries its least margin, never the first
+/// one its walk reaches, so the payload does not hang on cycle order and
+/// shrinking the radius by it is a recourse that reads clear.
+fn worse<T: Bounds>((a, a_bounded): (T, bool), (b, b_bounded): (T, bool)) -> (T, bool) {
+    (
+        a.min(b),
+        if b.lo() < a.lo() {
+            b_bounded
+        } else {
+            a_bounded
+        },
+    )
 }
 
 /// A rim link's (host, mate) trim circles as `(center, radius)` pairs,
@@ -2157,77 +2216,6 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
             margin: super::battery::classified(decision, margin, band, sign),
             bounded,
         }),
-    }
-}
-
-/// **The two clearances between a blend TRIM circle and one other
-/// whole circle of the same face — a ring —**, meters, both closed forms
-/// over the two stored circles. Which one a caller reads is fixed by what the trim
-/// circle REPLACES on that face, never by which reads better.
-///
-/// - [`CircleMargins::external`] — the two circles are separated,
-///   neither inside the other. Read it when the strip the carve excises
-///   lies OUTSIDE the other circle and must not reach it: every ring of
-///   a ladder rim's host, and every ring of a seam-split annulus rim's
-///   wall.
-/// - [`CircleMargins::other_inside_trim`] — the trim circle contains the
-///   other one. Read it when the trim BECOMES the face's outer boundary
-///   — a hostless annulus rim, whose carve excises everything between
-///   the trim and the old rim — because a ring outside the trim then
-///   sits in the excised strip.
-///
-/// Choosing wrongly is not conservative in either direction: a ring in
-/// the excised strip reads POSITIVE under `external` when the two
-/// circles are small and far apart on the face, and a ring that
-/// contains a hostless trim reads minus the sum of the radii under
-/// `other_inside_trim`.
-///
-/// A host's OUTER boundary is not read here: its edges are arcs and
-/// segments, not whole circles, and [`ring_clearance_pass`]'s
-/// support-boundary walk meters each over its own window.
-///
-/// **The containment reading is the same real predicate 2's
-/// boundary-pair screen computes, in closed form.** For any two circles
-/// in one plane its
-/// `gap − setback_here − setback_there` IS the containment margin of
-/// whichever circle the setbacks belong to — coaxial or not — so this
-/// function is not a second opinion but the CLOSED FORM of that screen,
-/// and its whole margin over the screen is the sampling: `CHAIN_SAMPLES`
-/// points per edge bound the true gap from above, never below, so the
-/// screen answers first wherever its samples happen to land on the
-/// closest approach and this pass decides wherever they do not. Both
-/// halves are rowed (`ring_clearance_forms`, `review_ring_clearance_r1_probes`).
-/// `external` is the one reading with no screen counterpart, because the
-/// screen has no notion of which side of a boundary a strip lies on.
-///
-/// **A ring is read as one whole circle here, not as its pieces through
-/// [`piece_distance`], because `external` is not a per-piece
-/// question.** `other_inside_trim` would fold — it is `si` less the
-/// ring's farthest reach from the trim centre, the largest of its
-/// pieces' `far` — but a piece's `near` is unsigned: `near − si` reads a
-/// ring that ENCLOSES the trim circle (the trim sitting in a hole) as
-/// clear by `aj − d − si`, where `external` reads it as the overlap
-/// `d − si − aj < 0`. Which side of a ring the trim lies on is whether
-/// the closed cycle winds about the trim centre, a property of the
-/// cycle and of no piece of it. The ladder walk's outer boundary is
-/// metered by pieces exactly because there the enclosing side is the
-/// one expected, and `near − si` asks nothing else.
-struct CircleMargins<T> {
-    /// `‖cj − ci‖ − si − aj`: separation of two circles that lie
-    /// outside each other.
-    external: T,
-    /// `si − (‖cj − ci‖ + aj)`: how much room the TRIM circle has around
-    /// the other circle it encloses.
-    other_inside_trim: T,
-}
-
-/// The two margins of [`CircleMargins`] for a trim circle `(ci, si)`
-/// and one other circle `(cj, aj)`, both read from stored carriers.
-fn circle_margins<T: Real>((ci, si): (Point3<T>, T), (cj, aj): (Point3<T>, T)) -> CircleMargins<T> {
-    let d = (cj - ci).norm();
-    CircleMargins {
-        external: d - si - aj,
-        other_inside_trim: si - (d + aj),
     }
 }
 
@@ -2517,32 +2505,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     supports: &[RequestedBoundary<T>],
     band: Band,
 ) -> Result<(), BlendError> {
-    // A ring's EFFECTIVE radius: its own circle, widened to the trim
-    // circle when the ring is itself a requested rim (a single call
-    // may blend the box edges and the rims together).
-    //
-    // It applies to the EXTERNAL readers only, and not because nothing
-    // has tried the other: for a hostless annulus rim the widening
-    // would have to fire on a ring of that rim's own host, and a ring
-    // of a face being a second requested rim makes that face a shared
-    // support of a LADDER and an ANNULUS — which `shared_support_gate`
-    // refuses before this pass runs. So the containment reader below
-    // always sees the STORED ring circle, by construction rather than
-    // by the corpus, and widening it is unreachable rather than
-    // unexercised.
-    let effective = |ring: LoopKey| -> Result<Option<(Point3<T>, T)>, BlendError> {
-        for rim in rims {
-            if rim.ladder_ring() == Some(ring) {
-                let l0 = rim.chain.first();
-                let (plane_trim, _) =
-                    rim_trim_circles(l0.edge, &l0.blend, l0.face_a == rim.host0())?;
-                return Ok(Some(plane_trim));
-            }
-        }
-        Ok(None)
-    };
     // (a) Open links: every ring of each support face against the
-    // link's straight trimline on that face.
+    // link's straight trimline on that face. A ring that is itself a
+    // requested rim is read at its trim circle, through
+    // `ring_pieces`' co-requested read.
     for o in opens {
         let l = o.link();
         let mid = edge_midpoint(body, l.edge).ok_or_else(|| {
@@ -2552,75 +2518,44 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             )
         })?;
         for face in [l.face_a, l.face_b] {
-            let (origin, dir) = open_trimline(l, face)?;
+            let (origin, _) = open_trimline(l, face)?;
             // The inward unit: from the sharp edge toward the trim,
             // in the support plane (perpendicular to the trim by
-            // construction of the setback).
+            // construction of the setback). The trimline is unbounded
+            // within the face, so only the transverse clearance
+            // matters: each piece's lowest reach along `m` past the
+            // trimline. `m ⊥ dir` EXACTLY, not approximately: the
+            // battery seeds `plane_plane_blend` with the carrier
+            // evaluated at `(t0 + t1)/2`, the trim origin is that point
+            // displaced by a combination of the two support normals
+            // (both ⊥ the tangent `dir`), and `edge_midpoint` above
+            // reproduces the SAME `(t0 + t1)/2` construction on the
+            // same stored carrier — so `origin - mid` is purely
+            // transverse by shared construction, never by
+            // cancellation.
             let m = (origin - mid).normalize();
             let fd = body
                 .get_face(face)
                 .ok_or_else(|| not_intact(EntityId::Face(face), "a link's support face"))?;
-            for ring in fd.rings.clone() {
-                let (c, a) = match effective(ring)? {
-                    Some(widened) => widened,
-                    None => ring_circle(body, ring)?,
+            for &ring in &fd.rings {
+                let margins = ring_pieces(body, ring, face, opens, rims)?
+                    .into_iter()
+                    .map(|(edge, carrier, window)| {
+                        piece_along(&carrier, window, origin, m)
+                            .map(|(low, _)| (low, false))
+                            .ok_or_else(|| ring_edge_unmetered(edge))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let Some((margin, bounded)) = margins.into_iter().reduce(worse) else {
+                    unreachable!("ring_pieces: a ring carries at least its anchor edge")
                 };
-                // The trimline is unbounded within the face, so only
-                // the transverse clearance matters, and `m ⊥ dir`
-                // EXACTLY, not approximately: the battery seeds
-                // `plane_plane_blend` with the carrier evaluated at
-                // `(t0 + t1)/2`, the trim origin is that point
-                // displaced by a combination of the two support
-                // normals (both ⊥ the tangent `dir`), and
-                // `edge_midpoint` below reproduces the SAME
-                // `(t0 + t1)/2` construction on the same stored
-                // carrier — so `origin - mid` is purely transverse by
-                // shared construction, never by cancellation.
-                let _ = dir;
-                let margin = (c - origin).dot(m) - a;
-                ring_clearance(face, o.convexity(), margin, false, band)?;
+                ring_clearance(face, o.convexity(), margin, bounded, band)?;
             }
         }
     }
-    // (b) Rims: each trim circle against its host face's OTHER rings,
-    // and each support's trim against the rest of that support's outer
-    // boundary.
+    // (b) Rims: each support's trim against the rest of that support's
+    // boundary — its outer cycle and its rings.
     for rim in rims {
-        // A rim's host side may be several faces (of one surface), and
-        // each face's rings are its own question — so the walk is over
-        // the DISTINCT host faces, once each. A ladder rim repeats one
-        // plane in `hosts`, and metering its rings once per link would
-        // be the same decision taken N times.
-        let mut seen: Vec<FaceKey> = Vec::with_capacity(rim.hosts.len());
-        for (l, &host) in rim.chain.links().zip(rim.hosts.iter()) {
-            if seen.contains(&host) {
-                continue;
-            }
-            seen.push(host);
-            let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == host)?;
-            let fd = body
-                .get_face(host)
-                .ok_or_else(|| not_intact(EntityId::Face(host), "a rim's host support"))?;
-            for ring in fd.rings.clone() {
-                if rim.ladder_ring() == Some(ring) {
-                    continue;
-                }
-                let (cj, aj) = match effective(ring)? {
-                    Some(widened) => widened,
-                    None => ring_circle(body, ring)?,
-                };
-                // Which relation the ring stands in to the trim is
-                // fixed by what the trim REPLACES on this face
-                // ([`CircleMargins`]).
-                let m = circle_margins((ci, si), (cj, aj));
-                let margin = if rim.trim_replaces_host_boundary() {
-                    m.other_inside_trim
-                } else {
-                    m.external
-                };
-                ring_clearance(host, rim.chain.first().convexity, margin, false, band)?;
-            }
-        }
         support_boundary_clearance(body, rim, opens, rims, band)?;
     }
     // (c) Cut-offs: the cut-off `mef` runs one end curve across an end
@@ -2722,11 +2657,12 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// looser of the two on each.
 ///
 /// **Only the outer cycle is walked.** Every support here is an open
-/// link's, and arm (a) has already metered each of its rings against
-/// the link's unbounded trimline, which encloses the strip — or refused
-/// it, typed, as not a circle. A requested plane–plane edge is a line,
-/// so a ring that carries one is never a circle: a requested ring edge
-/// refuses at arm (a) before this arm could read it.
+/// link's, and arm (a) has already metered each of its rings, piece by
+/// piece, against the link's unbounded trimline, which encloses the
+/// strip. A requested ring edge never reaches this arm: arm (a) reads
+/// it at its own trimline ([`co_requested_trim`]), where its margin is
+/// zero, so its ring refuses there first
+/// (`band_planar_cut_off_meters::a_requested_ring_edge_refuses_at_the_ring_meter`).
 ///
 /// Not metered: requested edges, which their own strips replace and
 /// predicate 2 meters pairwise, and the edges at the two stations — on
@@ -2807,10 +2743,10 @@ fn strip_clearance<T: Decide + Bounds>(
     Ok(())
 }
 
-/// **Each support's OUTER boundary against that support's trim**, for
-/// one closed rim: on every distinct host and mate face, each edge of
-/// its outer cycle the carve does not replace, over its own stored
-/// window. The carve excises the strip between the rim and the trim, so
+/// **Each support's boundary against that support's trim**, for one
+/// closed rim: on every distinct host and mate face, each edge of its
+/// outer cycle and of its rings ([`ring_pieces`]) the carve does not
+/// replace, over its own stored window. The carve excises the strip between the rim and the trim, so
 /// every other boundary edge must lie wholly on the trim's FAR side
 /// from the rim. Side and reach are read through a function whose level
 /// sets on the support are its latitude circles: the distance from the
@@ -2819,17 +2755,21 @@ fn strip_clearance<T: Decide + Bounds>(
 /// one height.
 ///
 /// Not metered, because the carve replaces them: the rim's arcs, and
-/// the one seam or meridian each support drops into every rim vertex
-/// (the incidence [`resolve_rim`]'s routes admit), which the carve
-/// splits at the trim. A line or circle edge is read exactly
+/// the one seam or meridian each support's OUTER cycle drops into every
+/// rim vertex (the incidence [`resolve_rim`]'s routes admit), which the
+/// carve splits at the trim. A ring edge is replaced only as a rim arc,
+/// so a ring pinched to the rim at a vertex is metered there. A line or circle edge is read exactly
 /// ([`piece_distance`], [`piece_along`]); any other carrier through
 /// [`boxed_reach`], a certified bound (an ellipse arc's box over its
 /// window, a spiric oval's over its period, a NURBS curve's control
-/// hull) whose refusal says it is a bound. An edge with no certified carrier refuses.
+/// hull) whose refusal says it is a bound; a ring's edges are lines and
+/// circles ([`ring_pieces`]). An edge with no certified carrier refuses.
+/// Each cycle refuses at its least margin ([`worse`]).
 ///
 /// An edge that is itself requested in the same call is read where its
-/// own carve leaves this face's boundary — at its trim on this face,
-/// as the ring readers widen a requested ring ([`co_requested_trim`]).
+/// own carve leaves this face's boundary — at its trim on this face
+/// ([`metered_piece`]): another requested rim's ring is read at its
+/// trim circle.
 ///
 /// Its own function, and so a compound bound of its own in this file:
 /// it is the edge-blend seam's ring carry-through pass split by arm,
@@ -2846,9 +2786,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
 ) -> Result<(), BlendError> {
     let arcs: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
     let rim_vertices: Vec<VertexKey> = rim.chain.links().flat_map(|l| [l.start, l.end]).collect();
-    let replaced = |edge: EdgeKey| {
-        arcs.contains(&edge) || rim_vertices.iter().any(|&v| edge_touches(body, edge, v))
-    };
+    let drops_into_rim = |edge: EdgeKey| rim_vertices.iter().any(|&v| edge_touches(body, edge, v));
     let convexity = rim.chain.first().convexity;
     let sides = rim
         .chain
@@ -2928,37 +2866,49 @@ fn support_boundary_clearance<T: Decide + Bounds>(
                 "a rim's support has no outer cycle that walks",
             )
         })?;
+        // The face's cycles, each as its pieces: the outer cycle, then
+        // every ring. Curved mates and seam-split hosts are ring-free by
+        // gate (`resolve_rim`'s ladder, half-band and second-support
+        // refusals), so the rings read here are a planar host's.
+        let mut outer_pieces = Vec::with_capacity(outer.len());
         for he in outer {
             let edge = body
                 .get_half_edge(he)
                 .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim support's boundary"))?
                 .edge;
-            if replaced(edge) {
-                continue;
+            let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
+            outer_pieces.push((edge, carrier, window));
+        }
+        let mut cycles = vec![(outer_pieces, true)];
+        for &ring in &fd.rings {
+            cycles.push((ring_pieces(body, ring, face, opens, rims)?, false));
+        }
+        for (cycle, outer) in cycles {
+            let margins = cycle
+                .into_iter()
+                .filter(|&(edge, _, _)| !(arcs.contains(&edge) || outer && drops_into_rim(edge)))
+                .map(|(edge, carrier, window)| {
+                    let ((low, high), bounded) = reach(&carrier, window).ok_or_else(|| {
+                        unbuilt_geometry(
+                            EntityId::Edge(edge),
+                            "an outer-boundary edge of a rim's support has no finite certified \
+                             box",
+                        )
+                    })?;
+                    let margin = if rim_above {
+                        at_trim - high
+                    } else {
+                        low - at_trim
+                    };
+                    Ok((margin, bounded))
+                })
+                .collect::<Result<Vec<_>, BlendError>>()?;
+            // A cycle the carve replaces whole (a hostless annulus's
+            // outer cycle of rim arcs, a ladder's own ring) has nothing
+            // left to meter.
+            if let Some((margin, bounded)) = margins.into_iter().reduce(worse) {
+                ring_clearance(face, convexity, margin, bounded, band)?;
             }
-            let Some((stored, stored_window)) = stored_piece(body, edge)? else {
-                return Err(unbuilt_geometry(
-                    EntityId::Edge(edge),
-                    "an outer-boundary edge of a rim's support carries no certified carrier",
-                ));
-            };
-            let trim = co_requested_trim(edge, face, stored, stored_window, opens, rims)?;
-            let (carrier, window) = match &trim {
-                Some((c, w)) => (c, *w),
-                None => (stored, stored_window),
-            };
-            let ((low, high), bounded) = reach(carrier, window).ok_or_else(|| {
-                unbuilt_geometry(
-                    EntityId::Edge(edge),
-                    "an outer-boundary edge of a rim's support has no finite certified box",
-                )
-            })?;
-            let margin = if rim_above {
-                at_trim - high
-            } else {
-                low - at_trim
-            };
-            ring_clearance(face, convexity, margin, bounded, band)?;
         }
     }
     Ok(())
@@ -2977,10 +2927,10 @@ type OwnedPiece<T> = (Curve3<T>, (T, T));
 ///   onto it. On a ruled band that segment IS the trim: both run cap
 ///   to cap, between planes perpendicular to them. On a planar band it
 ///   is never the deciding read: a planar link can bound a rim's
-///   support only as an edge of a LADDER host's outer cycle (walking an
-///   annulus host's cycle from one reaches its seam foot, which no
-///   open chain admits), and there arm (a) has already read the same
-///   trimline, unbounded, against the rim's widened ring — a margin
+///   support only as an edge of a LADDER host's outer cycle or rings
+///   (walking an annulus host's cycle from one reaches its seam foot,
+///   which no open chain admits), and there arm (a) has already read the
+///   same trimline, unbounded, against the rim's widened ring — a margin
 ///   `dist(c, line) − R` no larger than any segment's.
 /// - A closed rim's arc reads its rim's WHOLE trim circle on `face`,
 ///   in the closed forms every circle takes here. The whole circle
@@ -3898,7 +3848,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
 
     // The band: the face on the non-cap side of the first sphere trim.
     // Row 0 (`D96`): NO — one row per `plane_walk` position, so the
-    // non-emptiness is the cycle's, the same cause as `ring_circle`'s
+    // non-emptiness is the cycle's, the same cause as `ring_pieces`'
     // (`docs/SMELL-T-LOG.md`, `T-c`).
     let Some(tb) = tb_edges.first() else {
         unreachable!(
@@ -4802,19 +4752,21 @@ pub(super) fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option
 pub(super) struct SourceFaces(Vec<FaceKey>);
 
 impl SourceFaces {
-    /// The one constructor. Refuses a face-less body: an empty snapshot
-    /// would make [`SourceFaces::kef_minted`] vacuous, which is the one
-    /// way past that door that shows nowhere.
+    /// The one constructor. Refuses a face-less body under a verdict
+    /// with chains: an empty snapshot would make
+    /// [`SourceFaces::kef_minted`] vacuous, which is the one way past
+    /// that door that shows nowhere. A verdict with no chains kills
+    /// nothing, so an empty request on an empty body passes.
     ///
     /// # Errors
     ///
-    /// [`BlendError::SurgeryInvariant`] on a body with no faces —
-    /// unreachable once the entry gate has admitted a solid and a
-    /// shell, which is why the row is the surgery's own and not the
-    /// input's.
-    fn of<T: Decide>(source: &Body<T>) -> Result<Self, BlendError> {
+    /// [`BlendError::SurgeryInvariant`] on a body with no faces under a
+    /// verdict with a chain — unreachable because the battery resolved
+    /// every link's two supports as faces of this body, which is why
+    /// the row is the surgery's own and not the input's.
+    fn of<T: Decide>(source: &Body<T>, verdict: &BatteryVerdict<T>) -> Result<Self, BlendError> {
         let mut faces: Vec<FaceKey> = source.faces().map(|(k, _)| k).collect();
-        if faces.is_empty() {
+        if faces.is_empty() && !verdict.chains.is_empty() {
             return Err(invariant_broken(
                 EntityId::Face(FaceKey::default()),
                 "the blend surgery snapshotted a source body with no faces",
@@ -5104,43 +5056,71 @@ mod tests {
     use topo::EdgeKey;
 
     use super::super::battery::Convexity;
-    use super::super::build::fillet_edges;
     use super::{BlendError, rim_trim_circles};
     use crate::blend::arms::plane_sphere_blend;
-    use crate::test_support::{L, R, cube};
+    use crate::test_support::{L, cube};
 
-    /// **The door's own one-solid, one-shell clause.**
-    /// `blend_surgery` binds the solid and the shell out of the same
-    /// step that counts them, so there is no second read to prove — but
-    /// the refusal is still the only thing standing between a
-    /// multi-solid body and a surgery that would carve it as if its
-    /// first solid were the only one. Delete the clause and this row
-    /// reds.
-    ///
-    /// **Its reach, stated:** one grafted body trips both halves of
-    /// the gate at once, so this row does not separate them. Splitting
-    /// them needs a one-solid, two-shell body — a closed void — and
-    /// nothing in the tree builds one today.
+    /// **A chain or corner whose faces lie in two shells refuses as
+    /// not intact, at its edge or vertex.** No valid body has such a
+    /// link (tier 1 puts an edge's two faces in one shell), so the row
+    /// hands `chain_shell` a link of one grafted cube whose second
+    /// support is re-pointed at a face of the other; `corner_shell` is
+    /// handed two chains found in different shells meeting at one
+    /// vertex.
     #[test]
-    fn a_body_that_is_not_one_solid_and_one_shell_is_refused_at_the_door() {
-        let mut dst = cube(L, Tol::witness());
-        topo::instance::graft_disjoint_all(&mut dst, &cube(L * 0.5, Tol::witness()))
+    fn a_chain_or_corner_across_two_shells_refuses_at_its_site() {
+        let mut body = cube(L, Tol::witness());
+        let first: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+        topo::instance::graft_disjoint_all(&mut body, &cube(L * 0.5, Tol::witness()))
             .expect("the public transplant door accepts a disjoint cube");
-        assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
-        assert_eq!(dst.shells().count(), 2, "and a second shell");
-        let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();
-        let err = fillet_edges(&dst, &edges, R, Tol::witness())
-            .expect_err("a two-solid body is outside the in-place surgery's door");
+        let shell = |f: topo::FaceKey| body.get_face(f).expect("live").shell;
+        let mut link = crate::test_support::all_links(&body, Tol::witness())
+            .into_iter()
+            .find(|l| first.contains(&l.face_a))
+            .expect("the first cube has links");
+        let foreign = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|f| !first.contains(f))
+            .expect("the graft added faces");
+        let (here, there) = (shell(link.face_a), shell(foreign));
+        assert_ne!(here, there, "the graft is a second shell");
+        let edge = link.edge;
+        assert_eq!(
+            super::chain_shell(&body, &open_chain(link.clone())).ok(),
+            Some(here),
+            "an intact link lies in its first support's shell"
+        );
+        link.face_b = foreign;
         assert!(
             matches!(
-                err.error,
-                BlendError::UnsupportedBody {
-                    solids: 2,
-                    shells: 2
-                }
+                super::chain_shell(&body, &open_chain(link)),
+                Err(BlendError::BodyNotIntact { at: topo::EntityId::Edge(e), .. }) if e == edge
             ),
-            "the gate must refuse before anything reads `solids().next()`: {err}"
+            "the link across shells refuses at its edge"
         );
+
+        let (a, b) = (EdgeKey::default(), edge);
+        let v = topo::VertexKey::default();
+        let found = |sa, sb| std::collections::BTreeMap::from([(a, sa), (b, sb)]);
+        assert!(super::corner_shell(v, &[a, b], &found(here, here)).is_ok());
+        assert!(
+            matches!(
+                super::corner_shell(v, &[a, b], &found(here, there)),
+                Err(BlendError::BodyNotIntact { at: topo::EntityId::Vertex(at), .. }) if at == v
+            ),
+            "a corner met by chains of two shells refuses at its vertex"
+        );
+    }
+
+    fn open_chain(link: super::Link<f64>) -> super::Chain<f64> {
+        let (head, tail) = (link.start, link.end);
+        super::Chain::new(
+            link,
+            Vec::new(),
+            Vec::new(),
+            super::ChainClosure::Open { head, tail },
+        )
     }
 
     /// The F1 pin: trim selection is by SUPPORT KIND, never by slot.

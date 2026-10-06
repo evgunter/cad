@@ -30,14 +30,14 @@
 //! The chamfer builds: each chord's band ends where it meets a side
 //! wall of its leg, cut off in that wall's plane in a chord at 45° to
 //! it, and the corner piece loses `4·(d²/2)·√2`, which the scene
-//! asserts and renders. Three walls pin the cells the cut-off does not
-//! build at this plane and setback: the chords filleted (an oblique end
-//! face under a round band, `UnsupportedRunOut`), both section faces'
-//! whole rims chamfered (the turn, two of each corner's three edges
-//! requested — `CornerConfig::Turn`), and the offcuts, one solid of two
-//! shells (`UnsupportedBody`)
-//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`,
-//! `work/band/a-blend-refuses-a-solid-of-several-shells.md`).
+//! asserts and renders; the offcuts' chords chamfer the same way, each
+//! inside its own solid. Three walls pin the cells the cut-off does not
+//! build at this plane and setback: the chords filleted, on the corner
+//! piece and on the offcuts (an oblique end face under a round band,
+//! `UnsupportedRunOut`), and both section faces' whole rims chamfered
+//! (the turn, two of each corner's three edges requested —
+//! `CornerConfig::Turn`)
+//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`).
 //!
 //! The outline's decimal-via ancestor lives on as the large-K lint's
 //! litmus fixture (`tools/k-lint/tests/litmus.rs`).
@@ -324,6 +324,16 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let delta_v = 4.0 * SETBACK * SETBACK / 2.0 * SQRT_2;
     let broken = volume(&body_at(&ev, chamfer), tol);
     assert_volume("the chamfered corner piece", broken, kept - delta_v);
+    // The offcuts' chords likewise: two solids, each chord's band carved
+    // inside its own and cut off at its leg's side walls.
+    let mut off_doc = doc.clone();
+    let off_chamfer = insert(
+        &mut off_doc,
+        Node::chamfer(offcuts, len(SETBACK), off_chords.clone()),
+        tol,
+    );
+    let off_broken = volume(&body_at(&eval(&off_doc, tol), off_chamfer), tol);
+    assert_volume("the chamfered offcuts", off_broken, off - delta_v);
 
     let retire = "retire the probe, and render what the kernel now builds";
     let probes: [WallProbe; 3] = [
@@ -348,10 +358,10 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
             },
         },
         WallProbe {
-            n: 4,
-            what: "the offcuts' cap chords, chamfered by name",
-            node: Node::chamfer(offcuts, len(SETBACK), off_chords),
-            pinned: |e| matches!(e, BlendError::UnsupportedBody { .. }),
+            n: 5,
+            what: "the offcuts' cap chords, filleted by name",
+            node: Node::fillet(offcuts, len(SETBACK), off_chords),
+            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
         },
     ];
     for WallProbe {
@@ -381,8 +391,8 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     format!(
         "split at x + y = {CUT}: offcuts V = {off:.6}, corner piece V = {kept:.6}, sum = whole; \
          its four cap chords, named by their ends, chamfer at d = {SETBACK} to V = {broken:.6} \
-         (less 4·(d²/2)·√2), and filleting them, or breaking the section faces' whole rims, \
-         refuses (walls 2-4)"
+         (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}, and filleting them, or \
+         breaking the section faces' whole rims, refuses (walls 2, 3, 5)"
     )
 }
 

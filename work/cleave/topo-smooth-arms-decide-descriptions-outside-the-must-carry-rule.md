@@ -4,6 +4,8 @@ kind: issue
 title: topo's two smooth-description arms (boolean D6 ladder, split finish) decide outside geom_brep::must_carry_over_edge
 status: open
 opened: 2026-10-01
+priority: P1
+cost: M
 ---
 
 
