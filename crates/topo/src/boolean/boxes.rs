@@ -1214,6 +1214,14 @@ pub(crate) fn conic_extent<T: Real>(
     }
 }
 
+/// A vector's three brackets: the key the narrow phase's axis set
+/// compares two axes by ([`super::separating::AxisKey`]). Two equal keys
+/// are one direction to the bracket, and a candidate dropped as one
+/// only costs the reading along it.
+pub(crate) fn axis_key<T: Bounds>(v: Vec3<T>) -> [(f64, f64); 3] {
+    [v.x, v.y, v.z].map(|c| (c.lo(), c.hi()))
+}
+
 /// The padded box of a full circle ([`super::separating::Circle`]):
 /// [`conic_extent`] at the bracket lane, so coordinate `i` reaches
 /// `radius·√(u_i² + v_i²) = radius·√(1 − n_i²)` from the centre, where

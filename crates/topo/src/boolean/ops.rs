@@ -1323,7 +1323,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         evented,
         |s| path.names(s),
         stop,
-        &super::separating::OperandAxes::new(),
+        &super::separating::OperandAxes::new(boxes::axis_key),
     ))
 }
 
@@ -3300,7 +3300,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
     let pad = boxes::sweep_pad(band);
-    let axes = super::separating::OperandAxes::new();
+    let axes = super::separating::OperandAxes::new(boxes::axis_key);
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
     let mut out: Vec<SphereRecut<T>> = Vec::new();
@@ -3679,7 +3679,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// escape, so it is asked of the ball whatever part of the sphere the
 /// faces on it keep: a reach of those faces is a subset of the ball, and
 /// a face clear of that subset may still lie inside the ball.
-fn ball_may_reach<T: Decide + Bounds>(
+fn ball_may_reach<T: Decide>(
     (y, yf, face_box): (&Body<T>, FaceKey, &bvh::Aabb),
     (center, radius, ball_box): (Point3<T>, T, &bvh::Aabb),
     axes: &[geom_core::UnitVec3<T>],
@@ -5784,7 +5784,7 @@ mod tests {
         else {
             panic!("the cap's carrier is the sphere");
         };
-        let axes = crate::boolean::separating::OperandAxes::new();
+        let axes = crate::boolean::separating::OperandAxes::new(boxes::axis_key);
         let ball_box = centred_box(center, radius, pad);
         for (what, (x, y, z), reached) in [
             (

@@ -31,7 +31,7 @@
 //! band answers "not apart", which keeps the caller's conservative
 //! verdict.
 
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, UnitVec3, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Real, Sign, UnitVec3, Vec3};
 
 use super::boxes::BoxFrame;
 use crate::body::Body;
@@ -93,25 +93,29 @@ pub(crate) struct Circle<T: Real> {
 /// is a pure number, so it is read as a direction levered by its face's
 /// reach diagonal, the length it is consumed over. One the band cannot
 /// read, or a face with no reach, is left out, which only drops a
-/// candidate. So is one whose bracket is a kept axis's, or its
+/// candidate. So is one whose `key` is a kept axis's, or its
 /// negation's: a gap along `−n` is the gap along `n` (a box's six faces
 /// give three axes).
-fn operand_axes<T: Decide + Bounds>(a: &Body<T>, b: &Body<T>, band: Band) -> Vec<UnitVec3<T>> {
-    let bracket = |v: Vec3<T>| [v.x, v.y, v.z].map(|c| (c.lo(), c.hi()));
+fn operand_axes<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    band: Band,
+    key: AxisKey<T>,
+) -> Vec<UnitVec3<T>> {
     let mut axes: Vec<UnitVec3<T>> = Vec::new();
     let mut kept: Vec<[(f64, f64); 3]> = Vec::new();
     for body in [a, b] {
-        for (key, _) in body.faces() {
-            let Some(n) = crate::face_normal::face_outward_normal(body, key) else {
+        for (face, _) in body.faces() {
+            let Some(n) = crate::face_normal::face_outward_normal(body, face) else {
                 continue;
             };
-            let Some((lo, hi)) = crate::census::face_reach(body, key, band) else {
+            let Some((lo, hi)) = crate::census::face_reach(body, face, band) else {
                 continue;
             };
             let Ok(unit) = UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()) else {
                 continue;
             };
-            let (plus, minus) = (bracket(unit.get()), bracket(-unit.get()));
+            let (plus, minus) = (key(unit.get()), key(-unit.get()));
             if kept.iter().any(|k| *k == plus || *k == minus) {
                 continue;
             }
@@ -122,6 +126,11 @@ fn operand_axes<T: Decide + Bounds>(a: &Body<T>, b: &Body<T>, band: Band) -> Vec
     axes
 }
 
+/// What [`operand_axes`] compares two axes by: two equal keys are one
+/// axis. The bracket lane's (`boxes::axis_key`), handed in by a caller
+/// that reads brackets, so this module decides and does not bracket.
+pub(crate) type AxisKey<T> = fn(Vec3<T>) -> [(f64, f64); 3];
+
 /// **One operand pair's candidate axes** ([`operand_axes`]), read on
 /// first use and then shared by every item pair the caller asks about,
 /// so a stage that reads many pairs walks the operands' faces once. An
@@ -131,18 +140,24 @@ fn operand_axes<T: Decide + Bounds>(a: &Body<T>, b: &Body<T>, band: Band) -> Vec
 /// gap along it), so a stage whose bodies are split between two reads
 /// keeps the first read's axes: the split faces lie on the carriers
 /// that gave them.
-pub(crate) struct OperandAxes<T: Real>(std::cell::OnceCell<Vec<UnitVec3<T>>>);
+pub(crate) struct OperandAxes<T: Real> {
+    axes: std::cell::OnceCell<Vec<UnitVec3<T>>>,
+    key: AxisKey<T>,
+}
 
-impl<T: Decide + Bounds> OperandAxes<T> {
-    /// Not yet read.
-    pub(crate) fn new() -> Self {
-        Self(std::cell::OnceCell::new())
+impl<T: Decide> OperandAxes<T> {
+    /// Not yet read; `key` compares two axes.
+    pub(crate) fn new(key: AxisKey<T>) -> Self {
+        Self {
+            axes: std::cell::OnceCell::new(),
+            key,
+        }
     }
 
     /// The axes of the pair `a`, `b`: read now on the first call, and
     /// the first call's thereafter.
     pub(crate) fn of(&self, a: &Body<T>, b: &Body<T>, band: Band) -> &[UnitVec3<T>] {
-        self.0.get_or_init(|| operand_axes(a, b, band))
+        self.axes.get_or_init(|| operand_axes(a, b, band, self.key))
     }
 }
 

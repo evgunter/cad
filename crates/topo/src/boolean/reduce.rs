@@ -321,7 +321,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     covered: impl Fn(Operand, FaceKey, FaceKey) -> bool,
 ) -> Result<Option<UnsupportedPair>, BooleanError> {
     let pad = super::boxes::sweep_pad(band);
-    let axes = super::separating::OperandAxes::new();
+    let axes = super::separating::OperandAxes::new(super::boxes::axis_key);
     for (operand, body, other) in [(Operand::A, a, b), (Operand::B, b, a)] {
         // Arena order both ways, and no box is built for an operand
         // that carries no unsupported kind at all — the common case
@@ -1557,7 +1557,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut deferred = Vec::new();
     // Both directions read one axis set, taken when the first curved
     // face is met.
-    let axes = super::separating::OperandAxes::new();
+    let axes = super::separating::OperandAxes::new(super::boxes::axis_key);
     sweep_direction(
         a,
         b,
