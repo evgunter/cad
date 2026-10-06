@@ -1057,3 +1057,19 @@ Each gets a single full review as its own cloud session, posting to
 its PR. Units 3 (PR 4115) and 4 (PR 4117) are still in their lanes;
 4117's first red was its own (a `NurbsLane` field the census helper
 did not compare).
+
+## Unit 2 MERGED (2026-10-06, PR 4112)
+
+The shell doors take an `AtRestBody`. Single full review:
+NOT-MERGEABLE-AS-IS on one MAJOR. `AtRestBody` derefs to `Body`, so
+reverting the doors still compiled, and every "refused at the gate"
+row tested `validate`, not the door. The fix pass:
+- pins the three doors' operand types at compile time, verified by
+  planting the revert (E0308 at all three);
+- rewrites the gate rows' docs to say what they prove;
+- records that no document reaches `UnfinishedOperand` through a Shell
+  node;
+- corrects the stale docs;
+- files S7 as `shelf/shelled-result-discards-its-own-closing-verdict`.
+S6 (finished fixtures) was skipped because it grows. Merged over the
+inherited pinch ε = 1e-6 red.
