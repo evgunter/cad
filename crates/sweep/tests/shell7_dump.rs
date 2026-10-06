@@ -24,6 +24,7 @@ use topo::Body;
 use crate::common::bulge;
 use crate::common::charts::hollow_moves;
 use crate::common::torus_walls::{klein_elbow, torus_barrel, torus_belly};
+use sweep::test_support::finished;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -95,7 +96,7 @@ fn dump(label: &str, body: &Body<f64>) {
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
-    match topo::shell(body, t, tol()) {
+    match topo::shell(&finished("the operand", body.clone(), tol()), t, tol()) {
         Ok(s) => {
             dump(label, &s.body);
             Some(s.body)
@@ -350,7 +351,7 @@ fn shell7_dump_corpus() {
         "[dump] drum, seam split, operand: tier3={:?}",
         topo::validate_geometric(&drum, tol())
     );
-    match topo::shell(&drum, 0.05, tol()) {
+    match topo::shell(&finished("the operand", drum.clone(), tol()), 0.05, tol()) {
         Ok(s) => dump("drum, seam split, unminted", &s.body),
         Err(topo::ShellError::NotValid { errors }) => {
             println!("[dump] drum, seam split, unminted: shell NotValid {errors:?}");
@@ -362,7 +363,7 @@ fn shell7_dump_corpus() {
         "[dump] drum, seam split, operand minted: tier3={:?}",
         topo::validate_geometric(&drum, tol())
     );
-    match topo::shell(&drum, 0.05, tol()) {
+    match topo::shell(&finished("the operand", drum.clone(), tol()), 0.05, tol()) {
         Ok(s) => dump("drum, seam split", &s.body),
         Err(topo::ShellError::NotValid { errors }) => {
             println!("[dump] drum, seam split: shell NotValid {errors:?}");
@@ -377,7 +378,7 @@ fn shell7_dump_corpus() {
         Revolution::Full,
     );
     dump("collinear cap, operand", &cap);
-    match topo::shell(&cap, 0.05, tol()) {
+    match topo::shell(&finished("the operand", cap.clone(), tol()), 0.05, tol()) {
         Ok(s) => dump("collinear cap", &s.body),
         Err(topo::ShellError::NotValid { errors }) => {
             println!("[dump] collinear cap: shell NotValid {errors:?}")
@@ -396,7 +397,7 @@ fn shell7_dump_corpus() {
         Revolution::Full,
     );
     dump("two-arc sphere, operand", &ball);
-    match topo::shell(&ball, 0.05, tol()) {
+    match topo::shell(&finished("the operand", ball.clone(), tol()), 0.05, tol()) {
         Ok(s) => dump("two-arc sphere", &s.body),
         Err(topo::ShellError::NotValid { errors }) => {
             println!("[dump] two-arc sphere: shell NotValid {errors:?}")
