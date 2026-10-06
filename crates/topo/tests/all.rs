@@ -283,6 +283,8 @@ mod rim_dim_boolean_twins;
 mod rim_dim_review_probes;
 #[path = "seat3_flush_detector.rs"]
 mod seat3_flush_detector;
+#[path = "shell_operand_gate.rs"]
+mod shell_operand_gate;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]
@@ -299,12 +301,16 @@ mod sphere_twin_rows_interval;
 mod split_edge_pcurve_rows;
 #[path = "split_gate_per_face.rs"]
 mod split_gate_per_face;
+#[path = "split_operand_gate.rs"]
+mod split_operand_gate;
 #[path = "stated_general_image_mint.rs"]
 mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
+#[path = "vertex_on_edge_records.rs"]
+mod vertex_on_edge_records;
 #[path = "void_door.rs"]
 mod void_door;
 
@@ -348,7 +354,11 @@ mod certified_enclosure_impl_census;
 mod cleave_mint_doors;
 #[path = "door_backstop_settled_residue.rs"]
 mod door_backstop_settled_residue;
+#[path = "pierce_strut_at_a_pinch.rs"]
+mod pierce_strut_at_a_pinch;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "spline_reanchor_rows.rs"]
+mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;

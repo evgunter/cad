@@ -21,6 +21,7 @@
 
 use crate::common;
 use editor_core::ExtrudeSide;
+use pncad::document::Formula;
 use test_utils::refusal::tagged;
 
 use editor_core::{Attr, Rgba8};
@@ -65,7 +66,7 @@ fn wall(
 /// extrude)`.
 fn extruded(
     doc: &Doc<ProfileProgram>,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let tol = Tol::witness();
     let (doc, plane) = common::inserted(doc, common::xy_frame(), tol);
@@ -387,7 +388,7 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
 /// `at` stands at its tangent point, and the `line` after it runs on
 /// to `(2, 2)` along the fillet's run out. Each sharp step has a step
 /// of the same verb in the filleted program.
-fn corner(filleted: bool) -> LoopProgram {
+fn corner(filleted: bool) -> LoopProgram<Formula> {
     let toward = |dx: f64, dy: f64| ProgramStep::Toward {
         dx: common::scl(dx),
         dy: common::scl(dy),
@@ -476,7 +477,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
     let hole = LoopProgram::Circle {
         centre: [common::len(1.0), common::len(1.0)],
-        radius: pncad::document::Expr::named(hole_r.clone(), Dimension::Length),
+        radius: pncad::document::Formula::named(hole_r.clone(), Dimension::Length),
     };
     let (doc, _, extrude) = extruded(&doc, vec![square, hole]);
     let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 1, 0));

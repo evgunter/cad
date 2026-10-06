@@ -26,8 +26,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, EvalScalar, Evaluation, Expr,
-    Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileLift,
+    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, EvalScalar, Evaluation,
+    Formula, Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileLift,
     ProfileProgram, RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
@@ -585,7 +585,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
         },
     );
     let (doc, plane) = insert(doc, xy_frame());
-    let at_edge = || Expr::named(edge.clone(), Dimension::Length);
+    let at_edge = || Formula::named(edge.clone(), Dimension::Length);
     let island = LoopProgram::polygon_expr([
         [len(0.0), len(-0.25)],
         [at_edge(), len(-0.25)],
@@ -663,7 +663,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
     );
     let (doc, plane) = insert(doc, xy_frame());
     let over = || {
-        Expr::div(len(1.0), Expr::named(divisor.clone(), Dimension::Scalar))
+        Formula::div(len(1.0), Formula::named(divisor.clone(), Dimension::Scalar))
             .expect("a length over a scalar")
     };
     let program = ProfileProgram {

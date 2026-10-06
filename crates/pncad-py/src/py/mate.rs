@@ -111,7 +111,7 @@ fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
 /// an offset step reads.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct MateFrame(pub(crate) d::MateFrame);
+pub(crate) struct MateFrame(pub(crate) d::MateFrame<d::Formula>);
 
 #[pymethods]
 impl MateFrame {
@@ -338,7 +338,7 @@ impl MatePrimitive {
 /// table has no entry and the solve refuses typed.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct Alignment(pub(crate) d::Alignment);
+pub(crate) struct Alignment(pub(crate) d::Alignment<d::Formula>);
 
 #[pymethods]
 impl Alignment {
@@ -1256,7 +1256,7 @@ impl Maintenance {
     fn offset(&self) -> Option<super::place::Placement> {
         match &self.0 {
             d::Maintenance::OffsetCleared { offset, .. } => {
-                Some(super::place::Placement(offset.clone()))
+                Some(super::place::Placement(offset.authored()))
             }
             d::Maintenance::Strand { .. }
             | d::Maintenance::StrandedAppearance { .. }

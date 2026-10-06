@@ -318,13 +318,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      is stale and refuses typed. Structural sharing (same surface or
      point key) needs no record: an op that cuts one vertex into copies hands each copy the
      original's point, as it hands a cut face's fragments one surface.
-   - Contact records carry two granularities: vertex (`VvContact`,
-     `VfContact`) — edge-on-face and coincident-edge *segments*
+   - A contact record is a pair of cells, one from each touching
+     shell (or each side of a shell's pinch, whose two sides touch
+     within one shell), whose interiors meet, plus its backing: a
+     coincidence an op decided Zero, recorded (D10). Records carry
+     three granularities: vertex (`VvContact`, `VeContact`,
+     `VfContact`: a vertex on a vertex, on an edge's interior, on a
+     face's interior); edge (`EeContact`: two edges whose interiors
+     meet, crossing or overlapping); and face (`CurveContact`,
+     `PatchContact`; CONTACT-DESIGN C3), whose rungs back a subordinate
+     vertex event. Edge-on-face and coincident-edge *segments* are
      certified by reconstruction from their bounding vertex records
      (between two backed bounds, two lines sharing two points are one
      line; a missing bounding record is an unbacked contact, never
-     inferred) — and face (`CurveContact`, `PatchContact`; CONTACT-DESIGN
-     C3), whose rungs back a subordinate vertex event.
+     inferred); a crossing of two edge interiors has no bound, and its
+     edge-edge record backs it. An op that replaces a cell rewrites
+     every record naming it onto the replacement, by substitution; an
+     edge split moves a `(vertex, edge)` record onto the piece the
+     vertex rests on, by the split's own lineage.
    - **Certification strength equals its skeleton**: a `CurveContact`
      is certified at its jet samples plus hull bounds, a `PatchContact`
      by definitely-positive region overlap in the shared chart, a
@@ -1412,8 +1423,14 @@ these. All are shipped in `editor-core` except where noted:
   it; it is not unique and never identity (references hold ids, and
   nothing resolves a label). Kernel sentences speak a node as its
   kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
-  and tag when it has none; the label is read off the document when
-  the sentence is made, never from a value the evaluation memo reuses.
+  and tag when it has none. A spoken label is never one its value can
+  outlive: a value the evaluation memo reuses holds a label only when
+  its memo key fixes that label. A document's own labels are outside
+  its evaluation key (a rename re-evaluates nothing), so what it
+  memoizes keeps bare ids and the label is read off the document when
+  the sentence is made; a part's labels are in its pin, and the pin is
+  in the instance's key, so a fault from inside a part carries the
+  part's nodes as the pinned part says them.
   The kernel mints no label; the viewer's create forms propose an
   editable "Kind N", stored only when the person commits it. Faces and
   bodies carry the same `Label` text as an appearance attribute.

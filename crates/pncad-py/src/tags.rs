@@ -581,7 +581,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadVarKind { .. } => "payload_var_kind",
         EditError::SlotUnresolvedVar { .. } => "slot_unresolved_var",
         EditError::PayloadUnresolvedVar { .. } => "payload_unresolved_var",
-        EditError::NameLeafWritten { .. } => "name_leaf_written",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
         EditError::AssertionDimension { .. } => "assertion_dimension",
@@ -1294,7 +1293,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::VarIdCollides { .. } => None,
         EditError::SlotUnresolvedVar { .. } => None,
         EditError::PayloadUnresolvedVar { .. } => None,
-        EditError::NameLeafWritten { .. } => None,
         EditError::VarNameUnchanged { .. } => None,
         EditError::AnonymousVarUnread { .. } => None,
         EditError::DeleteAnonymousVar { .. } => None,
@@ -1555,7 +1553,6 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::Escalated { .. } => "escalated",
         BlendError::RepeatedEdge { .. } => "repeated_edge",
         BlendError::NonpositiveSize { .. } => "nonpositive_size",
-        BlendError::UnsupportedBody { .. } => "unsupported_body",
         BlendError::UnsupportedChain { .. } => "unsupported_chain",
         BlendError::UnsupportedRunOut { .. } => "unsupported_run_out",
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
@@ -2001,12 +1998,10 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::VarOrderMismatch => "var_order_mismatch",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
         SnapshotError::SlotDimension { .. } => "slot_dimension",
-        SnapshotError::NamedReaderInSnapshot { .. } => "named_reader_in_snapshot",
         SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
         SnapshotError::PayloadVarKind { .. } => "payload_var_kind",
         SnapshotError::AnonymousVarUnread { .. } => "anonymous_var_unread",
-        SnapshotError::NamedReaderInDefinition { .. } => "named_reader_in_definition",
         SnapshotError::DefinitionReadsUnmintedVar { .. } => "definition_reads_unminted_var",
         SnapshotError::DefinitionVarKind { .. } => "definition_var_kind",
         SnapshotError::DefinitionCycle { .. } => "definition_cycle",
@@ -2254,7 +2249,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
 }
 
 /// The stable tag for an expression-constructor refusal
-/// (`Expr::literal`'s own error type, matched rather than
+/// (`Formula::literal`'s own error type, matched rather than
 /// pre-checked).
 pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
     match err {
@@ -2294,7 +2289,7 @@ pub fn fmt_quantity_error_tag(err: &FmtQuantityError) -> &'static str {
     }
 }
 
-/// The stable tag for an expression TEXT-door refusal (`parse_expr`).
+/// The stable tag for an expression TEXT-door refusal (`parse_formula`).
 ///
 /// The `Dimension` arm keeps a tag of its OWN rather than borrowing
 /// the inner refusal's: what refused is the parse, at a byte offset
@@ -2318,6 +2313,19 @@ pub fn parse_error_tag(err: &ParseError) -> &'static str {
     }
 }
 
+/// The stable tag for a name an expression door could not read against
+/// its document (`Doc.eval` / `Doc.eval_count` lower a formula before
+/// evaluating it): a name no variable holds, or one held at another
+/// kind than the formula reads it at. Raised as `EvalError`, beside
+/// [`eval_error_tag`]'s refusals, since it is the evaluation door that
+/// refuses it.
+pub fn name_fault_tag(fault: &pncad::document::NameFault) -> &'static str {
+    match fault.why {
+        pncad::document::Unlowered::Unheld => "unlowered_name",
+        pncad::document::Unlowered::Kind { .. } => "var_kind_mismatch",
+    }
+}
+
 /// The stable tag for an evaluation refusal (`eval` / `eval_count`).
 ///
 /// Note what is NOT here: division by zero and out-of-domain trig.
@@ -2330,7 +2338,6 @@ pub fn eval_error_tag(err: &EvalError) -> &'static str {
         EvalError::UnresolvedVar { .. } => "unresolved_var",
         EvalError::VarKindMismatch { .. } => "var_kind_mismatch",
         EvalError::DefinitionRefused { .. } => "definition_refused",
-        EvalError::UnloweredName { .. } => "unlowered_name",
         EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",
         EvalError::ContinuousExprInCountEval { .. } => "continuous_expr_in_count_eval",
         EvalError::CountOverflow => "count_overflow",
@@ -2362,6 +2369,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
+        TessellateError::PinchWedge { .. } => "pinch_wedge",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
@@ -3191,6 +3199,8 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
     match declaration {
         StaleDeclaration::VertexVertex { .. } => "vertex_vertex",
         StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::VertexOnEdge { .. } => "vertex_on_edge",
+        StaleDeclaration::EdgeEdge { .. } => "edge_edge",
         StaleDeclaration::CurveLocus { .. } => "curve_locus",
         StaleDeclaration::Patch { .. } => "patch",
     }

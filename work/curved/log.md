@@ -554,3 +554,4 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+- 2026-10-06 — Seam announcement from SHELL: unit 6 (`shell/axial-closed`, in flight) gives `geom_brep::plane_torus_section` its axis-parallel spiric arm. The plane×torus section then has one home, which `offset_axial`'s rim arm calls instead of minting its own. `Curve3::spiric` refuses stand-off zero, retiring `UncoveredClass::ZeroOffsetSpiric`. The DESIGN.md C1 parenthetical on where the spiric is minted is re-worded with the move. The decision is in `work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`. (SHELL orchestrator)

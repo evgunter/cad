@@ -66,7 +66,7 @@
 use std::collections::BTreeSet;
 
 use pncad::document::{
-    Doc, Evaluation, Expr, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker,
+    Doc, Evaluation, Formula, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker,
     SpokenNode,
 };
 use pncad::prelude::StableName;
@@ -274,8 +274,8 @@ pub enum BlendEvent {
     TargetLost {
         /// The body the set was about.
         target: BlendTarget,
-        /// The target's node as the document spoke it when the target
-        /// was fixed: the node is gone, so no later document says it.
+        /// The target's node by the last label the document gave it:
+        /// the node is gone, so no later document says it.
         node: SpokenNode,
         /// How many edges went with it.
         edges: usize,
@@ -379,9 +379,9 @@ pub struct BlendTool {
     edges: BTreeSet<StableName>,
 }
 
-/// The body the held edges are on, and its node as the document spoke
-/// it when the target was fixed: what [`BlendEvent::TargetLost`] names
-/// it by once the node is gone.
+/// The body the held edges are on, and its node as the document last
+/// spoke it ([`BlendTool::respeak`]): what [`BlendEvent::TargetLost`]
+/// names it by once the node is gone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HeldTarget {
     at: BlendTarget,
@@ -563,6 +563,15 @@ impl BlendTool {
         });
     }
 
+    /// **The target's node, spoken again from `doc`**, the shown
+    /// document after an operation ([`SpokenNode::respoken`]'s rule), so
+    /// a lost target is named by the last label it had.
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        if let Some(held) = &mut self.target {
+            held.node = held.node.respoken(doc);
+        }
+    }
+
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
     ///
@@ -683,7 +692,7 @@ impl BlendTool {
     /// selection's meaning — a stranded name, a mis-kinded one, a
     /// radius the geometry cannot take — refuses typed at evaluation
     /// on the node's own badge.
-    pub fn fillet_op(&self, radius: Expr) -> Result<SessionOp, BlendError> {
+    pub fn fillet_op(&self, radius: Formula) -> Result<SessionOp, BlendError> {
         Ok(SessionOp::AddFillet {
             target: self.require_target()?,
             radius,
@@ -698,7 +707,7 @@ impl BlendTool {
     /// # Errors
     ///
     /// As [`BlendTool::fillet_op`].
-    pub fn chamfer_op(&self, distance: Expr) -> Result<SessionOp, BlendError> {
+    pub fn chamfer_op(&self, distance: Formula) -> Result<SessionOp, BlendError> {
         Ok(SessionOp::AddChamfer {
             target: self.require_target()?,
             distance,

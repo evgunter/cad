@@ -432,3 +432,123 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — `swept-cocircular-arc-runs-build-one-wall` closed (PR #3826)
+
+Extrude and the full revolve build one wall per run of adjacent cocircular
+same-turn arcs (`swept::joins` → `Join::{Corner, Run, Cut}`; the full
+revolve's `collapse_runs` sums the arc sweeps); a circle cut into arcs keeps
+its C12.5 cut, one wall per arc on one key (the orchestrator accepted that
+reading: a curved run closing its full period refuses to merge). The partial
+revolve still builds an arc run one wall per arc — the props meridian fold
+groups pieces by split lineage — parked as
+`partial-revolve-arc-runs-wait-on-the-meridian-fold` and stated at the README
+claim site. `offset_axial::reauthor` reads a re-authored arc's sweep nearest
+the old one (an atan2-cut fix a collapsed meridian exposed). Full review
+(APPROVE-WITH-FIXES, no MAJOR): the fix pass made the arc boolean rows answer,
+corrected stale station prose, guarded `wall_runs`' one-corner loop, adopted
+the probes (Vector, hole loop, k = 5, Interval, π-summing runs, the hollow
+sweep across the atan2 cut, f64/Interval names) and folded duplicate helpers.
+Merged up to main over ~3000 commits; main's split-ball row
+(`pi_seam_and_kiss_through_the_boolean`) re-pointed to a hand-cut equator. No
+re-baseline moved. Merged over main's own red at 1e-6
+(`pocket_ring_steep_ellipse`, filed on JOIN).
+## 2026-10-06 — the plane–plane run-out fork goes to Ev (`[ev]` PR #4085)
+
+`a-plane-plane-blend-cannot-end-at-an-unrequested-corner` (P0) put
+through the design-fork protocol: fork-log row 72. Designers A and B
+both diagnosed one missing idea (a band's end as its section by the face
+it runs into) and a face-whole planar carve, recommended the cut-off /
+mitre / patch by request count, and converged after three rounds; the
+only crossover was the mitre's name key, settled once both measured that
+a wider role variant is additive on the wire. PR 4085 asks Ev to rule
+the rule itself, the C8 and H7 text, whether an extruded box's isosceles
+mitre should lint as an unproven coincidence under D10, and the
+vocabulary. The designers flagged three rows to file once Ev rules:
+`CornerConfig::policy` maps `MixedConvexity` to `RunOutFeather`;
+`RuledPlan::plan` refuses a requested cap rim (the ruled band's own
+2-of-3 gap); the inner corner of an L-shaped rim (a torus pivot about L,
+or the end-face rule; the torus is degenerate there).
+## 2026-10-06 — `a-hole-filleted-at-both-rims-in-one-fillet-panics-in-blend-surgery` closed (PR #4088)
+
+A through-bore's two rims filleted in one call panicked at the surgery's
+naming postcondition (in the kernel, not only through the document): both
+are ladder rims sharing the bore wall as mate, the wall's seams run rim to
+rim, and the second carve's `meridian_splits` row named the fragment the
+first carve left rather than the source seam. The row now names
+`frag.source`, as the annulus phase does, the band telling the two splits
+of one seam apart; `shared_support_gate`'s doc no longer says two ladder
+rims never meet. Rows: the extruded bore at N = 2…4 and box ∖ cylinder
+build at the two-tori closed form and equal the two single-rim calls in
+either order (red on main), and one document `Fillet` over both rims mints
+distinct names. Reviewed by the orchestrator's read (one-key fix, the
+convention pinned by the new rows).
+
+`declared-joint-kind-zero-margin-reads-smooth` parked on
+`d10-one-way-to-say-intent-is-unbuilt`: profile declared-joint kinds are
+the hold's ground (D10 makes tangency constructed).
+
+## 2026-10-06 — `support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place` closed (PR #3822)
+
+The ladder case the row named was already exact (arm (a) meters each open
+link's trimline against the widened ring); what carved wrong on main was
+a ruled link beside an annulus rim — a rod on a squared washer's bottom
+face with the bore rim, a tier-3-valid body whose bottom boundary crossed
+itself. `support_boundary_clearance` now reads a co-requested outer-cycle
+edge at its own trim (`co_requested_trim`): an open link as its trimline,
+another rim's arc as that rim's whole trim circle (exact by closed form
+and containment). Full review (APPROVE-WITH-FIXES, no MAJOR; every probe
+refused on its closed-form margin and carved bodies matched it); the fix
+pass took all six points: the arm (c) sibling row closed (predicate 3's
+`s > r` keeps a plane-cap trim disc out of the sliver) with the remaining
+open-link candidate filed as `ruled-cap-meter-reads-a-co-requested-open-link-at-its-stored-place`
+(P3); the rim-arc branch kept with its unreachability argued at the site;
+"this link's trim on this face" given one home (`EdgeBlend::trims`,
+`Link::trim_on`, `open_trimline`); the reviewer's boundary sweep adopted
+as rows.
+
+## 2026-10-06 — the plane–plane run-out ruled (Ev, PR #4085)
+
+Ev approved all four decisions: the request-count rule (cut-off, mitre,
+patch), the C8/H7 text, and the vocabulary; decision 3 (whether a box's
+isosceles mitre lints) went to INTENT at Ev's request (#4094), where Ev
+answered: land it under (b), recorded as a value-decided coincidence and
+proven at INTENT's stage 4 (#4097). Fork-log row 72 completed (byte 26:
+Opus = A, Fable = B; both matched after round 3). The row's build order is
+in its `## Ruled` section; step 1 dispatches next. Filed
+`chamfer-ends-in-a-curved-end-face` (P3) from Ev's curved-end-face
+question.
+
+## 2026-10-06 — `a-blend-refuses-a-solid-of-several-shells` closed (PR #4113)
+
+A blend carves each chain inside the shell it lies in and leaves every other
+shell untouched, byte for byte down to the pcurve rows (the inventory gate
+that refused any body but one solid of one shell is gone). The row's premise
+was wrong: the bracket split's leg-tip half is two solids of one shell each;
+the door covers that and a solid with a void shell. A chain or corner whose
+supports lie in two shells is tier-1-invalid and refuses `BodyNotIntact`
+(the `AcrossShells` variant the lane first minted was folded in). Full
+review (APPROVE-WITH-FIXES, no MAJOR) — its N6 showed a tier-3′ backstop at
+the door would refuse a valid island round and miss one-shell overlap, so
+none was added; the overlap hole the lane found is
+`blend-material-is-never-checked-against-faces-that-are-not-its-supports`
+(P0, in flight). The fix pass also caught that an empty request on an
+empty body had begun to answer `SurgeryInvariant`. Filed JOIN's
+`pinch-tessellate-row-escalates-coincidence-at-eps-1e-6` (main red at 1e-6;
+merged over it). First BAND units run as cloud sessions.
+
+## 2026-10-06 — `fillet-support-ring-must-be-a-circle` closed (PR #4119)
+
+The ring carry-through meter reads a ring piece by piece: a polygonal ring
+(a prism unioned onto a face) is metered edge by edge against the region the
+carve sweeps, exactly, and a ring counts as one circle only when it is one
+closed circle edge. That second change also fixes three configurations
+where main builds a tier-3-INVALID body (a lens ring of two bores in one
+subtraction order, a three-arc ring, a hostless-annulus lens), each now a
+row. A multi-edge ring refuses at its least margin, independent of
+subtraction order. The duplicate whole-circle readings (`CircleMargins`,
+the `effective` widening) are retired: one home for ring reading. The heat
+sink rounds its plate after the union, gated on tier 3. Full review
+(APPROVE-WITH-FIXES, no MAJOR) taken in full. Filed:
+`a-ring-of-ellipse-edges-refuses-the-ring-meter` (P3). The lane's duplicate
+filing of main's 1e-6 pinch red was dropped for JOIN's (PR 4113).

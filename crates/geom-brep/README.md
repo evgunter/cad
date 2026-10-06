@@ -77,11 +77,22 @@ bound. (3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
 by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary
-at two points. The solution set in the chain is one arc. Where limb 3
-runs that proof, each box, cut to the region its search covers (the
-wall's knot rectangle, the ℝ³ slab), holds exactly two simple solutions
-on its boundary, so one piece, and consecutive boxes share it (chart
-edges walked in runs of one sign or monotone, ℝ³ faces by Krawczyk). A
+at two points. The solution set in the chain is one arc, and it spans
+the carrier; the proof is the same at every door, a search's and an
+edge's at rest. Each box, cut to the wall's knot rectangle (and to the
+ℝ³ slab where a search clips to one), holds exactly one piece: two
+simple solutions on its boundary, or a stretch of its boundary on a
+side of the wall's domain that the boundary pass reads within ε of the
+plane with no piece of it clear (the side's own section and the clear
+test C3 decides a side by), whose cover puts every solution in the box
+within ε of the side. That piece meets the slice through every knot
+two boxes share and the slices through both ends of the carrier: an
+arc's end counting also where a zero of the locus is certified within ε
+of the carrier's end, on a slice beside it, and a side's where the end,
+moved across onto the side, lands on its stretch at a point the
+boundary pass reads within ε of the plane and not clear. So the arc
+spans the carrier (chart edges walked in runs of one sign or monotone,
+ℝ³ faces by Krawczyk). A
 rung whose chain is a graph but not one arc gives way to a narrower one.
 With none certified, the narrowest rung probed speaks: its band verdict
 where it straddled, `SsiError::TubeNotOneArc` with what it found where
@@ -468,14 +479,26 @@ consistency, corner configuration), which is what lets an interval
 replay certify validity over a parameter box. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
-Trimlines are stored as `TangentIntersection`. Scope: the
-three-convex-edge sphere-octant corner is in, and so is the ruled band's
-transverse cap (a plane face perpendicular to the ruling, where the
-band ends in the cap's own section of it — `CornerConfig::TransverseCap`,
-`RunOutPolicy::CutOffAtTransverseCap`, decided by
-`fillet3_cap_transverse` at the link's extent); every other corner
-refuses with a `CornerConfig` tag and the `RunOutPolicy` that would
-handle it (`RunOutStopAtVertex`, `RunOutFeather`), refusal-payload names
+Trimlines are stored as `TangentIntersection`. Scope: a straight band
+(plane–plane, or the ruled band about a straight spine) ends at a
+trivalent vertex of one convexity between planes as the request decides
+— by how many of the vertex's three edges it names. All three: the
+corner patch (the sphere octant; the chamfer's plane through the three
+feet). One: the cut-off — the band ends in the end face's plane section
+of it, a chord for a chamfer, and for a fillet a circle where the end
+face is perpendicular to the edge and an ellipse otherwise
+(`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`;
+`fillet3_cap_transverse` picks the kind). Two: the mitre — each band is
+cut off by the other's support, so the two meet along their
+intersection, a line for a chamfer and a planar ellipse for a fillet
+(`CornerConfig::Turn`, `RunOutPolicy::Mitre`). Chain G1 classifies a
+junction of two plane–plane links rather than refusing it: Zero, one
+band runs through a joint; definite, the chain breaks into two ends at
+a turn; the sliver band escalates. It still refuses at a junction that
+involves a curved link. Every other end refuses — a curved end face, a
+foot landing inside a support rather than on a rim edge, an end vertex
+of valence other than three, mixed convexity — with a `CornerConfig`
+tag and the `RunOutPolicy` that would handle it, refusal-payload names
 only. A
 spine that is neither line nor circle refuses `SpineUnsupported`: the
 canal-surface blend, an approximating surface per O2, is not

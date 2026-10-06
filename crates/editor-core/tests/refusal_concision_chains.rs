@@ -43,10 +43,10 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
 const KERNEL_KEYED: &[&str] = &[
     "Revolve/VoidInsertion",
     "Revolve/Pcurve",
-    "Split/Reduce/ScaffoldingOperand",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
     "Split/Reduce/CrossingInsertion",
@@ -235,7 +235,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/CountOverflow",
     "Expr/CountToScalarOutOfRange",
     "Expr/NonFiniteResult",
-    "Expr/UnloweredName",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
     "FaceFrameKind",
@@ -360,9 +359,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    "Split/Reduce/ScaffoldingOperand",
     // work/carve/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
@@ -789,6 +788,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
         doc_ref: doc_ref(),
         fault: PartFault::PartRootFailed {
+            held: Default::default(),
             node: RecipeNodeId(tagged(node)),
             refusal: refusal.into(),
         },
@@ -858,20 +858,14 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     let in_part = part(7, placer(editor_core::PlacerRow::Silent));
     let documents: Vec<_> = in_part
         .carried_chain()
-        .map(|level| (level.document, level.node))
+        .map(|level| (level.document.doc_ref(), level.node))
         .collect();
     let part_ref = doc_ref();
     assert_eq!(
         documents,
         vec![
-            (
-                editor_core::CarriedIn::Part(&part_ref),
-                RecipeNodeId(tagged(7))
-            ),
-            (
-                editor_core::CarriedIn::Part(&part_ref),
-                RecipeNodeId(tagged(4))
-            ),
+            (Some(&part_ref), RecipeNodeId(tagged(7))),
+            (Some(&part_ref), RecipeNodeId(tagged(4))),
         ],
         "the placer's level is in the part the mate is in"
     );
@@ -1114,7 +1108,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole)",
             NodeErrorKind::FullRangeStep {
-                step: formula("360 deg"),
+                step: stored("360 deg"),
                 evaluated: None,
                 turns: StepTurns::Whole,
             },
@@ -1122,7 +1116,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: formula("720 deg * scalar(blades)"),
+                step: stored("720 deg * scalar(blades)"),
                 evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
                 turns: StepTurns::Whole,
             },
@@ -1130,7 +1124,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within)",
             NodeErrorKind::FullRangeStep {
-                step: formula("760 deg"),
+                step: stored("760 deg"),
                 evaluated: None,
                 turns: StepTurns::Within(formula("40 deg")),
             },
@@ -1138,7 +1132,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: formula("360 deg / scalar(blades) - 400 deg"),
+                step: stored("360 deg / scalar(blades) - 400 deg"),
                 evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
                 turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
             },
@@ -1146,7 +1140,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(unresolved)",
             NodeErrorKind::FullRangeStep {
-                step: formula("1e20 rad"),
+                step: stored("1e20 rad"),
                 evaluated: None,
                 turns: StepTurns::Unresolved,
             },
@@ -1458,7 +1452,27 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "TangencyUnsupported",
             R::TangencyUnsupported { face, vertex },
         ),
-        ("ScaffoldingOperand", R::ScaffoldingOperand { edge }),
+        (
+            "KnifeEdge",
+            R::KnifeEdge(topo::KnifeEdge {
+                wall: face,
+                at: topo::KnifeEdgeSite::Vertex(vertex),
+            }),
+        ),
+        (
+            "ScaffoldingOperand",
+            R::ScaffoldingOperand {
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            R::InsideOutOperand {
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
         (
             "SliverVertex",
             R::SliverVertex {
@@ -1485,6 +1499,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
         ("LoneVertex", R::LoneVertex { vertex }),
+        (
+            "NullEdgeAtVertex",
+            R::NullEdgeAtVertex {
+                vertex,
+                edge: topo::EdgeKey::default(),
+            },
+        ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
         ("UnboundedFace", R::UnboundedFace { face, vertex }),
         (
@@ -1620,7 +1641,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "DescribeEscalated",
             F::DescribeEscalated { edge, diag: diag() },
         ),
-        ("SectionCusp", F::SectionCusp { edge, face }),
+        (
+            "KnifeEdge",
+            F::KnifeEdge(topo::KnifeEdge {
+                wall: face,
+                at: topo::KnifeEdgeSite::Edge(edge),
+            }),
+        ),
         (
             "SectionWindingUndecided",
             F::SectionWindingUndecided {
@@ -2320,13 +2347,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
         ("RepeatedEdge", E::RepeatedEdge { edge }),
         ("NonpositiveSize", E::NonpositiveSize { size: 0.0 }),
         (
-            "UnsupportedBody",
-            E::UnsupportedBody {
-                solids: 2,
-                shells: 2,
-            },
-        ),
-        (
             "UnsupportedChain",
             E::UnsupportedChain {
                 edge,
@@ -2914,12 +2934,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnloweredName",
-            EvalError::UnloweredName {
-                name: VarName::from_static("width"),
-            },
-        ),
-        (
             "CountExprInContinuousEval",
             EvalError::CountExprInContinuousEval,
         ),
@@ -3412,6 +3426,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootFailed",
             PartFault::PartRootFailed {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
@@ -3419,6 +3434,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootFailed(part)",
             PartFault::PartRootFailed {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Part {
                     doc_ref: doc_ref(),
@@ -3430,6 +3446,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootPoisoned",
             PartFault::PartRootPoisoned {
+                held: Default::default(),
                 root: RecipeNodeId(tagged(8)),
                 through: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
@@ -3438,6 +3455,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "RootFailureUnrecorded",
             PartFault::RootFailureUnrecorded {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
             },
         ),
@@ -3569,7 +3587,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 Some(NodeResult::Failed(error)) => match &error.kind {
                     NodeErrorKind::Part {
                         doc_ref,
-                        fault: fault @ PartFault::PartProduct { refusal },
+                        fault: fault @ PartFault::PartProduct { refusal, .. },
                     } if refusal.kind() == class => row(
                         name,
                         NodeErrorKind::Part {
@@ -3630,6 +3648,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Part {
                 doc_ref: doc_ref(),
                 fault: PartFault::PartProduct {
+                    held: Default::default(),
                     refusal: error.into(),
                 },
             },
@@ -4677,10 +4696,20 @@ fn decode(literal: &str) -> String {
 }
 
 /// `text` parsed as the formula a refusal carries, `blades` a count.
-fn formula(text: &str) -> editor_core::Expr {
+fn formula(text: &str) -> editor_core::Formula {
     let names = std::collections::BTreeMap::from([(
         editor_core::VarName::new("blades").expect("a name"),
         editor_core::Dimension::Count,
     )]);
-    editor_core::parse_expr(text, &names).expect("the formula parses")
+    editor_core::parse_formula(text, &names).expect("the formula parses")
+}
+
+/// [`formula`] as a document stores it, `blades` a count variable.
+fn stored(text: &str) -> editor_core::Expr {
+    formula(text)
+        .lower(&|name| {
+            (name.as_str() == "blades")
+                .then_some((editor_core::VarId(tagged(9)), editor_core::Dimension::Count))
+        })
+        .expect("the formula lowers")
 }

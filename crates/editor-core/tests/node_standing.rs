@@ -183,7 +183,7 @@ fn every_standing_renders_one_way_through_every_door() {
                 &[GeomPred::DatumDistance {
                     datum: node,
                     cmp: Cmp::Approx,
-                    value: len(0.0),
+                    value: editor_core::test_support::stored_expr(&len(0.0)),
                 }],
                 &s.doc.var_env::<f64>(),
                 Tol::witness(),
@@ -427,7 +427,7 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
         &[GeomPred::DatumDistance {
             datum: s.poisoned,
             cmp: Cmp::Approx,
-            value: len(0.0),
+            value: editor_core::test_support::stored_expr(&len(0.0)),
         }],
         &s.doc.var_env::<f64>(),
         Tol::witness(),

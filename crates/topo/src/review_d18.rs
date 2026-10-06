@@ -257,6 +257,20 @@ impl Drop for PanicCapture {
     }
 }
 
+/// Gives `face` a ring link that does not resolve, and names it.
+pub(crate) fn tear_ring(body: &mut Body<f64>, face: FaceKey) -> String {
+    let outer = body.get_face(face).unwrap().outer;
+    let record = body.get_loop(outer).unwrap().clone();
+    let ring = body.loops.insert(record);
+    body.loops.remove(ring);
+    body.faces.get_mut(face).unwrap().rings.push(ring);
+    format!(
+        "{}'s rings names {}",
+        EntityId::Face(face),
+        EntityId::Loop(ring)
+    )
+}
+
 /// Runs `op` on the torn `body` and asserts it panics with a report
 /// containing every fragment of `premise`, in its plan phase: the body
 /// is deep-equal afterwards. Returns the report. It runs inside a
@@ -3406,10 +3420,11 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 17] = [
+const READ_DOORS: [&str; 19] = [
     "face_carrier",
     "carrier_pair_relation",
     "carrier_pair_verdict",
+    "flush_pair_relation",
     "mint_pcurves",
     "mint_pcurves_of",
     "face_pose",
@@ -3424,19 +3439,23 @@ const READ_DOORS: [&str; 17] = [
     "contfp",
     "curved_face_containment",
     "classify_neighborhood",
+    "face_azimuth_window_traces",
 ];
 
 /// The doors the read sweep floors on a premise panic: the split, which
 /// reads every face, edge and vertex before it builds, the containment
-/// and neighborhood doors, whose walks a torn loop or orbit reaches,
-/// and the carrier doors, which a dropped surface reaches.
+/// and neighborhood doors and the azimuth window walk, whose walks a
+/// torn loop or orbit reaches, and the carrier doors, which a dropped
+/// surface reaches.
 #[cfg(not(debug_assertions))]
-const PREMISE_DOORS: [&str; 5] = [
+const PREMISE_DOORS: [&str; 7] = [
     "split_reduce",
     "contfp",
     "classify_neighborhood",
     "face_carrier",
     "carrier_pair_verdict",
+    "flush_pair_relation",
+    "face_azimuth_window_traces",
 ];
 
 /// The read sweep's bodies: [`FIXTURES`], whose faces decline their
@@ -3586,6 +3605,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     for (face, data) in body.faces() {
         use crate::boolean::{
             PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+            flush_pair_relation,
         };
         let outside = || match body.get_surface(data.surface) {
             Some(_) => Ok(false),
@@ -3613,6 +3633,9 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         });
         judge_read(capture, &mut census, "carrier_pair_verdict", || {
             pair(carrier_pair_verdict(body, face, &sound, sound_face, false, band).err())
+        });
+        judge_read(capture, &mut census, "flush_pair_relation", || {
+            pair(flush_pair_relation(body, face, &sound, sound_face, false, band).err())
         });
     }
     // The mints write their body, so each runs on a clone, and a
@@ -3689,6 +3712,15 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         judge_read(capture, &mut census, "curved_face_containment", || {
             contain(crate::boolean::curved_face_containment(body, face, q, band).map(|_| true))
         });
+        // The window walk: the face is the caller's key; a record past
+        // it that does not resolve had to panic.
+        judge_read(capture, &mut census, "face_azimuth_window_traces", || {
+            use crate::chord_join::SplitJoinError;
+            match crate::chord_join::face_azimuth_window_traces(body, face, band) {
+                Err(e @ SplitJoinError::Corrupt { .. }) => Err(e.to_string()),
+                answer => Ok(answer.is_ok()),
+            }
+        });
     }
     // The split plane crosses every fixture; the side map holds a
     // verdict for every live vertex, so a vertex it lacks is a dangling
@@ -3712,7 +3744,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         });
     }
     judge_read(capture, &mut census, "split_reduce", || {
-        Ok(crate::splitting::split_reduce(body, &plane, Tol::witness()).is_ok())
+        Ok(crate::splitting::reduce(body, &plane, Tol::witness()).is_ok())
     });
     census
 }

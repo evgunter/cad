@@ -32,13 +32,13 @@
 //! corner of a section face carries a body edge no subset of the
 //! section edges names, so that run-out stands for every such
 //! selection; which refusal fires FIRST depends on the setback, a
-//! larger one meeting `FaceClearanceUncertified` before it. Four walls
+//! larger one meeting `FaceClearanceUncertified` before it. Five walls
 //! pin the cells at this plane and setback: the chords chamfered
 //! (`UnsupportedRunOut`) and filleted (the same), both section faces'
-//! whole rims (`ChainNotG1`), and the offcuts, one solid of two
-//! shells (`UnsupportedBody`)
-//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`,
-//! `work/band/a-blend-refuses-a-solid-of-several-shells.md`).
+//! whole rims (`ChainNotG1`), and the offcuts' chords chamfered and
+//! filleted — two solids, each chord blended inside its own, meeting
+//! the same run-out
+//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`).
 //!
 //! The outline's decimal-via ancestor lives on as the large-K lint's
 //! litmus fixture (`tools/k-lint/tests/litmus.rs`).
@@ -47,13 +47,14 @@
 
 use core::f64::consts::{PI, SQRT_2};
 use pncad::document::ExtrudeSide;
+use pncad::prelude::AuthoredNode;
 
 use pncad::document::{NodeErrorKind, PartSelect, RefusingReach};
 use pncad::geom_core::Tol;
 use pncad::prelude::{
     BlendError, CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation,
-    Expr, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag, Selector,
-    SplitHalf, Start, ValuePayload, apply, evaluate, p2, select,
+    Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag,
+    Selector, SplitHalf, Start, ValuePayload, apply, evaluate, p2, select,
 };
 use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
@@ -72,11 +73,11 @@ const CUT: f64 = 2.75;
 /// The setback the walls' blends ask for.
 const SETBACK: f64 = 0.1;
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("a length")
 }
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("a scalar")
 }
 
 /// The outline, in the PATHS algebra.
@@ -106,7 +107,7 @@ fn outline(tol: Tol) -> ClosedLoop<f64> {
         .expect("bracket seam")
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -205,7 +206,7 @@ pub(crate) fn probe_body(tol: Tol) -> Body<pncad::geom_core::k_stats::Probe> {
 struct WallProbe {
     n: u32,
     what: &'static str,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     pinned: fn(&BlendError) -> bool,
 }
 
@@ -281,7 +282,7 @@ fn split_and_break(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> S
         "end the gallery document in the chamfer: its body is the corner piece less \
          4·(d²/2)·√2 = {delta_v:.6} (d = {SETBACK}; exact while d·√2 < CUT − 2.5)"
     );
-    let probes: [WallProbe; 4] = [
+    let probes: [WallProbe; 5] = [
         WallProbe {
             n: 1,
             what: "the corner piece's four cap chords, chamfered by name",
@@ -303,8 +304,14 @@ fn split_and_break(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> S
         WallProbe {
             n: 4,
             what: "the offcuts' cap chords, chamfered by name",
-            node: Node::chamfer(offcuts, len(SETBACK), off_chords),
-            pinned: |e| matches!(e, BlendError::UnsupportedBody { .. }),
+            node: Node::chamfer(offcuts, len(SETBACK), off_chords.clone()),
+            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
+        },
+        WallProbe {
+            n: 5,
+            what: "the offcuts' cap chords, filleted by name",
+            node: Node::fillet(offcuts, len(SETBACK), off_chords),
+            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
         },
     ];
     for WallProbe {
@@ -334,7 +341,7 @@ fn split_and_break(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> S
     format!(
         "split at x + y = {CUT}: offcuts V = {off:.6}, corner piece V = {kept:.6}, sum = whole; \
          its four cap chords are named by their ends, and breaking them by name refuses \
-         (walls 1-4)"
+         (walls 1-5)"
     )
 }
 
@@ -364,5 +371,16 @@ pub fn stop(tol: Tol) -> Stop {
             up: 'z',
         },
         bodies: vec![SceneBody::plain("bracket", [0.36, 0.56, 0.86], body).named(&ev, node)],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The split's walls, each refusing as pinned.
+    #[test]
+    fn the_split_halves_refuse_their_breaks_as_pinned() {
+        let tol = pncad::geom_core::Tol::witness();
+        let (doc, node) = super::document(tol);
+        super::split_and_break(&doc, node, tol);
     }
 }

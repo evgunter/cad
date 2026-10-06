@@ -116,3 +116,91 @@ face is a working copy of a gated operand, so an arena miss there is
 the kernel's own surgery, not the user's broken face: the text went
 from "our bug" to "your face is broken" for that arm. Whichever
 reading the `CorruptFace` split settles on, it decides this text too.
+
+## 2026-10-05 — typed torn hops the boolean's record-hop unit converted
+
+`torn-hops-read-as-absent-across-the-boolean`'s unit turned these typed
+raises over a hop past a resolved record into premise panics, and kept
+each one over a key the caller carries:
+- `finish.rs` `pinch_site`: `JoinDesync` "a pierce vertex no longer
+  resolves" (both callers resolve it first), "a pierce vertex's face",
+  "a face's loop no longer resolves", "a face's loop is not walkable".
+  `discarded`'s walks keep "a section face no longer resolves" and
+  panic past it.
+- `zip.rs` `split_across`: `ZipCorrespondence` "a pinch half-edge" /
+  "a pinch loop no longer resolves", "a pinch vertex's orbit does not
+  close"; the vertex itself keeps "a pinch vertex no longer resolves".
+- `carrier_cross.rs` `boundary_crossing`: `ClassificationInvariant`
+  "boundary loop lost", "does not close", "half-edge lost"; "face lost"
+  stays.
+- `reduce.rs` `boundary_meets_circle_only_at`: every hop past the face;
+  the face keeps its `ClassificationInvariant`.
+- `ops.rs` `describe_edges`: `EdgeDescribeFailure::NotWalkable` now
+  means only a worklist edge that does not resolve, or an edge whose
+  curve is not certified on the smooth arm.
+- `surface_group.rs` `unmated_boundary`: its `Err(face)` now means only
+  a member key that does not resolve.
+
+`PointInSolidError::CorruptFace`'s raises in `wall_outline`,
+`torus_chart_windows` and `sphere_chart_trim` are untouched: only the
+curve reads that answered as a kind were converted there.
+The result is that one walk can answer in two ways. In
+`sphere_chart_trim`, a torn loop walk, half-edge, vertex or point
+answers `CorruptFace`, while a torn edge or curve panics. `wall_outline`
+splits the same way, and so does `torus_chart_windows`, where a torn
+edge is also typed. Each site carries a comment that hands its
+`CorruptFace` raises to this row. Once this row's split ("record misses
+panic") lands, each walk answers one way.
+
+## 2026-10-06 — typed torn hops the split / chord-join / reach unit converted
+
+`torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules`'
+unit turned these typed raises over a hop past a resolved record into
+premise panics, and kept each one over a key the caller carries:
+- `chord_join.rs` `outer_cycle`: `SplitJoinError::Corrupt` for the
+  outer loop and its walk; the face keeps `Corrupt`.
+  `run_azimuth_images`' member half-edge and edge, and
+  `cone_apex_closure`'s member half-edge (`Corrupt`), now `proven` /
+  `linked`. So `face_azimuth_window`, `face_azimuth_images` and
+  `cone_apex_closure` answer `Corrupt` only for a face that does not
+  resolve, and every caller in `boolean/solid_contain.rs` resolved
+  that face first.
+- `chord_join.rs` `along_edge_spec`: the circle arm's `Corrupt` for the
+  segment edge's `he_plus` and its end; the segment edge itself keeps
+  a typed `SectionInvariant` ("the segment's edge no longer resolves").
+  A chord end's point is now a link too (`Body::point_of`), where a torn
+  point and a stale chord end shared one `SectionInvariant`. The chord
+  end itself keeps a typed `SectionInvariant` ("a chord end along the
+  segment's edge no longer resolves"), though `segment_curve` read it
+  off a half-edge's `start` in `first_chord` / `second_chord` a line
+  before, on the same `&Body`. Those functions' own hops past the
+  join's halves (`corrupt_he`, `corrupt_loop`, `corrupt_face`) are typed
+  `SplitJoinError::Corrupt` raises of this row's, so the chord end
+  stays typed with them and moves when they do.
+- `splitting/classify.rs` `sphere_zone_reach` checks for a
+  `LoopBoundary::Empty` outer loop before it calls `props::loop_edges`,
+  because `LoopEdgesError::Corrupt` answers an empty loop and a torn hop
+  alike. That pre-check is this row's `LoopEdgesError::Corrupt` split
+  done locally at one caller; once the split lands, the empty loop is
+  its own variant and the pre-check (and the second read of the outer
+  loop) goes.
+- `chord_join.rs` `face_azimuth_window_traces` (`sweep-testing`): the
+  surface's `Corrupt`.
+- `splitting/join.rs` `split_leave`: the face's surface (`Corrupt`).
+- `splitting/classify.rs` `sphere_zone_reach` now panics on
+  `props::loop_edges`' `LoopEdgesError::Corrupt` past a cycle outer
+  loop, and on `sphere_chart_trim`'s `CorruptFace`, both past a face
+  the gate resolved. `loop_edges` and `sphere_chart_trim` themselves
+  are unchanged and still answer typed for other callers.
+
+**What `solid_contain.rs` now folds.** `cylinder_chart_trim`'s
+`face_azimuth_window(..).ok()` and the cone arm's
+`face_azimuth_images(..).ok()` / `Err(_)` fold into `CorruptFace` only
+the walk's geometric refusals: a run edge with no closed-form chart
+image, a fitted image, a vertex off the carrier, `ApexUnlifted`, and,
+in `cylinder_chart_trim` and the cone's `face_azimuth_images` fold, an
+escalation. Those are not corruption, so the `CorruptFace` label there
+is now wrong in every case it fires; this row's split ("needs its own
+variant first") is where it gets a name. `wall_outline`'s
+`Err(_) => unsupported()` and `sphere_chart_trim`'s `Err(_) => Ok(None)`
+fold only geometric refusals, which is what they claim.

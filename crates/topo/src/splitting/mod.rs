@@ -8,10 +8,24 @@
 //! component distribution, the carve into two result bodies), the
 //! public [`split`] op, and **slicing** ([`plane_section`], `section`).
 //!
+//! The doors that take an operand ([`split`], [`split_reduce`],
+//! [`plane_section`], [`vertex_sides`]) take a finished one
+//! ([`crate::AtRestBody`]): a body tier 3 passed, or one whose scalar runs
+//! no at-rest gate (a dual). Over the latter the door reads what the type
+//! promises itself before anything else, with the Boolean's read
+//! ([`crate::AtRestBody::gate_unverdicted`]):
+//!
+//! - tier 2, over the whole body: a strut, an empty loop, a null edge or
+//!   a shell in pieces refuses [`SplitReduceError::ScaffoldingOperand`];
+//! - orientation, as tier 3 reads it: check 7 per solid, then check 10
+//!   per shell. A solid whose total is negative, or a shell bounding
+//!   negative material inside a solid whose total is positive, refuses
+//!   [`SplitReduceError::InsideOutOperand`].
+//!
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
 //!
-//! 1. **Operand gate (the C5 table, scoped to the plane's reach)**:
+//! 1. **Carrier gate (the C5 table, scoped to the plane's reach)**:
 //!    a face of a kind the pipeline has no `(kind × plane)` arm for
 //!    (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`]) only when the
@@ -79,6 +93,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::null::NullEdge;
+use crate::validate::{AtRestBody, Unfinished, ValidationError};
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
@@ -211,6 +226,45 @@ pub struct SplitReduction<T: Real> {
     pub null_edges: Vec<NullEdgeRecord>,
 }
 
+/// **A knife edge the split would mint and cannot declare.** The plane
+/// is tangent to a curved wall that bends away from its material (a
+/// hole's wall touched from inside): material lies on both sides of the
+/// plane at the contact, and the piece on the wall's side meets the cut
+/// face tangentially along it, tapering to an edge of wedge 0. A split
+/// has no declaration channel, so it refuses every such edge (D1). One
+/// refusal, raised by whichever stage reads the contact first
+/// ([`SplitReduceError::KnifeEdge`], [`SplitFinishError::KnifeEdge`];
+/// [`SplitError::knife_edge`] reads either).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KnifeEdge {
+    /// The curved wall the plane is tangent to.
+    pub wall: FaceKey,
+    /// Where the contact was read.
+    pub at: KnifeEdgeSite,
+}
+
+/// Where a [`KnifeEdge`]'s contact was read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KnifeEdgeSite {
+    /// An edge that runs along the contact: a seam of the wall, or the
+    /// edge between the wall and a face in the plane.
+    Edge(EdgeKey),
+    /// An ON vertex the contact passes through where no edge runs along
+    /// it (the contact crosses a rim mid-wall).
+    Vertex(VertexKey),
+}
+
+impl core::fmt::Display for KnifeEdge {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the split plane is tangent to a curved face where it cuts, so a piece would \
+             taper to a knife edge nobody asked for. Recourse: move the split plane off the \
+             tangency"
+        )
+    }
+}
+
 /// Typed failure of [`split_reduce`]; the returned operand clone is
 /// dropped, the operand itself was never touched.
 #[derive(Debug)]
@@ -260,11 +314,31 @@ pub enum SplitReduceError {
         /// The ON vertex where the contact was classified.
         vertex: VertexKey,
     },
-    /// The operand already contains null-edge scaffolding — it is a
-    /// mid-surgery body, not a splittable operand.
+    /// The plane is tangent to a curved wall that bends away from its
+    /// material, read where the reduction finds the wall tangent at an
+    /// ON vertex (`rules::apply_rule_a`): the knife edge [`KnifeEdge`]
+    /// names.
+    KnifeEdge(KnifeEdge),
+    /// The operand is well-formed but not a closed solid at rest: tier 2
+    /// ([`crate::validate_closed`]) refuses it for construction
+    /// scaffolding an edit left behind — a strut's valence-1 vertex, an
+    /// empty loop, a null edge, a shell in pieces. The split serves
+    /// finished solids only.
     ScaffoldingOperand {
-        /// The scaffolding edge.
-        edge: EdgeKey,
+        /// The validator's tier-2 findings, each naming its entity.
+        errors: Vec<ValidationError>,
+    },
+    /// The operand holds material wound negative: a solid whose signed
+    /// volume tier 3's check 7 decides definitely negative
+    /// ([`ValidationError::NegativeVolume`]), or a shell check 10 finds
+    /// bounding a region of winding −1 inside a solid whose total is
+    /// positive ([`ValidationError::ShellWinding`]). Its faces bound the
+    /// complement of the region they enclose, and each side would carry
+    /// that complement's half.
+    InsideOutOperand {
+        /// The validator's findings, each naming its solid (and, for a
+        /// shell, the shell).
+        errors: Vec<ValidationError>,
     },
     /// A vertex landed in the sliver band of the plane (F6): the
     /// operand/plane pair is ill-conditioned at this ε. No snapping —
@@ -336,6 +410,17 @@ pub enum SplitReduceError {
         /// The lone vertex.
         vertex: VertexKey,
     },
+    /// An edge leaving the vertex [`classify_neighborhood`] was asked
+    /// about is a null edge: a sector is read off its edge's carrier, and
+    /// a null edge has none. The pipeline never hands it one (the
+    /// finished-body gate runs tier 2 first); a caller of the public read
+    /// over a mid-surgery body can.
+    NullEdgeAtVertex {
+        /// The caller's vertex.
+        vertex: VertexKey,
+        /// The null edge leaving it.
+        edge: EdgeKey,
+    },
     /// The side map [`classify_neighborhood`] was handed holds no
     /// verdict for a vertex its neighborhood reaches.
     UnrecordedSide {
@@ -372,6 +457,17 @@ pub enum SplitReduceError {
 impl From<BandError> for SplitReduceError {
     fn from(e: BandError) -> Self {
         Self::Band(e)
+    }
+}
+
+impl SplitReduceError {
+    /// The operand gate's refusal ([`AtRestBody::gate_unverdicted`]),
+    /// typed for the split.
+    pub(crate) fn unfinished(unfinished: Unfinished) -> Self {
+        match unfinished {
+            Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
+            Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
+        }
     }
 }
 
@@ -432,10 +528,18 @@ impl core::fmt::Display for SplitReduceError {
                 "the split plane is tangent to a curved face at a vertex, and a tangent \
                  cut is not supported yet. Recourse: move the split plane off the tangency"
             ),
-            Self::ScaffoldingOperand { edge } => write!(
+            Self::KnifeEdge(k) => write!(f, "{k}"),
+            Self::ScaffoldingOperand { .. } => write!(
                 f,
-                "the body carries null-edge scaffolding at {edge:?}: a mid-surgery body, \
-                 not one a split can take"
+                "the body is not a finished solid: it still carries what an edit left \
+                 behind, such as a strut or an empty loop, so the split refuses it. \
+                 Recourse: finish that edit first"
+            ),
+            Self::InsideOutOperand { .. } => write!(
+                f,
+                "the body is inside-out: its faces point into its material, so it encloses \
+                 negative volume and the split refuses it. Recourse: build it with its \
+                 faces pointing outward, or revert it"
             ),
             Self::SliverVertex { diag, .. } => write!(
                 f,
@@ -471,6 +575,11 @@ impl core::fmt::Display for SplitReduceError {
                 f,
                 "vertex {vertex:?} is a lone vertex, with no neighborhood to classify"
             ),
+            Self::NullEdgeAtVertex { vertex, edge } => write!(
+                f,
+                "null edge {edge:?} leaves vertex {vertex:?}, and a neighborhood is read off \
+                 carriers a null edge does not have"
+            ),
             Self::UnrecordedSide { vertex } => write!(
                 f,
                 "the side map holds no verdict for vertex {vertex:?}, which the neighborhood \
@@ -497,8 +606,8 @@ impl core::fmt::Display for SplitReduceError {
 
 impl std::error::Error for SplitReduceError {}
 
-/// The non-mutating prefix of the reduction — the operand gate plus
-/// the cached vertex sweep — exposed so classification
+/// The non-mutating prefix of the reduction — the finished-body gate,
+/// the carrier gate and the cached vertex sweep — exposed so classification
 /// ([`classify_neighborhood`]) can be inspected/reviewed independently
 /// of surgery. Returns the per-vertex side cache and the ON set of the
 /// body **as given** (crossing vertices only exist after
@@ -507,13 +616,23 @@ impl std::error::Error for SplitReduceError {}
 /// # Errors
 ///
 /// As the corresponding [`split_reduce`] stages.
-pub fn vertex_sides<T: geom_core::Decide>(
+pub fn vertex_sides<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &AtRestBody<T>,
+    plane: &SplitPlane<T>,
+    tol: Tol,
+) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
+    gate_finished(body, tol)?;
+    carrier_gate_and_sides(body, plane, tol)
+}
+
+/// [`vertex_sides`] behind the finished-body gate.
+pub(crate) fn carrier_gate_and_sides<T: geom_core::Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
     let band = geom_core::Band::linear(tol)?;
-    classify::gate_operand(body, plane, band)?;
+    classify::carrier_gate(body, plane, band)?;
     classify::classify_vertices(body, plane, band)
 }
 
@@ -531,6 +650,30 @@ pub fn vertex_sides<T: geom_core::Decide>(
 /// [`SplitReduceError`] — see each variant; the first failure wins and
 /// the operand is never mutated (the clone is dropped).
 pub fn split_reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    operand: &AtRestBody<T>,
+    plane: &SplitPlane<T>,
+    tol: Tol,
+) -> Result<SplitReduction<T>, SplitReduceError> {
+    gate_finished(operand, tol)?;
+    reduce(operand, plane, tol)
+}
+
+/// **The split's finished-body gate**, every door's first read: what a
+/// finished body promises, read where no verdict rides the operand
+/// ([`AtRestBody::gate_unverdicted`], the Boolean's read too), refused
+/// typed. The carrier gate (`classify::carrier_gate`) runs after it,
+/// inside the pipeline.
+pub(super) fn gate_finished<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    operand: &AtRestBody<T>,
+    tol: Tol,
+) -> Result<(), SplitReduceError> {
+    operand
+        .gate_unverdicted("the split's operand", geom_core::Band::linear(tol)?, tol)
+        .map_err(SplitReduceError::unfinished)
+}
+
+/// [`split_reduce`] behind the finished-body gate.
+pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -544,7 +687,7 @@ pub fn split_reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut reduced = operand.clone();
     let mut body = reduced.begin_surgery();
 
-    classify::gate_operand(&body, plane, band)?;
+    classify::carrier_gate(&body, plane, band)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
     classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
@@ -612,6 +755,18 @@ impl From<crate::pcurves::PcurveMintError> for SplitError {
     }
 }
 
+impl SplitError {
+    /// The knife edge this refusal names, whichever stage raised it.
+    #[must_use]
+    pub fn knife_edge(&self) -> Option<&KnifeEdge> {
+        match self {
+            Self::Reduce(SplitReduceError::KnifeEdge(k))
+            | Self::Finish(SplitFinishError::KnifeEdge(k)) => Some(k),
+            _ => None,
+        }
+    }
+}
+
 // A stage that names itself is not re-named here: `split_reduce`,
 // `split join` and `split finish` each lead with their own stage, so a
 // prefix would only stutter once this error is forwarded — the node
@@ -651,7 +806,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
     SplitError,
 > {
     let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
-    let mut red = split_reduce(operand, plane, tol)?;
+    let mut red = reduce(operand, plane, tol)?;
     // The section join carves the reduced body through the Euler
     // operators; one scope, one sweep at the end of the phase.
     //
@@ -678,10 +833,11 @@ pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
 /// The reduction's or the join's refusal.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
+    operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Body<T>, SplitError> {
+    gate_finished(operand, tol)?;
     Ok(split_scratch(operand, plane, tol)?.0.body)
 }
 
@@ -735,47 +891,39 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// mirror's distinct failure is not reported), at the cost of up to
 /// three pipeline runs.
 ///
-/// **The rerun also receives concave grazes of curved faces.** A plane
-/// tangent to a hole's wall from inside closes a zero-area polygon too,
-/// and the refusal cannot say which of the two it is, so the mirrored
-/// run is tried for both. (A plane tangent along a convex edge, or to a
-/// convex wall, never gets here: rule (b) classifies the entry with its
-/// material.) A graze alone refuses again there. A graze whose contact
-/// meets a real section elsewhere would, in the mirrored run, join that
-/// contact into the real section's loop as a zero-width spur of
-/// positive net area — a success with a slit in both halves — and the
-/// join refuses it ([`SplitJoinError::SectionSpur`]), so the direct
-/// run's `DegenerateSection` surfaces. A graze whose mirrored run
-/// completes the join and then refuses
-/// [`SplitFinishError::SectionCusp`] surfaces THAT refusal: the mirror
-/// resolved the direct run's degenerate polygon, so the knife edge is
-/// why the cut cannot be made. A both-sided pinch never takes this path
-/// — it refuses at the join in both directions.
+/// A plane grazing a curved wall never reaches the rerun: rule (b)
+/// lands a convex graze with its material, and rule (a) refuses a
+/// concave one in the reduction ([`SplitReduceError::KnifeEdge`]), which
+/// the mirrored run shares.
 /// The result's section-face normals still follow THIS
 /// call's plane convention (above face m = −n, below face m = +n)
 /// because the mirrored run's roles are the swap of ours.
 ///
+/// **The operand is a finished body** ([`AtRestBody`]); one that carries
+/// no verdict (a dual's) is read for what the type promises, per solid,
+/// before a several-solid operand is read as one solid
+/// ([`SplitReduceError::ScaffoldingOperand`],
+/// [`SplitReduceError::InsideOutOperand`]).
+///
 /// # Errors
 ///
-/// [`SplitError`], each stage's typed refusals passed through whole —
-/// including the degenerate section/side refusals of a curved face's
-/// concave graze (no degenerate body is ever emitted), and
-/// [`SplitFinishError::SectionCusp`] from either run. Each run gates
+/// [`SplitError`], each stage's typed refusals passed through whole (no
+/// degenerate body is ever emitted). Each run gates
 /// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
 /// mirrored run whose side is not a closed solid surfaces the direct
 /// run's refusal, as any other mirror failure does. Tier 3 is
-/// deliberately not run on the sides: split accepts operands carrying
-/// scaffold edges tier 3 refuses, and a pinch side's touching pieces
-/// carry contacts split declares nowhere
-/// (`work/tquery/validate-passes-a-body-with-a-zero-width-slit-face.md`).
+/// deliberately not run on the sides: a pinch side's touching pieces
+/// carry contacts split declares nowhere.
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
+    operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<SplitResult<T>, SplitError> {
+    gate_finished(operand, tol)?;
+    let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
     let flat;
-    let operand = if operand.solids().nth(1).is_some() {
-        let mut body = operand.clone();
+    let operand: &Body<T> = if operand.solids().nth(1).is_some() {
+        let mut body = Body::clone(operand);
         body.merge_all_solids()
             .map_err(|e| SplitError::Finish(finish::SplitFinishError::from(e)))?;
         flat = body;
@@ -784,8 +932,6 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
         operand
     };
     let mut result = split_one_solid(operand, plane, tol)?;
-    let band = geom_core::Band::linear(tol)
-        .map_err(|e| SplitError::Finish(finish::SplitFinishError::Band(e)))?;
     for part in [&mut result.above, &mut result.below] {
         if let finish::SplitPart::Body(body) = part {
             crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
@@ -808,8 +954,7 @@ fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
     }
     // D7: the pinch lane — rerun mirrored (the below fans become
     // above runs and mint their copies), swap the sides back. A
-    // mirror that also refuses surfaces the DIRECT run's error, save a
-    // `SectionCusp` (the docs above).
+    // mirror that also refuses surfaces the DIRECT run's error.
     let mirrored = SplitPlane {
         origin: plane.origin,
         normal: -plane.normal,
@@ -839,9 +984,6 @@ fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 vertex_pairs: naming.vertex_pairs,
             },
         }),
-        // Reached only past the mirror's join, so the direct run's
-        // degenerate polygon was resolved and the knife edge is why.
-        Err(cusp @ SplitError::Finish(SplitFinishError::SectionCusp { .. })) => Err(cusp),
         Err(_) => split_direct(operand, plane, tol),
     }
 }

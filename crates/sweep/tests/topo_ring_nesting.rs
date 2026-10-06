@@ -21,6 +21,7 @@
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, FaceSurface, LoopKey, ValidationError};
 
@@ -381,9 +382,14 @@ fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
         })
         .map(|(k, _)| k)
         .collect();
-    let cup = topo::shell_open(&vessel, t, &top, tol())
-        .expect("the vessel opens")
-        .body;
+    let cup = topo::shell_open(
+        &finished("the operand", vessel.clone(), tol()),
+        t,
+        &top,
+        tol(),
+    )
+    .expect("the vessel opens")
+    .body;
     let ringed: Vec<FaceKey> = cup
         .faces()
         .filter(|(_, f)| !f.rings.is_empty())

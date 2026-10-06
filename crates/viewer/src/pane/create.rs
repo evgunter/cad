@@ -980,7 +980,8 @@ impl ViewerBehavior<'_> {
     /// caller over the button it holds.
     fn datum_face_frame_rows(&mut self, ui: &mut egui::Ui) {
         if let Selection::Face(face) = self.session.selection() {
-            self.drafts.datum_face = Some(face.clone());
+            self.drafts
+                .hold_datum_face(face.clone(), self.session.selection_said());
         }
         ui.horizontal(|ui| {
             ui.label("face");
@@ -988,13 +989,17 @@ impl ViewerBehavior<'_> {
                 // The drawn body a pick is on, in the one sentence
                 // this crate names that scope with (`Say for
                 // BlendTarget`), its node said from the landed
-                // document the pick was read off.
+                // document the pick was read off, or as the form kept
+                // it once that document no longer holds it.
                 Some(face) => {
                     let target = BlendTarget::of_face(face);
-                    ui.weak(match self.session.landed_pair() {
-                        Some((landed, _)) => Said(&target, Speaker::of(landed)).to_string(),
-                        None => target.to_string(),
-                    })
+                    let kept = self.drafts.datum_face_said();
+                    let by = self
+                        .session
+                        .landed_pair()
+                        .map_or(Speaker::TAG, |(landed, _)| Speaker::of(landed))
+                        .or_held(kept);
+                    ui.weak(Said(&target, by).to_string())
                 }
                 None => ui.weak("none picked"),
             };
@@ -1291,7 +1296,12 @@ impl ViewerBehavior<'_> {
         match self.session.selection().node() {
             Some(node) => {
                 if ui
-                    .button(format!("{EXTRUDE} {}", self.session.doc().spoken(node)))
+                    .button(format!(
+                        "{EXTRUDE} {}",
+                        Speaker::of(self.session.doc())
+                            .or_held(self.session.selection_said())
+                            .node(node)
+                    ))
                     .clicked()
                 {
                     match self.notation.length_literal(self.drafts.extrude_distance) {
@@ -2992,5 +3002,252 @@ mod creation_nouns {
             loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         };
         assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
+    }
+}
+
+/// **The face-frame form's held face across a selection that moved
+/// on** ([`ViewerBehavior::datum_face_frame_rows`]'s pick, and
+/// `Drafts::respeak` after each op).
+#[cfg(test)]
+mod datum_face_said {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use pncad::document::{Label, Speaker};
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+
+    use crate::drafts::Drafts;
+    use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
+
+    /// **The face-frame form keeps its face's nodes past the
+    /// selection**: once the selection moves on, the form still says
+    /// its face's minting node by the last label it had, after a rename
+    /// and a delete, where the selection's snapshot no longer names it.
+    #[test]
+    fn a_held_datum_face_says_its_deleted_node_by_its_last_label() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, boss) = crate::test_support::boss_on_block("datum-face-said", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let face = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: block,
+            body: 0,
+        };
+        let mut session = DocSession::inline(doc, tol);
+        let mut drafts = Drafts::default();
+        let perform = |session: &mut DocSession, drafts: &mut Drafts, op| {
+            let outcome = session.perform(op);
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            drafts.respeak(session.doc());
+        };
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("base").expect("a label")),
+            },
+        );
+        session.pump();
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::Select(Selection::Face(face.clone())),
+        );
+        drafts.hold_datum_face(face, session.selection_said());
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::Select(Selection::Node(boss)),
+        );
+        for op in [
+            SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("plinth").expect("a label")),
+            },
+            SessionOp::DeleteNode { node: block },
+        ] {
+            perform(&mut session, &mut drafts, op);
+        }
+        session.pump();
+        let (landed, _) = session.landed_pair().expect("the delete landed");
+        assert!(
+            landed.node(block).is_none(),
+            "the landed run lost the block"
+        );
+        let said = |kept| Speaker::of(landed).or_held(kept).node(block).to_string();
+        assert_eq!(
+            said(drafts.datum_face_said()),
+            format!("Extrude \"plinth\" ({t})"),
+            "the form says the held face's node by its last label"
+        );
+        assert_eq!(
+            said(session.selection_said()),
+            format!("node {t}"),
+            "the selection moved on, so its snapshot does not name the block"
+        );
+    }
+}
+
+/// **An open tool's held nodes across a rename and a delete**
+/// (`Tools::respeak` after each op): the tool names a node it lost by
+/// the last label the document gave it, not the one it had at the pick.
+#[cfg(test)]
+mod tools_respeak {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use pncad::document::{Label, MateSide, RecipeNodeId};
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+
+    use crate::session::{DocSession, EdgeSelection, FaceSelection, Selection, SessionOp};
+    use crate::tools::{ToolKind, ToolNotice, Tools};
+
+    /// A tool of `kind` that picked `pick(block, boss)` while the block
+    /// was labelled `base`, then the block renamed `plinth` and deleted,
+    /// with the tools re-spoken after every op as the op loop does.
+    fn picked_renamed_deleted(
+        kind: ToolKind,
+        pick: impl Fn(RecipeNodeId, RecipeNodeId) -> Vec<Selection>,
+    ) -> (DocSession, Tools, String) {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, boss) = crate::test_support::boss_on_block("tools-respeak", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let mut session = DocSession::inline(doc, tol);
+        let mut tools = Tools::new();
+        let perform = |session: &mut DocSession, tools: &mut Tools, op| {
+            let outcome = session.perform(op);
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            tools.respeak(session.doc());
+        };
+        let label = |text| SessionOp::SetLabel {
+            node: block,
+            label: Some(Label::new(text).expect("a label")),
+        };
+        perform(&mut session, &mut tools, label("base"));
+        session.pump();
+        tools.open(kind);
+        let picks: Vec<SessionOp> = pick(block, boss)
+            .into_iter()
+            .map(SessionOp::Select)
+            .collect();
+        let declined = tools.feed(session.doc(), &picks);
+        assert!(declined.is_empty(), "every pick is taken: {declined:?}");
+        for op in [label("plinth"), SessionOp::DeleteNode { node: block }] {
+            perform(&mut session, &mut tools, op);
+        }
+        session.pump();
+        let (landed, _) = session.landed_pair().expect("the delete landed");
+        assert!(
+            landed.node(block).is_none(),
+            "the landed run lost the block"
+        );
+        (session, tools, format!("Extrude \"plinth\" ({t})"))
+    }
+
+    /// The tool's drops, as the survival step reports them.
+    fn dropped(session: &DocSession, tools: &mut Tools) -> Vec<ToolNotice> {
+        tools.reconcile(session.doc(), session.landed_pair())
+    }
+
+    fn face(node: RecipeNodeId) -> FaceSelection {
+        FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node,
+            body: 0,
+        }
+    }
+
+    /// Every seated tool, each a fresh fixture: one arm each in
+    /// `Tools::respeak`.
+    #[test]
+    fn a_seated_tool_says_its_lost_pick_by_its_last_label() {
+        for kind in [
+            ToolKind::Revolve,
+            ToolKind::Boolean,
+            ToolKind::Split,
+            ToolKind::Transform,
+            ToolKind::Pattern,
+            ToolKind::Part,
+            ToolKind::Duplicate,
+        ] {
+            let (session, mut tools, last) =
+                picked_renamed_deleted(kind, |block, _| vec![Selection::Node(block)]);
+            let said: Vec<String> = dropped(&session, &mut tools)
+                .into_iter()
+                .map(|notice| match notice {
+                    ToolNotice::Seated { event, .. } => {
+                        let crate::seats::SeatEvent::PickLost { node, .. } = event;
+                        node.to_string()
+                    }
+                    other => panic!("a seated tool's drop, not {other:?}"),
+                })
+                .collect();
+            assert_eq!(
+                said,
+                [last],
+                "the {kind:?} seat names the block by its last label"
+            );
+        }
+    }
+
+    #[test]
+    fn the_blend_tool_says_its_lost_target_by_its_last_label() {
+        let (session, mut tools, last) = picked_renamed_deleted(ToolKind::Blend, |block, _| {
+            vec![Selection::Edge(EdgeSelection {
+                name: StableName {
+                    kind: EntityKind::Edge,
+                    node: block,
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                },
+                node: block,
+                body: 0,
+            })]
+        });
+        let said: Vec<String> = dropped(&session, &mut tools)
+            .into_iter()
+            .map(|notice| match notice {
+                ToolNotice::Blend(crate::blend::BlendEvent::TargetLost { node, .. }) => {
+                    node.to_string()
+                }
+                other => panic!("the target's drop, not {other:?}"),
+            })
+            .collect();
+        assert_eq!(said, [last], "the target is named by its last label");
+    }
+
+    /// The instance-pick refusal is `app`'s
+    /// `the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed`,
+    /// where the survival step has not dropped the pick.
+    #[test]
+    fn the_mate_tool_says_its_lost_pick_by_its_last_label() {
+        let (session, mut tools, last) = picked_renamed_deleted(ToolKind::Mate, |block, boss| {
+            vec![Selection::Face(face(block)), Selection::Face(face(boss))]
+        });
+        let said: Vec<String> = dropped(&session, &mut tools)
+            .into_iter()
+            .filter_map(|notice| match notice {
+                ToolNotice::Mate(crate::matetool::MateToolEvent::PickLost {
+                    side: MateSide::A,
+                    node,
+                    ..
+                }) => Some(node.to_string()),
+                ToolNotice::Mate(_) => None,
+                other => panic!("a mate drop, not {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            said,
+            [last],
+            "pick a's drop names the block by its last label"
+        );
     }
 }

@@ -22,10 +22,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, Datum, Dimension, Distribution,
-    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Expr, FreeValue, FreeVar, MateFault,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateFault,
     MateFrame, MatePrimitive, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
     SitedFace, StableName, VarName, apply, load, save,
 };
@@ -173,7 +174,7 @@ const BASE_WIDTH: f64 = 3.0;
 const TOP_HEIGHT: f64 = 3.0;
 
 /// The seat every parameter row's mate declares: `b` rests on `a`.
-fn seat(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -212,7 +213,7 @@ struct Scene {
 }
 
 /// A pattern rule over the axis datum the scene inserts, and its count.
-type Rule = (fn(RecipeNodeId) -> PatternKind, Expr);
+type Rule = (fn(RecipeNodeId) -> PatternKind<Formula>, Formula);
 
 /// The document parameters declared first, then base, top, the
 /// pattern `rule` places the top by (a linear rule, or a circular one
@@ -288,17 +289,17 @@ fn set_value(doc: ProfileDoc, name: &'static str, value: FreeValue) -> ProfileDo
     .0
 }
 
-fn linear_x_by_s(_axis: RecipeNodeId) -> PatternKind {
+fn linear_x_by_s(_axis: RecipeNodeId) -> PatternKind<Formula> {
     PatternKind::Linear {
         direction: [1.0, 0.0, 0.0].map(scl),
-        spacing: Expr::named(VarName::from_static("s"), Dimension::Length),
+        spacing: Formula::named(VarName::from_static("s"), Dimension::Length),
     }
 }
 
-fn circular_by_th(axis: RecipeNodeId) -> PatternKind {
+fn circular_by_th(axis: RecipeNodeId) -> PatternKind<Formula> {
     PatternKind::Circular {
         axis,
-        step: Expr::named(VarName::from_static("th"), Dimension::Angle),
+        step: Formula::named(VarName::from_static("th"), Dimension::Angle),
     }
 }
 
@@ -329,7 +330,7 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
         ),
         ("n", FreeVar::Count { value: 3 }),
     ];
-    let count = || Expr::named(VarName::from_static("n"), Dimension::Count);
+    let count = || Formula::named(VarName::from_static("n"), Dimension::Count);
     let control = scene("msolve7-a1-linear-control", &params, None, 0);
     let c = top_pose(&control, "control");
     let test = scene(
@@ -348,7 +349,7 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
     // The same number through the public expression door against the
     // document's own nominal environment.
     let via_env = editor_core::eval::<f64>(
-        &Expr::var(
+        &editor_core::Expr::var(
             test.doc.var_named("s").expect("s is declared"),
             Dimension::Length,
         ),
@@ -401,7 +402,7 @@ fn a1_the_count_is_read_at_the_documents_own_bindings() {
         ("s", FreeVar::continuous(Dimension::Length, 4.0)),
         ("n", FreeVar::Count { value: 3 }),
     ];
-    let count = Expr::named(VarName::from_static("n"), Dimension::Count);
+    let count = Formula::named(VarName::from_static("n"), Dimension::Count);
     let s = scene("msolve7-a1-count", &params, Some((linear_x_by_s, count)), 2);
     top_pose(&s, "n=3 copy 2");
     let shrunk = set_value(s.doc.clone(), "n", FreeValue::Count(2));
@@ -423,7 +424,7 @@ fn a1_a_circular_offset_follows_the_documents_angle_parameter() {
     let s = scene(
         "msolve7-a1-circular",
         &params,
-        Some((circular_by_th, Expr::count(4))),
+        Some((circular_by_th, Formula::count(4))),
         1,
     );
     let check = |doc: ProfileDoc, th: f64, what: &str| -> Affine3<f64> {

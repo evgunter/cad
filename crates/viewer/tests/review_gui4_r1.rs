@@ -42,7 +42,7 @@ use std::f64::consts::FRAC_PI_2;
 use common::asm;
 use pncad::document::{
     ClassAdmission, DocEdit, DocumentId, Frame, Node, PatternKind, Placement, ProfileDoc,
-    RecipeNodeId, assemble, class_admission, parse_expr,
+    RecipeNodeId, assemble, class_admission, parse_formula,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::{ContactClass, face_frame};
@@ -875,14 +875,14 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
         &mut doc,
         Node::Pattern {
             input: instance,
-            count: parse_expr("3", &scope).expect("a count"),
+            count: parse_formula("3", &scope).expect("a count"),
             kind: PatternKind::Linear {
                 direction: [
-                    parse_expr("0.0", &scope).expect("x"),
-                    parse_expr("1.0", &scope).expect("y"),
-                    parse_expr("0.0", &scope).expect("z"),
+                    parse_formula("0.0", &scope).expect("x"),
+                    parse_formula("1.0", &scope).expect("y"),
+                    parse_formula("0.0", &scope).expect("z"),
                 ],
-                spacing: parse_expr("50 mm", &scope).expect("a spacing"),
+                spacing: parse_formula("50 mm", &scope).expect("a spacing"),
             },
         },
         tol,

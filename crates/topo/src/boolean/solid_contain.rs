@@ -182,12 +182,16 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{
+    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3,
+    Sign, Vec3,
+};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
-use crate::entity::{FaceKey, LoopBoundary, SolidKey};
+use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
+use crate::live::linked;
 use crate::null::CurveGeom;
 use crate::splitting::containment::{
     LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
@@ -216,6 +220,12 @@ pub enum SolidContainment {
 
 /// Typed failure of [`point_in_solid`].
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PointInSolidErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PointInSolidError {
     /// A predicate escalated (in-band margin).
     Escalated {
@@ -224,8 +234,8 @@ pub enum PointInSolidError {
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
-    /// Every schedule ray grazed — the query is ill-conditioned at
-    /// this ε.
+    /// Every schedule ray grazed, for a point the boundary pre-pass
+    /// placed off every face.
     RayExhausted,
     /// The at-infinity orientation probe found a (near-)zero signed
     /// volume — the body bounds no material to be inside of.
@@ -481,11 +491,13 @@ impl core::fmt::Display for PointInSolidError {
                  to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
+            // The boundary pre-pass has placed the point off every face,
+            // so there is no coincidence to declare.
             Self::RayExhausted => write!(
                 f,
-                "cannot tell what is inside the solid: every test ray grazed its \
-                 boundary, so the question is ill-conditioned at this tolerance. \
-                 Recourse: {COINCIDENCE_RECOURSE}"
+                "cannot tell what is inside the solid: the point is off its boundary, but \
+                 every test ray grazed one of its edges or vertices, or ran tangent to a \
+                 face's surface. Recourse: {NO_DECLARATION_RECOURSE}"
             ),
             // `PointInLoopError` is shared with the split, whose wrapper
             // states its own recourse; so the ray-exhausted arm carries
@@ -494,7 +506,7 @@ impl core::fmt::Display for PointInSolidError {
             // margin already ends in the shared recourse.
             Self::Loop(e @ crate::splitting::PointInLoopError::RayExhausted { .. }) => write!(
                 f,
-                "cannot tell what is inside the solid: {e}. Recourse: {COINCIDENCE_RECOURSE}"
+                "cannot tell what is inside the solid: {e}. Recourse: {NO_DECLARATION_RECOURSE}"
             ),
             Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
             Self::ZeroVolumeBody => write!(
@@ -1195,6 +1207,15 @@ enum WallEdge<T: geom_core::Real> {
 /// [`PointInSolidError::CorruptFace`] for an unwalkable face;
 /// [`PointInSolidError::Escalated`] for an in-band class margin or a
 /// window a period wide.
+///
+/// # Panics
+///
+/// Where the outer loop, its walk, a boundary half-edge's edge or that
+/// edge's curve does not resolve (D2 row 4), in the image walk
+/// ([`crate::chord_join::face_azimuth_images`]): a torn curve is not a
+/// carrier the outline has no piece for. The bodies are at rest (the
+/// solid door) or the reduction's working copies, whose links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 #[allow(clippy::too_many_arguments)] // one chart datum, each argument named
 pub(super) fn wall_outline<T: Decide>(
     body: &Body<T>,
@@ -1254,16 +1275,14 @@ pub(super) fn wall_outline<T: Decide>(
             .copied()
             .ok_or_else(corrupt)
     };
+    // A record miss past `face` answers `CorruptFace`, and a torn edge
+    // or curve panicked in the image walk, which read each carrier: the
+    // walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut edges = Vec::with_capacity(images.len());
     for (i, image) in images.iter().enumerate() {
-        let edge = body.get_half_edge(image.he).ok_or_else(corrupt)?.edge;
-        let carrier = body
-            .get_edge(edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(crate::null::CurveGeom::certified)
-            .map(|c| c.carrier().clone());
-        let (point, normal, rim) = match carrier {
-            Some(geom::Curve3::Line { dir, .. }) => {
+        let (point, normal, rim) = match image.carrier {
+            geom::Curve3::Line { dir, .. } => {
                 if !zero("bool_wall_iso_meridian", sine(dir.cross(axis).norm()))? {
                     return unsupported();
                 }
@@ -1274,12 +1293,12 @@ pub(super) fn wall_outline<T: Decide>(
                 });
                 continue;
             }
-            Some(geom::Curve3::Circle {
+            geom::Curve3::Circle {
                 center,
                 axis: c_axis,
                 radius: c_radius,
                 u_ref: c_ref,
-            }) => {
+            } => {
                 let rim = Rim {
                     center,
                     axis: c_axis,
@@ -1291,13 +1310,13 @@ pub(super) fn wall_outline<T: Decide>(
                 }
                 (center, c_axis, true)
             }
-            Some(geom::Curve3::Ellipse {
+            geom::Curve3::Ellipse {
                 center,
                 axis: n,
                 major,
                 minor,
                 u_ref: major_dir,
-            }) => {
+            } => {
                 let cos = n.dot(axis);
                 if zero("bool_wall_section_tilt", sine(cos))?
                     || !zero(
@@ -2176,6 +2195,12 @@ pub(super) fn torus_face_windows<T: Decide>(
 ///
 /// [`PointInSolidError::CorruptFace`] for an unwalkable face;
 /// [`PointInSolidError::Escalated`] when a chart image escalates.
+///
+/// # Panics
+///
+/// Where a boundary edge's curve does not resolve (D2 row 4): a torn
+/// curve is not null scaffolding. The links hold at rest and, on the
+/// reduction's working copies, by [`crate::live::OPERATORS_KEEP_LINKS`].
 #[allow(clippy::type_complexity)] // the two channels of one walk
 fn torus_chart_windows<T: Decide>(
     body: &Body<T>,
@@ -2207,13 +2232,13 @@ fn torus_chart_windows<T: Decide>(
     // header's "the window is a box" paragraph).
     let mut variation = (T::zero(), T::zero());
     let mut first_entry: Option<(T, T)> = None;
+    // A record miss past `face` answers `CorruptFace` and a torn curve
+    // panics: the walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = body.edge_curve_linked(he_data.edge, edge).certified() else {
             // Null scaffolding: a zero-length coincident copy, carrying
             // no chart extent and no branch information. Stepped over
             // without breaking the chain, as the join lane's walk does.
@@ -3028,6 +3053,13 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
 /// # Errors
 ///
 /// [`PointInSolidError`] — escalations from the class predicates.
+///
+/// # Panics
+///
+/// Where a boundary half-edge's edge or that edge's curve does not
+/// resolve (D2 row 4): a torn curve is not null scaffolding. The links
+/// hold at rest and, on the reduction's working copies, by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3063,6 +3095,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             Sign::Positive | Sign::Negative => Ok(false),
         }
     };
+    // A record miss past `face` answers `CorruptFace` and a torn edge
+    // or curve panics: the walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut levels: Vec<(T, T)> = Vec::new();
     // A point's own exact meridian-half-plane pair.
     let pair = |p: Point3<T>| -> (T, T) {
@@ -3083,11 +3118,14 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             .and_then(|v| body.get_point(v.point))
             .ok_or(PointInSolidError::CorruptFace { face })?;
         levels.push(pair(v));
-        let certified = body
-            .get_edge(he_data.edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(crate::null::CurveGeom::certified);
-        let Some(curve) = certified else {
+        let edge = linked(
+            &body.edges,
+            he_data.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        let Some(curve) = body.edge_curve_linked(he_data.edge, edge).certified() else {
             // Null scaffolding: no carrier, so no class claim and no
             // latitude of its own beyond the vertex above.
             continue;
@@ -3400,6 +3438,12 @@ fn latitude_extremes<T: Decide>(
 /// own carriers ([`point_in_loop_projected`]); a loop the walk can only
 /// answer outside its reach is [`PointInSolidError::EdgeCarrierUnsupported`]
 /// where `p` could land in it.
+///
+/// # Panics
+///
+/// Where a loop `face` lists does not resolve (D2 row 4): a torn outer
+/// loop is not an empty one. The links hold at rest and, on the
+/// reduction's working copies, by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn point_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3412,10 +3456,9 @@ pub(crate) fn point_in_face<T: Decide>(
         .ok_or(PointInSolidError::CorruptFace { face })?;
     // An empty outer loop bounds no region (mid-op scaffolding never
     // reaches this query; treat as no-hit).
-    if matches!(
-        body.get_loop(f.outer).map(|l| l.boundary),
-        Some(LoopBoundary::Empty { .. }) | None
-    ) {
+    let boundary =
+        |lk, field| linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary;
+    if matches!(boundary(f.outer, "outer"), LoopBoundary::Empty { .. }) {
         return Ok(Some(false));
     }
     let region = |lk| -> Result<LoopContainment, PointInSolidError> {
@@ -3432,10 +3475,7 @@ pub(crate) fn point_in_face<T: Decide>(
         LoopContainment::In => {}
     }
     for &ring in &f.rings {
-        if matches!(
-            body.get_loop(ring).map(|l| l.boundary),
-            Some(LoopBoundary::Empty { .. })
-        ) {
+        if matches!(boundary(ring, "rings"), LoopBoundary::Empty { .. }) {
             continue; // a lone ring vertex excludes no area
         }
         match region(ring)? {
@@ -5619,6 +5659,99 @@ mod wall_root_rows {
         assert!(
             t0 < -1.0 && t1 > 1.0,
             "the roots lie beyond the unit run: {t0}, {t1}"
+        );
+    }
+}
+
+/// **The chart walks panic on a torn boundary curve**, where
+/// `torus_chart_windows` stepped over it as null scaffolding and
+/// `wall_outline` read it as a carrier the outline has no piece for.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::entity::GeomRef;
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    /// Drops the curve of the first edge of `face`'s outer walk.
+    fn drop_first_curve(body: &mut Body<f64>, face: FaceKey) -> String {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the fixture's loop is a cycle");
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        )
+    }
+
+    #[test]
+    fn the_torus_window_panics_on_a_torn_curve() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let (mut body, face) = crate::boolean::boxes::tests::torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            (0.3, 1.9),
+            (-0.7, 0.8),
+        );
+        assert!(
+            torus_chart_windows(&body, face, band).unwrap().is_some(),
+            "the sound wall windows"
+        );
+        let named = drop_first_curve(&mut body, face);
+        assert_torn_op_panics(
+            "torus_chart_windows",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| torus_chart_windows(b, face, band).map(|w| w.is_some()),
+        );
+    }
+
+    #[test]
+    fn the_wall_outline_panics_on_a_torn_curve() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        let outline = |b: &Body<f64>| {
+            wall_outline(
+                b,
+                face,
+                Point3::origin(),
+                Vec3::unit_z(),
+                1.0,
+                (0.2, 1.4),
+                (0.0, 1.0),
+                band,
+            )
+            .map(|o| matches!(o, WallOutline::Unsupported { .. }))
+        };
+        assert_eq!(
+            outline(&body).ok(),
+            Some(false),
+            "the sound wall has an outline"
+        );
+        let named = drop_first_curve(&mut body, face);
+        assert_torn_op_panics(
+            "wall_outline",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| outline(b),
         );
     }
 }

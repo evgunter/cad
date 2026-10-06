@@ -50,12 +50,10 @@
 //! resolves them by membership of the minted above-copy vertex set,
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
-//! polygon (a below-side pinch, or a curved face's concave graze)
-//! is refused typed, [`SplitJoinError::DegenerateSection`] — refuses
-//! a positive-area polygon carrying a grazing contact as a zero-width
-//! spur
-//! ([`SplitJoinError::SectionSpur`], `split_section_spur`;
-//! `Sweep::refuse_section_spur`), and writes the F9 record.
+//! polygon (a below-side pinch) is refused typed,
+//! [`SplitJoinError::DegenerateSection`] — holds a positive-area
+//! polygon to carrying no zero-width spur (`split_section_spur`;
+//! `Sweep::assert_no_spur`), and writes the F9 record.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
@@ -64,9 +62,9 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, Leave, SectionCase,
-    SectionCtx, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
-    vertex_point, wall_section,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinLane, Leave, SectionCase,
+    SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he,
+    corrupt_loop, he_face, lone_site_placeholder, vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
@@ -172,16 +170,12 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
-                joiner.join(
-                    &mut red.body,
-                    end,
-                    half,
-                    crate::chord_join::Chords::Split {
-                        ctx: section,
-                        leave,
-                    },
-                    tol,
-                )?;
+                joiner.place_pending(&mut red.body, (end, half))?;
+                let plan = joiner.plan(&red.body, (end, half), SegmentEdge::InPlane(section))?;
+                let lane = JoinLane::Split(section);
+                if let Some(curve) = joiner.segment_curve(&mut red.body, &plan, lane, leave)? {
+                    joiner.join(&mut red.body, &plan, &curve, tol)?;
+                }
                 joined[slot] = true;
                 // Retire the consumed end's edge if its other half is
                 // no longer loose.
@@ -202,6 +196,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
             count: st.ends.len(),
         });
     }
+    st.joiner.finish(&red.body)?;
     let fragments = st.joiner.take_fragments();
     Ok((st.completed, fragments))
 }
@@ -209,15 +204,6 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
 /// The edge of a half-edge.
 fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, SplitJoinError> {
     Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge)
-}
-
-/// The face owning a half-edge's loop.
-fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJoinError> {
-    let l = body
-        .get_half_edge(he)
-        .ok_or_else(|| corrupt_he(he))?
-        .parent_loop;
-    Ok(body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face)
 }
 
 /// The fixed partners of the null-edge halves on faces with more than
@@ -238,6 +224,13 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
 /// # Errors
 ///
 /// [`line_pairs`]' and [`conic_pairs`]', each naming the face.
+///
+/// # Panics
+///
+/// Where a face's surface does not resolve: the reduction's body is
+/// mid-operation, where a face's surface is a link
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]), and a torn one is not
+/// curved.
 fn fixed_partners<T: Decide>(
     red: &SplitReduction<T>,
     above_set: &SecondaryMap<VertexKey, ()>,
@@ -269,6 +262,8 @@ fn fixed_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
+        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+        let wall = body.face_surface_linked(face, face_data);
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
@@ -278,17 +273,17 @@ fn fixed_partners<T: Decide>(
                 // The half's up/down sense, read as the sweep reads it
                 // (`Sweep::is_down`).
                 down: above_set.contains_key(start),
-                leave: split_leave(body, red.plane.normal, above_set, h)?,
+                leave: leave_on(
+                    body,
+                    red.plane.normal,
+                    above_set,
+                    h,
+                    (wall, face_data.sense),
+                )?,
             });
         }
-        let surface = body
-            .get_face(face)
-            .ok_or_else(|| corrupt_face(face))?
-            .surface;
-        let pairs = match body.get_surface(surface) {
-            Some(&geom::Surface::Plane { normal, .. }) => {
-                line_pairs(red, face, normal, &crossings, band)?
-            }
+        let pairs = match *wall {
+            geom::Surface::Plane { normal, .. } => line_pairs(red, face, normal, &crossings, band)?,
             _ => conic_pairs(red, face, &crossings, band)?,
         };
         for (a, b) in pairs {
@@ -312,6 +307,9 @@ fn fixed_partners<T: Decide>(
 /// face's crossings and the chord a join mints between two of them
 /// ([`crate::chord_join::Leave`]), so the chord takes the arc the
 /// pairing walked.
+///
+/// The face's surface is a link, mid-operation
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]), and its miss panics.
 fn split_leave<T: Decide>(
     body: &Body<T>,
     plane_normal: geom_core::UnitVec3<T>,
@@ -320,14 +318,24 @@ fn split_leave<T: Decide>(
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let face = he_face(body, half)?;
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall = body
-        .get_surface(face_data.surface)
-        .ok_or_else(|| corrupt_face(face))?;
+    let wall = body.face_surface_linked(face, face_data);
+    leave_on(body, plane_normal, above_set, half, (wall, face_data.sense))
+}
+
+/// [`split_leave`] past its face's lookup: `wall` and `sense` are the
+/// face's.
+fn leave_on<T: Decide>(
+    body: &Body<T>,
+    plane_normal: geom_core::UnitVec3<T>,
+    above_set: &SecondaryMap<VertexKey, ()>,
+    half: HalfEdgeKey,
+    (wall, sense): (&geom::Surface<T>, bool),
+) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let start = body
         .get_half_edge(half)
         .ok_or_else(|| corrupt_he(half))?
         .start;
-    let out = geom_brep::implicit_outward_normal(wall, face_data.sense, vertex_point(body, start));
+    let out = geom_brep::implicit_outward_normal(wall, sense, vertex_point(body, start));
     let heading = plane_normal.get().cross(out.vec());
     Ok(if above_set.contains_key(start) {
         heading
@@ -708,7 +716,7 @@ impl<T: Decide> Sweep<T> {
     /// Certify the completed polygon's area definitely positive
     /// (margin 2·|A|/P — mean width in meters, profile's
     /// `loop_orientation` lever-arm story); Zero ⇒ the degenerate
-    /// section of a pinch or a curved face's graze, refused typed.
+    /// section of a pinch, refused typed.
     ///
     /// **Conic boundary edges (M5 PR 5)**: the vertex shoelace below is
     /// exact for straight chords and stays BIT-IDENTICAL for all-planar
@@ -720,6 +728,11 @@ impl<T: Decide> Sweep<T> {
     /// perimeter contribution is raised from the chord to the
     /// conservative arc-length bound `s_a·|Δt|` (a larger perimeter
     /// only shrinks the mean-width margin — refuses more, never less).
+    ///
+    /// The join's body is mid-operation, and an edge's curve is a link
+    /// there ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one panics,
+    /// where null scaffolding is skipped. [`Self::assert_no_spur`]
+    /// reads the kinds this walk read.
     fn certify_section_area(
         &self,
         body: &Body<T>,
@@ -752,14 +765,29 @@ impl<T: Decide> Sweep<T> {
                        instead of a cycle",
             });
         };
-        for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
+        let hes = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
+        let mut straight = Vec::with_capacity(hes.len());
+        let mut placeholders = 0;
+        for &he in &hes {
             let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
             let edge = body
                 .get_edge(he_data.edge)
                 .ok_or_else(|| corrupt_edge(he_data.edge))?;
-            let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+            let entry = body.edge_curve_linked(he_data.edge, edge);
+            straight.push(matches!(
+                entry,
+                CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
+            ));
+            let CurveGeom::Certified(curve) = entry else {
                 continue;
             };
+            let end = body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?;
+            // A placeholder bounds nothing, whatever plane its circle
+            // lies in; a loop of placeholders alone is a point.
+            if lone_site_placeholder(he_data.start, end, curve) {
+                placeholders += 1;
+                continue;
+            }
             let Some(crate::loop_winding::ConicFrame {
                 center: c_e,
                 axis: axis_e,
@@ -774,7 +802,7 @@ impl<T: Decide> Sweep<T> {
             let span = t1 - t0;
             let forward = edge.he_plus == he;
             let a_pt = vertex_point(body, he_data.start);
-            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?);
+            let b_pt = vertex_point(body, end);
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
@@ -795,10 +823,13 @@ impl<T: Decide> Sweep<T> {
         // predicate. `chart_region_area` asks the same question two
         // dimensions down through the same door; the accumulators
         // stay separate, for the reasons written at that site.
+        if placeholders == hes.len() {
+            return Err(SplitJoinError::DegenerateSection { face });
+        }
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             // A positive NET area can still carry a zero-area spur.
-            Ok(Sign::Positive) => self.refuse_section_spur(body, face, first),
+            Ok(Sign::Positive) => self.assert_no_spur(body, face, &hes, &straight),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),
             Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
         }
@@ -806,58 +837,45 @@ impl<T: Decide> Sweep<T> {
 }
 
 impl<T: Decide> Sweep<T> {
-    /// Refuse a completed polygon that carries a **spur**: a vertex at
-    /// which the loop runs out along a straight edge and straight back,
-    /// so the vertex before it and the vertex after it coincide
-    /// ([`SplitJoinError::SectionSpur`]).
-    ///
-    /// Where it comes from: a concave graze of a curved face (a plane
-    /// tangent to a hole's wall along a ruling) mints a contact.
-    /// When the graze is on the run's above side, the contact closes a
-    /// polygon of its own, zero-area, and [`Self::certify_section_area`]
-    /// refuses it ([`SplitJoinError::DegenerateSection`]).
-    /// [`super::split`] reads that refusal as a below-side pinch and
-    /// reruns under the mirrored plane. If the plane also cuts the solid
-    /// somewhere the contact reaches, the mirrored run joins the contact
-    /// into that real section's loop as an out-and-back excursion. Its
-    /// net area is the real section's, positive, and the area test
-    /// passes it. This refuses that excursion, so the graze stays
-    /// refused (the public `split` then surfaces the direct run's
-    /// `DegenerateSection`). A plane tangent along a convex edge, or to
-    /// a convex wall, never gets here: rule (b) classifies the entry
-    /// with its material.
+    /// A completed polygon of positive area carries no **spur**: no
+    /// vertex at which the loop runs out along a straight edge and
+    /// straight back, so the vertex before it and the vertex after it
+    /// coincide. A spur is a contact the plane only touches joined into
+    /// a real section's loop, and it would leave a zero-width slit in
+    /// both halves. None reaches the join, because no contact mints a
+    /// null edge of its own: rule (b) sends an edge the plane only
+    /// touches along a corner with its material; rule (a) refuses a wall
+    /// that bends away from its material
+    /// ([`crate::SplitReduceError::KnifeEdge`]); and a cusp, the one
+    /// contact rule (b)'s safety default could otherwise send across,
+    /// has a zero-width sector the neighbourhood classifier refuses
+    /// first ([`crate::SplitReduceError::SliverSector`] on
+    /// `sector_straight`). An exact spur is that invariant broken, and
+    /// panics; one the band cannot tell from a corner escalates.
     ///
     /// The margin is the distance between the tip's two neighbours
     /// (`split_section_spur`, a length through [`Margin::norm3`]).
-    /// **Only straight tips are decided.** A curved out-and-back — the
+    /// **Only straight tips are read.** A curved out-and-back — the
     /// loop running out along an arc and back along the same arc — is
     /// a spur too (its two excesses cancel; it bounds nothing), but
     /// telling it from two DIFFERENT arcs between one pair of points,
     /// which do bound area, needs a carrier comparison this check does
-    /// not make. That gap is filed as
-    /// `work/hone/split-section-spur-guard-skips-curved-spurs.md`.
+    /// not make (`work/hone/split-section-spur-guard-skips-curved-spurs.md`).
     ///
-    /// `first` is a half-edge of the below loop's cycle, as
-    /// [`Self::certify_section_area`] resolved it.
-    fn refuse_section_spur(
+    /// `hes` is the below loop's cycle, and `straight` whether each
+    /// member's curve is a line, as [`Self::certify_section_area`] read
+    /// them.
+    fn assert_no_spur(
         &self,
         body: &Body<T>,
         face: FaceKey,
-        first: HalfEdgeKey,
+        hes: &[HalfEdgeKey],
+        straight: &[bool],
     ) -> Result<(), SplitJoinError> {
-        let hes: Vec<HalfEdgeKey> = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
         let n = hes.len();
         if n < 3 {
             return Ok(());
         }
-        let straight = |he: HalfEdgeKey| -> Result<bool, SplitJoinError> {
-            let e = he_edge(body, he)?;
-            let edge = body.get_edge(e).ok_or_else(|| corrupt_edge(e))?;
-            Ok(matches!(
-                body.get_curve_geom(edge.curve),
-                Some(CurveGeom::Certified(c)) if matches!(c.carrier(), geom::Curve3::Line { .. })
-            ))
-        };
         let start = |he: HalfEdgeKey| -> Result<Point3<T>, SplitJoinError> {
             Ok(vertex_point(
                 body,
@@ -865,17 +883,21 @@ impl<T: Decide> Sweep<T> {
             ))
         };
         for i in 0..n {
-            let (inbound, outbound) = (hes[(i + n - 1) % n], hes[i]);
-            if !(straight(inbound)? && straight(outbound)?) {
+            let inbound = (i + n - 1) % n;
+            if !(straight[inbound] && straight[i]) {
                 continue;
             }
-            let (before, after) = (start(inbound)?, start(hes[(i + 1) % n])?);
+            let (before, after) = (start(hes[inbound])?, start(hes[(i + 1) % n])?);
             match decide(
                 "split_section_spur",
                 Margin::norm3(after - before),
                 self.band,
             ) {
-                Ok(Sign::Zero) => return Err(SplitJoinError::SectionSpur { face }),
+                Ok(Sign::Zero) => unreachable!(
+                    "section polygon {face:?} runs out along a touching edge and back: a \
+                     contact minted a null edge of its own, which rules (a) and (b) and the \
+                     classifier's sector_straight refusal of a cusp rule out"
+                ),
                 Ok(_) => {}
                 Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
             }
@@ -946,5 +968,219 @@ mod tests {
                 entity: EntityId::Loop(_)
             })
         ));
+    }
+}
+
+/// **The sweep's reads past a face or a loop it resolved panic on a
+/// torn link** (the split's body is mid-operation, so the panic names
+/// `OPERATORS_KEEP_LINKS`). Each row reads the sound answer first, then
+/// tears one record, and the body is deep-unchanged after the panic.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::entity::{EntityId, GeomRef};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom_core::Vec3;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn reduced(body: &Body<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> SplitReduction<f64> {
+        let tol = Tol::witness();
+        let plane = crate::test_support_fixtures::split_plane(origin, normal, tol);
+        let mut described = body.clone();
+        crate::test_support_fixtures::describe_as_intersections(&mut described, tol);
+        let operand = crate::test_support::finished("the operand", described, tol);
+        crate::splitting::split_reduce(&operand, &plane, tol).unwrap()
+    }
+
+    fn above_set(red: &SplitReduction<f64>) -> SecondaryMap<VertexKey, ()> {
+        red.null_edges
+            .iter()
+            .map(|r| (r.attr.above_end, ()))
+            .collect()
+    }
+
+    /// Drops `face`'s surface, and names the link that dangles.
+    fn drop_surface(body: &mut Body<f64>, face: FaceKey) -> String {
+        let surface = body.get_face(face).unwrap().surface;
+        body.surfaces.remove(surface);
+        format!(
+            "{}'s surface names {}",
+            EntityId::Face(face),
+            GeomRef::Surface(surface)
+        )
+    }
+
+    /// `fixed_partners`: a U prism cut across both arms, whose top face
+    /// holds four crossings. Its torn surface panics, where it read as a
+    /// curved face (and, first, refused `Corrupt` in the crossing's
+    /// leaving direction).
+    #[test]
+    fn the_fixed_partners_panic_on_a_torn_surface() {
+        let u = [
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ];
+        let prism = crate::test_support_fixtures::prism::<f64>(&u, 1.0, Tol::witness());
+        let mut red = reduced(&prism.body, Point3::new(0.0, 1.5, 0.0), Vec3::unit_y());
+        let above = above_set(&red);
+        assert_eq!(
+            fixed_partners(&red, &above, band()).unwrap().len(),
+            8,
+            "the top and bottom faces' four crossings each pair along their lines"
+        );
+        let named = drop_surface(&mut red.body, prism.top_face);
+        let (plane, null_edges) = (red.plane, red.null_edges.clone());
+        assert_torn_op_panics(
+            "fixed_partners",
+            &mut red.body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| {
+                let red = SplitReduction {
+                    body: b.clone(),
+                    plane,
+                    sides: SecondaryMap::new(),
+                    on_vertices: Vec::new(),
+                    null_edges: null_edges.clone(),
+                };
+                fixed_partners(&red, &above, band()).map(|p| p.len())
+            },
+        );
+    }
+
+    /// `split_leave`: a crossing on a cube's side face, whose torn
+    /// surface panics where it refused `Corrupt`.
+    #[test]
+    fn the_leaving_direction_panics_on_a_torn_surface() {
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let mut red = reduced(&cube, Point3::new(0.0, 0.0, 0.5), Vec3::unit_z());
+        let above = above_set(&red);
+        let half = red.body.get_edge(red.null_edges[0].edge).unwrap().he_plus;
+        let normal = red.plane.normal;
+        let leave = |b: &Body<f64>| split_leave(b, normal, &above, half).map(|d| d.norm());
+        assert!(
+            (leave(&red.body).unwrap() - 1.0).abs() < 1e-12,
+            "a side face's leaving direction is the unit in-plane one"
+        );
+        let face = he_face(&red.body, half).unwrap();
+        let named = drop_surface(&mut red.body, face);
+        assert_torn_op_panics(
+            "split_leave",
+            &mut red.body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| leave(b),
+        );
+    }
+
+    /// `certify_section_area`: a torn curve on a completed section's
+    /// below loop panics, where it was stepped over as null scaffolding
+    /// and its edge read as no line to the spur check.
+    #[test]
+    fn the_section_area_panics_on_a_torn_curve() {
+        let tol = Tol::witness();
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let mut red = reduced(&cube, Point3::new(0.0, 0.0, 0.5), Vec3::unit_z());
+        let (completed, _) = split_connect(&mut red, band(), tol).unwrap();
+        let [section] = completed[..] else {
+            panic!("a cube cut through its middle has one section");
+        };
+        let sweep = Sweep {
+            ends: Vec::new(),
+            partner: SecondaryMap::new(),
+            joiner: ChordJoiner::new(band()),
+            completed: Vec::new(),
+            above_set: above_set(&red),
+            plane: red.plane,
+            band: band(),
+            section: SectionCtx {
+                origin: red.plane.origin,
+                normal: red.plane.normal,
+                plane_key: None,
+            },
+        };
+        let certify =
+            |b: &Body<f64>| sweep.certify_section_area(b, section.face, section.below_loop);
+        assert!(certify(&red.body).is_ok(), "the sound section certifies");
+        let LoopBoundary::Cycle { first } = red.body.get_loop(section.below_loop).unwrap().boundary
+        else {
+            panic!("the below loop is a cycle");
+        };
+        let edge = red.body.get_half_edge(first).unwrap().edge;
+        let curve = red.body.get_edge(edge).unwrap().curve;
+        red.body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "certify_section_area",
+            &mut red.body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| certify(b),
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod placeholder_rows {
+    use super::*;
+    use geom_core::Vec3;
+
+    /// **A loop of lone-site placeholders bounds nothing in any plane.**
+    /// `mef`'s lone site certifies its edge as the unit circle about
+    /// `p + x̂` in the plane `z = 0`, so a section plane of normal `±ẑ`
+    /// would read it as `π` of area. The area check refuses the loop as
+    /// the point it is.
+    #[test]
+    fn a_loop_of_placeholders_is_a_degenerate_section_in_every_plane() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+        let lone = body
+            .mef_chord(
+                crate::euler::MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        for normal in [Vec3::unit_z(), -Vec3::unit_z(), Vec3::unit_y()] {
+            let plane =
+                crate::test_support_fixtures::split_plane(Point3::new(0.0, 0.0, 0.0), normal, tol);
+            let sweep = Sweep {
+                ends: Vec::new(),
+                partner: SecondaryMap::new(),
+                joiner: ChordJoiner::new(band),
+                completed: Vec::new(),
+                above_set: SecondaryMap::new(),
+                plane,
+                band,
+                section: SectionCtx {
+                    origin: plane.origin,
+                    normal: plane.normal,
+                    plane_key: None,
+                },
+            };
+            for (face, lp) in [(seed.face, seed.r#loop), (lone.face, lone.r#loop)] {
+                let got = sweep.certify_section_area(&body, face, lp);
+                assert!(
+                    matches!(got, Err(SplitJoinError::DegenerateSection { face: f }) if f == face),
+                    "normal {normal:?}, loop {lp:?}: {got:?}"
+                );
+            }
+        }
     }
 }

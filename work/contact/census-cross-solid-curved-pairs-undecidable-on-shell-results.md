@@ -81,3 +81,30 @@ other" between the plate's fillet and the box's faces. At main `66bbdaa6b`
 the same battery printed 0 `BAD`, which fits the one-solid-per-piece sort
 landing in between. So the grid's assertion (`bad == 0`) stays red until
 this lane decides curved × planar pairs across solids.
+
+## 2026-10-06 — a plug cut out of a plate (ZIP)
+
+A round tube cut right through a plate leaves a holed plate and a
+loose plug, and 3′ refuses the pair. The plate is `[0,3] × [0,2] × [0,1]`.
+The tube is `circle_split((1.5, 1), 0.6, ..)` with its bore
+`circle_split((1.5, 1), 0.4, ..)`, extruded 2.5 from `z = −0.5`.
+`topo::subtract(plate, tube)` returns two solids at the closed-form
+volume. They pass tier 2 and the at-rest certificate, and 3′ gives
+`CensusUndecidable` between the plug's wall and the hole's wall, which
+are 0.2 apart. The 16-gon twin passes 3′. In ZIP's sweep this held for
+all 144 rim and bore splits and phases tried
+(`a-round-tube-standing-on-a-plate-refuses-seam-orientation`,
+`## Closed`).
+
+## 2026-10-06 — two stubs of a tilted prism through a slab (TANG)
+
+`sweep::planar_ring_arc_closure::a_prism_with_arc_walls_through_a_slab_builds_every_op`:
+a prism with an arc wall tilted through the slab `[−4, 4]² × [−0.5,
+0.5]`, `prism ∖ slab`. The result is the two stubs either side of the
+slab, two solids a unit apart along the slab's normal, whose tilted
+walls overhang each other. Tier 3 passes and the volume matches its
+closed form; empty tier 3′ answers 2 to 9 `CensusUndecidable` pairs
+on 11 of the row's 18 tilted shape-poses: all nine shapes tilted
+about two axes, and the 1.4π D and the lens tilted about one. The row
+accepts that refusal, and only it, on those results; the upright ones
+must pass.

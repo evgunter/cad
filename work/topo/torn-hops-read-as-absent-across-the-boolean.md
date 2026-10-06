@@ -2,11 +2,12 @@
 id: torn-hops-read-as-absent-across-the-boolean
 kind: issue
 title: Record hops past a resolved face, half-edge or edge read a torn link as absent across boolean/
-status: dispatched
+status: open
 opened: 2026-10-05
 priority: P3
 cost: M
 refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, torn-body-refusal-families-beyond-the-six-doors]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -70,3 +71,60 @@ leaves resolving, never a fact read before a write (`insert.rs`
 stays typed. `reduce.rs` and `ops.rs` were under another lane's edit
 when this was filed; take them after it lands.
 
+
+## 2026-10-05 — converted; the declared-pair and coincidence sites wait for D10
+
+Every listed site that is not declared-pair, contact or coincidence
+machinery now reads its hops through `live::linked` / `proven` /
+`face_surface_linked` / `edge_curve_linked` / `face_of_linked` /
+`faces_of_vertex_linked` / `vertex_orbit_linked` / `proven_mate`, and a
+key the caller carries keeps its typed or `None` answer: `boxes.rs`
+`face_window_steps` / `face_box` / `edge_box`, `carrier_cross.rs`
+`boundary_crossing`, `finish.rs` `pinch_site` and `discarded`'s two
+walks (`section_boundary`), `ops.rs` `describe_edges` and
+`sphere_extent_scan`, `reduce.rs` `face_plane` / `gate_maximal_faces` /
+`boundary_meets_circle_only_at`, `solid_contain.rs` `wall_outline` /
+`torus_chart_windows` / `sphere_chart_trim` / `point_in_face`,
+`surface_group.rs` `unmated_boundary`, `vtxfac.rs`
+`classify_vertex_on_face`'s pierced surface and kind, `zip.rs`
+`split_across`, `combine.rs` `graft_solids_impl`'s curve read, and the
+sweep hit `sphere_region.rs` `sphere_face_region`. `weld_pinches`' skip
+stays: it asks whether a pierce copy survived the carve's kills.
+
+**Left for after D10** (the HOLD of PR 3990), because each exists to
+read a declaration or a coincidence: `mod.rs` `build`'s declared-face
+side, `tangent_struts` (it feeds `DeclaredPairs::build`),
+`border_held` (held edges of covered pairs) and
+`locus_through_plane_face` (`verify_tangent_declaration`); `ops.rs`
+`declared_surface_pairs`; `recl.rs` `carrier_of` / `require_same` (the
+carrier-identity ladder) and `resolve_edge_edge`'s flank-sense
+coincidence arm; `reduce.rs` `face_edges` (the undeclared-coincidence
+scan), `edge_face_read`, `edge_covers`, `on_declared_shared_carrier`
+and `parents_distinct_from` (the carrier-distinctness ladder);
+`rim_wedge.rs` `face_boundary_arcs`, whose every caller is the
+declared seam or cover machinery; and `vtxfac.rs`' sector/contact
+`surface` closure and the two conformal-lump `map_or(Nurbs, ..)`s.
+This row stays open for them.
+
+## 2026-10-05 — the HOLD criterion, stated
+
+What stays for D10 is a site whose **own logic reads a declaration or a
+coincidence**. A generic geometric helper whose only callers are
+declared or coincidence arms has no such read of its own, so it is
+converted. Two converted sites are helpers of that kind:
+`carrier_cross.rs` `boundary_crossing` (its one caller, `reduce.rs`
+`interior`, is reached only in `edge_covers`' covered arms past
+`on_declared_shared_carrier`) and `reduce.rs`
+`boundary_meets_circle_only_at` (its one caller, `lying_on`, is reached
+only past `parents_distinct_from` on the `LiesOn` arm). Measured against
+the same criterion, `rim_wedge.rs` `face_boundary_arcs` is a helper as
+well, so it is converted now and comes off the held list.
+`mod.rs` `locus_through_plane_face` stays held, because it is part of
+`verify_tangent_declaration` and reads the declared pair's plane face.
+
+A face's outer-then-rings loop links now have one home,
+`Body::face_loops_linked`, whose field names are `outer` and `rings`.
+Two sites still spell the iteration by hand, because they sit in files
+under another open PR: `boolean/rest.rs` `face_witnesses`
+(PR 4067) and `attach.rs` `check_moved_boundary` (PR 4060). Each moves to the helper
+once its PR lands.

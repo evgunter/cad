@@ -16,6 +16,7 @@
 use crate::fixture;
 use crate::p2_gauges::{literal, parts, placed_pair, seat, set_gauge, set_offset};
 use crate::p2_split::{extent, round_trip, same_extent, split};
+use editor_core::Formula;
 
 use editor_core::{
     DocEdit, DocumentId, EditError, Label, Node, Placement, ProfileDoc, RecipeNodeId,
@@ -410,7 +411,7 @@ fn promote_and_fold_refuse_typed_with_a_recourse_that_clears_them() {
 /// A literal step turning by `angle` about x or z, then moving by `t`:
 /// non-dyadic coordinates, so a regrouped composition would round
 /// differently.
-fn turn(angle: f64, about_x: bool, t: [f64; 3]) -> Placement {
+fn turn(angle: f64, about_x: bool, t: [f64; 3]) -> Placement<Formula> {
     let (s, c) = angle.sin_cos();
     let columns = if about_x {
         [[1.0, 0.0, 0.0], [0.0, c, s], [0.0, -s, c]]
@@ -424,7 +425,7 @@ fn turn(angle: f64, about_x: bool, t: [f64; 3]) -> Placement {
 }
 
 /// Two turns in one chain.
-fn two_turns(a: f64, b: f64, t: [f64; 3]) -> Placement {
+fn two_turns(a: f64, b: f64, t: [f64; 3]) -> Placement<Formula> {
     turn(a, true, t).compose(&turn(b, false, [0.25, -0.5, 0.0]))
 }
 

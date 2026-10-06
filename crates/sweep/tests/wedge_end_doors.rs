@@ -1,5 +1,5 @@
 //! **The wedge-end doors that need a curved body** (D1 tier 3): the
-//! split's `SectionCusp` refusal and its counter-rows, the curved
+//! split's knife-edge refusal and its counter-rows, the curved
 //! boolean's refusals of an undeclared kiss, and the blend and shell
 //! consumers of a declared cusp body. A cusp or slit is legal at rest
 //! iff jet-determinate, so tier 3 no longer refuses one nobody
@@ -25,9 +25,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
 use sweep::test_support::{brick, finished, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
-use topo::{
-    Body, BooleanErrorKind, ContactMark, EdgeKey, ShellError, SplitError, SplitFinishError,
-};
+use topo::{Body, BooleanErrorKind, ContactMark, EdgeKey, KnifeEdgeSite, ShellError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -126,21 +124,45 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
 /// the hole's side of `x = 1` the material near the tangent line is two
 /// crescents between the cut face and the wall, each vanishing to a
 /// knife edge (a doubled cusp): jet-determinate, so tier 3 would pass
-/// it, and nothing declared it. Both orientations of the plane, since
-/// the side that carries the crescents is `below` in one and `above`
-/// in the other.
+/// it, and nothing declared it. The reduction reads the graze and
+/// refuses it there. Both orientations of the plane, since the side
+/// that carries the crescents is `below` in one and `above` in the
+/// other.
 #[test]
 fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
     let body = plate_with_hole();
+    let body = sweep::test_support::finished("the body", body, tol());
     for normal in [1.0, -1.0] {
         let plane = topo::test_support::split_plane(
             Point3::new(1.0, 0.0, 0.0),
             Vec3::new(normal, 0.0, 0.0),
             geom_core::Tol::witness(),
         );
-        match topo::split(&body, &plane, tol()) {
-            Err(SplitError::Finish(SplitFinishError::SectionCusp { .. })) => {}
-            other => panic!("normal {normal}: expected SectionCusp, got {other:?}"),
+        let knife = match topo::split(&body, &plane, tol()) {
+            Err(e) => *e
+                .knife_edge()
+                .unwrap_or_else(|| panic!("normal {normal}: refused {e:?}, not the knife edge")),
+            Ok(_) => panic!("normal {normal}: answered"),
+        };
+        let wall = body.get_surface(body.get_face(knife.wall).unwrap().surface);
+        assert_eq!(
+            wall.map(geom::Surface::kind),
+            Some(geom::SurfaceKind::Cylinder),
+            "normal {normal}: the hole's wall"
+        );
+        let KnifeEdgeSite::Edge(seam) = knife.at else {
+            panic!("normal {normal}: read along the seam, got {:?}", knife.at);
+        };
+        let he = body.get_edge(seam).unwrap().he_plus;
+        for v in [
+            body.get_half_edge(he).unwrap().start,
+            body.half_edge_end(he).unwrap(),
+        ] {
+            let q = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            assert!(
+                (q.x - 1.0).abs() < 1e-12 && q.y.abs() < 1e-12,
+                "normal {normal}: the seam at (1, 0), {q:?}"
+            );
         }
     }
 }
@@ -156,7 +178,12 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&plate_with_hole(), &through, tol()).expect("a transverse cut");
+    let halves = topo::split(
+        &sweep::test_support::finished("the operand", plate_with_hole(), tol()),
+        &through,
+        tol(),
+    )
+    .expect("a transverse cut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of x = 0.5");
         assert_eq!(
@@ -171,12 +198,13 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
     }
 
     let cusp = extruded(vec![lune()], 0.0, 1.0);
+    let operand = sweep::test_support::finished("the fixture", cusp.body.clone(), tol());
     let mid = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
         Vec3::new(0.0, 0.0, 1.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&cusp.body, &mid, tol()).expect("a cut across the strut");
+    let halves = topo::split(&operand, &mid, tol()).expect("a cut across the strut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of z = 0.5");
         let tangent = tangent_edges(body);
@@ -207,6 +235,7 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
         (Point2::new(0.0, 1.0), bulge),
     ]);
     let body = extruded(vec![shoulder], 0.0, 1.0).body;
+    let body = sweep::test_support::finished("the body", body, tol());
     let on_the_ruling = |p: &Point3<f64>| p.x.abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9;
     // Normal `+y` refuses earlier, at the reduction
     // (`ConsecutiveOnSectors`), for a reason of its own:
@@ -343,7 +372,11 @@ fn shell_refuses_a_cusp_or_slit_body_typed() {
     let slit = extruded(vec![rect(-1.0, -1.0, 3.0, 5.0), lune()], 0.0, 1.0);
     for (name, body) in [("cusp", &cusp.body), ("slit", &slit.body)] {
         for thickness in [1e-3, 0.05] {
-            match topo::shell(body, thickness, tol()) {
+            match topo::shell(
+                &finished("the operand", body.clone(), tol()),
+                thickness,
+                tol(),
+            ) {
                 Err(ShellError::Face { .. }) => {}
                 Err(other) => panic!("{name} at {thickness}: an unexpected refusal {other}"),
                 Ok(_) => panic!("{name} at {thickness}: shelled a wedge-{name} body"),

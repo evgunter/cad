@@ -60,7 +60,7 @@ use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_k
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    EvalOptions, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
     ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason,
     UnitSym, ValuePayload, VarName, evaluate,
 };
@@ -140,7 +140,7 @@ fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distributio
     });
 }
 
-fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Expr; 3]) -> RecipeNodeId {
+fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Formula; 3]) -> RecipeNodeId {
     r.insert(Node::transform(
         input,
         editor_core::Step::Rigid {
@@ -470,7 +470,7 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
         &mut r,
         solid,
         [
-            Expr::named(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
             len(0.0),
         ],
@@ -624,7 +624,7 @@ fn report_key_tells_two_budgets_apart() {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::named(name("depth"), Dimension::Length),
+        distance: Formula::named(name("depth"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
@@ -762,7 +762,7 @@ fn neck_dir(
         &mut r,
         solid,
         [
-            Expr::named(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
             len(0.0),
         ],
@@ -928,9 +928,9 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         &mut r,
         solid,
         [
-            Expr::named(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
-            Expr::named(name("lift"), Dimension::Length),
+            Formula::named(name("lift"), Dimension::Length),
         ],
     );
     let measure = r.insert(
@@ -1043,11 +1043,11 @@ fn bracket(
         &mut r,
         post_solid,
         [
-            Expr::named(name("offset"), Dimension::Length),
+            Formula::named(name("offset"), Dimension::Length),
             len(0.0),
-            Expr::sub(
+            Formula::sub(
                 len(1.0),
-                Expr::neg(Expr::named(name("lift"), Dimension::Length))
+                Formula::neg(Formula::named(name("lift"), Dimension::Length))
                     .expect("a shallow negation"),
             )
             .expect("length"),
@@ -1337,12 +1337,12 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
-    let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
+    let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
-                radius: Expr::named(name(radius), Dimension::Length),
+                radius: Formula::named(name(radius), Dimension::Length),
             }],
             ids: Vec::new(),
         }));
@@ -1354,16 +1354,16 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     };
     let hole_a = hole(
         &mut r,
-        Expr::sub(
+        Formula::sub(
             len(0.0),
-            Expr::named(name("half_spacing"), Dimension::Length),
+            Formula::named(name("half_spacing"), Dimension::Length),
         )
         .expect("length"),
         "hole_a_r",
     );
     let hole_b = hole(
         &mut r,
-        Expr::named(name("half_spacing"), Dimension::Length),
+        Formula::named(name("half_spacing"), Dimension::Length),
         "hole_b_r",
     );
     let ev = eval_over::<f64>(&r.doc, None);
@@ -1383,7 +1383,8 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &'static str| MeasureExpr::value(Expr::named(name(n), Dimension::Length));
+    let radius_of =
+        |n: &'static str| MeasureExpr::value(Formula::named(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),

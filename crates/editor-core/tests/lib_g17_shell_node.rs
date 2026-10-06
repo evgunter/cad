@@ -8,7 +8,8 @@
 //! registry rather than in it, so this module runs the rows the
 //! registry would have run on them — both lanes, persistence, the
 //! bump — and pins the reason they are outside: a dual has no shell
-//! door.
+//! door. One row also shells `corpus/die_pips.rs`' revolved ball,
+//! whose closed form is π-valued and so is metered, not equated.
 //!
 //! # The oracles, derived rather than measured
 //!
@@ -29,18 +30,19 @@
 //! ```
 //!
 //! Every dimension is dyadic, so both are exact in `f64` and asserted
-//! with `==`, never metered.
+//! with `==`, never metered. The ball's `4/3·π(R³ − (R−t)³)` is not.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
 
 use corpus::{body_of, cup, eval, failures, vessel};
 use editor_core::{
     CancelToken, DocEdit, EntityKind, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult,
-    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotId, StableName, apply,
-    evaluate, load, save,
+    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, apply, evaluate, load,
+    save,
 };
 use geom_core::{Dual64, Tol};
 use topo::ShellError;
@@ -370,9 +372,7 @@ fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
 }
 
 /// A cup document whose shell node is replaced by `shell`.
-fn cup_with(
-    shell: impl FnOnce(RecipeNodeId) -> Node<ProfileProgram>,
-) -> (ProfileDoc, RecipeNodeId) {
+fn cup_with(shell: impl FnOnce(RecipeNodeId) -> AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     fixture::insert(d.doc, shell(blank))
@@ -474,7 +474,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
 fn the_shell_door_keeps_designation_order_and_drops_repeats() {
     let a = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(0).into()));
     let b = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(1).into()));
-    let node: Node<ProfileProgram> = Node::shell(
+    let node: AuthoredNode = Node::shell(
         RecipeNodeId(1),
         fixture::len(0.1),
         vec![b.clone(), a.clone(), b.clone(), a.clone()],
@@ -614,4 +614,42 @@ fn both_documents_round_trip_through_persistence() {
             d.name
         );
     }
+}
+
+/// **The pole-touching ball row**: a sealed `Shell` over the revolved
+/// half disc (`die_pips`' ball: one bulge-1 arc pole to pole, closed on
+/// the axis) evaluates green, tier-3 valid at the difference of two
+/// balls `4/3·π(R³ − (R−t)³)` — the route a user takes from a revolve.
+#[test]
+fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
+    use corpus::die_pips::PIP_R;
+    let d = corpus::die_pips::document();
+    let ball = d
+        .doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))
+        .expect("the pip ball");
+    let t = 0.01;
+    let (doc, sealed) = fixture::insert(d.doc, Node::shell(ball, fixture::len(t), Vec::new()));
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));
+    let body = body_of(&ev, sealed);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(body.shells().count(), 2, "an outer and a cavity shell");
+    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let want = 4.0 / 3.0 * std::f64::consts::PI * (PIP_R.powi(3) - (PIP_R - t).powi(3));
+    // `sweep`'s `pole_ball_shells` rule: rounding scales with R³, the
+    // pad is the quadrature's own bound.
+    assert!(
+        (m.volume - want).abs() <= 1e-12 * PIP_R.powi(3) + m.volume_pad,
+        "volume {} vs the closed form {want}",
+        m.volume
+    );
 }

@@ -9,7 +9,7 @@
 //! Shape: a rectangular plate with two round holes, unioned with a
 //! small tab (the tab is there so the incremental probe has a sibling
 //! branch to reuse — it carries no parametric weight). The holes'
-//! radius is `Expr::named("hole_r")`, SHARED between both loops, so one
+//! radius is `Formula::named("hole_r")`, SHARED between both loops, so one
 //! parameter edit moves two loops at once — the sharing V2's
 //! expression layer exists for.
 //!
@@ -29,8 +29,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, VarName,
+    BooleanOp, Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, VarName,
 };
 
 use crate::fixture::{frame, len, xy_frame};
@@ -54,12 +54,12 @@ pub const PLATE_DEPTH: f64 = 0.5;
 pub const HOLE_CENTRES: [(f64, f64); 2] = [(1.0, 1.0), (2.2, 1.0)];
 
 /// The hole radius, as the shared parameter reference.
-pub fn hole_radius() -> Expr {
-    Expr::named(VarName::from_static(HOLE_R), Dimension::Length)
+pub fn hole_radius() -> Formula {
+    Formula::named(VarName::from_static(HOLE_R), Dimension::Length)
 }
 
 /// One hole loop: a circle whose radius is the shared parameter.
-pub fn hole_loop(centre: (f64, f64)) -> LoopProgram {
+pub fn hole_loop(centre: (f64, f64)) -> LoopProgram<Formula> {
     LoopProgram::Circle {
         centre: [len(centre.0), len(centre.1)],
         radius: hole_radius(),
@@ -69,7 +69,7 @@ pub fn hole_loop(centre: (f64, f64)) -> LoopProgram {
 /// The plate outline, authored as an explicit chain rather than through
 /// `LoopProgram::polygon`, so the document also exercises a hand-built
 /// `Chain` beside the carrier forms.
-pub fn outline() -> LoopProgram {
+pub fn outline() -> LoopProgram<Formula> {
     let (x0, x1, y0, y1) = PLATE;
     LoopProgram::Chain(vec![
         ProgramStep::At([len(x0), len(y0)]),
@@ -82,7 +82,7 @@ pub fn outline() -> LoopProgram {
 
 /// The parametric plate profile on `plane`: outline first, then the
 /// two holes.
-pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram {
+pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram<Formula> {
     ProfileProgram {
         plane,
         loops: vec![

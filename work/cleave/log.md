@@ -429,3 +429,133 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 - Steep tube (PR 3981, DR-65, renumbered from 64 at merge) merged after its fix pass, with main merged in after PR 3979. Split's pcurve check 5 decides only an escape's positive part, through one `escape` helper. The tour's tip ratio is now pinned per link count. Row closed. M-tier units toward the readout: 4. Mints step 2's withdrawn lane is told to push its uncommitted edits to `cleave/mints-coincidence` as held, unreviewed WIP, with no PR.
+
+## 2026-10-06 — a new CLEAVE orchestrator picks the track up
+
+The previous orchestrator has exited; this session holds the track (`status: active` stands).
+- **The P0 on two vertices at one point moves to JOIN.** Ev's PR 4057 ruling says that row is
+  settled by JOIN's `a-pinch-no-kept-face-can-cross-refuses` (its bodies are right; its check
+  becomes "every corner is a slice of its own face"). It is moved by `git mv`, keeping its id,
+  parked on and riding with that unit. A note is on JOIN's log.
+- **`three-corners-alternating-round-a-corner-refuse-at-the-join` is parked** on the same JOIN
+  unit. On main its three ops refuse `SharedVertexCrossings` at the shared corner (FUSE's
+  interleave arm) or `PinchUncrossed`, and JOIN's draft PR 4074 rebuilds exactly that ground: a
+  pinch becomes one vertex per cone and `PinchUncrossed`, the crossing pre-pass and the pinch welds
+  retire. Working the join under it now would be built twice. Alternative not taken: dispatch it
+  against today's zips and accept the rework.
+- **Dispatched** (review tier for each: single FULL — both change what a door accepts or how a
+  section arc is decided, so believing them takes more than reading them):
+  - `cleave/split-operand-gate`: `split-answers-an-inside-out-operand-with-two-inside-out-halves`,
+    with `split-gates-its-operand-on-null-edges-not-on-tier-2` riding along (priced P1/E). The
+    split door takes the Boolean's finished-operand shape (REACH PR 3987).
+  - `cleave/split-segment-curve`: `split-lane-second-chord-recomputes-the-first-chords-arc`.
+- **Design weighing**: `closest-crossing-and-graze-abandon-have-three-homes` (`design: true`) went
+  to the designer pair, blinding record on `analysis/design-fork/cleave-ray-walk-protocol`. It goes
+  to Ev only if the reports leave a fork that is Ev's.
+
+Signed (CLEAVE orchestrator).
+- **The ray-walk design question is decided without Ev** (`closest-crossing-and-graze-abandon-have-three-homes`).
+  Both designers' first reports agree on the final state, and neither touches ratified text:
+  - one walk driver (the retry ladder: graze → next ray, a ray-level in-band reading abandons and the
+    first is kept, refuse, exhausted → typed) and one closest-crossing fold, in `topo::ray_walk`, grown
+    from `ray_parity`;
+  - the per-ray reading stays two kinds: parity (planar, chart) and closest crossing (solid, sphere);
+  - each geometry keeps its schedule, crossings, no-hit verdict, K rows and error enum.
+
+  Both corrected the row's premise: the planar walk is parity, and there are five driver copies in
+  `topo` plus `profile`'s, not three. Their differences are of detail (a set-aside kind for confined
+  limits; a sphere boundary pre-pass; geom-core against topo). The orchestrator reconciled them: `topo`;
+  one precedence rule written once in the driver, decided on semantics; the sphere pre-pass measured
+  first. Re-priced H, `design` cleared. Dispatched as `cleave/ray-walk`. Review tier: DUAL (concurrent,
+  H) — a protocol consolidated across five readers, with refusal semantics that are hard to change later.
+  It is not a design-fork row: nothing went to Ev. The blinding record stays on its analysis branch.
+- **PR 4081 merges** (`split-lane-second-chord-recomputes-the-first-chords-arc`, closed). The split's
+  segment curve and its chord plan are each decided once (`ChordJoiner::segment_curve`, `JoinPlan`),
+  shared with the Boolean lane. The row's `NoChartedRun` premise had been dead on main since
+  `5ec92edc58`. What the double decision cost was measured on a new fixture, a pocketed drum split
+  across its ring: the two halves' wall arcs could sit a period apart, and half volumes failed to sum by
+  up to 5.9e-9. Goldens re-baselined: `tilted_below` and editor-core `cut_cylinder`.
+  - Review: single FULL, then the orchestrator's read of the fix pass's delta. The delta plans the
+    second chord before the first chord's surgery; the invariant that makes this exact is documented on
+    `JoinPlan`, and topo and sweep are green.
+  - Filed: `split-halves-volumes-sum-to-the-whole-only-within-their-pads` (P3, `design`). Its misses
+    track unequal quadrature pads, so it may belong to FLUX's quadrature ground; it stays here until
+    measured further.
+  - Class noted from the review: "decided once" has to cover the plan as well as the value. A
+    computed value that is shared while the plan choosing it is re-derived is the shape to grep for.
+- **Re-homed off CLEAVE's ground**: the lamina validator row went to RESTFRONT and the self-slit
+  tessellator panic to TESS, each with a note on its owner's log.
+- **Dispatched** (single FULL review each: both are refusal paths whose cause is untraced):
+  - `cleave/concave-graze`: `a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge`;
+  - `cleave/pierce-strut-after`: `a-pierce-strut-after-half-may-be-moved-by-the-other-run` (prove,
+    or refuse typed).
+- **PR 4084 merges** (the split's operand gate; `split-answers-an-inside-out-operand-with-two-inside-out-halves`
+  and its rider `split-gates-its-operand-on-null-edges-not-on-tier-2` are closed).
+  - What it does:
+    - The split's doors take `AtRestBody`, as the Boolean's do (REACH PR 3987).
+    - An operand that carries no verdict (a dual) goes through one shared gate: tier 2, check 7 per
+      solid, then check 10's winding per shell.
+    - The split's hand-written null-edge arms are now invariants.
+  - Review tier: single FULL, then the orchestrator's read of the fix pass's delta.
+  - Class noted from the review: **a total hides a sign one level down.** The gate read orientation
+    per solid, and an inside-out shell under a positive solid slipped through. A check over a sum
+    has to read each term at the finest grain the invariant names.
+  - Capability that regressed, disclosed: the lune piece no longer finishes at ε = 1e-6
+    (`VolumeUncomputable`, quadrature convergence), so a second split of it now refuses there. The
+    cause is on QUAD's row.
+  - Filed elsewhere:
+    - BAND: `blend-doors-answer-an-inside-out-operand-with-an-inside-out-body` (P1).
+    - EXCH: `exchange-writers-take-a-body-no-at-rest-gate-read`.
+    - Evidence on SHELL's and QUAD's existing rows.
+  - Filed here: `a-stray-inside-out-shell-beside-two-outer-shells-passes-the-no-verdict-gate` (P3),
+    plus the lane's three result-gate and sides rows.
+- **PR 4096 merges** (`a-pierce-strut-after-half-may-be-moved-by-the-other-run`, closed). The row's
+  witness cannot occur: the strut's `after` is the chord of the next sector, which no other run's
+  mint moves. The invariant is checked at both twins (vtxfac, `splitting/insert.rs`), and each check
+  goes red under a fan-overreach mutant.
+  - Review: single FULL, then the orchestrator's read of the fix pass's delta.
+  - Class noted: **a sweep scoped to one directory is not a sweep of the shape.** The first pass
+    covered `boolean/` only and missed the splitting twin. Name the scope as the blind spot.
+  - Filed: `run-loops-of-split-and-pierce-are-twins` (P3). Evidence added to
+    `classification-invariant-family-types-bug-only-states-against-d9-row-4`.
+- **Six unpriced rows priced** (the bands are per `work/README.md`):
+  - P1, two implementations of one logic: `which-fragment-of-a-divided-face-holds-a-segment-is-spelled-three-ways`
+    (M) and `topo-smooth-arms-decide-descriptions-outside-the-must-carry-rule` (M; its boolean arm
+    folds an in-band station into the conventional description, against `must_carry_over_edge`'s contract).
+  - P2, error propagation: `recl-flanker-representative-normalizes-an-undecided-residual` (M) and
+    `lily-walls-curved-clearance-crowds-the-band-under-k-lint` (M).
+  - P3: `boolean-operand-refusals-that-precede-or-outlive-the-tier-two-gate` (M).
+  - P4, tooling: `site-census-attributes-a-parents-decisions-to-its-nested-fn` (E).
+- **Dispatched** `cleave/fragment-lineage` (`which-fragment-…`; single FULL review). The smooth-arms
+  P1 waits for PR 4098 to merge, because both edit `splitting/finish.rs`.
+- **Filed a P0**: `a-cylinder-split-through-its-seam-ruling-refuses-rechart-undescribed`. PR 4098's delta
+  review found that a solid cylinder split through its seam ruling refuses
+  `RechartUndescribed{seam}`, on main as well. Its lane is dispatched once PR 4098 merges, because
+  both edit the same re-chart site in `splitting/finish.rs`.
+- **PR 4131 merges** (`which-fragment-…`, closed): one lineage home (`boolean::fragments`), one
+  half-edge face reader, and the join plan's face read once. No body moves.
+  - Ruled: a new refusal must be more causal than what it replaces. The lane's plan-time two-face
+    `SectionInvariant` hid 34 deliberate tangent-frontier texts and misnamed the face in 14 cases, so
+    it was dropped and today's refusals stand.
+  - Filed on JOIN: the half-selection defect.
+- **PR 4098 merges** (`a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge`, closed).
+  Of 90 concave-graze poses measured on main, only 10 named the knife edge. Now each refuses
+  `Reduce(KnifeEdge)` at rule (a), naming the wall and the contact site.
+  - Review: single FULL, then a DELTA review of a fix pass that widened rule (a). It ran about 1,330
+    poses × 3 ε plus the topo, sweep, editor-core and verbs suites; no split main built refuses.
+  - Ruled and built: one decision, one payload. The knife edge was spelled
+    `ConcaveGraze`/`SectionCusp` at two phases; the two phase variants now carry one `KnifeEdge` type.
+  - `SectionSpur` is retired to a panic (`assert_no_spur`) whose invariant names its three fences.
+  - Filed: `an-in-band-concave-graze-refuses-at-certification-on-one-side-of-tangency` (P2) and
+    `certified-line-carrier-is-read-in-five-places` (P4).
+  - Class noted: **a fix pass that widens a rule earns a delta review.** Rule (a) now reads every
+    tangent wall; the first review never saw that code.
+- **PR 4120 merges.** The P0 `a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section` is closed:
+  a pipe cut across its axis now splits.
+  - Cause: every curved self-loop chord got a placeholder circle. Its area was zero (`DegenerateSection`)
+    or made up (`Finish(Corrupt)`, which blamed the body).
+  - Review: single FULL, then the orchestrator's read of the fix pass. The placeholder's type is filed
+    on TOPO.
+  - Class noted: a stand-in value that rides into a reader as if it were real (the placeholder circle)
+    needs a type, not a convention. Two readers disagreed on how to recognise it.
+- 2026-10-06 — Note from SHELL: four split rows (three in `split_across_a_revolve_seam.rs` and `m5_pr6_pcurves::a_seam_closed_tube_split_mints_clean_halves`) fail at ε = 1e-6 on main, identically with the merge-base's shell code. Every sweep PR's 1e-6 row is red on them. Filed as `split-seam-closed-form-rows-fail-at-eps-1e-6` (P0, on your slate). The rows came in with `bf06e9a0` (PR 4120). (SHELL orchestrator)

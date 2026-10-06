@@ -1267,7 +1267,7 @@ pub enum StepTurns {
     /// The angle within one turn that lands every copy where the step
     /// does, up to rounding: the authored step less its whole turns,
     /// as a formula the speaker says ([`crate::spoken::Speaker::formula`]).
-    Within(crate::expr::Expr),
+    Within(crate::Formula),
     /// The step holds this many whole turns, and the formula less them
     /// is one the expression bound refuses (it would nest too deep).
     Over(u64),
@@ -1491,8 +1491,9 @@ pub enum NodeErrorKind {
     /// A body operand is not a finished body: the at-rest gate
     /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
     /// body its input node built, so a door that takes finished bodies
-    /// (the Boolean) cannot take it (`docs/DESIGN.md`, tier 3: a finished
-    /// body pays the gate at the door that built it). The input's own
+    /// (the Boolean, the split, the shell) cannot take it
+    /// (`docs/DESIGN.md`, tier 3: a finished body pays the gate at the
+    /// door that built it). The input's own
     /// door shipped a body it should have refused, so nothing an author
     /// set on either node is the cause.
     UnfinishedOperand {
@@ -1622,7 +1623,7 @@ pub enum NodeErrorKind {
         /// the spacing made positive, it builds the same copies. `None`
         /// for a component whose negation the expression bound refuses
         /// (it would nest too deep).
-        reversed: [Option<crate::expr::Expr>; 3],
+        reversed: [Option<crate::Formula>; 3],
     },
     /// A linear pattern's spacing is zero at tolerance, so every copy
     /// would land on the master.
@@ -2284,9 +2285,9 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 //
 // Each node the sentence names is said by the speaker the frame handing
 // the refusal out passes ([`crate::spoken::Say`]): the kind lives in the
-// evaluation memo, so it holds ids and never a label. A part's fault is
-// numbered in the part, so it is said by tag here, where the part is not
-// in hand ([`PartFault::spoken`] says it from the part).
+// evaluation memo, so it holds ids and never a label its key does not
+// fix. A part's fault is numbered in the part and holds the part's nodes
+// as its pin fixes them, so it says them itself ([`PartFault::held`]).
 impl crate::spoken::Say for NodeErrorKind {
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
     fn say(
@@ -2334,9 +2335,10 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
             Self::Unplaced { group, cause } => write!(
                 f,
-                "this reads the group rooted at {}, which is unplaced because {cause}, so \
+                "this reads the group rooted at {}, which is unplaced because {}, so \
                  it lives in its own space and nothing outside it is compared with it. {}",
                 by.node(*group),
+                Said(cause, by),
                 crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
             // The refusal itself is drawn on its own line (`carried`).
@@ -2860,8 +2862,26 @@ impl NodeErrorKind {
 pub enum CarriedIn<'a> {
     /// The document whose evaluation raised the outermost refusal.
     ThisDocument,
-    /// The part this reference names.
-    Part(&'a crate::ident::DocRef),
+    /// The part `doc_ref` names, whose nodes the level names are `held`
+    /// as the version it pins holds them ([`PartFault::held`]).
+    Part {
+        /// The reference crossed into the part.
+        doc_ref: &'a crate::ident::DocRef,
+        /// The part's nodes, as its fault keeps them.
+        held: &'a crate::spoken::HeldNodes,
+    },
+}
+
+impl<'a> CarriedIn<'a> {
+    /// The reference crossed into the part the level is in; `None` for
+    /// the outermost document.
+    #[must_use]
+    pub fn doc_ref(&self) -> Option<&'a crate::ident::DocRef> {
+        match self {
+            CarriedIn::ThisDocument => None,
+            CarriedIn::Part { doc_ref, .. } => Some(doc_ref),
+        }
+    }
 }
 
 /// **One level of a carried chain**: the node that refused, the
@@ -2880,50 +2900,27 @@ impl CarriedLevel<'_> {
     /// The level as its node's own tree draws it
     /// ([`NodeRefusal::line_at`]), its nodes spoken from `here`, the
     /// document the outermost refusal was raised in, when the level is
-    /// in it. A level in a part names its nodes by the tag: `here` does
-    /// not hold the part, and ids are not document-scoped, so `here`
+    /// in it. A level in a part says its nodes as the part's fault holds
+    /// them, never from `here`: ids are not document-scoped, so `here`
     /// may hold the same id as another node.
     #[must_use]
     pub fn line_in<P>(&self, here: &Doc<P>) -> String {
         let by = match self.document {
             CarriedIn::ThisDocument => crate::spoken::Speaker::of(here),
-            CarriedIn::Part(_) => crate::spoken::Speaker::TAG,
+            CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
         };
         self.refusal.line_at(self.node, by)
     }
 
-    /// **The level of a part, spoken from the part**, for a frame that
-    /// holds the resolved part `part`: the version its reference pins,
-    /// so its labels are the ones the refusal was raised under. `tol` is
-    /// the tolerance the pin is computed under, the one the part was
-    /// resolved at.
-    ///
-    /// # Panics
-    ///
-    /// When the level is not in a part, or `part` is not the document
-    /// its reference names at the version it pins: its node ids would
-    /// name another document's nodes.
-    #[must_use]
-    pub fn line_in_part(&self, part: &crate::ProfileDoc, tol: Tol) -> String {
-        let in_part = match self.document {
-            CarriedIn::Part(doc_ref) => Some(doc_ref),
-            CarriedIn::ThisDocument => None,
-        };
-        assert!(
-            in_part.is_some(),
-            "a carried level in the outermost document is spoken by `line_in`, never from a part"
-        );
-        if let Some(doc_ref) = in_part {
-            crate::spoken::assert_pinned("the carried level", doc_ref, part, tol);
-        }
-        self.refusal
-            .line_at(self.node, crate::spoken::Speaker::of(part))
-    }
-
-    /// The level where no document is at hand: its nodes by the tag.
+    /// The level where no document is at hand: a node of the outermost
+    /// document by its tag, a part's as its fault holds it.
     #[must_use]
     pub fn line(&self) -> String {
-        self.refusal.line_at(self.node, crate::spoken::Speaker::TAG)
+        let by = match self.document {
+            CarriedIn::ThisDocument => crate::spoken::Speaker::TAG,
+            CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
+        };
+        self.refusal.line_at(self.node, by)
     }
 }
 
@@ -2953,10 +2950,15 @@ impl<'a> CarriedChain<'a> {
     /// in the part; a mate's is in `outer`, the document `kind` itself
     /// was raised in.
     fn step(kind: &'a NodeErrorKind, outer: CarriedIn<'a>) -> Option<CarriedLevel<'a>> {
-        let (node, refusal) = kind.carried()?;
-        let document = match kind {
-            NodeErrorKind::Part { doc_ref, .. } => CarriedIn::Part(doc_ref),
-            _ => outer,
+        let (node, refusal, document) = match kind {
+            NodeErrorKind::Part { doc_ref, fault } => {
+                let (node, refusal, held) = fault.carried_held()?;
+                (node, refusal, CarriedIn::Part { doc_ref, held })
+            }
+            _ => {
+                let (node, refusal) = kind.carried()?;
+                (node, refusal, outer)
+            }
         };
         Some(CarriedLevel {
             document,

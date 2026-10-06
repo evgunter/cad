@@ -27,6 +27,7 @@ use topo::{
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 
 use crate::fixture::{disc, offset_disc, pinch_plane, pinch_prism, tol, x_axis, z_plane};
+use sweep::test_support::finished;
 
 /// The `f64` shell door, read at the ONE seam that answers it
 /// (`topo::AtRestPolicy::shell_door`) rather than constructed here —
@@ -133,7 +134,8 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(door.to_string(), carried.to_string());
 }
 
-/// The unit cube, finished — the boolean rows' first operand.
+/// The unit cube, finished — the boolean rows' first operand, and the
+/// split rows' operand.
 fn unit_cube() -> AtRestBody<f64> {
     sweep::test_support::finished(
         "the unit cube",
@@ -460,7 +462,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         edges: Vec::new(),
         radius: 0.1_f64,
     }
-    .run_split(&cube, tol())
+    .run_split(&unit_cube(), tol())
     .expect_err("a fillet hands back one body, not two sides");
     assert_eq!(
         err.to_string(),
@@ -484,7 +486,11 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         edges: Vec::new(),
         radius: 0.1_f64,
     }
-    .run_shell(&cube, tol(), shell_door())
+    .run_shell(
+        &finished("the operand", cube.clone(), tol()),
+        tol(),
+        shell_door(),
+    )
     .expect_err("a fillet does not hollow");
     assert_eq!(
         err.to_string(),
@@ -523,7 +529,7 @@ fn dump_sides(above: &SplitPart<f64>, below: &SplitPart<f64>) -> String {
 
 #[test]
 fn the_split_dispatch_is_the_split_door() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = unit_cube();
     let plane = z_plane(0.5);
 
     let door = split(&cube, &plane, tol()).unwrap();
@@ -584,7 +590,7 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
 /// it, so that is not the failure this row guards.)
 #[test]
 fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
-    let prism = pinch_prism();
+    let prism = sweep::test_support::finished("the pinch prism", pinch_prism(), tol());
     let plane = pinch_plane();
 
     let door = split(&prism, &plane, tol()).unwrap();
@@ -624,7 +630,7 @@ fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
 /// a refusal.
 #[test]
 fn an_empty_split_side_crosses_as_the_typed_empty() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = unit_cube();
     let plane = z_plane(5.0);
 
     let door = split(&cube, &plane, tol()).unwrap();
@@ -648,7 +654,7 @@ fn an_empty_split_side_crosses_as_the_typed_empty() {
 /// section.
 #[test]
 fn a_split_refusal_crosses_the_dispatch_unaltered() {
-    let empty = Body::<f64>::new();
+    let empty = sweep::test_support::finished("the empty body", Body::<f64>::new(), tol());
     let plane = z_plane(0.5);
 
     let door = split(&empty, &plane, tol()).unwrap_err();
@@ -788,16 +794,25 @@ fn the_shell_dispatch_is_the_shell_door() {
 
     for open in [Vec::new(), designated] {
         let door = if open.is_empty() {
-            topo::shell(&cube, 0.1, tol())
+            topo::shell(&finished("the operand", cube.clone(), tol()), 0.1, tol())
         } else {
-            topo::shell_open(&cube, 0.1, &open, tol())
+            topo::shell_open(
+                &finished("the operand", cube.clone(), tol()),
+                0.1,
+                &open,
+                tol(),
+            )
         }
         .unwrap_or_else(|e| panic!("the fixture is inside the door: {e}"));
         let via = Verb::Shell {
             thickness: 0.1,
             open: open.clone(),
         }
-        .run_shell(&cube, tol(), shell_door())
+        .run_shell(
+            &finished("the operand", cube.clone(), tol()),
+            tol(),
+            shell_door(),
+        )
         .unwrap_or_else(|e| panic!("the dispatch refused what the door accepted: {e}"));
 
         assert_eq!(dump(&door.body), dump(&via.body));
@@ -833,12 +848,21 @@ fn the_shell_dispatch_is_the_shell_door() {
 #[test]
 fn a_shell_refusal_crosses_the_dispatch_unaltered() {
     let cube = sweep::test_support::cube(1.0, tol());
-    let door = topo::shell(&cube, 0.0_f64, tol()).unwrap_err();
+    let door = topo::shell(
+        &finished("the operand", cube.clone(), tol()),
+        0.0_f64,
+        tol(),
+    )
+    .unwrap_err();
     let via = Verb::Shell {
         thickness: 0.0,
         open: Vec::new(),
     }
-    .run_shell(&cube, tol(), shell_door())
+    .run_shell(
+        &finished("the operand", cube.clone(), tol()),
+        tol(),
+        shell_door(),
+    )
     .unwrap_err();
 
     let VerbError::Shell(carried) = via else {

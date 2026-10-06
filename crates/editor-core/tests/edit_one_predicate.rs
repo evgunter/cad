@@ -40,17 +40,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
-    EntityKind, Expr, FaceName, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
-    MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId,
-    RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
+    EntityKind, FaceName, Formula, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
+    MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
+    SnapshotError, StableName, VarName, apply, load, save,
 };
-use editor_core::{VarNameReason, parse_expr};
+use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
@@ -83,7 +84,7 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
     (r.doc, measure)
 }
 
-fn assertion(measure: RecipeNodeId, bound: Expr) -> Node<ProfileProgram> {
+fn assertion(measure: RecipeNodeId, bound: Formula) -> AuthoredNode {
     Node::Assertion {
         measure,
         bound,
@@ -172,7 +173,7 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
 fn saved_assertion(
     doc: &editor_core::ProfileDoc,
     measure: RecipeNodeId,
-    bound: Expr,
+    bound: Formula,
 ) -> (String, RecipeNodeId) {
     let applied = apply(
         doc,
@@ -209,7 +210,7 @@ fn repoint_measure(
 
 /// Retypes the assertion's BOUND literal from a length to an angle,
 /// unit and all — both halves, so the literal is still one the load
-/// door's `Expr::literal_with_unit` rebuild accepts and the refusal
+/// door's `Formula::literal_with_unit` rebuild accepts and the refusal
 /// read is the DIMENSION rule's.
 fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
     doctored(text, |wire| {
@@ -296,12 +297,7 @@ fn part_face(body: RecipeNodeId) -> StableName {
     }
 }
 
-fn mate(
-    body: RecipeNodeId,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-    origin: [f64; 3],
-) -> Node<ProfileProgram> {
+fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
@@ -1312,7 +1308,7 @@ fn agrees(text: &str, replay: &str) {
         format!("{text:?}")
     };
     let read_back = matches!(
-        parse_expr(text, &BTreeMap::new()),
+        parse_formula(text, &BTreeMap::new()),
         Err(editor_core::ParseError::UnknownParam { ref name, .. }) if name == text
     );
     match VarName::new(text) {
@@ -1320,7 +1316,7 @@ fn agrees(text: &str, replay: &str) {
             assert!(read_back, "{shown} is admitted but not read back{replay}");
             let table = BTreeMap::from([(name.clone(), Dimension::Scalar)]);
             assert!(
-                parse_expr(text, &table) == Ok(Expr::named(name, Dimension::Scalar)),
+                parse_formula(text, &table) == Ok(Formula::named(name, Dimension::Scalar)),
                 "{shown} is admitted, but declared it does not read back as itself{replay}"
             );
         }

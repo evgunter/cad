@@ -30,6 +30,7 @@ use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
 use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
 use crate::common::torus_walls::props_door;
+use sweep::test_support::finished;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;
@@ -65,7 +66,7 @@ fn minor_radii(body: &Body<f64>) -> Vec<f64> {
 
 /// Shell to tier 3, two shells, and the wall's closed form.
 fn shelled_to_closed_form(what: &str, body: &Body<f64>) -> topo::Shelled<f64> {
-    let out = topo::shell(body, T, tol())
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
         .unwrap_or_else(|e| panic!("{what}: the full torus shells, got {e}"));
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),
@@ -218,7 +219,8 @@ fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
         (o.x * o.x + o.z * o.z).sqrt() <= 1e-15 && d.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
     });
     let split = split_mid(&mut body, axis_edge);
-    let e = topo::shell(&body, T, tol()).expect_err("the split wedge refuses");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
+        .expect_err("the split wedge refuses");
     let ShellError::Face { error, .. } = &e else {
         panic!("expected the axial door's refusal, got {e}");
     };
@@ -269,8 +271,8 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
     );
     let (rho0, h0) = axial(point(&body, split));
     assert!((rho0 - r).abs() <= 1e-15 && (h0 - h / 2.0).abs() <= 1e-15);
-    let out =
-        topo::shell(&body, T, tol()).unwrap_or_else(|e| panic!("the split drum shells, got {e}"));
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
+        .unwrap_or_else(|e| panic!("the split drum shells, got {e}"));
     let cavity = &out.body;
     assert_eq!(topo::validate_geometric(cavity, tol()), Ok(()), "tier 3");
     let (new, _) = out
@@ -347,7 +349,8 @@ fn shells_with_one_surface_vertices(
         Ok(()),
         "{what}: operand"
     );
-    let out = topo::shell(body, t, tol()).unwrap_or_else(|e| panic!("{what}: shells, got {e}"));
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .unwrap_or_else(|e| panic!("{what}: shells, got {e}"));
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),
         Ok(()),
@@ -530,8 +533,82 @@ fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
     });
 }
 
+/// **A sphere revolved from a run of arcs hollows to its closed form**, and a torus wall from one hollows.
+/// The run is one meridian arc of a half turn (`crates/sweep/README.md`,
+/// "Walls: one per run"), whose end the run's last arc states, so its
+/// centre and ends sit an ulp off the exact half turn; the axial door
+/// re-authors it about the moved circle on the turn it had, not on
+/// whichever side of `atan2`'s cut the moved ends land — a sphere's
+/// half turn at four stations, and a torus wall's arc run at, either
+/// side of and well past the half turn.
+#[test]
+fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
+    let (r, t) = (1.0, 0.05);
+    for v in [PI / 4.0, -PI / 4.0, 0.0, PI / 3.0] {
+        let (s, c) = v.sin_cos();
+        let body = revolved(
+            bulge_loop(vec![
+                (Point2::new(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+                (Point2::new(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+                (Point2::new(0.0, r), 0.0),
+            ]),
+            Revolution::Full,
+        );
+        assert_eq!(
+            body.faces().count(),
+            2,
+            "station {v}: one wall in two π-bands"
+        );
+        let mut cavity = body.clone();
+        let band = geom_core::Band::linear(tol()).expect("band");
+        topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
+            .unwrap_or_else(|e| panic!("station {v}: the door takes it, got {e}"));
+        assert_eq!(
+            topo::validate_geometric(&cavity, tol()),
+            Ok(()),
+            "station {v}: tier 3"
+        );
+        let props = topo::mass_properties(&cavity, tol()).expect("props");
+        let want = 4.0 / 3.0 * PI * (r - t).powi(3);
+        assert!(
+            (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+            "station {v}: cavity volume {} vs {want}",
+            props.volume
+        );
+    }
+    // A torus wall's meridian run at, just under and just over the half
+    // turn, and well past it: the re-author keeps each on its turn.
+    for k in 1..=5usize {
+        for (what, total) in [
+            ("half turn", PI),
+            ("under", PI - 1e-9),
+            ("over", PI + 1e-9),
+            ("major", 1.5 * PI),
+            ("minor", 0.5 * PI),
+        ] {
+            let label = format!("torus {what} of {k} arcs");
+            let mut chain =
+                sweep::test_support::arc_run(Point2::new(2.0, 0.0), 1.0, -total / 2.0, total, k);
+            chain.rotate_left(1);
+            let body = revolved(bulge_loop(chain), Revolution::Full);
+            let mut cavity = body.clone();
+            let band = geom_core::Band::linear(tol()).expect("band");
+            topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
+                .unwrap_or_else(|e| panic!("{label}: the door takes it, got {e}"));
+            assert_eq!(
+                topo::validate_geometric(&cavity, tol()),
+                Ok(()),
+                "{label}: tier 3"
+            );
+            topo::mass_properties(&cavity, tol())
+                .unwrap_or_else(|e| panic!("{label}: props {e:?}"));
+        }
+    }
+}
+
 /// **A sphere authored as two cocircular arcs shells to its closed
-/// form.** R1's fixture: one sphere in four faces with a same-surface
+/// form.** R1's fixture ([`crate::common::latitude_seam::two_arc_sphere`],
+/// the seam cut by hand): one sphere in four faces with a same-surface
 /// LATITUDE seam at `v = π/4`, which the sphere's own seam arm could
 /// not take and the latitude posture does. Through the direct door the
 /// cavity is tier-3 valid at `4/3·π(r−t)³` (`3.591364001828731` in
@@ -548,16 +625,8 @@ fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
 #[test]
 fn a_two_arc_sphere_shells_to_its_closed_form() {
     let (r, t) = (1.0, 0.05);
-    let v = PI / 4.0;
-    let (s, c) = v.sin_cos();
-    let body = revolved(
-        bulge_loop(vec![
-            (Point2::new(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            (Point2::new(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            (Point2::new(0.0, r), 0.0),
-        ]),
-        Revolution::Full,
-    );
+    let s = (PI / 4.0).sin();
+    let body = crate::common::latitude_seam::two_arc_sphere();
     let concentric = |(rho, hh): (f64, f64)| {
         (rho > 1e-6 && (hh - r * s).abs() <= 1e-9).then(|| {
             let n = rho.hypot(hh);
@@ -602,7 +671,8 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     let split = split_mid(&mut body, generator);
     topo::mint_pcurves(&mut body, tol()).expect("pcurves");
     assert_eq!(distinct_surfaces_at(&body, split), 2, "wall + cap");
-    let e = topo::shell(&body, 0.05, tol()).expect_err("refuses");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
+        .expect_err("refuses");
     let (vertex, surfaces, what) =
         corner_refusal(&e).unwrap_or_else(|| panic!("not a corner refusal: {e}"));
     assert_eq!(vertex, split);
@@ -641,7 +711,8 @@ fn a_partial_two_arc_torus_hollows_to_the_props_door() {
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("check 7's volume");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
+        .expect_err("check 7's volume");
     let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
     assert_eq!(
         source,
@@ -663,7 +734,8 @@ fn a_three_quarter_turn_cone_frustum_refuses_edge_disagreement() {
         Revolution::Partial(3.0 * FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("measured: refuses");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
+        .expect_err("measured: refuses");
     let ShellError::Face { error, .. } = &e else {
         panic!("expected the axial door's refusal, got {e}");
     };

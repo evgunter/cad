@@ -43,7 +43,8 @@
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
-use crate::entity::{FaceKey, LoopBoundary};
+use crate::entity::FaceKey;
+use crate::live::BoundaryMember;
 use crate::validate::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
@@ -117,7 +118,16 @@ type Unmated<T> = Vec<(FaceKey, Rim<T>)>;
 ///
 /// # Errors
 ///
-/// The member whose walk lost an arena entity.
+/// A member that does not resolve: the members are the caller's keys.
+///
+/// # Panics
+///
+/// Where a record past a resolved member does not resolve or its loop
+/// walk does not close (D2 row 4): its outer loop, a lone vertex's
+/// point, each member's edge, its mate and that mate's face, and each
+/// edge's curve. The links hold at rest
+/// and, on the reduction's working copies, by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 fn unmated_boundary<T: Decide>(
     body: &Body<T>,
     members: &[FaceKey],
@@ -128,27 +138,22 @@ fn unmated_boundary<T: Decide>(
         if !f.rings.is_empty() {
             return Ok(None);
         }
-        let Some(LoopBoundary::Cycle { first }) = body.get_loop(f.outer).map(|l| l.boundary) else {
-            return Ok(None);
-        };
-        for he in body.loop_cycle(first).ok_or(member)? {
-            let neighbour = body
-                .mate(he)
-                .and_then(|m| body.face_of_half_edge(m))
-                .ok_or(member)?;
-            if members.contains(&neighbour) {
+        for boundary in body.face_boundary_linked(member, f) {
+            let BoundaryMember::Edge { he, .. } = boundary else {
+                return Ok(None);
+            };
+            let hop = body.proven_mate(he, crate::live::Proven);
+            if members.contains(&body.face_of_linked(hop.mate)) {
                 continue;
             }
-            let edge = body.get_half_edge(he).ok_or(member)?.edge;
             let Some(geom::Curve3::Circle {
                 center,
                 axis,
                 radius,
                 u_ref,
             }) = body
-                .get_edge(edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(crate::null::CurveGeom::certified)
+                .edge_curve_linked(hop.edge, hop.edge_data)
+                .certified()
                 .map(|c| c.carrier().clone())
             else {
                 return Ok(None);
@@ -179,15 +184,19 @@ fn unmated_boundary<T: Decide>(
 ///
 /// * `Ok(None)` — definitely NOT closed. The caller falls through to its
 ///   per-face class.
-/// * `Err(face)` — an arena claim about a BROKEN body, naming the face
-///   the walk lost an entity on. A caller that reports corruption raises
-///   it; one whose class simply does not apply to a body it cannot walk
-///   maps it to `None`.
+/// * `Err(face)` — a member key, `face` among them, that does not
+///   resolve, or a scope that does not hold `face`: the caller's keys. A
+///   caller that reports a stale key raises it; one whose class simply
+///   does not apply maps it to `None`.
 ///
 /// # Errors
 ///
-/// The face key whose walk could not be completed, or `face` itself
-/// when the scope does not hold it.
+/// The member key that does not resolve, or `face` itself when the
+/// scope does not hold it.
+///
+/// # Panics
+///
+/// As [`unmated_boundary`], on a torn hop past a resolved member.
 pub(super) fn surface_group<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -223,8 +232,12 @@ pub(super) fn scope_members<'c, T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for an unwalkable member;
-/// [`PointInSolidError::Escalated`] for an in-band rim margin.
+/// [`PointInSolidError::CorruptFace`] for a member that does not
+/// resolve; [`PointInSolidError::Escalated`] for an in-band rim margin.
+///
+/// # Panics
+///
+/// As [`unmated_boundary`], on a torn hop past a resolved member.
 pub(super) fn wrap_rims_within<T: Decide>(
     body: &Body<T>,
     members: &[FaceKey],

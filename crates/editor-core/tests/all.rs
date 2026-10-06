@@ -142,6 +142,10 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_blend_one_box_of_two.rs"]
+mod edit_blend_one_box_of_two;
+#[path = "edit_bore_two_rims.rs"]
+mod edit_bore_two_rims;
 #[path = "edit_doc_param_distribution.rs"]
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
@@ -729,6 +733,8 @@ mod emit_union_flush_names;
 mod emit_union_rim_piece_ranks;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
+#[path = "intent_literals_b_door.rs"]
+mod intent_literals_b_door;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
