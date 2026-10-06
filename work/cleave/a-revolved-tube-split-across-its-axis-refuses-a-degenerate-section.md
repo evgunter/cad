@@ -56,3 +56,9 @@ body. `plane_section` meets the same fact at its own `chord_u_ref` call
 
 `cleave/concave-graze`'s sweep of the `Corrupt` sites the concave grazes
 reached.
+
+## Correction (orchestrator, 2026-10-06)
+
+The "reversed-sense wall" hypothesis above is disproved, as PR 4120 measured. The outer wall of a
+full-revolve profile that does not touch the axis is a single-seam face too. The cause was
+`chord_spec` leaving every curved self-loop chord on a placeholder circle. The fix rides PR 4120.

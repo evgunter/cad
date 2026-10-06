@@ -2,11 +2,13 @@
 id: a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge
 kind: issue
 title: a concave graze of a curved wall refuses as a corrupt body, a degenerate cone or a join invariant instead of its knife edge
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
 branch: cleave/concave-graze
+closed: 2026-10-06
+pr: 4098
 ---
 
 
@@ -160,3 +162,12 @@ The poses of this subject that still refuse for another reason are filed:
 
 No concave graze can build: each one is a knife edge, which D10 holds
 undeclarable for a split. Nothing here declares contact.
+
+## Closed (PR 4098, 2026-10-06)
+
+A knife edge the split cannot make is one decision with one payload. `KnifeEdge { wall, at }`, with
+one `Display` and one recourse, is carried by the reduce phase (rule (a), before any section is built)
+and by the finish phase's in-band backstop. `plane_section` tells the same fact in its own words.
+Review tier: single FULL, then a delta review of the fix pass. Both returned APPROVE-WITH-FIXES with no
+MAJOR, and no split main built now refuses (about 1,330 poses × 3 ε plus four crates' suites). The fix
+pass also builds four along-a-face-plane splits that refused on main.
