@@ -271,23 +271,23 @@
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
 //!
-//! **Completes the map** — [`crate::Body::set_edge_curve`] (and the
-//! members [`crate::Body::kev_describing`] re-describes), the
-//! surface setter's sibling, which is NOT the same case: a carrier swap
-//! moves neither the row's key nor its chart, and pass 2 re-derives
-//! every row's agreement from the edge's current carrier, so what it
-//! stales is refused loud, on a complete face and on the rows a
-//! half-minted one stores alike. So it keeps the rows it finds, as a `Neither` door does, with one
-//! exception: a null edge's first description is the first door that
-//! can derive the rows of its halves, and on a face the site mint
-//! selects ([`StoredRows::remints`]) it re-mints every loop no other
-//! null edge holds open ([`site_rows`]) — the whole face, once no null
-//! edge is left on it. A kill that lists a member re-mints the same way
-//! over each face its halves are on, as the kill leaves it, whether the
-//! member is null or certified: it describes a null member for the
-//! first time, and it moves a certified member's end with its carrier,
-//! so the rows the member's halves store would span the interval the
-//! end moved from.
+//! **Completes the map** — [`crate::Body::set_edge_curve`] and
+//! [`crate::Body::kev_describing`]'s listed members. A carrier swap is
+//! the surface setter's sibling, NOT the same case: it moves neither
+//! the row's key nor its chart, and pass 2 re-derives every row's
+//! agreement from the edge's current carrier, so what it stales is
+//! refused loud, on a complete face and on the rows a half-minted one
+//! stores alike. These doors re-mint the faces whose rows their
+//! description moves and keep the rows they find everywhere else, as a
+//! `Neither` door does. A null edge's first description is the first
+//! door that can derive the rows of its halves; a kill that lists a
+//! member moves its end with its carrier, null or certified, so the
+//! rows its halves store would span the interval the end moved from.
+//! On each face such a half is on, as the door leaves it, and that the
+//! site mint selects ([`StoredRows::remints`]), the door re-mints every
+//! loop no other null edge holds open ([`site_rows`]) — the whole face,
+//! once no null edge is left on it. A face on a spline chart is left as
+//! found.
 //!
 //! **A kill that takes the last null edge off a loop releases it**, and
 //! the rows the loop missed while it was held open are owed there
@@ -4712,23 +4712,23 @@ pub(crate) mod staleness_posture {
         /// against this one, and about any face on a chart
         /// [`super::chart_mints`] refuses.
         Neither,
-        /// Keeps the rows it finds, as `Neither` does, and rests on the
-        /// same tier-3 pass for what its write stales in them — except
-        /// on a face it COMPLETES: where it installs the first carrier of
-        /// a null edge, whose halves no door before it could give a row,
-        /// it re-mints through the site mint ([`super::site_rows`])
-        /// every loop of the face they are on that no other null edge
-        /// holds open, on a face the site mint selects
-        /// ([`super::StoredRows::remints`]) — every loop of it, whatever
-        /// it missed, once no null edge is left on it. Those loops leave
+        /// Re-mints through the site mint ([`super::site_rows`]) every
+        /// face its description moves the rows of, and keeps the rows it
+        /// finds on every other face, as `Neither` does, resting on the
+        /// same tier-3 pass for what its write stales in them. Those
+        /// faces are the ones a null edge's halves are on where the door
+        /// installs its first carrier, which no door before it could
+        /// give a row; and, for a kill that re-describes the members it
+        /// merges, every face a listed member's halves are on, null or
+        /// certified, since the kill moves a certified member's end with
+        /// its carrier and the rows kept there would span the interval
+        /// the end moved from. On such a face the site mint selects
+        /// ([`super::StoredRows::remints`]) it re-mints every loop no
+        /// other null edge holds open — every loop of it, whatever it
+        /// missed, once no null edge is left on it. Those loops leave
         /// complete, or the face rowless where the closed-form lane
-        /// cannot mint it, or — on a spline chart — as found. A kill
-        /// that re-describes the members it merges re-mints the same way
-        /// over every face a listed member's halves are on, a certified
-        /// member's included: the kill moves that member's end, so the
-        /// rows it keeps there would span the interval the end moved
-        /// from. On a spline chart the certified member's face is left
-        /// as found, for the tier-3 pass.
+        /// cannot mint it. A face on a spline chart is left as found,
+        /// for the tier-3 pass.
         Completes,
     }
 

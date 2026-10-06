@@ -1126,13 +1126,6 @@ impl<T: Decide> Body<T> {
                 (edge_data.he_minus, "he_minus"),
             ];
             halves.extend(pair.map(|(he, _)| he));
-            let null = self
-                .edge_curve(edge, edge_data.curve)
-                .null_scaffold()
-                .is_some();
-            if !null && remints == Remints::FirstDescription {
-                continue;
-            }
             for (he, field) in pair {
                 let he_data = linked(
                     &self.half_edges,
@@ -1141,8 +1134,8 @@ impl<T: Decide> Body<T> {
                     EntityId::Edge(edge),
                     field,
                 );
-                let face = proven(&self.loops, he_data.parent_loop, EntityId::Loop).face;
-                if null || !self.face_on_spline_chart(face) {
+                let face = crate::pcurves::half_edge_face(self, he).0;
+                if self.description_remints(edge, remints, face) {
                     touched.push(he_data.parent_loop);
                 }
             }
@@ -1187,9 +1180,11 @@ impl<T: Decide> Body<T> {
 
     /// Whether [`Body::description_rows`], under `remints`, plans
     /// `face` for `edge`: one of `edge`'s halves is on it, and the
-    /// description re-mints it. [`Body::kev_describing`]'s released-loop
-    /// plan leaves such a face to the description's. `edge` and `face`
-    /// are ones the caller resolved.
+    /// description re-mints it. The one home of that decision: the
+    /// description plans a half's face by it, and
+    /// [`Body::kev_describing`]'s released-loop plan leaves such a face
+    /// to the description's. `edge` and `face` are ones the caller
+    /// resolved.
     pub(crate) fn description_remints(
         &self,
         edge: EdgeKey,
