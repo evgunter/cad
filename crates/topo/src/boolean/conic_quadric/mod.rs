@@ -245,13 +245,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                 ..
             },
         ) => {
-            return cone_roots(
-                &conic,
-                (apex, axis, half_angle),
-                (t0, t1),
-                surface,
-                band,
-            );
+            return cone_roots(&conic, (apex, axis, half_angle), (t0, t1), surface, band);
         }
         _ => return Err(desync()),
     };
@@ -368,7 +362,8 @@ fn cone_roots<T: Decide>(
         }
         roots
     } else {
-        let placed = |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
+        let placed =
+            |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
         let meter = RootSlack {
             row: CONE_ROOT_SLACK,
             residual: &placed,

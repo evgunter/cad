@@ -115,7 +115,10 @@ fn assert_matches_oracle(
     let truth = crossings(|t| form(s, e.eval(t)), mid - PI, mid + PI);
     assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
     for (a, b) in got.iter().zip(&truth) {
-        assert!((a - b).abs() < 1e-9, "{label}: root {a} vs the oracle's {b}");
+        assert!(
+            (a - b).abs() < 1e-9,
+            "{label}: root {a} vs the oracle's {b}"
+        );
     }
     got
 }
@@ -163,7 +166,13 @@ fn crossings_match_the_quadric_form() {
         );
         assert_matches_oracle(
             "an ellipse across a narrow leaning cone",
-            &ellipse([0.5, -0.1, 1.5], [1.0, 0.2, 0.3], [0.0, 1.0, 0.0], 0.6, 0.35),
+            &ellipse(
+                [0.5, -0.1, 1.5],
+                [1.0, 0.2, 0.3],
+                [0.0, 1.0, 0.0],
+                0.6,
+                0.35,
+            ),
             &narrow,
             t0,
             4,
@@ -266,7 +275,11 @@ fn certified_answers_hold_against_the_quadric_form() {
         let (mut certified, mut misses, mut uncertain, mut apex) = (0, 0, 0, 0);
         for i in 0..fuzz::scaled(400) {
             let s = cone(
-                [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0)],
+                [
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                ],
                 unit(&mut rng).to_array(),
                 rng.range(0.05, 1.5),
             );
@@ -373,7 +386,11 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
         let band = Band::new(eps, 10.0 * eps).unwrap();
         let (mut certified, mut misses, mut refused) = (0, 0, 0);
         for i in 0..fuzz::scaled(300) {
-            let s = cone([0.0, 0.0, 0.0], unit(&mut rng).to_array(), rng.range(0.1, 1.4));
+            let s = cone(
+                [0.0, 0.0, 0.0],
+                unit(&mut rng).to_array(),
+                rng.range(0.1, 1.4),
+            );
             let (tip, axis, a) = parts(&s);
             let (u, v) = axis.orthonormal_basis();
             let phi = rng.range(0.0, TAU);

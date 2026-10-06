@@ -293,8 +293,16 @@ fn rod(r: f64, h: f64, tilt: f64, c: [f64; 3]) -> AtRestBody<f64> {
 #[test]
 fn every_op_refuses_a_cone_operand_at_the_pair_gate() {
     let poses = [
-        ("a turned cube across the widening wall", WIDENING, diagonal_cube(0.4, [-0.75, 0.5, 0.0])),
-        ("a tilted rod across the narrowing wall", NARROWING, rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0])),
+        (
+            "a turned cube across the widening wall",
+            WIDENING,
+            diagonal_cube(0.4, [-0.75, 0.5, 0.0]),
+        ),
+        (
+            "a tilted rod across the narrowing wall",
+            NARROWING,
+            rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0]),
+        ),
     ];
     for (label, f, other) in &poses {
         let cone = f.body();
@@ -346,10 +354,26 @@ fn lines_crossing_a_cone_wall_split_where_the_oracle_crosses() {
 #[test]
 fn arcs_crossing_a_cone_wall_split_where_the_oracle_crosses() {
     for (label, f, other) in [
-        ("a tilted rod across the widening wall", WIDENING, rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0])),
-        ("a tilted rod across the narrowing wall", NARROWING, rod(0.12, 0.5, -0.4, [-0.75, 0.5, 0.0])),
-        ("a steep rod across the widening wall", WIDENING, rod(0.1, 0.6, 1.2, [0.0, 0.55, 0.75])),
-        ("a coaxial rod through the top cap", WIDENING, rod(0.3, 0.6, 0.0, [0.0, 1.0, 0.0])),
+        (
+            "a tilted rod across the widening wall",
+            WIDENING,
+            rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0]),
+        ),
+        (
+            "a tilted rod across the narrowing wall",
+            NARROWING,
+            rod(0.12, 0.5, -0.4, [-0.75, 0.5, 0.0]),
+        ),
+        (
+            "a steep rod across the widening wall",
+            WIDENING,
+            rod(0.1, 0.6, 1.2, [0.0, 0.55, 0.75]),
+        ),
+        (
+            "a coaxial rod through the top cap",
+            WIDENING,
+            rod(0.3, 0.6, 0.0, [0.0, 1.0, 0.0]),
+        ),
     ] {
         assert_split_matches_oracle(label, f, &other);
     }
