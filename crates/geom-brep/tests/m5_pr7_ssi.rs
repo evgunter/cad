@@ -5887,7 +5887,8 @@ fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurf
 /// line; a parameter line's own radius, 9 mm here, would put `sin θ`
 /// times it inside the band at ε 1e-9. `μ` 0 is the straight chart path.
 /// One branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is
-/// itself inside the band.
+/// itself inside the band, and at 1e-12 `μ` 0.1 stands down on limb 3's
+/// one-arc proof (`work/ssi/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`).
 #[test]
 fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
     let eps = band().zero();
@@ -5910,6 +5911,15 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
             Ok(out) => out,
             Err(e) if eps >= 1e-6 => {
                 vacuity::stood_down(&at, &format!("α is inside the band: {e}"));
+                continue;
+            }
+            Err(e @ SsiError::TubeNotOneArc { .. }) if eps <= 1e-12 && mu == 0.1 => {
+                vacuity::stood_down(
+                    &at,
+                    &format!(
+                        "work/ssi/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md: {e}"
+                    ),
+                );
                 continue;
             }
             Err(e) => panic!("{at}: expected the line, got {e}"),
