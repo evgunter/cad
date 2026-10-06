@@ -2022,22 +2022,6 @@ pub enum BooleanError {
         /// it crosses into more.
         partners: [VertexKey; 2],
     },
-    /// A vertex of `operand` pierces a face of the other solid with
-    /// three or more Out runs (`vtxfac::classify_vertex_on_face`). Each
-    /// run hangs a strut at the pierce's one ring vertex, and with three
-    /// or more the struts' cyclic order must match the runs' angular
-    /// order about the face's normal, which no row has measured
-    /// (`work/join/ring-struts-of-three-or-more-runs-hang-in-run-order.md`).
-    /// What licenses it: a fixture whose vertex has three Out runs
-    /// against a face, and a row pinning the struts' order there.
-    PierceRunsUnordered {
-        /// The piercing operand.
-        operand: Operand,
-        /// Its piercing vertex.
-        vertex: VertexKey,
-        /// How many Out runs it has against the face.
-        runs: usize,
-    },
     /// The result pinches at `vertex`: two cones of its boundary meet
     /// there, and the seam zips would fuse the point to itself
     /// (`zip::cross_pinches`). One vertex holds two cones only where a
@@ -2619,8 +2603,6 @@ pub enum BooleanErrorKind {
     PairingMismatch,
     /// [`BooleanError::SharedVertexCrossings`].
     SharedVertexCrossings,
-    /// [`BooleanError::PierceRunsUnordered`].
-    PierceRunsUnordered,
     /// [`BooleanError::PinchUncrossed`].
     PinchUncrossed,
     /// [`BooleanError::NonManifoldResult`].
@@ -2828,7 +2810,6 @@ impl BooleanError {
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
-            Self::PierceRunsUnordered { .. } => BooleanErrorKind::PierceRunsUnordered,
             Self::PinchUncrossed { .. } => BooleanErrorKind::PinchUncrossed,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
@@ -3308,14 +3289,6 @@ impl core::fmt::Display for BooleanError {
                  several corners that only touch each other, and \
                  cuts into more than one of them in a way the Boolean cannot yet join. \
                  There is no way through this in the kernel yet",
-                operand_word(*operand)
-            ),
-            Self::PierceRunsUnordered { operand, runs, .. } => write!(
-                f,
-                "a corner of the {} solid sits on a face of the other with {runs} separate \
-                 wedges of the corner outside that face, and the Boolean does not yet order \
-                 more than two such wedges round one point. There is no way through this in \
-                 the kernel yet",
                 operand_word(*operand)
             ),
             Self::PinchUncrossed { .. } => write!(
@@ -5769,11 +5742,6 @@ mod tests {
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
             },
-            BooleanError::PierceRunsUnordered {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-                runs: 3,
-            },
             BooleanError::PinchUncrossed {
                 vertex: VertexKey::default(),
             },
@@ -5944,7 +5912,6 @@ mod tests {
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
-                BooleanErrorKind::PierceRunsUnordered => "PierceRunsUnordered",
                 BooleanErrorKind::PinchUncrossed => "PinchUncrossed",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",

@@ -4777,7 +4777,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pairing_mismatch",
             "pcurves",
             "pieces",
-            "pierce_runs_unordered",
             "pinch_uncrossed",
             "point_in_face_refused",
             "point_split_carrier_unsupported",

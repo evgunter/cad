@@ -782,3 +782,227 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     assert_eq!(shapes[2], shapes[3], "X ∪ plate and plate ∪ X: one body");
     assert_eq!(shapes[4], shapes[5], "X ∩ plate and plate ∩ X: one body");
 }
+
+/// Where the holes of [`tilted_holes`] meet: a vertex of the plate's top.
+const MEET: [f64; 3] = [1.5, 1.0, 1.0];
+
+/// A hole in the plate's top: its footprint (counterclockwise from +z,
+/// one corner at [`MEET`]), the bearing its axis leans towards, and the
+/// prism's reach below [`MEET`] and its length, along the axis.
+struct Hole {
+    footprint: Vec<(f64, f64)>,
+    lean: f64,
+    below: f64,
+    length: f64,
+}
+
+impl Hole {
+    /// The tilted frame the prism is sketched on: origin `below` under
+    /// [`MEET`] along the axis `n`, `u` horizontal, `u × v = n`.
+    fn frame(&self) -> [[f64; 3]; 4] {
+        let (s, c) = self.lean.to_radians().sin_cos();
+        let k = 1.09f64.sqrt();
+        let n = [0.3 * c / k, 0.3 * s / k, 1.0 / k];
+        let u = [-s, c, 0.0];
+        let v = [
+            n[1] * u[2] - n[2] * u[1],
+            n[2] * u[0] - n[0] * u[2],
+            n[0] * u[1] - n[1] * u[0],
+        ];
+        let o = [0, 1, 2].map(|i| MEET[i] - self.below * n[i]);
+        [o, u, v, n]
+    }
+
+    /// The footprint projected along the axis into the frame.
+    fn profile(&self) -> Vec<(f64, f64)> {
+        let [o, u, v, _] = self.frame();
+        let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        self.footprint
+            .iter()
+            .map(|&(x, y)| {
+                let d = [x - o[0], y - o[1], 1.0 - o[2]];
+                (dot(d, u), dot(d, v))
+            })
+            .collect()
+    }
+
+    /// The prism's volume above the plate's top: the profile's area
+    /// times the axial length above the top at its centroid, the height
+    /// above the top being affine over the profile.
+    fn above(&self) -> f64 {
+        let [o, u, v, n] = self.frame();
+        let p = self.profile();
+        let (mut a, mut cx, mut cy) = (0.0, 0.0, 0.0);
+        for i in 0..p.len() {
+            let ((x0, y0), (x1, y1)) = (p[i], p[(i + 1) % p.len()]);
+            let w = x0 * y1 - x1 * y0;
+            a += w / 2.0;
+            cx += (x0 + x1) * w / 6.0;
+            cy += (y0 + y1) * w / 6.0;
+        }
+        let z = o[2] + (cx / a) * u[2] + (cy / a) * v[2];
+        a * (self.length - (1.0 - z) / n[2])
+    }
+}
+
+/// A wedge over the sector `a0..a1` (degrees) of radius 0.4 about
+/// [`MEET`], leaning along its bisector; `k` staggers its reach and
+/// length.
+fn sector(a0: f64, a1: f64, k: usize) -> Hole {
+    let at = |a: f64| {
+        let (s, c) = a.to_radians().sin_cos();
+        (MEET[0] + 0.4 * c, MEET[1] + 0.4 * s)
+    };
+    Hole {
+        footprint: vec![(MEET[0], MEET[1]), at(a0), at(a1)],
+        lean: (a0 + a1) / 2.0,
+        below: 0.5 - 0.03 * k as f64,
+        length: 1.5 - 0.11 * k as f64,
+    }
+}
+
+/// An L-shaped hole whose reflex corner is [`MEET`], leaving the
+/// quadrant x < 1.5, y < 1 free and leaning away from it.
+fn ell_hole() -> Hole {
+    Hole {
+        footprint: vec![
+            (1.0, 1.0),
+            (1.5, 1.0),
+            (1.5, 0.5),
+            (2.0, 0.5),
+            (2.0, 1.5),
+            (1.0, 1.5),
+        ],
+        lean: 45.0,
+        below: 0.43,
+        length: 1.37,
+    }
+}
+
+/// The plate and a prism per hole, each sketched on its tilted frame
+/// and extruded along it: above the top the prisms lean apart and touch
+/// nowhere, below it they cross inside the plate.
+fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (mut doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let mut m = vec![plate];
+    for h in holes {
+        let [o, u, v, _] = h.frame();
+        let (d, p) = on_frame(doc, o, u, v, vec![h.profile()]);
+        let (d, w) = insert(
+            d,
+            Node::Extrude {
+                profile: p,
+                distance: len(h.length),
+                side: ExtrudeSide::Along,
+            },
+        );
+        doc = d;
+        m.push(w);
+    }
+    (doc, m)
+}
+
+fn two_wedges() -> Vec<Hole> {
+    vec![sector(0.0, 50.0, 0), sector(120.0, 170.0, 1)]
+}
+
+fn three_wedges() -> Vec<Hole> {
+    vec![
+        sector(0.0, 50.0, 0),
+        sector(120.0, 170.0, 1),
+        sector(240.0, 290.0, 2),
+    ]
+}
+
+fn four_wedges() -> Vec<Hole> {
+    vec![
+        sector(0.0, 50.0, 0),
+        sector(90.0, 140.0, 1),
+        sector(180.0, 230.0, 2),
+        sector(270.0, 320.0, 3),
+    ]
+}
+
+/// Three wedges on one side, leaving the top a reflex sector at [`MEET`].
+fn wedges_on_one_side() -> Vec<Hole> {
+    vec![
+        sector(0.0, 40.0, 0),
+        sector(60.0, 100.0, 1),
+        sector(120.0, 160.0, 2),
+    ]
+}
+
+fn ell_and_wedges() -> Vec<Hole> {
+    vec![ell_hole(), sector(190.0, 220.0, 1), sector(235.0, 260.0, 2)]
+}
+
+/// A row over [`tilted_holes`]: its label, its holes, the fixture over
+/// them and its faces, edges and vertices.
+type TiltedRow = (
+    &'static str,
+    fn() -> Vec<Hole>,
+    fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
+    [usize; 3],
+);
+
+/// The plate's volume plus each prism's part above its top.
+fn tilted_volume(holes: &[Hole]) -> f64 {
+    6.0 + holes.iter().map(Hole::above).sum::<f64>()
+}
+
+/// **Two, three and four wedges whose footprints are holes meeting at
+/// one vertex of the top build one body in every member order.** With
+/// three or more wedges folded before the plate, their vertex there
+/// pierces the top with one Out run per wedge, and the pierce's ring
+/// struts hang round its ring vertex in the runs' angular order.
+#[test]
+fn wedges_meeting_at_a_vertex_build_one_body_in_every_member_order() {
+    let rows: [TiltedRow; 3] = [
+        (
+            "two wedges",
+            two_wedges,
+            |d| tilted_holes(d, &two_wedges()),
+            [14, 30, 19],
+        ),
+        (
+            "three wedges",
+            three_wedges,
+            |d| tilted_holes(d, &three_wedges()),
+            [18, 39, 24],
+        ),
+        (
+            "four wedges",
+            four_wedges,
+            |d| tilted_holes(d, &four_wedges()),
+            [22, 48, 29],
+        ),
+    ];
+    for (label, holes, fixture, counts) in rows {
+        every_order(label, fixture, counts, tilted_volume(&holes()), &[TOP], &[]);
+    }
+}
+
+/// **Holes meeting at a vertex with a reflex sector there build one body
+/// in every member order**: three wedges on one side, leaving the top a
+/// reflex sector between them, and an L-shaped hole whose reflex corner
+/// is the vertex, with two wedges in the quadrant it leaves.
+#[test]
+fn holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_order() {
+    let rows: [TiltedRow; 2] = [
+        (
+            "three wedges on one side",
+            wedges_on_one_side,
+            |d| tilted_holes(d, &wedges_on_one_side()),
+            [18, 39, 24],
+        ),
+        (
+            "an L and two wedges",
+            ell_and_wedges,
+            |d| tilted_holes(d, &ell_and_wedges()),
+            [21, 48, 30],
+        ),
+    ];
+    for (label, holes, fixture, counts) in rows {
+        every_order(label, fixture, counts, tilted_volume(&holes()), &[TOP], &[]);
+    }
+}

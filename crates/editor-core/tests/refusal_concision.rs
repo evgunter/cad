@@ -644,14 +644,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "PierceRunsUnordered",
-            BooleanError::PierceRunsUnordered {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-                runs: 3,
-            },
-        ),
-        (
             "PinchUncrossed",
             BooleanError::PinchUncrossed {
                 vertex: VertexKey::default(),

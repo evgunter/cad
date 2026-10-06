@@ -2,10 +2,13 @@
 id: ring-struts-of-three-or-more-runs-hang-in-run-order
 kind: issue
 title: A pierce's ring struts hang round the ring vertex in run order, unmeasured for three or more runs
-status: open
+status: closed
 opened: 2026-10-04
 priority: P3
 cost: M
+closed: 2026-10-06
+parent: three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order
+branch: tang/holes-meeting-at-a-vertex
 ---
 
 
@@ -59,3 +62,17 @@ cannot cross. The ring struts' cyclic order has to follow that nesting
 Still unreached: 6 048 face-placement runs of the 343° notch, the L
 prism and a 203° shallow reflex, every op and both orders over the
 pierce sweep's grid, are all SOUND, and none mints a third run.
+
+## Closed (2026-10-06, TANG)
+
+Claimed by `three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`,
+whose leaning wedges reach three and four Out runs. A prism's vertex
+cannot reach three, but the union of several prisms' vertices at one
+point can.
+`vtxfac::ring_order` hangs the ring struts clockwise about the pierced
+face's outward normal, starting from run 0's wedge, and
+`PierceRunsUnordered` is retired. The row that pins the order is
+`holes_meeting_at_a_vertex`'s `corners_disjoint`. That check is
+independent of the facing rule: in the mirror order, the top face's
+corners at the vertex overlap in each order that folds three wedges
+before the plate.
