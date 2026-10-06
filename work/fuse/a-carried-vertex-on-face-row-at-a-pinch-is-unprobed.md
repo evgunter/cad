@@ -2,10 +2,11 @@
 id: a-carried-vertex-on-face-row-at-a-pinch-is-unprobed
 kind: issue
 title: No fixture carries a vertex-on-face row whose vertex sits at a pinch, where the remap's strict rule drops a fused vertex's rest
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

@@ -1140,7 +1140,22 @@ impl ViewerApp {
         }
     }
 
-    /// Perform one operation and record what it refused.
+    /// **Every held node, spoken again from the shown document** after
+    /// an operation (`SpokenNode::respoken`'s rule): the form's held face
+    /// and the open tool's picks, each saying a node the document no
+    /// longer holds by the last label it had.
+    fn respeak_held(&mut self) {
+        let doc = self.session.doc();
+        self.drafts.respeak(doc);
+        self.tools.respeak(doc);
+    }
+
+    /// **A document replaced this one**: what held its ids lets them go.
+    fn document_replaced(&mut self) {
+        self.drafts.document_replaced();
+        self.tools.document_replaced();
+    }
+
     /// Perform one frame's whole batch of operations, keeping the
     /// refusal worth showing.
     ///
@@ -1164,9 +1179,8 @@ impl ViewerApp {
         }
         let mut refusal: Option<Refusal> = None;
         // The VERDICTS are `frame`'s, computed from the ops and the
-        // refusal; this loop only performs and collects. The rules
-        // used to live inline here, in app-gated code no row could
-        // reach — see `frame`'s module docs.
+        // refusal; this loop only performs and collects (`frame`'s
+        // module docs).
         let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
         for op in ops {
             performed.push(op.clone());
@@ -1175,18 +1189,15 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
-            self.drafts.respeak(self.session.doc());
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
             // state, and what its committed edits did that nobody
             // asked for by name, onto the frame's notices like every
             // other one (`frame::frame_status` carries the argument).
             //
-            // ONE call. This code is `app`-gated, so no row can
-            // execute it and a kind dropped here is invisible until a
-            // user misses a sentence; `frame::outcome_notices`
-            // destructures the outcome, so a row can run the whole
-            // fan-out and a new field reds there.
+            // ONE call: `frame::outcome_notices` destructures the
+            // outcome, so a new field reds there rather than going
+            // unsaid here.
             notices.extend(frame::outcome_notices(&outcome));
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
@@ -1204,9 +1215,9 @@ impl ViewerApp {
                     self.fit_on_scene = true;
                     self.fit_delta_on_scene = true;
                     self.budget_delta = None;
-                    self.drafts.document_replaced();
+                    self.document_replaced();
                 }
-                None if replaced => self.drafts.document_replaced(),
+                None if replaced => self.document_replaced(),
                 // A modal tool closes when its edit actually
                 // COMMITS, not when its button is clicked — a refusal
                 // leaves the tool open with its picks held, to be
@@ -1228,6 +1239,9 @@ impl ViewerApp {
                         .creation_landed(self.session.committed_doc(), &minted);
                 }
             }
+            // After the match, so a replaced document's held picks are
+            // dropped before anything is spoken from it.
+            self.respeak_held();
         }
         let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
@@ -4718,6 +4732,111 @@ mod properties_pane_tests {
         removed.expect("the row removes the document it saved");
     }
 
+    /// **The op loop re-speaks what outlives the op that made it**
+    /// (`ViewerApp::respeak_held`): picked, renamed, then deleted, the
+    /// open tool's drop and the face-frame form's held face both name the
+    /// extrude by its last label, through `perform_batch` itself.
+    #[test]
+    fn the_op_loop_says_a_held_node_by_its_last_label() {
+        let rename_and_delete = |driven: &mut Driven| {
+            driven.perform(SessionOp::SetLabel {
+                node: extrude(),
+                label: label("plinth"),
+            });
+            driven
+                .app
+                .perform_batch(vec![SessionOp::DeleteNode { node: extrude() }]);
+        };
+        let plinth = format!(
+            "Extrude \"plinth\" ({})",
+            test_utils::refusal::tag(extrude().0)
+        );
+
+        let mut driven = Driven::with(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("base"),
+        }]);
+        driven.settle();
+        driven.app.tools.open(crate::tools::ToolKind::Transform);
+        driven.select(Selection::Node(extrude()));
+        rename_and_delete(&mut driven);
+        let drawn = driven.quiet();
+        let dropped = drawn
+            .iter()
+            .map(|(run, _)| run)
+            .find(|run| run.contains("no longer in the document"))
+            .unwrap_or_else(|| panic!("the drop is said: {drawn:?}"));
+        assert!(
+            dropped.contains(&plinth),
+            "the tool's drop says the last label: {dropped}"
+        );
+
+        let (mut driven, _top) = Driven::holding_the_top_cap();
+        rename_and_delete(&mut driven);
+        assert_eq!(
+            driven
+                .app
+                .drafts
+                .datum_face_said()
+                .spoken(extrude())
+                .to_string(),
+            plinth,
+            "the form's held face says the last label"
+        );
+    }
+
+    /// **A document that replaces this one starts the open tool over**:
+    /// it stays open and holds nothing, since its picks are ids of the
+    /// document they were made in. Both doors that replace a document;
+    /// the reopened copy holds the same ids, so its pick would survive.
+    #[test]
+    fn a_replaced_document_drops_the_open_tools_picks() {
+        let picked = || {
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            driven.app.tools.open(crate::tools::ToolKind::Transform);
+            driven.select(Selection::Node(extrude()));
+            assert_eq!(
+                driven.app.tools.transform().and_then(|tool| tool.input()),
+                Some(extrude()),
+                "the pick is held"
+            );
+            driven
+        };
+        let held = |driven: &Driven| {
+            (
+                driven.app.tools.open_kind(),
+                driven.app.tools.transform().and_then(|tool| tool.input()),
+            )
+        };
+        let mut driven = picked();
+        driven.app.perform_batch(vec![SessionOp::NewDocument {
+            name: "fresh".to_owned(),
+        }]);
+        assert_eq!(
+            held(&driven),
+            (Some(crate::tools::ToolKind::Transform), None),
+            "new document"
+        );
+
+        let mut driven = picked();
+        let path = std::env::temp_dir().join(format!(
+            "tool picks across open {}.pncad",
+            std::process::id()
+        ));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Save(path.clone())]);
+        driven.perform(SessionOp::Open(path.clone()));
+        let removed = std::fs::remove_file(&path);
+        assert_eq!(
+            held(&driven),
+            (Some(crate::tools::ToolKind::Transform), None),
+            "open"
+        );
+        removed.expect("the row removes the document it saved");
+    }
+
     /// **The mate tool's two picks are marked once the selection moves
     /// on, and not once the tool closes.**
     #[test]
@@ -5033,6 +5152,68 @@ mod properties_pane_tests {
                 "{prefix:?} says the landed label: {line}"
             );
         }
+    }
+
+    /// **The mate tool's instance-pick refusal says the kept label
+    /// while the landed document is behind**: the run that would land
+    /// the rename and the delete is held, so the landed document still
+    /// says the extrude by its old label and the survival step keeps the
+    /// picks; the commit's refusal says the last label the shown
+    /// document gave it.
+    #[test]
+    fn the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("base"),
+        }]);
+        driven.settle();
+        driven.app.tools.open(crate::tools::ToolKind::Mate);
+        driven.click_through(vec![
+            Selection::Face(cap_of(extrude(), pncad::prelude::CapEnd::End)),
+            Selection::Face(cap_of(extrude(), pncad::prelude::CapEnd::Start)),
+            Selection::None,
+        ]);
+        open.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("plinth"),
+        }]);
+        driven
+            .app
+            .perform_batch(vec![SessionOp::DeleteNode { node: extrude() }]);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let landed = driven
+            .app
+            .session
+            .landed_pair()
+            .expect("the earlier run stays landed")
+            .0
+            .spoken(extrude())
+            .to_string();
+        assert!(
+            landed.contains("base"),
+            "the landed document is behind: {landed}"
+        );
+        assert!(
+            driven
+                .app
+                .tools
+                .mate()
+                .is_some_and(|tool| tool.state().picks()[0].is_some()),
+            "the survival step kept the pick"
+        );
+        driven.click(&crate::tools::ToolKind::Mate.commit());
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let said = status(&driven).expect("the commit refused");
+        let plinth = format!(
+            "Extrude \"plinth\" ({})",
+            test_utils::refusal::tag(extrude().0)
+        );
+        assert!(
+            said.contains(&format!("pick a is on {plinth}")),
+            "the refusal says the kept label: {said}"
+        );
     }
 
     /// **The selection's verdict speaks from the landed document, not
