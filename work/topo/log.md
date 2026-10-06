@@ -7499,3 +7499,4 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
 - At Ev's request, two designers are weighing **how to make A structural**. The brief states the problem only, and Ev's expensive `debug_assert`, skipped in production, is an explicit option to weigh. The orchestrator's suggestion (a kind check inside restatement or certification) is withheld for at least round 1.
   - Designers: A `session_01VKoofj8TXfjP4YKX5pzzXK`, B `session_01TsEEZBc38YHfFWL4RD6N4i`, using the fork's existing labels (record on `analysis/design-fork/topo-kef-kfmrh-across-keys`).
   - Reports go to `analysis/design-fork/topo-kef-kfmrh-r5-{A,B}`.
+- **PR 4154 merged** at `c890f7b8` (head `bb1b5a92`, all CI green). Unsubscribed. I left a heads-up on PR 4108 (fuse) to drop its `.revert().expect(..)` calls.
