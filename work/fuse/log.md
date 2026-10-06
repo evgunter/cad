@@ -540,3 +540,9 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   RESTFRONT's `check-ten-falls-silent-on-a-shell-whose-every-vertex-touches-another`
   is answered by it, so its owner may close it (noted on RESTFRONT's
   log).
+  The 4108 lane's merge of main resolved PR 4083's ray-walk tally into
+  `stands.rs` by hand: a `Blocked` witness arm, ranked evidence, and
+  check 10 inheriting "the next witness decides". It is green at
+  7330 tests. Two P3 rows were filed from its report: the zero-outer
+  `OperandOuterShells` arm may be unreachable, and the two-void
+  `shell` row runs about 6% slower at 4 threads.
