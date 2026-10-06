@@ -521,8 +521,20 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   is a legal boolean operand; only a curved group's skip is recorded
   and shipped. Every op's output also has **maximal edges**: no
   *joinable* vertex, meaning valence 2 with two distinct edges on one
-  carrier — shared, or decided Zero between the carriers (D10) —
-  between the same two faces. A sweep builds one rim
+  structural carrier between the same two faces. Two edges are on one
+  structural carrier when both lie on one locus of the faces' surface
+  pair, or on one iso family of one surface's chart, and that locus is
+  one regular curve at their shared vertex: the surfaces are transverse
+  there (tangent arms one order up), or the chart is regular there.
+  Distinct components of one locus never share a point, so the vertex
+  decides the branch, and nothing is compared between the two edges. A
+  pole, a cone's apex or any point where the locus is not one curve is
+  never joinable; a reading of the vertex in the margin band refuses
+  typed. A closed edge the join makes keeps one vertex, at the cut its
+  surfaces fix: where one face is curved, the first crossing of that
+  surface's chart cut (u = 0, lowest v; else its least-u point); where
+  both faces are curved surfaces of one kind, a symmetric rule on the
+  unordered pair. A sweep builds one rim
   edge per run, as it builds one wall, and a boolean's output stage joins
   every joinable vertex after the merge, whatever drew it. A body is then
   the unique complex with maximal faces and maximal edges over its face

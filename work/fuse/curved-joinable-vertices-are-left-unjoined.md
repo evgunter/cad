@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P1
 cost: H
+needs_ev: true
 refs: [a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made, 4140]
 ---
 
@@ -70,3 +71,43 @@ this row.
 This precedes step 3: until it lands, step 3's check
 (`topo::joinable_vertices`) is planar-only. The partial-revolve half of
 `sweeps-build-one-rim-edge-per-segment-not-per-run` also needs it.
+
+## The design (PR 3881's curved arm, weighed by a designer pair)
+
+The ruling's key ("keyed by the surfaces and the intersection branch")
+needs no new datum. The edge description stays as it is. The answer is
+written into DESIGN.md's maximal-edges clause.
+
+- **The vertex decides the branch.** Two edges of one face pair, on one
+  locus of the faces' surface pair (or on one iso family of one
+  surface's chart), sharing a vertex where that locus is one regular
+  curve, lie on one component: distinct components never share a
+  point. One predicate serves the join and the tier-2 check. Nothing
+  is compared between the two edges.
+- **Poles and apexes are never joinable.** A probe over the ci suites
+  found that almost all of the 49049 sphere|sphere "seams" counted
+  above are sphere poles: the u = 0 and u = π meridians meeting at the
+  chart's singular point. The cone counts are apexes. The real
+  population is about 2450 vertices: arcs of one rim or section
+  circle, rulings and latitudes of one cylinder, and a few tangent
+  pieces.
+- **A closed joined edge's one vertex is canonical.** Where it sits
+  must not depend on member order. A fold-order witness, a cap on two
+  flush blocks in different orders, leaves it at different points
+  with different names. Where one face is curved, the vertex goes at
+  the first crossing of that surface's chart cut. Where both faces are
+  one curved kind, it is set by a symmetric rule on the unordered
+  pair.
+
+## Residue the build owns
+
+- **`joinable`** has no arm for a wrap edge, where one face is on both
+  sides (`f == g`). The probe found none on the suite.
+- **`kev`** refuses self-loops. A closed join needs a kill arm, the
+  inverse of `split_edge`'s self-loop split.
+- **The sphere|sphere section frame's `u_ref`** comes from operand A's
+  chart (`geom_brep::intersect::ss_frame_seam`), so it depends on
+  operand order. It is harmless to verdicts. It is why the carrier's
+  own origin cannot be the cut.
+- **The witness:** the cap-on-two-flush-blocks document in all six
+  orders.
