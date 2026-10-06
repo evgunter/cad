@@ -239,11 +239,7 @@ fn a_reversed_middle_slab_refuses_naming_its_pair() {
 /// The step is read off the RUN's band rather than written as a digit,
 /// because what the row pins is a band verdict — half of ε is
 /// coincident at every ε row, and a fixed digit would pin the verdict
-/// at one row and something else at the others. Exactly coincident
-/// sections cannot reach this door at all: the skin refuses them first
-/// as `SkinError::DegenerateSection` (it needs a chord step to
-/// parameterize at all), so the reachable degenerate slab is the
-/// sliver, which is what the arm's own docs call it.
+/// at one row and something else at the others.
 #[test]
 fn a_sliver_middle_slab_refuses_naming_its_pair() {
     let sliver = 0.5 * Tol::witness().eps();

@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P1
 cost: M
-blocked_on: [a-pinch-no-kept-face-can-cross-refuses]
+blocked_on: [shared-vertex-crossings-that-tie-or-interleave-are-unprobed]
 ---
 
 ## What
@@ -55,3 +55,16 @@ A's first germ instead, the same ops pass the reconciliation and
 refuse at the finish as before (measured), so neither start builds
 them. The other three ops build as before. The pin moves to the new
 refusal.
+
+## Re-measured (JOIN, branch `join/pinch-one-vertex-per-cone-build`, PR 4139)
+
+That PR builds `a-pinch-no-kept-face-can-cross-refuses`, which this row
+was blocked on: a pinch is one vertex per cone, split before the zips,
+and `PinchUncrossed` and `cross_pinches` are retired. The row does not
+move. `y ∩ cube`, `cube ∪ y` and `cube ∖ y` still refuse
+`SharedVertexCrossings` at the shared corner's reconciliation, before
+any zip, and the other three ops build as before; the pin
+(`three_corners_alternating_round_the_cube_refuse_three_ops`) passes
+unchanged on the PR's head. What blocks it is FUSE's
+`shared-vertex-crossings-that-tie-or-interleave-are-unprobed`, so
+`blocked_on` names that row now.

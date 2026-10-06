@@ -77,7 +77,7 @@ use topo::{
 };
 
 use crate::skin::{
-    LoftGeometry, Section, SectionLoop, SkinError, loft_geometry_by_chord_length, sweep_places,
+    LoftGeometry, Section, SectionLoop, SkinError, skin_validated, sweep_places, validate_loft,
 };
 use crate::swept::{
     SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
@@ -177,8 +177,13 @@ pub enum LoftError {
         /// in section order that is not definitely forward.
         slab: usize,
     },
-    /// One SLAB's stacking displacement is coincident with zero at
-    /// tolerance: a sliver-thin (or in-plane) pair of sections.
+    /// One SLAB's stacking displacement — the step of the outer loop's
+    /// vertex centroid along the slab's base normal — is coincident
+    /// with zero at tolerance. Coincident, sliver-thin and in-plane
+    /// pairs land here, and so does a section tilted about an in-plane
+    /// axis through its centroid so that it crosses its neighbour; at
+    /// every scale down to exact coincidence this is the loft's one
+    /// refusal for two adjacent sections that are not apart.
     DegenerateStacking {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
@@ -238,8 +243,8 @@ impl fmt::Display for LoftError {
             ),
             Self::DegenerateStacking { slab } => write!(
                 f,
-                "loft {} are not apart at tolerance (a sliver-thin or in-plane slab), so \
-                 the loft has no direction. Recourse: move the sections apart",
+                "loft {} are not apart along section {slab}'s normal at tolerance, so the \
+                 loft has no direction. Recourse: move them apart",
                 SlabPair(*slab)
             ),
             Self::StackingEscalated { slab, source } => write!(
@@ -334,39 +339,43 @@ fn outer_world<T: Real>(
 /// one section's traversal cannot change the verdict.
 ///
 /// A two-section loft is the fold's degenerate case — one slab whose
-/// base section is the first section, over the vertices `assemble`
-/// already walked, in that walk's order.
+/// base section is the first section.
 ///
 /// The fold reads nothing but the two sections of the slab it is
 /// deciding: their authored placements and their canonical loops.
 ///
+/// **It is the loft's one decision about whether two adjacent sections
+/// are apart.** It runs before the skin ([`fn@build`]), so a sliver
+/// slab and an exactly coincident pair are both refused here, as
+/// [`LoftError::DegenerateStacking`], and the skin only ever
+/// parameterizes sections this fold has found definitely apart.
+///
 /// # Preconditions, and why its guards are dead through `loft_body`
 ///
-/// The caller has already refused a `places`/`canonical` length
-/// disagreement and a section count below two, and hands the first and
-/// last sections' outer world loops in the traversal order it walked
-/// them. What is left here — a section with no loops, and two sections
-/// whose outer loops differ in vertex count — is this function's own
-/// precondition, kept as a refusal rather than an assumption. Neither
-/// is reachable through [`loft_body`] today: the skin refuses
+/// A `places`/`canonical` length disagreement, a section count below
+/// two, a section with no loops, and two sections whose outer loops
+/// differ in vertex count are this function's own preconditions, kept
+/// as refusals rather than assumptions. None is reachable through
+/// [`loft_body`] today: `validate_loft` refuses the counts and
 /// mismatched sections first (`SkinError::SectionShapeMismatch`), and
 /// a loopless section never leaves profile validation.
 fn stacking_fold<T: Decide>(
     places: &[Affine3<f64>],
-    geometry: &LoftGeometry,
+    canonical: &[ValidatedProfile<f64>],
     band: Band,
-    first_outer: &[Point3<T>],
-    last_outer: &[Point3<T>],
 ) -> Result<(), LoftError> {
-    let last = places.len() - 1;
-    let mut base: Vec<Point3<T>> = first_outer.to_vec();
-    for slab in 0..last {
-        let next: Vec<Point3<T>> = if slab + 1 == last {
-            last_outer.to_vec()
-        } else {
-            outer_world::<T>(&geometry.canonical[slab + 1], &places[slab + 1])
-                .ok_or(LoftError::SectionStructure)?
-        };
+    if places.len() < 2 || places.len() != canonical.len() {
+        return Err(LoftError::SectionStructure);
+    }
+    let mut outers = places
+        .iter()
+        .zip(canonical)
+        .map(|(place, c)| outer_world::<T>(c, place).ok_or(LoftError::SectionStructure));
+    let mut base: Vec<Point3<T>> = outers.next().ok_or(LoftError::SectionStructure)??;
+    // `outers` now yields section `slab + 1` beside `places[slab]`, the
+    // slab's base placement.
+    for (slab, (next, base_place)) in outers.zip(places).enumerate() {
+        let next: Vec<Point3<T>> = next?;
         if base.is_empty() || next.len() != base.len() {
             return Err(LoftError::SectionStructure);
         }
@@ -374,7 +383,7 @@ fn stacking_fold<T: Decide>(
         for (qt, qb) in next.iter().zip(&base) {
             d = d + (*qt - *qb);
         }
-        let base_normal = places[slab].map(T::from_f64).linear.c2;
+        let base_normal = base_place.map(T::from_f64).linear.c2;
         #[allow(clippy::cast_precision_loss)]
         let margin = d.dot(base_normal) / T::from_f64(next.len() as f64);
         match geom_core::k_stats::decide("loft_stacking", Margin::of(margin), band)
@@ -389,8 +398,32 @@ fn stacking_fold<T: Decide>(
     Ok(())
 }
 
-/// Assembles the loft BODY from its skinned geometry (module docs) —
-/// the shared engine of [`loft_body`] and [`sweep_body`].
+/// The shared engine of [`loft_body`] and [`sweep_body`]: validate the
+/// sections, decide the stacking fold, skin, assemble — in that order.
+///
+/// The fold runs BEFORE the skin because it is the one decision about
+/// whether two adjacent sections are apart, banded under the run's
+/// tolerance; a pair it accepts is definitely apart, and a pair it
+/// refuses (down to exact coincidence) never reaches the skin's
+/// parameterization.
+fn build<T: Decide + topo::AtRestPolicy>(
+    sections: &[Section<impl SectionLoop>],
+    places: &[Affine3<f64>],
+    v_degree: usize,
+    tol: Tol,
+) -> Result<Lofted<T>, LoftError> {
+    let canonical = validate_loft(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
+    stacking_fold::<T>(
+        places,
+        &canonical,
+        Band::linear(tol).map_err(LoftError::Band)?,
+    )?;
+    let geometry = skin_validated(canonical, places, v_degree).map_err(LoftError::Skin)?;
+    assemble(places, &geometry, tol)
+}
+
+/// Assembles the loft BODY from its skinned geometry (module docs),
+/// over sections the stacking fold has already accepted.
 ///
 /// # Errors
 ///
@@ -450,12 +483,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|segs| segs.iter().map(|s| world(&tplace, s.a)).collect())
         .collect();
-
-    // ---- The stacking fold: every adjacent section pair decided
-    // against ITS OWN base section's normal, in slab order. The end
-    // sections' outer world loops are the ones walked just above, so
-    // each section is traversed once for the whole assembly. ----
-    stacking_fold::<T>(places, geometry, band, &bq[0], &tq[0])?;
 
     // ---- Lifted walls, kept once: face surfaces AND seam carriers
     // read the same lifted structure (D9 — one lift, shared bits). ----
@@ -759,9 +786,7 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let geometry =
-        loft_geometry_by_chord_length(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
-    assemble(places, &geometry, tol)
+    build(sections, places, v_degree, tol)
 }
 
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of
@@ -807,7 +832,5 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
 ) -> Result<Lofted<T>, LoftError> {
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
     let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
-    let geometry = loft_geometry_by_chord_length(&sections, &places, v_degree, tol)
-        .map_err(LoftError::Skin)?;
-    assemble(&places, &geometry, tol)
+    build(&sections, &places, v_degree, tol)
 }

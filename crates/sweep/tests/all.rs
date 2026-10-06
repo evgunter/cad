@@ -109,6 +109,8 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
 mod offset_restates_a_neighbour_chart_rim;
+#[path = "one_door_for_coincident_sections.rs"]
+mod one_door_for_coincident_sections;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
 #[path = "p1b_r1_probes.rs"]
@@ -212,6 +214,8 @@ mod band_planar_cut_off_interval;
 mod band_planar_cut_off_meters;
 #[path = "band_planar_cut_off_shapes.rs"]
 mod band_planar_cut_off_shapes;
+#[path = "band_planar_oblique_fillet.rs"]
+mod band_planar_oblique_fillet;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]

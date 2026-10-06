@@ -71,14 +71,18 @@ fn tiers<T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>
     assert_eq!(validate_geometric(body, tol()), Ok(()), "{what}: tier 3");
 }
 
-fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol()).unwrap().volume
+/// A body's volume and its certified half-width: a curved-cut face
+/// contributes a quadrature enclosure converged to an ε-scaled target,
+/// so the closed form is only certified within `volume ± pad`.
+fn volume(body: &Body<f64>) -> (f64, f64) {
+    let m = topo::mass_properties(body, tol()).unwrap();
+    (m.volume, m.volume_pad)
 }
 
-fn close(got: f64, want: f64, what: &str) {
+fn close((got, pad): (f64, f64), want: f64, what: &str) {
     assert!(
-        (got - want).abs() <= 1e-9 * want.abs().max(1.0),
-        "{what}: volume {got}, closed form {want}"
+        (got - want).abs() <= pad + 1e-9 * want.abs().max(1.0),
+        "{what}: volume {got} ± {pad}, closed form {want}"
     );
 }
 
@@ -517,13 +521,13 @@ fn two_arc_circle(r: f64, phase: f64) -> ProfileLoop<f64> {
 }
 
 /// What a split leaves on each side, each side checked at all three
-/// tiers: its volume, or `None` for no material.
+/// tiers: its [`volume`], or `None` for no material.
 fn split_volumes(
     body: &Body<f64>,
     origin: [f64; 3],
     normal: [f64; 3],
     what: &str,
-) -> Result<[Option<f64>; 2], topo::SplitError> {
+) -> Result<[Option<(f64, f64)>; 2], topo::SplitError> {
     let plane = topo::test_support::split_plane(
         geom_core::Point3::new(origin[0], origin[1], origin[2]),
         geom_core::Vec3::new(normal[0], normal[1], normal[2]),
