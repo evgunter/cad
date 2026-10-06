@@ -2,12 +2,13 @@
 id: shell-refuses-every-lofted-body-at-a-wall-seam-carrier
 kind: issue
 title: topo::shell refuses every lofted body re-anchoring a spline wall seam at a cap corner, so no NURBS-walled body reaches the offset fit through shell
-status: review
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: M
 branch: shell/lofted-wall-seam
 pr: 4117
+closed: 2026-10-06
 ---
 
 
@@ -92,3 +93,25 @@ reaches the re-chart's mint.
 So the re-anchoring lane is what still keeps offset and shell from the
 class on a body whose re-anchored edges are NURBS-carried; on the
 imported instance a cap offset already reaches it.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4117)
+
+`replace_face::plan_reanchors` re-anchors a moved vertex on a NURBS
+carrier through a certified, seeded projection (`NurbsLane::foot` →
+`seeded_foot` → `project_from_seed`), and on an ellipse in closed
+form. It refuses typed where a move leaves the patch
+(`ReanchorPastCarrierEnd`) or the scalar holds no lane
+(`NurbsLaneUnsupported`). The single full review found the re-anchor
+sound: 26 361 on-carrier feet with none on the wrong branch, and line
+and circle carriers bit-for-bit unchanged. Its fix pass:
+- adds a seed-deciding row;
+- makes the analytic arms explicit;
+- re-measures the |δ| acceptance over the new kinds;
+- corrects the refusal docs.
+Lofted bodies now meet their next walls, each filed:
+- the oblique spline-seam corner:
+  `shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam`;
+- the pcurve mint's interior row: `iso/nurbs-iso-derive-line-rim-arm-…`;
+- O4's `FittedBoundaryUnsupported` on M7-8.
+ENCL's `a-rigid-map-can-still-refuse-…` is re-parked on the oblique
+corner item.
