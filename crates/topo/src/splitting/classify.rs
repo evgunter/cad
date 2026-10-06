@@ -40,7 +40,9 @@ use crate::validate::decide;
 /// `Nurbs` carrier refuses typed only when the plane may meet it
 /// ([`edge_clears`]). A face whose surface key, or an edge whose curve
 /// key, does not resolve is a torn body and panics (the operand is a
-/// public body, at rest); null scaffolding refuses as ever.
+/// public body, at rest), and so does a null edge: every door that
+/// reaches here took a finished operand, which tier 2 holds free of
+/// one.
 pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -78,7 +80,10 @@ pub(super) fn gate_operand<T: Decide>(
                     }
                 }
             },
-            _ => return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key }),
+            CurveGeom::NullScaffold(_) => unreachable!(
+                "{edge_key:?} is a null edge past the finished-body gate, and tier 2 refuses a \
+                 null edge at rest"
+            ),
         }
     }
     Ok(())
@@ -830,9 +835,10 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         // miss panics (`live::OPERATORS_KEEP_LINKS`).
         let curve = match body.edge_curve_linked(edge_key, &edge) {
             CurveGeom::Certified(c) => c.clone(),
-            CurveGeom::NullScaffold(_) => {
-                return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key });
-            }
+            CurveGeom::NullScaffold(_) => unreachable!(
+                "{edge_key:?} is a null edge past the finished-body gate, and tier 2 refuses a \
+                 null edge at rest"
+            ),
         };
         let (t0, t1) = curve.params();
         let roots: Vec<T> = match plane_crossing_lane(
@@ -1317,8 +1323,7 @@ mod tests {
 
 /// **A torn curve panics at the split gate and at the crossing
 /// insertion**, where a read that took the miss for scaffolding refused
-/// it as `ScaffoldingOperand` (real scaffolding keeps that refusal:
-/// `review_m3_pr2`'s gate row).
+/// it as `ScaffoldingOperand`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_rows {

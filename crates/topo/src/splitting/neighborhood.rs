@@ -160,7 +160,9 @@ pub(super) fn chord<T: Decide>(
     let curve = body
         .edge_curve_linked(edge_key, edge)
         .certified()
-        .ok_or(SplitReduceError::ScaffoldingOperand { edge: edge_key })?;
+        .ok_or_else(|| SplitReduceError::ScaffoldingOperand {
+            errors: vec![crate::ValidationError::NullEdgeAtRest { edge: edge_key }],
+        })?;
     match curve.carrier() {
         geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
@@ -196,7 +198,8 @@ pub(super) fn chord<T: Decide>(
 ///
 /// [`SplitReduceError`] — sliver escalations, the consecutive-ON
 /// invariant, a `vertex` that does not resolve or is a lone vertex, a
-/// far vertex `sides` holds no verdict for, or a null edge at `vertex`.
+/// far vertex `sides` holds no verdict for, or a null edge at `vertex`
+/// ([`SplitReduceError::ScaffoldingOperand`], with tier 2's finding).
 pub fn classify_neighborhood<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,

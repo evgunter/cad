@@ -31,7 +31,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
 
 fn split_at_y(body: &Body<f64>, y: f64) -> topo::SplitResult<f64> {
     topo::split(
-        body,
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
         &topo::test_support::split_plane(
             Point3::new(0.0, y, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -134,7 +134,7 @@ fn transverse_resplit_of_a_restated_product_stays_tier3() {
 
     // Transverse second cut straight through the restated edges' span.
     let second = topo::split(
-        below1,
+        &sweep::test_support::finished("the operand", below1.clone(), Tol::witness()),
         &topo::test_support::split_plane(
             Point3::new(6.5, 0.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
@@ -226,7 +226,7 @@ fn tangent_plane_split_of_a_cylinder_never_reaches_the_smooth_arm() {
     let body = extruded(vec![circle], 1.0);
     // Plane y = 1 is tangent to the barrel along the line (0,1,z).
     let attempt = topo::split(
-        &body,
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
         &topo::test_support::split_plane(
             Point3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),

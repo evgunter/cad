@@ -25,6 +25,7 @@ use super::{PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{LoopBoundary, LoopKey};
 use crate::loop_winding::{ConicFrame, chord_bulge};
+use crate::validate::AtRestBody;
 use geom_core::Tol;
 
 /// One section polygon: the closed boundary the plane cuts, by its
@@ -257,15 +258,20 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// stages' refusals through unchanged — in particular a zero-area
 /// section (a curved face's concave graze) REFUSES (`DegenerateSection`,
 /// exactly as [`super::split`] does) rather than reporting a
-/// degenerate trace.
+/// degenerate trace; an operand that carries no verdict and is not what
+/// a finished body promises refuses as [`super::split`]'s does
+/// ([`SplitReduceError::ScaffoldingOperand`],
+/// [`SplitReduceError::InsideOutOperand`]).
 pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
+    operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Section<T>, SectionError<T>> {
-    let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
     let band = geom_core::Band::linear(tol)
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
+    super::gate_finished(operand, band, tol)
+        .map_err(|e| SectionError::Split(SplitError::Reduce(e)))?;
+    let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
     let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);

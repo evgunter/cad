@@ -295,7 +295,12 @@ fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
         Vec3::new(-phi.sin(), 0.0, phi.cos()),
         geom_core::Tol::witness(),
     );
-    let result = topo::splitting::split(&post, &plane, tol).unwrap();
+    let result = topo::splitting::split(
+        &sweep::test_support::finished("the operand", post.clone(), tol),
+        &plane,
+        tol,
+    )
+    .unwrap();
     let topo::splitting::SplitPart::Body(below) = &result.below else {
         panic!("material below the tilted cut");
     };

@@ -213,7 +213,12 @@ fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
             Vec3::new(n.0, n.1, n.2).normalize(),
             geom_core::Tol::witness(),
         );
-        let r = split(&a, &plane, tol).unwrap_or_else(|e| panic!("n = {n:?}: refused {e:?}"));
+        let r = split(
+            &topo::test_support::finished("the operand", a.clone(), tol),
+            &plane,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("n = {n:?}: refused {e:?}"));
         // Every null-edge pair is `(copy, original)`, whichever end
         // the copy took: the corner's is the whole-orbit strut, whose
         // copy is its below end.

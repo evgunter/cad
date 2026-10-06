@@ -204,8 +204,12 @@ fn tilted_cuts_across_the_elliptic_range_are_exact_on_both_nappes() {
         );
         for phi in [0.0, 0.15, 0.3, 0.45] {
             let what = format!("{name}, phi {phi}");
-            let result = split(&f.body, &plane(phi, 0.5), Tol::witness())
-                .unwrap_or_else(|e| panic!("{what}: {e}"));
+            let result = split(
+                &sweep::test_support::finished("the operand", f.body.clone(), Tol::witness()),
+                &plane(phi, 0.5),
+                Tol::witness(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: {e}"));
             let (above, below) = halves(&result, &what);
             assert_section(&above, phi > 0.0, &what);
             assert_section(&below, phi > 0.0, &what);
@@ -244,8 +248,12 @@ fn cuts_through_a_cap_and_the_apex_region() {
         (10.0f64.atan(), 2.0),
     ] {
         let what = format!("phi {phi}, through y = {qy}");
-        let result = split(&f.body, &plane(phi, qy), Tol::witness())
-            .unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result = split(
+            &sweep::test_support::finished("the operand", f.body.clone(), Tol::witness()),
+            &plane(phi, qy),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
         let (va, vb) = (vol(&above), vol(&below));
         assert!((va + vb - FRUSTUM_VOLUME).abs() < 1e-12, "{what}: sum");
@@ -263,7 +271,12 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
     let f = narrowing();
     let parabola = FRAC_PI_2 - alpha();
     for (phi, conic) in [(parabola, "PARABOLA"), (1.3, "HYPERBOLA")] {
-        let err = split(&f.body, &plane(phi, 0.5), Tol::witness()).unwrap_err();
+        let err = split(
+            &sweep::test_support::finished("the operand", f.body.clone(), Tol::witness()),
+            &plane(phi, 0.5),
+            Tol::witness(),
+        )
+        .unwrap_err();
         let SplitError::Join(SplitJoinError::Section {
             source: SectionError::RoutesToGeneralRung { why, .. },
             ..
@@ -276,7 +289,12 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
     }
     let eps = Tol::witness().get().eps;
     for k in [-3.0, 3.0] {
-        let err = split(&f.body, &plane(parabola + k * eps, 0.5), Tol::witness()).unwrap_err();
+        let err = split(
+            &sweep::test_support::finished("the operand", f.body.clone(), Tol::witness()),
+            &plane(parabola + k * eps, 0.5),
+            Tol::witness(),
+        )
+        .unwrap_err();
         let SplitError::Join(SplitJoinError::Escalated { diag, .. }) = &err else {
             panic!("{k}ε: expected the in-band escalation, got {err:?}");
         };
@@ -295,8 +313,12 @@ fn a_plane_missing_the_cone_splits_the_body() {
     let total = PI + FRUSTUM_VOLUME;
     for phi in [0.0, 0.3] {
         let what = format!("phi {phi}");
-        let result = split(&tower, &plane(phi, 0.5), Tol::witness())
-            .unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result = split(
+            &sweep::test_support::finished("the operand", tower.clone(), Tol::witness()),
+            &plane(phi, 0.5),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
         let props = |b: &Body<f64>| topo::props::mass_properties(b, Tol::witness()).unwrap();
         let (pa, pb) = (props(&above), props(&below));
@@ -329,7 +351,12 @@ fn a_tilted_cone_cut_is_never_misread_by_containment() {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: unit(n),
     };
-    let result = split(&f.body, &cut, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", f.body.clone(), Tol::witness()),
+        &cut,
+        Tol::witness(),
+    )
+    .unwrap();
     let (above, below) = halves(&result, "x-tilted cut");
     let band = crate::common::approx::band();
     for q in [
@@ -375,8 +402,12 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
     assert!((vol(&cone) - total).abs() < 1e-12, "the uncut cone");
     for qy in [0.15, 0.4, 0.75] {
         let what = format!("axis-normal circle at y = {qy}");
-        let result =
-            split(&cone, &plane(0.0, qy), Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result = split(
+            &sweep::test_support::finished("the operand", cone.clone(), Tol::witness()),
+            &plane(0.0, qy),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
         let tip = PI * (1.0 - qy).powi(3) / 3.0;
         assert!((vol(&above) - tip).abs() < 1e-12, "{what}: the tip cone");
@@ -395,8 +426,12 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
                         phi.sin() * psi.sin(),
                     )),
                 };
-                let result =
-                    split(&cone, &cut, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
+                let result = split(
+                    &sweep::test_support::finished("the operand", cone.clone(), Tol::witness()),
+                    &cut,
+                    Tol::witness(),
+                )
+                .unwrap_or_else(|e| panic!("{what}: {e}"));
                 let (above, below) = halves(&result, &what);
                 let (va, vb) = (vol(&above), vol(&below));
                 assert!((va + vb - total).abs() < 1e-12, "{what}: sum {}", va + vb);

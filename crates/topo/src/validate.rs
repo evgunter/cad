@@ -8136,6 +8136,74 @@ impl<T: Real> AtRestBody<T> {
     }
 }
 
+/// **Why an operand that carries no verdict is not a finished body** —
+/// the two promises [`AtRestBody::gate_unverdicted`] reads.
+#[derive(Debug)]
+pub(crate) enum Unfinished {
+    /// Tier 2's findings: scaffolding at rest.
+    Scaffolding(Vec<ValidationError>),
+    /// The first solid, in arena order, that check 7 decides inside-out.
+    InsideOut(SolidKey),
+}
+
+impl<T: Real> AtRestBody<T> {
+    /// **What a door owes an operand that carries no verdict** — one
+    /// whose scalar runs no at-rest gate
+    /// ([`AtRestOutcome::NotRunAtThisScalar`], a dual). A
+    /// [`AtRestOutcome::Validated`] operand passes untouched: tier 3's
+    /// verdict holds both reads. Otherwise, in order:
+    ///
+    /// 1. tier 2 ([`operand_scaffolding`], whose tier-1 panic names
+    ///    `subject`);
+    /// 2. orientation: tier 3's check 7, per solid, at the scalar's lane
+    ///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
+    ///    definitely negative refuses; one whose sign it leaves open
+    ///    passes, as check 7 passes it.
+    ///
+    /// The subject of the orientation read is the solid, since a body's
+    /// total hides a sign: a door that reads a several-solid operand as
+    /// one solid runs this before it merges.
+    pub(crate) fn gate_unverdicted(
+        &self,
+        subject: impl fmt::Display,
+        band: Band,
+        tol: Tol,
+    ) -> Result<(), Unfinished>
+    where
+        T: Decide + crate::props::AtRestPolicy,
+    {
+        if self.outcome == AtRestOutcome::Validated {
+            return Ok(());
+        }
+        let scaffolding = operand_scaffolding(&self.body, subject);
+        if !scaffolding.is_empty() {
+            return Err(Unfinished::Scaffolding(scaffolding));
+        }
+        match inside_out_solids(&self.body, band, tol, T::quad_lane()).first() {
+            Some(&solid) => Err(Unfinished::InsideOut(solid)),
+            None => Ok(()),
+        }
+    }
+}
+
+/// **Tier 2's findings on a door's operand.** A tier-1 finding panics
+/// naming `subject` and the first finding: every public door keeps a
+/// body tier-1-valid, so only a kernel bug hands one in.
+pub(crate) fn operand_scaffolding<T: Real>(
+    body: &Body<T>,
+    subject: impl fmt::Display,
+) -> Vec<ValidationError> {
+    let (broken, scaffolding) = closed_by_tier(body);
+    if let Some(first) = broken.first() {
+        unreachable!(
+            "{subject} fails tier 1 ({} findings, the first {first:?}): every public door keeps \
+             the body tier-1-valid",
+            broken.len()
+        );
+    }
+    scaffolding
+}
+
 impl<T: Real> core::ops::Deref for AtRestBody<T> {
     type Target = Body<T>;
 

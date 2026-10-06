@@ -244,7 +244,12 @@ fn the_split_orphan_sweep_drops_every_side_table() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&body, &plane, tol).expect("the square splits");
+    let halves = topo::split(
+        &sweep::test_support::finished("the operand", body.clone(), tol),
+        &plane,
+        tol,
+    )
+    .expect("the square splits");
     let near = halves.below.body().expect("the flat side is below");
     assert!(
         near.get_surface(far_wall).is_none(),

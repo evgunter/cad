@@ -39,7 +39,12 @@ fn halves() -> (Body<Interval>, Body<Interval>) {
         v3(PHI.sin(), 0.0, PHI.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };

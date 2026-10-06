@@ -8,6 +8,14 @@
 //! component distribution, the carve into two result bodies), the
 //! public [`split`] op, and **slicing** ([`plane_section`], `section`).
 //!
+//! Every door here takes a finished operand ([`crate::AtRestBody`]): a
+//! body tier 3 passed, or one whose scalar runs no at-rest gate (a dual).
+//! Over the latter the door reads what the type promises itself, before
+//! anything else and per solid: tier 2 (a strut, an empty loop, a null
+//! edge, a split shell refuse [`SplitReduceError::ScaffoldingOperand`])
+//! and tier 3's check 7 (an inside-out solid refuses
+//! [`SplitReduceError::InsideOutOperand`]).
+//!
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
 //!
@@ -76,9 +84,10 @@ pub(crate) mod spiric_arc;
 use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::null::NullEdge;
+use crate::validate::{AtRestBody, Unfinished, ValidationError};
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
@@ -260,11 +269,23 @@ pub enum SplitReduceError {
         /// The ON vertex where the contact was classified.
         vertex: VertexKey,
     },
-    /// The operand already contains null-edge scaffolding — it is a
-    /// mid-surgery body, not a splittable operand.
+    /// The operand is well-formed but not a closed solid at rest: tier 2
+    /// ([`crate::validate_closed`]) refuses it for construction
+    /// scaffolding an edit left behind — a strut's valence-1 vertex, an
+    /// empty loop, a null edge, a shell in pieces. The split serves
+    /// finished solids only.
     ScaffoldingOperand {
-        /// The scaffolding edge.
-        edge: EdgeKey,
+        /// The validator's tier-2 findings, each naming its entity.
+        errors: Vec<ValidationError>,
+    },
+    /// The operand holds an inside-out solid: tier 3's check 7 decides
+    /// its signed volume definitely negative
+    /// ([`ValidationError::NegativeVolume`]), so its faces bound the
+    /// complement of the region they enclose, and each side would be
+    /// the complement of the half it bounds.
+    InsideOutOperand {
+        /// Its first inside-out solid, in arena order.
+        solid: SolidKey,
     },
     /// A vertex landed in the sliver band of the plane (F6): the
     /// operand/plane pair is ill-conditioned at this ε. No snapping —
@@ -375,6 +396,15 @@ impl From<BandError> for SplitReduceError {
     }
 }
 
+impl From<Unfinished> for SplitReduceError {
+    fn from(unfinished: Unfinished) -> Self {
+        match unfinished {
+            Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
+            Unfinished::InsideOut(solid) => Self::InsideOutOperand { solid },
+        }
+    }
+}
+
 impl From<EulerOpError> for SplitReduceError {
     fn from(e: EulerOpError) -> Self {
         Self::Euler(e.from_driver())
@@ -432,10 +462,17 @@ impl core::fmt::Display for SplitReduceError {
                 "the split plane is tangent to a curved face at a vertex, and a tangent \
                  cut is not supported yet. Recourse: move the split plane off the tangency"
             ),
-            Self::ScaffoldingOperand { edge } => write!(
+            Self::ScaffoldingOperand { .. } => write!(
                 f,
-                "the body carries null-edge scaffolding at {edge:?}: a mid-surgery body, \
-                 not one a split can take"
+                "the body is not a finished solid: it still carries what an edit left \
+                 behind, such as a strut or an empty loop, so the split refuses it. \
+                 Recourse: finish that edit first"
+            ),
+            Self::InsideOutOperand { .. } => write!(
+                f,
+                "the body is inside-out: its faces point into its material, so it encloses \
+                 negative volume and the split refuses it. Recourse: build it with its \
+                 faces pointing outward, or revert it"
             ),
             Self::SliverVertex { diag, .. } => write!(
                 f,
@@ -507,7 +544,17 @@ impl std::error::Error for SplitReduceError {}
 /// # Errors
 ///
 /// As the corresponding [`split_reduce`] stages.
-pub fn vertex_sides<T: geom_core::Decide>(
+pub fn vertex_sides<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &AtRestBody<T>,
+    plane: &SplitPlane<T>,
+    tol: Tol,
+) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
+    gate_finished(body, geom_core::Band::linear(tol)?, tol)?;
+    carrier_gate_and_sides(body, plane, tol)
+}
+
+/// [`vertex_sides`] behind the finished-body gate.
+pub(crate) fn carrier_gate_and_sides<T: geom_core::Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -531,6 +578,28 @@ pub fn vertex_sides<T: geom_core::Decide>(
 /// [`SplitReduceError`] — see each variant; the first failure wins and
 /// the operand is never mutated (the clone is dropped).
 pub fn split_reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    operand: &AtRestBody<T>,
+    plane: &SplitPlane<T>,
+    tol: Tol,
+) -> Result<SplitReduction<T>, SplitReduceError> {
+    gate_finished(operand, geom_core::Band::linear(tol)?, tol)?;
+    reduce(operand, plane, tol)
+}
+
+/// **The split's operand gate**: what a finished body promises, read
+/// where no verdict rides the operand ([`AtRestBody::gate_unverdicted`],
+/// the Boolean's read too), refused typed.
+fn gate_finished<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    operand: &AtRestBody<T>,
+    band: geom_core::Band,
+    tol: Tol,
+) -> Result<(), SplitReduceError> {
+    Ok(operand.gate_unverdicted("the split's operand", band, tol)?)
+}
+
+/// [`split_reduce`] behind the finished-body gate: over the operand as the
+/// pipeline reads it, one solid.
+pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -651,7 +720,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
     SplitError,
 > {
     let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
-    let mut red = split_reduce(operand, plane, tol)?;
+    let mut red = reduce(operand, plane, tol)?;
     // The section join carves the reduced body through the Euler
     // operators; one scope, one sweep at the end of the phase.
     //
@@ -678,10 +747,12 @@ pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
 /// The reduction's or the join's refusal.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
+    operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Body<T>, SplitError> {
+    let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
+    gate_finished(operand, band, tol)?;
     Ok(split_scratch(operand, plane, tol)?.0.body)
 }
 
@@ -755,6 +826,12 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// call's plane convention (above face m = −n, below face m = +n)
 /// because the mirrored run's roles are the swap of ours.
 ///
+/// **The operand is a finished body** ([`AtRestBody`]); one that carries
+/// no verdict (a dual's) is read for what the type promises, per solid,
+/// before a several-solid operand is read as one solid
+/// ([`SplitReduceError::ScaffoldingOperand`],
+/// [`SplitReduceError::InsideOutOperand`]).
+///
 /// # Errors
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole —
@@ -764,18 +841,19 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
 /// mirrored run whose side is not a closed solid surfaces the direct
 /// run's refusal, as any other mirror failure does. Tier 3 is
-/// deliberately not run on the sides: split accepts operands carrying
-/// scaffold edges tier 3 refuses, and a pinch side's touching pieces
+/// deliberately not run on the sides: a pinch side's touching pieces
 /// carry contacts split declares nowhere
 /// (`work/tquery/validate-passes-a-body-with-a-zero-width-slit-face.md`).
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
+    operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<SplitResult<T>, SplitError> {
+    let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
+    gate_finished(operand, band, tol)?;
     let flat;
-    let operand = if operand.solids().nth(1).is_some() {
-        let mut body = operand.clone();
+    let operand: &Body<T> = if operand.solids().nth(1).is_some() {
+        let mut body = Body::clone(operand);
         body.merge_all_solids()
             .map_err(|e| SplitError::Finish(finish::SplitFinishError::from(e)))?;
         flat = body;
@@ -784,8 +862,6 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
         operand
     };
     let mut result = split_one_solid(operand, plane, tol)?;
-    let band = geom_core::Band::linear(tol)
-        .map_err(|e| SplitError::Finish(finish::SplitFinishError::Band(e)))?;
     for part in [&mut result.above, &mut result.below] {
         if let finish::SplitPart::Body(body) = part {
             crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)

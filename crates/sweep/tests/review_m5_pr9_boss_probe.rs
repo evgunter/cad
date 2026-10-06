@@ -248,7 +248,12 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let parts = split(&body, &plane, Tol::witness()).expect("split at x=0");
+    let parts = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .expect("split at x=0");
     let mut below = parts.below.body().expect("below").clone();
     let out = below
         .merge_coplanar_faces(Tol::witness())
@@ -297,7 +302,12 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let parts = split(&body, &plane, Tol::witness()).expect("split");
+    let parts = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .expect("split");
     let below = finished(
         "the unmerged half-disc",
         parts.below.body().expect("below").clone(), // NOT merged

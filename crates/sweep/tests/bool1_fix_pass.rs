@@ -93,7 +93,12 @@ fn faces_of(body: &Body<f64>, e: topo::EdgeKey) -> (FaceKey, FaceKey) {
 #[test]
 fn tip_edge_keeps_the_first_visits_section_chart() {
     let body = extruded(vec![notched(0.0)], 1.0);
-    let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
+    let result = topo::split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane_y1(),
+        Tol::witness(),
+    )
+    .expect("the coplanar split runs");
     let below = result.below.body().expect("below has material");
     // The tip edge: the vertical at (4, 1, ·).
     let tip = below
@@ -190,7 +195,12 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
         !before.is_empty(),
         "the operand has circle carriers at the boss joint"
     );
-    let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
+    let result = topo::split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane_y1(),
+        Tol::witness(),
+    )
+    .expect("the coplanar split runs");
     let below = result.below.body().expect("below has material");
     assert_eq!(
         topo::validate_geometric(below, Tol::witness()),
@@ -268,7 +278,11 @@ fn near_flush_regimes_pin_per_band() {
             (sign * dy_clear, "ok"),
         ] {
             let body = extruded(vec![notched(dy)], 1.0);
-            let got = topo::split(&body, &plane_y1(), Tol::witness());
+            let got = topo::split(
+                &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+                &plane_y1(),
+                Tol::witness(),
+            );
             match (want, got) {
                 ("ok", Ok(r)) => {
                     for (name, part) in [("above", &r.above), ("below", &r.below)] {

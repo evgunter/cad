@@ -102,7 +102,12 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         1.0,
         Tol::witness(),
     );
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let r = split(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 
@@ -118,7 +123,12 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0, Tol::witness());
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let r = split(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 }
@@ -134,7 +144,12 @@ fn tiny_real_sliver_not_wrongly_refused() {
         1.0,
         Tol::witness(),
     );
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let r = split(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -147,7 +162,12 @@ fn tiny_real_sliver_not_wrongly_refused() {
         "sliver volume {va} vs {expect}"
     );
     // And the section query agrees: one tiny region.
-    let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let s = plane_section(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(s.regions.len(), 1);
 }
 
@@ -167,7 +187,11 @@ fn in_band_section_escalates_typed_not_misclassified() {
         eprintln!("in-band probe: fixture build refused at ε={eps}");
         return; // build-stage refusal: honest, earlier.
     };
-    match split(&fx.body, &plane_y(1.0), Tol::witness()) {
+    match split(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    ) {
         Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {
             panic!("in-band sliver MISCLASSIFIED as zero-area tangency");
         }
@@ -188,12 +212,22 @@ fn vertex_only_contact_is_typed_empty() {
         Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
         geom_core::Tol::witness(),
     );
-    let r = split(&fx, &plane, Tol::witness()).unwrap();
+    let r = split(
+        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
     assert_eq!(below.vertices().count(), fx.vertices().count());
-    let s = plane_section(&fx, &plane, Tol::witness()).unwrap();
+    let s = plane_section(
+        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(s.regions.is_empty());
     assert!(s.u_ref.is_none());
 }
@@ -213,7 +247,12 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
         1.0,
         Tol::witness(),
     );
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let r = split(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
     assert!(
@@ -237,6 +276,8 @@ fn a_two_solid_body_splits_whole_like_its_section() {
     add_quad_prism(&mut body, 10.0);
     assert_eq!(body.solids().count(), 2);
     assert_eq!(validate_closed(&body), Ok(()));
+    common::describe_as_intersections(&mut body, Tol::witness());
+    let body = common::finished("the two prisms", body, Tol::witness());
     let r = split(&body, &plane_y(1.0), Tol::witness()).expect("both prisms split");
     for side in [&r.above, &r.below] {
         let side = side.body().expect("each side holds material");
@@ -263,7 +304,12 @@ fn plane_section_outlines_wind_counter_clockwise() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0, Tol::witness());
-    let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let s = plane_section(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(s.regions.len(), 3);
     let mut signs = Vec::new();
     for poly in s.regions.iter().map(|r| &r.outline) {

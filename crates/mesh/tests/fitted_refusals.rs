@@ -184,7 +184,12 @@ fn split_cylinder_half() -> Body<f64> {
         Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &topo::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let SplitPart::Body(ref below) = result.below else {
         panic!("the lower side carries material");
     };

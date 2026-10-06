@@ -415,7 +415,12 @@ fn steep_cut(tilt: f64) -> Body<f64> {
         Vec3::new(tilt.sin(), 0.0, tilt.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
+    let result = split(
+        &sweep::test_support::finished("the operand", tall.clone(), tol()),
+        &plane,
+        tol(),
+    )
+    .expect("the plane cuts the prism");
     let SplitPart::Body(above) = result.above else {
         panic!("the part above the cut is a body");
     };

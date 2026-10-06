@@ -143,7 +143,11 @@ fn sector_margin_stream() {
         // The result is not the point; the recorded decisions are. A
         // typed refusal is a legitimate outcome of a vertex-grazing
         // plane and its margins are recorded either way.
-        let _ = split(&body, &plane_y(c), Tol::witness());
+        let _ = split(
+            &topo::test_support::finished("the operand", body.clone(), Tol::witness()),
+            &plane_y(c),
+            Tol::witness(),
+        );
     }
     let split_samples = k_stats::take_samples();
 

@@ -51,8 +51,12 @@ fn halves() -> (Body<f64>, Body<f64>) {
         Vec3::new(PHI.sin(), 0.0, PHI.cos()),
         geom_core::Tol::witness(),
     );
-    let result =
-        split(&cylinder, &plane, Tol::witness()).expect("the tilted cut splits the cylinder");
+    let result = split(
+        &sweep::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
@@ -253,7 +257,12 @@ fn dual_lane_keeps_the_closed_form_refusal() {
         Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),
         geom_core::Tol::witness(),
     );
-    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let SplitPart::Body(above) = &result.above else {
         panic!("above carries material");
     };

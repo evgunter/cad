@@ -392,23 +392,14 @@ fn crossing_body() -> Body<f64> {
 }
 
 /// **Each verb refuses a body whose pieces cannot be read, typed**: the
-/// boolean never takes it, because two outer shells under one solid is
-/// not a finished body (the at-rest gate refuses `SolidOuterShells`); the
-/// split (a plane missing the body, so one side is all of it) and `shell`
-/// (which sorts its operand first) each refuse `Pieces(Crossing)`.
+/// boolean and the split never take it, because two outer shells under
+/// one solid is not a finished body (the at-rest gate refuses
+/// `SolidOuterShells`); `shell` (which sorts its operand first) refuses
+/// `Pieces(Crossing)`.
 #[test]
 fn every_verb_refuses_a_body_whose_pieces_cannot_be_read() {
     let body = crossing_body();
     refused_as_two_outer_shells("the crossing body", &body);
-    let plane = topo::test_support::split_plane(
-        geom_core::Point3::new(0.0, 0.0, 10.0),
-        geom_core::Vec3::new(0.0, 0.0, 1.0),
-        tol(),
-    );
-    match topo::split(&body, &plane, tol()) {
-        Err(topo::SplitError::Pieces(topo::PieceSortError::Crossing { .. })) => {}
-        other => panic!("the split: {:?}", other.map(|_| ())),
-    }
     match topo::shell(&body, 0.05, tol()) {
         Err(topo::ShellError::Pieces {
             error: topo::PieceSortError::Crossing { .. },
@@ -417,26 +408,15 @@ fn every_verb_refuses_a_body_whose_pieces_cannot_be_read() {
     }
 }
 
-/// **Overlapping material refuses rather than splitting into two solids
-/// that overlap**: a cube filed straight inside another cube's solid, no
-/// cavity between, is not a finished body, so the boolean never takes
-/// it, and the split (a plane missing the body) refuses
-/// `Pieces(Overlapping)`.
+/// **Overlapping material is not a finished body**: a cube filed
+/// straight inside another cube's solid, no cavity between, so neither
+/// the boolean nor the split takes it.
 #[test]
 fn a_cube_inside_a_cube_under_one_solid_refuses_as_overlapping() {
     let mut body = cube(0.0, 6.0).into_body();
     topo::graft_disjoint_all_keyed(&mut body, &cube(2.0, 4.0)).unwrap();
     let body = body.with_solids_merged_for_tests();
     refused_as_two_outer_shells("the overlapping body", &body);
-    let plane = topo::test_support::split_plane(
-        geom_core::Point3::new(0.0, 0.0, 10.0),
-        geom_core::Vec3::new(0.0, 0.0, 1.0),
-        tol(),
-    );
-    match topo::split(&body, &plane, tol()) {
-        Err(topo::SplitError::Pieces(topo::PieceSortError::Overlapping { .. })) => {}
-        other => panic!("the split: {:?}", other.map(|_| ())),
-    }
 }
 
 /// `body`'s one solid holds two outer shells, and the at-rest gate

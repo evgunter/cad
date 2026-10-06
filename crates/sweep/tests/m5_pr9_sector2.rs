@@ -62,7 +62,11 @@ fn the_tangent_graze_resolves_past_first_order() {
         geom_core::Tol::witness(),
     );
     let bracket = Bracket::open();
-    let out = split(&body, &plane, Tol::witness());
+    let out = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    );
     let v = bracket.finish().verdicts;
     // The second-order lane ran, by name (telemetry from birth).
     for name in [
@@ -111,8 +115,11 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
     if let Err(topo::splitting::SplitError::Reduce(
         e @ (SplitReduceError::TangencyUnsupported { .. }
         | SplitReduceError::ConsecutiveOnSectors { .. }),
-    )) = split(&body, &plane, Tol::witness())
-    {
+    )) = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    ) {
         panic!("second order owns the graze: {e}")
     }
 }

@@ -127,8 +127,12 @@ fn a_split_carries_a_lune_bore_with_its_half() {
                     Vec3::new(nx, 0.0, 0.0),
                     geom_core::Tol::witness(),
                 );
-                let result = split(&bored_disc(outer, hole), &plane, tol())
-                    .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
+                let result = split(
+                    &sweep::test_support::finished("the operand", bored_disc(outer, hole), tol()),
+                    &plane,
+                    tol(),
+                )
+                .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
                 let above_holds = (hole.0 > 0.0) == (nx > 0.0);
                 for (side, part, holds) in [
                     ("above", &result.above, above_holds),
@@ -201,8 +205,12 @@ fn a_split_carries_two_lune_bores_each_with_its_half() {
         ("opposite halves", [(1.6, 0.8), (-1.6, -0.8)], 1.0),
         ("one half", [(1.6, 0.8), (1.6, -0.8)], 2.0),
     ] {
-        let result = split(&bored_disc_n(outer, &centres), &plane, tol())
-            .unwrap_or_else(|e| panic!("{pose}: split refused: {e:?}"));
+        let result = split(
+            &sweep::test_support::finished("the operand", bored_disc_n(outer, &centres), tol()),
+            &plane,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{pose}: split refused: {e:?}"));
         for (side, part, bores) in [
             ("above", &result.above, above_bores),
             ("below", &result.below, 2.0 - above_bores),
@@ -241,9 +249,13 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
         geom_core::Tol::witness(),
     );
     for (cx, cy) in [(1.6, 0.8), (-1.6, 0.8), (0.8, 0.4)] {
-        let SplitPart::Body(lower) = split(&bored_disc(outer, (cx, cy)), &oblique, tol())
-            .unwrap_or_else(|e| panic!("bore at ({cx}, {cy}): oblique split refused: {e:?}"))
-            .below
+        let SplitPart::Body(lower) = split(
+            &sweep::test_support::finished("the operand", bored_disc(outer, (cx, cy)), tol()),
+            &oblique,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("bore at ({cx}, {cy}): oblique split refused: {e:?}"))
+        .below
         else {
             panic!("bore at ({cx}, {cy}): the lower piece is empty");
         };
@@ -258,8 +270,12 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
                 Vec3::new(nx, 0.0, 0.0),
                 geom_core::Tol::witness(),
             );
-            let result = split(&lower, &plane, tol())
-                .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
+            let result = split(
+                &sweep::test_support::finished("the operand", lower.clone(), tol()),
+                &plane,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
             let above_holds = (cx > 0.0) == (nx > 0.0);
             for (side, part, holds) in [
                 ("above", &result.above, above_holds),

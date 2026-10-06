@@ -845,7 +845,7 @@ fn body_operand<T: Decide>(
 }
 
 /// **A body operand, finished** for a door that takes finished bodies
-/// (the Boolean's): [`body_operand`]'s body through the at-rest gate
+/// (the Boolean's and the split's): [`body_operand`]'s body through the at-rest gate
 /// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
 /// node. The evaluator holds the bodies its nodes built with no verdict
 /// kept beside them, so the consuming node pays the gate here.
@@ -2671,7 +2671,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, target)?;
+    let body = finished_operand(results, target, tol)?;
     let tv = value_of(results, tool)?;
     let wrong_tool = || wrong_operand(tv, tool, verb.tool_expected);
     let ValuePayload::Datum(datum) = &tv.payload else {

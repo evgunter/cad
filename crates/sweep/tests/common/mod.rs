@@ -479,7 +479,7 @@ pub fn tilted_cut_upper() -> Body<f64> {
     .body;
     let phi = 0.3f64;
     let result = topo::splitting::split(
-        &cylinder,
+        &sweep::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
         &topo::test_support::split_plane(
             Point3::new(0.0, 0.0, 0.5),
             Vec3::new(phi.sin(), 0.0, phi.cos()),
@@ -530,7 +530,12 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         tilted_cut_normal(),
         geom_core::Tol::witness(),
     );
-    let result = topo::splitting::split(&tall, &plane, tol).expect("the plane cuts the prism");
+    let result = topo::splitting::split(
+        &sweep::test_support::finished("the operand", tall.clone(), tol),
+        &plane,
+        tol,
+    )
+    .expect("the plane cuts the prism");
     let part = if above { result.above } else { result.below };
     let topo::splitting::SplitPart::Body(half) = part else {
         panic!("each half carries material");

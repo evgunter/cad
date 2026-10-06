@@ -138,7 +138,11 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
             Vec3::new(normal, 0.0, 0.0),
             geom_core::Tol::witness(),
         );
-        match topo::split(&body, &plane, tol()) {
+        match topo::split(
+            &sweep::test_support::finished("the operand", body.clone(), tol()),
+            &plane,
+            tol(),
+        ) {
             Err(SplitError::Finish(SplitFinishError::SectionCusp { .. })) => {}
             other => panic!("normal {normal}: expected SectionCusp, got {other:?}"),
         }
@@ -156,7 +160,12 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&plate_with_hole(), &through, tol()).expect("a transverse cut");
+    let halves = topo::split(
+        &sweep::test_support::finished("the operand", plate_with_hole(), tol()),
+        &through,
+        tol(),
+    )
+    .expect("a transverse cut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of x = 0.5");
         assert_eq!(
@@ -176,7 +185,12 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
         Vec3::new(0.0, 0.0, 1.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&cusp.body, &mid, tol()).expect("a cut across the strut");
+    let halves = topo::split(
+        &sweep::test_support::finished("the operand", cusp.body.clone(), tol()),
+        &mid,
+        tol(),
+    )
+    .expect("a cut across the strut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of z = 0.5");
         let tangent = tangent_edges(body);
@@ -216,8 +230,12 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
         Vec3::new(0.0, -1.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&body, &plane, tol())
-        .unwrap_or_else(|e| panic!("a seam at the cut must cut, got {e:?}"));
+    let halves = topo::split(
+        &sweep::test_support::finished("the operand", body.clone(), tol()),
+        &plane,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("a seam at the cut must cut, got {e:?}"));
     let mut seams = 0;
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let piece = part

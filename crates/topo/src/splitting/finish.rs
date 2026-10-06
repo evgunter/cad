@@ -811,10 +811,10 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         let mut spec = match &existing {
                             Some(c) => c.restated_spec(),
                             // Unreachable, not a licence to rebuild:
-                            // the operand gate refuses uncertified
-                            // edges (`ScaffoldingOperand`) and every
-                            // split-minted edge certifies at its mint,
-                            // so a section-boundary edge always has a
+                            // a finished operand has no uncertified
+                            // edge and every split-minted edge
+                            // certifies at its mint, so a
+                            // section-boundary edge always has a
                             // carrier to restate.
                             None => geom_brep::EdgeCurveSpec::line_between(p0, p1),
                         };

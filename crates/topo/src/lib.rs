@@ -436,11 +436,53 @@ pub mod test_support {
     ///
     /// The reduction's or the join's refusal.
     pub fn split_through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
-        operand: &Body<T>,
+        operand: &crate::AtRestBody<T>,
         plane: &crate::SplitPlane<T>,
         tol: geom_core::Tol,
     ) -> Result<Body<T>, crate::SplitError> {
         crate::splitting::through_the_join(operand, plane, tol)
+    }
+
+    /// The split's reduction over a closed body tier 3 does not finish
+    /// (`splitting::reduce`, [`crate::split_reduce`] past its operand
+    /// gate). For the rows whose pose no finished body realizes — a
+    /// prism with a straight profile corner keeps the edge between its
+    /// coplanar walls a scaffold — and which pin that refusal themselves.
+    /// A body tier 2 refuses is outside its premise.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal.
+    pub fn split_reduce_unfinished<T: geom_core::Decide + crate::props::AtRestPolicy>(
+        body: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::SplitReduction<T>, crate::SplitReduceError> {
+        crate::splitting::reduce(body, plane, tol)
+    }
+
+    /// The split's carrier gate and vertex sweep over a closed body tier
+    /// 3 does not finish ([`crate::vertex_sides`] past its operand gate),
+    /// for the rows whose fixture relabels a face to a kind the gate
+    /// reads, which strands the face's edges below tier 3. A body tier 2
+    /// refuses is outside its premise.
+    ///
+    /// # Errors
+    ///
+    /// The carrier gate's or the sweep's refusal.
+    #[allow(clippy::type_complexity)]
+    pub fn split_carrier_gate<T: geom_core::Decide>(
+        body: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<
+        (
+            slotmap::SecondaryMap<crate::VertexKey, crate::PlaneSide>,
+            Vec<crate::VertexKey>,
+        ),
+        crate::SplitReduceError,
+    > {
+        crate::splitting::carrier_gate_and_sides(body, plane, tol)
     }
 
     /// **Which decision a Boolean refusal came from**, as the executed-

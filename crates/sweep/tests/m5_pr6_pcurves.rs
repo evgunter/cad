@@ -75,7 +75,12 @@ fn tilted_cut() -> (Body<f64>, Body<f64>) {
         Vec3::new(phi.sin(), 0.0, phi.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (SplitPart::Body(a), SplitPart::Body(b)) = (result.above, result.below) else {
         panic!("both sides carry material");
     };
@@ -262,7 +267,12 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         Vec3::unit_z(),
         geom_core::Tol::witness(),
     );
-    let result = split(&prism, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", prism.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     for part in [result.above.body(), result.below.body()]
         .into_iter()
         .flatten()
@@ -477,7 +487,12 @@ fn caches_certify_on_the_interval_lane() {
         interval::v3(phi.sin(), 0.0, phi.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut seen = 0usize;
     for part in [result.above.body(), result.below.body()]
         .into_iter()
@@ -519,7 +534,11 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
         Vec3::new(phi.sin(), phi.cos(), 0.0),
         geom_core::Tol::witness(),
     );
-    match split(&tube, &plane, Tol::witness()) {
+    match split(
+        &sweep::test_support::finished("the operand", tube.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    ) {
         Ok(result) => {
             let band = Band::linear(Tol::witness()).unwrap();
             for part in [result.above.body(), result.below.body()]
@@ -562,7 +581,12 @@ fn a_rotated_tilted_cut_mints_branch_consistent_caches() {
         Vec3::new(phi.sin() * rot.cos(), phi.sin() * rot.sin(), phi.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let band = Band::linear(Tol::witness()).unwrap();
     let mut caches = 0usize;
     for part in [result.above.body(), result.below.body()]

@@ -177,7 +177,12 @@ fn silent_fixed_predicates_scale_linearly() {
             n,
             geom_core::Tol::witness(),
         );
-        split(&body, &plane, Tol::witness()).expect("oblique split");
+        split(
+            &topo::test_support::finished("the operand", body.clone(), Tol::witness()),
+            &plane,
+            Tol::witness(),
+        )
+        .expect("oblique split");
         let mut out: BTreeMap<&'static str, Vec<f64>> = BTreeMap::new();
         for sample in k_stats::take_samples() {
             if matches!(

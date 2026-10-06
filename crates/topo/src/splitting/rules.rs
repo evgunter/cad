@@ -609,7 +609,12 @@ mod tests {
         };
         let (base, far) = (at(0.0), at(1.0));
         let band = Band::linear(tol).unwrap();
-        let (sides, _) = crate::vertex_sides(&fx.body, &plane, tol).unwrap();
+        let (sides, _) = crate::vertex_sides(
+            &crate::test_support::finished("the operand", fx.body.clone(), tol),
+            &plane,
+            tol,
+        )
+        .unwrap();
         let entries =
             super::super::classify_neighborhood(&fx.body, &plane, &sides, base, band).unwrap();
         let n = entries.len();
@@ -681,7 +686,12 @@ mod tests {
                 geom_core::Vec3::new(0.0, s * h, -s * h),
                 tol,
             );
-            let (sides, _) = crate::vertex_sides(&body, &plane, tol).unwrap();
+            let (sides, _) = crate::vertex_sides(
+                &crate::test_support::finished("the operand", body.clone(), tol),
+                &plane,
+                tol,
+            )
+            .unwrap();
             let entries =
                 super::super::classify_neighborhood(&body, &plane, &sides, base, band).unwrap();
             let n = entries.len();

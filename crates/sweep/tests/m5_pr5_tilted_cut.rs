@@ -76,7 +76,12 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
         Vec3::new(phi.sin(), 0.0, phi.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
@@ -141,7 +146,12 @@ fn perpendicular_cut_stays_rung_1_circles() {
         Vec3::unit_z(),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
@@ -178,7 +188,12 @@ fn axis_parallel_cut_splits_through_rim_crossings() {
         Vec3::unit_x(),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
@@ -204,7 +219,12 @@ fn seam_coincident_cut_splits_along_the_seams() {
         Vec3::unit_y(),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (above, below) = assert_two_sided(&result);
     for part in [&above, &below] {
         assert_eq!(part.faces().count(), 4, "wall + two half caps + section");
@@ -224,7 +244,12 @@ fn tilted_cut_replays_bit_identically() {
             Vec3::new(phi.sin(), 0.0, phi.cos()),
             geom_core::Tol::witness(),
         );
-        let result = split(&body, &plane, Tol::witness()).unwrap();
+        let result = split(
+            &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+            &plane,
+            Tol::witness(),
+        )
+        .unwrap();
         let SplitPart::Body(above) = result.above else {
             panic!("above side carries material");
         };
@@ -268,7 +293,12 @@ fn tangent_plane_lands_the_cylinder_below() {
         Vec3::unit_x(),
         geom_core::Tol::witness(),
     );
-    let r = split(&body, &plane, Tol::witness()).unwrap();
+    let r = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     lands_whole("seam graze", &r.above, &r.below);
 }
 
@@ -304,7 +334,12 @@ mod interval {
             v3(phi.sin(), 0.0, phi.cos()),
             geom_core::Tol::witness(),
         );
-        let result = split(&body, &plane, Tol::witness()).unwrap();
+        let result = split(
+            &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+            &plane,
+            Tol::witness(),
+        )
+        .unwrap();
         let SplitPart::Body(above) = result.above else {
             panic!("above side carries material");
         };
@@ -375,7 +410,12 @@ fn even_crossing_recovers_the_sliver() {
         Vec3::unit_y(),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (above, below) = assert_two_sided(&result);
     // The above body IS the recovered sliver: every vertex at
     // y ≥ 0.25 − ε, at least one strictly beyond (the rim apex band).
@@ -495,7 +535,12 @@ fn tilted_belly_cut_mints_wall_contained_section_arcs() {
         Vec3::new(0.0, 2.0 * n, n),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (above, below) = assert_two_sided(&result);
     for part in [&above, &below] {
         // Four section arcs per side: the two short ones per wall
@@ -519,7 +564,12 @@ fn tilted_belly_cut_mints_wall_contained_section_arcs() {
         rows.sort();
         rows
     };
-    let again = split(&body, &plane, Tol::witness()).unwrap();
+    let again = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (above2, below2) = assert_two_sided(&again);
     assert_eq!(rows(&above), rows(&above2));
     assert_eq!(rows(&below), rows(&below2));
@@ -547,7 +597,12 @@ fn rotated_belly_cut_is_seam_placement_independent() {
         Vec3::new(c * n0.x - s * n0.y, s * n0.x + c * n0.y, n0.z),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (above, below) = assert_two_sided(&result);
     for part in [&above, &below] {
         let spans = wall_contained_ellipse_spans(part, 1.0);
@@ -610,7 +665,12 @@ fn on_endpoint_belly_cut_splits() {
     let n = Vec3::new(0.3, 1.0, 0.2).normalize();
     let plane =
         topo::test_support::split_plane(Point3::new(0.5, 0.0, 0.0), n, geom_core::Tol::witness());
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (above, below) = assert_two_sided(&result);
     // The mixed section carries ellipse arcs on both sides, and every
     // one of them stays on the finite wall over its stored interval.
@@ -643,7 +703,12 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
         Vec3::new(0.0, 2.0 * n, n),
         geom_core::Tol::witness(),
     );
-    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     let (above, below) = assert_two_sided(&result);
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for part in [above, below] {
@@ -738,7 +803,12 @@ fn even_crossing_belly_cut_at_interval() {
         (rows, sum)
     };
     let run = || {
-        let result = split(&body, &plane, Tol::witness()).unwrap();
+        let result = split(
+            &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+            &plane,
+            Tol::witness(),
+        )
+        .unwrap();
         let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {
             panic!("both sides carry material at Interval");
         };
@@ -789,7 +859,12 @@ fn root_at_endpoint_inserts_nothing() {
         Vec3::unit_y(),
         geom_core::Tol::witness(),
     );
-    let red = topo::splitting::split_reduce(&body, &plane, Tol::witness()).unwrap();
+    let red = topo::splitting::split_reduce(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(red.on_vertices.len(), 4);
     for v in &red.on_vertices {
         assert!(originals.contains(v), "no crossing vertex minted");
@@ -807,7 +882,12 @@ fn definite_roots_mint_four_crossings() {
         Vec3::unit_y(),
         geom_core::Tol::witness(),
     );
-    let red = topo::splitting::split_reduce(&body, &plane, Tol::witness()).unwrap();
+    let red = topo::splitting::split_reduce(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(red.on_vertices.len(), 4);
     for v in &red.on_vertices {
         assert!(!originals.contains(v), "all four are minted crossings");
@@ -826,7 +906,12 @@ fn near_graze_escalates_typed() {
         Vec3::unit_y(),
         geom_core::Tol::witness(),
     );
-    let err = split(&body, &plane, Tol::witness()).unwrap_err();
+    let err = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap_err();
     let msg = format!("{err}");
     assert!(
         format!("{err:?}").contains("split_conic_belly_graze"),
@@ -853,6 +938,11 @@ fn exact_graze_lands_the_cylinder_below() {
         Vec3::unit_y(),
         geom_core::Tol::witness(),
     );
-    let r = split(&body, &plane, Tol::witness()).unwrap();
+    let r = split(
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &plane,
+        Tol::witness(),
+    )
+    .unwrap();
     lands_whole("ruling graze", &r.above, &r.below);
 }

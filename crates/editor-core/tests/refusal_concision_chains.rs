@@ -43,7 +43,6 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
 const KERNEL_KEYED: &[&str] = &[
     "Revolve/VoidInsertion",
     "Revolve/Pcurve",
-    "Split/Reduce/ScaffoldingOperand",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
@@ -362,7 +361,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/LoneVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    "Split/Reduce/ScaffoldingOperand",
     // work/carve/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
@@ -1458,7 +1456,18 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "TangencyUnsupported",
             R::TangencyUnsupported { face, vertex },
         ),
-        ("ScaffoldingOperand", R::ScaffoldingOperand { edge }),
+        (
+            "ScaffoldingOperand",
+            R::ScaffoldingOperand {
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            R::InsideOutOperand {
+                solid: topo::SolidKey::default(),
+            },
+        ),
         (
             "SliverVertex",
             R::SliverVertex {
