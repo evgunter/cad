@@ -2,12 +2,13 @@
 id: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
 kind: issue
 title: topo: every ReplaceFaceError arm opens with replace_face_offset: and names its face by arena key, and the shell op shows it whole
-status: review
+status: closed
 opened: 2026-09-23
 priority: P1
 cost: M
 pr: 4163
 branch: shell/refusal-text
+closed: 2026-10-06
 ---
 
 
@@ -41,3 +42,11 @@ names a face, when this lands.
 `work/chrome/error-and-check-text-overflows-its-region.md`, "The
 standard a refusal is rewritten to": no stage prefix, no arena key
 outside a kernel-bug arm, 75 words on the rendered chain.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4163)
+
+`ReplaceFaceError`, `ShellError` and `OffsetError` now read to the refusal standard. The guard renders every Shell/Face row and lists no Shell admissions. The census names every `ReplaceFaceError` arm exhaustively.
+
+Under `ShellError::Face` and `Lift`, an arm that asks the caller to fix a door call now reads as the op's own defect. An arm that carries the offset's length speaks of the wall thickness, as a magnitude.
+
+The style review's fix pass covered S1–S5, S7, S8 and S10. S6 is filed. The PR merged with every check green.
