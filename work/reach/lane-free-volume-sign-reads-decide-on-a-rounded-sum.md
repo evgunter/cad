@@ -43,3 +43,11 @@ certifying lane separately (`at_infinity_side` measures in closed form
 and certifies), so a `_structural` door could keep "check 7 made through
 the closed form" and still certify its sign. Whether that reading of
 the lane-free contract is allowed is for the orchestrator.
+
+## The census bullet is answered (FUSE `fuse/one-home-shell-stands`)
+
+The census's gate-shell filter now reads `census::gate_role`, which is
+the one shell-role reader (`props::shell_role`) through
+`T::quad_lane()`. `tier3_tests::the_census_gate_reads_a_shell_role_as_the_classification_does`
+pins it on the far-anchored slab. The `_structural` doors and
+`classify_shells_structural` are unchanged.
