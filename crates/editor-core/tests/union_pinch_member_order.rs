@@ -301,6 +301,9 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         es.sort_unstable();
         es
     });
+    if let Err(e) = topo::test_support::meeting::corners_disjoint(body) {
+        panic!("{what}: {e}");
+    }
     Outcome {
         shape: shape(body),
         record: record(body, contacts),
@@ -783,101 +786,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     assert_eq!(shapes[4], shapes[5], "X ∩ plate and plate ∩ X: one body");
 }
 
-/// Where the holes of [`tilted_holes`] meet: a vertex of the plate's top.
-const MEET: [f64; 3] = [1.5, 1.0, 1.0];
-
-/// A hole in the plate's top: its footprint (counterclockwise from +z,
-/// one corner at [`MEET`]), the bearing its axis leans towards, and the
-/// prism's reach below [`MEET`] and its length, along the axis.
-struct Hole {
-    footprint: Vec<(f64, f64)>,
-    lean: f64,
-    below: f64,
-    length: f64,
-}
-
-impl Hole {
-    /// The tilted frame the prism is sketched on: origin `below` under
-    /// [`MEET`] along the axis `n`, `u` horizontal, `u × v = n`.
-    fn frame(&self) -> [[f64; 3]; 4] {
-        let (s, c) = self.lean.to_radians().sin_cos();
-        let k = 1.09f64.sqrt();
-        let n = [0.3 * c / k, 0.3 * s / k, 1.0 / k];
-        let u = [-s, c, 0.0];
-        let v = [
-            n[1] * u[2] - n[2] * u[1],
-            n[2] * u[0] - n[0] * u[2],
-            n[0] * u[1] - n[1] * u[0],
-        ];
-        let o = [0, 1, 2].map(|i| MEET[i] - self.below * n[i]);
-        [o, u, v, n]
-    }
-
-    /// The footprint projected along the axis into the frame.
-    fn profile(&self) -> Vec<(f64, f64)> {
-        let [o, u, v, _] = self.frame();
-        let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-        self.footprint
-            .iter()
-            .map(|&(x, y)| {
-                let d = [x - o[0], y - o[1], 1.0 - o[2]];
-                (dot(d, u), dot(d, v))
-            })
-            .collect()
-    }
-
-    /// The prism's volume above the plate's top: the profile's area
-    /// times the axial length above the top at its centroid, the height
-    /// above the top being affine over the profile.
-    fn above(&self) -> f64 {
-        let [o, u, v, n] = self.frame();
-        let p = self.profile();
-        let (mut a, mut cx, mut cy) = (0.0, 0.0, 0.0);
-        for i in 0..p.len() {
-            let ((x0, y0), (x1, y1)) = (p[i], p[(i + 1) % p.len()]);
-            let w = x0 * y1 - x1 * y0;
-            a += w / 2.0;
-            cx += (x0 + x1) * w / 6.0;
-            cy += (y0 + y1) * w / 6.0;
-        }
-        let z = o[2] + (cx / a) * u[2] + (cy / a) * v[2];
-        a * (self.length - (1.0 - z) / n[2])
-    }
-}
-
-/// A wedge over the sector `a0..a1` (degrees) of radius 0.4 about
-/// [`MEET`], leaning along its bisector; `k` staggers its reach and
-/// length.
-fn sector(a0: f64, a1: f64, k: usize) -> Hole {
-    let at = |a: f64| {
-        let (s, c) = a.to_radians().sin_cos();
-        (MEET[0] + 0.4 * c, MEET[1] + 0.4 * s)
-    };
-    Hole {
-        footprint: vec![(MEET[0], MEET[1]), at(a0), at(a1)],
-        lean: (a0 + a1) / 2.0,
-        below: 0.5 - 0.03 * k as f64,
-        length: 1.5 - 0.11 * k as f64,
-    }
-}
-
-/// An L-shaped hole whose reflex corner is [`MEET`], leaving the
-/// quadrant x < 1.5, y < 1 free and leaning away from it.
-fn ell_hole() -> Hole {
-    Hole {
-        footprint: vec![
-            (1.0, 1.0),
-            (1.5, 1.0),
-            (1.5, 0.5),
-            (2.0, 0.5),
-            (2.0, 1.5),
-            (1.0, 1.5),
-        ],
-        lean: 45.0,
-        below: 0.43,
-        length: 1.37,
-    }
-}
+use topo::test_support::meeting::{Hole, ell, wedge as sector};
 
 /// The plate and a prism per hole, each sketched on its tilted frame
 /// and extruded along it: above the top the prisms lean apart and touch
@@ -923,7 +832,7 @@ fn four_wedges() -> Vec<Hole> {
     ]
 }
 
-/// Three wedges on one side, leaving the top a reflex sector at [`MEET`].
+/// Three wedges on one side, leaving the top a reflex sector where they meet.
 fn wedges_on_one_side() -> Vec<Hole> {
     vec![
         sector(0.0, 40.0, 0),
@@ -933,7 +842,7 @@ fn wedges_on_one_side() -> Vec<Hole> {
 }
 
 fn ell_and_wedges() -> Vec<Hole> {
-    vec![ell_hole(), sector(190.0, 220.0, 1), sector(235.0, 260.0, 2)]
+    vec![ell(), sector(190.0, 220.0, 1), sector(235.0, 260.0, 2)]
 }
 
 /// A row over [`tilted_holes`]: its label, its holes, the fixture over
@@ -1004,5 +913,65 @@ fn holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_ord
     ];
     for (label, holes, fixture, counts) in rows {
         every_order(label, fixture, counts, tilted_volume(&holes()), &[TOP], &[]);
+    }
+}
+
+/// The names the union's table binds to the vertex at `p`.
+fn names_at(ev: &Evaluation<f64>, id: RecipeNodeId, p: Point) -> Vec<String> {
+    let body = body_of(ev, id);
+    let mut out: Vec<String> = crate::fixture::table(ev, id)
+        .iter()
+        .filter(|(_, e)| {
+            let keys: Vec<editor_core::EntityKey> = match e {
+                editor_core::Entry::Unique(r) => vec![r.key],
+                editor_core::Entry::Tied(rs) => rs.iter().map(|r| r.key).collect(),
+            };
+            keys.iter()
+                .any(|k| matches!(k, editor_core::EntityKey::Vertex(v) if at_point(body, *v) == p))
+        })
+        .map(|(n, _)| format!("{n:?}"))
+        .collect();
+    out.sort_unstable();
+    out
+}
+
+/// **Where three wedges' axes cross, at the plate's top, the vertex
+/// has one junction name in every member order that folds the wedges
+/// before the plate**: the seam lines through it, in canonical order.
+/// Orders that fold the plate earlier mint the vertex at another step,
+/// under another name
+/// (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`).
+#[test]
+fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
+    let mut first: Option<Vec<String>> = None;
+    for order in orders(4).into_iter().filter(|o| o[3] == 0) {
+        let (doc, m) = tilted_holes(
+            ProfileDoc::empty_derived("union_pinch", Tol::witness()),
+            &three_wedges(),
+        );
+        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+        let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("member order {order:?}: refused: {e:?}");
+        }
+        let names = names_at(&ev, u, TOP);
+        assert_eq!(
+            names.len(),
+            1,
+            "member order {order:?}: the meeting point's names"
+        );
+        assert_eq!(
+            names[0].matches("Seam {").count(),
+            6,
+            "member order {order:?}: the junction is named by its six seam lines"
+        );
+        match &first {
+            None => first = Some(names),
+            Some(f) => assert_eq!(
+                &names, f,
+                "member order {order:?}: the meeting point's name"
+            ),
+        }
     }
 }

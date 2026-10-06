@@ -257,6 +257,11 @@ mod test_support_impl;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_fixtures;
+// The holes-meeting-at-a-vertex fixture geometry and its corner check,
+// shared with editor-core's rows over the same bodies.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_meeting;
 // One `ValidationError` of every arm, for the rows that render them —
 // this crate's Display-coverage row and a downstream refusal-budget
 // row — so it sits behind the same door, on the same gate.
@@ -297,6 +302,11 @@ pub mod test_support {
         plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+    /// Holes meeting at one vertex of a plate's top
+    /// ([`crate::test_support_meeting`]).
+    pub mod meeting {
+        pub use crate::test_support_meeting::{Hole, MEET, corners_disjoint, ell, wedge};
+    }
 
     /// `body` finished for a door that takes finished bodies (the
     /// boolean's): through the scalar's at-rest gate

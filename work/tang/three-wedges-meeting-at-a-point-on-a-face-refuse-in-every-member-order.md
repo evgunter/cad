@@ -69,15 +69,21 @@ vertex pierce the top with one Out run per prism. Two fixes:
   `ring-struts-of-three-or-more-runs-hang-in-run-order`, closed in JOIN's directory). Now it hangs
   the ring struts clockwise about the pierced face's outward normal
   (`vtxfac::ring_order`), and each strut faces its germs from the next
-  run's start germ.
+  run's start germ. The rows pin the hang direction (the mirror order
+  crosses). They do not pin the sort, since every row's run order is
+  already angular order; that is filed as
+  `nested-pierce-runs-have-no-ring-order`.
 - **The crossing vertex is a junction.** With the struts fixed,
   editor-core's union refused one step earlier, in naming
   (`names/emit_topo.rs`, `name_boolean_vertices`). The wedges' axes
   cross at the vertex, which has two A edges, one B edge and four seam
-  lines, and no arm named that. The seam-junction arm now takes any
-  vertex on two or more seam lines with any number of operand edges
-  except exactly one. Its name is the set of lines, which straight
-  lines make unique.
+  lines, and no arm named that. The seam-junction arm now also takes a
+  vertex on two or more seam lines with operand edges on both sides,
+  one side holding exactly one. Its name is the set of lines, which
+  straight lines make unique, and it is the same in every member order
+  that mints it at the same step. Which step mints the vertex still
+  depends on the order, on main as well; that is filed as
+  `work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`.
 
 Rows (`crates/topo/tests/holes_meeting_at_a_vertex.rs` and
 `crates/editor-core/tests/union_pinch_member_order.rs`):

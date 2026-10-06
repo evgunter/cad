@@ -650,6 +650,12 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "PinchCrossesRingCorners",
+            BooleanError::PinchCrossesRingCorners {
+                vertex: VertexKey::default(),
+            },
+        ),
+        (
             "NonManifoldResult",
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),

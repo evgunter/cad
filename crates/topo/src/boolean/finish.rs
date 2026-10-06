@@ -603,9 +603,10 @@ impl Welds {
 /// met the point as an existing vertex built that meeting as one
 /// vertex. So the two are joined by a zero-length edge and the edge
 /// collapsed: across the outer loop it divides the fragment, two
-/// regions meeting at the vertex; across one ring it divides the hole,
-/// two holes meeting there; across two loops (holes touching at a
-/// corner) it joins them into one.
+/// regions meeting at the vertex; across two loops (holes touching at a
+/// corner) it joins them into one. Across one ring it would leave two
+/// holes through one vertex with overlapping corners, and refuses
+/// [`BooleanError::PinchCrossesRingCorners`].
 ///
 /// After the zips, [`weld_pierce_copies`] joins one pierce's own copies
 /// by the same fusion ([`weld_pair`]).
@@ -707,9 +708,10 @@ fn descendants<'r>(
 
 /// The one face `allowed` admits whose boundary runs through both `u`
 /// and `w`, each once, and the joint between the half-edges leaving
-/// them: a chord when the outer loop holds both, a hole when one ring
-/// does, else across their two loops, into the face's outer loop when
-/// it is one of them. `None` when no such face holds both.
+/// them: a chord when the outer loop holds both, else across their two
+/// loops, into the face's outer loop when it is one of them. One ring
+/// holding both refuses [`BooleanError::PinchCrossesRingCorners`].
+/// `None` when no such face holds both.
 ///
 /// # Panics
 ///
@@ -756,11 +758,11 @@ pub(super) fn pinch_site<T: Decide>(
             (&[(lu, hu)], &[(lw, hw)]) if lu == lw && lu == f.outer => {
                 Joint::Chord { he1: hu, he2: hw }
             }
-            (&[(lu, hu)], &[(lw, hw)]) if lu == lw => Joint::Hole {
-                face,
-                he1: hu,
-                he2: hw,
-            },
+            // One ring through both: welding them would leave two rings
+            // through one vertex, whose corners there overlap.
+            (&[(lu, _)], &[(lw, _)]) if lu == lw => {
+                return Err(BooleanError::PinchCrossesRingCorners { vertex: u });
+            }
             (&[(_, hu)], &[(lw, hw)]) if lw == f.outer => Joint::Loops {
                 target: hw,
                 ring: hu,

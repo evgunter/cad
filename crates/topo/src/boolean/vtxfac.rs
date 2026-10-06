@@ -56,7 +56,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
-use super::sectors::{BoolSector, build_sectors, side_code};
+use super::sectors::{build_sectors, side_code};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
@@ -765,28 +765,46 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // ring vertex in the runs' angular order ([`ring_order`]). With one
     // run either half may face either germ. With more, the half leaving
     // the ring vertex faces the run's germ that the walk clockwise about
-    // the pierced face's outward normal meets first from another run's
-    // start germ ([`super::insert::strut_order`]), in every op: the
-    // wedges are disjoint, so every other run's start germ meets the
-    // same one first. Where that leaves both operands one vertex at a
-    // pinch, the zips would fuse it to itself, and `zip::cross_pinches`
-    // crosses it first.
+    // the pierced face's outward normal meets first from the next run's
+    // start germ ([`super::insert::strut_order`]); the op does not enter.
+    // Both readings assume the runs' Out wedges are disjoint about the
+    // normal, which nothing here checks: runs on one side of the plane
+    // may nest instead (`work/tang/nested-pierce-runs-have-no-ring-order.md`).
+    // Where the struts leave both operands one vertex at a pinch, the
+    // zips would fuse it to itself, and `zip::cross_pinches` crosses it
+    // first.
     // Side labels are DERIVED sense data (PR 5.5, join module docs):
     // the half facing the run's start germ is the pierced DOWN half,
     // the one starting at `above_end`, so the copy is the below end
     // exactly when the half leaving the ring vertex faces it.
+    // Each germ with the arm of its transition sector; every reading of
+    // two or three of them is levered at the shortest of their arms.
+    let germ = |t: usize, g: &Germ<T>| (g.1, sectors[t].arm);
+    let ends: Vec<_> = runs
+        .iter()
+        .zip(&run_germs)
+        .map(|(run, (s, e))| {
+            (
+                germ((run.0 + n - 1) % n, s),
+                germ((run.0 + run.1 - 1) % n, e),
+            )
+        })
+        .collect();
     let sides = (0..runs.len())
         .map(|i| {
-            let (start, end) = (run_germs[i].0.1, run_germs[i].1.1);
+            let ((start, start_arm), (end, end_arm)) = ends[i];
             let leaving_faces_start = match runs.len() {
                 1 => false,
-                k => super::insert::strut_order(
-                    run_germs[(i + 1) % k].0.1,
-                    n_pierced.vec(),
-                    (start, end),
-                    sectors[(runs[i].0 + n - 1) % n].arm,
-                    band,
-                )?,
+                k => {
+                    let (from, from_arm) = ends[(i + 1) % k].0;
+                    super::insert::strut_order(
+                        from,
+                        n_pierced.vec(),
+                        (start, end),
+                        from_arm.min(start_arm).min(end_arm),
+                        band,
+                    )?
+                }
             };
             Ok(if leaving_faces_start {
                 NewVertexSide::Below
@@ -795,7 +813,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             })
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
-    let hang = ring_order(&run_germs, n_pierced.vec(), &sectors, &runs, band)?;
+    let starts: Vec<_> = ends.iter().map(|&(s, _)| s).collect();
+    let hang = ring_order(&starts, n_pierced.vec(), band)?;
     let mut ring_anchor: Option<HalfEdgeKey> = None;
     for i in hang {
         let (run_edge, &(start_germ, end_germ), &side) = (&run_edges[i], &run_germs[i], &sides[i]);
@@ -855,31 +874,35 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
 
 /// **The order the ring struts hang round the ring vertex**: the runs'
 /// Out wedges clockwise about the pierced face's outward `normal`, from
-/// run 0's. Each strut after the first splices just before the first
-/// strut's leaving half, so the ring's cycle meets them in hang order,
-/// and its corners at the ring vertex run clockwise about the normal,
-/// the face on their left: in any other order, two of the face's
-/// corners there overlap. The wedges are disjoint, so their start germs
-/// order them, read by [`super::insert::strut_order`] from run 0's start
-/// germ at the shortest of the three sectors' arms.
+/// run 0's, read off each run's start germ and its arm (`starts`). Each
+/// strut after the first splices just before the first strut's leaving
+/// half, so the ring's cycle meets them in hang order, and its corners at
+/// the ring vertex run clockwise about the normal, the face on their
+/// left: in any other order, two of the face's corners there overlap.
+/// Start germs order the wedges only while the wedges are disjoint
+/// (step 3's comment).
+///
+/// Unpinned: in every pose that builds, run order is already angular
+/// order, so no row tells this sort from the identity
+/// (`work/tang/nested-pierce-runs-have-no-ring-order.md`).
 fn ring_order<T: Decide>(
-    run_germs: &[(Germ<T>, Germ<T>)],
+    starts: &[(Vec3<T>, T)],
     normal: Vec3<T>,
-    sectors: &[BoolSector<T>],
-    runs: &[(usize, usize)],
     band: Band,
 ) -> Result<Vec<usize>, BooleanError> {
-    let n = sectors.len();
-    let start = |i: usize| (run_germs[i].0.1, sectors[(runs[i].0 + n - 1) % n].arm);
-    let (from, from_arm) = start(0);
+    let (from, from_arm) = starts[0];
     let mut order = vec![0];
-    for i in 1..runs.len() {
-        let (g, g_arm) = start(i);
+    for (i, &(g, g_arm)) in starts.iter().enumerate().skip(1) {
         let mut at = order.len();
         for (slot, &j) in order.iter().enumerate().skip(1) {
-            let (h, h_arm) = start(j);
-            let arm = from_arm.min(g_arm).min(h_arm);
-            if super::insert::strut_order(from, normal, (g, h), arm, band)? {
+            let (h, h_arm) = starts[j];
+            if super::insert::strut_order(
+                from,
+                normal,
+                (g, h),
+                from_arm.min(g_arm).min(h_arm),
+                band,
+            )? {
                 at = slot;
                 break;
             }

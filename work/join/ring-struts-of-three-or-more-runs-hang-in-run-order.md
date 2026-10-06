@@ -39,9 +39,9 @@ was seen to mint a third.
 
 ## The shape to give
 
-Today the pierce refuses typed: `BooleanError::PierceRunsUnordered`
+Until PR 4129 the pierce refused typed: `BooleanError::PierceRunsUnordered`
 (`vtxfac::classify_vertex_on_face`, right after the runs are read),
-since PR 4026's fix pass. Its doc says what would license it.
+since PR 4026's fix pass; PR 4129 retired it.
 
 Build a fixture whose vertex has three Out runs against a face, for
 example a vertex of valence four or more with two reflex face angles.
@@ -73,8 +73,11 @@ cannot reach three, but the union of several prisms' vertices at one
 point can.
 `vtxfac::ring_order` hangs the ring struts clockwise about the pierced
 face's outward normal, starting from run 0's wedge, and
-`PierceRunsUnordered` is retired. The row that pins the order is
-`holes_meeting_at_a_vertex`'s `corners_disjoint`. That check is
-independent of the facing rule: in the mirror order, the top face's
+`PierceRunsUnordered` is retired. What is pinned is the hang
+DIRECTION. `topo::test_support::meeting::corners_disjoint`, run by
+`holes_meeting_at_a_vertex`, refuses the mirror order: the top face's
 corners at the vertex overlap in each order that folds three wedges
-before the plate.
+before the plate. The check is independent of the facing rule. The sort
+itself is not pinned. In every row run order is already angular order,
+so no row tells the sort from the identity. That residue is TANG's
+`nested-pierce-runs-have-no-ring-order`.

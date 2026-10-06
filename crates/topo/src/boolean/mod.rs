@@ -2228,9 +2228,8 @@ pub enum BooleanError {
     /// there, and the seam zips would fuse the point to itself
     /// (`zip::cross_pinches`). One vertex holds two cones only where a
     /// face's boundary crosses from one to the other there, and the
-    /// pre-pass crosses only two corners of one ring, or the corners of
-    /// two faces of one surface and sense, one of them ringless. Here
-    /// none offer. On every residue line measured (that row's table),
+    /// pre-pass crosses only the corners of two faces of one surface and
+    /// sense, one of them ringless. Here none offer. On every residue line measured (that row's table),
     /// the one face through the point twice passes it on its outer
     /// loop, round a hole touching that loop there, and crossing it
     /// would leave a ring meeting the outer loop. Which body is right
@@ -2238,6 +2237,19 @@ pub enum BooleanError {
     /// (`work/join/a-pinch-no-kept-face-can-cross-refuses.md`).
     PinchUncrossed {
         /// The pinch vertex, in the joined body's keys.
+        vertex: VertexKey,
+    },
+    /// The result pinches at `vertex`, and the only crossing on offer
+    /// would join two corners of one ring there: `zip::split_across`
+    /// splitting a ring the vertex passes twice (`kemr`), or
+    /// `finish::pinch_site` welding two vertices one ring passes once
+    /// each (`Joint::Hole`). Either leaves two rings through one vertex,
+    /// each corner there the other pairing of the ring's two, so the
+    /// corners overlap and the face crosses itself at the point. What is
+    /// owed is a body that keeps the ring whole
+    /// (`work/join/a-pinch-crossed-before-the-zips-fuse-it-crosses-the-ring-at-a-twice-visited-vertex.md`).
+    PinchCrossesRingCorners {
+        /// The pinch vertex, in the operated body's keys.
         vertex: VertexKey,
     },
     /// The result would hold a non-manifold vertex: both operands hold
@@ -2807,6 +2819,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchUncrossed`].
     PinchUncrossed,
+    /// [`BooleanError::PinchCrossesRingCorners`].
+    PinchCrossesRingCorners,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -3013,6 +3027,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchUncrossed { .. } => BooleanErrorKind::PinchUncrossed,
+            Self::PinchCrossesRingCorners { .. } => BooleanErrorKind::PinchCrossesRingCorners,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3498,6 +3513,12 @@ impl core::fmt::Display for BooleanError {
                 "the result would pinch at one point, where two parts of its boundary meet, \
                  and the Boolean cannot yet join the faces that pass through that point. \
                  There is no way through this in the kernel yet"
+            ),
+            Self::PinchCrossesRingCorners { .. } => write!(
+                f,
+                "the result would pinch at one point where holes in one face meet, and the \
+                 Boolean can only join them there by making that face cross itself. There is \
+                 no way through this in the kernel yet"
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,
@@ -5957,6 +5978,9 @@ mod tests {
             BooleanError::PinchUncrossed {
                 vertex: VertexKey::default(),
             },
+            BooleanError::PinchCrossesRingCorners {
+                vertex: VertexKey::default(),
+            },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
                 b_vertices: [VertexKey::default(); 2],
@@ -6125,6 +6149,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchUncrossed => "PinchUncrossed",
+                BooleanErrorKind::PinchCrossesRingCorners => "PinchCrossesRingCorners",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

@@ -4,7 +4,7 @@ kind: issue
 title: Tier 3 passes a face whose loop crosses itself at a vertex it visits twice
 status: open
 opened: 2026-10-06
-priority: P3
+priority: P1
 cost: M
 ---
 
@@ -37,3 +37,19 @@ the corners there are angularly disjoint about the face's outward
 normal at that point. `corners_disjoint` in that test is the planar
 spelling. A curved face needs it in the chart's tangent plane at the
 vertex.
+
+## Reachable on main (raised to P1)
+
+PR 4129's review reached the crossed shape without a mutant. A one-shot
+`subtract(plate, U)`, where U is the union of the leaning wedges, builds
+it:
+
+- k = 2 on main: [18, 41, 25];
+- k = 3 on the PR: [27, 66, 40], and [32, 80, 49] at k = 4.
+
+Tiers 3 and 3′ and the volume pass on every one of those bodies. The
+next boolean on such a body refuses `ClassificationInvariant`. The
+crossing comes from `zip::split_across`'s `OneLoop` crossing (TANG's
+PR 4129 trace), and that is a body tier 3 should refuse.
+`topo::test_support::meeting::corners_disjoint` is the planar check,
+now shared.
