@@ -30,12 +30,13 @@
 //! witness ([`super::shell_witness`]) against the *pristine* other
 //! operand.
 
-use geom_core::{Band, Decide};
+use geom_core::{Band, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
 use super::join::CompletedPolygonPair;
+use super::sectors;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
@@ -46,6 +47,7 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKe
 use crate::euler::FaceSurface;
 use crate::live::{BoundaryMember, proven};
 use crate::splitting::finish::{carve, single_solid};
+use crate::validate::decide;
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -570,6 +572,9 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 let Some((face, joint)) = pinch_site(body, u, w, in_lineage)? else {
                     continue;
                 };
+                if !corners_nest(body, operand, (u, w), face, band)? {
+                    continue;
+                }
                 let ((dead, kept), made) = weld_pair(body, (u, w), joint, pu, tol)?;
                 if let Some(made) = made {
                     welds.fragments.push((made, face));
@@ -579,6 +584,96 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(welds)
+}
+
+/// Whether `u`'s and `w`'s corners of `face` nest: every edge leaving
+/// either vertex runs inside the other's corner, a graze counting as
+/// inside.
+///
+/// Only then does a chord across `face` join the two on one fan in the
+/// order their edges leave the point. A pierce leaves a copy of its ring
+/// vertex per null edge, all on one point, each with a corner of the
+/// face; the other pierce's edges leave the point inside one of those
+/// corners. A chord to another copy splices the two fans out of order,
+/// and the vertex it leaves holds more cones than the point
+/// (`zip::split_cones`). Such a pair is left apart, and the copy whose
+/// corner holds the other pierce is welded to it instead.
+///
+/// # Errors
+///
+/// A corner read's refusal ([`sectors::orbit_corners`]), and
+/// [`BooleanError::Escalated`] where an edge runs along a bound within
+/// the band without lying on it.
+fn corners_nest<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    (u, w): (VertexKey, VertexKey),
+    face: FaceKey,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let read = |v| sectors::orbit_corners(body, operand, v).collect::<Result<Vec<_>, _>>();
+    let (cu, cw) = (read(u)?, read(w)?);
+    for (into, from) in [(&cu, &cw), (&cw, &cu)] {
+        // Each orbit half-edge is one corner's own (`end`) bound.
+        for leaving in from {
+            let mut held = false;
+            for corner in into.iter().filter(|c| c.face == face) {
+                held |= corner_holds(corner, leaving.end, leaving.end_reach.length(), band)?;
+            }
+            if !held {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// Whether direction `dir` (its edge reaching `reach`) leaves the point
+/// inside `corner`, a graze on a bound counting as inside: CCW of
+/// `start` and CW of `end` about the outward normal. The two flanks
+/// settle it where they agree; where they part, the corner's own turn
+/// does (convex: outside; reflex: inside), and a straight corner parts
+/// them only at a graze.
+fn corner_holds<T: Decide>(
+    corner: &sectors::OrbitCorner<T>,
+    dir: geom_core::Vec3<T>,
+    reach: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let n = corner.normal.vec();
+    let (a, b, d) = (
+        corner.start.normalize(),
+        corner.end.normalize(),
+        dir.normalize(),
+    );
+    // Each sign is a unit cross product levered at the shortest reach
+    // among the edges it reads: the bound's sideways offset there.
+    let arm = corner
+        .start_reach
+        .length()
+        .min(corner.end_reach.length())
+        .min(reach);
+    let sign = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
+        decide(
+            "pinch_corner_holds",
+            Margin::levered(x.cross(y).dot(n), arm),
+            band,
+        )
+        .map_err(|diag| BooleanError::Escalated {
+            decision: super::BooleanDecision::VertexOnVertex,
+            diag,
+        })
+    };
+    let (after_start, before_end) = (sign(a, d)?, sign(d, b)?);
+    let (s1, s2) = (after_start != Sign::Negative, before_end != Sign::Negative);
+    if s1 == s2 {
+        return Ok(s1);
+    }
+    Ok(match sign(a, b)? {
+        Sign::Positive => false,
+        Sign::Negative => true,
+        Sign::Zero => true,
+    })
 }
 
 /// `face` and every face divided from it, through `rows` (`(new face,

@@ -14,8 +14,10 @@
 //! the outer half-edge leaving `a` (for `a → a⁺`, after `a⁻ → a`) is
 //! paired with the ring half-edge leaving a correspondent of `a`, which
 //! runs to a correspondent of `a⁻`; the zip joins the two at `a`. So a
-//! vertex the seam meets twice (a welded pinch, with one correspondent
-//! per meeting) is told apart by the ring run's other end. A ring that
+//! vertex with several correspondents is told apart by the ring run's
+//! other end: a pinch weld's vertex (`finish::weld_pinches`), with one
+//! per pierce it fused, and after a split ([`split_cones`]) a vertex
+//! holding several corners of one cone, with one per corner. A ring that
 //! leaves the right vertex but runs the same sense is refused before
 //! any surgery
 //! ([`BooleanError::SeamOrientation`]) rather than zipped.
@@ -49,8 +51,10 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
 
 /// The seam vertex correspondence: each A-side vertex → its B-side
-/// correspondents. One each, except a welded pinch, which a seam meets
-/// once per pierce it fused.
+/// correspondents. One each, except where the seams meet a vertex at
+/// several corners: a pinch weld's vertex holds one per pierce it fused,
+/// and once [`split_cones`] rebuilds the map from the edges the zips
+/// join, a vertex holds one per corner.
 pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 
 /// The vertex `v` survives as through the fusions `(dead, kept)`, in
@@ -197,6 +201,9 @@ pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
     core::iter::once(0).chain((1..n).rev())
 }
 
+/// Each vertex's section corners, as pair indices in orbit order.
+type RunsAt = BTreeMap<VertexKey, Vec<usize>>;
+
 /// **A pinch is one vertex per cone** (Ev, PR 4057): before any zip,
 /// each operand vertex the seams meet is split so that it holds one cone
 /// of the result's boundary.
@@ -205,24 +212,15 @@ pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
 /// result vertex is one cycle of the corners they join round a point.
 /// At an operand vertex `x`, each of its section corners on a seam
 /// starts a *run*: `x`'s corners from that section half-edge round to
-/// the next one. Where the seams are removed, an A run continues into
-/// the B run whose ring half-edge the zip glues to the A section corner
-/// it ends at, and that B run into the next A run the same way. So the
-/// result's cones are the cycles of `σ_B ∘ σ_A` over the pairs, `σ`
-/// stepping from a run to the next section corner round its vertex. A
-/// vertex whose runs lie in several cones is a pinch: `mev_null`, which
-/// keeps its new vertex on the old one's point key, moves each cone's
-/// runs but the first to a vertex of their own. The null edge it leaves
-/// lies between two section corners, on the section faces the zips
-/// consume, and is killed there: by `kef` between two section faces
-/// (merging their seams into one), or by `kemr` within one section loop,
-/// whose split-off loop `mfkrh` promotes to a section face of its own.
+/// the next one. The cones are read off the runs ([`cones`]). A vertex
+/// whose runs lie in several cones is a pinch: `mev_null`, which keeps
+/// its new vertex on the old one's point key, moves each cone's runs but
+/// the first to a vertex of their own ([`split_side`]). The seams are
+/// then re-paired ([`repair`]) and `vmap` is rebuilt from the edges the
+/// zips join. Returns the seams to zip.
 ///
-/// The seams are then re-paired: an A section edge is the B ring edge
-/// it zips with (`align`: `ob[j]` with the ring half-edge after `rs[j]`
-/// in its seam), so each A section face pairs with the B section face
-/// holding those edges, and `vmap` is rebuilt from the same edges.
-/// Returns the seams to zip.
+/// The split writes `body` before the re-pair can refuse: `body` is the
+/// boolean's working copy, which a refusal drops whole.
 ///
 /// # Errors
 ///
@@ -230,9 +228,6 @@ pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
 /// round it, where the split faces do not pair one to one, or where a
 /// cone still fuses a vertex to itself (the seams meet one cone twice at
 /// one vertex of each operand).
-/// Each vertex's section corners, as pair indices in orbit order.
-type RunsAt = BTreeMap<VertexKey, Vec<usize>>;
-
 pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     seams: &[(FaceKey, FaceKey)],
@@ -264,112 +259,206 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
             next.push(base + (j + 1) % ob.len());
         }
     }
-    let n = pairs.len();
-    // σ for one side: each pair's next section corner round its vertex,
-    // and each vertex's runs in orbit order.
-    let sigma = |body: &Body<T>,
-                 he_of: &dyn Fn(usize) -> HalfEdgeKey|
-     -> Result<(Vec<usize>, RunsAt), BooleanError> {
-        let pair_of: BTreeMap<HalfEdgeKey, usize> = (0..n).map(|k| (he_of(k), k)).collect();
-        let mut runs = RunsAt::new();
-        let mut step = vec![usize::MAX; n];
-        for k in 0..n {
-            let v = start_of(body, he_of(k))?;
-            if runs.contains_key(&v) {
-                continue;
-            }
-            let at: Vec<usize> = body
-                .vertex_orbit_linked(v)
-                .iter()
-                .filter_map(|h| pair_of.get(h).copied())
-                .collect();
-            for (i, &k) in at.iter().enumerate() {
-                step[k] = at[(i + 1) % at.len()];
-            }
-            runs.insert(v, at);
-        }
-        if step.contains(&usize::MAX) {
-            return Err(corr(
-                "a section half-edge is missing from its vertex's orbit",
-            ));
-        }
-        Ok((step, runs))
+    let he_a = |k: usize| pairs[k].0;
+    let he_b = |k: usize| pairs[k].1;
+    let (sigma_a, runs_a) = sigma(body, pairs.len(), &he_a)?;
+    let (sigma_b, runs_b) = sigma(body, pairs.len(), &he_b)?;
+    let (cone_a, cone_b) = cones(&sigma_a, &sigma_b);
+    let mut a_sections: Vec<FaceKey> = seams.iter().map(|&(a, _)| a).collect();
+    let mut b_sections: Vec<FaceKey> = seams.iter().map(|&(_, b)| b).collect();
+    let moved_a = split_side(body, &runs_a, &cone_a, &he_a, &mut a_sections, tol)?;
+    let moved_b = split_side(body, &runs_b, &cone_b, &he_b, &mut b_sections, tol)?;
+    let moved = moved_a || moved_b;
+    let paired = if moved {
+        repair(body, &pairs, &next, &a_sections, &b_sections)?
+    } else {
+        seams.to_vec()
     };
-    let (sigma_a, runs_a) = sigma(body, &|k| pairs[k].0)?;
-    let (sigma_b, runs_b) = sigma(body, &|k| pairs[k].1)?;
-    // The cones: cycles of σ_B ∘ σ_A over the pairs, by A run; a B run
-    // is in the cone of the A run that ends at its pair's corner.
-    let mut cone = vec![usize::MAX; n];
+    // No cone may fuse a vertex to itself. It needs one cone holding two
+    // runs on one vertex of each operand; no battery line reaches it once
+    // the split runs. Without the split it fires (the review's "no split"
+    // mutant, 450 lines), so it stays typed.
+    let end_of = |body: &Body<T>, he: HalfEdgeKey| {
+        body.half_edge_end(he)
+            .ok_or_else(|| corr("a seam half-edge has no end"))
+    };
+    let fused: Vec<(VertexKey, VertexKey)> = (0..pairs.len())
+        .map(|k| Ok((start_of(body, pairs[k].0)?, end_of(body, pairs[next[k]].1)?)))
+        .collect::<Result<_, BooleanError>>()?;
+    let mut root: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
+    let find = |root: &BTreeMap<VertexKey, VertexKey>, mut v: VertexKey| {
+        while let Some(&up) = root.get(&v) {
+            v = up;
+        }
+        v
+    };
+    for &(a, b) in &fused {
+        let (ra, rb) = (find(&root, a), find(&root, b));
+        if ra == rb {
+            return Err(corr("a cone the seams meet twice fuses a vertex to itself"));
+        }
+        root.insert(rb, ra);
+    }
+    if !moved {
+        return Ok(paired);
+    }
+    let mut rebuilt = SeamCorrespondence::new();
+    for (a, b) in fused {
+        rebuilt.entry(a).or_default().insert(b);
+    }
+    *vmap = rebuilt;
+    Ok(paired)
+}
+
+/// One side's `σ`: each pair's next section corner round its vertex, as
+/// a pair index, and each vertex's runs in orbit order. `he_of` reads a
+/// pair's half-edge on that side.
+fn sigma<T: Decide>(
+    body: &Body<T>,
+    n: usize,
+    he_of: &dyn Fn(usize) -> HalfEdgeKey,
+) -> Result<(Vec<usize>, RunsAt), BooleanError> {
+    let pair_of: BTreeMap<HalfEdgeKey, usize> = (0..n).map(|k| (he_of(k), k)).collect();
+    let mut runs = RunsAt::new();
+    let mut step = vec![usize::MAX; n];
+    for k in 0..n {
+        let v = start_of(body, he_of(k))?;
+        if runs.contains_key(&v) {
+            continue;
+        }
+        let at: Vec<usize> = body
+            .vertex_orbit_linked(v)
+            .iter()
+            .filter_map(|h| pair_of.get(h).copied())
+            .collect();
+        for (i, &k) in at.iter().enumerate() {
+            step[k] = at[(i + 1) % at.len()];
+        }
+        runs.insert(v, at);
+    }
+    if step.contains(&usize::MAX) {
+        return Err(BooleanError::ZipCorrespondence {
+            what: "a section half-edge is missing from its vertex's orbit",
+        });
+    }
+    Ok((step, runs))
+}
+
+/// The cone each run lies in, by pair index: `(A runs, B runs)`, a cone
+/// named by one of its A runs.
+///
+/// An A run ends at the section corner `σ_A` steps it to. The zip glues
+/// that corner's A section edge to the B ring edge the B run starting
+/// there leaves along, so the boundary continues into that B run, and
+/// from its end corner into the next A run the same way. So the cones
+/// are the cycles of `σ_B ∘ σ_A`, A run to A run, and the B run starting
+/// at corner `σ_A(k)` lies in A run `k`'s cone. Read the other way round
+/// (`σ_A ∘ σ_B`), or each B run with the A run starting at its own
+/// corner, a vertex's grouping turns by one run: invisible at two runs,
+/// a different split where three or more runs hold two cones.
+fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
+    let n = sigma_a.len();
+    let mut cone_a = vec![usize::MAX; n];
     for k0 in 0..n {
         let mut k = k0;
-        while cone[k] == usize::MAX {
-            cone[k] = k0;
+        while cone_a[k] == usize::MAX {
+            cone_a[k] = k0;
             k = sigma_b[sigma_a[k]];
         }
     }
     let mut cone_b = vec![usize::MAX; n];
     for k in 0..n {
-        cone_b[sigma_a[k]] = cone[k];
+        cone_b[sigma_a[k]] = cone_a[k];
     }
-    // Split each vertex per cone, its first cone's runs staying.
-    let mut a_sections: Vec<FaceKey> = seams.iter().map(|&(a, _)| a).collect();
-    let mut b_sections: Vec<FaceKey> = seams.iter().map(|&(_, b)| b).collect();
+    (cone_a, cone_b)
+}
+
+/// Splits each of one side's vertices per cone, its first cone's runs
+/// staying; whether any vertex was split.
+///
+/// The null edge each `mev_null` leaves lies between two section
+/// corners, on the section faces the zips consume, and is killed there:
+/// by `kef` between two section faces (merging their seams into one),
+/// or by `kemr` within one section loop, whose split-off loop `mfkrh`
+/// promotes to a section face of its own. `sections` follows both.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where a vertex's cones interleave
+/// round it. No battery line reaches it: two cones' runs alternating
+/// round one vertex would need their boundary cycles to cross there.
+/// The Euler operators' refusals, typed.
+fn split_side<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    runs: &RunsAt,
+    cone_of: &[usize],
+    he_of: &dyn Fn(usize) -> HalfEdgeKey,
+    sections: &mut Vec<FaceKey>,
+    tol: Tol,
+) -> Result<bool, BooleanError> {
     let mut moved = false;
-    for (runs, cone_of, he_of, sections) in [
-        (
-            &runs_a,
-            &cone,
-            &(|k: usize| pairs[k].0) as &dyn Fn(usize) -> HalfEdgeKey,
-            &mut a_sections,
-        ),
-        (
-            &runs_b,
-            &cone_b,
-            &(|k: usize| pairs[k].1) as &dyn Fn(usize) -> HalfEdgeKey,
-            &mut b_sections,
-        ),
-    ] {
-        for at in runs.values() {
-            let r = at.len();
-            let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
-            if cones_here.len() < 2 {
-                continue;
-            }
-            let edges = (0..r)
-                .filter(|&i| cone_of[at[i]] != cone_of[at[(i + 1) % r]])
-                .count();
-            if edges != cones_here.len() {
-                return Err(corr("a vertex's cones interleave round it"));
-            }
-            // Group starts: the runs whose cone differs from the run before.
-            let starts: Vec<usize> = (0..r)
-                .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
-                .collect();
-            for (g, &s) in starts.iter().enumerate().skip(1) {
-                let end = starts[(g + 1) % starts.len()];
-                let made = body.mev_null(
-                    MevSite::Fan {
-                        he1: he_of(at[s]),
-                        he2: he_of(at[end]),
-                    },
-                    crate::NewVertexSide::Above,
-                )?;
-                moved = true;
-                let loop_of =
-                    |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
-                let (lp, lm) = (loop_of(made.he_plus), loop_of(made.he_minus));
-                if lp == lm {
-                    let ring = body.kemr_minting(made.he_plus, made.he_minus, tol)?.ring;
-                    sections.push(body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?.face);
-                } else {
-                    let killed = body.kef_minting(made.he_plus, tol)?.killed_face;
-                    sections.retain(|&f| f != killed);
-                }
+    for at in runs.values() {
+        let r = at.len();
+        let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
+        if cones_here.len() < 2 {
+            continue;
+        }
+        let edges = (0..r)
+            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + 1) % r]])
+            .count();
+        if edges != cones_here.len() {
+            return Err(BooleanError::ZipCorrespondence {
+                what: "a vertex's cones interleave round it",
+            });
+        }
+        // Group starts: the runs whose cone differs from the run before.
+        let starts: Vec<usize> = (0..r)
+            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
+            .collect();
+        for (g, &s) in starts.iter().enumerate().skip(1) {
+            let end = starts[(g + 1) % starts.len()];
+            let made = body.mev_null(
+                MevSite::Fan {
+                    he1: he_of(at[s]),
+                    he2: he_of(at[end]),
+                },
+                crate::NewVertexSide::Above,
+            )?;
+            moved = true;
+            let loop_of =
+                |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
+            let (lp, lm) = (loop_of(made.he_plus), loop_of(made.he_minus));
+            if lp == lm {
+                let ring = body.kemr_minting(made.he_plus, made.he_minus, tol)?.ring;
+                sections.push(body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?.face);
+            } else {
+                let killed = body.kef_minting(made.he_plus, tol)?.killed_face;
+                sections.retain(|&f| f != killed);
             }
         }
     }
-    // Re-pair: `ob[k]` zips with `rs[next[k]]`.
-    let face_of = |body: &Body<T>, he: HalfEdgeKey| {
+    Ok(moved)
+}
+
+/// The seams after a split: an A section edge is the B ring edge it zips
+/// with (`align`: `ob[k]` with `rs[next[k]]`), so each A section face
+/// pairs with the B section face holding those edges.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where the split faces do not pair
+/// one to one.
+fn repair<T: Decide>(
+    body: &Body<T>,
+    pairs: &[(HalfEdgeKey, HalfEdgeKey)],
+    next: &[usize],
+    a_sections: &[FaceKey],
+    b_sections: &[FaceKey],
+) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
+    let refuse = || BooleanError::ZipCorrespondence {
+        what: "a split section face does not pair one to one",
+    };
+    let face_of = |he: HalfEdgeKey| {
         let l = proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
         linked(
             &body.loops,
@@ -381,47 +470,20 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
         .face
     };
     let mut paired: Vec<(FaceKey, FaceKey)> = Vec::new();
-    for &fa in a_sections.iter().filter(|_| moved) {
-        let partners: BTreeSet<FaceKey> = (0..n)
-            .filter(|&k| face_of(body, pairs[k].0) == fa)
-            .map(|k| face_of(body, pairs[next[k]].1))
+    for &fa in a_sections {
+        let partners: BTreeSet<FaceKey> = (0..pairs.len())
+            .filter(|&k| face_of(pairs[k].0) == fa)
+            .map(|k| face_of(pairs[next[k]].1))
             .collect();
         match (partners.first(), partners.len()) {
             (Some(&fb), 1) if b_sections.contains(&fb) => paired.push((fa, fb)),
-            _ => return Err(corr("a split section face does not pair one to one")),
+            _ => return Err(refuse()),
         }
     }
     let partnered: BTreeSet<FaceKey> = paired.iter().map(|&(_, b)| b).collect();
-    if moved && (partnered.len() != paired.len() || partnered.len() != b_sections.len()) {
-        return Err(corr("a split section face does not pair one to one"));
+    if partnered.len() != paired.len() || partnered.len() != b_sections.len() {
+        return Err(refuse());
     }
-    // The correspondence, from the edges the zips join; and no cone may
-    // fuse a vertex to itself.
-    let end_of = |body: &Body<T>, he: HalfEdgeKey| {
-        body.half_edge_end(he)
-            .ok_or_else(|| corr("a seam half-edge has no end"))
-    };
-    let mut root: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
-    let find = |root: &BTreeMap<VertexKey, VertexKey>, mut v: VertexKey| {
-        while let Some(&up) = root.get(&v) {
-            v = up;
-        }
-        v
-    };
-    let mut rebuilt = SeamCorrespondence::new();
-    for k in 0..n {
-        let (a, b) = (start_of(body, pairs[k].0)?, end_of(body, pairs[next[k]].1)?);
-        rebuilt.entry(a).or_default().insert(b);
-        let (ra, rb) = (find(&root, a), find(&root, b));
-        if ra == rb {
-            return Err(corr("a cone the seams meet twice fuses a vertex to itself"));
-        }
-        root.insert(rb, ra);
-    }
-    if !moved {
-        return Ok(seams.to_vec());
-    }
-    *vmap = rebuilt;
     Ok(paired)
 }
 
@@ -580,4 +642,73 @@ fn start_of<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<VertexKey, Boo
             what: "seam half-edge no longer resolves",
         })?
         .start)
+}
+
+#[cfg(test)]
+mod cone_rows {
+    //! **The cone reading** ([`cones`]) on a vertex holding three runs,
+    //! two in one cone: the shape where reading the cycles the other way
+    //! round, or a B run with its own corner's A run, splits the vertex
+    //! wrongly. No prism pose the batteries build reaches it (a pierce
+    //! leaves a copy per run, and a weld nests a pierce in one kept
+    //! corner), so it is pinned here.
+    //!
+    //! The union of a cube and two reflex corners `P`, `Q` touching only
+    //! at `v`, the cube's face through `v`: `P` crosses the face in two
+    //! sectors, `Q` in one between them, corners `0` (`P`), `1` (`Q`),
+    //! `2` (`P`) round the cube's vertex. The cube's runs follow them:
+    //! run `0` from corner 0 to 1, run `1` from 1 to 2, run `2` from 2 to
+    //! 0. Below the face `P` is one band joining its two sectors, which
+    //! parts the cube's lower side: runs 0 and 1 (with `Q` between them)
+    //! bound one cone, run 2 the other. `P` holds corners 0 and 2, `Q`
+    //! corner 1.
+
+    use super::cones;
+    use std::collections::BTreeSet;
+
+    /// The cube vertex's step: corner 0 → 1 → 2 → 0.
+    const CUBE: [usize; 3] = [1, 2, 0];
+    /// The corners' other side: `P` steps 0 ↔ 2, `Q` holds 1 alone.
+    const PINCHED: [usize; 3] = [2, 1, 0];
+
+    /// The runs at a vertex grouped by cone.
+    fn grouping(labels: &[usize], runs: &[usize]) -> BTreeSet<BTreeSet<usize>> {
+        let cones: BTreeSet<usize> = runs.iter().map(|&k| labels[k]).collect();
+        cones
+            .into_iter()
+            .map(|c| runs.iter().copied().filter(|&k| labels[k] == c).collect())
+            .collect()
+    }
+
+    fn want() -> BTreeSet<BTreeSet<usize>> {
+        BTreeSet::from([BTreeSet::from([0, 1]), BTreeSet::from([2])])
+    }
+
+    /// The cube as A: its vertex's runs 0 and 1 are one cone, run 2
+    /// another. Red if the cycles are read as `σ_A ∘ σ_B`.
+    #[test]
+    fn the_cube_as_a_holds_two_runs_of_one_cone() {
+        let (cone_a, _) = cones(&CUBE, &PINCHED);
+        assert_eq!(grouping(&cone_a, &[0, 1, 2]), want());
+    }
+
+    /// The cube as B: the same grouping on its B runs. Red if a B run
+    /// takes the cone of the A run starting at its own corner.
+    #[test]
+    fn the_cube_as_b_holds_two_runs_of_one_cone() {
+        let (_, cone_b) = cones(&PINCHED, &CUBE);
+        assert_eq!(grouping(&cone_b, &[0, 1, 2]), want());
+    }
+
+    /// `P`'s two runs lie one in each cone and `Q`'s in the cone of the
+    /// cube's runs 0 and 1, in either order.
+    #[test]
+    fn the_pinched_operand_parts_its_runs() {
+        let (cube, pinched) = cones(&CUBE, &PINCHED);
+        assert_ne!(pinched[0], pinched[2], "cube as A: P's runs");
+        assert_eq!(pinched[1], cube[0], "cube as A: Q's run");
+        let (pinched, cube) = cones(&PINCHED, &CUBE);
+        assert_ne!(pinched[0], pinched[2], "cube as B: P's runs");
+        assert_eq!(pinched[1], cube[0], "cube as B: Q's run");
+    }
 }
