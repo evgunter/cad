@@ -7,6 +7,7 @@ opened: 2026-09-25
 priority: P1
 cost: M
 branch: shell/lofted-wall-seam
+pr: 4117
 ---
 
 
