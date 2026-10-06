@@ -87,3 +87,27 @@ shell". It is the predicate's ratified meaning, not a new predicate. The
 check must certify clearance or refuse typed (`FaceClearance` /
 `FaceClearanceUncertified`), before construction, and replay at
 `Interval`.
+
+## Findings (the lane that built it)
+
+Measured against the tree at `cadf2ed1`:
+
+- **The one-shell witness reproduces as stated**: with the meter taken
+  out, `fillet_edges` builds the island-in-a-vented-cavity body; with it,
+  the request refuses `FaceClearance { bounded: false }` on the island's
+  own edge.
+- **The two-solid witness cannot reach the meter through `fillet_edges`
+  on main**: the surgery's body door refuses a body of two solids first
+  (`UnsupportedBody`), and PR 4113's per-shell door is not merged. The
+  row pins it at the meter itself (`test_support::band_reach`).
+- **The convex flare is caught by the meter at `r = 1.5` and `1.6`** and
+  certified clear at `r = 0.5` and `1.0`; on main predicate 1 refuses
+  these radii first, so PR 4092 (sided headroom) is what will carry them
+  to the meter through `fillet_edges`.
+- **Where the meter runs.** It runs in the surgery's pre-mutation phase,
+  after the ring carry-through pass, not inside the battery: at the
+  battery it pre-empted the surgery's exact ring and boundary meters and
+  the one-solid body door on 26 rows of the existing corpus, each of
+  which those meters already refuse for the same physical fact (a ring
+  or edge in the band's material, or a body the surgery does not
+  carve). It is still before any surface is minted.

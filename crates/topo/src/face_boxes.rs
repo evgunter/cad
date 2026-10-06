@@ -82,3 +82,27 @@ impl FaceBoxes {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use geom_core::Tol;
+
+    /// A query near one face of a brick meets that face and the four
+    /// that share its edges, never the face opposite; a poison query
+    /// prunes nothing.
+    #[test]
+    fn a_query_meets_the_faces_whose_boxes_it_meets_and_poison_meets_all() {
+        let tol = Tol::witness();
+        let body: Body<f64> =
+            crate::test_support::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let band = Band::linear(tol).expect("the witness band");
+        let boxes = FaceBoxes::of(&body, band).expect("every face boxes");
+        let near_top = boxes.meeting([0.4, 0.4, 0.9], [0.6, 0.6, 1.1]);
+        assert_eq!(near_top.len(), 1, "only the top face reaches the top's middle");
+        let top_edge = boxes.meeting([0.4, -0.1, 0.9], [0.6, 0.1, 1.1]);
+        assert_eq!(top_edge.len(), 2, "the top and the front meet along their edge");
+        let all = boxes.meeting([f64::NAN; 3], [f64::NAN; 3]);
+        assert_eq!(all.len(), 6, "a poison query prunes nothing");
+    }
+}

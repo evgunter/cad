@@ -174,3 +174,29 @@ fn a_convex_band_through_a_thin_wall_is_refused_by_the_reach_meter() {
         }
     }
 }
+
+/// The reach replays at the certified scalar: the same flare, revolved at
+/// `Interval`, refuses past the crossing and certifies below it.
+#[test]
+fn the_reach_replays_at_the_interval_scalar() {
+    use crate::common::interval::iv;
+    use geom_core::Interval;
+    let a = 0.225;
+    let pts: Vec<(Point2<Interval>, Interval)> = thin_flare(a)
+        .into_iter()
+        .map(|(x, y)| (Point2::new(iv(x), iv(y)), iv(0.0)))
+        .collect();
+    let body = sweep::test_support::revolved_about_y_at::<Interval>(pts, Revolution::Full, tol());
+    let edges = rim_arcs_at(&body, a, 0.0);
+    assert!(!edges.is_empty(), "the inner corner's rim");
+    let req = |r: f64| BlendRequest {
+        body: &body,
+        edges: edges.clone(),
+        size: iv(r),
+    };
+    let err = band_reach(&req(1.6), band()).expect_err("the band leaves through the far wall");
+    assert!(reach_refusal(&err), "refused by the reach meter: {err:?}");
+    if let Err(e) = band_reach(&req(0.5), band()) {
+        panic!("the band stays inside the wall: {e:?}");
+    }
+}

@@ -34,8 +34,43 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
 | In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
+| Predicate 2's reach: every band against every face of the body that is not a support of its chain, in any shell, before any mutation | `crates/sweep/src/blend/reach.rs` |
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
+
+## The band's reach (predicate 2)
+
+A band changes the material between its supports and its blend surface:
+a convex band removes it, a concave one adds it. Predicate 2 meters that
+region — the band's REACH — against every face of the body that is not
+a support of the chain, in any shell: a face there would be cut through
+or buried, and the surgery has no step for either. The supports' own
+boundary features are judged first, by the battery's screen and the
+surgery's exact ring and boundary meters; the reach runs after them,
+before any mutation, and refuses `BlendError::FaceClearance` — a
+measurement (`bounded: false`) when a point of the face's own boundary
+lies inside a region that is the band's material exactly (plane
+supports, or a whole rim over a plane and a cylinder), and a bound
+(`bounded: true`) whenever the face could not be certified clear.
+
+Each reach is an intersection of 1-Lipschitz bounds: per link, the
+cross-section between the supports, the sector the ball's arc subtends
+and the ball (the chamfer's triangle), run along a straight spine over
+the edge's window and closed by the face each end runs into, or revolved
+over the whole turn of a circular one; per corner patch, the three
+supports, the three band-end planes and the ball. The faces are pruned
+by their certified boxes (`topo::FaceBoxes`); a face on a surface of
+revolution about a circular band's axis is metered in the band's
+meridian sheet, every other face on cells of its box in space, and a
+face's margin is the least lower bound over its cells. It skips the
+chain's own supports, every face at a chain vertex (the faces the band
+runs into, which predicate 6 and the surgery judge), and any face on a
+support's own stored surface (which can touch the reach only on its
+boundary).
+
+Consumers: an island standing in a filleted cavity, on one shell and as
+a second solid, and a thin revolved wall whose convex inner fillet
+leaves through the far wall (`crates/sweep/tests/blend_band_reach.rs`).
 
 ## Walls: one per run
 
