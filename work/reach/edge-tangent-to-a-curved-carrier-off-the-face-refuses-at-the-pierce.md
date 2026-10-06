@@ -2,10 +2,12 @@
 id: edge-tangent-to-a-curved-carrier-off-the-face-refuses-at-the-pierce
 kind: issue
 title: An edge tangent to a curved carrier at a point off the face refuses CurvedPierceUnsupported
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: M
+pr: 4128
+branch: reach/pierce-tangent-off-face
 ---
 
 
