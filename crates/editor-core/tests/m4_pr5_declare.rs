@@ -391,7 +391,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let ev = run(&doc);
     match ev.nodes.get(&u) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::DeclareResolve { error } => match error.as_ref() {
+            NodeErrorKind::DeclareResolve { error, .. } => match error.as_ref() {
                 editor_core::resolve::ResolveError::Vanished {
                     name,
                     diagnosis,
@@ -642,7 +642,7 @@ fn declare_doors_node_gone_and_ambiguous() {
     let ev = run(&doc);
     match ev.nodes.get(&u2) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::DeclareResolve { error } => match error.as_ref() {
+            NodeErrorKind::DeclareResolve { error, .. } => match error.as_ref() {
                 editor_core::resolve::ResolveError::Ambiguous {
                     name,
                     candidates,
@@ -940,7 +940,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
         use editor_core::resolve::ResolveError;
         match ev.nodes.get(&node) {
             Some(NodeResult::Failed(e)) => match &e.kind {
-                NodeErrorKind::DeclareResolve { error } => match &**error {
+                NodeErrorKind::DeclareResolve { error, .. } => match &**error {
                     ResolveError::NodeGone { .. } => "node_gone",
                     ResolveError::Vanished { .. } => "vanished",
                     ResolveError::Ambiguous { .. } => "ambiguous",

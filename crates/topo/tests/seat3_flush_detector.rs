@@ -211,20 +211,12 @@ fn declare_declares_exactly_one_finding() {
 /// **A report is a SET, and declaring part of it declares part of it.**
 ///
 /// The stepped fixture carries a `SameOriented` flush wall pair (a
-/// continuation) beside its resting cap pair. Declare BOTH — no
-/// declaration is contradicted, the verifier agrees each pair is one
-/// plane — and the union still refuses, at `RestZipUnsupported`: a
-/// named capability frontier of the declared zip, downstream of every
-/// verification the declarations pass. Detection cannot see that
-/// frontier and does not claim to.
-///
-/// The fully declared union used to meet the declared-REST zip's
-/// `ChordBetweenIsolatedPierces` frontier: the chord join refused, and
-/// the zip that takes over a refused declared union could not chord it.
-/// The join now builds it itself: the bar's bottom edges along `x = 1`
-/// lie on the cube's top edge, each such segment is an edge of both
-/// solids, and the one fold rule folds it the same way at both of its
-/// ends (JOIN-1).
+/// continuation) beside its resting cap pair. Declaring the wall pair
+/// alone leaves the cap pair to refuse. Declaring BOTH builds the union
+/// through the chord join, without the declared-REST zip: the bar's
+/// bottom edges along `x = 1` lie on the cube's top edge, each such
+/// segment is an edge of both solids, and the one fold rule folds it
+/// the same way at both of its ends.
 #[test]
 fn a_declared_report_is_a_set_and_the_whole_set_builds() {
     let (a, b) = stepped();
