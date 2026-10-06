@@ -285,3 +285,36 @@ AUTHOR closed on 2026-10-02 (`docs/doc-ledger/author-leaves-the-tracker.md`). Ci
 | --- | --- |
 | `docs/DESIGN-FORK-LOG.md` (row 22) | `a-negative-extrude-distance-probes-as-valid` |
 
+
+## GATHER's closed look-through row (fixed 2026-10-06, `emit/union-order-row-remeasured`)
+
+GATHER closed on 2026-09-29 (68e8072a6) and deleted
+`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`,
+the row that built the `ConsumedByFold` refusal. Two test comments still
+named it as the owner of that refusal. Both now name
+`union-refuses-in-some-member-orders-and-publishes-in-others`, which owns
+the order-dependent refusal and is parked on D10:
+
+| citing file | was | now |
+| --- | --- | --- |
+| `crates/editor-core/tests/emit_union_rim_piece_ranks.rs` (`an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where_b_covers_it`'s doc) | `member-space-look-through-…` | the union row |
+| `crates/editor-core/tests/wire_legal_union_refusals.rs` (`Seen::Split`) | `work/gather/member-space-look-through-…` | `work/emit/union-refuses-…` |
+
+`rg 'member-space-look-through' crates/ docs/` finds no other shipped
+citation; `docs/DUAL-REVIEW-LOG.md` row DR-10 names it as the reviewed
+unit's history, not as an owner.
+
+A second pass on the directory rather than the id
+(`rg 'work/gather/' crates/ docs/ scripts/ tools/ demos/`) finds three
+more shipped citations of closed GATHER rows. They are left here, on
+other programs' paths. Each is recoverable at the SHA
+`docs/doc-ledger/gather-leaves-the-tracker.md` names:
+
+| citing file | cited row |
+| --- | --- |
+| `crates/editor-core/tests/m10_2_measure.rs` | `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` |
+| `crates/sweep/tests/wedge_end_doors.rs` (module doc) | `every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one` |
+| `crates/step-import/src/lib.rs` | `product-gate-says-verbatim-then-states-the-difference` |
+
+`docs/DESIGN-FORK-LOG.md` rows 3 and 6 cite GATHER rows as the log's
+history and are not listed.

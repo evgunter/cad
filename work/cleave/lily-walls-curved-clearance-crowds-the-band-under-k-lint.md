@@ -4,6 +4,8 @@ kind: issue
 title: k-lint (dev-probe) flags 40 bool_circle_curved_clearance margins on the lily_walls demo, unseen while the probe sweep was red
 status: open
 opened: 2026-10-02
+priority: P2
+cost: M
 ---
 
 

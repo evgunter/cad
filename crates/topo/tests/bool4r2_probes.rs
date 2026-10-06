@@ -304,9 +304,8 @@ fn a_hollow_part_in_the_concavity_clears() {
 fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let complement = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness())
-        .revert()
-        .unwrap();
+    let complement =
+        common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()).revert();
     let far = common::brick::<f64>((50.0, 53.0), (50.0, 53.0), (50.0, 53.0), Tol::witness());
     let body = assembly(&complement, &far);
     let [comp, _] = solids(&body)[..] else {

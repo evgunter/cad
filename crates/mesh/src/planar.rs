@@ -186,9 +186,9 @@
 //! non-finite frame components, which spade's `insert` refuses — the
 //! typed [`TessellateError::Triangulation`] path, fail-loud.
 //!
-//! Slit note: a full-2π revolve's annulus wall is a *slit* polygon —
-//! one loop traversing its seam segment twice with bitwise-identical
-//! projected points. The CDT dedupes the repeated points to the same
+//! Slit note: a face whose hole is joined to its outer cycle by a slit
+//! is a *slit* polygon — one loop traversing the slit segment twice
+//! with bitwise-identical projected points. The CDT dedupes the repeated points to the same
 //! handles (same positions ⇒ same ids), so both traversals land on the
 //! same constraint edges. Crossing multiplicity is therefore counted,
 //! not merely recorded: the fill toggles only on **odd** multiplicity,

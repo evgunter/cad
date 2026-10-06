@@ -153,6 +153,10 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         BlendDecision::CapTransverse,
         sweep::blend::FILLET3_CORNER_RECOURSE,
     ),
+    (
+        BlendDecision::CutOffFeet,
+        sweep::blend::FILLET3_CORNER_RECOURSE,
+    ),
 ];
 
 fn census() -> PredicateCensus {

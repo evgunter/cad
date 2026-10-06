@@ -50,3 +50,15 @@ needs the ladder's witness sequence, which is internal to
 it. The same sweep filed this finding again as
 `check-10-reads-a-shells-winding-at-vertices-only`. That row was
 deleted in favour of this one.
+
+## Answered by FUSE's `fuse/one-home-shell-stands`
+
+The ladder now has one home, `crates/topo/src/stands.rs` (`ladder`),
+generic over the probe and the refusal type. Check 10 reads it through
+`stands::witness_insides`: each witness is probed against every other
+shell, and the first one off all of them decides. Its silence shrinks
+to shells with no witness off every other shell (or one read in band).
+`tests/shell_winding.rs` pins both new rungs:
+`a_void_in_a_void_touching_at_every_corner_refuses` (an edge midpoint)
+and `a_void_in_a_void_touching_at_every_edge_refuses` (a face
+interior). The owner may close this row once that PR lands.
