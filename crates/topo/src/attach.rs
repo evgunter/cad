@@ -1610,6 +1610,14 @@ impl Named {
         a.into_iter().chain(b)
     }
 
+    /// Whether the description, its keys read as stored, stays coherent
+    /// once the face on one side leaves the chart it wears for a fresh
+    /// one while the face on the other side wears `kept`
+    /// ([`Named::adjacent_to`] asked of that move).
+    pub(crate) fn survives_one_side_leaving(self, kept: SurfaceKey) -> bool {
+        self.adjacent_to([Slot::Minted(0), Slot::Kept(kept)], Slot::Kept)
+    }
+
     /// Whether the description is coherent with faces wearing `plus`
     /// and `minus`, its own keys read through `slot_of`. A chart image
     /// names ONE of the two faces' surfaces (a wall–wall seam is the

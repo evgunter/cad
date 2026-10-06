@@ -401,14 +401,11 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         let ring_sense = section_sense(&body, section.face, ring, normal_of(ring_side), band)?;
         let outer_sense = section_sense(&body, section.face, outer, normal_of(other_side), band)?;
         // Both faces of the null pair move onto their section planes in
-        // one re-chart, with the edges still described against the chart
-        // they leave restated in their plane, which every section
-        // boundary edge lies in; the boundary pass below gives each its
-        // honest class. One re-chart reads both faces' edges before
-        // either moves, so neither restatement depends on the other, and
-        // the two lists are disjoint: an edge between the two faces
-        // would have both faces wearing the one inherited chart, which
-        // `section_plane_restatements` skips.
+        // one re-chart, with the edges the move would strand restated
+        // (`section_plane_restatements`); the boundary pass below gives
+        // each its honest class. One re-chart reads both faces' edges
+        // before either moves, so neither restatement depends on the
+        // other.
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
         let mut restated = section_plane_restatements(&body, promoted.face)?;
         restated.extend(section_plane_restatements(&body, section.face)?);
@@ -589,12 +586,16 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The re-descriptions a section face's re-chart takes: every edge of
-/// `face` whose description names the chart the face wears now, where
-/// the edge's other face does not wear it, stated as an image in that
-/// chart — which the re-chart reads as the section plane the face moves
-/// onto ([`Body::set_face_surfaces_describing`]). Carrier, interval and
-/// a declared authority travel verbatim; a null edge has no description
-/// to restate.
+/// `face` whose description names the chart the face wears now and
+/// would not survive the face leaving it
+/// ([`Named::survives_one_side_leaving`]), stated as an image in that
+/// chart. The re-chart reads that image as the section plane the face
+/// moves onto ([`Body::set_face_surfaces_describing`]), or, where the
+/// edge's other face keeps the chart, as that chart itself: an operand
+/// edge the plane runs along, such as a periodic wall's seam, keeps an
+/// image on the wall without the seam claim one side can no longer
+/// make. Carrier, interval and a declared authority travel verbatim; a
+/// null edge has no description to restate.
 fn section_plane_restatements<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -622,14 +623,13 @@ fn section_plane_restatements<T: Decide>(
                 edge_data.he_plus
             };
             let other = body.face_of_half_edge(mate).ok_or_else(corrupt)?;
-            if body.get_face(other).ok_or_else(corrupt)?.surface == chart {
-                continue;
-            }
+            let kept = body.get_face(other).ok_or_else(corrupt)?.surface;
             let geom = body.get_curve_geom(edge_data.curve).ok_or_else(corrupt)?;
             let Some(curve) = geom.certified() else {
                 continue;
             };
-            if !Named::of(geom).keys().any(|k| k == chart) {
+            let named = Named::of(geom);
+            if !named.keys().any(|k| k == chart) || named.survives_one_side_leaving(kept) {
                 continue;
             }
             let image = geom_brep::EdgeDescriptionSpec::chart(chart);
