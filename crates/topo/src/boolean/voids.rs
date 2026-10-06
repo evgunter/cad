@@ -85,7 +85,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::entity::{ShellKey, SolidKey};
 use crate::geometry::SurfaceKey;
-use crate::revert::RevertError;
 
 /// One cavity shell's strict-containment certificate, supplied by the
 /// caller (module docs: the door never derives containment).
@@ -194,9 +193,6 @@ pub enum VoidInsertError {
         /// How many solids the cavity holds.
         cavity_solids: usize,
     },
-    /// The cavity body's orientation reversal failed (tier-1-invalid
-    /// cavity).
-    Revert(RevertError),
 }
 
 impl core::fmt::Display for VoidInsertError {
@@ -241,7 +237,6 @@ impl core::fmt::Display for VoidInsertError {
                 "the void door takes one destination solid per cavity solid, and a cavity of \
                  at least one: the call names {destinations} for a cavity of {cavity_solids}"
             ),
-            Self::Revert(e) => write!(f, "cavity revert failed: {e:?}"),
         }
     }
 }
@@ -329,7 +324,7 @@ pub fn insert_void<T: Decide>(
 /// cavity's solid count, or a cavity of no solid, as
 /// [`VoidInsertError::SolidCount`]; a destination solid that does not
 /// resolve in `dst` as [`VoidInsertError::StaleSolid`]; the evidence
-/// refusals; the revert's refusal verbatim. Every refusal leaves `dst`
+/// refusals. Every refusal leaves `dst`
 /// unchanged.
 ///
 /// # Panics
@@ -422,7 +417,7 @@ pub(crate) fn insert_hollow_voids<T: Decide>(
         };
         (dst.arena_counts(), transplant)
     };
-    let reversed = cavity.revert().map_err(VoidInsertError::Revert)?;
+    let reversed = cavity.revert();
     let graft =
         graft_solids_with(dst, dst_solids, &reversed, Bridge::RemapKeys).unwrap_or_else(|e| {
             unreachable!(

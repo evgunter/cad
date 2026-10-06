@@ -396,7 +396,7 @@ fn r1_end_to_end() {
 fn r1_drum_reverted_cavity_alone() {
     let drum = collinear_cap_drum();
     let cavity = door_cavity(&drum, 0.05);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let v = topo::validate_geometric(&reverted, tol());
     println!("[r1drum] reverted cavity alone: {v:?}");
     assert_eq!(
@@ -411,7 +411,7 @@ fn r1_drum_reverted_cavity_alone() {
     println!("[r1drum] shell: {} shells", out.body.shells().count());
     // The ball's reverted cavity fails the same way, and only that way.
     let cavity = door_cavity(&unit_ball(), 0.05);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
         Err(vec![topo::ValidationError::NegativeVolume {
