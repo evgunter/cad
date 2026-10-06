@@ -2,10 +2,12 @@
 id: shell-of-a-pole-touching-sphere-refuses-mapped-source
 kind: issue
 title: shell of a POLE-TOUCHING sphere refuses Certification(ResidualExceeded MappedSource) where the two-arc sphere shells
-status: open
+status: review
 opened: 2026-09-09
 priority: P0
 cost: H
+pr: 4111
+branch: shell/pole-ball
 ---
 
 
@@ -69,3 +71,15 @@ proves only the direct door (`offset_charts_together`), not
 `topo::shell` on a pole-touching ball: if it hollows, assert
 `4/3·π(r³−(r−t)³)` and close; if it refuses, the measured refusal is
 this row's evidence and the H fix proceeds.
+
+## Measured on 4cfb4b20 (2026-10-06)
+
+The premise drifted as suspected: `topo::shell` hollows the one-arc
+pole-touching ball at every pair measured, at ε = 1e-6, 1e-9 and
+1e-12, to `4/3·π(r³ − (r−t)³)` within `1e-12·r³ + volume_pad`,
+tier-3 valid and watertight — the item's own `(1, 0.1)` row included
+(`1.1351621454971117`). The arc-run meridians (one and three seams,
+seams near both poles) hollow the same. The `Shell` recipe node over
+`die_pips`' revolved ball does too. The rows:
+`crates/sweep/tests/pole_ball_shells.rs` and
+`lib_g17_shell_node::a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls`.
