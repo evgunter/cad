@@ -1179,6 +1179,9 @@ mod torn_hop_rows {
             Vec3::unit_z(),
             tol,
         );
+        let mut cube = cube;
+        crate::test_support_fixtures::describe_as_intersections(&mut cube, tol);
+        let cube = crate::test_support::finished("the cube", cube, tol);
         let split = crate::splitting::split(&cube, &plane, tol).unwrap();
         let mut body = split.below.body().unwrap().clone();
         let face = body
