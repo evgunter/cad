@@ -971,3 +971,18 @@ coincidence is now a margined verdict (no declarations), checked by the
   `open`, behind DECIDE-9's successor
   `the-read-at-its-node-relabels-a-cancellation-above-it` (P2), which
   is the next DECIDE unit.
+
+## 2026-10-06 — DECIDE-10 spec'd: the read behind its parent; single FULL review
+
+DECIDE-9's review showed the class its spec suspected is real in the
+tier: the read answers a `min`/`max`/`Select` node before its parent
+can cancel it against an equal node. No measured document carries it
+today, so this unit restores the read's contract for the class.
+
+**Review tier: single FULL review**, as DECIDE-9's. Candidate 2 (read
+at the decision form only) withdraws what DECIDE-3 ratified, so it is
+measured as a comparison and never shipped from this unit; a Phase 1
+that finds only it working stops and goes to Ev.
+
+Spec `docs/DECIDE-10-SPEC.md`. Branch `decide/10-read-behind-the-parent`
+from `main`.
