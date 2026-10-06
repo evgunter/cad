@@ -6,6 +6,27 @@
 //! removed, leaving annular rims where the wall's thickness shows
 //! (`crates/geom-brep/README.md`'s vocabulary, unchanged).
 //!
+//! # The operand is at rest
+//!
+//! Both doors take a finished body ([`AtRestBody`]), the Boolean's and
+//! the split's operand type: tier 3 passed on these bits. The verb
+//! answers for the material the operand bounds, so what tier 3 decides
+//! is what the construction reads: an inside-out solid (check 7,
+//! [`ValidationError::NegativeVolume`]) or an inside-out shell (check
+//! 10) would be hollowed as its complement, and a stale or missing
+//! pcurve row would vanish under the closing mint below. Neither
+//! reaches the verb, because neither is an [`AtRestBody`].
+//!
+//! The door reads no second gate where the Boolean and the split read
+//! [`AtRestBody::gate_unverdicted`]: that read is for an operand
+//! carrying no verdict, which only a dual's
+//! [`crate::AtRestPolicy::gate_at_rest_kept`] keeps, and this door is
+//! bounded on the certification right a dual does not hold.
+//!
+//! [`crate::replace_faces_offset`] keeps its `&mut Body`: it is also
+//! this verb's chart-by-chart step over a clone that is mid-construction
+//! between charts, so it cannot be the place a verdict is read.
+//!
 //! # The sealed arm, and what it deliberately does not run
 //!
 //! **Shelling is a PER-SOLID verb, and it applies to every solid the
@@ -158,17 +179,14 @@
 //! door and the validate reads a stored row, the simultaneous lift
 //! doors mint the rows of their own scope (the solid they were handed)
 //! and touch no other, and every other step is `Neither` for rows.
-//! Two consequences are stated because nothing
-//! enforces them: the pass CLEARS the map first, so **a stale or
-//! missing row on the OPERAND is invisible to this verb** — an operand
-//! that fails tier 3 on its own rows shells to a valid body whose rows
-//! are the sound operand's (`shell9_r2_probes`, the laundering rows;
-//! `work/shell/shell-launders-a-stale-operand-row.md`, a posture-table
-//! question for every producer that spells this mint) — and a face
-//! whose carrier class the pass cannot derive stops carrying rows
-//! rather than refusing (`UnsupportedCarrier`; not known to be
-//! reachable through this verb). The refusal is
-//! [`ShellError::Pcurve`], a kernel finding by construction.
+//! The pass CLEARS the map first, so it reads none of the operand's
+//! rows; that they were sound is the operand type's promise (above),
+//! and a stale-row operand refuses where it is gated, not here
+//! (`shell9_r2_probes`). A face whose carrier class the pass cannot
+//! derive stops carrying rows rather than refusing
+//! (`UnsupportedCarrier`; not known to be reachable through this
+//! verb). The refusal is [`ShellError::Pcurve`], a kernel finding by
+//! construction.
 //!
 //! # The record
 //!
@@ -326,7 +344,7 @@ use crate::live::{NAMES_ONLY_LIVE, linked, proven};
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
-use crate::validate::{ValidationError, validate_geometric};
+use crate::validate::{AtRestBody, ValidationError, validate_geometric};
 
 /// Typed refusal of the shell verb (closed enum, D4 ¶3).
 #[derive(Clone, Debug)]
@@ -902,6 +920,10 @@ pub struct ShellRetired {
 /// the witness travels down the offset chain and the number is read
 /// once, at the site that classifies the residual.
 ///
+/// The operand is a finished body (module docs, "The operand is at
+/// rest"): an inside-out or stale-row body refuses where it is gated,
+/// at [`AtRestBody::validate`], and never reaches the verb.
+///
 /// # Errors
 ///
 /// [`ShellError`] — [`ShellError::Band`] when the committed tolerance
@@ -916,7 +938,7 @@ pub struct ShellRetired {
 /// the recourse is not a weaker shell but the ordinary one, built at a
 /// certifying scalar.
 pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     thickness: T,
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
@@ -939,11 +961,12 @@ pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy
 /// remainder) and the rim surgery's own refusal.
 /// The certification bound is [`shell`]'s, for [`shell`]'s reason.
 pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     thickness: T,
     open_faces: &[FaceKey],
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
+    let body: &Body<T> = body;
     let mut naming = ShellNaming::default();
     // `shell` reaches this door, so both verbs derive here, once.
     let band = Band::linear(tol).map_err(|error| ShellError::Band { error })?;

@@ -457,8 +457,8 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// handed to [`Verb::run`], [`Verb::run_pair`],
     /// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
     ///
-    /// The operand comes in borrowed, never in the payload, exactly as
-    /// at [`Verb::run`]; an EMPTY `open` is the sealed hollow, which is
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]), as at [`Verb::run_split`]; an EMPTY `open` is the sealed hollow, which is
     /// the kernel door's own contract and not a case decided here.
     /// Every check, every refusal and every minted entity is the
     /// door's — this dispatches and re-wraps, and adds no decision of
@@ -475,7 +475,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// door.
     pub fn run_shell(
         &self,
-        operand: &Body<T>,
+        operand: &AtRestBody<T>,
         tol: Tol,
         door: ShellDoor<T>,
     ) -> Result<VerbOut<T>, VerbError<T>> {
