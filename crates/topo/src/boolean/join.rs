@@ -2700,12 +2700,15 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        (Reading::Undecided(o), Reading::Undecided(r)) => {
-            Err(match o.first_blocked.or(r.first_blocked) {
-                Some(e) => BooleanError::Containment(e),
-                None => BooleanError::Join(SplitJoinError::SectionLoopUndecided { face }),
-            })
-        }
+        // One ranking over both loops' witnesses ([`crate::ray_walk::Evidence`]):
+        // a limit is named, an in-band reading is not (it is about one
+        // point), so both of those and an empty one read undecided.
+        (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
+            crate::ray_walk::Ranked::Blocked(e) => BooleanError::Containment(e),
+            crate::ray_walk::Ranked::InBand(_) | crate::ray_walk::Ranked::Neither => {
+                BooleanError::Join(SplitJoinError::SectionLoopUndecided { face })
+            }
+        }),
     }
 }
 

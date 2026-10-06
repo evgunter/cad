@@ -208,21 +208,20 @@ fn an_island_and_a_turned_pose_join_along_their_rulings() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-/// **The row's rods pass the join, and two of them build.** Their walls
-/// join along the rulings like the poses above. The classification's
-/// probe measures the drum's cut wall, trimmed by an ellipse, in closed
-/// form only (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`),
+/// **The row's rods build in every op and order.** Their walls join
+/// along the rulings like the poses above. The classification's probe
+/// measures the drum's cut wall, trimmed by an ellipse, in closed form
+/// only (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`),
 /// so a probe ray that meets nothing cannot side its point; that ray is
 /// set aside, and the query refuses `Containment(VolumeUncertified)` only
-/// where every ray is. The wide rod and the rod at `(−0.45, 0)` build in
-/// every op and order: tiers 2 and 3′, the certificate and the
-/// closed-form volume. They are not yet legal operands — a far brick's
-/// corner sees them along no ray of the schedule — and the rod at
-/// `(0, 0.48)` still refuses at the probe.
+/// where no ray settles, which none of these poses reaches. Each build
+/// passes tiers 2 and 3′, the certificate and its closed-form volume.
+/// They are not yet legal operands (their union with a far brick
+/// refuses; why is not measured here).
 #[test]
-fn the_rim_crossing_rods_build_where_a_probe_ray_meets_the_boundary() {
+fn the_rim_crossing_rods_build_in_every_op() {
     let tol = Tol::witness();
-    for (pose, builds) in rim_poses().into_iter().zip([true, true, false]) {
+    for pose in rim_poses() {
         assert!(
             pose.shared > 0.0 && pose.shared < pose.vb,
             "{}: the rod is part in, part out",
@@ -231,9 +230,7 @@ fn the_rim_crossing_rods_build_where_a_probe_ray_meets_the_boundary() {
         for (op, r, want) in pose.runs() {
             let label = format!("{} | {op}", pose.label);
             match r {
-                Err(BooleanError::Containment(topo::PointInSolidError::VolumeUncertified))
-                    if !builds => {}
-                Ok(r) if builds => {
+                Ok(r) => {
                     let bb = r
                         .body()
                         .unwrap_or_else(|| panic!("{label}: a body is owed"));

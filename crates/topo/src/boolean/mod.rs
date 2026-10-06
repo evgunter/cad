@@ -3033,7 +3033,7 @@ impl core::fmt::Display for BooleanError {
                          full turn, is one it cannot read)"
                     ),
                     ContainError::RayExhausted => {
-                        write!(f, "{preamble}: {}", crate::ray_walk::RaysGrazed)
+                        write!(f, "{preamble}: {}", crate::ray_walk::NoRaySettled)
                     }
                     ContainError::Curved(e) => write!(f, "the Boolean {e}"),
                     ContainError::Escalated(_)

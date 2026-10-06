@@ -480,17 +480,26 @@ fn both_windows_trim_the_quarter_spool() {
 /// it at the tangent pose). Such a ray answers nothing — not a guessed
 /// parity, and not a miss — and another ray of the schedule answers.
 /// Walked in from a distance the door answers at, every probe clear of
-/// the residual band reads `Out`.
+/// the residual band reads `Out` above the circle and `In` below it. The
+/// probes below are the ones a miss would get wrong: there the `+x` ray,
+/// grazing the tube's inner wall from inside, is the uncertain one, and
+/// read as meeting nothing it would answer the side at infinity.
 #[test]
 fn an_uncertain_root_count_sets_its_ray_aside() {
     let body = donut();
     let mut d = 1e-2_f64;
     while d > band().escalate() {
-        let q = Point3::new(0.0, DONUT_MINOR + d, DONUT_R);
+        let above = Point3::new(0.0, DONUT_MINOR + d, DONUT_R);
         assert_eq!(
-            pis(&body, q),
+            pis(&body, above),
             SolidContainment::Out,
             "{d:e} above the tube's top circle"
+        );
+        let below = Point3::new(0.0, DONUT_MINOR - d, DONUT_R);
+        assert_eq!(
+            pis(&body, below),
+            SolidContainment::In,
+            "{d:e} below the tube's top circle"
         );
         d /= 1.02;
     }

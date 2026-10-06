@@ -301,8 +301,8 @@ pub enum ChartRegionError {
     /// A margin landed in the sliver band (in-band overlap, in-band
     /// crossing, in-band area) — the genuine escalation.
     Escalated(Indeterminate),
-    /// Every ray of the fixed 2-D schedule grazed — an
-    /// ill-conditioned containment query at this ε.
+    /// Every ray of the fixed 2-D schedule grazed the polygon
+    /// ([`crate::ray_walk::NoRaySettled`]).
     RayExhausted,
     /// The interior-witness schedule was cut off by its BUDGET before
     /// it could finish ([`WITNESS_BUDGET`]): the pair's arrangement is
@@ -416,7 +416,7 @@ impl core::fmt::Display for ChartRegionError {
                 "chart-region: a decision about how the two faces' regions overlap is too \
                  close to call: {diag}"
             ),
-            Self::RayExhausted => write!(f, "chart-region: {}", ray_walk::RaysGrazed),
+            Self::RayExhausted => write!(f, "chart-region: {}", ray_walk::NoRaySettled),
             Self::WitnessBudgetExhausted { segments, cells } => write!(
                 f,
                 "chart-region: the interior-witness schedule ran out of budget on a \
@@ -3484,6 +3484,37 @@ mod tests {
 
     pub(super) fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A ray read in band is set aside, and a later ray answers**
+    /// (`work/chart/chart-region-polygon-walk-refuses-on-a-ray-level-margin`).
+    /// The square's right side carries a vertex `3e-9` off the `+x` ray
+    /// line from its centre — in the band of the first schedule member's
+    /// `chart_region_side` row — and `+y` reads the centre inside.
+    #[test]
+    fn a_ray_read_in_band_is_set_aside_and_a_later_ray_answers() {
+        let poly = [
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0 + 3e-9),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
+        ];
+        let q = Point2::new(1.0, 1.0);
+        let first = ray_walk::ray_verdict(
+            &poly,
+            q,
+            Vec2::new(1.0, 0.0),
+            Vec2::new(0.0, 1.0),
+            &ROWS,
+            band(),
+        );
+        assert!(first.is_err(), "the first ray reads in band: {first:?}");
+        assert_eq!(point_in_polygon(&poly, q, band()), Ok(PolyContainment::In));
+        assert_eq!(
+            point_in_polygon(&poly, Point2::new(3.0, 1.0), band()),
+            Ok(PolyContainment::Out)
+        );
     }
 
     /// **`ChartRegionError`'s header claim, made enforceable.** The

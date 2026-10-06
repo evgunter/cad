@@ -658,3 +658,28 @@ fn parity<T: Decide>(verts: &[Point2<T>], q: Point2<T>, band: Band) -> Option<bo
     )
     .ok()
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// **A ray read in band is set aside, and a later ray answers**: the
+    /// square's right side carries a vertex `3e-9` off the first schedule
+    /// member's ray line from its centre — in the band of
+    /// `chart_bound_side` — and the cell's parity is still read, by `+y`.
+    /// Giving up on the cell at the first in-band ray answered `None`.
+    #[test]
+    fn a_ray_read_in_band_is_set_aside_and_a_later_ray_answers() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let poly = [
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0 + 3e-9),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
+        ];
+        assert_eq!(parity(&poly, Point2::new(1.0, 1.0), band), Some(true));
+        assert_eq!(parity(&poly, Point2::new(3.0, 1.0), band), Some(false));
+    }
+}

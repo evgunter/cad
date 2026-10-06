@@ -1400,3 +1400,24 @@ fn a_ray_exiting_through_the_section_edge_is_set_aside() {
         );
     }
 }
+
+/// **A ray that meets nothing blocks only where no ray settles, and it
+/// says so.** From this point beside the cut cylinder, just above the
+/// floor's plane, some rays meet nothing and others meet the boundary
+/// only within the band: at the witness band no ray settles, and the
+/// refusal is the volume's — one of its rays met nothing, and no other
+/// settled it. A tighter band decides those rays and answers. Both are
+/// pinned: the refusal is not a claim that no ray met the boundary.
+#[test]
+fn a_ray_meeting_nothing_refuses_only_where_no_ray_settles() {
+    let body = cut_by(&[Cut::tilted(1.25, 0.3)]);
+    let q = Point3::new(-1.7, 0.4, 3e-9);
+    let coarse = point_in_solid(&body, q, Band::new(1e-9, 1e-8).unwrap(), tol());
+    assert_eq!(coarse, Err(PointInSolidError::VolumeUncertified));
+    let msg = coarse.unwrap_err().to_string();
+    assert!(msg.contains("no other test ray settled it"), "{msg}");
+    assert_eq!(
+        point_in_solid(&body, q, Band::new(1e-11, 1e-10).unwrap(), tol()),
+        Ok(SolidContainment::Out)
+    );
+}

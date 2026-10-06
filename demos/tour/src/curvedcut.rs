@@ -357,55 +357,50 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     };
     // Both halves' section faces take a glyph since the conic rung
     // (PR 3805) crosses the `Ellipse` rim exactly and the containment
-    // probe reads past a ray that meets nothing; each pocket is held to
-    // the scene's own oracle: it removes the glyph's area × DEPTH from
-    // its half, inside the certified bracket, at tier 3. The scene still
-    // engraves the cap.
-    let engrave_section = |label: &str, half: &AtRestBody<f64>, glyph: Glyph<f64>| {
+    // probe reads past a ray that meets nothing; and the natural order —
+    // cut first, then engrave the upper half's top cap — builds too. Each
+    // pocket is held to the scene's own oracle: it removes the glyph's
+    // area × DEPTH from its half, inside the certified bracket, at tier 3.
+    // The scene still engraves the whole cylinder before it cuts
+    // (`work/cleave/tilted-cut-scene-can-engrave-after-the-cut.md`).
+    let engrave = |at: &str, half: &AtRestBody<f64>, plane: SketchPlane<f64>, glyph: Glyph<f64>| {
         let removed = glyph.area * DEPTH;
-        let pocket = tool(section(), glyph.outline, tol);
-        let engraved = try_subtract(half, &pocket, tol)
+        let engraved = try_subtract(half, &tool(plane, glyph.outline, tol), tol)
             .ok()
             .and_then(|r| r.body().map(|b| b.body.clone()))
-            .unwrap_or_else(|| panic!("the {} engraves {label}'s section face", glyph.name));
+            .unwrap_or_else(|| panic!("the {} engraves {at}", glyph.name));
         pncad::topo::validate_geometric(&engraved, tol).expect("the engraved half is tier-3 valid");
         let before = pncad::topo::mass_properties(half, tol).expect("the half measures");
         let after =
             pncad::topo::mass_properties(&engraved, tol).expect("the engraved half measures");
         assert!(
             (before.volume - after.volume - removed).abs() <= before.volume_pad + after.volume_pad,
-            "the {} pocket in {label} removed {} m^3, not its area x depth {removed} m^3",
+            "the {} pocket in {at} removed {} m^3, not its area x depth {removed} m^3",
             glyph.name,
             before.volume - after.volume
         );
     };
     let below = &finished("the lower half", cut.below.clone(), tol);
-    engrave_section("the lower half", below, glyph_c::<f64>(tol));
+    engrave(
+        "the lower half's section face",
+        below,
+        section(),
+        glyph_c::<f64>(tol),
+    );
     let above = &finished("the upper half", cut.above.clone(), tol);
-    engrave_section("the upper half", above, glyph_u::<f64>(tol));
-    // The natural order — cut first, then engrave the upper half's top
-    // cap — builds too, held to the same oracle. The scene still
-    // engraves the whole cylinder before it cuts
-    // (`work/cleave/tilted-cut-scene-can-engrave-after-the-cut.md`).
+    engrave(
+        "the upper half's section face",
+        above,
+        section(),
+        glyph_u::<f64>(tol),
+    );
     let (bare_above, _) = tilted_cut(&cut.stages[0], tol);
-    let bare_above = finished("the bare upper half", bare_above, tol);
-    let glyph = glyph_c::<f64>(tol);
-    let removed = glyph.area * DEPTH;
-    let engraved = try_subtract(
-        &bare_above,
-        &tool(level(H - DEPTH), glyph.outline, tol),
-        tol,
-    )
-    .ok()
-    .and_then(|r| r.body().map(|b| b.body.clone()))
-    .expect("the C engraves the upper half's round cap after the cut");
-    pncad::topo::validate_geometric(&engraved, tol).expect("the engraved half is tier-3 valid");
-    let before = pncad::topo::mass_properties(&bare_above, tol).expect("the half measures");
-    let after = pncad::topo::mass_properties(&engraved, tol).expect("the engraved half measures");
-    assert!(
-        (before.volume - after.volume - removed).abs() <= before.volume_pad + after.volume_pad,
-        "the C pocket in the cut half's cap removed {} m^3, not its area x depth {removed} m^3",
-        before.volume - after.volume
+    let bare_above = &finished("the bare upper half", bare_above, tol);
+    engrave(
+        "the upper half's round cap, after the cut",
+        bare_above,
+        level(H - DEPTH),
+        glyph_c::<f64>(tol),
     );
 }
 

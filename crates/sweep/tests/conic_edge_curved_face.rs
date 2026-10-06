@@ -294,14 +294,9 @@ fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError>
 /// (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`;
 /// `cylinder_sphere_frame` holds the same balls to their volumes). A
 /// rod's parallel walls join along their rulings, the narrow rods'
-/// pierce ring in the drum's wall joins. The first two rods build in
-/// every op, and the one at `(0, 0.48)` stops past the join, at the
-/// classification's at-infinity probe, which measures the cut wall in
-/// closed form only
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`):
-/// none of its probe rays meets the boundary
-/// (`parallel_cylinder_join::the_rim_crossing_rods_build_where_a_probe_ray_meets_the_boundary`
-/// holds the rods to their volumes). On the base
+/// pierce ring in the drum's wall joins, and every rod builds in every
+/// op (`parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`
+/// holds them to their volumes). On the base
 /// the balls
 /// refused `CurvedPierceUnsupported` on the rim, and the rods on their
 /// own rim circle, whose root on the drum wall the wall's chart trim
@@ -329,27 +324,16 @@ fn a_rim_crossing_reaches_the_join() {
             assert!(no_lane(&e), "{label}: got {e:?}");
         }
     }
-    for (label, b, builds) in [
-        ("rod r 0.2 at (0.5, 0)", rod(0.2, 0.5, 0.0, 0.2, 0.25), true),
-        (
-            "rod r 0.1 at (-0.45, 0)",
-            rod(0.1, -0.45, 0.0, 0.5, 0.3),
-            true,
-        ),
-        (
-            "rod r 0.1 at (0, 0.48)",
-            rod(0.1, 0.0, 0.48, 0.3, 0.4),
-            false,
-        ),
+    for (label, b) in [
+        ("rod r 0.2 at (0.5, 0)", rod(0.2, 0.5, 0.0, 0.2, 0.25)),
+        ("rod r 0.1 at (-0.45, 0)", rod(0.1, -0.45, 0.0, 0.5, 0.3)),
+        ("rod r 0.1 at (0, 0.48)", rod(0.1, 0.0, 0.48, 0.3, 0.4)),
     ] {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            match run(op, &a, &b) {
-                Ok(out) if builds => assert!(out.body().is_some(), "{label}, {op:?}: a body"),
-                Err(E::Containment(topo::PointInSolidError::VolumeUncertified)) if !builds => {}
-                other => panic!("{label}, {op:?}: {:?}", other.map(|_| "a body")),
-            }
+            let out = run(op, &a, &b).unwrap_or_else(|e| panic!("{label}, {op:?}: {e:?}"));
+            assert!(out.body().is_some(), "{label}, {op:?}: a body");
         }
     }
 }

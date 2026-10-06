@@ -578,11 +578,14 @@ impl core::fmt::Display for CensusSubject {
 /// is a cap: a seventeenth direction is available in exactly the
 /// sense a larger budget is. What separates them is what the spent
 /// work MEASURED. `RayExhausted` fires when every direction tried
-/// returned an IN-BAND margin, and an in-band margin is a verdict
-/// about where the point sits relative to the boundary — within ε of
-/// it — not about the direction that read it. Another direction reads
-/// the same configuration and lands in the same band; only moving the
-/// point or tightening ε changes the answer.
+/// grazed — a vertex within the band's zero of its ray line, or a
+/// crossing at the point — for a point the pre-pass placed off the
+/// boundary: sixteen spread directions each grazing is a fact about
+/// where the point sits among the boundary's vertices, not about the
+/// directions that read it (a direction read IN band sets that ray
+/// aside, and is the refusal, [`Escalated`](ChartRegionError::Escalated),
+/// only where no direction answers). A graze carries no margin to size
+/// a tolerance by; moving the point changes the answer.
 /// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
 /// is the opposite: its cap stops the arrangement being BUILT, so
 /// nothing was measured at all, and the work it declined to do would
@@ -3011,10 +3014,10 @@ const CLOSE_TO_BOUNDARY: &str =
 
 const UNWALKABLE: &str = "its boundary could not be walked";
 
-/// Every ray parity cast grazed, for a point a pre-pass had already
-/// placed off the boundary.
-const GRAZED: &str =
-    "a point the check read is off the boundary, but every test ray from it grazed the boundary";
+/// No ray parity cast settled — each grazed or gave nothing to read —
+/// for a point a pre-pass had already placed off the boundary.
+const GRAZED: &str = "a point the check read is off the boundary, but no test ray from it \
+                      settled where it lies: each grazed the boundary or could not be read";
 
 /// The lever for a point with nothing to declare a coincidence with.
 const MOVE_GEOMETRY: &str = concat!("Recourse: ", geom_core::coincidence_move_arm!());
@@ -3147,7 +3150,9 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "their overlap is too close to call at this tolerance",
             too_close(Some(&diag.margin)),
         ),
-        ChartRegionError::RayExhausted => (GRAZED, too_close(None)),
+        // The rays are the check's own: no coincidence to declare, and no
+        // margin to size a tolerance by (`ray_walk::NoRaySettled`).
+        ChartRegionError::RayExhausted => (GRAZED, MOVE_GEOMETRY),
         ChartRegionError::WitnessBudgetExhausted { .. } => (
             "their boundaries cross too many times for the check to finish",
             "Recourse: simplify the faces' boundaries",
@@ -10220,9 +10225,7 @@ mod tests {
                 e,
                 ValidationError::CensusEscalated { .. }
                     | ValidationError::CensusUnsupported {
-                        cause: CensusUnsupportedCause::ChartRegion(
-                            R::Escalated(_) | R::RayExhausted
-                        ),
+                        cause: CensusUnsupportedCause::ChartRegion(R::Escalated(_)),
                         ..
                     }
             )

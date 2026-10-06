@@ -64,7 +64,6 @@
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::SplitPlane;
-use crate::ray_walk::{self, RayFault};
 use crate::validate::decide;
 
 /// The exact-order band (module docs; identical to profile's).
@@ -78,14 +77,20 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 }
 
 /// The deterministic in-plane frame `(u, v)` (module docs): the first
-/// schedule member that projects definitely into the plane, found by
-/// [`ray_walk::walk`]. `arm` is the caller's lever arm in meters (the
-/// spread of the points to be ordered): the SCHEDULE triples are bare
-/// numbers, so the projected norm alone would be a dimensionless
-/// comparand against the length band (rim-dimensional audit, class
-/// (c)); the honest margin is `sin(member, plane NORMAL) × arm` (the
-/// member's in-plane fraction `|d|/|r|`) — the in-plane displacement
-/// the frame direction commands at the data's own scale.
+/// schedule member that projects definitely into the plane. `arm` is
+/// the caller's lever arm in meters (the spread of the points to be
+/// ordered): the SCHEDULE triples are bare numbers, so the projected
+/// norm alone would be a dimensionless comparand against the length band
+/// (rim-dimensional audit, class (c)); the honest margin is
+/// `sin(member, plane NORMAL) × arm` (the member's in-plane fraction
+/// `|d|/|r|`) — the in-plane displacement the frame direction commands
+/// at the data's own scale.
+///
+/// A frame search, not a ray walk: no member is cast from a point, so
+/// nothing grazes and nothing is crossed, and it is not
+/// [`crate::ray_walk::walk`]'s to drive. A member within the band of
+/// the normal is passed over; one in band of it is kept as the
+/// refusal should no member project definitely.
 ///
 /// # Errors
 ///
@@ -98,26 +103,27 @@ pub(super) fn in_plane_frame<T: Decide>(
     band: Band,
 ) -> Result<(Vec3<T>, Vec3<T>), Indeterminate> {
     let n = plane.normal.get();
-    ray_walk::walk(
-        &super::containment::SCHEDULE,
-        |r| {
-            let r = r.map(T::from_f64);
-            let d = r - n * n.dot(r);
-            match decide(
-                "split_join_frame_arm",
-                Margin::levered(d.norm() / r.norm(), arm),
-                band,
-            ) {
-                Ok(Sign::Positive) => {
-                    let u = d.normalize();
-                    Ok((u, n.cross(u)))
-                }
-                Ok(_) => Err(RayFault::Graze),
-                Err(diag) => Err(RayFault::InBand(diag)),
+    let mut first_in_band = None;
+    for r in &super::containment::SCHEDULE {
+        let r = r.map(T::from_f64);
+        let d = r - n * n.dot(r);
+        match decide(
+            "split_join_frame_arm",
+            Margin::levered(d.norm() / r.norm(), arm),
+            band,
+        ) {
+            Ok(Sign::Positive) => {
+                let u = d.normalize();
+                return Ok((u, n.cross(u)));
             }
-        },
-        || crate::invalid_margin::invalid(band, "split_join_frame_arm"),
-    )
+            Ok(_) => {}
+            Err(diag) => {
+                first_in_band.get_or_insert(diag);
+            }
+        }
+    }
+    Err(first_in_band
+        .unwrap_or_else(|| crate::invalid_margin::invalid(band, "split_join_frame_arm")))
 }
 
 /// Total lexicographic comparison of two on-plane points by their

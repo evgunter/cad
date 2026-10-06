@@ -59,8 +59,9 @@ pub enum ContainError {
     /// A margin landed in the sliver band — the pair is
     /// ill-conditioned at this ε.
     Escalated(Indeterminate),
-    /// Every ray of the walk's schedule grazed — a planar loop's, or a
-    /// sphere face's region ([`super::sphere_region`]).
+    /// No ray of the walk's schedule settled — each grazed or gave
+    /// nothing to read ([`crate::ray_walk::NoRaySettled`]) — a planar
+    /// loop's, or a sphere face's region ([`super::sphere_region`]).
     RayExhausted,
     /// The face the caller passed does not resolve in this body.
     StaleFace(FaceKey),
@@ -107,7 +108,7 @@ impl core::fmt::Display for ContainError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Escalated(diag) => write!(f, "contfp: {diag}"),
-            Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::RaysGrazed),
+            Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::NoRaySettled),
             Self::StaleFace(face) => {
                 write!(f, "contfp: face {face:?} does not resolve in this body")
             }
@@ -732,7 +733,7 @@ fn sphere_face_containment<T: Decide>(
         Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
         Ok(None) => Ok(CurvedPlacement::Trim(None)),
         Err(RegionRefusal::Escalated(diag)) => Err(ContainError::Escalated(diag)),
-        Err(RegionRefusal::RayExhausted) => Err(ContainError::RayExhausted),
+        Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
         Err(e @ RegionRefusal::WoundPastPeriod) => Err(solid_err(e.of_face(face))),
     }
 }

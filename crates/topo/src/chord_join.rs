@@ -430,7 +430,7 @@ impl SplitJoinError {
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
                     "which piece holds a hole loop is undecided: {}",
-                    crate::ray_walk::RaysGrazed
+                    crate::ray_walk::NoRaySettled
                 ),
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {
                     write!(f, "re-homing a hole loop refused: {e}")

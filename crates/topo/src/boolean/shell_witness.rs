@@ -108,6 +108,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
+use crate::ray_walk::{self, Ranked};
 
 /// What the ladder read off a complex (module docs).
 #[derive(Debug)]
@@ -125,12 +126,46 @@ pub(super) struct Tally {
     pub(super) on_boundary: usize,
     /// Witnesses that read in-band.
     pub(super) in_band: usize,
-    /// The first in-band reading, as evidence: over points, what
-    /// [`crate::ray_walk::walk`] keeps over one point's rays.
-    pub(super) first_in_band: Option<PointInSolidError>,
-    /// The first witness refused near a face the door cannot read
-    /// ([`PointInSolidError::confined`]).
-    pub(super) first_blocked: Option<PointInSolidError>,
+    /// What the refused witnesses kept, ranked as one point's rays are
+    /// ([`ray_walk::Evidence`]): a limit no tolerance moves — a face the
+    /// door cannot read near the witness
+    /// ([`PointInSolidError::confined`]), or a volume that could not side
+    /// its rays that met nothing ([`PointInSolidError::sideless`]) —
+    /// before an in-band reading.
+    pub(super) kept: ray_walk::Evidence<PointInSolidError>,
+}
+
+impl Tally {
+    /// One witness's reading: its side, or `None` with what it kept —
+    /// every refusal about that one point ([`PointInSolidError::inconclusive`])
+    /// lets the next witness decide.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::Containment`] for a refusal about the body.
+    fn read(
+        &mut self,
+        reading: Result<SolidContainment, PointInSolidError>,
+    ) -> Result<Option<SideCode>, BooleanError> {
+        Ok(match reading {
+            Ok(SolidContainment::In) => Some(SideCode::In),
+            Ok(SolidContainment::Out) => Some(SideCode::Out),
+            Ok(SolidContainment::OnBoundary) => {
+                self.on_boundary += 1;
+                None
+            }
+            Err(e) if e.confined() || e.sideless() => {
+                self.kept.blocked(e);
+                None
+            }
+            Err(e) if e.inconclusive() => {
+                self.in_band += 1;
+                self.kept.in_band(e);
+                None
+            }
+            Err(e) => return Err(BooleanError::Containment(e)),
+        })
+    }
 }
 
 /// The side of `other` the cell complex `faces` of `body` lies on,
@@ -149,26 +184,7 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Reading, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut tally = Tally::default();
-    let mut side = |q: Point3<T>| -> Result<Option<SideCode>, BooleanError> {
-        Ok(match point_in_solid(other, q, band, tol) {
-            Ok(SolidContainment::In) => Some(SideCode::In),
-            Ok(SolidContainment::Out) => Some(SideCode::Out),
-            Ok(SolidContainment::OnBoundary) => {
-                tally.on_boundary += 1;
-                None
-            }
-            Err(e) if e.confined() => {
-                tally.first_blocked.get_or_insert(e);
-                None
-            }
-            Err(e) if e.inconclusive() => {
-                tally.in_band += 1;
-                tally.first_in_band.get_or_insert(e);
-                None
-            }
-            Err(e) => return Err(BooleanError::Containment(e)),
-        })
-    };
+    let mut side = |q: Point3<T>| tally.read(point_in_solid(other, q, band, tol));
     let mut halves: Vec<HalfEdgeKey> = Vec::new();
     for &face in faces {
         halves.extend(face_loops(body, face)?.into_iter().flatten());
@@ -272,7 +288,7 @@ pub enum ShellOrientation {
 ///
 /// [`BooleanError::Containment`] when a probe refuses about the other
 /// operand, or when no witness decides and one met a face the door
-/// cannot read; [`BooleanError::ShellWitnessExhausted`] when no witness
+/// cannot read or a volume that could not side its rays; [`BooleanError::ShellWitnessExhausted`] when no witness
 /// decides and one read in-band; [`BooleanError::CoincidentShell`]
 /// when every witness lies on the other boundary and the settled pairs
 /// do not certify `On`; [`BooleanError::JoinDesync`] when the shell
@@ -290,22 +306,20 @@ pub(super) fn shell_verdict<T: Decide + crate::props::AtRestPolicy>(
             what: "uncut shell no longer resolves",
         })?
         .faces;
-    match complex_side(body, faces, other, band, tol)? {
-        Reading::Side(s) => Ok(ShellVerdict::Side(s)),
-        Reading::Undecided(Tally {
-            first_blocked: Some(e),
-            ..
-        }) => Err(BooleanError::Containment(e)),
-        Reading::Undecided(t) if t.in_band == 0 => {
-            on_verdict((shell, operand), faces, other, coincident)
-        }
-        Reading::Undecided(t) => Err(BooleanError::ShellWitnessExhausted {
+    let t = match complex_side(body, faces, other, band, tol)? {
+        Reading::Side(s) => return Ok(ShellVerdict::Side(s)),
+        Reading::Undecided(t) => t,
+    };
+    match t.kept.ranked() {
+        Ranked::Blocked(e) => Err(BooleanError::Containment(e)),
+        Ranked::InBand(e) => Err(BooleanError::ShellWitnessExhausted {
             operand,
             shell,
             on_boundary: t.on_boundary,
             in_band: t.in_band,
-            first_in_band: t.first_in_band,
+            first_in_band: Some(e),
         }),
+        Ranked::Neither => on_verdict((shell, operand), faces, other, coincident),
     }
 }
 
@@ -693,5 +707,52 @@ mod tests {
             }
             other => panic!("expected CoincidentShell(Same), got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tally_rows {
+    use super::*;
+
+    /// **A refusal about one witness lets the next decide**: a face the
+    /// door cannot read near it, a volume that could not side its rays,
+    /// and an in-band reading are each kept and passed over, ranked limit
+    /// first; a refusal about the body ends the ladder.
+    #[test]
+    fn a_refusal_about_one_witness_lets_the_next_decide() {
+        let face = FaceKey::default();
+        let mut t = Tally::default();
+        for e in [
+            PointInSolidError::Escalated {
+                face,
+                diag: crate::invalid_margin::invalid(
+                    geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                    "test_tally",
+                ),
+            },
+            PointInSolidError::WallOutlineUnsupported { face },
+            PointInSolidError::PartialConeFace { face },
+            PointInSolidError::VolumeUncertified,
+            PointInSolidError::ZeroVolumeBody,
+            PointInSolidError::RayExhausted,
+        ] {
+            assert!(matches!(t.read(Err(e)), Ok(None)));
+        }
+        assert!(matches!(
+            t.read(Ok(SolidContainment::Out)),
+            Ok(Some(SideCode::Out))
+        ));
+        assert_eq!(t.in_band, 2);
+        assert!(matches!(
+            t.kept.ranked(),
+            ray_walk::Ranked::Blocked(PointInSolidError::WallOutlineUnsupported { .. })
+        ));
+        assert!(matches!(
+            Tally::default().read(Err(PointInSolidError::CorruptFace { face })),
+            Err(BooleanError::Containment(
+                PointInSolidError::CorruptFace { .. }
+            ))
+        ));
     }
 }
