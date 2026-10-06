@@ -255,7 +255,6 @@ fn r2_a_solid_of_only_cavities_is_refused_at_the_gate() {
         )
         .unwrap()
         .revert()
-        .expect("reverts")
     };
     let mut voids = cube(Vec3::new(0.0, 0.0, 0.0));
     topo::graft_disjoint_all_keyed(&mut voids, &cube(Vec3::new(3.0, 0.0, 0.0))).unwrap();

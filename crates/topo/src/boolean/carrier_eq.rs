@@ -1830,7 +1830,7 @@ mod tests {
         );
         body.set_surface_source(key, GeomSource::minted(7, 0))
             .unwrap();
-        let reverted = body.revert().unwrap();
+        let reverted = body.revert();
         let mut flipped = body.clone();
         flipped.set_face_sense(face, false).unwrap();
         for (name, other, rung, composed_today) in [

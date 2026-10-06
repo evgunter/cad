@@ -36,7 +36,7 @@ answer a torn record typed. Counts are `::Variant` occurrences in
 | `SplitFinishError::Corrupt`, `::TornComponent` | `splitting/finish.rs` | 22 | no (driver) | panic |
 | `PointInLoopError::CorruptLoop` | `splitting/containment.rs` | 16 | yes: `point_in_loop`'s loop | split; a whole-turn scaffold circle is a legal state and stays typed. `contfp` carries it as `ContainError::LoopUnreadable`. `cycle_steps`' and `loop_hull`'s eight record hops past a resolved loop are links now, and panic (PR 4048) |
 | `MassPropsError::Corrupt`, `LoopEdgesError::Corrupt` | `props.rs` (and `mesh/src/curved.rs`) | 17 | no (whole body) | an empty loop is legal tier-1 scaffolding and stays typed under its own name; key misses panic |
-| `RevertError::Corrupt` | `revert.rs` | 12 | no (whole body) | panic; reachable typed today through `VoidInsertError::Revert` on a torn cavity |
+| `RevertError::Corrupt` | `revert.rs` | 12 | no (whole body) | **done** (`topo/revert-torn-reads-panic`): every link `revert` follows panics naming its record, `revert` answers `Self`, and `RevertError`, `VoidInsertError::Revert`, `BooleanError::Revert` and the `revert` tag retire. A void cavity is a body some door left, so a torn one panics before `dst` is written |
 | `TouchVerdict::Corrupt`, `Undecided::CorruptInstance` | `census.rs` | 13 | no (the census runs on bodies tier 1 admits) | panic |
 | `SplitError::TornGroup` | `splitting/mod.rs` | 11 | no | panic |
 | `SplitJoinError::Corrupt` | `chord_join.rs` | 9 | no (driver) | panic |
@@ -63,10 +63,9 @@ Beside the named variants, the same shape under other names:
   whose row keeps a key an earlier row killed refuses typed
   (`ops::tests::a_corrupt_fusion_list_refuses_where_a_dead_end_drops`);
   the list is the boolean's own bookkeeping, so that is a kernel bug;
-- `RevertError::Corrupt`'s rows (`revert::tests::revert_refuses_each_corrupt_link_typed`,
-  `review_d18::revert_writes_no_fault_off_a_torn_next_prev_or_start`)
-  and `offset_together::tests::an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`
-  assert today that a torn body answers typed or not at all;
+- `offset_together::tests::an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`
+  asserts today that a torn body answers typed or not at all
+  (`revert`'s two such rows now assert its premise panic);
 - outside topo, each a kernel driver or consumer reading records of a
   body a door built: `mesh`'s `TessellateError::MissingEntity` (about
   30 raises in `chords.rs`, `curved.rs`, `memo.rs`, `planar.rs`,
