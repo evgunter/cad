@@ -1339,6 +1339,33 @@ impl<L: LeafSet> ExprTree<L> {
 }
 
 impl<L: LeafSet> ExprTree<L> {
+    /// **Every leaf of this form's own set**, with the dimension it is
+    /// read at, in pre-order: what a reader of the leaves asks, where
+    /// [`Self::try_map_leaves`] rewrites them.
+    ///
+    /// Recursion is bounded by [`MAX_NESTING`], as every walk over a
+    /// constructed tree is.
+    pub(crate) fn visit_leaves(&self, visit: &mut impl FnMut(&L, Dimension)) {
+        use ExprKind as K;
+        match &self.kind {
+            K::Leaf(leaf) => visit(leaf, self.dim),
+            K::Literal(_) | K::CountLiteral(_) | K::Var(_) => {}
+            K::Add(a, b)
+            | K::Sub(a, b)
+            | K::Mul(a, b)
+            | K::Div(a, b)
+            | K::Atan2(a, b)
+            | K::Min(a, b)
+            | K::Max(a, b) => {
+                a.visit_leaves(visit);
+                b.visit_leaves(visit);
+            }
+            K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
+                a.visit_leaves(visit);
+            }
+        }
+    }
+
     /// **This tree in another form**: every leaf of this form's own
     /// vocabulary rewritten by `own` (handed the dimension it reads at),
     /// every shared leaf and operator kept, with its dimension and

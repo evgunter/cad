@@ -344,17 +344,11 @@ impl core::fmt::Display for DocParamField {
 ///
 /// A stored reader names a minted variable and reads it at that
 /// variable's kind. The edit door refuses every arm below for a leaf it
-/// writes; the load door refuses a name and an unminted id, and a
-/// kind that disagrees with a live variable, and admits a dead reader,
-/// which is a deleted variable's unresolved reader (VR7).
+/// writes; the load door refuses an unminted id and a kind that
+/// disagrees with a live variable, and admits a dead reader, which is a
+/// deleted variable's unresolved reader (VR7).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum VarReadFault {
-    /// An authored name no variable holds (the lowering rule's
-    /// [`crate::expr::Unlowered::Unheld`]).
-    Name {
-        /// The name it reads.
-        name: VarName,
-    },
     /// A reader of an id this document never minted as a variable's.
     Unminted {
         /// The id.
@@ -365,9 +359,7 @@ pub(crate) enum VarReadFault {
         /// The id.
         var: VarId,
     },
-    /// A reader of a live variable, or an authored name a live variable
-    /// holds ([`crate::expr::Unlowered::Kind`]), at another dimension
-    /// than its kind.
+    /// A reader of a live variable at another dimension than its kind.
     Kind {
         /// The variable.
         var: VarId,

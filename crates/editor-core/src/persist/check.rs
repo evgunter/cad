@@ -450,10 +450,8 @@ fn read_refusal(
             declared,
             referenced,
         },
-        (_, VarReadFault::Name { .. } | VarReadFault::Dead { .. }) => {
-            unreachable!(
-                "a stored expression holds no name, and the read walks pass on a dead reader"
-            )
+        (_, VarReadFault::Dead { .. }) => {
+            unreachable!("the read walks pass on a dead reader")
         }
     })
 }
@@ -586,7 +584,7 @@ fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 }),
                 // Answered above, and a deleted variable's reader is
                 // legal (VR7).
-                VarReadFault::Name { .. } | VarReadFault::Dead { .. } => None,
+                VarReadFault::Dead { .. } => None,
             })
     })
 }
