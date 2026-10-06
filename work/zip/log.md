@@ -180,3 +180,16 @@ gate refuses it, in the wrong words), and whether the boolean gate's
 omission of tier 3′ is ratified. Review tier for phase 2: **single,
 full**. The claim to falsify is that the check declines no pure REST
 union.
+
+## 2026-10-06 — the seam-chord cluster measured; designers weighing
+
+`zip/chord-probe` measured on main `3f1e3b0d`. Of the four `mint_chord` rows:
+- **Boss-flush does not reproduce.** The flush walls are reported first, and accepting the offers builds the union by the general join. It closes with a pin (`zip/chord-rows`).
+- **Two rows are down to one scene each:**
+  - The blind shaft is down to the shaft lying wholly inside the bore. The join refuses first at `chart_ring_side`'s full-period window, then the zip refuses `ChordEndpointRevisited`.
+  - The split collar is down to the through span. The join refuses `RingHomingAmbiguous`, and the zip declines at `mirror_edges` because a vertex has no counterpart.
+- **The straight-chord fallback is reached by none of about 1700 calls.**
+
+The finding that matters is a class: the join chooses each segment's corner from the geometry at strut insertion and carries it as `HalfGerm.he`. The REST zip drops that, undoes the struts, and re-derives the corner from loop structure, which cannot answer at a vertex the loop visits twice. Same job, two implementations.
+
+A designer pair is weighing the zip's seam realization: blinding on `analysis/design-fork/rest-zip-seam-realization`, problem statement handed to both unchanged. Whether it goes to Ev depends on what they find.
