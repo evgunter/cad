@@ -4,6 +4,8 @@ kind: issue
 title: the split's tangent section chord mints TangentIntersection unconditionally, so an under-determined tangency refuses instead of describing conventionally
 status: open
 opened: 2026-10-06
+priority: P2
+cost: E
 ---
 
 
@@ -50,3 +52,18 @@ band).description(..)` and maps `Conventional` to
 `EdgeDescriptionSpec::chart(plane_key)`. The split's
 `describe_section_boundary` already decides the same edge through the
 rule, so after that fix the two would agree by construction.
+
+## A second premise the arm assumes (CLEAVE review of PR 4157, NOTE-2)
+
+The cylinder's `PlaneCylinderSection::TangentLine` is not the only way
+into the `SectionCase::Tangent` arm. A cone's
+`PlaneConeSection::ApexTangentLine` enters it too (`chord_join.rs`,
+the plane–cone section arm). For a plane tangent to a cone along a
+ruling through the apex, `must_carry_over_edge` answers
+`UnderDetermined`: the carrier is outside `tangent_certificate_lane`,
+so the rule demands no intrinsic description. Certification of the
+`TangentIntersection` the arm mints then refuses with
+`CertifyError::TangentCertificateUnsupported`. So the cone case is a
+second refusal that the rule would describe conventionally, with a
+different cause from the thin-cylinder zero side above. The fix above
+covers both.

@@ -80,9 +80,12 @@ the carrier it restates:
 
 - jet-determinate ⇒ `TangentIntersection { s_self, s_other }`;
 - under-determined ⇒ the section-chart image;
-- in band ⇒ `DescribeEscalated` with the deciding station's diag;
-- a transverse station ⇒ conventional (the boolean seams' posture;
-  tier 3 holds a mixed edge to neither description).
+- in band ⇒ `DescribeEscalated` for a first-order station, and
+  `DescribeBendEscalated` for a second-order one (its own message);
+- a transverse station ⇒ `SmoothJoinRefuted`, the split's own typed
+  refusal, as `MustCarryRefusal` requires. Only the boolean's seams
+  keep such an edge conventional, and the rule's doc now names that
+  caller.
 
 A description is kept verbatim only when it is of the demanded kind
 and names the current pair. The material-pairing knife-edge refusal
@@ -105,3 +108,10 @@ demos/tour binary's full walk:
   split's door on the shoulder family: the join's certification of the
   tangent chord refuses the same sagitta first. Filed as
   `work/tang/split-tangent-chord-mints-tangency-without-the-must-carry-rule.md`.
+- Unit rows (`splitting::finish::smooth_arm_rows`) pin two cases
+  directly on the arm, using a cut cube whose neighbour surface is
+  swapped:
+  - a corner at a station refuses `SmoothJoinRefuted`;
+  - a coherent `TangentIntersection` on an under-determined edge is
+    restated in the section chart.
+  An in-band station is not pinned: no case reaching it was found.
