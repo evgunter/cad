@@ -111,3 +111,19 @@ Build order (each step widens admission; this row closes with step 4):
 4. The isosceles mitre, chamfer then fillet. Retires wall 3.
 5. The non-isosceles overrun (a numeric probe before its spec), then delete
    the whole-face planar path — split to their own rows when step 4 lands.
+
+## Findings (steps 1 and 2, branch `band/plane-plane-band-cuts-off-at-its-end-face`)
+
+- The tree matched the row's claims before the change: one box edge
+  refused `UnsupportedRunOut` (pinned by `verbs_chamfer`,
+  `blend6_verb_vocab`, `m6_surgery`, `review_d2_recourse_at_the_site`),
+  and a face's rim `ChainNotG1` (`blend6_verb_vocab`,
+  `closed_chain_junctions`, `m5_pr12_battery`).
+- After: the bracket's four chords chamfer at `ΔV = 4·(d²/2)·√2`
+  (`demos/tour/src/bracket.rs`); filleting them refuses the oblique end
+  (wall 2), and both section faces' rims refuse as the turn (wall 3) —
+  step 4's.
+- The whole-face planar path is not kept: the local carve's stations
+  are every vertex of a face whose boundary is wholly requested, so
+  that case is the local carve's and step 5 has nothing left to delete
+  but this note.
