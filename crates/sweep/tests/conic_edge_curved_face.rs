@@ -287,18 +287,21 @@ fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError>
 }
 
 /// **The rim CROSSES**: balls straddling it, and rods standing across
-/// it. The rim's pairs are accepted (its certified roots split it), the
-/// crossing layer and the sector side pass, and every op stops at the
-/// join, at the door that pose's germ pairs reach: a ball's wall ×
-/// sphere pair has its section frame and no chord lane for its quartic
-/// section (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`;
+/// it. The rim's pairs are accepted (its certified roots split it), and
+/// the crossing layer and the sector side pass. A ball's every op stops
+/// at the join: its wall × sphere pair has its section frame and no
+/// chord lane for its quartic section
+/// (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`;
 /// `cylinder_sphere_frame` holds the same balls to their volumes). A
-/// rod's parallel walls join along their rulings
-/// (`parallel_cylinder_join` holds the rods to their volumes), and every
-/// op stops past the join, at the classification's at-infinity probe,
-/// which measures the cut wall in closed form only
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
-/// The narrow rods' pierce ring in the drum's wall joins. On the base
+/// rod's parallel walls join along their rulings, the narrow rods'
+/// pierce ring in the drum's wall joins. The first two rods build in
+/// every op, and the one at `(0, 0.48)` stops past the join, at the
+/// classification's at-infinity probe, which measures the cut wall in
+/// closed form only
+/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`):
+/// none of its probe rays meets the boundary
+/// (`parallel_cylinder_join::the_rim_crossing_rods_build_where_a_probe_ray_meets_the_boundary`
+/// holds the rods to their volumes). On the base
 /// the balls
 /// refused `CurvedPierceUnsupported` on the rim, and the rods on their
 /// own rim circle, whose root on the drum wall the wall's chart trim
@@ -316,45 +319,37 @@ fn a_rim_crossing_reaches_the_join() {
             }
         )
     };
-    let past_the_join = |e: &E| {
-        matches!(
-            e,
-            E::Containment(topo::PointInSolidError::VolumeUncertified)
-        )
-    };
-    type Door<'a> = &'a dyn Fn(&E) -> bool;
-    let poses: [(&str, AtRestBody<f64>, Door); 5] = [
-        (
-            "ball r 0.2 at (0.5, 0, 0.35)",
-            ball(0.2, [0.5, 0.0, 0.35]),
-            &no_lane,
-        ),
-        (
-            "ball r 0.1 at (0.45, 0, 0.3)",
-            ball(0.1, [0.45, 0.0, 0.3]),
-            &no_lane,
-        ),
-        (
-            "rod r 0.2 at (0.5, 0)",
-            rod(0.2, 0.5, 0.0, 0.2, 0.25),
-            &past_the_join,
-        ),
+    for (label, b) in [
+        ("ball r 0.2 at (0.5, 0, 0.35)", ball(0.2, [0.5, 0.0, 0.35])),
+        ("ball r 0.1 at (0.45, 0, 0.3)", ball(0.1, [0.45, 0.0, 0.3])),
+    ] {
+        let (_, accepted) = rim_pairs(label, &a, &b);
+        assert!(accepted > 0, "{label}: the rim's crossings are accepted");
+        for e in refusals(&a, &b) {
+            assert!(no_lane(&e), "{label}: got {e:?}");
+        }
+    }
+    for (label, b, builds) in [
+        ("rod r 0.2 at (0.5, 0)", rod(0.2, 0.5, 0.0, 0.2, 0.25), true),
         (
             "rod r 0.1 at (-0.45, 0)",
             rod(0.1, -0.45, 0.0, 0.5, 0.3),
-            &past_the_join,
+            true,
         ),
         (
             "rod r 0.1 at (0, 0.48)",
             rod(0.1, 0.0, 0.48, 0.3, 0.4),
-            &past_the_join,
+            false,
         ),
-    ];
-    for (label, b, at_the_door) in poses {
+    ] {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
-        for e in refusals(&a, &b) {
-            assert!(at_the_door(&e), "{label}: got {e:?}");
+        for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+            match run(op, &a, &b) {
+                Ok(out) if builds => assert!(out.body().is_some(), "{label}, {op:?}: a body"),
+                Err(E::Containment(topo::PointInSolidError::VolumeUncertified)) if !builds => {}
+                other => panic!("{label}, {op:?}: {:?}", other.map(|_| "a body")),
+            }
         }
     }
 }
@@ -363,28 +358,38 @@ fn a_rim_crossing_reaches_the_join() {
 /// whose ball never comes within 0.2 of the rim. The rim clears, the join
 /// passes whatever the ball's chart — charted about `y`, where the cut
 /// plane's section of it is not a latitude circle, as charted about the
-/// cut's normal — and the classification's at-infinity probe cannot
-/// measure the cut wall in closed form
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+/// cut's normal — and every op builds its closed form: the ball is
+/// centred on the cut plane, clear of the wall and the floor, so the
+/// drum holds exactly its lower half. The classification's at-infinity
+/// probe cannot measure the cut wall in closed form
+/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`), so
+/// a probe ray that meets nothing is set aside and one that meets the
+/// boundary answers.
 #[test]
-fn a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream() {
+fn a_ball_through_the_cut_face_clears_the_rim_and_builds() {
     let a = drum_lower();
-    let c = [0.0, 0.0, 0.5];
+    let (r, c) = (0.3_f64, [0.0, 0.0, 0.5]);
+    let (va, vb) = (drum_volume(), 4.0 / 3.0 * PI * r.powi(3));
+    let shared = vb / 2.0;
     for (label, b) in [
-        ("ball charted about y", ball(0.3, c)),
-        ("ball charted about the cut normal", polar_ball(0.3, c)),
+        ("ball charted about y", ball(r, c)),
+        ("ball charted about the cut normal", polar_ball(r, c)),
     ] {
         let (examined, accepted) = rim_pairs(label, &a, &b);
         assert!(examined > 0, "{label}: the rim is examined");
         assert_eq!(accepted, 0, "{label}: and cleared");
-        for e in refusals(&a, &b) {
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)
-                ),
-                "{label}: got {e:?}"
-            );
+        for (op_label, op, x, y, expected) in [
+            ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - shared),
+            ("A ∩ B", BooleanOp::Intersect, &a, &b, shared),
+            ("A ∖ B", BooleanOp::Subtract, &a, &b, va - shared),
+            ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - shared),
+        ] {
+            let label = format!("{label}, {op_label}");
+            let out = run(op, x, y).unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+            let body = out
+                .body()
+                .unwrap_or_else(|| panic!("{label}: no body where one is owed"));
+            assert_body(&label, &body.body, expected);
         }
     }
 }

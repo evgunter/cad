@@ -4475,23 +4475,13 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// **So this door refuses over a BAND around a tangency, and the band is
 /// wide.** A caller reading "a tangent ray grazes" will assume a
 /// measure-zero nuisance; it is not, for the same reason the cone arm's
-/// apex refusal is not. Where the escalation surrounds a feature of the
-/// BODY — the tube's top and bottom circles, whose tangent plane is
-/// perpendicular to the axis — it is a CUBE-root shell in ε, **measured
-/// at ≈3.7e-4 metres on a unit-sized torus at the default ε** and
-/// falling by a factor of 9.9 per three decades of ε.
-///
-/// **That exponent is MEASURED, and the mechanism is not settled.** The
-/// obvious story — the plane `h = r` touches the torus along a whole
-/// circle, so the ray meets two double roots instead of one — predicts a
-/// SQUARE root, not a cube one: a discriminant with two simple double
-/// roots still vanishes quadratically in the offset. So the binding
-/// configuration must be a higher-order coalescence than that, and this
-/// comment does not claim to have identified it. What is claimed is the
-/// number: three decades of ε move the shell by 9.9×, twice, and
-/// `bool3_torus_doors::the_clamp_floor_clears_the_torus_tangency_shell`
-/// re-measures it on every run — pinning the exponent at two FIXED bands
-/// so the check does not depend on which ε the run drew.
+/// apex refusal is not. Where the band surrounds a feature of the BODY —
+/// the tube's top and bottom circles, whose tangent plane is
+/// perpendicular to the axis — a near-horizontal ray from any point
+/// within a few tenths of a millimetre of that circle on a unit-sized
+/// torus reads in it at the default ε. `point_in_solid` sets such a ray
+/// aside and another answers, so the band leaves no shell about the body
+/// (`bool3_torus_doors::the_clamp_floor_clears_the_shell_about_the_top_circle`).
 ///
 /// # Errors
 ///
