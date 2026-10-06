@@ -34,15 +34,15 @@ flips with `y`'s union order, no longer reaches it.
   reaches past the cube. Every op builds in both operand orders, with
   `y` built both ways, and passes 3′.
 - **Pinned:** `two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face`.
-  The inner lens ends inside the cube's face, and each case fails
-  beyond the origin, on another row:
+  The inner lens ends inside the cube's face. Every case builds past
+  the origin, and fails beyond it on another row:
   - `y = cut ∪ lens` builds in all six. `y ∖ cube` fails 3′ at the far
     ends (`a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`).
   - `y = lens ∪ cut` refuses `RingHomingAmbiguous` in all six
     (`work/tang/a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run.md`).
-  - Notched, with and without a lens in the notch: both ∩ build clean,
-    and `y ∖ cube` fails 3′ as above. The ∪s and `cube ∖ y` refuse
-    `JoinDesync` (`work/cleave/a-discarded-vertex-between-nested-struts-has-two-kept-copies.md`).
+  - Notched, with and without a lens in the notch (three struts nested
+    at the origin): all six build, and only `y ∖ cube` fails 3′, as
+    above.
 - **Order:** `every_tied_strut_witness_holds_with_its_vertex_pairs_reversed`
   reruns every tied-strut witness with the reductions' vertex pairs
   reversed (`topo::test_support::with_vertex_pairs_reversed`).

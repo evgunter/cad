@@ -60,12 +60,13 @@ pub mod seat;
 /// feed behind every "bit-identical to the `f64` run" claim in this tree.
 pub mod value_channel;
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
-    Entry, EvalOptions, Evaluation, Expr, LoopProgram, MateReach, NameTable, Node, ParamName,
-    ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
+    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, EntityKey, EntityKind, Entry,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
+    ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
+    RoleSeg, SitedRef, SolvedPoses, StableName, VarName, assemble, evaluate, mate_reach,
     solve_document,
 };
 use geom_core::{Point3, Tol};
@@ -288,20 +289,50 @@ pub fn face(name: StableName) -> editor_core::FaceName {
     editor_core::FaceName::new(name).expect("the fixture names a face")
 }
 
-/// **The authored vectors of a frame a row authored** — the projection
-/// every row that forms a lever or reads a witness by hand takes, for
-/// a frame it knows is [`editor_core::MateFrame::Authored`].
-pub fn authored(frame: &editor_core::MateFrame) -> &editor_core::AuthoredFrame {
-    frame
-        .authored_vectors()
-        .expect("the row authored this frame's vectors")
+/// **A part-based frame of one literal step, as the solve reads it**:
+/// the step's map is the frame's placement, and its third column,
+/// re-minted under the band as the solve re-mints it, the axis.
+pub struct Authored(geom_core::Affine3<f64>);
+
+impl Authored {
+    /// The frame's placement: the literal step's map.
+    pub fn placement(&self) -> geom_core::Affine3<f64> {
+        self.0
+    }
+
+    /// The frame's axis: its third column, re-minted.
+    pub fn axis(&self, tol: Tol) -> Result<geom_core::UnitVec3<f64>, geom_core::UnitVec3Error> {
+        let band = geom_core::Band::linear(tol).expect("the witnessed band");
+        geom_core::UnitVec3::new(self.0.linear.c2, FIXTURE_MATE_AXIS, band)
+    }
+
+    /// The frame's origin.
+    pub fn origin(&self) -> [f64; 3] {
+        self.0.translation.to_array()
+    }
+}
+
+/// **The frame a row authored as vectors** — the projection every row
+/// that forms a lever or reads a witness by hand takes, for a part
+/// base holding the one literal step [`editor_core::MateFrame::authored`]
+/// builds.
+pub fn authored(frame: &editor_core::MateFrame<Formula>) -> Authored {
+    match (frame.base, frame.offset.steps.as_slice()) {
+        (editor_core::FrameBase::Part, [editor_core::Step::Literal(f)]) => {
+            Authored(f.affine::<f64>())
+        }
+        _ => panic!("the row authored this frame's vectors"),
+    }
 }
 
 /// **The datum's own lever term** for an alignment whose two sides are
 /// authored vectors: `Alignment::lever_arm` over the frames the solve
 /// would resolve them to, which for an authored side are its own.
-pub fn datum_lever(alignment: &editor_core::Alignment) -> f64 {
-    alignment.lever_arm(authored(&alignment.a), authored(&alignment.b))
+pub fn datum_lever(alignment: &editor_core::Alignment<Formula>) -> f64 {
+    alignment.lever_arm(
+        authored(&alignment.a).origin(),
+        authored(&alignment.b).origin(),
+    )
 }
 
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
@@ -326,7 +357,7 @@ pub fn xform(
     translation: [f64; 3],
     axis: [f64; 3],
     angle: f64,
-) -> Node<ProfileProgram> {
+) -> AuthoredNode {
     Node::transform(
         input,
         editor_core::Step::Rigid {
@@ -377,7 +408,7 @@ pub fn same_offset(a: &ProfileDoc, ai: RecipeNodeId, b: &ProfileDoc, bi: RecipeN
 /// no offset. A placing mate to an instance that carries one roots the
 /// joined group there, whichever operand this instance is, and clears
 /// nothing.
-pub fn mated_instance(doc_ref: editor_core::DocRef) -> Node<ProfileProgram> {
+pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
     Node::instantiate_part_with(doc_ref, editor_core::InterfaceRecord::default(), None, None)
 }
 
@@ -443,7 +474,7 @@ pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
     *doc.order().last().expect("the document holds a node")
 }
 
-pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let (doc, minted) = step(
         doc,
         DocEdit::InsertNode {
@@ -503,7 +534,7 @@ pub fn union_over(
 
 /// **The insert door's verdict on a mate**, through `reach`: the door
 /// asks the solve's own per-mate admission — a frame with no definite
-/// direction, the table's gaps, a `FromFace` side resolved from the
+/// direction, the table's gaps, a face-based side resolved from the
 /// part's own face, a rider on a coincidence decided over the mated
 /// parts' extent — so a mate the solve refuses on its own datum comes
 /// out of the door as its fault. `Ok` is the document with the mate
@@ -514,7 +545,7 @@ pub fn union_over(
 pub fn at_the_door(
     doc: &ProfileDoc,
     reach: &dyn MateReach,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
 ) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, editor_core::MateFault)> {
     match doc.apply(
         &DocEdit::InsertNode {
@@ -534,10 +565,7 @@ pub fn at_the_door(
 
 /// [`at_the_door`] for a mate the door refuses on the datum alone,
 /// through the refusing reach: the fault it carries.
-pub fn door_refusal(
-    doc: &editor_core::ProfileDoc,
-    node: Node<ProfileProgram>,
-) -> editor_core::MateFault {
+pub fn door_refusal(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> editor_core::MateFault {
     match at_the_door(doc, &RefusingReach, node) {
         Err((_, fault)) => fault,
         Ok(_) => panic!("the door admitted a mate it refuses on its own datum"),
@@ -567,7 +595,7 @@ pub fn door_refusal(
 /// document.
 pub fn insert_mate_with_stranded_head(
     doc: ProfileDoc,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     side: editor_core::MateSide,
     anchor: RecipeNodeId,
     anchor_body: RecipeNodeId,
@@ -585,7 +613,7 @@ pub fn insert_mate_with_stranded_head(
         doc,
         Node::Pattern {
             input: anchor,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(1.0),
@@ -651,8 +679,8 @@ pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::
     let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
         panic!("node {} is not a Datum::Frame", plane.0)
     };
-    let read = |xs: &[Expr; 3]| {
-        let c = |e: &Expr| {
+    let read = |xs: &[editor_core::Expr; 3]| {
+        let c = |e: &editor_core::Expr| {
             e.literal_value()
                 .expect("a fixture frame's components are literals")
         };
@@ -703,7 +731,7 @@ pub struct Swept {
 ///
 /// If the document does not build — a fixture that will not author is
 /// a test failure, not a value to hand back.
-pub fn wall_row(id: &str, loops: Vec<LoopProgram>) -> Swept {
+pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(
@@ -774,7 +802,7 @@ impl Swept {
 /// (with [`frame`]) and hands this the id. Two nodes where there was
 /// one, which is the shape of the document now — a sketch names the
 /// frame it is drawn on.
-pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram {
+pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<Formula> {
     let loops = loops
         .into_iter()
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
@@ -821,11 +849,7 @@ pub fn on_frame_keeping(
 
 /// An axis written in `plane`'s own 2-D coordinates — a revolve's axis
 /// of revolution.
-pub fn axis_in_plane(
-    plane: RecipeNodeId,
-    origin: (f64, f64),
-    dir: (f64, f64),
-) -> Node<ProfileProgram> {
+pub fn axis_in_plane(plane: RecipeNodeId, origin: (f64, f64), dir: (f64, f64)) -> AuthoredNode {
     Node::Datum(Datum::AxisInPlane {
         plane,
         origin: [len(origin.0), len(origin.1)],
@@ -880,7 +904,7 @@ impl Recorder {
     }
 
     /// Inserts a node, returning its minted id.
-    pub fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
+    pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         self.push(DocEdit::InsertNode {
             node: Box::new(node),
         })
@@ -996,9 +1020,9 @@ pub fn faces() -> [Face; 6] {
 pub fn die() -> Die {
     let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("pip_depth"),
-        value: DocParam::continuous(Dimension::Length, DEPTH),
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("pip_depth"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH)),
     });
     // The cube: profile on the xy plane, extruded +2.
     let cube_profile = r.profile(
@@ -1021,7 +1045,7 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+            distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
             side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));
@@ -1375,7 +1399,7 @@ pub fn prism_edges(doc: &editor_core::ProfileDoc, node: RecipeNodeId, n: u32) ->
 pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePieces {
     match doc.node(profile) {
         Some(Node::Profile(p)) => p
-            .pieces(&doc.param_env::<f64>(), Tol::witness())
+            .pieces(&doc.var_env::<f64>(), Tol::witness())
             .expect("the profile's program replays and validates"),
         other => panic!("node {} is not a profile: {other:?}", profile.0),
     }
@@ -1450,8 +1474,8 @@ pub fn leg(step: u64) -> ProfileEdgeRef {
 /// the document without step ids — the insert door mints them — so a
 /// row that rebuilds a document by re-inserting its nodes clears them;
 /// re-inserted in the same order, they are minted the same.
-pub fn as_authored(node: &Node<ProfileProgram>) -> Node<ProfileProgram> {
-    let mut node = node.clone();
+pub fn as_authored(node: &Node<editor_core::ProfileProgram>) -> AuthoredNode {
+    let mut node = node.authored();
     if let Node::Profile(program) = &mut node {
         program.ids = Vec::new();
     }

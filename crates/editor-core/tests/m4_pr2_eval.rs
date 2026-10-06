@@ -122,9 +122,12 @@ fn doc_param_edit_recomputes_the_param_cone() {
     let edited = d
         .doc
         .apply(
-            &editor_core::DocEdit::SetDocParam {
-                name: editor_core::ParamName::from_static("pip_depth"),
-                value: editor_core::DocParam::continuous(editor_core::Dimension::Length, 0.0625),
+            &editor_core::DocEdit::DefineVar {
+                var: editor_core::VarName::from_static("pip_depth").into(),
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                    editor_core::Dimension::Length,
+                    0.0625,
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -217,13 +220,13 @@ fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
 #[test]
 fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     use editor_core::{
-        Dimension, DocEdit, DocParam, Expr, Node, NodeErrorKind, ParamName, RefusingReach,
+        Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
     };
-    let h = ParamName::from_static("h");
+    let h = VarName::from_static("h");
     let mut r = fixture::Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: h.clone(),
-        value: DocParam::continuous(Dimension::Length, -0.25),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.25)),
     });
     let profile = r.profile(
         [0.0; 3],
@@ -233,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     );
     let block = r.insert(Node::Extrude {
         profile,
-        distance: Expr::param(h.clone(), Dimension::Length),
+        distance: Formula::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let ev = run(&r.doc, None, false);
@@ -264,9 +267,9 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
 
     let mut mended = r.doc.clone();
     for edit in [
-        DocEdit::SetDocParam {
-            name: h,
-            value: DocParam::continuous(Dimension::Length, 0.25),
+        DocEdit::DefineVar {
+            var: h.into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         DocEdit::SetExtrudeSide {
             node: block,
@@ -283,11 +286,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         ValuePayload::Body(b) => b,
         other => panic!("expected a body, got {}", other.kind_name()),
     };
-    let mut z: Vec<f64> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k).and_then(|v| body.get_point(v.point)))
-        .map(|p| p.z)
-        .collect();
+    let mut z: Vec<f64> = body.vertex_points().map(|(_, p)| p).map(|p| p.z).collect();
     z.sort_by(f64::total_cmp);
     z.dedup();
     assert_eq!(z, [-0.25, 0.0], "below the sketch plane, a quarter deep");
@@ -305,9 +304,9 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             &editor_core::DocEdit::SetParam {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
-                expr: editor_core::Expr::div(
-                    editor_core::Expr::param(
-                        editor_core::ParamName::from_static("pip_depth"),
+                expr: editor_core::Formula::div(
+                    editor_core::Formula::named(
+                        editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),
                     fixture::scl(0.0),

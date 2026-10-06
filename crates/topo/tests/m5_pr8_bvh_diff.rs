@@ -18,11 +18,11 @@ use crate::common;
 
 use std::collections::BTreeSet;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanOp, BooleanResult, PlantedDegradation, SweepStrategy, SweepTrace, boolean_op_with,
-    sweep_traces, sweep_traces_with_pad,
+    AtRestBody, Body, BooleanOp, BooleanResult, PlantedDegradation, SweepStrategy, SweepTrace,
+    boolean_op_with, sweep_traces, sweep_traces_with_pad,
 };
 
 type Pair = (topo::EdgeKey, topo::FaceKey);
@@ -43,8 +43,8 @@ fn missing_pairs(realized: &SweepTrace, idealized: &SweepTrace) -> Vec<Pair> {
 /// The demo-body scenarios: (name, A, B) brick pairs from the M3
 /// acceptance heritage — crossing, flush-stacked, corner kiss,
 /// disjoint, nested.
-fn scenarios() -> Vec<(&'static str, Body<f64>, Body<f64>)> {
-    vec![
+fn scenarios() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
+    let rows: [(&'static str, Body<f64>, Body<f64>); 6] = [
         (
             "crossing bricks",
             brick((0.0, 4.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
@@ -75,7 +75,11 @@ fn scenarios() -> Vec<(&'static str, Body<f64>, Body<f64>)> {
             brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
             brick((1.0, 3.0), (1.0, 3.0), (-0.5, 2.5), Tol::witness()),
         ),
-    ]
+    ];
+    let tol = Tol::witness();
+    rows.into_iter()
+        .map(|(name, a, b)| (name, finished(name, a, tol), finished(name, b, tol)))
+        .collect()
 }
 
 /// Pin 1: realized candidate set ⊇ idealized accepted set, both
@@ -359,8 +363,16 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
     );
     for k in [0.5, 2.0, 5.0, 9.0, 20.0] {
         let d = k * zero;
-        let a: Body<f64> = brick((5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d), Tol::witness());
-        let b: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+        let a = finished(
+            "the far brick",
+            brick::<f64>((5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d), Tol::witness()),
+            Tol::witness(),
+        );
+        let b = finished(
+            "the unit brick",
+            brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+            Tol::witness(),
+        );
         let realized = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness());
         let idealized = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness());
         let (r_ab, r_ba) = realized.expect("realized never examines the remote pair");

@@ -42,12 +42,12 @@ from pncad import (
     BooleanOp,
     Doc,
     DocEdit,
-    DocParam,
+    FreeVar,
     EditError,
     EvaluationError,
-    Expr,
+    Formula,
     Node,
-    ParamName,
+    VarName,
     PartSelect,
     PatternKind,
     PlaneRelation,
@@ -74,27 +74,27 @@ def box(doc, half=BOX_HALF, height=BOX_H):
     square = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(-half, m), Expr.length_in(-half, m)),
-                (Expr.length_in(half, m), Expr.length_in(-half, m)),
-                (Expr.length_in(half, m), Expr.length_in(half, m)),
-                (Expr.length_in(-half, m), Expr.length_in(half, m)),
+                (Formula.length_in(-half, m), Formula.length_in(-half, m)),
+                (Formula.length_in(half, m), Formula.length_in(-half, m)),
+                (Formula.length_in(half, m), Formula.length_in(half, m)),
+                (Formula.length_in(-half, m), Formula.length_in(half, m)),
             ],
             plane=doc.sketch_frame(),
         )
     )
-    return doc.insert(Node.extrude(square, Expr.length_in(height, m)))
+    return doc.insert(Node.extrude(square, Formula.length_in(height, m)))
 
 
 def split_at(doc, target, z=CUT_Z):
     """`target` cut by a horizontal plane at height `z`."""
     tool = doc.insert(Node.datum_plane((
-        Expr.length_in(0, m),
-        Expr.length_in(0, m),
-        Expr.length_in(z, m),
+        Formula.length_in(0, m),
+        Formula.length_in(0, m),
+        Formula.length_in(z, m),
     ), (
-        Expr.literal(0.0),
-        Expr.literal(0.0),
-        Expr.literal(1.0),
+        Formula.literal(0.0),
+        Formula.literal(0.0),
+        Formula.literal(1.0),
     )))
     return doc.insert(Node.split(target, tool))
 
@@ -102,11 +102,11 @@ def split_at(doc, target, z=CUT_Z):
 def pattern_of(doc, prototype, count=COUNT, pitch=PITCH):
     """`count` copies of `prototype` stepped `pitch` apart along x."""
     return doc.insert(
-        Node.pattern(prototype, Expr.count(count), PatternKind.linear((
-            Expr.literal(1.0),
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-        ), Expr.length_in(pitch, m)))
+        Node.pattern(prototype, Formula.count(count), PatternKind.linear((
+            Formula.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+        ), Formula.length_in(pitch, m)))
     )
 
 
@@ -229,7 +229,7 @@ class TestTheInstanceIsTheInstance(unittest.TestCase):
 
     def test_the_patterns_value_is_plural_and_the_parts_is_not(self):
         doc, _, family = self.build()
-        middle = doc.insert(Node.part(family, PartSelect.instance(Expr.count(1))))
+        middle = doc.insert(Node.part(family, PartSelect.instance(Formula.count(1))))
         ev = evaluate(doc)
         self.assertEqual(ev.value(family).kind, "instances")
         self.assertEqual(len(ev.value(family).bodies()), COUNT)
@@ -238,7 +238,7 @@ class TestTheInstanceIsTheInstance(unittest.TestCase):
     def test_each_instance_weighs_what_the_pattern_says_it_weighs(self):
         doc, _, family = self.build()
         parts = [
-            doc.insert(Node.part(family, PartSelect.instance(Expr.count(i))))
+            doc.insert(Node.part(family, PartSelect.instance(Formula.count(i))))
             for i in range(COUNT)
         ]
         ev = evaluate(doc)
@@ -259,17 +259,17 @@ class TestTheInstanceIsTheInstance(unittest.TestCase):
         lifted by a transform, exactly as the corpus document lifts
         it."""
         doc, _, family = self.build()
-        middle = doc.insert(Node.part(family, PartSelect.instance(Expr.count(1))))
+        middle = doc.insert(Node.part(family, PartSelect.instance(Formula.count(1))))
         lifted = doc.insert(
             Node.transform(middle, (
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
-                Expr.length_in(2, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
+                Formula.length_in(2, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ), Expr.angle_in(0, rad))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
+            ), Formula.angle_in(0, rad))
         )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(lifted))
@@ -292,7 +292,7 @@ class TestTheSelectorAndTheValueMustAgree(unittest.TestCase):
         split = split_at(doc, cube)
         family = pattern_of(doc, cube)
         half = PartSelect.split_half(SplitHalf.Above)
-        index = PartSelect.instance(Expr.count(0))
+        index = PartSelect.instance(Formula.count(0))
         for of, select, label in (
             (family, half, "a half of a pattern"),
             (split, index, "an index of a split"),
@@ -330,7 +330,7 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
         family = pattern_of(doc, box(doc))
         for index in (COUNT, -1):
             with self.subTest(index=index):
-                node = doc.insert(Node.part(family, PartSelect.instance(Expr.count(index))))
+                node = doc.insert(Node.part(family, PartSelect.instance(Formula.count(index))))
                 self.assertEqual(refusal(self, doc, node), "instance_out_of_range")
 
     def test_lowering_the_count_under_a_live_index_refuses(self):
@@ -338,13 +338,13 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
         an edit upstream of the Part can invalidate it — and says so
         rather than quietly selecting a neighbour."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("n"), DocParam.count(COUNT)))
+        doc.apply(DocEdit.declare_var(VarName("n"), FreeVar.count(COUNT)))
         family = pattern_of(doc, box(doc))
-        doc.apply(DocEdit.bind_count_param(family, ParamName("n")))
-        live = doc.insert(Node.part(family, PartSelect.instance(Expr.count(2))))
+        doc.apply(DocEdit.bind_count_param(family, VarName("n")))
+        live = doc.insert(Node.part(family, PartSelect.instance(Formula.count(2))))
         self.assertTrue(evaluate(doc).succeeded(live))
 
-        doc.apply(DocEdit.set_doc_param(ParamName("n"), DocParam.count(2)))
+        doc.apply(DocEdit.define_var(VarName("n"), FreeVar.count(2)))
         self.assertTrue(evaluate(doc).succeeded(family), "the pattern is Ok at two")
         self.assertEqual(refusal(self, doc, live), "instance_out_of_range")
 
@@ -362,20 +362,20 @@ class TestTheIndexIsStructural(unittest.TestCase):
 
     def build(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("which"), DocParam.count(0)))
+        doc.apply(DocEdit.declare_var(VarName("which"), FreeVar.count(0)))
         family = pattern_of(doc, box(doc))
-        chosen = doc.insert(Node.part(family, PartSelect.instance(Expr.count(0))))
-        doc.apply(DocEdit.bind_instance_param(chosen, ParamName("which")))
+        chosen = doc.insert(Node.part(family, PartSelect.instance(Formula.count(0))))
+        doc.apply(DocEdit.bind_instance_param(chosen, VarName("which")))
         return doc, family, chosen
 
     def test_one_param_edit_moves_which_instance_is_selected(self):
         """The payoff: which copy a downstream consumer sees is a named
-        number, and moving it is one `set_doc_param`."""
+        number, and moving it is one `define_var`."""
         doc, family, chosen = self.build()
         for which in (0, 1, 2):
             with self.subTest(which=which):
                 doc.apply(
-                    DocEdit.set_doc_param(ParamName("which"), DocParam.count(which))
+                    DocEdit.define_var(VarName("which"), FreeVar.count(which))
                 )
                 ev = evaluate(doc)
                 self.assertEqual(
@@ -383,7 +383,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
                     ev.value(family).bodies()[which].mass_properties().volume,
                 )
         # And the bound index is judged the same way a literal one is.
-        doc.apply(DocEdit.set_doc_param(ParamName("which"), DocParam.count(COUNT)))
+        doc.apply(DocEdit.define_var(VarName("which"), FreeVar.count(COUNT)))
         self.assertEqual(refusal(self, doc, chosen), "instance_out_of_range")
 
     def test_moving_the_index_recomputes_the_part_alone(self):
@@ -392,7 +392,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
         that a Part is a projection."""
         doc, _, _chosen = self.build()
         first = evaluate(doc)
-        doc.apply(DocEdit.set_doc_param(ParamName("which"), DocParam.count(1)))
+        doc.apply(DocEdit.define_var(VarName("which"), FreeVar.count(1)))
         again = evaluate(doc, prior=first)
         self.assertEqual(again.recomputed, 1)
         self.assertEqual(again.reused, len(doc) - 1)
@@ -400,21 +400,21 @@ class TestTheIndexIsStructural(unittest.TestCase):
     def test_neither_slot_door_reaches_the_others_slot(self):
         doc, family, chosen = self.build()
         with self.assertRaises(EditError) as no_count:
-            doc.apply(DocEdit.bind_count_param(chosen, ParamName("which")))
+            doc.apply(DocEdit.bind_count_param(chosen, VarName("which")))
         self.assertEqual(no_count.exception.variant, "unknown_slot")
         with self.assertRaises(EditError) as no_instance:
-            doc.apply(DocEdit.bind_instance_param(family, ParamName("which")))
+            doc.apply(DocEdit.bind_instance_param(family, VarName("which")))
         self.assertEqual(no_instance.exception.variant, "unknown_slot")
 
     def test_a_half_selection_carries_no_index_slot(self):
         """A Part is one node with two shapes, and only one of them
         has a slot: which HALF is not a number to bind."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("which"), DocParam.count(0)))
+        doc.apply(DocEdit.declare_var(VarName("which"), FreeVar.count(0)))
         split = split_at(doc, box(doc))
         above = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.bind_instance_param(above, ParamName("which")))
+            doc.apply(DocEdit.bind_instance_param(above, VarName("which")))
         self.assertEqual(caught.exception.variant, "unknown_slot")
 
 
@@ -424,12 +424,12 @@ class TestThePatternDoor(unittest.TestCase):
 
     def test_the_count_is_the_structural_slot(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("n"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(VarName("n"), FreeVar.count(2)))
         family = pattern_of(doc, box(doc), count=2)
-        doc.apply(DocEdit.bind_count_param(family, ParamName("n")))
+        doc.apply(DocEdit.bind_count_param(family, VarName("n")))
         for n in (2, 3, 5):
             with self.subTest(count=n):
-                doc.apply(DocEdit.set_doc_param(ParamName("n"), DocParam.count(n)))
+                doc.apply(DocEdit.define_var(VarName("n"), FreeVar.count(n)))
                 self.assertEqual(len(evaluate(doc).value(family).bodies()), n)
 
     def test_a_count_below_one_refuses(self):
@@ -444,7 +444,7 @@ class TestThePatternDoor(unittest.TestCase):
         doc = Doc()
         prototype = box(doc)
         with self.assertRaises(EditError) as caught:
-            doc.insert(Node.pattern(prototype, Expr.count(2), PatternKind.explicit([])))
+            doc.insert(Node.pattern(prototype, Formula.count(2), PatternKind.explicit([])))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
         self.assertEqual(caught.exception.inner_variant, "listed_on_pattern")
 
@@ -460,7 +460,7 @@ class TestTheReadSide(unittest.TestCase):
         split = split_at(doc, cube)
         family = pattern_of(doc, cube)
         half = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Below)))
-        one = doc.insert(Node.part(family, PartSelect.instance(Expr.count(0))))
+        one = doc.insert(Node.part(family, PartSelect.instance(Formula.count(0))))
         self.assertEqual(doc.node_kind(family), "pattern")
         self.assertEqual(doc.node_kind(half), "part")
         self.assertEqual(doc.node_kind(one), "part")
@@ -469,7 +469,7 @@ class TestTheReadSide(unittest.TestCase):
     def test_the_selected_value_is_a_dag_input(self):
         doc = Doc()
         family = pattern_of(doc, box(doc))
-        doc.insert(Node.part(family, PartSelect.instance(Expr.count(0))))
+        doc.insert(Node.part(family, PartSelect.instance(Formula.count(0))))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.delete_node(family))
         self.assertEqual(caught.exception.variant, "delete_would_dangle")

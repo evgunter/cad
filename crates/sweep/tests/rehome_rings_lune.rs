@@ -18,7 +18,7 @@ use core::f64::consts::PI;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
-use sweep::test_support::sketch_at;
+use sweep::test_support::{finished, sketch_at};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, split};
 use topo::{Body, BooleanResult};
@@ -46,6 +46,55 @@ const DISCS: [(&str, Loop); 2] = [
 /// `OnBoundary`, though the anchor is in the half-disc's interior); and
 /// a control inside the polygon.
 const HOLES: [(f64, f64); 4] = [(1.6, 0.8), (-1.6, 0.8), (1.35, 0.8), (0.8, 0.4)];
+
+/// The one ε at which the oblique cut's lower piece was measured not to
+/// finish (CI, `CAD_TOLERANCE_EPS=1e-6`): a face's quadrature lands its
+/// convergence margin in the band
+/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`).
+const QUAD_ESCALATES_AT: f64 = 1e-6;
+
+/// `body` finished for the split; at [`QUAD_ESCALATES_AT`], `None`
+/// after asserting the at-rest gate refuses it with exactly that
+/// escalation, and nothing else. There the split's second cut is not
+/// asserted: the split serves finished bodies, and this piece does not
+/// finish. The pin goes red when QUAD's fix lands, and then the row's
+/// assertions come back at that ε. Any other refusal, or one at another
+/// ε, fails the row.
+fn finished_unless_quad_escalates(what: &str, body: Body<f64>) -> Option<topo::AtRestBody<f64>> {
+    if tol().eps() != QUAD_ESCALATES_AT {
+        return Some(finished(what, body, tol()));
+    }
+    let errors = match <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body, tol()) {
+        Ok(_) => panic!(
+            "{what} finishes at eps = {QUAD_ESCALATES_AT:e}: the convergence escalation is \
+             gone, so drop this pin and assert the second split here too"
+        ),
+        Err(errors) => errors,
+    };
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::Escalated {
+                        check: geom_brep::props::PropsCheck::Converged,
+                        ..
+                    },
+                    ..
+                },
+                ..
+            }]
+        ),
+        "{what} at eps = {QUAD_ESCALATES_AT:e}: want the one convergence escalation, got \
+         {errors:?}"
+    );
+    test_utils::vacuity::stood_down(
+        &format!("{what} at eps = {QUAD_ESCALATES_AT:e}"),
+        "it does not finish (its quadrature's convergence margin lands in the band), so the \
+         split's ring re-homing over it is not asserted",
+    );
+    None
+}
 
 fn tol() -> Tol {
     Tol::witness()
@@ -127,8 +176,12 @@ fn a_split_carries_a_lune_bore_with_its_half() {
                     Vec3::new(nx, 0.0, 0.0),
                     geom_core::Tol::witness(),
                 );
-                let result = split(&bored_disc(outer, hole), &plane, tol())
-                    .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
+                let result = split(
+                    &sweep::test_support::finished("the operand", bored_disc(outer, hole), tol()),
+                    &plane,
+                    tol(),
+                )
+                .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
                 let above_holds = (hole.0 > 0.0) == (nx > 0.0);
                 for (side, part, holds) in [
                     ("above", &result.above, above_holds),
@@ -147,9 +200,12 @@ fn a_split_carries_a_lune_bore_with_its_half() {
 #[test]
 fn a_boolean_carries_a_lune_bore_with_its_half() {
     let (_, outer) = DISCS[0];
-    let (right, left) = (slab(0.0, 3.0), slab(-3.0, 0.0));
+    let (right, left) = (
+        finished("the right slab", slab(0.0, 3.0), tol()),
+        finished("the left slab", slab(-3.0, 0.0), tol()),
+    );
     for hole in HOLES {
-        let body = bored_disc(outer, hole);
+        let body = finished("the bored disc", bored_disc(outer, hole), tol());
         let rows = [
             (
                 "intersect x > 0",
@@ -198,8 +254,12 @@ fn a_split_carries_two_lune_bores_each_with_its_half() {
         ("opposite halves", [(1.6, 0.8), (-1.6, -0.8)], 1.0),
         ("one half", [(1.6, 0.8), (1.6, -0.8)], 2.0),
     ] {
-        let result = split(&bored_disc_n(outer, &centres), &plane, tol())
-            .unwrap_or_else(|e| panic!("{pose}: split refused: {e:?}"));
+        let result = split(
+            &sweep::test_support::finished("the operand", bored_disc_n(outer, &centres), tol()),
+            &plane,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{pose}: split refused: {e:?}"));
         for (side, part, bores) in [
             ("above", &result.above, above_bores),
             ("below", &result.below, 2.0 - above_bores),
@@ -238,9 +298,13 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
         geom_core::Tol::witness(),
     );
     for (cx, cy) in [(1.6, 0.8), (-1.6, 0.8), (0.8, 0.4)] {
-        let SplitPart::Body(lower) = split(&bored_disc(outer, (cx, cy)), &oblique, tol())
-            .unwrap_or_else(|e| panic!("bore at ({cx}, {cy}): oblique split refused: {e:?}"))
-            .below
+        let SplitPart::Body(lower) = split(
+            &finished("the bored disc", bored_disc(outer, (cx, cy)), tol()),
+            &oblique,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("bore at ({cx}, {cy}): oblique split refused: {e:?}"))
+        .below
         else {
             panic!("bore at ({cx}, {cy}): the lower piece is empty");
         };
@@ -248,6 +312,12 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
         // integrates to zero over a half symmetric in y), less the bore's
         // column of height 0.5 − 0.2·cy on the half that holds it.
         let column = PI * BORE * BORE * (0.2f64.mul_add(-cy, 0.5));
+        let Some(lower) = finished_unless_quad_escalates(
+            &format!("bore at ({cx}, {cy}): the lower piece"),
+            lower,
+        ) else {
+            continue;
+        };
         for nx in [1.0, -1.0] {
             let row = format!("bore at ({cx}, {cy}), plane normal x = {nx}");
             let plane = topo::test_support::split_plane(

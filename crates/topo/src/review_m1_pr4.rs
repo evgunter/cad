@@ -50,11 +50,12 @@ use geom_core::Point3;
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::{EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
+use crate::euler::{BadArgument, EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::MekrSite;
 use crate::fixtures::{deep_rows, deep_snapshot};
 use crate::iso::{canonical_form, isomorphic};
 use crate::readback::euler_counts;
+use crate::review_d18::{PanicCapture, ROW_FOUR};
 use crate::seqgen;
 use crate::test_support_fixtures::declined_cube;
 use crate::validate::validate;
@@ -1170,15 +1171,17 @@ fn kvfs_slot_recycling_is_generation_safe() {
     // Ops fed the stale keys give typed errors, not aliasing.
     assert_eq!(
         body.kvfs(first.solid).unwrap_err(),
-        EulerOpError::StaleKey {
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "solid",
             key: EntityId::Solid(first.solid)
-        }
+        })
     );
     assert_eq!(
         body.mfkrh_plug(first.r#loop, true).unwrap_err(),
-        EulerOpError::StaleKey {
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "ring",
             key: EntityId::Loop(first.r#loop)
-        }
+        })
     );
     // And the recycled solid still works.
     body.kvfs(second.solid).unwrap();
@@ -1186,11 +1189,13 @@ fn kvfs_slot_recycling_is_generation_safe() {
 }
 
 // =====================================================================
-// 8. kef's UnclaimedHalfEdge (the kev-only shipped test's sibling).
+// 8. kef on an edge that does not claim its half (the kev-only shipped
+//    test's sibling).
 // =====================================================================
 
 #[test]
-fn kef_rejects_a_corrupt_edge_bijection() {
+#[should_panic(expected = "does not claim it in either slot: on a tier-1-valid body")]
+fn kef_panics_on_a_corrupt_edge_bijection() {
     let tol = Tol::witness();
     let (mut body, _seed, seg) = segment(tol);
     let split = body
@@ -1205,30 +1210,58 @@ fn kef_rejects_a_corrupt_edge_bijection() {
     // Corrupt: seg.edge no longer claims seg.he_plus.
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
     body.get_edge_mut(seg.edge).unwrap().he_minus = split.he_minus;
-    let err = body.kef(seg.he_plus).unwrap_err();
-    assert_eq!(
-        err,
-        EulerOpError::UnclaimedHalfEdge {
-            he: seg.he_plus,
-            edge: seg.edge,
-        }
-    );
+    let _ = body.kef(seg.he_plus);
 }
 
 // =====================================================================
-// 9. Release-mode garbage-in. The surviving half of the contract is
-//    "never a hang; every traversal is bounded" (D9's footnote as
-//    amended by the D2 addendum, which retired the garbage-out half).
-//    These rows also run in debug, where the errors are
-//    precondition-caught, on every code-tier run. The release side is the
-//    `corrupt input (release profile)` job in .github/workflows/ci.yml,
-//    which runs on every code-tier run too and is the ONLY lane that runs
-//    it: that job pins `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`,
-//    and nothing else in the tree does.
+// 9. Release-mode garbage-in. The contract is "never a hang; every
+//    traversal is bounded" (D9's footnote as amended by the D2
+//    addendum, which retired the garbage-out half), and a torn body
+//    ends each call in a typed refusal of its own or a panic naming the
+//    tier-1 premise it broke (D2 row 4), never an unannounced panic.
+//    These rows also run in debug on every code-tier run. The release
+//    side is the `corrupt input (release profile)` job in
+//    .github/workflows/ci.yml, which runs on every code-tier run too and
+//    is the ONLY lane that runs it: that job pins
+//    `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`, and nothing else
+//    in the tree does.
 // =====================================================================
 
+/// Asserts that `op`'s outcome on a clone of the torn `body` is one the
+/// contract allows: `Ok`, a typed refusal that is not an argument's
+/// (every key the probes pass was read out of the body), or a panic
+/// naming a row-4 premise that fired before `op` wrote (the clone is
+/// still `snapshot`, `body`'s [`deep_snapshot`]). `may_succeed` false
+/// also rules out `Ok`.
+fn assert_torn_outcome<R>(
+    capture: &PanicCapture,
+    (body, snapshot): (&Body<f64>, &[String]),
+    label: &str,
+    may_succeed: bool,
+    op: impl FnOnce(&mut Body<f64>) -> Result<R, EulerOpError>,
+) {
+    let mut trial = body.clone();
+    match capture.run(|| op(&mut trial)) {
+        Ok(Ok(_)) => assert!(may_succeed, "{label}: returned Ok on the torn chain"),
+        Ok(Err(err)) => assert!(
+            !matches!(err, EulerOpError::Argument(_)),
+            "{label}: refused a key read out of the body as an argument: {err}"
+        ),
+        Err(report) => {
+            assert!(
+                report.contains(ROW_FOUR),
+                "{label}: panicked without naming a row-4 premise: {report}"
+            );
+            assert!(
+                deep_snapshot(&trial) == snapshot,
+                "{label}: panicked naming a row-4 premise after writing to the body: {report}"
+            );
+        }
+    }
+}
+
 #[test]
-fn kill_ops_survive_torn_bodies_without_panicking() {
+fn kill_ops_on_torn_bodies_panic_only_naming_a_premise() {
     let tol = Tol::witness();
     use crate::entity::{HalfEdge, Vertex};
     // A big strut chain, then tear next/prev links and edge bijections
@@ -1295,28 +1328,35 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     let _ = stray;
     let started = std::time::Instant::now();
     // The kills' subject here is their shared plan phase: this tear
-    // leaves no kill a well-formed site, so each door refuses typed
-    // (a torn orbit, a self-loop, an unclaimed half) before its own
-    // gate and never reaches the mutation. `review_d18`'s hammer is the
-    // row that drives the mutation phase on a tear it survives.
+    // leaves no kill a well-formed site, so each door stops (a torn
+    // orbit or mate pair panics, a self-loop refuses typed) before its
+    // own gate and never reaches the mutation. `review_d18`'s hammer is
+    // the row that drives the mutation phase on a tear it survives.
+    let capture = PanicCapture::install();
+    let snapshot = deep_snapshot(&body);
+    let torn = (&body, snapshot.as_slice());
     for &he in &halves {
-        assert!(
-            body.clone().kev(he).is_err(),
-            "kev({he:?}) on the torn chain"
+        assert_torn_outcome(&capture, torn, &format!("kev({he:?})"), false, |b| {
+            b.kev(he)
+        });
+        assert_torn_outcome(
+            &capture,
+            torn,
+            &format!("kev_describing({he:?})"),
+            false,
+            |b| b.kev_describing(he, &[], tol),
         );
-        assert!(
-            body.clone().kev_describing(he, &[], tol).is_err(),
-            "kev_describing({he:?}) on the torn chain"
-        );
-        let _ = body.clone().kef(he);
+        assert_torn_outcome(&capture, torn, &format!("kef({he:?})"), true, |b| b.kef(he));
     }
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     for s in solids {
-        let _ = body.clone().kvfs(s);
+        assert_torn_outcome(&capture, torn, &format!("kvfs({s:?})"), true, |b| b.kvfs(s));
     }
     let loops: Vec<_> = body.loops().map(|(k, _)| k).collect();
     for l in loops {
-        let _ = body.clone().mfkrh_plug(l, true);
+        assert_torn_outcome(&capture, torn, &format!("mfkrh_plug({l:?})"), true, |b| {
+            b.mfkrh_plug(l, true)
+        });
     }
     assert!(
         started.elapsed() < std::time::Duration::from_secs(30),

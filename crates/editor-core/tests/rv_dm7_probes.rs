@@ -18,6 +18,7 @@
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
+use editor_core::Formula;
 use editor_core::{
     Alignment, AxisSense, ContactClass, DocEdit, DocumentId, EntityKind, Maintenance, MateFrame,
     MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, solve_document,
@@ -91,8 +92,14 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     );
 }
 
-fn mate_frame() -> MateFrame {
-    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn mate_frame() -> MateFrame<Formula> {
+    MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {

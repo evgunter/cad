@@ -44,7 +44,14 @@ fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
             let lp = body.get_half_edge(*he).unwrap().parent_loop;
             mine.contains(&body.get_loop(lp).unwrap().face)
         })
-        .map(|(he, c)| format!("he {he:?} params {:?} pcurve {:?}", c.params(), c.pcurve()))
+        .map(|(he, c)| {
+            format!(
+                "he {he:?} params {:?} pcurve {:?} joint {:?}",
+                c.params(),
+                c.pcurve(),
+                body.joint(he)
+            )
+        })
         .collect()
 }
 
@@ -264,8 +271,8 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
     let (ves, bx) = (solids[0], solids[1]);
     let victim = faces_of(&pair, bx)[0];
     let mut body = pair.clone();
-    // Lifts both refusals: a cylinder the box face does not lie on is the unmintable neighbour.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: a cylinder the box face does not lie on is the unmintable neighbour.
+    body.set_face_surface_unvouched_for_tests(
         victim,
         topo::FaceSurface::New {
             surface: geom::Surface::Cylinder {

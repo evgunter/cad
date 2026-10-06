@@ -487,3 +487,63 @@ fn the_placement_certificate_certifies_and_refuses_by_pair() {
         Err(topo::PlacementsMeet { i: 1, j: 2 })
     );
 }
+
+/// **A destination solid that does not resolve is the caller's
+/// argument, refused before any write.** The void doors graft their
+/// cavity under caller-named destination solids; one that resolves
+/// nowhere in `dst` refuses [`topo::VoidInsertError::StaleSolid`]
+/// naming it, and `dst` is the same body, slot for slot, still tier-1
+/// valid. Both doors.
+#[test]
+fn a_void_under_a_dead_solid_refuses_with_the_destination_unchanged() {
+    type Door = fn(
+        &mut topo::Body<f64>,
+        topo::SolidKey,
+        topo::Body<f64>,
+        &topo::VoidEvidence,
+    ) -> Result<topo::VoidInserted, topo::VoidInsertError>;
+    let doors: [(&str, Door); 2] = [
+        ("insert_void", topo::insert_void),
+        ("insert_voids", |d, k, c, e| {
+            topo::insert_voids(d, &[k], c, e)
+        }),
+    ];
+    let tol = Tol::witness();
+    for (door, insert) in doors {
+        let mut dst = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let cavity = common::brick::<f64>((0.25, 0.75), (0.25, 0.75), (0.25, 0.75), tol);
+        let evidence = topo::VoidEvidence {
+            shells: cavity
+                .shells()
+                .map(|(s, _)| {
+                    let sign = geom_core::Sign::Positive;
+                    (s, topo::VoidContainment::Carried { sign })
+                })
+                .collect(),
+        };
+        // `Body`'s `Debug` prints every arena slot by slot, free list
+        // and versions included.
+        let before = format!("{dst:?}");
+        let err = insert(&mut dst, topo::SolidKey::default(), cavity, &evidence)
+            .expect_err("no solid of `dst` has the null key");
+        assert_eq!(
+            err,
+            topo::VoidInsertError::StaleSolid {
+                solid: topo::SolidKey::default()
+            },
+            "{door}"
+        );
+        let said = err.to_string();
+        assert!(
+            said.contains("does not resolve in the destination body"),
+            "{door}: {said}"
+        );
+        assert_eq!(
+            format!("{dst:?}"),
+            before,
+            "{door}: the refused insertion wrote the destination (tier 1 now: {:?})",
+            topo::validate(&dst)
+        );
+        assert_eq!(topo::validate(&dst), Ok(()), "{door}");
+    }
+}

@@ -4,15 +4,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{brick, flush_declarations, prism_z};
+use crate::common::{brick, finished, flush_declarations, prism_z};
 use geom_core::Tol;
 use topo::BooleanResult;
 
 #[test]
 fn r2_multi_spike_corner_meet_is_tier_three() {
     let t = Tol::witness();
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), t);
-    let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), t);
+    let a = finished("a", brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), t), t);
+    let b = finished("b", brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0), t), t);
     let ab = match topo::intersect_with(&a, &b, &flush_declarations(&a, &b, t), t).unwrap() {
         BooleanResult::Body(bb) => bb.body,
         BooleanResult::Empty => panic!(),
@@ -24,6 +24,7 @@ fn r2_multi_spike_corner_meet_is_tier_three() {
         t,
     )
     .body;
+    let c = finished("c", c, t);
     let (vab, vc, ov) = (1.0, 2.0, 0.5);
     let mut wrong = Vec::new();
     for (ord, x, y, vx, vy) in [("AB·C", &ab, &c, vab, vc), ("C·AB", &c, &ab, vc, vab)] {

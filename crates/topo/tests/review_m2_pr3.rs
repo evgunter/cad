@@ -20,8 +20,9 @@ use geom_brep::{EdgeDescriptionSpec, MappedCurve, SketchSegment, newell_plane};
 use geom_core::Tol;
 use geom_core::{Affine3, Arc2, Band, Decide, Point2, Point3, Vec3};
 use topo::{
-    Body, EdgeCurveSpec, EdgeDescription, EulerOpError, FaceSurface, MefSite, MevSite, SurfaceKey,
-    ValidationError, validate, validate_closed, validate_geometric,
+    BadArgument, Body, EdgeCurveSpec, EdgeDescription, EntityId, EulerOpError, FaceSurface,
+    GeomRef, MefSite, MevSite, SurfaceKey, ValidationError, validate, validate_closed,
+    validate_geometric,
 };
 
 use crate::common;
@@ -317,7 +318,13 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
             Tol::witness(),
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::StaleGeometry { .. }), "{err:?}");
+    assert_eq!(
+        err,
+        EulerOpError::Argument(BadArgument::StaleGeometry {
+            role: "surface",
+            key: GeomRef::Surface(stale_surface),
+        })
+    );
     assert_eq!(snapshot(&body), before, "stale Shared mutated body");
 
     // 3. mef whose curve fails certification (wrong carrier): the
@@ -385,7 +392,13 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
             },
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::StaleGeometry { .. }), "{err:?}");
+    assert_eq!(
+        err,
+        EulerOpError::Argument(BadArgument::StaleGeometry {
+            role: "surface",
+            key: GeomRef::Surface(stale_surface),
+        })
+    );
     assert_eq!(snapshot(&body), before, "surface setter mutated body");
 
     assert_eq!(validate(&body), Ok(()));
@@ -435,11 +448,14 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     // body does not see the key slots a refusal could consume.
     assert_eq!(
         body.set_face_surface(t.seed.face, swap()),
-        Err(EulerOpError::RechartStrandsDescriptions { edges: rim }),
+        Err(EulerOpError::RechartStrandsDescriptions {
+            door: topo::RechartDoor::SetFaceSurface,
+            edges: rim
+        }),
     );
 
-    // Lifts both refusals: the stranded state tier 3 detects at rest is the row.
-    body.set_face_surface_stranding_for_tests(t.seed.face, swap())
+    // Lifts RechartStrandsDescriptions: the stranded state tier 3 detects at rest is the row.
+    body.set_face_surface_unvouched_for_tests(t.seed.face, swap())
         .unwrap();
 
     // Anchoring: the old plane is still referenced by four Intersection
@@ -946,7 +962,13 @@ fn fixed_n4_raw_mev_precondition_paths() {
             Tol::witness(),
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
+    assert_eq!(
+        err,
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "he1",
+            key: EntityId::HalfEdge(stale),
+        })
+    );
     assert_eq!(snapshot(&body), before, "stale Fan mutated body");
 
     // Fan halves starting at different vertices: FanStartMismatch.
@@ -1001,7 +1023,13 @@ fn fixed_n4_raw_mef_precondition_paths() {
             Tol::witness(),
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
+    assert_eq!(
+        err,
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "he2",
+            key: EntityId::HalfEdge(stale),
+        })
+    );
     assert_eq!(snapshot(&body), before, "stale Chords mutated body");
 
     // Chords across two different loops: NotSameLoop.

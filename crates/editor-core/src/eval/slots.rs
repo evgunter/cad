@@ -23,7 +23,7 @@
 
 use geom_core::Decide;
 
-use crate::expr::{EvalError, Expr, ParamEnv, eval, eval_count};
+use crate::expr::{EvalError, Expr, VarEnv, eval, eval_count};
 use crate::node::{Node, SlotId};
 
 /// An evaluated slot: continuous scalar or exact count.
@@ -47,7 +47,7 @@ pub(crate) type SlotValues<T> = Vec<(SlotId, SlotVal<T>)>;
 /// (`super::tag::slot` carries what that means for the nominal half).
 pub(crate) fn eval_slots<T: Decide, P: crate::ProfilePayload>(
     node: &Node<P>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
 ) -> Result<SlotValues<T>, (SlotId, EvalError)> {
     if matches!(node, Node::Profile(_)) {
         return Ok(Vec::new());
@@ -60,7 +60,7 @@ pub(crate) fn eval_slots<T: Decide, P: crate::ProfilePayload>(
 /// first failure returns with its slot.
 pub(crate) fn eval_rows<'e, T: Decide>(
     rows: impl IntoIterator<Item = (SlotId, &'e Expr)>,
-    env: &ParamEnv<T>,
+    env: &VarEnv<T>,
 ) -> Result<SlotValues<T>, (SlotId, EvalError)> {
     rows.into_iter()
         .map(|(slot, expr)| {

@@ -1175,6 +1175,7 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
+            self.drafts.respeak(self.session.doc());
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
             // state, and what its committed edits did that nobody
@@ -3515,7 +3516,7 @@ mod properties_pane_tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use eframe::egui;
-    use pncad::document::{Axis3, ParamName, RecipeNodeId, SlotId};
+    use pncad::document::{Axis3, RecipeNodeId, SlotId};
 
     use super::ViewerApp;
     use crate::session::{Selection, SessionOp};
@@ -3692,8 +3693,9 @@ mod properties_pane_tests {
     /// "select a feature" prompt, and nothing else.
     #[test]
     fn an_undeclared_parameter_is_said_once_in_the_pane() {
-        let verdict = "parameter nope is no longer declared";
-        let mut with = painted_with(Selection::Param(ParamName::from_static("nope")));
+        let var = pncad::document::VarId(0x0123_4567_89ab_cdef);
+        let verdict = format!("{var} is no longer declared");
+        let mut with = painted_with(Selection::Param(var));
         let mut without = painted_with(Selection::None);
         assert!(
             without.iter().any(|text| text == "select a feature"),

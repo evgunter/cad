@@ -4,24 +4,22 @@
 //! wall-half pairs that meet across the mating circle are
 //! continuations (`crates/topo/README.md`, C4's continuation clause).
 //!
-//! The declared union builds at every θ through the declared-REST zip
-//! (`topo::boolean::rest`). With the seams aligned (θ = 0, and θ = π
-//! with the halves swapped) the mating circle carries two sites a half
-//! turn apart: each seam segment is a semicircle, so its two end germs
-//! are perpendicular to their chord, and the two arcs between the
-//! sites are parallel edges. The zip matches each segment along the
-//! circle arc both operands carry between its sites (`arcs_along`), and
-//! that arc names the seam edge.
+//! The declared union builds at every θ. With the seams aligned (θ = 0,
+//! and θ = π with the halves swapped) the mating circle carries two
+//! sites a half turn apart: each seam segment is a semicircle, so its
+//! two end germs are perpendicular to their chord, and the two arcs
+//! between the sites are parallel edges, which the sites alone do not
+//! tell apart.
 //! The oracle is closed form: πr²h per rod.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
 use profile::circle_split;
-use sweep::test_support::{extruded, sketch_at};
+use sweep::test_support::{extruded, finished, sketch_at};
 use topo::{
-    Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult,
-    Operand, PlaneRelation,
+    AtRestBody, Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError,
+    BooleanResult, Operand, PlaneRelation,
 };
 
 use core::f64::consts::{FRAC_PI_2, PI};
@@ -41,10 +39,14 @@ fn tol() -> Tol {
 
 /// A rod of radius 1 and height 1 standing on `z0`, its wall the two
 /// half-cylinders of a rim split at `phase`.
-fn rod(z0: f64, phase: f64) -> Body<f64> {
+fn rod(z0: f64, phase: f64) -> AtRestBody<f64> {
     let rim =
         circle_split(Point2::new(0.0, 0.0), 1.0, 2, phase, tol()).expect("the two-arc rim authors");
-    extruded(sketch_at(z0), vec![rim.into()], 1.0, tol())
+    finished(
+        "the rod",
+        extruded(sketch_at(z0), vec![rim.into()], 1.0, tol()),
+        tol(),
+    )
 }
 
 /// Every finding the flush detector offers between `a` and `b`, declared.

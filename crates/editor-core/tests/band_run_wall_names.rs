@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     EntityKind, LoopProgram, MeridianEnd, Node, PieceRun, ProfileDoc, ProfileProgram, ProgramStep,
     ProgramTarget, RecipeNodeId, RoleSeg, StableName,
@@ -17,14 +18,14 @@ use crate::fixture::{
     ang, axis_in_plane, frame, insert, len, len2, minted, piece, run, table, vpiece,
 };
 
-fn to(x: f64, y: f64) -> ProgramTarget {
+fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }
 
 /// A rectangle `[x0, x0 + 2] × [0, 2]` with its bottom side drawn as a
 /// leg to `(x0 + 1, 0)` and the DECLARED straight continuation on to
 /// `(x0 + 2, 0)`: segments 0 and 1 are one run.
-fn subdivided(x0: f64) -> Vec<ProgramStep> {
+fn subdivided(x0: f64) -> Vec<ProgramStep<Formula>> {
     vec![
         ProgramStep::At(len2([x0, 0.0])),
         ProgramStep::LineTo(to(x0 + 1.0, 0.0)),
@@ -35,7 +36,7 @@ fn subdivided(x0: f64) -> Vec<ProgramStep> {
     ]
 }
 
-fn profiled(steps: Vec<ProgramStep>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn profiled(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("band_run_wall_names", Tol::witness());
     let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, p) = insert(
@@ -49,11 +50,11 @@ fn profiled(steps: Vec<ProgramStep>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId)
     (doc, plane, p)
 }
 
-fn extruded(steps: Vec<ProgramStep>) -> (ProfileDoc, RecipeNodeId) {
+fn extruded(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId) {
     extruded_by(steps, ExtrudeSide::Along)
 }
 
-fn extruded_by(steps: Vec<ProgramStep>, side: ExtrudeSide) -> (ProfileDoc, RecipeNodeId) {
+fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileDoc, RecipeNodeId) {
     let (doc, _, p) = profiled(steps);
     insert(
         doc,
@@ -65,7 +66,7 @@ fn extruded_by(steps: Vec<ProgramStep>, side: ExtrudeSide) -> (ProfileDoc, Recip
     )
 }
 
-fn revolved(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
+fn revolved(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, plane, p) = profiled(steps);
     let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     insert(

@@ -73,9 +73,9 @@ use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{ConstructedLoop, Open, SketchPlane, Start, ValidatedProfile, circle_split};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanBody, BooleanCoincidence, BooleanDeclarations};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanCoincidence, BooleanDeclarations};
 
-use crate::booleans::{check, expect_seamed, try_union};
+use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
@@ -190,8 +190,8 @@ fn plate_profile<S: Scalar>(z0: f64, bores: bool, tol: Tol) -> ValidatedProfile<
 }
 
 /// A plate: the 6×4 footprint, thickness 1, sketched at `z0`.
-fn plate<S: Scalar>(z0: f64, tol: Tol) -> Body<S> {
-    extrude(
+fn plate<S: Scalar>(z0: f64, tol: Tol) -> AtRestBody<S> {
+    let body = extrude(
         &plate_profile::<S>(z0, false, tol),
         Extrusion::Distance {
             depth: S::from_f64(PLATE.2),
@@ -200,15 +200,16 @@ fn plate<S: Scalar>(z0: f64, tol: Tol) -> Body<S> {
         tol,
     )
     .expect("the plate extrudes")
-    .body
+    .body;
+    finished("a plate", body, tol)
 }
 
 /// A peg: [`rim`] extruded `h` from `z0`.
-fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> Body<S> {
+fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> AtRestBody<S> {
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
     let profile =
         validated(plane, vec![rim::<S>(cx, tol)], tol).expect("the peg profile validates");
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: S::from_f64(h),
@@ -217,14 +218,15 @@ fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> Body<S> {
         tol,
     )
     .expect("the peg extrudes")
-    .body
+    .body;
+    finished("a peg", body, tol)
 }
 
 /// Plate P: the plate, with a peg unioned on at each centre. Each peg
 /// is sketched INSIDE the plate and extruded through its top, so both
 /// unions are TRANSVERSE curved booleans — the same op `bossplate`
 /// shows on its own.
-fn plate_with_pegs<S: Scalar>(tol: Tol) -> Body<S> {
+fn plate_with_pegs<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     let plain = PLATE_VOL;
     let stub = core::f64::consts::PI * PEG_R * PEG_R * ENGAGE;
     let mut body = plate::<S>(0.0, tol);
@@ -261,8 +263,8 @@ fn plate_with_pegs<S: Scalar>(tol: Tol) -> Body<S> {
 /// boolean of ONE boolean rather than of two. The `subtract` op it gave
 /// up is on the sheet several times over — `projectbox` alone runs
 /// fourteen.
-fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
-    extrude(
+fn plate_with_holes<S: Scalar>(tol: Tol) -> AtRestBody<S> {
+    let body = extrude(
         &plate_profile::<S>(PLATE.2, true, tol),
         Extrusion::Distance {
             depth: S::from_f64(PLATE.2),
@@ -271,7 +273,8 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
         tol,
     )
     .expect("the holed plate extrudes")
-    .body
+    .body;
+    finished("plate Q", body, tol)
 }
 
 /// Every cylindrical face of `body` — the kernel's own kind read
@@ -382,7 +385,15 @@ fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>, tol: Tol) -> BooleanDeclara
 /// ops): both parts, the UNDECLARED refusal, the DECLARED mate, and
 /// the lifted copy for the apart framing. Returns the undeclared
 /// refusal's narration for the f64 captions.
-pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, Body<S>, String) {
+pub(crate) fn build<S: Scalar>(
+    tol: Tol,
+) -> (
+    AtRestBody<S>,
+    AtRestBody<S>,
+    BooleanBody<S>,
+    Body<S>,
+    String,
+) {
     let p = plate_with_pegs::<S>(tol);
     let q = plate_with_holes::<S>(tol);
 
@@ -547,7 +558,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             SceneBody::seamed(
                 "twopeg_mated",
                 [0.62, 0.66, 0.72],
-                mated.body,
+                mated.body.into_body(),
                 mated.contacts,
             ),
             SceneBody::plain("twopeg_apart_p", [0.62, 0.66, 0.72], p_aside),

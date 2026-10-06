@@ -48,8 +48,7 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
 /// **`Node::Union` builds in every member order.** Red when the
 /// kernel classifies a vertex-vertex pair after another pair sharing
 /// its vertex moved that vertex's orbit: `b,c,a` (every span) and
-/// `a,c,b` (the span over `b`) refuse `Boolean(CorruptOperand {
-/// operand: B, .. })` naming the block folded last.
+/// `a,c,b` (the span over `b`) panic at the block folded last.
 #[test]
 fn the_union_node_folds_a_flush_partner_onto_the_edge_contact() {
     for span in C_SPANS {

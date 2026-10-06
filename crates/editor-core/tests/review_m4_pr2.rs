@@ -10,7 +10,7 @@ use editor_core::ExtrudeSide;
 use std::fmt::Write as _;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Expr,
+    BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Formula,
     Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SitedRef, SlotId, ValuePayload,
     evaluate,
 };
@@ -217,7 +217,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         vec![square(0.5, 0.5, 0.5)],
     );
     // Two failing extrudes: distance = 1/0 (NonFiniteResult).
-    let bad = || Expr::div(len(1.0), scl(0.0)).unwrap();
+    let bad = || Formula::div(len(1.0), scl(0.0)).unwrap();
     let (doc, fa) = insert(
         doc,
         Node::Extrude {
@@ -410,7 +410,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Pattern {
             input: base,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: editor_core::PatternKind::Circular {
                 axis: ax,
                 step: ang(std::f64::consts::FRAC_PI_2),
@@ -460,7 +460,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Extrude {
             profile: p,
-            distance: Expr::div(len(1.0), scl(0.0)).unwrap(),
+            distance: Formula::div(len(1.0), scl(0.0)).unwrap(),
             side: ExtrudeSide::Along,
         },
     );
@@ -866,7 +866,7 @@ fn wire_doors_refuse_typed() {
         doc.clone(),
         Node::Pattern {
             input: base,
-            count: Expr::count(0),
+            count: Formula::count(0),
             kind: editor_core::PatternKind::Circular {
                 axis: ax,
                 step: ang(1.0),

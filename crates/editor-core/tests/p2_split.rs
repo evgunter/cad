@@ -24,6 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -756,7 +757,7 @@ fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
     let out = inline(&stated, i, &store);
     assert_eq!(
         offset_of(&out.doc, out.node_map[&part_base]),
-        Some(checked),
+        Some(editor_core::test_support::stored_placement(&checked)),
         "the root carries the checked offset"
     );
 
@@ -923,7 +924,9 @@ fn r1_a_cut_holding_nested_gauges_round_trips_exactly() {
         Some(g)
     );
     assert!(
-        out.part.params().contains_key(&crate::p2_gauges::lift()),
+        out.part
+            .var_named(crate::p2_gauges::lift().as_str())
+            .is_some(),
         "K's parameter moves with it"
     );
 
@@ -996,7 +999,10 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
         .iter()
         .find(|&&id| matches!(block.node(id), Some(Node::Datum(_))))
         .expect("the block's frame");
-    let (with_datum, spare) = insert(block.clone(), block.node(frame).cloned().expect("live"));
+    let (with_datum, spare) = insert(
+        block.clone(),
+        block.node(frame).map(Node::authored).expect("live"),
+    );
     for (doc, ids, first, what) in [
         (&doc, vec![k], k, "a bare gauge"),
         (&chain, vec![k, k2], k, "a gauge chain"),
@@ -1141,7 +1147,7 @@ fn r1_the_comparator_reads_every_field() {
         (Tweak::Placement, "payload", 0),
         (Tweak::Alignment, "payload", 3),
         (Tweak::Head, "payload", 3),
-        (Tweak::Param, "parameters", 0),
+        (Tweak::Param, "variables", 0),
         (Tweak::Label, "label", 0),
     ] {
         let (b, _) = comparator_scene(&p, tweak);
@@ -1150,7 +1156,7 @@ fn r1_the_comparator_reads_every_field() {
         let said = fails(&b, &map, &step_map);
         assert!(
             said.lines().any(|l| l.starts_with(check)
-                && (check == "parameters" || l.contains(&format!("{node:?}")))),
+                && (check == "variables" || l.contains(&format!("{node:?}")))),
             "{check}: {said}"
         );
     }
@@ -1229,7 +1235,7 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
     let p = parts("r1-every");
     let o = p.opts();
     let empty = |label: &str| ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement| {
+    let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement<Formula>| {
         let (doc, base) = insert(doc, Node::instantiate_part(p.base));
         let doc = set_gauge(doc, base, gauge);
         let doc = set_offset(doc, base, Some(at));
@@ -1262,7 +1268,10 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         let doc = crate::p2_gauges::declare_lift(empty("r1-parametric-root"), 0.5);
         let at = Placement::from(editor_core::Step::Rigid {
             translation: [
-                editor_core::Expr::param(crate::p2_gauges::lift(), editor_core::Dimension::Length),
+                editor_core::Formula::named(
+                    crate::p2_gauges::lift(),
+                    editor_core::Dimension::Length,
+                ),
                 fixture::len(0.0),
                 fixture::len(0.0),
             ],

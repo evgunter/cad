@@ -42,6 +42,7 @@ use sweep::ExtrudeSide;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Tol, Vec3};
+use sweep::test_support::finished;
 use topo::{Body, FaceKey, FaceSurface};
 
 use crate::common;
@@ -155,8 +156,8 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     )
     .unwrap();
 
-    // Lifts both refusals: the degraded fit behind an honest certificate is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the degraded fit behind an honest certificate is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -193,7 +194,9 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
 #[test]
 fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
     // Control: two overlapping boxes union through the gate.
-    topo::union(&unit_box(), &moved_box(), Tol::witness())
+    let tol = Tol::witness();
+    let moved = finished("the moved box", moved_box(), tol);
+    topo::union(&finished("the unit box", unit_box(), tol), &moved, tol)
         .expect("two planar boxes union through the gate");
 
     // The same box with its top face carrying an approximating
@@ -201,8 +204,12 @@ fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
     // described as the offset of that patch pulled back by `d`.
     let (a, face) = box_with_approx_cap(0.05, MINT_TARGET);
 
-    let e = topo::union(&a, &moved_box(), Tol::witness())
-        .expect_err("an Approx operand is unsupported-kind for the boolean gate");
+    let e = topo::union(
+        &finished("the approx-capped box", a.clone(), tol),
+        &moved,
+        tol,
+    )
+    .expect_err("an Approx operand is unsupported-kind for the boolean gate");
     assert!(
         matches!(
             e,
@@ -533,8 +540,8 @@ fn a_degraded_fit_does_not_survive_the_map() {
         good.window(),
         *good.certificate(),
     );
-    // Lifts both refusals: the degraded fit behind an honest certificate is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the degraded fit behind an honest certificate is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -621,8 +628,8 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
         narrowed,
         *good.certificate(),
     );
-    // Lifts both refusals: the narrowed window behind an honest surface is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the narrowed window behind an honest surface is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -697,8 +704,8 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
         good.window(),
         *good.certificate(),
     );
-    // Lifts both refusals: the nudged fit control point is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the nudged fit control point is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -748,8 +755,8 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
         good.window(),
         bogus,
     );
-    // Lifts both refusals: the planted certificate behind a good pair is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the planted certificate behind a good pair is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -847,8 +854,8 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         })
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
-    // Lifts both refusals: the Approx face at a scalar with no fit lane is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the Approx face at a scalar with no fit lane is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(lifted)),

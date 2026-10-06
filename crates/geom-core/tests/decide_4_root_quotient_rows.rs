@@ -60,7 +60,12 @@ type Shape = fn(Params) -> Sym<Interval>;
 
 /// The parameter over its whole box.
 fn over(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param_over(ParamSymbol::of(name), Interval::from_bounds(lo, hi), lo, hi)
+    Sym::param_over(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+        lo,
+        hi,
+    )
 }
 
 /// How the tier answered, as one word. `refused` is the tier ASKED and

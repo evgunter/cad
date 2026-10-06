@@ -16,6 +16,7 @@
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanResult, FacePairDeclaration};
 use topo::{
@@ -110,7 +111,10 @@ fn the_declared_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
         coincident_faces: pairs.clone(),
         ..Default::default()
     };
-    let (a, b) = (plate::<T>(), rod::<T>());
+    let (a, b) = (
+        finished("the plate", plate::<T>(), tol),
+        finished("the rod", rod::<T>(), tol),
+    );
     match union_with(&a, &b, &decls, tol) {
         Err(BooleanError::TangentSlitArmUnbuilt {
             declaration,

@@ -36,7 +36,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::battery::{BlendRequest, RULED_END_NOT_TRANSVERSE, cap_transverse, run_battery};
 use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
-    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, revolved_about_y,
+    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, finished, revolved_about_y,
     rod_creases, rod_d_profile_at, rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
@@ -366,6 +366,7 @@ fn the_d_profile_rod_carves_through_a_cap_arc_past_pi() {
 #[test]
 fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
     let rod = rod_d_profile_at::<f64>(tol());
+    let rod = sweep::test_support::finished("the rod", rod, tol());
     let phi = 0.3f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.7),
@@ -546,7 +547,7 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
         let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
             .validate(tol())
             .unwrap();
-        extrude(
+        let body = extrude(
             &profile,
             Extrusion::Distance {
                 depth: 1.0,
@@ -555,7 +556,8 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
             tol(),
         )
         .unwrap()
-        .body
+        .body;
+        finished("the cylinder", body, tol())
     };
     let err = topo::union(&cyl(0.0), &cyl(0.6), tol()).expect_err("the parallel pair refuses");
     assert!(
@@ -601,6 +603,7 @@ fn the_cap_lever_is_the_links_extent() {
     let band = Band::new(1.2e-3, 1.2e-2).expect("the row's own band, ten wide");
     for (len, in_band) in [(0.3, true), (2.5, false)] {
         let rod = rod_d_profile_of_length_at::<f64>(len, tol());
+        let rod = sweep::test_support::finished("the rod", rod, tol());
         let plane = topo::test_support::split_plane(
             Point3::new(0.0, 0.0, 0.6 * len),
             Vec3::new(phi.sin(), 0.0, phi.cos()),

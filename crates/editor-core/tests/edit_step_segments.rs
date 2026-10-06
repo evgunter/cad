@@ -56,7 +56,7 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CanonicalSegment, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Expr,
+    CancelToken, CanonicalSegment, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
 };
@@ -100,7 +100,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// evaluation would disagree with the published anchor's permutation
 /// and every row here would refuse rather than pass.
 fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
-    let env = doc.param_env::<f64>();
+    let env = doc.var_env::<f64>();
     let resolved = program.resolve::<f64>(&env).expect("the corpus resolves");
     let mut loops = Vec::new();
     let mut replay = Vec::new();
@@ -572,7 +572,7 @@ fn loft_of_loops(
         doc,
         Node::Loft {
             profiles: ids.clone(),
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     );
     (doc, ids, loft)
@@ -1538,7 +1538,7 @@ fn arc_prism(
     id: &str,
     side: profile::ArcSide,
     radii: &[f64],
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Vec<Expr>) {
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Vec<Formula>) {
     let mut exprs = Vec::new();
     let mut steps = vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -1922,7 +1922,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         (got - 0.5).abs() < 1e-9,
         "and that wall is a cylinder at the authored radius, not {got}"
     );
-    let attached: Vec<&Expr> = pv.edge_radii[0].iter().flatten().collect();
+    let attached: Vec<&editor_core::Expr> = pv.edge_radii[0].iter().flatten().collect();
     assert_eq!(
         attached,
         vec![&radius],
@@ -2212,7 +2212,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
 fn rotated_arc_prism(
     id: &str,
     side: profile::ArcSide,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Vec<Expr>) {
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Vec<Formula>) {
     let s = if matches!(side, profile::ArcSide::Left) {
         1.0
     } else {
@@ -2397,7 +2397,7 @@ fn every_attached_radius_was_keyed_first() {
                     anchor.len,
                     "{name}: canonical loop {ci} has one slot per segment"
                 );
-                let fed: Vec<&Expr> = program.loops[anchor.program_loop as usize]
+                let fed: Vec<&editor_core::Expr> = program.loops[anchor.program_loop as usize]
                     .step_radii()
                     .into_iter()
                     .map(|(_, e)| e)
@@ -2411,7 +2411,8 @@ fn every_attached_radius_was_keyed_first() {
                     );
                 }
             }
-            let attached_here: Vec<&Expr> = pv.edge_radii.iter().flatten().flatten().collect();
+            let attached_here: Vec<&editor_core::Expr> =
+                pv.edge_radii.iter().flatten().flatten().collect();
             for lp in &program.loops {
                 for (_, e) in lp.step_radii() {
                     if !attached_here.contains(&e) {
@@ -2501,7 +2502,7 @@ fn keyed_but_never_attached() -> ProfileDoc {
 /// binder followed directly by the closer.
 #[test]
 fn a_fillet_cannot_be_a_loops_closing_corner() {
-    let head = |closer: ProgramStep| {
+    let head = |closer: ProgramStep<Formula>| {
         LoopProgram::Chain(vec![
             ProgramStep::At(len2([0.0, 0.0])),
             ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 0.0]))),
@@ -2817,7 +2818,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
 /// under `s = -1` (a mirror in y), REVERSED as well. The binder's arc
 /// is emitted by the far-end arrival, so the emission record is the
 /// only thing pairing it.
-fn rotated_fillet_prism(id: &str, s: f64) -> (fixture::Swept, Expr) {
+fn rotated_fillet_prism(id: &str, s: f64) -> (fixture::Swept, Formula) {
     let pt = |x: f64, y: f64| [len(x), len(y * s)];
     let radius = len(0.5);
     let steps = vec![
@@ -3230,7 +3231,7 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
             len: len(1.5),
         },
     ];
-    let env = ProfileDoc::empty_derived("mode-vocabularies", tol()).param_env::<f64>();
+    let env = ProfileDoc::empty_derived("mode-vocabularies", tol()).var_env::<f64>();
     for spec in modes {
         let carries = match &spec {
             ProgramArcData::Radius { .. }
@@ -3255,7 +3256,7 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
                 },
             ),
         ] {
-            let resolved = LoopProgram::Chain(vec![step])
+            let resolved = editor_core::test_support::stored_loop(&LoopProgram::Chain(vec![step]))
                 .resolve::<f64>(&env, 0)
                 .expect("a literal spec resolves");
             let wire = match &resolved[0] {

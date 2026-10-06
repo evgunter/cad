@@ -29,7 +29,7 @@ use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 
 use pncad::document::{
-    Doc, DocumentId, Expr, MeasureExpr, Node, NodeStanding, ProductError, ProfileDoc,
+    Doc, DocumentId, Formula, MeasureExpr, Node, NodeStanding, ProductError, ProfileDoc,
     ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
@@ -425,7 +425,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
         &mut asm,
         Node::Extrude {
             profile,
-            distance: Expr::div(common::len(0.008), common::scl(0.0))
+            distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },

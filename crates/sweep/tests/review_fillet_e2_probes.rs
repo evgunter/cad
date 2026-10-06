@@ -32,9 +32,11 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{
     BlendError, FILLET3_ASSEMBLY_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RING_RECOURSE,
 };
-use sweep::test_support::{arcs_at, cube, dome_profile, prism, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{
+    arcs_at, cube, dome_profile, prism, realized, revolved_about_y, rim_arcs_at,
+};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, query, validate_geometric};
 use topo::{RimBreak, RimError};
 
@@ -47,19 +49,7 @@ fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 /// A sphere of radius 0.3 centred at `c`.
