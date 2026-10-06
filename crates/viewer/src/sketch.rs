@@ -442,7 +442,10 @@ pub fn held_program(
 /// on an argument's anonymous variable) moves it, where the stored
 /// program, which reads that variable by id, stays put.
 #[must_use]
-pub fn written_program(doc: &Doc<ProfileProgram>, program: &ProfileProgram) -> ProfileProgram<Formula> {
+pub fn written_program(
+    doc: &Doc<ProfileProgram>,
+    program: &ProfileProgram,
+) -> ProfileProgram<Formula> {
     let Node::Profile(written) = Node::Profile(program.clone()).written(doc) else {
         unreachable!("a profile node is written as a profile node")
     };

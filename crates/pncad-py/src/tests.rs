@@ -2017,8 +2017,8 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         node: Box::new(xy_frame()),
         fresh: Vec::new(),
     };
-    let framed = apply(&doc, &frame, tol, &pncad::document::RefusingReach)
-        .expect("the frame inserts");
+    let framed =
+        apply(&doc, &frame, tol, &pncad::document::RefusingReach).expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
     let profile = DocEdit::InsertNode {
         node: Box::new(Node::Profile(ProfileProgram {

@@ -1385,12 +1385,13 @@ mod tests {
                 | NodeKindWanted::Frame => {}
             }
             assert!(
-                authorable
-                    .iter()
-                    .any(|node| {
-                        let mut doc = Doc::empty_derived("seat", Tol::witness());
-                        admits(Some(&editor_core::test_support::stored(&mut doc, node)), wanted)
-                    }),
+                authorable.iter().any(|node| {
+                    let mut doc = Doc::empty_derived("seat", Tol::witness());
+                    admits(
+                        Some(&editor_core::test_support::stored(&mut doc, node)),
+                        wanted,
+                    )
+                }),
                 "the {} seat wants {} and no add-datum choice authors one",
                 seat.name(),
                 wanted.name(),

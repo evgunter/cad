@@ -2039,12 +2039,21 @@ fn report_matches_resolution(
     let applied = set_program(&doc, profile, new, ids)
         .unwrap_or_else(|e| panic!("{label}: the reshaping is accepted: {e:?}"));
     let after = resolves(&applied.doc);
+    // Beside its strands, a reshaping retires the anonymous variables
+    // the arguments it rewrote were written in, which names nothing.
     let reported: std::collections::BTreeSet<StableName> = applied
         .maintenance
         .iter()
-        .map(|m| match m {
+        .filter_map(|m| match m {
             Maintenance::Strand { name, .. } | Maintenance::StrandedAppearance { name } => {
-                name.name().clone()
+                Some(name.name().clone())
+            }
+            Maintenance::AnonymousVarRemoved { var } => {
+                assert!(
+                    var.name().is_none(),
+                    "{label}: an anonymous variable: {var:?}"
+                );
+                None
             }
             other => panic!("{label}: a reshaping reports only strands, got {other:?}"),
         })

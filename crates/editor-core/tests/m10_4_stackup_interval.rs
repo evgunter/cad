@@ -1712,7 +1712,10 @@ fn an_untoleranced_parameter_is_no_axis_and_blocks_no_rss() {
         other => panic!("an untoleranced parameter must not block the RSS: {other:?}"),
     }
     assert!(
-        report.per_param.iter().all(|p| p.param != var(&doc, "depth")),
+        report
+            .per_param
+            .iter()
+            .all(|p| p.param != var(&doc, "depth")),
         "an untoleranced parameter is no stackup row"
     );
 }
