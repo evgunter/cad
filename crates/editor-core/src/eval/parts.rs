@@ -64,6 +64,7 @@ use geom_core::Decide;
 use topo::Body;
 
 use crate::ProfileDoc;
+use crate::assembly::PartRow;
 use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
@@ -90,34 +91,30 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 /// seam with its geometry, in the same keys), and the MATE BOOKKEEPING
 /// that says whose declaration each record is and which of the
 /// document's mates it could not mint at all.
+///
+/// Each of the three row lists (`minted`, `unminted`, `unplaced`) is
+/// the referenced document's OWN rows first, then what it carried up
+/// from ITS parts, each as a [`PartRow`] that already holds the
+/// document's nodes it names. Instantiation adds its own instance to
+/// the route; nothing below is re-read.
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
     pub contacts: Arc<topo::ContactRecords>,
-    /// The referenced document's OWN minted declarations — which of
-    /// its mates authored which of those records, keyed in the same
-    /// arena the records are. The records already crossed the seam;
-    /// without these rows a finding against one names nobody.
-    pub minted: Arc<Vec<crate::assembly::MintedDeclaration>>,
-    /// The referenced document's own MINT REFUSALS: mates it could not
-    /// mint at all. Carried because inner mint health is the outermost
-    /// gate's business — a part with an unverifiable contact is a
-    /// broken part, and the document that instantiates it is not at
-    /// rest over it.
-    pub unminted: Arc<Vec<crate::assembly::MintRefusal>>,
-    /// What the referenced document itself carried up from ITS parts,
-    /// route and all. Instantiation extends the route; nothing below
-    /// is re-read.
-    pub carried: Arc<Vec<crate::assembly::CarriedDeclaration>>,
-    /// The same for the refusals it carried up.
-    pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
-    /// The referenced document's own UNPLACED GROUPS, by root, with
-    /// their causes, in that document's order: material its world
-    /// product leaves out (A9), which the instantiating document must
-    /// still be able to name.
-    pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
-    /// The same for the unplaced groups it carried up from its parts.
-    pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
+    /// The minted declarations — which mate authored which of those
+    /// records, keyed in the same arena the records are. The records
+    /// already crossed the seam; without these rows a finding against
+    /// one names nobody.
+    pub minted: Arc<Vec<PartRow<crate::assembly::MintedDeclaration>>>,
+    /// The MINT REFUSALS: mates that could not be minted at all.
+    /// Carried because inner mint health is the outermost gate's
+    /// business — a part with an unverifiable contact is a broken part,
+    /// and the document that instantiates it is not at rest over it.
+    pub unminted: Arc<Vec<PartRow<crate::assembly::MintRefusal>>>,
+    /// The UNPLACED GROUPS, by root, with their causes, in their
+    /// documents' order: material a world product leaves out (A9),
+    /// which the instantiating document must still be able to name.
+    pub unplaced: Arc<Vec<PartRow<crate::assembly::UnplacedGroup>>>,
     /// How many parts the referenced document's product is: its
     /// distinct root outputs ([`crate::product::Product::solid_roots`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -133,10 +130,7 @@ impl<T: Decide> Clone for PartValue<T> {
             contacts: Arc::clone(&self.contacts),
             minted: Arc::clone(&self.minted),
             unminted: Arc::clone(&self.unminted),
-            carried: Arc::clone(&self.carried),
-            carried_unminted: Arc::clone(&self.carried_unminted),
             unplaced: Arc::clone(&self.unplaced),
-            carried_unplaced: Arc::clone(&self.carried_unplaced),
             parts: self.parts,
         }
     }
@@ -653,7 +647,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
                 continue;
             }
             let reached = core::mem::take(&mut current.reached);
-            let value = self.evaluate_entered(&current.doc, &path, reached, tol);
+            let value = self.evaluate_entered(&current.doc, current.doc_ref, &path, reached, tol);
             path.pop();
             let Some(parent) = waiting.pop() else {
                 return value;
@@ -664,10 +658,17 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
     }
 
     /// One entered document's evaluation, at the end of `chain` (its
-    /// own reference last), over the parts it instantiates, reached.
+    /// own reference, `doc_ref`, last), over the parts it instantiates,
+    /// reached.
+    ///
+    /// The rows its value hands up hold the nodes they name in `doc`
+    /// ([`PartRow`]): this is the one place the version `doc_ref` pins
+    /// is in hand, and the pin is in every instance's key, so no later
+    /// label reaches them.
     fn evaluate_entered(
         &self,
         doc: &ProfileDoc,
+        doc_ref: DocRef,
         chain: &[DocRef],
         reached: Rows<T>,
         tol: Tol,
@@ -723,8 +724,28 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // they cross beside it: its own, and those its parts carried up
         // to it, read off the evaluation rather than the product so a
         // group below an instance no root gathers is named too.
-        let unplaced = Arc::new(evaluation.unplaced_groups(doc));
-        let carried_unplaced = Arc::new(evaluation.all_unplaced_below());
+        let unplaced = evaluation
+            .unplaced_groups(doc)
+            .into_iter()
+            .map(|(group, cause)| {
+                PartRow::own(
+                    doc,
+                    doc_ref.id,
+                    crate::assembly::UnplacedGroup { group, cause },
+                )
+            })
+            .chain(evaluation.all_unplaced_below().into_iter().map(|row| {
+                PartRow::below(
+                    doc,
+                    row.route,
+                    crate::assembly::UnplacedGroup {
+                        group: row.group,
+                        cause: row.cause,
+                    },
+                    row.held,
+                )
+            }))
+            .collect();
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
@@ -748,12 +769,33 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
-            minted: Arc::new(product.minted),
-            unminted: Arc::new(product.unminted),
-            carried: Arc::new(product.carried),
-            carried_unminted: Arc::new(product.carried_unminted),
-            unplaced,
-            carried_unplaced,
+            minted: Arc::new(
+                product
+                    .minted
+                    .into_iter()
+                    .map(|own| PartRow::own(doc, doc_ref.id, own))
+                    .chain(
+                        product
+                            .carried
+                            .into_iter()
+                            .map(|row| PartRow::below(doc, row.route, row.declaration, row.held)),
+                    )
+                    .collect(),
+            ),
+            unminted: Arc::new(
+                product
+                    .unminted
+                    .into_iter()
+                    .map(|own| PartRow::own(doc, doc_ref.id, own))
+                    .chain(
+                        product
+                            .carried_unminted
+                            .into_iter()
+                            .map(|row| PartRow::below(doc, row.route, row.refusal, row.held)),
+                    )
+                    .collect(),
+            ),
+            unplaced: Arc::new(unplaced),
         })
     }
 }
