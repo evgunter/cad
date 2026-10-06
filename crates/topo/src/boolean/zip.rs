@@ -301,17 +301,21 @@ pub(super) fn share_points<T: geom_core::Real>(
     body: &mut Body<T>,
     classes: &[BTreeSet<PointKey>],
 ) -> Result<(), BooleanError> {
+    // The classes are disjoint, so one index serves them all.
+    let mut on_key: BTreeMap<PointKey, Vec<VertexKey>> = BTreeMap::new();
+    for (v, d) in body.vertices() {
+        on_key.entry(d.point).or_default().push(v);
+    }
     for class in classes {
-        let on: Vec<(VertexKey, PointKey)> = body
-            .vertices()
-            .filter(|(_, d)| class.contains(&d.point))
-            .map(|(v, d)| (v, d.point))
+        let keys: Vec<PointKey> = class
+            .iter()
+            .copied()
+            .filter(|k| on_key.contains_key(k))
             .collect();
-        let keys: BTreeSet<PointKey> = on.iter().map(|&(_, k)| k).collect();
-        let Some(&onto) = keys.first().filter(|_| keys.len() > 1) else {
+        let [onto, _, ..] = keys[..] else {
             continue;
         };
-        let vertices: Vec<VertexKey> = on.into_iter().map(|(v, _)| v).collect();
+        let vertices: Vec<VertexKey> = keys.iter().flat_map(|k| on_key[k].clone()).collect();
         body.share_point(&vertices, onto)
             .ok_or(BooleanError::ZipCorrespondence {
                 what: "a pinch vertex no longer resolves",
