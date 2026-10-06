@@ -622,7 +622,27 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             _ => {
+                // The run is one bisector entry, the end bound of
+                // physical sector P's second piece (a sector holds one
+                // bisector at most), so `after` is P's orbit successor
+                // Q, and, runs being maximal, neither P's real entry
+                // nor Q's is Out. The other run's mint moves only
+                // halves whose real entries are Out, and splices only
+                // before its first half and the orbit successor of its
+                // last or, a bisector run itself, before its own
+                // `after`, the successor of another sector. None of
+                // these is Q, so the corner the table names is still
+                // `after`'s at `vertex`, whichever run mints first.
                 let after = entries[(run.0 + run.1) % n].he;
+                let in_sector = sectors[(run.0 + run.1 - 1) % n].he;
+                if piercing_body.proven_orbit_step(in_sector) != after
+                    || proven(&piercing_body.half_edges, after, EntityId::HalfEdge).start != vertex
+                {
+                    unreachable!(
+                        "the bisector run {run:?}'s corner before {after:?} left {vertex:?} or \
+                         gained a half: the other run's mint touches neither"
+                    );
+                }
                 (
                     MevSite::Fan {
                         he1: after,
@@ -1105,5 +1125,105 @@ mod tests {
             !text.contains(KERNEL_DEFECT_ENDING) && text.contains("tighten the tolerance below"),
             "{text}"
         );
+    }
+
+    /// **A bisector run minted after the other run hangs its strut in
+    /// its own corner.** The L-prism's reflex corner pierces a cube's
+    /// face in two Out runs, one of them the reflex sector's bisector
+    /// alone; which run mints first follows the orbit's start. Every
+    /// start the corner's orbit can take, the last-piece-bisector one
+    /// (whose bisector run mints second) among them, gives every op in
+    /// both orders the same volume, and the volumes keep
+    /// inclusion-exclusion.
+    #[test]
+    fn a_bisector_run_after_the_other_run_keeps_its_corner() {
+        use crate::test_support_fixtures::{mapped_cube, prism};
+        use crate::{AtRestBody, BooleanDeclarations, mass_properties};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let profile = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ];
+        // The cube of side 4 whose near face holds the corner `(1, 1, 1)`
+        // at its centre, its normal tilted 0.05 rad up from the
+        // horizontal at 0.37 of a twelfth-turn: two Out runs.
+        let cube = {
+            let (theta, phi) = (std::f64::consts::TAU * 0.37 / 12.0, 0.05_f64);
+            let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
+            let u = {
+                let c = [-m[1], m[0], 0.0];
+                let l = (c[0] * c[0] + c[1] * c[1]).sqrt();
+                [c[0] / l, c[1] / l, 0.0]
+            };
+            let w = [
+                m[1] * u[2] - m[2] * u[1],
+                m[2] * u[0] - m[0] * u[2],
+                m[0] * u[1] - m[1] * u[0],
+            ];
+            mapped_cube::<f64>(
+                move |x, y, z| {
+                    let (a, b, c) = (4.0 * x - 2.0, 4.0 * y - 2.0, 4.0 * z);
+                    let at = |i: usize| 1.0 + a * u[i] + b * w[i] + c * m[i];
+                    geom_core::Point3::new(at(0), at(1), at(2))
+                },
+                tol,
+            )
+        };
+        let cube = AtRestBody::validate(cube, tol).unwrap();
+        let decls = BooleanDeclarations::default();
+        let built = prism::<f64>(&profile, 1.0, tol);
+        let corner = built.top[3];
+        let orbit = built.body.vertex_orbit_linked(corner);
+        assert_eq!(orbit.len(), 3, "the reflex corner is trivalent");
+        let mut volumes = Vec::new();
+        let mut bisector_last = 0;
+        for start in &orbit {
+            let mut body = built.body.clone();
+            body.get_vertex_mut(corner).unwrap().emanating = Some(*start);
+            let sectors = build_sectors(&body, Operand::A, corner, band).unwrap();
+            if !sectors.last().unwrap().end_edge() {
+                bisector_last += 1;
+            }
+            let body = AtRestBody::validate(body, tol).unwrap();
+            let volume = |r: Result<crate::BooleanResult<f64>, BooleanError>| {
+                r.unwrap()
+                    .body()
+                    .map_or(0.0, |b| mass_properties(&b.body, tol).unwrap().volume)
+            };
+            volumes.push([
+                volume(crate::union_with(&body, &cube, &decls, tol)),
+                volume(crate::intersect_with(&body, &cube, &decls, tol)),
+                volume(crate::subtract_with(&body, &cube, &decls, tol)),
+                volume(crate::union_with(&cube, &body, &decls, tol)),
+                volume(crate::intersect_with(&cube, &body, &decls, tol)),
+                volume(crate::subtract_with(&cube, &body, &decls, tol)),
+            ]);
+        }
+        assert_eq!(
+            bisector_last, 1,
+            "one orbit start puts the reflex sector's bisector piece last"
+        );
+        let close = |x: f64, y: f64| (x - y).abs() < 1e-9;
+        for (k, v) in volumes.iter().enumerate() {
+            let [u, i, s, cu, ci, cs] = *v;
+            assert!(
+                close(u + i, 67.0) && close(cu, u) && close(ci, i),
+                "orbit start {k}: union and intersection keep 3 + 64 in both orders: {v:?}"
+            );
+            assert!(
+                close(s, 3.0 - i) && close(cs, 64.0 - i) && i > 0.0 && i < 3.0,
+                "orbit start {k}: each difference is its minuend less the intersection: {v:?}"
+            );
+            assert!(
+                v.iter().zip(&volumes[0]).all(|(a, b)| close(*a, *b)),
+                "orbit start {k} answers as orbit start 0: {v:?} against {:?}",
+                volumes[0]
+            );
+        }
     }
 }
