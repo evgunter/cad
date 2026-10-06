@@ -54,7 +54,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::{BoundaryMember, linked, proven};
 use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
 
@@ -2021,38 +2021,29 @@ impl<T: Decide> Body<T> {
     ///
     /// # Panics
     ///
-    /// Where a member's ring walk reaches a record that does not
-    /// resolve, does not close, or meets a half-edge its edge does not
-    /// claim: the staged body is tier-1-valid, since every operator
+    /// Where a member's rings, a ring walk, a ring member's edge or a
+    /// lone ring vertex's point reach a record that does not resolve, a
+    /// ring walk does not close, or it meets a half-edge its
+    /// edge does not claim: the staged body is tier-1-valid, since every operator
     /// the earlier groups ran keeps it so.
     fn outermost_survivor(&self, seed: FaceKey, members: Vec<FaceKey>) -> (FaceKey, Vec<FaceKey>) {
         let in_group = |f: FaceKey| f == seed || members.contains(&f);
         let mut nested: std::collections::BTreeSet<FaceKey> = std::collections::BTreeSet::new();
         for f in core::iter::once(seed).chain(members.iter().copied()) {
             let face = proven(&self.faces, f, EntityId::Face);
-            for &ring in &face.rings {
-                let first = match linked(
-                    &self.loops,
-                    ring,
-                    EntityId::Loop,
-                    EntityId::Face(f),
-                    "rings",
-                )
-                .boundary
-                {
-                    crate::entity::LoopBoundary::Cycle { first } => first,
+            for &lk in &face.rings {
+                let ring = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(f), "rings");
+                for member in self.loop_members_linked(lk, ring) {
                     // A lone-vertex ring borders no face.
-                    crate::entity::LoopBoundary::Empty { vertex: _lone } => continue,
-                };
-                for he in self.loop_walk(first).closed("loop", first) {
-                    let edge = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
-                    let e = linked(
-                        &self.edges,
-                        edge,
-                        EntityId::Edge,
-                        EntityId::HalfEdge(he),
-                        "edge",
-                    );
+                    let BoundaryMember::Edge {
+                        he,
+                        ek: edge,
+                        edge: e,
+                        ..
+                    } = member
+                    else {
+                        continue;
+                    };
                     let Some(claim) = e.claim(he) else {
                         unreachable!(
                             "{he:?}'s edge {edge:?} does not claim it: on a tier-1-valid body \
@@ -2398,33 +2389,20 @@ impl<T: Decide> Body<T> {
     ///
     /// # Panics
     ///
-    /// Where a boundary record does not resolve or a cycle does not
-    /// close: on a tier-1-valid body every one does.
+    /// Where a boundary record (a loop, a member's edge, a lone vertex
+    /// or its point) does not resolve or a cycle does not close: on a
+    /// tier-1-valid body every one does.
     #[track_caller]
     fn boundary_points(&self, face: FaceKey) -> Vec<geom_core::Point3<T>> {
         let f = proven(&self.faces, face, EntityId::Face);
-        let mut out = Vec::new();
-        for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-            let l = linked(
-                &self.loops,
-                lk,
-                EntityId::Loop,
-                EntityId::Face(face),
-                "loops",
-            );
-            match l.boundary {
-                crate::entity::LoopBoundary::Empty { vertex } => {
-                    out.push(self.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex"));
+        self.face_boundary_linked(face, f)
+            .map(|member| match member {
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    self.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
-                crate::entity::LoopBoundary::Cycle { first } => {
-                    for he in self.loop_walk(first).closed("loop", first) {
-                        let start = proven(&self.half_edges, he, EntityId::HalfEdge).start;
-                        out.push(self.linked_vertex_point(start, EntityId::HalfEdge(he), "start"));
-                    }
-                }
-            }
-        }
-        out
+            })
+            .collect()
     }
 
     /// Deletes the lone-vertex ring `ring` of `rep` with its vertex:
@@ -2943,6 +2921,26 @@ mod tests {
                 (hp.face != hm.face).then_some((hp.face, hm.face))
             })
             .expect("a cube has adjacent faces")
+    }
+
+    /// **The survivor search and the boundary points panic on a ring
+    /// link that does not resolve**, where they stepped over it.
+    #[test]
+    fn the_boundary_walks_panic_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+        let mut body = structural_planar_cube(Tol::witness());
+        let face = body.faces().next().map(|(k, _)| k).expect("a face");
+        assert_eq!(body.outermost_survivor(face, Vec::new()).0, face, "no nest");
+        assert_eq!(body.boundary_points(face).len(), 4, "four corners");
+        let named = crate::review_d18::tear_ring(&mut body, face);
+        let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
+        assert_torn_op_panics("outermost_survivor", &mut body, &premise, |b| {
+            b.outermost_survivor(face, Vec::new())
+        });
+        assert_torn_op_panics("boundary_points", &mut body, &premise, |b| {
+            b.boundary_points(face).len()
+        });
     }
 
     /// **A dangling absorbed-face key panics naming the face**: the

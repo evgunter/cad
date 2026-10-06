@@ -390,8 +390,18 @@ const SLAB_LEDGER: [&str; 3] = [
 /// lines freeze nothing: the 104 nodes each that `tan(1·atan(1))` froze
 /// are gone, as folding `tan` measured above. A probe spelling
 /// `quarter_tan` as `tan` restores 104 on both lines.
+///
+/// **When the circles began storing their authored carrier** (centre
+/// and `|r|`, `store-constructed-carriers`), the 148 decisions the door
+/// answered on the plate became theorems: `Door/Decision` calls
+/// 596 → 448 (forms 13624 → 6768), and the walks build smaller forms —
+/// the plate's largest 252 → 28 terms, `Plain/Decision` forms
+/// 16596 → 16228 and frozen 696 → 252, `Plain/Assertion` 3944 → 3915
+/// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
+/// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
+/// and the `Report` lines' moves. The slab, a polygon, does not move.
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 252;
+const PLATE_MAX_TERMS: usize = 28;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -470,21 +480,21 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).**
 ///   The loop's chart-space angle comparisons and check 5 retire, so
 ///   the walks lose exactly those decisions' forms and nothing they
-///   shared: `Plain/Decision` 1143 → 1047 calls (16596 → 16088 forms),
-///   `Early/Decision` 432 → 352 (9399 → 8971), `Door/Decision`
-///   596 → 532 (13624 → 13284), each `Assertion` line 16 calls down
-///   with its forms unmoved, and every freeze unmoved. The two `Report`
-///   lines go: the 40 residuals they rendered were among the retired
+///   shared: `Plain/Decision` 1143 → 1047 calls (16228 → 15720 forms),
+///   `Early/Decision` 432 → 352 (9117 → 8689), `Door/Decision`
+///   448 → 392 (6768 → 6474), each `Assertion` line 16 calls down with
+///   its forms unmoved, and every freeze unmoved. The two `Report` lines
+///   go: the 40 residuals they rendered were among the retired
 ///   decisions', and nothing else blocks on the plate under the shipped
 ///   rules (8 still do with the canonical root off, against 48 before).
-///   The digests of the three `Decision` lines move; the `Assertion`
-///   lines' hold.
+///   The digests of the three `Decision` lines move; the
+///   `Assertion` lines' hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1047 forms 16088 frozen 696 digest 11d7f0661bccf6c3e65634a411a5aad9\n\
-     Plain/Assertion calls 648 forms 3944 frozen 372 digest 3fc3c1d6ccf7251c60ae7b7ad0cd5f7d\n\
-     Early/Decision calls 352 forms 8971 frozen 8 digest c233a6a7ec193c58c729c61bd9570b21\n\
-     Early/Assertion calls 648 forms 4860 frozen 0 digest da899654fa4aca546b0c78ee005e679c\n\
-     Door/Decision calls 532 forms 13284 frozen 0 digest 39af0b88fc91e4b4f1bbff95112dc176\n\
+     Plain/Decision calls 1047 forms 15720 frozen 252 digest 819c9f436cdc226f41349d945d214504\n\
+     Plain/Assertion calls 648 forms 3915 frozen 360 digest fad58c6c6cf5c21324e21b64ab8b051b\n\
+     Early/Decision calls 352 forms 8689 frozen 0 digest a34eca281f7e34fd1721f3b563596957\n\
+     Early/Assertion calls 648 forms 4831 frozen 0 digest 617250390b9c9641d9be0c89ae3c8e57\n\
+     Door/Decision calls 392 forms 6474 frozen 0 digest 540b8864148005c380b1cc42eaa0eb95\n\
      Door/Assertion calls 392 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

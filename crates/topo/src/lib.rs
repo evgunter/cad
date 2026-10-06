@@ -194,7 +194,7 @@ pub(crate) mod policy_lane;
 pub mod props;
 pub mod provenance;
 pub mod query;
-pub(crate) mod ray_parity;
+pub(crate) mod ray_walk;
 pub mod readback;
 pub mod replace_face;
 pub mod revert;
@@ -734,19 +734,20 @@ pub use body::Body;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
-    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
-    CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError,
-    Contradiction, CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration,
-    HeldEdge, LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace,
-    PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, RestZipFrontier, SectorRung,
-    SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion,
-    SweepStrategy, SweepTrace, TorusConvention, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
-    lineage_root, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
-    subtract, subtract_with, tangent_pair_relation, union, union_with,
+    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
+    Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
+    ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow, EdgeJoin, EeContact,
+    FaceContainment, FacePairDeclaration, HeldEdge, LeverArm, NeighbourOffset, NullEdgePairRecord,
+    Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling, ShellOrientation,
+    SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
+    TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
+    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
+    insert_void, insert_voids, intersect, intersect_with, joinable_vertices, lineage_root,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
+    subtract_with, tangent_pair_relation, union, union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
@@ -830,7 +831,6 @@ pub use query::{
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
-pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
@@ -841,12 +841,12 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ConicCrossingsCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord,
-    OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionError,
-    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
-    SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,
-    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
-    split_reduce, vertex_sides,
+    ConicCrossingsCase, ConicRootFault, CrossingDecision, KnifeEdge, KnifeEdgeSite,
+    LoopContainment, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
+    SectionEdge, SectionError, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind,
+    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
+    SplitReduction, SplitResult, Uncrossable, UncrossableCarrier, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

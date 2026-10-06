@@ -578,11 +578,14 @@ impl core::fmt::Display for CensusSubject {
 /// is a cap: a seventeenth direction is available in exactly the
 /// sense a larger budget is. What separates them is what the spent
 /// work MEASURED. `RayExhausted` fires when every direction tried
-/// returned an IN-BAND margin, and an in-band margin is a verdict
-/// about where the point sits relative to the boundary — within ε of
-/// it — not about the direction that read it. Another direction reads
-/// the same configuration and lands in the same band; only moving the
-/// point or tightening ε changes the answer.
+/// grazed — a vertex within the band's zero of its ray line, or a
+/// crossing at the point — for a point the pre-pass placed off the
+/// boundary: sixteen spread directions each grazing is a fact about
+/// where the point sits among the boundary's vertices, not about the
+/// directions that read it (a direction read IN band sets that ray
+/// aside, and is the refusal, [`Escalated`](ChartRegionError::Escalated),
+/// only where no direction answers). A graze carries no margin to size
+/// a tolerance by; moving the point changes the answer.
 /// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
 /// is the opposite: its cap stops the arrangement being BUILT, so
 /// nothing was measured at all, and the work it declined to do would
@@ -2040,12 +2043,12 @@ pub enum CensusContact {
         /// The face.
         face: FaceKey,
     },
-    /// A vertex on an edge's interior. No VERTEX-granularity record
-    /// names it — the boolean lane refines every such contact into v-v
-    /// records before records are emitted — so at rest it is
-    /// certifiable through the face rung alone: a declared face pair
-    /// holding the vertex on one boundary and the edge on the other
-    /// (census module docs, D4). Unbacked, it is a defect.
+    /// A vertex on an edge's interior. Backed by its `(vertex, edge)`
+    /// record (a join leaves one where it joins a v-v record's vertex
+    /// away; the boolean lane refines the event into v-v records
+    /// instead), or by the face rung: a declared face pair holding the
+    /// vertex on one boundary and the edge on the other (census module
+    /// docs, D4). Unbacked, it is a defect.
     VertexOnEdge {
         /// The resting vertex.
         vertex: VertexKey,
@@ -2064,8 +2067,10 @@ pub enum CensusContact {
         face: FaceKey,
     },
     /// Two edges crossing at both interiors (coplanar or skew-with-
-    /// contact). Backable at the census's unified strength when the
-    /// crossing lies in a declared pair's verified overlap region
+    /// contact). Backed by its edge-edge record (a join leaves one where
+    /// it joins both vertices of a v-v record away), or at the census's
+    /// unified strength when the crossing lies in a declared pair's
+    /// verified overlap region
     /// with material on opposite sides of the shared carrier (an
     /// overhanging seat — `census.rs`'s crossing rung); otherwise a
     /// hard finding, the refusal naming the side verdict where a
@@ -2154,6 +2159,22 @@ pub enum StaleDeclaration {
         /// The record's face.
         face: FaceKey,
     },
+    /// A v-on-e record whose vertex or edge is dead, whose vertex ends
+    /// the edge, or whose vertex does not rest on the edge's interior.
+    VertexOnEdge {
+        /// The record's vertex.
+        vertex: VertexKey,
+        /// The record's edge.
+        edge: crate::entity::EdgeKey,
+    },
+    /// An e-e record whose edges are dead or one, or whose interiors
+    /// neither cross nor overlap.
+    EdgeEdge {
+        /// One of the record's edges.
+        a: crate::entity::EdgeKey,
+        /// The other.
+        b: crate::entity::EdgeKey,
+    },
     /// A curve-granularity record whose faces or witness edge no
     /// longer resolve — the locus that certified it is gone.
     CurveLocus {
@@ -2178,18 +2199,20 @@ pub enum StaleDeclaration {
 /// Prose, not `Debug` guts, for the same reason
 /// [`CensusContact`]'s rendering is: this payload is quoted into
 /// [`ValidationError::StaleContactDeclaration`]'s user-facing message.
-/// Each arm names the record's GRANULARITY — which KIND of declaration
-/// went stale. Which record it is rides in the typed fields, and at the
+/// Each arm names the record's GRANULARITY — which KIND of record went
+/// stale. Which record it is rides in the typed fields, and at the
 /// viewer the at-rest refusal's attribution names the mate that made
 /// it, where a mate did.
 impl fmt::Display for StaleDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // In words, without the keys: the typed fields carry them.
         f.write_str(match self {
-            Self::VertexVertex { .. } => "a declared vertex-to-vertex contact",
-            Self::VertexOnFace { .. } => "a declared vertex-on-face contact",
-            Self::CurveLocus { .. } => "a declared contact along an edge",
-            Self::Patch { .. } => "a declared face-to-face contact",
+            Self::VertexVertex { .. } => "a recorded vertex-to-vertex contact",
+            Self::VertexOnFace { .. } => "a recorded vertex-on-face contact",
+            Self::VertexOnEdge { .. } => "a recorded vertex-on-edge contact",
+            Self::EdgeEdge { .. } => "a recorded edge-to-edge contact",
+            Self::CurveLocus { .. } => "a recorded contact along an edge",
+            Self::Patch { .. } => "a recorded face-to-face contact",
         })
     }
 }
@@ -3012,10 +3035,10 @@ const CLOSE_TO_BOUNDARY: &str =
 
 const UNWALKABLE: &str = "its boundary could not be walked";
 
-/// Every ray parity cast grazed, for a point a pre-pass had already
-/// placed off the boundary.
-const GRAZED: &str =
-    "a point the check read is off the boundary, but every test ray from it grazed the boundary";
+/// No ray parity cast settled — each grazed or gave nothing to read —
+/// for a point a pre-pass had already placed off the boundary.
+const GRAZED: &str = "a point the check read is off the boundary, but no test ray from it \
+                      settled where it lies: each grazed the boundary or could not be read";
 
 /// The lever for a point with nothing to declare a coincidence with.
 const MOVE_GEOMETRY: &str = concat!("Recourse: ", geom_core::coincidence_move_arm!());
@@ -3148,7 +3171,9 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "their overlap is too close to call at this tolerance",
             too_close(Some(&diag.margin)),
         ),
-        ChartRegionError::RayExhausted => (GRAZED, too_close(None)),
+        // The rays are the check's own: no coincidence to declare, and no
+        // margin to size a tolerance by (`ray_walk::NoRaySettled`).
+        ChartRegionError::RayExhausted => (GRAZED, MOVE_GEOMETRY),
         ChartRegionError::WitnessBudgetExhausted { .. } => (
             "their boundaries cross too many times for the check to finish",
             "Recourse: simplify the faces' boundaries",
@@ -10310,9 +10335,7 @@ mod tests {
                 e,
                 ValidationError::CensusEscalated { .. }
                     | ValidationError::CensusUnsupported {
-                        cause: CensusUnsupportedCause::ChartRegion(
-                            R::Escalated(_) | R::RayExhausted
-                        ),
+                        cause: CensusUnsupportedCause::ChartRegion(R::Escalated(_)),
                         ..
                     }
             )
@@ -11547,7 +11570,7 @@ mod tests {
                 .collect()
         };
         for (name, body) in [("honest", &honest), ("mutant", &mutant)] {
-            let reverted = body.revert().unwrap();
+            let reverted = body.revert();
             assert_eq!(
                 shape(body),
                 shape(&reverted),
@@ -11562,7 +11585,7 @@ mod tests {
             bowed_square_with_ring(13.0, 14.0, tol),
         ];
         for (name, (body, _)) in ["lune", "past the arc"].into_iter().zip(&bowed) {
-            let reverted = body.revert().unwrap();
+            let reverted = body.revert();
             assert_eq!(
                 shape(body),
                 shape(&reverted),
@@ -13702,7 +13725,7 @@ mod review_census_display_keys {
             }
         }
         assert_eq!(
-            checked, 12,
+            checked, 14,
             "every CensusContact and StaleDeclaration sample"
         );
     }

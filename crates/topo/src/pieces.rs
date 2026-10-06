@@ -377,7 +377,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         for &([x, y, z], inside_out) in boxes {
             let b = brick(x, y, z, tol);
-            let b = if inside_out { b.revert().unwrap() } else { b };
+            let b = if inside_out { b.revert() } else { b };
             crate::graft_disjoint_all_keyed(&mut body, &b).unwrap();
         }
         body.merge_all_solids().unwrap();

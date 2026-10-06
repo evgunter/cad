@@ -15,6 +15,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey};
 
 use crate::common::shell_operands::{tube, vessel};
+use sweep::test_support::finished;
 
 fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
@@ -135,39 +136,82 @@ fn r1_dump_single_shell_corpus() {
     // stands in (the meridian is a polyline, so every wall is exact).
     let pot = revolved(&[(0.0, 0.0), (0.8, 0.0), (1.2, 1.0), (1.0, 2.0), (0.0, 2.0)]);
 
-    dump("box sealed", &topo::shell(&boxy, 0.25, tol));
-    dump("ell sealed", &topo::shell(&ell, 0.2, tol));
-    dump("vessel sealed", &topo::shell(&vessel, 0.2, tol));
-    dump("tube sealed", &topo::shell(&tube, 0.1, tol));
-    dump("pot sealed", &topo::shell(&pot, 0.15, tol));
+    dump(
+        "box sealed",
+        &topo::shell(&finished("the operand", boxy.clone(), tol), 0.25, tol),
+    );
+    dump(
+        "ell sealed",
+        &topo::shell(&finished("the operand", ell.clone(), tol), 0.2, tol),
+    );
+    dump(
+        "vessel sealed",
+        &topo::shell(&finished("the operand", vessel.clone(), tol), 0.2, tol),
+    );
+    dump(
+        "tube sealed",
+        &topo::shell(&finished("the operand", tube.clone(), tol), 0.1, tol),
+    );
+    dump(
+        "pot sealed",
+        &topo::shell(&finished("the operand", pot.clone(), tol), 0.15, tol),
+    );
 
     let top = planes_where(&boxy, (0.0, 0.0, 1.0), 4.0);
-    dump("box opened top", &topo::shell_open(&boxy, 0.25, &top, tol));
+    dump(
+        "box opened top",
+        &topo::shell_open(&finished("the operand", boxy.clone(), tol), 0.25, &top, tol),
+    );
     let bottom = planes_where(&boxy, (0.0, 0.0, -1.0), 0.0);
     let mut both = top.clone();
     both.extend(bottom);
     dump(
         "box opened top+bottom",
-        &topo::shell_open(&boxy, 0.25, &both, tol),
+        &topo::shell_open(
+            &finished("the operand", boxy.clone(), tol),
+            0.25,
+            &both,
+            tol,
+        ),
     );
     let ell_top = planes_where(&ell, (0.0, 0.0, 1.0), 2.0);
     dump(
         "ell opened top",
-        &topo::shell_open(&ell, 0.2, &ell_top, tol),
+        &topo::shell_open(
+            &finished("the operand", ell.clone(), tol),
+            0.2,
+            &ell_top,
+            tol,
+        ),
     );
     let vessel_top = planes_where(&vessel, (0.0, 1.0, 0.0), 2.0);
     dump(
         "vessel opened top",
-        &topo::shell_open(&vessel, 0.2, &vessel_top, tol),
+        &topo::shell_open(
+            &finished("the operand", vessel.clone(), tol),
+            0.2,
+            &vessel_top,
+            tol,
+        ),
     );
     let pot_top = planes_where(&pot, (0.0, 1.0, 0.0), 2.0);
     dump(
         "pot opened top",
-        &topo::shell_open(&pot, 0.15, &pot_top, tol),
+        &topo::shell_open(
+            &finished("the operand", pot.clone(), tol),
+            0.15,
+            &pot_top,
+            tol,
+        ),
     );
     let tube_top = planes_where(&tube, (0.0, 1.0, 0.0), 2.0);
     dump(
         "tube opened top",
-        &topo::shell_open(&tube, 0.1, &tube_top, tol),
+        &topo::shell_open(
+            &finished("the operand", tube.clone(), tol),
+            0.1,
+            &tube_top,
+            tol,
+        ),
     );
 }

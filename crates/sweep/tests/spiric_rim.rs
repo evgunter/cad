@@ -26,6 +26,7 @@ use topo::{Body, ShellError, transform_rigid};
 use crate::common::charts::hollow_moves;
 use crate::common::poses::torax_pose;
 use crate::common::torus_walls::{klein_elbow, props_door, vessel_cavity, vessel_quarter};
+use sweep::test_support::finished;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -374,7 +375,8 @@ fn the_census_refusals_through_public_doors() {
 #[test]
 fn the_elbow_stops_at_the_props_door() {
     let elbow = klein_elbow_of_disc(0.275);
-    let e = topo::shell(&elbow, 0.05, tol()).expect_err("check 7's volume");
+    let e = topo::shell(&finished("the operand", elbow.clone(), tol()), 0.05, tol())
+        .expect_err("check 7's volume");
     println!("[spiric] the elbow's door: {e:?}");
     let (_, source) = props_door(&e).unwrap_or_else(|| panic!("the props door, got {e:?}"));
     assert_eq!(
@@ -407,7 +409,12 @@ fn the_elbow_stops_at_the_props_door() {
 fn the_sectioned_vessel_stops_at_the_props_door() {
     let quarter = vessel_quarter();
     assert_eq!(topo::validate_geometric(&quarter, tol()), Ok(()));
-    let e = topo::shell(&quarter, 1.0 / 128.0, tol()).expect_err("tier 3's volume");
+    let e = topo::shell(
+        &finished("the operand", quarter.clone(), tol()),
+        1.0 / 128.0,
+        tol(),
+    )
+    .expect_err("tier 3's volume");
     println!("[spiric] the sectioned vessel's door: {e:?}");
     let ShellError::NotValid { errors } = e else {
         panic!("the hollow must reach tier 3, got {e:?}");
