@@ -404,12 +404,13 @@ pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str
 }
 
 /// The stable tag for a text refused as a label — which of the label
-/// rule's three clauses it broke.
+/// rule's four clauses it broke.
 pub fn label_fault_tag(fault: &LabelFault) -> &'static str {
     match fault {
         LabelFault::Blank => "label_blank",
         LabelFault::LineBreak { .. } => "label_line_break",
         LabelFault::Control { .. } => "label_control_character",
+        LabelFault::Direction { .. } => "label_direction_control",
     }
 }
 
