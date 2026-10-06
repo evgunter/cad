@@ -37,7 +37,10 @@
 //! placed `Out` of the face by its door
 //! ([`super::contain::curved_face_placement`]), says none. Every edge is
 //! decided clear by a lower bound on its distance from the foot
-//! ([`edge_clear_of_ball`]).
+//! ([`edge_clear_of_ball`]), before the foot is placed: a vertex or edge
+//! inside the ball already keeps the door, and only past it is every
+//! member of the boundary farther than `escalate` from the foot, where
+//! the placement's coincidence rows decide.
 //!
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! and a curve with no speed bound localize nothing, and the door stays.
