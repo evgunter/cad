@@ -786,13 +786,15 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     assert_eq!(shapes[4], shapes[5], "X ∩ plate and plate ∩ X: one body");
 }
 
-use topo::test_support::meeting::{Hole, ell, wedge as sector};
+use topo::test_support::meeting::{
+    Hole, PLATE, ell_and_wedges, four_wedges, three_wedges, two_wedges, wedges_on_one_side,
+};
 
 /// The plate and a prism per hole, each sketched on its tilted frame
 /// and extruded along it: above the top the prisms lean apart and touch
 /// nowhere, below it they cross inside the plate.
 fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (mut doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (mut doc, plate) = block(doc, PLATE[0], PLATE[1], PLATE[2].0, PLATE[2].1);
     let mut m = vec![plate];
     for h in holes {
         let [o, u, v, _] = h.frame();
@@ -809,40 +811,6 @@ fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<RecipeNodeI
         m.push(w);
     }
     (doc, m)
-}
-
-fn two_wedges() -> Vec<Hole> {
-    vec![sector(0.0, 50.0, 0), sector(120.0, 170.0, 1)]
-}
-
-fn three_wedges() -> Vec<Hole> {
-    vec![
-        sector(0.0, 50.0, 0),
-        sector(120.0, 170.0, 1),
-        sector(240.0, 290.0, 2),
-    ]
-}
-
-fn four_wedges() -> Vec<Hole> {
-    vec![
-        sector(0.0, 50.0, 0),
-        sector(90.0, 140.0, 1),
-        sector(180.0, 230.0, 2),
-        sector(270.0, 320.0, 3),
-    ]
-}
-
-/// Three wedges on one side, leaving the top a reflex sector where they meet.
-fn wedges_on_one_side() -> Vec<Hole> {
-    vec![
-        sector(0.0, 40.0, 0),
-        sector(60.0, 100.0, 1),
-        sector(120.0, 160.0, 2),
-    ]
-}
-
-fn ell_and_wedges() -> Vec<Hole> {
-    vec![ell(), sector(190.0, 220.0, 1), sector(235.0, 260.0, 2)]
 }
 
 /// A row over [`tilted_holes`]: its label, its holes, the fixture over

@@ -305,7 +305,10 @@ pub mod test_support {
     /// Holes meeting at one vertex of a plate's top
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
-        pub use crate::test_support_meeting::{Hole, MEET, corners_disjoint, ell, wedge};
+        pub use crate::test_support_meeting::{
+            Hole, MEET, PLATE, corners_disjoint, cycles_of, ell, ell_and_wedges, four_wedges,
+            inner_rows, notch, notch_rows, three_wedges, two_wedges, wedge, wedges_on_one_side,
+        };
     }
 
     /// `body` finished for a door that takes finished bodies (the

@@ -53,8 +53,14 @@ eb1fae63:
 **The two-face `kef` crossing builds it too.** With the one-ring
 crossing and `Joint::Hole` refused, which was a measurement only and has
 since been reverted, `two_pinches_in_one_op_are_each_crossed` still
-built 2 of its ops crossed. So the question is about the representation
-as a whole, not about one arm.
+built 2 of its ops crossed. It reaches k = 3 too: on PR 4129's
+first fix-pass head 9af820e5, whose gate covered only the one-ring
+crossing, three leaning wedges whose footprints notch the plate's edge
+(`topo::test_support::meeting::notch_rows`) built P − U crossed through
+the `kef`, [21, 57, 34], the top's outer loops passing the point three
+times; two notches and a wedge built [18, 52, 32]. Both refuse typed on
+the PR's head. So the question is about the representation as a
+whole, not about one arm.
 
 **Tiers 3 and 3′ cannot see it.** The overlapping sectors pass both
 tiers and the volume. That is RESTFRONT's
@@ -68,9 +74,10 @@ k-rings form, [18, 41, 25]. A later boolean on that body can refuse
 along one direction in one sector entry" }`. The plate less each wedge
 in turn builds the other form, and further booleans build on it.
 
-**PR 4129's narrowing.** Three or more holes on one ring are refused
-typed at the zip (`PinchOfManyHolesInOneRing`) rather than crossed into
-k rings. The rows are in
+**PR 4129's narrowing.** A crossing whose boundary passes the point
+three or more times, one ring or the faces of one plane its `kef` would
+merge, is refused typed at the zip (`PinchOfManyHolesInOneRing`)
+rather than crossed. The rows are in
 `crates/topo/tests/holes_meeting_at_a_vertex.rs`,
 `the_plate_against_the_holes_union_builds_sound_or_refuses_typed_in_every_op`.
 

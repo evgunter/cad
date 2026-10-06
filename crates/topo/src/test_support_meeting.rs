@@ -12,6 +12,9 @@ use std::collections::BTreeMap;
 use crate::body::Body;
 use crate::entity::{Face, HalfEdgeKey, LoopBoundary, VertexKey};
 
+/// The plate, `[x, y, z]` bounds.
+pub const PLATE: [(f64, f64); 3] = [(0.0, 3.0), (0.0, 2.0), (0.0, 1.0)];
+
 /// Where the holes meet: a vertex of the plate's top.
 pub const MEET: [f64; 3] = [1.5, 1.0, 1.0];
 
@@ -82,9 +85,15 @@ impl Hole {
 /// [`MEET`], leaning along its bisector; `k` staggers its reach and
 /// length.
 pub fn wedge(a0: f64, a1: f64, k: usize) -> Hole {
+    notch(a0, a1, k, 0.4)
+}
+
+/// [`wedge`] of radius `r`: past the plate's edge where `r` reaches it,
+/// so its hole notches the top's boundary rather than lying inside it.
+pub fn notch(a0: f64, a1: f64, k: usize, r: f64) -> Hole {
     let at = |a: f64| {
         let (s, c) = a.to_radians().sin_cos();
-        (0.4f64.mul_add(c, MEET[0]), 0.4f64.mul_add(s, MEET[1]))
+        (r.mul_add(c, MEET[0]), r.mul_add(s, MEET[1]))
     };
     let k = k as f64;
     Hole {
@@ -113,17 +122,129 @@ pub fn ell() -> Hole {
     }
 }
 
+pub fn two_wedges() -> Vec<Hole> {
+    vec![wedge(0.0, 50.0, 0), wedge(120.0, 170.0, 1)]
+}
+
+pub fn three_wedges() -> Vec<Hole> {
+    vec![
+        wedge(0.0, 50.0, 0),
+        wedge(120.0, 170.0, 1),
+        wedge(240.0, 290.0, 2),
+    ]
+}
+
+pub fn four_wedges() -> Vec<Hole> {
+    vec![
+        wedge(0.0, 50.0, 0),
+        wedge(90.0, 140.0, 1),
+        wedge(180.0, 230.0, 2),
+        wedge(270.0, 320.0, 3),
+    ]
+}
+
+/// Three wedges on one side, leaving the top a reflex sector at [`MEET`].
+pub fn wedges_on_one_side() -> Vec<Hole> {
+    vec![
+        wedge(0.0, 40.0, 0),
+        wedge(60.0, 100.0, 1),
+        wedge(120.0, 160.0, 2),
+    ]
+}
+
+/// An L-shaped hole and two wedges in the quadrant it leaves.
+pub fn ell_and_wedges() -> Vec<Hole> {
+    vec![ell(), wedge(190.0, 220.0, 1), wedge(235.0, 260.0, 2)]
+}
+
+/// The holes inside the top, labelled: [`two_wedges`] and the four
+/// fixtures after it.
+pub fn inner_rows() -> Vec<(&'static str, Vec<Hole>)> {
+    vec![
+        ("two wedges", two_wedges()),
+        ("three wedges", three_wedges()),
+        ("four wedges", four_wedges()),
+        ("three wedges on one side", wedges_on_one_side()),
+        ("an L and two wedges", ell_and_wedges()),
+    ]
+}
+
+/// Holes of which some notch the top's boundary ([`notch`]), labelled:
+/// the top less them is several faces of one plane meeting at
+/// [`MEET`].
+pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
+    vec![
+        (
+            "three notches",
+            vec![
+                notch(80.0, 100.0, 0, 2.0),
+                notch(200.0, 220.0, 1, 2.5),
+                notch(320.0, 340.0, 2, 2.5),
+            ],
+        ),
+        (
+            "two notches and a wedge",
+            vec![
+                notch(80.0, 100.0, 0, 2.0),
+                notch(260.0, 280.0, 1, 2.0),
+                wedge(150.0, 200.0, 2),
+            ],
+        ),
+        (
+            "two notches and two wedges",
+            vec![
+                notch(80.0, 100.0, 0, 2.0),
+                notch(260.0, 280.0, 1, 2.0),
+                wedge(150.0, 200.0, 2),
+                wedge(330.0, 20.0 + 360.0, 3),
+            ],
+        ),
+        (
+            "a notch and two wedges",
+            vec![
+                notch(80.0, 100.0, 0, 2.0),
+                wedge(150.0, 200.0, 1),
+                wedge(300.0, 350.0, 2),
+            ],
+        ),
+    ]
+}
+
 /// **Every face's corners at one vertex are angularly disjoint** about
 /// the face's Newell normal: a loop through a vertex twice or more,
 /// or two loops through one vertex, pass their corners there without
 /// crossing. A corner sweeps counterclockwise from its leaving edge to
 /// its arriving one, the face on the left. Corners are grouped by
 /// vertex key, so coincident vertices are compared only as the
-/// topology joins them. Planar faces with straight edges only.
+/// topology joins them.
+///
+/// It reads planar faces with straight edges of positive length, and
+/// refuses any other face rather than measure it.
 pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
     use std::f64::consts::TAU;
     for (fk, f) in body.faces() {
+        if !matches!(
+            body.get_surface(f.surface),
+            Some(geom::Surface::Plane { .. })
+        ) {
+            return Err(format!(
+                "{fk:?} is not planar: the check reads planar faces"
+            ));
+        }
         let cycles = cycles_of(body, f);
+        for &he in cycles.iter().flatten() {
+            let straight = body
+                .get_half_edge(he)
+                .and_then(|h| body.get_edge(h.edge))
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|c| c.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+            if !straight {
+                return Err(format!(
+                    "{fk:?}: {he:?} is not a straight edge: the check reads straight edges"
+                ));
+            }
+        }
         let pt = |he| {
             body.half_edge_start_point(he)
                 .ok_or_else(|| format!("{he:?} has no start point"))
@@ -162,8 +283,12 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
                     pt(cycle[i])?,
                     pt(cycle[(i + 1) % m])?,
                 );
-                let from = angle(next - here);
-                let sweep = (angle(prev - here) - from).rem_euclid(TAU);
+                let (out, back) = (next - here, prev - here);
+                if out.norm() < 1e-12 || back.norm() < 1e-12 {
+                    return Err(format!("{fk:?}: a zero-length edge at {:?}", cycle[i]));
+                }
+                let from = angle(out);
+                let sweep = (angle(back) - from).rem_euclid(TAU);
                 corners
                     .entry(start(cycle[i])?)
                     .or_default()
@@ -184,7 +309,7 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
 }
 
 /// The half-edge cycles of a face's loops, outer first.
-fn cycles_of(body: &Body<f64>, f: &Face) -> Vec<Vec<HalfEdgeKey>> {
+pub fn cycles_of(body: &Body<f64>, f: &Face) -> Vec<Vec<HalfEdgeKey>> {
     core::iter::once(f.outer)
         .chain(f.rings.iter().copied())
         .filter_map(|l| match body.get_loop(l)?.boundary {

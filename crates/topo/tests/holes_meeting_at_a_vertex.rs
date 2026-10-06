@@ -26,7 +26,10 @@
 
 use crate::common;
 
-use common::meeting::{Hole, MEET, corners_disjoint, ell, wedge};
+use common::meeting::{
+    Hole, MEET, PLATE, corners_disjoint, cycles_of, ell_and_wedges, four_wedges, inner_rows,
+    notch_rows, three_wedges, two_wedges, wedges_on_one_side,
+};
 use common::{FaceGeometry, brick, describe_as_intersections, finished, prism_ops};
 use geom_core::{Point3, Tol};
 use topo::{AtRestBody, Body, BooleanResult, union, validate_geometric, validate_pseudomanifold};
@@ -61,17 +64,6 @@ fn at(p: Point3<f64>) -> Point {
     (n(p.x), n(p.y), n(p.z))
 }
 
-/// The cycles of a face's loops.
-fn loops(body: &Body<f64>, f: &topo::Face) -> Vec<Vec<topo::HalfEdgeKey>> {
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
-        .map(|l| match body.get_loop(l).unwrap().boundary {
-            topo::LoopBoundary::Cycle { first } => body.loop_cycle(first).unwrap(),
-            topo::LoopBoundary::Empty { .. } => panic!("a closed body has no empty loop"),
-        })
-        .collect()
-}
-
 /// A body's geometry, key-free: each face by the points of its loops'
 /// vertices, each edge by its ends' points, as sorted multisets.
 fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
@@ -79,7 +71,7 @@ fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
     let mut faces: Vec<Vec<Point>> = body
         .faces()
         .map(|(_, f)| {
-            let mut ps: Vec<Point> = loops(body, f).into_iter().flatten().map(pt).collect();
+            let mut ps: Vec<Point> = cycles_of(body, f).into_iter().flatten().map(pt).collect();
             ps.sort_unstable();
             ps
         })
@@ -118,7 +110,7 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
     let mut members = vec![finished(
         "the plate",
-        brick::<f64>((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), t()),
+        brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
         t(),
     )];
     members.extend(holes.iter().map(prism));
@@ -173,30 +165,9 @@ fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
 /// one body in every member order.**
 #[test]
 fn wedges_meeting_at_a_vertex_build_one_body_in_every_member_order() {
-    every_order(
-        "two wedges",
-        &[wedge(0.0, 50.0, 0), wedge(120.0, 170.0, 1)],
-        [14, 30, 19],
-    );
-    every_order(
-        "three wedges",
-        &[
-            wedge(0.0, 50.0, 0),
-            wedge(120.0, 170.0, 1),
-            wedge(240.0, 290.0, 2),
-        ],
-        [18, 39, 24],
-    );
-    every_order(
-        "four wedges",
-        &[
-            wedge(0.0, 50.0, 0),
-            wedge(90.0, 140.0, 1),
-            wedge(180.0, 230.0, 2),
-            wedge(270.0, 320.0, 3),
-        ],
-        [22, 48, 29],
-    );
+    every_order("two wedges", &two_wedges(), [14, 30, 19]);
+    every_order("three wedges", &three_wedges(), [18, 39, 24]);
+    every_order("four wedges", &four_wedges(), [22, 48, 29]);
 }
 
 /// **Holes meeting at a vertex with a reflex sector there build one body
@@ -207,27 +178,109 @@ fn wedges_meeting_at_a_vertex_build_one_body_in_every_member_order() {
 fn holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_order() {
     every_order(
         "three wedges on one side",
-        &[
-            wedge(0.0, 40.0, 0),
-            wedge(60.0, 100.0, 1),
-            wedge(120.0, 160.0, 2),
-        ],
+        &wedges_on_one_side(),
         [18, 39, 24],
     );
-    every_order(
-        "an L and two wedges",
-        &[ell(), wedge(190.0, 220.0, 1), wedge(235.0, 260.0, 2)],
-        [21, 48, 30],
-    );
+    every_order("an L and two wedges", &ell_and_wedges(), [21, 48, 30]);
 }
 
-/// The plate.
-fn plate() -> AtRestBody<f64> {
-    finished(
-        "the plate",
-        brick::<f64>((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), t()),
+/// A rigid motion of the whole scene: `x ↦ r x + t`.
+struct Pose {
+    label: &'static str,
+    r: [[f64; 3]; 3],
+    t: [f64; 3],
+}
+
+impl Pose {
+    /// The turn by `angle` about `axis`, then the shift `t`.
+    fn turn(label: &'static str, axis: [f64; 3], angle: f64, t: [f64; 3]) -> Self {
+        let l = axis.iter().map(|a| a * a).sum::<f64>().sqrt();
+        let [x, y, z] = axis.map(|a| a / l);
+        let (s, c) = angle.sin_cos();
+        let d = 1.0 - c;
+        let r = [
+            [c + x * x * d, x * y * d - z * s, x * z * d + y * s],
+            [y * x * d + z * s, c + y * y * d, y * z * d - x * s],
+            [z * x * d - y * s, z * y * d + x * s, c + z * z * d],
+        ];
+        Self { label, r, t }
+    }
+
+    /// The pose then `self`.
+    fn after(self, first: &Self) -> Self {
+        let r = [0, 1, 2]
+            .map(|i| [0, 1, 2].map(|j| (0..3).map(|k| self.r[i][k] * first.r[k][j]).sum::<f64>()));
+        let t =
+            [0, 1, 2].map(|i| (0..3).map(|k| self.r[i][k] * first.t[k]).sum::<f64>() + self.t[i]);
+        Self {
+            label: self.label,
+            r,
+            t,
+        }
+    }
+
+    fn at(&self, p: [f64; 3]) -> Point3<f64> {
+        let q = [0, 1, 2].map(|i| (0..3).map(|k| self.r[i][k] * p[k]).sum::<f64>() + self.t[i]);
+        Point3::new(q[0], q[1], q[2])
+    }
+}
+
+/// The scene's poses: at rest, turned about the top's normal, turned in
+/// general, and flipped (the top facing −z) at rest and turned.
+fn poses() -> Vec<Pose> {
+    let flip = || {
+        Pose::turn(
+            "flipped",
+            [1.0, 0.0, 0.0],
+            std::f64::consts::PI,
+            [0.0, 0.0, 0.0],
+        )
+    };
+    vec![
+        Pose::turn("at rest", [0.0, 0.0, 1.0], 0.0, [0.0, 0.0, 0.0]),
+        Pose::turn("turned about z", [0.0, 0.0, 1.0], 0.65, [0.0, 0.0, 0.0]),
+        Pose::turn("turned", [1.0, 2.0, 3.0], 0.7, [0.3, -0.2, 0.5]),
+        flip(),
+        Pose::turn(
+            "flipped and turned",
+            [-2.0, 1.0, 1.0],
+            1.1,
+            [-0.4, 0.1, 0.3],
+        )
+        .after(&flip()),
+    ]
+}
+
+/// A box `[x, y, z]` placed by `pose`.
+fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose) -> AtRestBody<f64> {
+    let [(x0, x1), (y0, y1), z] = b;
+    let mut body = Body::<f64>::new();
+    prism_ops(
+        &mut body,
+        &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+        z,
+        |x, y, z| pose.at([x, y, z]),
+        FaceGeometry::Certified,
         t(),
-    )
+    );
+    describe_as_intersections(&mut body, t());
+    finished(what, body, t())
+}
+
+/// A hole's prism placed by `pose`.
+fn posed_prism(h: &Hole, pose: &Pose) -> AtRestBody<f64> {
+    let [o, u, v, n] = h.frame();
+    let mut body = Body::<f64>::new();
+    prism_ops(
+        &mut body,
+        &h.profile(),
+        (0.0, h.length),
+        |x, y, z| pose.at([0, 1, 2].map(|i| o[i] + x * u[i] + y * v[i] + z * n[i])),
+        FaceGeometry::Certified,
+        t(),
+    );
+    describe_as_intersections(&mut body, t());
+    finished("a tilted prism", body, t())
 }
 
 fn body(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>) -> AtRestBody<f64> {
@@ -238,127 +291,128 @@ fn body(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>) -> AtRest
     }
 }
 
-/// Asserts `b` is tier-3 valid with `volume`, its corners disjoint, and
+fn volume(b: &AtRestBody<f64>) -> f64 {
+    topo::mass_properties(b, t()).unwrap().volume
+}
+
+/// Asserts `b` is tier-3 valid with `want`, its corners disjoint, and
 /// that a block across the meeting point unions with it.
-fn sound(what: &str, b: &AtRestBody<f64>, volume: f64) {
+fn sound(what: &str, b: &AtRestBody<f64>, want: f64, pose: &Pose) {
     assert_eq!(validate_geometric(b, t()), Ok(()), "{what}: tier 3");
-    let v = topo::mass_properties(b, t()).unwrap().volume;
+    let v = volume(b);
     assert!(
-        (v - volume).abs() < 1e-9,
-        "{what}: volume {v}, expected {volume}"
+        (v - want).abs() < 1e-9,
+        "{what}: volume {v}, expected {want}"
     );
     assert_eq!(corners_disjoint(b), Ok(()), "{what}: corners");
-    let block = finished(
+    let block = posed_box(
         "a block across the meeting point",
-        brick::<f64>((1.21, 1.77), (0.68, 1.31), (0.86, 1.52), t()),
-        t(),
+        [(1.21, 1.77), (0.68, 1.31), (0.86, 1.52)],
+        pose,
     );
     body(&format!("{what}, then ∪ a block"), union(b, &block, t()));
 }
 
 /// **The plate against the union of the holes' prisms, in every op and
-/// both orders.** The plate's top, less the holes, is a face whose ring
-/// passes the meeting point once per hole:
+/// five poses.** The plate's top less the holes passes the meeting point
+/// once per hole: as one ring where the holes lie inside it
+/// ([`inner_rows`]), as the outer loops of several faces of one plane
+/// where some notch its boundary ([`notch_rows`]).
 /// - U − P (the prisms above the top) and both intersections (inside
 ///   it) build sound;
 /// - P − U, in one boolean, has its zips fuse the meeting point twice,
-///   and the zip crosses two corners of that ring first. With two holes
-///   it builds as on main: two rings through one vertex, the zips'
-///   shape for holes meeting at a point. With three or more the ring
-///   passes the point three times or more, and it refuses
-///   `PinchOfManyHolesInOneRing`. Which shape holes meeting at a point
-///   take is open (`work/join/two-representations-of-holes-meeting-at-a-point.md`);
+///   and the zip crosses two corners of that boundary first: by `kemr`
+///   on one ring, by `kef` across faces of one plane. With two holes it
+///   builds as on main, and this row pins that shape, which is JOIN's
+///   at-rest one for holes meeting at a point: two rings through one
+///   vertex, whose corners there overlap, so it is not asserted sound
+///   (`work/join/two-representations-of-holes-meeting-at-a-point.md`).
+///   With three or more the boundary passes the point three times or
+///   more, and it refuses `PinchOfManyHolesInOneRing`. A notch beside
+///   two inner holes leaves no crossing on offer (`PinchUncrossed`);
 /// - the plate less each prism in turn builds the same volume sound,
-///   the meeting point a vertex per hole on one ring.
+///   the meeting point a vertex per hole.
+///
+/// Volumes are inclusion-exclusion against U's, and against each hole's
+/// closed form above the top where the holes lie inside it.
 #[test]
 fn the_plate_against_the_holes_union_builds_sound_or_refuses_typed_in_every_op() {
     use topo::{intersect, subtract};
-    let rows: [(&str, Vec<Hole>); 5] = [
-        (
-            "two wedges",
-            vec![wedge(0.0, 50.0, 0), wedge(120.0, 170.0, 1)],
-        ),
-        (
-            "three wedges",
-            vec![
-                wedge(0.0, 50.0, 0),
-                wedge(120.0, 170.0, 1),
-                wedge(240.0, 290.0, 2),
-            ],
-        ),
-        (
-            "four wedges",
-            vec![
-                wedge(0.0, 50.0, 0),
-                wedge(90.0, 140.0, 1),
-                wedge(180.0, 230.0, 2),
-                wedge(270.0, 320.0, 3),
-            ],
-        ),
-        (
-            "three wedges on one side",
-            vec![
-                wedge(0.0, 40.0, 0),
-                wedge(60.0, 100.0, 1),
-                wedge(120.0, 160.0, 2),
-            ],
-        ),
-        (
-            "an L and two wedges",
-            vec![ell(), wedge(190.0, 220.0, 1), wedge(235.0, 260.0, 2)],
-        ),
-    ];
-    let p = plate();
-    for (label, holes) in rows {
-        let prisms: Vec<_> = holes.iter().map(prism).collect();
-        let u = prisms[1..].iter().fold(prisms[0].clone(), |u, q| {
-            body(&format!("{label}: the prisms' union"), union(&u, q, t()))
-        });
-        let above: f64 = holes.iter().map(Hole::above).sum();
-        let inside = topo::mass_properties(&u, t()).unwrap().volume - above;
-        sound(
-            &format!("{label}: U − P"),
-            &body(label, subtract(&u, &p, t())),
-            above,
-        );
-        for (what, r) in [
-            ("P ∩ U", intersect(&p, &u, t())),
-            ("U ∩ P", intersect(&u, &p, t())),
-        ] {
-            sound(&format!("{label}: {what}"), &body(label, r), inside);
-        }
-        match (holes.len(), subtract(&p, &u, t())) {
-            (2, r) => {
-                let b = body(&format!("{label}: P − U"), r);
-                let counts = [b.faces().count(), b.edges().count(), b.vertices().count()];
-                assert_eq!(
-                    counts,
-                    [18, 41, 25],
-                    "{label}: P − U, faces, edges, vertices"
-                );
-                assert_eq!(
-                    validate_geometric(&b, t()),
-                    Ok(()),
-                    "{label}: P − U, tier 3"
-                );
-                let v = topo::mass_properties(&b, t()).unwrap().volume;
+    let inner = inner_rows().len();
+    for pose in poses() {
+        let p = posed_box("the plate", PLATE, &pose);
+        for (r, (fixture, holes)) in inner_rows().into_iter().chain(notch_rows()).enumerate() {
+            let label = format!("{fixture}, {}", pose.label);
+            let prisms: Vec<_> = holes.iter().map(|h| posed_prism(h, &pose)).collect();
+            let u = prisms[1..].iter().fold(prisms[0].clone(), |u, q| {
+                body(&format!("{label}: the prisms' union"), union(&u, q, t()))
+            });
+            let inside = volume(&body(&label, intersect(&p, &u, t())));
+            if r < inner {
+                let above: f64 = holes.iter().map(Hole::above).sum();
                 assert!(
-                    (v - (6.0 - inside)).abs() < 1e-9,
-                    "{label}: P − U, volume {v}"
+                    (volume(&u) - above - inside).abs() < 1e-9,
+                    "{label}: P ∩ U against the holes' closed form"
                 );
             }
-            (k, r) => assert!(
-                matches!(
-                    r,
-                    Err(topo::BooleanError::PinchOfManyHolesInOneRing { holes, .. }) if holes == k
+            sound(
+                &format!("{label}: U − P"),
+                &body(&label, subtract(&u, &p, t())),
+                volume(&u) - inside,
+                &pose,
+            );
+            for (what, r) in [
+                ("P ∩ U", intersect(&p, &u, t())),
+                ("U ∩ P", intersect(&u, &p, t())),
+            ] {
+                sound(&format!("{label}: {what}"), &body(&label, r), inside, &pose);
+            }
+            match (holes.len(), subtract(&p, &u, t())) {
+                // One notch: the top is one face whose outer loop passes
+                // the point once and whose two rings pass it once each;
+                // no crossing joins an outer loop to a ring.
+                (_, r) if fixture == "a notch and two wedges" => assert!(
+                    matches!(r, Err(topo::BooleanError::PinchUncrossed { .. })),
+                    "{label}: P − U refuses PinchUncrossed, got {:?}",
+                    r.map(|_| ())
                 ),
-                "{label}: P − U refuses PinchOfManyHolesInOneRing with {k} holes, got {:?}",
-                r.map(|_| ())
-            ),
+                (2, r) => {
+                    let b = body(&format!("{label}: P − U"), r);
+                    let counts = [b.faces().count(), b.edges().count(), b.vertices().count()];
+                    assert_eq!(
+                        counts,
+                        [18, 41, 25],
+                        "{label}: P − U, faces, edges, vertices"
+                    );
+                    assert_eq!(
+                        validate_geometric(&b, t()),
+                        Ok(()),
+                        "{label}: P − U, tier 3"
+                    );
+                    let v = volume(&b);
+                    assert!(
+                        (v - (6.0 - inside)).abs() < 1e-9,
+                        "{label}: P − U, volume {v}"
+                    );
+                }
+                (k, r) => assert!(
+                    matches!(
+                        r,
+                        Err(topo::BooleanError::PinchOfManyHolesInOneRing { holes, .. }) if holes == k
+                    ),
+                    "{label}: P − U refuses PinchOfManyHolesInOneRing with {k} holes, got {:?}",
+                    r.map(|_| ())
+                ),
+            }
+            let seq = prisms.iter().fold(p.clone(), |b, q| {
+                body(&format!("{label}: P less each prism"), subtract(&b, q, t()))
+            });
+            sound(
+                &format!("{label}: P less each prism"),
+                &seq,
+                6.0 - inside,
+                &pose,
+            );
         }
-        let seq = prisms.iter().fold(p.clone(), |b, q| {
-            body(&format!("{label}: P less each prism"), subtract(&b, q, t()))
-        });
-        sound(&format!("{label}: P less each prism"), &seq, 6.0 - inside);
     }
 }

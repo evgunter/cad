@@ -418,15 +418,25 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
     let Some((he1, he2, crossing)) = site else {
         return Ok(None);
     };
-    // A ring through `v` three times or more is a pinch of three or
-    // more holes, which only a pierce of three or more Out runs hangs;
-    // its crossing is not one this split is measured to build.
-    if let Crossing::OneLoop = crossing {
-        let ring = face_of(he1).0;
-        let holes = orbit.iter().filter(|&&h| face_of(h).0 == ring).count();
-        if holes > 2 {
-            return Err(BooleanError::PinchOfManyHolesInOneRing { vertex: v, holes });
-        }
+    // How many times the boundary the crossing joins passes `v`: the
+    // ring's visits for one loop, and every visit of a non-section face
+    // of the crossing face's chart for two faces, whose `kef` merges
+    // them into one. Two visits is the crossing measured to build; three
+    // or more is not. A pierce of three or more Out runs reaches it;
+    // other routes are not known.
+    let (l1, _, fd1) = face_of(he1);
+    let holes = match crossing {
+        Crossing::OneLoop => orbit.iter().filter(|&&h| face_of(h).0 == l1).count(),
+        Crossing::TwoFaces { .. } => orbit
+            .iter()
+            .filter(|&&h| {
+                let (_, f, d) = face_of(h);
+                !sections.contains(&f) && chart_of(d) == chart_of(fd1)
+            })
+            .count(),
+    };
+    if holes > 2 {
+        return Err(BooleanError::PinchOfManyHolesInOneRing { vertex: v, holes });
     }
     let p = body.resolve_vertex_point(v, crate::live::Proven);
     let made = body.mev(

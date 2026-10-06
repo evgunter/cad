@@ -2241,18 +2241,20 @@ pub enum BooleanError {
         /// The pinch vertex, in the joined body's keys.
         vertex: VertexKey,
     },
-    /// The result pinches at `vertex`, where one ring of a kept face
-    /// passes `holes` times (three or more): a pierce of three or more
-    /// Out runs met there as one vertex by both operands, and the zips
-    /// would fuse it to itself (`zip::cross_pinches`). Crossing two
-    /// corners of a ring is the at-rest shape for two holes meeting at a
-    /// point, and three or more are not measured to build. Which shape
-    /// holes meeting at a point take is open
-    /// (`work/join/two-representations-of-holes-meeting-at-a-point.md`).
+    /// The result pinches at `vertex`, and the zips would fuse it to
+    /// itself (`zip::cross_pinches`): both operands keep the point as
+    /// one vertex. The crossing on offer joins one boundary that passes
+    /// the point `holes` times (three or more): one ring of a kept face,
+    /// or the faces of one surface and sense that its `kef` would merge
+    /// into one. A pierce of three or more Out runs reaches it; other
+    /// routes are not known. Joining two such corners is the at-rest
+    /// shape for two holes meeting at a point, and three or more are not
+    /// measured to build. Which shape holes meeting at a point take is
+    /// open (`work/join/two-representations-of-holes-meeting-at-a-point.md`).
     PinchOfManyHolesInOneRing {
-        /// The pinch vertex, in the operated body's keys.
+        /// The pinch vertex, in the joined body's keys.
         vertex: VertexKey,
-        /// How many times the ring passes it.
+        /// How many times that boundary passes it.
         holes: usize,
     },
     /// The result would hold a non-manifold vertex: both operands hold
