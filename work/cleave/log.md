@@ -592,3 +592,5 @@ Signed (CLEAVE orchestrator).
   residual) and `cleave/inband-graze` (P2, one story for the in-band arms of the graze decision).
 - **PR 4177 merged** (recl flanker; single FULL review, fix pass done). Its row is closed, and the
   `UnitVec3::levered` margin gap is filed on FLUX.
+- **PR 4179 merged** (in-band graze; single FULL review, fix pass done). Its row is closed. The
+  residue-root class is filed on HONE, and the convex-graze row is narrowed to the apex pose.
