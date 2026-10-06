@@ -57,13 +57,16 @@ copied into `walk_schedule` (both planar loop walks),
 The per-ray readings are two kinds and stay two.
 
 - `topo::ray_walk` (renamed from `ray_parity`) holds the driver
-  (`walk`), one ray outcome vocabulary (`RayFault`: `Graze`, `InBand`,
-  `Blocked`, `Fatal`), the one exhaustion sentence (`RaysGrazed`, one
-  recourse: move the geometry), the parity reading, and the
-  closest-crossing fold (`Crossings`, `advance`) the solid sweep and the
-  sphere region share. Exhaustion precedence is one rule, in `walk`'s
-  docs: the first limit that blocked a ray, else the first in-band
-  reading, else every ray grazed.
+  (`walk`), one ray outcome vocabulary (`RayFault`: `Graze`, `Unread`,
+  `InBand`, `Blocked`, `Fatal`), the one ranking of what unsettled
+  readings kept (`Evidence`: the first limit, else the first in-band
+  reading), the one exhaustion sentence (`NoRaySettled`, one recourse:
+  move the geometry), the parity reading, and the closest-crossing fold
+  (`Crossings`, `advance`, `apart`) the solid sweep and the sphere
+  region share. `Blocked` is only a limit met on definite decisions; a
+  reading a tighter tolerance could change grazes or is in band.
+  The shell witness ladder, `join::loop_roles` and `carrier_eq`'s
+  coincidence rung rank through `Evidence` too.
 - Every reader above runs on it; `profile::validate::point_in_loop`
   is left as it is.
 - The fold ties against the closest crossing, not the running best, and
@@ -79,7 +82,10 @@ The per-ray readings are two kinds and stay two.
 - `PointInSolidError::inconclusive` holds the confined limits; the
   shell witness ladder tries the next witness past one and ranks the
   first as the refusal, as `join::loop_roles` does.
-- `in_plane_frame` keeps its first in-band arm.
+- `in_plane_frame` is a frame search, not a ray walk, and is off the
+  driver; it keeps its first in-band arm.
+- The boundary reading of a conic is of the ARC (`ConicArc::hit`): in
+  band of its carrier past its ends is off the edge.
 
 Measured. The sphere region's missing pre-pass reproduced: on the unit
 sphere less a 60° cap, round 200 azimuths and both orientations, a
@@ -95,7 +101,8 @@ truth, wrong 0 at every ε row), where a ray meeting nothing refused the
 whole query on the props lane's uncertified volume.
 The same set-aside opened more where a probe ray meets the boundary,
 each held to its closed form: `conic_edge_curved_face`'s ball through
-the cut face and two of its rim rods, the boss under a slab in every
+the cut face and all three rim rods, `axis_lap`'s oblique flat, the
+boss under a slab in every
 member order (`reach_slab_cut_sector_side`), and the tour's two
 tilted-cut walls, now held checks. The rows that pinned their refusals
 were rewritten; CONTACT's two frontier rows and VACUITY's torus-shell

@@ -148,16 +148,26 @@ lines in that battery.
 
 ## Moved on branch `cleave/ray-walk`
 
-CLEAVE's ray-walk driver unit made the probe's refusal a reading of
-the one ray that met nothing (`ray_walk::RayFault::Blocked`): a ray of
-the schedule that meets the boundary answers, and the query refuses
-`VolumeUncertified` only where none does. Most of the poses this row
-and its pins name now build, each held to its closed form:
-`conic_edge_curved_face`'s ball through the cut face, two of the three
-rim-crossing rods
-(`parallel_cylinder_join::the_rim_crossing_rods_build_where_a_probe_ray_meets_the_boundary`),
-and the tour's two tilted-cut walls (the C on the lower half's section
-face, and the C in the upper half's cap after the cut). What remains is
-a point none of whose rays meets the boundary: the rod at `(0, 0.48)`
-still refuses, and the built rods are not yet legal operands, since a
-far brick's corner sees them along no ray of the schedule.
+CLEAVE's ray-walk driver unit (PR 4083) made the probe's refusal a
+reading of the one ray that met nothing (`ray_walk::RayFault::Blocked`).
+A ray of the schedule that meets the boundary answers, and the query
+refuses `VolumeUncertified` only where no ray settles; then the refusal
+says that one of its rays met nothing and no other settled it. That
+can be a point whose other rays met the boundary only within the band:
+`pis_arc_capped_poses::a_ray_meeting_nothing_refuses_only_where_no_ray_settles`
+pins such a pose, refusing at the witness band and answering at a
+tighter one.
+
+Every pose this row and its pins name now builds, each held to its
+closed form:
+
+- `conic_edge_curved_face`'s ball through the cut face, and all three
+  rim-crossing rods
+  (`parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`);
+- `axis_lap::an_oblique_cap_flats_through_its_ellipse_arc`;
+- the tour's tilted-cut walls: the C on the lower half's section face,
+  and the C in the upper half's cap after the cut.
+
+The built rods are not yet legal operands: their union with a far brick
+refuses, and why was not measured. The closed-form-only measurement is
+untouched.
