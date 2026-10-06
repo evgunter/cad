@@ -2202,7 +2202,9 @@ mod tests {
     }
 
     /// A document holding `a := b + 1 mm` and `b := a`, written past
-    /// the doors (which refuse it, as the load walk does): the shape
+    /// the doors (which refuse it, as the load walk does), both named
+    /// (an unnamed definition is a slot's formula, whose refusal is the
+    /// slot's own — `VarEnv::written`): the shape
     /// [`Doc::definition_order`] and [`Doc::bind_definitions`] still
     /// answer for.
     fn cyclic() -> (ProfileDoc, crate::var::VarId, crate::var::VarId) {
@@ -2220,6 +2222,8 @@ mod tests {
         );
         doc.vars.insert(b, Var::new(VarDef::Defined(read(a))));
         doc.var_order = vec![a, b];
+        doc.var_names.insert(a, super::VarName::from_static("a"));
+        doc.var_names.insert(b, super::VarName::from_static("b"));
         (doc, a, b)
     }
 

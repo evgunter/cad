@@ -176,10 +176,10 @@ pub fn retype_slot_var(
 /// **The free continuous definition, in a saved document's wire, of
 /// the variable a slot reads** — the slot at `slot`'s JSON holds the
 /// variable's id — for a row that doctors a written value.
-pub fn slot_var_def<'w>(
-    wire: &'w mut serde_json::Value,
+pub fn slot_var_def(
+    wire: &mut serde_json::Value,
     slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
-) -> &'w mut serde_json::Value {
+) -> &mut serde_json::Value {
     let var = slot(wire)
         .as_u64()
         .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)));

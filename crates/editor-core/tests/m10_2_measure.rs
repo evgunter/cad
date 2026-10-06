@@ -867,12 +867,12 @@ fn the_same_division_in_a_slot_has_always_refused() {
         matches!(
             err,
             NodeErrorKind::Expr {
-                source: editor_core::EvalError::DefinitionRefused { source, .. },
+                source: editor_core::EvalError::NonFiniteResult,
                 ..
-            } if **source == editor_core::EvalError::NonFiniteResult
+            }
         ),
         "the slot lane refuses non-finite — the slot reads the variable its \
-         formula defines, whose definition refuses — got {err:?}"
+         formula defines, whose refusal is the slot's own — got {err:?}"
     );
 }
 

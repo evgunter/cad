@@ -70,6 +70,39 @@ fn block(
     )
 }
 
+/// **A twin of the block `extrude`** ([`block`]): its frame, profile and
+/// extrude inserted again, every slot reading the original's variable
+/// ([`Node::authored`]), so the two are one geometry by structure —
+/// equal values typed apart are two variables, which is no sharing.
+fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    let Some(Node::Extrude { profile, .. }) = doc.node(extrude) else {
+        panic!("{extrude} is a block's extrude")
+    };
+    let profile = *profile;
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{profile} is a block's profile")
+    };
+    let frame = program.plane;
+    let authored = |doc: &ProfileDoc, id: RecipeNodeId| {
+        doc.node(id)
+            .unwrap_or_else(|| panic!("{id} is in the document"))
+            .authored(doc)
+    };
+    let node = authored(&doc, frame);
+    let (doc, frame) = insert(doc, node);
+    let mut node = authored(&doc, profile);
+    if let Node::Profile(program) = &mut node {
+        program.plane = frame;
+        program.ids = Vec::new();
+    }
+    let (doc, profile) = insert(doc, node);
+    let mut node = authored(&doc, extrude);
+    if let Node::Extrude { profile: of, .. } = &mut node {
+        *of = profile;
+    }
+    insert(doc, node)
+}
+
 /// The sliding union: A fixed, B on a Transform knob, A ∪ B.
 struct Slide {
     doc: ProfileDoc,
@@ -1173,7 +1206,10 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
 
 #[test]
 fn repointed_input_diagnoses_recipe_edit_on_path() {
-    // Two geometrically IDENTICAL operands b and c: re-pointing the
+    // Two geometrically IDENTICAL operands b and c — c reads b's own
+    // variables, which is how two operands are one geometry by
+    // structure (two separately typed equal values are two variables,
+    // whose content keys differ): re-pointing the
     // union's second member from b to c (`SetMembers`, the door that
     // re-points a node's inputs in place) changes NO verdict (the
     // computed geometry is bit-identical) and NO structural parameter
@@ -1184,7 +1220,15 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     // General position (no coplanar planes with A): B pierces A's
     // slab, strictly inside in y, poking out above and below.
     let (doc, b) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
-    let (doc, c) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
+    // The fold's predicate population reads its members' faces in name
+    // order, and a member's names carry its node id: a twin minted on
+    // the other side of `a` from `b` runs the same geometry through
+    // other predicates (`point_in_loop_advance` flips, 8 of them). So
+    // the twin is minted until it sorts where `b` does.
+    let (mut doc, mut c) = twin(doc, b);
+    while (c < a) != (b < a) {
+        (doc, c) = twin(doc, b);
+    }
     let (doc1, bl) = insert(
         doc,
         Node::Union {

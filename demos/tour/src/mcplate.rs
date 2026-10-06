@@ -708,7 +708,7 @@ mod tests {
         println!("mcplate draws {draws:#018x} sheet {sheet:#018x}");
         assert_eq!(
             (draws, sheet),
-            (0, 0),
+            (0xd633_699a_f382_1806, 0x6d3e_4b0b_0201_2542),
             "the Monte Carlo sheet moved"
         );
     }

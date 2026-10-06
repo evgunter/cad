@@ -1023,7 +1023,7 @@ fn every_node_shapes_slot_table_is_pinned() {
         for (&slot, tag) in slots.iter().zip(&tags) {
             *tagged
                 .expr_mut(slot)
-                .expect("a listed slot answers `expr_mut`") = tag.clone();
+                .expect("a listed slot answers `expr_mut`") = *tag;
         }
         let mut fields = format!("{tagged:?}");
         for (i, (&slot, tag)) in slots.iter().zip(&tags).enumerate() {
