@@ -612,6 +612,24 @@ pub(super) struct Form {
     /// - a freeze, whose indeterminate is the node's own value;
     /// - a poison (a reciprocal of a gated zero), which has no value and
     ///   is never zero.
+    ///
+    /// **How the list is kept.** No gate pins it, because the commonest
+    /// way to drop a gate is not a write: it is a FRESH form returned
+    /// without its kids' flag (`Form::poly`, `Form::zero`,
+    /// `Form::poison`, as the freeze's `Form::poly(Poly::indet(id))`
+    /// does), and a text scan cannot tell that from a leaf's own fresh
+    /// form. The list is a sweep, re-taken by whoever adds a site, over
+    /// `crates/geom-core/src/sym.rs` and `sym/`:
+    /// - every WRITE: `.gated =`, a struct literal's `gated: <expr>`
+    ///   (`algebra::poly_subst_square` and `apply`, `quotient::cancel`,
+    ///   this file's combinators) and its `gated,` shorthand
+    ///   (`trig::build_closed_forms`) — each an OR of the operands' flags,
+    ///   `true` at a read, or the zero arm's `zero_factors_gate`;
+    /// - every fresh form a walk site RETURNS (`combine`, `form_in`): the
+    ///   leaves (`Param`, `Opaque`, `Lit`, `Pi`), which have no kids; an
+    ///   atom or a fold, each passed through `gate` or given the OR; a
+    ///   poison of a poisoned kid; and the freeze and the reciprocal of a
+    ///   zero above.
     pub(super) gated: bool,
 }
 

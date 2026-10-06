@@ -1129,18 +1129,31 @@ fn sym8_phase1_the_tilt_u_ladder() {
 /// in release and about four seconds in the test profile — the split
 /// is read from the shape report, which is what the second of those
 /// pays for.
+/// The walks with the reads shut the boss's shipped evaluation asks
+/// (`geom_core::sym`'s `rungs`): one per decision whose early form is
+/// gated, measured. The row reads it from the cost profile, because a
+/// count is deterministic where the seconds it stands for are not.
+const SHUT_WALKS: u64 = 400;
+
 #[test]
 fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
+    use geom_core::sym::profile::{Walk, start_profile, take_profile};
     use geom_core::sym::report::{start_shape_report, take_shape_report};
     let doc = r2_document(1.0e-3, Base::TiltU, Place::Derived(1));
     let mut seen = Vec::new();
+    let mut shut_walks = 0;
     for (label, rules) in [
         ("SYM-5 tier", SymRules::without_rules_f_g_and_the_read()),
         ("shipped", shipped_with_rule_f()),
         ("read shut", SymRules::without_the_reads()),
     ] {
         start_shape_report();
+        start_profile();
         let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+        let profile = take_profile();
+        if label == "shipped" {
+            shut_walks = profile.walk(Walk::EarlyShut).calls + profile.walk(Walk::DoorShut).calls;
+        }
         let shapes = take_shape_report();
         let split = crate::m10_8_harness::split(&shapes);
         let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 4]);
@@ -1187,6 +1200,12 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
         [28, 20, 0, 0],
         "the frame's conditioning comparisons no form settles are the read's: twenty of \
          the plane residual's 48"
+    );
+    assert!(
+        shut_walks <= SHUT_WALKS,
+        "the decision path's walks with the reads shut are the cost of settling the \
+         read's class first: {shut_walks} on the shipped tier, past the {SHUT_WALKS} \
+         measured (one per gated decision); a trigger that widened is a cost to measure"
     );
     assert!(
         shut_fails.len() == 1 && shut_fails[0].contains("newell_plane_residual"),
@@ -1336,14 +1355,15 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 /// "Costs nothing" is counted in decisions, not labels. The decision
 /// path counts a read's zero only where no form with the reads shut
 /// settles it, and on the start cap that walk settles every one:
-/// 972 / 0 sign_gated / 510,
+/// 972 / 0 sign_gated / 510 — exactly the read-shut tier's receipt, which
+/// the row asserts,
 /// `carrier_endpoint_end` and `newell_plane_residual` each `[48, 0, 0,
 /// 0]`. The end cap and `FlipZ` read `692 / 280 sign_gated / 510`,
 /// `[48, 0, 0, 0]` and `[28, 20, 0, 0]`. Measured at 1e-9, at both
 /// dials.
 ///
-/// Cost: six evaluations of three small documents with the shape
-/// report installed.
+/// Cost: seven evaluations of three small documents with the shape
+/// report installed, the seventh the start cap with the reads shut.
 #[test]
 fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert() {
     use geom_core::sym::report::{start_shape_report, take_shape_report};
@@ -1387,6 +1407,15 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
         let doc = doc_of(base, place);
         let on = read(&doc, shipped_with_rule_f());
         let off = read(&doc, f_shut);
+        if matches!(place, Place::DerivedStartCap) {
+            let shut = read(&doc, SymRules::without_the_reads());
+            assert_eq!(
+                (&on.1, on.3, on.4),
+                (&shut.1, shut.3, shut.4),
+                "{name}: a form with the reads shut settles every decision the read \
+                 answered, so the shipped receipt is the read-shut tier's, label for label"
+            );
+        }
         println!("{name} shipped: {on:?}\n{name} rule F shut: {off:?}");
         assert!(
             on.0.is_empty(),

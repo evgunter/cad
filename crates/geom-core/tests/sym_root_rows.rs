@@ -834,6 +834,46 @@ fn a_cancellation_above_a_frozen_read_is_a_theorem() {
     }
 }
 
+/// `Q = (s·P)·s − y·P` with `s = sqrt(y)`, `y ∈ [3, 4]` and `P = (1 + u
+/// + v + w)^n`: zero by rule A, but `P^13` is 560 terms, past the early
+/// walk's per-node reduction (`EARLY_AB_TERMS`), so only the TOP rung's
+/// reduction of the plain residual proves it.
+fn q(n: i32) -> Sym<Interval> {
+    let y = over("y", 3.0, 4.0);
+    let p = (lit(1.0) + over("u", 0.1, 0.2) + over("v", 0.1, 0.2) + over("w", 0.1, 0.2)).powi(n);
+    let s = y.sqrt();
+    (s * p) * s - y * p
+}
+
+/// **A top-rung theorem above the read is a THEOREM.** With the read on,
+/// `max(x, 3)·Q − 3·Q` is a GATED early zero (`3·Q − 3·Q`), and the walk
+/// with the reads shut is not zero (`M·Q − 3·Q`, with `Q` unreduced); the
+/// top rung, which reads no value, proves `Q = 0` and with it the
+/// decision. A gated early zero is asked of it before it is counted.
+#[test]
+fn a_top_rung_theorem_above_the_read_is_a_theorem() {
+    type Shape = (&'static str, fn() -> Sym<Interval>);
+    let shapes: [Shape; 2] = [
+        ("max(x, 3)·Q - 3·Q, |P| = 560", || {
+            let x = over("x", 1.0, 2.0);
+            let q = q(13);
+            x.max(lit(3.0)) * q - lit(3.0) * q
+        }),
+        ("(max(x, 3) - 3)·Q, |P| = 560", || {
+            let x = over("x", 1.0, 2.0);
+            (x.max(lit(3.0)) - lit(3.0)) * q(13)
+        }),
+    ];
+    for (what, build) in shapes {
+        let on = row(what, how(SymRules::shipped(), build));
+        let off = row(what, how(SymRules::without_the_reads(), build));
+        assert!(
+            on == "theorem" && off == "theorem",
+            "{what}: the top rung settles it with no read: shipped {on}, read shut {off}"
+        );
+    }
+}
+
 /// **The door's instance, and the ladder's order kept.** `x·x`
 /// registered equal to `x` over `[0.9, 1.1]`:
 /// - `(max(x·x, 3) − max(x, 3)) + (x·x − x)`: the early form is not
@@ -847,10 +887,13 @@ fn a_cancellation_above_a_frozen_read_is_a_theorem() {
 ///   shut. A `sign_gated` and a `registered` zero rest on different
 ///   claims and neither re-labels the other: this is SYM-9's ladder
 ///   order, not the class.
+/// - `atan((max(x·x, 3) − max(x, 3)) + x·x) − atan(x)`: the read-on door
+///   form is NOT zero (`atan` of a gated argument is another atom than
+///   `atan(x)`), and the door walk with the reads shut is zero.
 #[test]
 fn a_registered_cancellation_above_the_read_is_registered() {
     type Build = fn(Sym<Interval>, Sym<Interval>) -> Sym<Interval>;
-    let cases: [(&str, Build, &str, &str); 2] = [
+    let cases: [(&str, Build, &str, &str); 3] = [
         (
             "(max(x·x, 3) - max(x, 3)) + (x·x - x)",
             |sq, x| (sq.max(lit(3.0)) - x.max(lit(3.0))) + (sq - x),
@@ -861,6 +904,12 @@ fn a_registered_cancellation_above_the_read_is_registered() {
             "max(x·x, 3) - max(x, 3)",
             |sq, x| sq.max(lit(3.0)) - x.max(lit(3.0)),
             "sign_gated",
+            "registered",
+        ),
+        (
+            "atan((max(x·x, 3) - max(x, 3)) + x·x) - atan(x)",
+            |sq, x| ((sq.max(lit(3.0)) - x.max(lit(3.0))) + sq).atan() - x.atan(),
+            "registered",
             "registered",
         ),
     ];

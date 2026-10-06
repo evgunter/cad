@@ -54,8 +54,9 @@
 //! (`‖q − c‖ = r` has `(a + 2r)²` under its root on the plate). A read
 //! answers its node at the node, so above it the decision path asks
 //! the same rung again with every read shut wherever a read may have
-//! moved its form (`super::rungs`): an early theorem is never
-//! re-labelled either.
+//! moved its form, and asks a gated early zero of the top rung
+//! (`super::rungs`): a theorem a rung below the door reaches with the
+//! reads shut is never re-labelled either.
 
 use crate::real::Bounds;
 use core::f64::consts::PI;

@@ -653,10 +653,16 @@
 //! the read shut and their parent cancels them, while with it on each
 //! is read at itself and the zero arrives through the arms: gated, or,
 //! through an atom keyed by a gated argument or a freeze, not zero at
-//! all. So the decision path walks a rung whose form is gated again
-//! with every value read shut ([`SymRules::without_value_reads`]), and
-//! a zero there is a theorem (or, at the door, `registered`): the read
-//! answers only where no form settles (`rungs`).
+//! all. So the DECISION path alone (`rungs`; the contradiction check
+//! does not) walks a rung again with every value read shut
+//! ([`SymRules::without_value_reads`]) wherever its form is gated, or
+//! the leaf has frozen a node over a gated kid, and asks a gated early
+//! zero of the top rung, which reads no value. A zero either finds is a
+//! theorem (at the door, `registered`). So the read answers only where
+//! no rung below the door settles the decision read-free; a gated
+//! early zero is not asked of the door, because the ladder asks the
+//! early rung first (`max(x·x, 3) − max(x, 3)` with `x·x` registered
+//! `= x` is `sign_gated`, and `registered` with the read shut). COST
 //! A zero that does not depend on the arm carries no gate from it: in
 //! the early walk where its zero arm is on, a product with an ungated
 //! zero factor, or a `copysign` of an ungated zero, is a theorem though
@@ -913,8 +919,10 @@
 //! the table per mask, the reads-off reading that says the decision read
 //! is not what the ladder costs, and the argument.
 //!
-//! **What a ladder holds**, per attempt, as a session ends
-//! (`profile::SymProfile::retry_forms`), at the nominal: the segment
+//! **What a ladder holds**, per attempt, as a session ends — its early
+//! and door memos with the reads as the attempt has them, the count the
+//! growth guard reads (`RetryMemo::len`, `profile::SymProfile::retry_forms`)
+//! — at the nominal: the segment
 //! boss 80 forms an attempt against a DAG of 12,638 nodes, the bracket
 //! 2,716 against 28,996, the link 5,259 against 19,564; the plate and the
 //! annulus none, because no attempt is made. [`RETRY_FORMS`] is set
@@ -1403,7 +1411,7 @@ pub struct SymCounts {
     /// The attribution is NECESSITY, not contact: a decision counts
     /// here only when the plain form and the early form have BOTH
     /// declined and the same walk with the registry applied answers
-    /// (`Session::forms_door`). So the door can only ever move
+    /// (`RungMemos::door`). So the door can only ever move
     /// decisions out of `numeric` — never out of `symbolic_zero` or
     /// `sign_gated`, whose counts are M10-8's on every document.
     pub registered: u64,
@@ -1869,12 +1877,14 @@ pub struct SymRules {
     ///
     /// **Ordered behind every value-free fold** — at its node, after
     /// A0, after rule F, and over kids whose roots rule G has already
-    /// minted; above it, behind every cancellation a form with the
-    /// reads shut makes. The read answers the node at the node, so two
-    /// equal nodes (`max(x + Z, 3)` and `max(x, 3)`, with `Z` zero under
-    /// rule A) reach their parent's zero through their two arms; on the
-    /// decision path a rung whose form is gated is walked again with
-    /// the reads shut, and that walk's zero is a theorem (`rungs`).
+    /// minted; above it, on the decision path, behind every rung below
+    /// the door that settles with the reads shut. The read answers the
+    /// node at the node, so two equal nodes (`max(x + Z, 3)` and
+    /// `max(x, 3)`, with `Z` zero under rule A) reach their parent's zero
+    /// through their two arms; the decision path walks a rung whose form
+    /// is gated (any rung, after a freeze over a gated kid) again with
+    /// the reads shut, asks a gated early zero of the top rung, and
+    /// counts a zero either finds as a theorem (`rungs`).
     /// A zero that does not depend on the arm carries no gate from it:
     /// where the early walk's zero arm is on (`early_ab ||
     /// trig_of_atan`), `0 · x` and `copysign(0, x)` with an ungated zero
@@ -1943,7 +1953,7 @@ impl SymRules {
     /// | F's NEGATIVE arm (the same dial, SYM-12) | none, as rule F: the tilt-`u` cube's START cap and its `FlipZ` twin certify as the end cap does with the dial on or off (`m10_derived_frame_tilted_interval`'s `m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert`); its Duff-era reach is in the module header | a negation plus the predicate only on a numerator whose every coefficient is negative; the release leaf instrument's reading is in the header's cost paragraph below the rule-F section, the one place those numbers live | **yes** |
     /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
     /// | G's exact quotient (`root_quotient`, DECIDE-4) | R1's boss at bulge 2 `1.0309e3 · ε` → **0.5024 / 0.7267 / 0.7271 of its REAL study** at ε = 1e-6 / 1e-9 / 1e-12, bounded by `dihedral_wedge` (a real margin), its `arc_span` 5/0/0/1 → 6/0/0/0; no other split moves at the nominal on the plate, bracket, annulus, link, both D-tabs or the two controls; it trades the split spelling `sqrt(N)/sqrt(D)` of a re-keyed root (no measured document moves on it) | one whole-box leaf, release, best of 3, off → on: plate 0.339 → 0.349 s, plate at its real study 0.342 → 0.346, annulus 0.364 → 0.364, bracket 3.81 → 3.82, link 19.4 → 19.3, pad 144.5 → 145.7, boss 0.245 → 0.250; every receipt but the boss's unmoved | **yes**, with the bracket, the pad and the link over the 1.6 s line either way |
-    /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where a zero rests on the arm it took, and never `symbolic_zero`; a zero that rests on an ungated factor alone (`0 · x`, as `dihedral_wedge`'s `sin θ · arm` at a tangent join) stays a theorem where the early zero arm is on; it is ordered behind every value-free fold, at its node and above it: on the decision path a gated rung is walked again with the reads shut, and that walk's zero is a theorem (`max(x + Z, 3) − max(x, 3)`), its door zero `registered` | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
+    /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where a zero rests on the arm it took, and never `symbolic_zero`; a zero that rests on an ungated factor alone (`0 · x`, as `dihedral_wedge`'s `sin θ · arm` at a tangent join) stays a theorem where the early zero arm is on; it is ordered behind every value-free fold, at its node and above it: on the decision path only, a rung whose form is gated (or any rung, once the leaf has frozen a node over a gated kid) is walked again with the reads shut and a gated early zero is asked of the top rung, and a zero there is a theorem (`max(x + Z, 3) − max(x, 3)`), at the door `registered`; a gated early zero the door alone would settle stays `sign_gated` (the ladder's order) | COSTROW | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -2118,19 +2128,27 @@ impl SymRules {
     /// buys, and about which discharges are `sign_gated` rather than
     /// numeric, is measured against ([`Self::decision_read`]). Rule G
     /// stays on, for the reason [`Self::without_canonical_root`] gives.
+    /// Spelled through [`Self::without_value_reads`], the one door for
+    /// "reads shut"; rule C's fold, the other read it shuts, is already
+    /// off in the shipped set.
     #[must_use]
     pub const fn without_the_reads() -> Self {
-        Self {
-            decision_read: false,
-            ..Self::shipped()
-        }
+        Self::shipped().without_value_reads()
     }
 
     /// **This set with every VALUE READ shut** — the decision read and
     /// rule C's fold, the two dials under which a walk reads the leaf's
-    /// box (rule G's certified side condition is under rule C's): a walk
-    /// under it builds no gated form. The decision path's second walk
-    /// behind a form a read may have moved (`rungs`).
+    /// box (rule G's certified side condition is under rule C's). The
+    /// decision path's second walk behind a form a read may have moved
+    /// (`rungs`).
+    ///
+    /// A walk under it reads no value, but it can still be HANDED a
+    /// gated form: rule D's closed forms are memoized per session by
+    /// their argument's digest alone (`Session::trig_closed`), so one
+    /// built by a walk with rule C on serves the shut walk too
+    /// (`work/decide/rule-ds-closed-form-cache-is-keyed-without-the-rules`).
+    /// That can only cost the shut walk a theorem, since it counts an
+    /// ungated zero alone, and it is inert while rule C's dial is off.
     #[must_use]
     pub const fn without_value_reads(self) -> Self {
         Self {
@@ -2140,11 +2158,11 @@ impl SymRules {
         }
     }
 
-    /// Whether a walk under this set may read a value
-    /// ([`Self::without_value_reads`]).
+    /// Whether a walk under this set may read a value: whether
+    /// [`Self::without_value_reads`] shuts anything.
     #[must_use]
-    pub const fn reads_values(self) -> bool {
-        self.decision_read || self.signed_root
+    pub fn reads_values(self) -> bool {
+        self != self.without_value_reads()
     }
 
     /// **The shipped set with rule F SHUT and nothing else** — the
@@ -2310,17 +2328,19 @@ pub struct SymRetry {
     /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`,
     /// shape 2).
     pub without: [Option<SymRules>; MASKS],
-    /// **The GROWTH GUARD** — the most forms ONE attempt's two memos may
-    /// hold before the ladder stops offering that attempt for the rest
-    /// of the leaf, and the decisions that would have asked it stay
-    /// numeric. [`RETRY_FORMS`] by default; a dial so that the guard is
-    /// a row and not a comment (`the_growth_guard_withholds_an_attempt_at_its_cap`).
+    /// **The GROWTH GUARD** — the most forms ONE attempt's early and
+    /// door memos may hold (with the reads as the attempt has them:
+    /// `RetryMemo::len` says why the shut pair is left out) before the
+    /// ladder stops offering that attempt for the rest of the leaf, and
+    /// the decisions that would have asked it stay numeric.
+    /// [`RETRY_FORMS`] by default; a dial so that the guard is a row and
+    /// not a comment (`the_growth_guard_withholds_an_attempt_at_its_cap`).
     ///
     /// **The check is BEFORE an attempt is walked**, so it bounds the
-    /// memo to the cap plus ONE attempt's walk: a walk adds at most one
-    /// form per node id to each of the two memos, so an attempt's memos
-    /// never exceed `max_forms` plus twice the ids the session's walks
-    /// can visit.
+    /// two memos to the cap plus ONE attempt's walk: a walk adds at most
+    /// one form per node id to each, so they never exceed `max_forms`
+    /// plus twice the ids the session's walks can visit. The shut pair
+    /// holds at most one form per node id in each of its two memos.
     pub max_forms: usize,
 }
 
@@ -2485,7 +2505,7 @@ struct Session {
     /// needs, spelled as a table per attempt so that an attempt's
     /// lookup costs what the first attempt's does.
     ///
-    /// They are SEPARATE from `forms_early` and `forms_door` and never
+    /// They are SEPARATE from the first attempt's (`rungs`) and never
     /// read into them: an attempt's forms are built under different
     /// rules or a different ring bound, so a form of one attempt is not
     /// a form of another and serving one for the other would move a
@@ -2493,8 +2513,8 @@ struct Session {
     /// at [`SymRetry::max_forms`] entries, past which the ladder stops
     /// offering that attempt for the rest of the leaf.
     ///
-    /// **A registration clears every attempt's DOOR memo**, as it clears
-    /// `forms_door` and for the same reason: a door form is a function
+    /// **A registration clears every attempt's DOOR memos**, as it
+    /// clears the first attempt's and for the same reason: a door form is a function
     /// of the registry, so one built before a record would answer for a
     /// registry that no longer exists. The early memos never consult the
     /// registry and stay whole.
@@ -2503,34 +2523,14 @@ struct Session {
     /// The PLAIN quotient forms — every atom opaque, rule A0 only (the
     /// constant fold, which cannot cost a cancellation). Rules A/B are
     /// applied afterwards over the top residual ([`algebra::reduce`])
-    /// and per node in `forms_early`; nothing ruled is memoized here.
+    /// and per node in the early memo; nothing ruled is memoized here.
     forms: IdMap<Arc<Form>>,
-    /// The EARLY-reduced forms (`SymRules::early`), a second memo
-    /// beside the plain one.
-    forms_early: IdMap<Arc<Form>>,
-    /// **The DOOR-reduced forms** ([`SymRules::registered`]): the early
-    /// walk again, this time with the session's registry applied — a
-    /// THIRD memo, beside the plain one and the early one, and the
-    /// reason the receipt can say which decisions actually NEEDED the
-    /// door. A zero found here that the early memo did not find is one
-    /// the registration was necessary for; asking the two in order is
-    /// what makes `registered` an honest column instead of "every form
-    /// that happened to touch a registered node". Measured, that
-    /// distinction is most of the column: on R2's pad at its nominal
-    /// the sticky-flag attribution moved 40 of 368 theorems into it
-    /// that A0 had already proved.
-    ///
-    /// Built lazily like the others, and never at all while the
-    /// registry is empty — so a document with no registrants (all of
-    /// straight geometry) pays nothing and serializes M10-8's bytes.
-    forms_door: IdMap<Arc<Form>>,
-    /// **The early and door walks with every value read SHUT**
-    /// ([`SymRules::without_value_reads`]), two more memos, asked only on
-    /// the decision path behind a form a read may have moved (`rungs`).
-    /// A zero found here rests on no read, so it is the decision's label
-    /// wherever the read-on walk's form was gated.
-    forms_early_shut: IdMap<Arc<Form>>,
-    forms_door_shut: IdMap<Arc<Form>>,
+    /// **The first attempt's early and door memos**, indexed by whether
+    /// the value reads are shut ([`RungMemos`]): `[0]` under the
+    /// session's rules, `[1]` under [`SymRules::without_value_reads`],
+    /// which only the decision path asks, behind a form a read may have
+    /// moved (`rungs`).
+    rungs: [RungMemos; 2],
     /// **A node of this leaf froze over a GATED kid** in an early or door
     /// walk. A frozen form is the node's own indeterminate and carries no
     /// gate, so from then on an ungated form is no longer proof that no
@@ -2681,29 +2681,58 @@ struct Reduction {
 /// reduction cost before the memo, not into memory.
 const REDUCTION_FORMS: usize = 50_000;
 
-/// **One retry attempt's two memos** — the early walk's and the door
-/// walk's, under that attempt's rules and ring bound.
+/// **One attempt's two rung memos** under one setting of the value
+/// reads — the early walk's and the door walk's.
+#[derive(Default)]
+struct RungMemos {
+    /// The EARLY-reduced forms (`SymRules::early`), beside the plain
+    /// memo.
+    early: IdMap<Arc<Form>>,
+    /// **The DOOR-reduced forms** ([`SymRules::registered`]): the early
+    /// walk again, this time with the session's registry applied — a
+    /// THIRD memo, beside the plain one and the early one, and the
+    /// reason the receipt can say which decisions actually NEEDED the
+    /// door. A zero found here that the early memo did not find is one
+    /// the registration was necessary for; asking the two in order is
+    /// what makes `registered` an honest column instead of "every form
+    /// that happened to touch a registered node". Measured, that
+    /// distinction is most of the column: on R2's pad at its nominal
+    /// the sticky-flag attribution moved 40 of 368 theorems into it
+    /// that A0 had already proved.
+    ///
+    /// Built lazily like the others, and never at all while the
+    /// registry is empty — so a document with no registrants (all of
+    /// straight geometry) pays nothing and serializes M10-8's bytes.
+    door: IdMap<Arc<Form>>,
+}
+
+/// **One retry attempt's memos** — its [`RungMemos`] under that
+/// attempt's rules and ring bound, `[0]` with the reads as the attempt
+/// has them and `[1]` with them shut.
 ///
 /// The plain walk has no entry here: the plain rung is never retried
 /// ([`SymRetry`]), so the plain form a decision is asked of first is
 /// the first attempt's on every attempt.
 #[derive(Default)]
 struct RetryMemo {
-    early: IdMap<Arc<Form>>,
-    door: IdMap<Arc<Form>>,
-    early_shut: IdMap<Arc<Form>>,
-    door_shut: IdMap<Arc<Form>>,
+    rungs: [RungMemos; 2],
 }
 
 impl RetryMemo {
-    /// The forms this attempt is holding, every walk.
+    /// **The forms the growth guard counts** ([`SymRetry::max_forms`]):
+    /// the attempt's early and door memos with the reads as the attempt
+    /// has them. The shut pair (`rungs[1]`) is left out: [`RETRY_FORMS`]
+    /// was measured without it, and it is filled only behind a decision
+    /// the attempt has already answered gated, so it cannot be what
+    /// makes the attempt's population grow past the cap.
     fn len(&self) -> usize {
-        self.early.len() + self.door.len() + self.early_shut.len() + self.door_shut.len()
+        self.rungs[0].early.len() + self.rungs[0].door.len()
     }
 }
 
 /// **The GROWTH GUARD's default** ([`SymRetry::max_forms`]): past this
-/// many forms in one attempt's two memos the attempt is not offered
+/// many forms in one attempt's early and door memos (`RetryMemo::len`)
+/// the attempt is not offered
 /// again for the rest of the leaf, and the decisions that would have
 /// asked it stay numeric.
 ///
@@ -2745,11 +2774,9 @@ impl Session {
             retries: Vec::new(),
             nodes: IdMap::default(),
             forms: IdMap::default(),
-            forms_early: IdMap::default(),
-            forms_door: IdMap::default(),
-            forms_early_shut: IdMap::default(),
-            forms_door_shut: IdMap::default(),
+            rungs: Default::default(),
             froze_gated: false,
+
             params: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
@@ -4161,7 +4188,7 @@ fn even_powers(f: &Form, atoms: &IndetMap<AtomInfo>) -> &'static str {
 /// applied, no value read. Memoized in the session's persistent table.
 fn plain_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let first = (sess.rules, rational::COEFF_BITS);
-    walk(sess, root, WalkKind::Plain, 0, first)
+    walk(sess, root, WalkKind::Plain, false, 0, first)
 }
 
 /// The most rule-A/B substitutions the early walk takes per node
@@ -4188,7 +4215,7 @@ const EARLY_AB_TERMS: usize = 512;
 /// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
 fn early_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let first = (sess.rules, rational::COEFF_BITS);
-    walk(sess, root, WalkKind::Early, 0, first)
+    walk(sess, root, WalkKind::Early, false, 0, first)
 }
 
 /// The DOOR form of `root` — [`early_form`]'s walk with the session's
@@ -4198,7 +4225,7 @@ fn early_form(sess: &mut Session, root: SymId) -> Arc<Form> {
 /// needed for.
 fn door_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let first = (sess.rules, rational::COEFF_BITS);
-    walk(sess, root, WalkKind::Door, 0, first)
+    walk(sess, root, WalkKind::Door, false, 0, first)
 }
 
 /// The three normal-form walks.
@@ -4210,41 +4237,35 @@ enum WalkKind {
     Early,
     /// The early walk with the registry applied.
     Door,
-    /// [`Self::Early`] with every value read shut.
-    EarlyShut,
-    /// [`Self::Door`] with every value read shut.
-    DoorShut,
 }
 
-/// **Which memo a walk reads and fills**: the first attempt's three,
-/// or one retry attempt's early or door table ([`Session::retries`]).
+/// **Which memo a walk reads and fills**: the plain one, or a rung
+/// memo — the early or the door walk's, of the first attempt or of one
+/// retry ([`Session::retries`]), with the value reads as the attempt
+/// has them or shut.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MemoSlot {
     Plain,
-    Early,
-    Door,
-    EarlyShut,
-    DoorShut,
-    RetryEarly(usize),
-    RetryDoor(usize),
-    RetryEarlyShut(usize),
-    RetryDoorShut(usize),
+    Rung {
+        door: bool,
+        retry: Option<usize>,
+        shut: bool,
+    },
 }
 
 impl MemoSlot {
-    /// The memo `kind` fills at `attempt`. The plain walk has only the
-    /// first attempt's: the plain rung is never retried ([`SymRetry`]).
-    fn of(kind: WalkKind, attempt: u8) -> Self {
-        match (kind, usize::from(attempt).checked_sub(1)) {
-            (WalkKind::Plain, _) => Self::Plain,
-            (WalkKind::Early, None) => Self::Early,
-            (WalkKind::Door, None) => Self::Door,
-            (WalkKind::EarlyShut, None) => Self::EarlyShut,
-            (WalkKind::DoorShut, None) => Self::DoorShut,
-            (WalkKind::Early, Some(k)) => Self::RetryEarly(k),
-            (WalkKind::Door, Some(k)) => Self::RetryDoor(k),
-            (WalkKind::EarlyShut, Some(k)) => Self::RetryEarlyShut(k),
-            (WalkKind::DoorShut, Some(k)) => Self::RetryDoorShut(k),
+    /// The memo `kind` fills at `attempt`, `shut` or not. The plain walk
+    /// has only the first attempt's, with the reads as the session has
+    /// them: the plain rung is never retried ([`SymRetry`]) and reads no
+    /// value.
+    fn of(kind: WalkKind, attempt: u8, shut: bool) -> Self {
+        match kind {
+            WalkKind::Plain => Self::Plain,
+            WalkKind::Early | WalkKind::Door => Self::Rung {
+                door: kind == WalkKind::Door,
+                retry: usize::from(attempt).checked_sub(1),
+                shut,
+            },
         }
     }
 }
@@ -4252,33 +4273,22 @@ impl MemoSlot {
 impl Session {
     /// The memo `slot` names, growing the retry tables to reach it.
     fn memo_slot(&mut self, slot: MemoSlot) -> &mut IdMap<Arc<Form>> {
-        let retry = |r: &mut Vec<RetryMemo>, k: usize| {
-            if r.len() <= k {
-                r.resize_with(k + 1, RetryMemo::default);
+        let MemoSlot::Rung { door, retry, shut } = slot else {
+            return &mut self.forms;
+        };
+        let rungs = match retry {
+            None => &mut self.rungs[usize::from(shut)],
+            Some(k) => {
+                if self.retries.len() <= k {
+                    self.retries.resize_with(k + 1, RetryMemo::default);
+                }
+                &mut self.retries[k].rungs[usize::from(shut)]
             }
         };
-        match slot {
-            MemoSlot::Plain => &mut self.forms,
-            MemoSlot::Early => &mut self.forms_early,
-            MemoSlot::Door => &mut self.forms_door,
-            MemoSlot::EarlyShut => &mut self.forms_early_shut,
-            MemoSlot::DoorShut => &mut self.forms_door_shut,
-            MemoSlot::RetryEarly(k) => {
-                retry(&mut self.retries, k);
-                &mut self.retries[k].early
-            }
-            MemoSlot::RetryDoor(k) => {
-                retry(&mut self.retries, k);
-                &mut self.retries[k].door
-            }
-            MemoSlot::RetryEarlyShut(k) => {
-                retry(&mut self.retries, k);
-                &mut self.retries[k].early_shut
-            }
-            MemoSlot::RetryDoorShut(k) => {
-                retry(&mut self.retries, k);
-                &mut self.retries[k].door_shut
-            }
+        if door {
+            &mut rungs.door
+        } else {
+            &mut rungs.early
         }
     }
 }
@@ -4299,7 +4309,7 @@ struct WalkScope<'s> {
     memo: IdMap<Arc<Form>>,
     kept: SymRules,
     #[cfg(feature = "sym-profile-testing")]
-    outer: u8,
+    outer: (u8, bool),
 }
 
 impl Drop for WalkScope<'_> {
@@ -4308,13 +4318,17 @@ impl Drop for WalkScope<'_> {
         let memo = core::mem::take(&mut self.memo);
         *self.sess.memo_slot(self.slot) = memo;
         #[cfg(feature = "sym-profile-testing")]
-        profile::set_attempt(self.outer);
+        {
+            profile::set_attempt(self.outer.0);
+            profile::set_shut(self.outer.1);
+        }
     }
 }
 
 /// **The one walk door**: `kind`'s form of `root` on `attempt` (0 the
-/// first, `k` the `k`th retry), under `rules` at the ring bound `bits`,
-/// in that attempt's memo.
+/// first, `k` the `k`th retry), under `rules` at the ring bound `bits` —
+/// with every value read shut where `shut` ([`SymRules::without_value_reads`])
+/// — in that attempt's memo.
 ///
 /// The rules are swapped onto the session for the walk and swapped back
 /// — `form_in` and everything below it reads `sess.rules`, and a
@@ -4324,29 +4338,33 @@ fn walk(
     sess: &mut Session,
     root: SymId,
     kind: WalkKind,
+    shut: bool,
     attempt: u8,
     (rules, bits): (SymRules, u64),
 ) -> Arc<Form> {
-    let slot = MemoSlot::of(kind, attempt);
+    let slot = MemoSlot::of(kind, attempt, shut);
     let memo = core::mem::take(sess.memo_slot(slot));
-    let shut = matches!(kind, WalkKind::EarlyShut | WalkKind::DoorShut);
+    // **The first attempt widens nothing**: it runs at the ring's own
+    // bound, under the session's own rules — with the value reads shut
+    // on a shut walk. Only a retry widens the ring; the scope below
+    // restores the rules and the memo on every walk.
+    let first = attempt == 0;
+    debug_assert!(
+        !first || (rules == sess.rules && bits == rational::COEFF_BITS),
+        "the first attempt is the session's rules at COEFF_BITS"
+    );
     let rules = if shut {
         rules.without_value_reads()
     } else {
         rules
     };
-    // **The first attempt widens nothing**: it runs at the ring's own
-    // bound, under the session's own rules — or those with the value
-    // reads shut, for the two shut walks. Only a retry widens the ring;
-    // the scope below restores the rules and the memo on every walk.
-    let first = attempt == 0;
-    debug_assert!(
-        !first || ((shut || rules == sess.rules) && bits == rational::COEFF_BITS),
-        "the first attempt is the session's rules at COEFF_BITS"
-    );
+    debug_assert!(!shut || !rules.reads_values(), "a shut walk reads no value");
     let kept = core::mem::replace(&mut sess.rules, rules);
     #[cfg(feature = "sym-profile-testing")]
-    let (t0, outer) = (profile::clock(), profile::set_attempt(attempt));
+    let (t0, outer) = (
+        profile::clock(),
+        (profile::set_attempt(attempt), profile::set_shut(shut)),
+    );
     let mut scope = WalkScope {
         sess,
         slot,
@@ -4357,8 +4375,8 @@ fn walk(
     };
     let (early, registry) = match kind {
         WalkKind::Plain => (false, false),
-        WalkKind::Early | WalkKind::EarlyShut => (true, false),
-        WalkKind::Door | WalkKind::DoorShut => (true, true),
+        WalkKind::Early => (true, false),
+        WalkKind::Door => (true, true),
     };
     let WalkScope { sess, memo, .. } = &mut scope;
     let out = if first {
@@ -4370,8 +4388,8 @@ fn walk(
     profile::walk_done(
         match kind {
             WalkKind::Plain => profile::Walk::Plain,
-            WalkKind::Early | WalkKind::EarlyShut => profile::Walk::Early,
-            WalkKind::Door | WalkKind::DoorShut => profile::Walk::Door,
+            WalkKind::Early => profile::Walk::Early,
+            WalkKind::Door => profile::Walk::Door,
         },
         t0,
     );
@@ -4513,17 +4531,20 @@ fn discharge(id: SymId) -> Option<Discharge> {
 /// ATTEMPT that answered beside the answer — `0` for the first, `k` for
 /// the `k`th rung of the ladder.
 ///
-/// **The decision path's spelling, and the only one that retries.** The
-/// contradiction assertion on a definite margin runs [`discharge`]
-/// instead — the first attempt alone — and the reason is cost: that
+/// **The decision path's spelling, and the only one that retries or
+/// asks the walks with the reads shut** (`rungs`). The contradiction
+/// assertion on a definite margin runs [`discharge`] instead — the
+/// first attempt's read-on rungs alone — and the reason is cost: that
 /// assertion asks a form of EVERY definite margin, which is 95 % of the
 /// early walk's forms on the M10-3 slab (`# Cost`), and almost all of
 /// them refuse, so a ladder there would be the ladder times the whole
 /// population instead of times the refusals the decision path actually
-/// has. What stands behind a retry's zero is therefore the soundness
-/// argument each attempt makes on its own terms ([`SymRetry`]), not a
-/// cross-check against the numeric channel; the cross-check is taken at
-/// the first attempt, where it always was.
+/// has. What stands behind a retry's zero, and behind a zero a shut
+/// walk found where the read-on form was not zero, is therefore the
+/// soundness argument that walk makes on its own terms ([`SymRetry`];
+/// the read-shut tier's own), not a cross-check against the numeric
+/// channel: the cross-check sees only the first attempt's read-on rungs
+/// (`work/decide/the-registration-contradiction-check-misses-a-door-zero-the-read-gated`).
 fn discharge_retried(id: SymId) -> Option<(Discharge, u8)> {
     discharge_in(id, true)
 }
@@ -4590,25 +4611,17 @@ fn ladder(sess: &mut Session, id: SymId, decision: bool) -> Option<(Discharge, R
 /// re-labelled as a weaker one — and, for an attempt above the first,
 /// in that attempt's own memos, under its rules and its ring bound.
 ///
-/// **On the DECISION path (`decision`), a value read is asked only
-/// where no form with the reads shut settles** ([`SymRules::decision_read`]).
-/// A read answers a node at the node, so a cancellation its parent would
-/// make between two equal nodes arrives through their two arms instead:
-/// gated, or — through an atom keyed by a gated argument, or a freeze —
-/// not zero at all. So where the early or door form is gated, or the
-/// leaf has frozen a node over a gated kid, the same rung is walked
-/// again with every value read shut ([`WalkKind::EarlyShut`],
-/// [`WalkKind::DoorShut`], memos of their own), and an ungated zero
-/// there is the rung's answer. Anywhere else the read-on form is the
-/// shut one bit for bit, or a poison. The walk drops a gate in four
-/// places ([`Form::gated`]): at a zero factor that is itself ungated and
-/// at the `Select` arm A0 does not take, which are the same in both
-/// walks; at a freeze, which `froze_gated` notes; and at a poison, where
-/// the read found the expression has no value on the box. A poison is
-/// never zero, and it is left as it is: a zero the shut walk found
-/// there would claim zero for an expression with no value on the box.
+/// **On the DECISION path (`decision`), a read's zero is counted only
+/// where no read-free rung settles the decision.** Where the early or
+/// door form is gated, or the leaf has frozen a node over a gated kid
+/// (`Session::froze_gated`), the rung is walked again with every value
+/// read shut, in memos of its own, and an ungated zero there is the
+/// rung's answer; a gated early zero is asked of the top rung, which
+/// reads no value, before it is counted `sign_gated`. Anywhere else the
+/// read-on form is the shut one or a poison ([`Form::gated`] lists
+/// where the walk drops a gate, and why each is safe here).
 ///
-/// The contradiction check ([`discharge`]) does not ask it: it reads
+/// The contradiction check ([`discharge`]) asks none of this: it reads
 /// only whether a rung found a zero, and a gated zero already is one.
 fn rungs(
     sess: &mut Session,
@@ -4619,36 +4632,22 @@ fn rungs(
     decision: bool,
 ) -> Option<(Discharge, Rung)> {
     let reads = decision && rules.reads_values();
-    // Whether the shut walk of `kind` settles where the read-on form `f`
-    // may not be the shut one.
     let shut_settles = |sess: &mut Session, f: &Form, kind: WalkKind| {
         if !(reads && (f.gated || sess.froze_gated)) {
             return false;
         }
-        let g = walk(sess, id, kind, attempt, (rules, bits));
+        let g = walk(sess, id, kind, true, attempt, (rules, bits));
         g.is_zero() && !g.gated
     };
-    if rules.early {
-        let e = walk(sess, id, WalkKind::Early, attempt, (rules, bits));
-        if (e.is_zero() && !e.gated) || shut_settles(sess, &e, WalkKind::EarlyShut) {
-            return Some((Discharge::Theorem, Rung::Early));
+    // Rules A and B (unconditional) over the PLAIN residual — the top
+    // rung. The residual is the plain form on every attempt (the plain
+    // rung is never retried), but the reduction runs under the
+    // attempt's rules and at its ring bound, so a retry can close here
+    // what the first attempt's ring refused.
+    let top_settles = |sess: &mut Session| {
+        if !(rules.sqrt_square || rules.pythagoras) {
+            return false;
         }
-        if e.is_zero() {
-            return Some((Discharge::SignGated, Rung::Early));
-        }
-    }
-    // Rules A and B (unconditional) over the residual, once —
-    // BEFORE the door, because a zero they reach is a THEOREM and
-    // labelling one an axiom would understate what the tier proved.
-    // (An earlier cut asked the door here and said in its own
-    // comment that it asked last; under `SymRules::all()` that
-    // attributed A/B theorems to `registered`. R1 m1 / R2 MINOR-4.)
-    //
-    // The residual is the PLAIN form on every attempt — the plain rung
-    // is never retried — but the reduction runs under the attempt's
-    // rules and at its ring bound, so a retry can close here what the
-    // first attempt's ring refused.
-    if rules.sqrt_square || rules.pythagoras {
         #[cfg(feature = "sym-profile-testing")]
         let t0 = profile::clock();
         let reduced = rational::with_coeff_bound(bits, || {
@@ -4656,9 +4655,27 @@ fn rungs(
         });
         #[cfg(feature = "sym-profile-testing")]
         profile::reduce_top_done(t0);
-        if reduced.as_ref().is_some_and(|f| f.is_zero()) {
-            return Some((Discharge::Theorem, Rung::Top));
+        reduced.as_ref().is_some_and(|f| f.is_zero())
+    };
+    if rules.early {
+        let e = walk(sess, id, WalkKind::Early, false, attempt, (rules, bits));
+        if (e.is_zero() && !e.gated) || shut_settles(sess, &e, WalkKind::Early) {
+            return Some((Discharge::Theorem, Rung::Early));
         }
+        if e.is_zero() {
+            if reads && top_settles(sess) {
+                return Some((Discharge::Theorem, Rung::Top));
+            }
+            return Some((Discharge::SignGated, Rung::Early));
+        }
+    }
+    // The top rung BEFORE the door, because a zero it reaches is a
+    // THEOREM and labelling one an axiom would understate what the tier
+    // proved. (An earlier cut asked the door here and said in its own
+    // comment that it asked last; under `SymRules::all()` that
+    // attributed A/B theorems to `registered`. R1 m1 / R2 MINOR-4.)
+    if top_settles(sess) {
+        return Some((Discharge::Theorem, Rung::Top));
     }
     // THE DOOR, asked LAST and only where there is a registration
     // to ask about ([`Sym::register_equal`]): only where every walk
@@ -4666,16 +4683,15 @@ fn rungs(
     // that is exactly the claim `SymCounts::registered` makes.
     //
     // **A GATED door form does not discharge.** A zero that rests
-    // BOTH on a constructor's axiom and on rule C's box-wise sign
-    // read is two weakenings at once, and the receipt has one
-    // column for each and none for the pair; reporting it as either
-    // alone would overstate one of them. So it falls to the numeric
-    // channel — the conservative direction, and unreachable in a
-    // shipped run because `signed_root` is dial-off
-    // (`SymRules::shipped`). Pinned rather than assumed.
+    // BOTH on a constructor's axiom and on a box-wise sign read is two
+    // weakenings at once, and the receipt has one column for each and
+    // none for the pair; reporting it as either alone would overstate
+    // one of them. So it falls to the numeric channel — the
+    // conservative direction — unless the door walk with the reads shut
+    // settles it, which rests on the axiom alone.
     if rules.registered && rules.early && !sess.registry.is_empty() {
-        let d = walk(sess, id, WalkKind::Door, attempt, (rules, bits));
-        if (d.is_zero() && !d.gated) || shut_settles(sess, &d, WalkKind::DoorShut) {
+        let d = walk(sess, id, WalkKind::Door, false, attempt, (rules, bits));
+        if (d.is_zero() && !d.gated) || shut_settles(sess, &d, WalkKind::Door) {
             return Some((Discharge::Registered, Rung::Door));
         }
     }
@@ -4999,8 +5015,8 @@ impl<T: Real> Sym<T> {
     ///
     /// # Order against memoization
     ///
-    /// A registration INVALIDATES the door memo — `forms_door` is
-    /// cleared — so a registrant may register after a consumer has
+    /// A registration INVALIDATES the door memos — every attempt's,
+    /// shut or not, is cleared — so a registrant may register after a consumer has
     /// already decided, and the next decision sees the record. The
     /// alternative (refusing a late registration) was rejected: the
     /// evaluation service interleaves construction and decisions, so
@@ -5062,11 +5078,11 @@ impl<T: Real> Sym<T> {
             // have changed — the first attempt's and every retry's; the
             // plain and early memos never consult the registry, so they
             // stay whole (and M10-8's, bit for bit).
-            sess.forms_door.clear();
-            sess.forms_door_shut.clear();
-            for r in &mut sess.retries {
-                r.door.clear();
-                r.door_shut.clear();
+            let attempts = sess.retries.iter_mut().map(|r| &mut r.rungs);
+            for rungs in core::iter::once(&mut sess.rungs).chain(attempts) {
+                for r in rungs {
+                    r.door.clear();
+                }
             }
             SymRegistration::Recorded
         })
