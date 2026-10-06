@@ -264,6 +264,10 @@ fn m10_10_the_plate_needs_no_door() {
             "{label}: the plate certifies whole at 1e3·ε"
         );
     }
+    assert!(
+        !certifies_whole(&doc, SymRules::without_the_algebra(), tol),
+        "the algebra off does not: M10-9's tier refuses the plate at 1e3·ε"
+    );
 }
 
 /// **THE PLATE'S CEILING IS THE FLIP, AND THE WEB MARGIN IS READ

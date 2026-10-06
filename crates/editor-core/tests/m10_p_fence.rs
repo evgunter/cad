@@ -61,7 +61,10 @@
 //! line for line (on the tree before the id-free row existed). The circles store their authored centre and radius, the
 //! fillet arcs their own centre, and the fixture's `Center` arcs the
 //! authored centre, so the carriers the bodies' points are computed on
-//! moved in the last bits.
+//! moved in the last bits. The `Interval` number moved once more, alone,
+//! when the arc-carrier fillet's sweep took the one quarter-tangent
+//! spelling (`sugar::quarter_tan_about`): the fixture's fillet sweeps
+//! enclose differently, and the `f64` bits do not move.
 //!
 //! **The stream hashes each node's id and walks the nodes in id
 //! order**, so a change to how the mint draws ids moves all three
@@ -783,7 +786,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x390b_6feb_2566_0fc0, 0x3b0c_55a0_21c8_af84),
+        (0xc240_a3fb_d658_8c56, 0xfb19_94d5_72ff_ca4a),
         "the corpus's Interval evaluation moved"
     );
 }

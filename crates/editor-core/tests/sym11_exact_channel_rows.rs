@@ -82,8 +82,10 @@ fn replay_on_a_thread(
 
 /// **THE STOP CLAUSE'S ROW.** The five measured documents replayed at
 /// `Sym<Interval>` past their ceilings — `Study::refuses_at`, the
-/// scale the measured bracket says the drive refuses at — where every
-/// leaf's residuals are the widest the corpus produces. The exact
+/// scale the measured bracket says the drive refuses at, or `1e6·ε`,
+/// the top of the bisection, for a document that refuses nowhere below
+/// it — where every leaf's residuals are the widest the corpus
+/// produces. The exact
 /// witness contradicts its own form at NONE of them, at any ε.
 ///
 /// **The receipts are ASSERTED, not recorded in prose**, so a re-take
@@ -111,11 +113,10 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
             "PAST_THE_CEILING is read positionally against `measured_studies`, and the two \
              have gone out of order"
         );
-        let Some(refuses_at) = study.refuses_at else {
-            println!("   {name}: no measured refusal to replay past");
-            continue;
-        };
-        let doc = (study.at)(refuses_at * eps);
+        // A document with no measured refusal is replayed at the top of
+        // the range the bisection searched, `1e6·ε`.
+        let past = study.refuses_at.unwrap_or(1e6);
+        let doc = (study.at)(past * eps);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         match replay_on_a_thread(doc, ParamBox::of(&analyzed), tol) {
             Ok((refusal, counts)) => {

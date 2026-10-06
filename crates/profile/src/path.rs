@@ -3305,9 +3305,9 @@ fn fillet_facts(centre: crate::Facts, fit_in: Sign) -> crate::Facts {
 
 /// **Registers the line×line fillet's incoming tangency** on the values
 /// the door built: the centre, spelled from the arrival side
-/// ([`fillet_arc_carrier`]), IS the radius along the incoming ray's
-/// unit `u1` normal to the turn side `sgn` from `t1`
-/// ([`Arc2::register_tangent_at`]).
+/// ([`fillet_arc_carrier`]) as `t2` moved `σ·r` along the arrival
+/// ray's left normal, IS `t1` moved `σ·r` along the incoming ray `u1`'s
+/// ([`Arc2::register_tangent_at`]) — the same radius, the same side.
 ///
 /// **A theorem of the construction.** The fillet circle is the circle
 /// of radius r tangent to both carriers on the turn side of each, `t1`
@@ -3321,10 +3321,10 @@ fn register_incoming_tangency<T: Real>(
     fillet: &BuiltArc<T>,
     t1: Point2<T>,
     u1: Vec2<T>,
-    sgn: T,
+    offset: T,
     tol: Tol,
 ) {
-    for (fact, answer) in fillet.arc.register_tangent_at(t1, u1, sgn, tol) {
+    for (fact, answer) in fillet.arc.register_tangent_at(t1, u1, offset, tol) {
         answer.handle(fact);
     }
 }
@@ -3716,7 +3716,7 @@ impl<T: Decide> Core<T> {
             trims.bulge,
             fillet_facts(crate::Facts::Registered, trims.fit_in),
         );
-        register_incoming_tangency(&built, trims.t1, u1, sgn, tol);
+        register_incoming_tangency(&built, trims.t1, u1, sgn * pending.radius, tol);
         // (5) incoming side emission: Positive fit emits the straight
         // piece + declared joint (exactly the raw fillet's rule); Zero
         // fit springs the arc off the last vertex — if that joint

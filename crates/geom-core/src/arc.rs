@@ -194,29 +194,29 @@ impl<T: Real> Arc2<T> {
     }
 
     /// **Registers a tangency at a foot** ([`Real::register_equal`]),
-    /// per component: the centre IS `foot` moved the radius along the
-    /// unit `dir`'s left normal, scaled by the side `sgn` (±1) — the
-    /// arc touches the line through `foot` along `dir` there, on the
-    /// `sgn` side. Each answer is handed back with the fact it states,
+    /// per component: the centre IS `foot` moved `offset` along the
+    /// unit `dir`'s left normal — the arc touches the line through
+    /// `foot` along `dir` there, `offset` the radius signed by the side
+    /// it lies on. Each answer is handed back with the fact it states,
     /// for the caller to handle by arm.
     ///
     /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
     /// sound only where the CALLER built the centre so that this holds
     /// over the reals at every value of its inputs, and its doc comment
     /// carries that proof — a fillet's centre spelled from its other
-    /// tangent foot, say. The identity is spelled here, not by the
-    /// caller, so a registrant of any other identity is a new function
-    /// in this file.
+    /// tangent foot, say. The identity's shape is spelled here, not by
+    /// the caller, so a registrant of any other identity is a new
+    /// function in this file.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
     pub fn register_tangent_at(
         self,
         foot: Point2<T>,
         dir: Vec2<T>,
-        sgn: T,
+        offset: T,
         tol: Tol,
     ) -> [(&'static str, SymRegistration); 2] {
-        let other = foot + Vec2::new(-dir.y, dir.x) * (sgn * self.radius);
+        let other = foot + Vec2::new(-dir.y, dir.x) * offset;
         [
             (
                 "the centre's x from the tangent foot",
@@ -466,8 +466,8 @@ mod tests {
         let (arc, _, _) = quarter_circle::<Interval>();
         let foot = Point2::new(Interval::from_f64(1.0), Interval::from_f64(0.0));
         let up = Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0));
-        let answers = |sgn: f64| {
-            arc.register_tangent_at(foot, up, Interval::from_f64(sgn), Tol::witness())
+        let answers = |offset: f64| {
+            arc.register_tangent_at(foot, up, Interval::from_f64(offset), Tol::witness())
                 .map(|(_, a)| a)
         };
         assert_eq!(
