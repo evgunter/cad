@@ -832,12 +832,32 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         )
     }
 
-    /// `now`, the rewrite of vertex name `was` with every member edge it
-    /// cites whole, with each sense it carries re-read along the edge it
-    /// now cites ([`Flush::same_way`]): a sense read along a member edge
-    /// is flipped where the rewrite cites another one running the other
-    /// way along the line.
-    fn resensed(&self, was: &StableName, mut now: StableName) -> Result<StableName, NamingError> {
+    /// `now`, the rewrite of vertex name `was` at finished vertex `at`
+    /// with every member edge it cites whole ([`WholeMemberEdges`]), with
+    /// each sense it carries re-read along the edge it now cites. The
+    /// sides are matched by image, not by position: the rewrite puts an
+    /// `EdgeCrossing`'s sides in name order, swapping their senses with
+    /// them. A sense read along a member edge is flipped where the rewrite
+    /// cites another one running the other way along the line
+    /// ([`Flush::same_way`]). A side that cites no member edge, before
+    /// and after, is a joined edge (`Merged`) or a name the union does not
+    /// own: its sense is read along the finished edges at the vertex
+    /// ([`Flush::way_of`]), which re-citing its constituents does not
+    /// move, so it stands.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::Emission`] where a side's image is not a side of
+    /// `now`, where the two sides have one image, where one side cites a
+    /// member edge and its image does not (or the other way round), or
+    /// where a re-cited member edge lies off the line.
+    fn resensed(
+        &self,
+        was: &StableName,
+        at: Option<topo::VertexKey>,
+        mut now: StableName,
+    ) -> Result<StableName, NamingError> {
+        let bug = |what| NamingError::Emission { what };
         let mut pairs: Vec<(&StableName, (&mut NameRef, &mut Sense))> = Vec::new();
         match (was.path.first(), now.path.first_mut()) {
             (
@@ -853,31 +873,82 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     b_sense,
                 }),
             ) => {
-                pairs.push((oa, (a, a_sense)));
-                pairs.push((ob, (b, b_sense)));
+                let (ia, ib) = (
+                    self.cited_whole(was.node, at, oa)?,
+                    self.cited_whole(was.node, at, ob)?,
+                );
+                if ia == ib {
+                    return Err(bug(
+                        "a union's edge crossing cites one member edge on both sides",
+                    ));
+                }
+                if **a == ia && **b == ib {
+                    pairs.push((oa, (a, a_sense)));
+                    pairs.push((ob, (b, b_sense)));
+                } else if **a == ib && **b == ia {
+                    pairs.push((ob, (a, a_sense)));
+                    pairs.push((oa, (b, b_sense)));
+                } else {
+                    return Err(bug(
+                        "a union's edge crossing's rewrite cites a side no side of it maps to",
+                    ));
+                }
             }
             _ => {}
         }
         for (old, (edge, sense)) in pairs {
-            let (Some((m0, e0, _)), Some((m1, e1, _))) =
-                (member_edge_piece(old), member_edge_piece(edge))
-            else {
-                continue;
-            };
-            if (m0, &e0) == (m1, &e1) {
-                continue;
-            }
-            match self.same_way(&(m0, e0), &(m1, e1))? {
-                Some(true) => {}
-                Some(false) => *sense = sense.flipped(),
-                None => {
-                    return Err(NamingError::Emission {
-                        what: "a union cites a crossing's edge whole as a member edge off its line",
-                    });
+            match (member_edge_piece(old), member_edge_piece(edge)) {
+                (Some((m0, e0, _)), Some((m1, e1, _))) => {
+                    if (m0, &e0) == (m1, &e1) {
+                        continue;
+                    }
+                    match self.same_way(&(m0, e0), &(m1, e1))? {
+                        Some(true) => {}
+                        Some(false) => *sense = sense.flipped(),
+                        None => {
+                            return Err(bug(
+                                "a union cites a crossing's edge whole as a member edge off its line",
+                            ));
+                        }
+                    }
+                }
+                (None, None) => {}
+                _ => {
+                    return Err(bug(
+                        "a union's rewrite turns a crossing's member edge into a joined edge, or back",
+                    ));
                 }
             }
         }
         Ok(now)
+    }
+
+    /// The image [`WholeMemberEdges`] gives side `side` of a vertex name
+    /// of `union` at finished vertex `at`: a member edge cited whole as
+    /// the least member edge through the vertex, a name the union does
+    /// not own as it stands, and anything else with its embedded names
+    /// rewritten.
+    fn cited_whole(
+        &self,
+        union: RecipeNodeId,
+        at: Option<topo::VertexKey>,
+        side: &StableName,
+    ) -> Result<StableName, NamingError> {
+        if side.node != union {
+            return Ok(side.clone());
+        }
+        if let Some((member, edge, _)) = member_edge_piece(side) {
+            let whole = match at {
+                Some(v) => self.least_at(v, (member, edge))?,
+                None => (member, edge),
+            };
+            return Ok(entity_name(union, &whole));
+        }
+        side.clone().rewrite_path(&mut WholeMemberEdges {
+            union,
+            at,
+            flush: self,
+        })
     }
 
     /// The member edge a name of finished vertex `v` cites whole, where
@@ -1091,7 +1162,7 @@ fn cite_member_edges<T: geom_core::Decide>(
                     at,
                     flush,
                 })?;
-                flush.resensed(&name, whole)?
+                flush.resensed(&name, at, whole)?
             }
         };
         if cited.kind != EntityKind::Vertex {
@@ -3005,6 +3076,137 @@ mod tests {
                 "two senses: the {sense:?} crossing is its own, unranked"
             );
         }
+    }
+
+    /// **A rewrite's crossing senses are re-read along the edges it now
+    /// cites, side by side by image** ([`Flush::resensed`]). Members 3,
+    /// 5 and 6 each hold one straight edge on the x axis (3 runs −x, 5
+    /// and 6 run +x) and member 4 one on the y axis.
+    /// - A `Crossing` re-cited from 5's edge to 3's flips its sense, and
+    ///   to 6's keeps it.
+    /// - An `EdgeCrossing` whose sides the rewrite put in name order is
+    ///   matched by image, so each sense stays with its edge.
+    /// - A side that cites a member edge before the rewrite and a joined
+    ///   edge after it refuses.
+    #[test]
+    fn a_rewrites_crossing_senses_are_reread_side_by_side_along_the_edges_it_cites() {
+        use crate::names::role::Sense;
+
+        let union = RecipeNodeId(9);
+        let line = |p: [f64; 3], q: [f64; 3]| {
+            let mut body = topo::Body::<f64>::new();
+            let born = body
+                .mvfs(geom_core::Point3::new(p[0], p[1], p[2]), true)
+                .expect("mvfs births a lone vertex");
+            let edge = body
+                .mev_line(
+                    topo::MevSite::Lone {
+                        r#loop: born.r#loop,
+                    },
+                    geom_core::Point3::new(q[0], q[1], q[2]),
+                    geom_core::Tol::witness(),
+                )
+                .expect("mev grows the loop by one edge")
+                .edge;
+            (body, edge)
+        };
+        let table = |m: u64, edge| {
+            let keyed = member_edge(union, m);
+            let [RoleSeg::FromMember { of, .. }] = keyed.path.as_slice() else {
+                unreachable!("member_edge is one FromMember segment")
+            };
+            let mut t = NameTable::new();
+            t.insert((**of).clone(), edge_ref(edge)).unwrap();
+            t
+        };
+        let (b3, e3) = line([1.0, 0.0, 0.0], [0.0, 0.0, 0.0]);
+        let (b4, e4) = line([0.5, -0.5, 0.0], [0.5, 0.5, 0.0]);
+        let (b5, e5) = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let (b6, e6) = line([0.25, 0.0, 0.0], [0.75, 0.0, 0.0]);
+        let tables = [table(3, e3), table(4, e4), table(5, e5), table(6, e6)];
+        let members = [(3, &b3), (4, &b4), (5, &b5), (6, &b6)]
+            .into_iter()
+            .zip(&tables)
+            .map(|((m, body), table)| Member {
+                node: RecipeNodeId(m),
+                body,
+                table,
+            })
+            .collect::<Vec<_>>();
+        let mut body = topo::Body::<f64>::new();
+        body.mvfs(geom_core::Point3::new(0.5, 0.0, 0.0), true)
+            .expect("mvfs births a lone vertex");
+        let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
+        let parents = Parents::empty();
+        let senses = CrossingSenses::new();
+        let flush = Flush::of(union, &body, &members, &parents, &senses, bnd).unwrap();
+
+        let crossing = |edge: StableName, sense| {
+            vertex(
+                union,
+                vec![RoleSeg::Crossing {
+                    edge: NameRef::new(edge),
+                    face: NameRef::new(member_cap(union, 2)),
+                    sense,
+                }],
+            )
+        };
+        let was = crossing(member_edge(union, 5), Sense::Enters);
+        let flipped = flush
+            .resensed(&was, None, crossing(member_edge(union, 3), Sense::Enters))
+            .unwrap();
+        assert_eq!(
+            flipped,
+            crossing(member_edge(union, 3), Sense::Leaves),
+            "re-cited along an edge running the other way"
+        );
+        let kept = flush
+            .resensed(&was, None, crossing(member_edge(union, 6), Sense::Enters))
+            .unwrap();
+        assert_eq!(
+            kept,
+            crossing(member_edge(union, 6), Sense::Enters),
+            "re-cited along an edge running the same way"
+        );
+
+        let edge_crossing = |(a, a_sense): (u64, Sense), (b, b_sense): (u64, Sense)| {
+            vertex(
+                union,
+                vec![RoleSeg::EdgeCrossing {
+                    a: NameRef::new(member_edge(union, a)),
+                    a_sense,
+                    b: NameRef::new(member_edge(union, b)),
+                    b_sense,
+                }],
+            )
+        };
+        let was = edge_crossing((5, Sense::Enters), (4, Sense::Leaves));
+        let ordered = edge_crossing((4, Sense::Leaves), (5, Sense::Enters));
+        assert_eq!(
+            flush.resensed(&was, None, ordered.clone()).unwrap(),
+            ordered,
+            "each sense stays with its edge where the sides swap"
+        );
+
+        let joined = StableName {
+            kind: EntityKind::Edge,
+            node: union,
+            path: vec![RoleSeg::Merged(vec![
+                member_edge(union, 3),
+                member_edge(union, 5),
+            ])],
+        };
+        let err = flush
+            .resensed(
+                &crossing(member_edge(union, 5), Sense::Enters),
+                None,
+                crossing(joined, Sense::Enters),
+            )
+            .unwrap_err();
+        assert!(
+            matches!(err, NamingError::Emission { what } if what.contains("joined edge")),
+            "{err:?}"
+        );
     }
 
     /// **A group of several vertices sharing a name that is not one seam
