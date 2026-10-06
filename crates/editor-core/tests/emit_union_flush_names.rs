@@ -20,7 +20,7 @@ use std::collections::BTreeSet;
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{failure, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
-use crate::emit_union_rim_piece_ranks::{Case, cases, runs};
+use crate::emit_union_rim_piece_ranks::{Case, cases, runs, signature};
 use crate::fixture::{face_vertices, insert, table};
 
 use editor_core::{
@@ -412,12 +412,15 @@ fn a_face_cut_and_merged_in_one_step_publishes_no_constituent() {
     assert!(all.all(|s| s == first), "{spelled:?}");
 }
 
-/// **A body that depends on member order still publishes.** In the ZIP
-/// document, `[b, s, a]` and `[s, b, a]` keep a vertex on the slab's
-/// bottom seam that the other orders do not, so the seam there is two
-/// edges between the same two faces. They publish, every name once.
+/// **The ZIP document's body is one in every member order.** `[b, s, a]`
+/// and `[s, b, a]` cut the slab's bottom seam before the declared merge
+/// meets it; the output stage joins the vertex that cut leaves between
+/// the slab's bottom and the merged wall (maximal edges), so they build
+/// the vertex set the other orders build, and every order publishes.
+/// Red when an output stage skips the join: those two orders keep two
+/// vertices the others never mint.
 #[test]
-fn a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names() {
+fn the_zip_document_builds_one_vertex_set_in_every_order() {
     let case = near_slab();
     let mut published = std::collections::BTreeMap::new();
     runs(&case, |at, ev, _, unions| {
@@ -436,10 +439,42 @@ fn a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names() {
             .get(order)
             .unwrap_or_else(|| panic!("{order} does not publish: {published:?}"))
     };
-    // The shape under test: the orders that cut before they merge keep
-    // two vertices the others do not.
     for (late, early) in [("[1, 2, 0]", "[0, 1, 2]"), ("[2, 1, 0]", "[1, 0, 2]")] {
-        assert_eq!(count(late), count(early) + 2, "{late} against {early}");
+        assert_eq!(count(late), count(early), "{late} against {early}");
+    }
+}
+
+/// **The ZIP document publishes one table in every member order.**
+/// Every order that fuses names every entity of the union alike, each
+/// name denoting the same geometry ([`signature`]): an edge the output
+/// stage joins is named for the set of the members' rims it spans, or
+/// as a piece of the one it lies within, read off the finished body,
+/// whichever member a fold step met first. Red when any name of the
+/// union, a joined edge's among them, depends on member order.
+#[test]
+fn the_zip_document_publishes_one_table_in_every_order() {
+    let mut tables = Vec::new();
+    runs(&near_slab(), |at, ev, _, unions| {
+        let union = unions[0].1;
+        if failure(ev, union).is_none() {
+            tables.push((at.to_string(), signature(ev, union)));
+        }
+    });
+    assert!(tables.len() >= 4, "only {} orders fuse", tables.len());
+    let joined = tables[0]
+        .1
+        .keys()
+        .filter(|n| n.kind == EntityKind::Edge && matches!(n.path.as_slice(), [RoleSeg::Merged(_)]))
+        .count();
+    // The two bottom rims run along both blocks' rims; past the slab,
+    // each top rim lies within `b`'s alone and is a piece of it.
+    assert_eq!(
+        joined, 2,
+        "the two uncut flush rims are each one set-named edge"
+    );
+    let (first_at, first) = &tables[0];
+    for (at, table) in &tables[1..] {
+        assert_eq!(first, table, "{first_at} against {at}");
     }
 }
 
@@ -449,8 +484,7 @@ fn a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names() {
 /// past it, through `b`'s coincident top. The two tops are still one
 /// parent, cut by one obstacle the slab makes, so each piece is
 /// `Merged` of both and one `Borders` (N2), as where the merge comes
-/// first. The face table is compared, since the bodies differ by the
-/// leftover vertex above.
+/// first. The face table is compared.
 #[test]
 fn a_cut_a_covered_face_meets_is_one_divider_in_every_order() {
     let (faces, _) = face_tables(&near_slab());

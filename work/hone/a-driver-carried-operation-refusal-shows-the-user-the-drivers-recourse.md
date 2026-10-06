@@ -27,6 +27,13 @@ the driver, not the person:
   … could not be partitioned out: {error}"
   (`crates/topo/src/shell.rs:588`, `impl Display for ShellError`), and
   `ShellError::Rim` the same way (`crates/topo/src/shell.rs:643`).
+  `ShellError::Face` carries `ReplaceFaceError::Op` through a second
+  level: "a face could not be offset inward: an edge beside the moved
+  face could not be rebuilt: {error}", and "the moved faces could not
+  be put onto their offset surface: {error}" for the re-chart
+  (`crates/topo/src/replace_face.rs`, `impl Display for
+  ReplaceFaceError`). The carried text is the operator's, "the door"
+  and the "(D2 adjacency coherence)" tag included.
 - `ExtrudeError::Op` forwards it as "an Euler operation refused:
   {source}" (`crates/sweep/src/extrude.rs:547`), and `BlendError::Op`,
   `RevolveError::Op`, `LoftError::Euler`, `SplitJoinError::Euler`,
@@ -36,7 +43,7 @@ the driver, not the person:
 `crates/editor-core/tests/refusal_concision_chains.rs:643`
 (`DRIVER_CARRIED`, pinned by
 `every_driver_carried_chain_ends_in_the_operators_own_recourse`) lists
-the eleven chains and asserts each ends in the operator's own
+the thirteen chains and asserts each ends in the operator's own
 recourse; that row goes red when this one is fixed, and is updated
 with it.
 

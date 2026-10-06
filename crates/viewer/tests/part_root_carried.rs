@@ -50,8 +50,9 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, dir: &Path, tol: Tol) -> Strin
         resolver: Some(Arc::new(Workspace::open(dir).expect("the store opens"))),
         ..EvalOptions::default()
     };
-    match evaluate::<f64>(doc, None, &CancelToken::new(), &opts, tol).result(node) {
-        Some(NodeResult::Failed(error)) => error.spoken(doc),
+    let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &opts, tol);
+    match evaluation.result(node) {
+        Some(NodeResult::Failed(error)) => error.spoken(doc, &evaluation),
         other => panic!("{node:?} fails in its own document: {other:?}"),
     }
 }

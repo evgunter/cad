@@ -2060,7 +2060,7 @@ impl From<crate::ident::Mispaired> for EditError {
 // renderings, `Dimension`'s `Display`), never `Debug`. A name is
 // parenthesized apposition when the sentence's subject is a role word
 // ("the rebind target ({name})") and inline when the name itself is
-// the subject ("the {name} does not resolve"); new arms copy whichever
+// the subject ("{name} does not resolve"); new arms copy whichever
 // their sentence shape calls for. The typed variant remains the
 // machine contract.
 //
@@ -2280,7 +2280,7 @@ impl EditError {
     /// that say a node is not live — said from a version that holds it
     /// again, `X "plate" is not live` would contradict itself.
     #[must_use]
-    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+    pub fn respoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> Self {
         let mut again = self.clone();
         match &mut again {
             Self::UnknownSlot { id, slot: _ } => {
@@ -2592,7 +2592,7 @@ impl EditError {
             Self::DeclaredSiteNotAnOperand { node, name, site } => {
                 write!(
                     f,
-                    "the declared {name} is read at {site}, which is not an operand of {node}"
+                    "the declaration names {name}, read at {site}, which is not an operand of {node}"
                 )?;
                 tail.recourse(
                     f,
@@ -2602,8 +2602,8 @@ impl EditError {
             Self::DeclaredNameNotUpstream { node, name } => {
                 write!(
                     f,
-                    "the declared {name} is not minted before {node}, so none of its operands \
-                     can hold it"
+                    "the declaration names {name}, which is not minted before {node}, so none of \
+                     its operands can hold it"
                 )?;
                 tail.recourse(
                     f,
@@ -3055,7 +3055,7 @@ impl EditError {
             Self::NameStepNeverMinted { name, step } => {
                 write!(
                     f,
-                    "the {name} spells the profile step id {}, which this document never minted \
+                    "{name} spells the profile step id {}, which this document never minted \
                      (its mint log does not hold it)",
                     step
                 )?;
@@ -3065,7 +3065,10 @@ impl EditError {
                 )
             }
             Self::DeclareNamesMissingNode { name } => {
-                write!(f, "the declared {name} refers to a node that is not live")?;
+                write!(
+                    f,
+                    "the declaration names {name}, which refers to a node that is not live"
+                )?;
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
             Self::ReadSiteMissingNode { at } => {
@@ -3124,13 +3127,13 @@ impl EditError {
                 tail.recourse(f, format_args!("rebind it to another {} name", from.noun()))
             }
             Self::RebindIdentity { name } => {
-                write!(f, "rebinding the {name} to itself would change nothing")?;
+                write!(f, "rebinding {name} to itself would change nothing")?;
                 tail.recourse(f, format_args!("rebind it to a different name"))
             }
             Self::RebindNoReferences { name } => {
                 write!(
                     f,
-                    "no document site references the {name}, so there is nothing to repair"
+                    "no document site references {name}, so there is nothing to repair"
                 )?;
                 tail.recourse(f, format_args!("rebind a name the document references"))
             }
@@ -3153,7 +3156,7 @@ impl EditError {
             Self::NameUnresolvedInEvaluation { name } => {
                 write!(
                     f,
-                    "the {name} does not resolve in the supplied evaluation — recording the \
+                    "{name} does not resolve in the supplied evaluation — recording the \
                      reference would strand it"
                 )?;
                 tail.recourse(f, format_args!("name an entity the evaluation holds"))
@@ -3173,7 +3176,7 @@ impl EditError {
             Self::RebindAppearanceCollision { name, kind } => {
                 write!(
                     f,
-                    "the rebind would land two {} attributes on the {name}",
+                    "the rebind would land two {} attributes on {name}",
                     kind.noun()
                 )?;
                 tail.recourse(f, format_args!("{CLEAR_ONE_FIRST}"))
@@ -3181,7 +3184,7 @@ impl EditError {
             Self::AppearanceWrongKind { name } => {
                 write!(
                     f,
-                    "appearance attaches to faces and bodies only (refused for the {name})"
+                    "appearance attaches to faces and bodies only (refused for {name})"
                 )?;
                 tail.recourse(f, format_args!("set it on a face or a body"))
             }
@@ -3193,7 +3196,7 @@ impl EditError {
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
             Self::AppearanceNotSet { name, kind } => {
-                write!(f, "no {} attribute is set on the {name}", kind.noun())?;
+                write!(f, "no {} attribute is set on {name}", kind.noun())?;
                 tail.recourse(f, format_args!("clear only an attribute the name carries"))
             }
             Self::InvalidTolerance { value } => {
@@ -3209,7 +3212,7 @@ impl EditError {
             Self::MetaUnversioned { name, key, error } => {
                 write!(
                     f,
-                    "metadata {key:?} on the {name} does not carry an integer \"v\" version \
+                    "metadata {key:?} on {name} does not carry an integer \"v\" version \
                      field: {error}"
                 )?;
                 tail.recourse(f, format_args!("store a map with an integer \"v\" entry"))
@@ -3217,18 +3220,18 @@ impl EditError {
             Self::MetaNonFinite { name, key, path } => {
                 write!(
                     f,
-                    "metadata {key:?} on the {name} carries a non-finite float at {path}"
+                    "metadata {key:?} on {name} carries a non-finite float at {path}"
                 )?;
                 tail.recourse(f, format_args!("store a finite number there"))
             }
             Self::MetaNotSet { name, key } => {
-                write!(f, "no metadata {key:?} is set on the {name}")?;
+                write!(f, "no metadata {key:?} is set on {name}")?;
                 tail.recourse(f, format_args!("clear only a key the name carries"))
             }
             Self::RebindMetadataCollision { name, key } => {
                 write!(
                     f,
-                    "the rebind would land two values under metadata {key:?} on the {name}"
+                    "the rebind would land two values under metadata {key:?} on {name}"
                 )?;
                 tail.recourse(f, format_args!("{CLEAR_ONE_FIRST}"))
             }
@@ -3584,6 +3587,8 @@ pub enum Maintenance {
         /// removed, or its locator names a step a reshaping dropped or
         /// a kept step's piece it stopped drawing.
         name: SpokenName,
+        /// Which of those the edit took.
+        took: Took,
     },
     /// **An appearance attachment this edit stranded** (DM7): the
     /// document's appearance store holds an attribute under `name`,
@@ -3606,8 +3611,10 @@ pub enum Maintenance {
     StrandedAppearance {
         /// The key the store holds the attachment under: its `node` is
         /// the id a delete removed, or its locator names a step a
-        /// reshaping dropped.
+        /// reshaping dropped or a kept step's piece it stopped drawing.
         name: SpokenName,
+        /// Which of those the edit took.
+        took: Took,
     },
     /// **An anonymous variable this edit removed** (VR7): the edit
     /// detached the last expression reading it, and a variable with no
@@ -3629,6 +3636,46 @@ pub enum Maintenance {
     },
 }
 
+/// **What an edit took from a name it stranded** ([`Maintenance::Strand`],
+/// [`Maintenance::StrandedAppearance`]), said in the row: the node that
+/// minted it (a delete), a profile step it names (a reshaping that
+/// dropped the step), or a piece a kept step stopped drawing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Took {
+    /// The node that minted the name was deleted.
+    Node,
+    /// A profile step the name names was dropped.
+    Step,
+    /// A step the name names was kept and no longer draws its piece.
+    Piece,
+}
+
+impl Took {
+    /// **What the edit took from `name`, as a strand row says it**: a
+    /// delete says the node it deleted, the name's minter — the name's
+    /// words say the node that made its leaf, which a carry through a
+    /// Boolean's or a fillet's output is not — and a reshaping says
+    /// what it dropped.
+    #[must_use]
+    pub fn said<'a>(&'a self, name: &'a SpokenName) -> impl core::fmt::Display + 'a {
+        struct Said<'a>(&'a Took, &'a SpokenName);
+        impl core::fmt::Display for Said<'_> {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                match self.0 {
+                    Took::Node => {
+                        write!(f, "deleted {}, which minted the name", self.1.minter())
+                    }
+                    Took::Step => f.write_str("dropped a profile step it names"),
+                    Took::Piece => {
+                        f.write_str("kept a step it names but no longer draws that piece")
+                    }
+                }
+            }
+        }
+        Said(self, name)
+    }
+}
+
 impl core::fmt::Display for Maintenance {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -3638,35 +3685,29 @@ impl core::fmt::Display for Maintenance {
                  group, so {i}'s offset was cleared",
                 i = instance
             ),
-            // The sentence names what was removed as the name's
-            // REFERENT — the minting node under a delete, the profile
-            // segment under a reshaping — because the row does not say
-            // which edit made it and must not claim the node is gone
-            // when the segment is. "a face name minted by node 7,
-            // which this edit deleted" would read as though the name
-            // were deleted, and the name is exactly what survives.
-            Self::Strand { node, name } => write!(
+            // The sentence names what was taken as the name's
+            // REFERENT ([`Took`]): "the end cap of node 7, which this
+            // edit deleted" would read as though the name were deleted,
+            // and the name is exactly what survives.
+            Self::Strand { node, name, took } => write!(
                 f,
-                "{} carries {} {}; this edit removed what it denoted (its minting node, or \
-                 the profile segment it named), so the name resolves to nothing until it is \
-                 rebound",
+                "{} carries a name for {}; this edit {}, so the name resolves to nothing \
+                 until it is rebound",
                 node,
-                name.name().kind.article(),
-                name
+                name,
+                took.said(name)
             ),
             // The same sentence with the store where the carrying
             // node was: what a reader has to know is that the paint
             // is still there and what took its referent. A store holds
-            // a thing UNDER a key, and `SpokenName`'s Display supplies
-            // the noun ("face name minted by Extrude 3fa9c1d2a0b1"), so
-            // the article is this sentence's to provide.
-            Self::StrandedAppearance { name } => write!(
+            // a thing UNDER a key, and the key is a name for the
+            // entity `SpokenName`'s Display says.
+            Self::StrandedAppearance { name, took } => write!(
                 f,
-                "the appearance store holds an attachment under {} {}; this edit removed what \
-                 it denoted (its minting node, or the profile segment it named), so the name \
-                 resolves to nothing until it is rebound or cleared",
-                name.name().kind.article(),
-                name
+                "the appearance store holds an attachment under a name for {}; this edit \
+                 {}, so the name resolves to nothing until it is rebound or cleared",
+                name,
+                took.said(name)
             ),
             Self::LabelDropped { gauge, label } => write!(
                 f,
@@ -3730,7 +3771,7 @@ impl core::fmt::Display for Maintenance {
 /// node it names (`dm7_delete_strands`'s
 /// `a_carrier_deleted_with_the_node_it_names_reports_nothing`
 /// measures it).
-fn stranded_references<P>(
+fn stranded_references<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
     deleted: RecipeNodeId,
@@ -3741,9 +3782,11 @@ fn stranded_references<P>(
             NameCarrier::Payload { node, name } => Maintenance::Strand {
                 node: before.spoken(node),
                 name: before.spoken_name(name),
+                took: Took::Node,
             },
             NameCarrier::Store { name } => Maintenance::StrandedAppearance {
                 name: before.spoken_name(name),
+                took: Took::Node,
             },
         })
         .collect()
@@ -3863,8 +3906,9 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
 /// Nothing is rewritten: the name keeps its spelling and resolves
 /// `Vanished`. A step id is unique across the document, so which node
 /// minted the name does not enter. The rows speak their nodes from
-/// `before`.
-fn stranded_steps<P>(
+/// `before`, a kept step where `doc` draws it and a dropped one where
+/// it sat in `before` ([`crate::SpokenName::steps_respoken`]).
+fn stranded_steps<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
     dropped: &std::collections::BTreeSet<StepId>,
@@ -3876,22 +3920,27 @@ fn stranded_steps<P>(
     let mut strands = Vec::new();
     let mut keys = Vec::new();
     for carrier in doc.name_carriers() {
-        let gone = carrier
-            .name()
-            .step_pieces()
+        let pieces = carrier.name().step_pieces();
+        let took = if pieces
             .iter()
-            .any(|p| undrawn.contains(p) || p.step().is_some_and(|s| dropped.contains(&s)));
-        if !gone {
+            .any(|p| p.step().is_some_and(|s| dropped.contains(&s)))
+        {
+            Took::Step
+        } else if pieces.iter().any(|p| undrawn.contains(p)) {
+            Took::Piece
+        } else {
             continue;
-        }
+        };
         match carrier {
             NameCarrier::Payload { node, name } => strands.push(Maintenance::Strand {
                 node: before.spoken(node),
-                name: before.spoken_name(name),
+                name: before.spoken_name(name).steps_respoken(doc),
+                took,
             }),
             NameCarrier::Store { name } => {
                 keys.push(Maintenance::StrandedAppearance {
-                    name: before.spoken_name(name),
+                    name: before.spoken_name(name).steps_respoken(doc),
+                    took,
                 });
             }
         }
@@ -3905,7 +3954,7 @@ fn stranded_steps<P>(
 /// carries the same kind or key: which value survives would be an
 /// auto-pick. The store half of [`DocEdit::Rebind`]'s name rewrite,
 /// speaking its refusal from `before`, the document the door was handed.
-fn move_appearance_record<P>(
+fn move_appearance_record<P: crate::ProfilePayload>(
     before: &Doc<P>,
     store: &mut crate::appearance::AppearanceMap,
     moved: crate::appearance::AppearanceRecord,
@@ -4043,10 +4092,10 @@ impl MaintenanceNet {
         self.rows
             .into_iter()
             .filter(|row| match row {
-                Maintenance::Strand { node, name } => end
+                Maintenance::Strand { node, name, .. } => end
                     .node(node.id())
                     .is_some_and(|carrier| carrier.payload_names().contains(&name.name())),
-                Maintenance::StrandedAppearance { name } => {
+                Maintenance::StrandedAppearance { name, .. } => {
                     end.appearance().contains_key(name.name())
                 }
                 Maintenance::OffsetCleared { instance, .. } => matches!(
@@ -4228,7 +4277,11 @@ pub struct Recorded<P: crate::ProfilePayload> {
 /// of the load door's `SnapshotError::NameStepNotMinted`, so a
 /// document this door accepts is one the load door reads back. `doc`
 /// is the document being written, `before` the one the door was handed.
-fn check_name_steps<P>(before: &Doc<P>, doc: &Doc<P>, name: &StableName) -> Result<(), EditError> {
+fn check_name_steps<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    doc: &Doc<P>,
+    name: &StableName,
+) -> Result<(), EditError> {
     match name
         .piece_steps()
         .into_iter()
@@ -4588,7 +4641,11 @@ fn check_node_inputs<P: crate::ProfilePayload>(
 ///
 /// `doc` is the document the door was handed, `new` the one being
 /// written.
-fn check_payload_refs<P>(doc: &Doc<P>, new: &Doc<P>, node: &Node<P>) -> Result<(), EditError> {
+fn check_payload_refs<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    node: &Node<P>,
+) -> Result<(), EditError> {
     for name in node.payload_names() {
         if !new.nodes.contains_key(&name.node) {
             return Err(EditError::DeclareNamesMissingNode {

@@ -57,10 +57,11 @@
 //!   history;
 //! - an entity of the finished body that belongs to several members at
 //!   once (a flush stretch, a corner on another member's rim) is named
-//!   for the least member entity that holds it, and every edge lying
-//!   along a member edge is named as a piece of it ([`Flush`],
-//!   [`group_member_edges`]) — which member was operand A is fold
-//!   history;
+//!   for the least member entity that holds it, every edge lying within
+//!   a member edge is named as a piece of it, and an edge lying within
+//!   none but along several that cover it (a flush rim the output stage
+//!   joined) is named for that set ([`Flush`], [`group_member_edges`])
+//!   — which member was operand A is fold history;
 //! - a vertex is named for the member vertex it sits at, or for the
 //!   member edge it lies on and the one face crossing it there, and
 //!   otherwise cites the member edge it lies on whole, not the stretch
@@ -71,10 +72,9 @@
 //!   which step cut the edge is fold history.
 //!
 //! These names are functions of the finished body, so they are
-//! order-free as far as the boolean's output is: where different member
-//! orders leave different vertices (a declared merge can,
-//! `work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`),
-//! the names differ with them.
+//! order-free as far as the boolean's output is, and every output stage
+//! leaves maximal faces and maximal edges (`docs/DESIGN.md`), a complex
+//! unique to the union's region and face partition.
 //!
 //! A refusal raised mid-fold, and the declaration door's view of an
 //! intermediate step, have no finished body and keep the fold's
@@ -115,7 +115,7 @@ use crate::names::emit::{
     vertex_point,
 };
 use crate::names::emit_topo::{
-    CrossedEdge, FaceDescent, OnSegment, Segment, name_edge_pieces, name_parent_faces,
+    Cover, CrossedEdge, FaceDescent, Lone, OnSegment, Segment, name_edge_pieces, name_parent_faces,
     rank_crossings,
 };
 use crate::names::groups::Rederived;
@@ -224,7 +224,15 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     )?;
     let mut tie = TieRows::default();
     for g in by_parents.seams.iter().chain(&member_edges) {
-        name_edge_pieces(&mut t, &mut tie, g.from_tie, &g.base, body, 0, &g.edges)?;
+        name_edge_pieces(
+            &mut t,
+            &mut tie,
+            g.from_tie,
+            &g.base,
+            (body, 0),
+            &g.edges,
+            g.lone,
+        )?;
     }
     tie.flush(&mut t)?;
     check_total(&t, body, 0)?;
@@ -232,13 +240,15 @@ pub(crate) fn name_union<T: geom_core::Decide>(
 }
 
 /// The edges of a union's finished body that are pieces of one parent
-/// — a seam between two parents, or a member edge — under that
-/// parent's name. They are qualified by their ends once the vertices
-/// are named ([`name_edge_pieces`]).
+/// — a seam between two parents, a member edge, or a set of member
+/// edges — under that parent's name. They are qualified by their ends
+/// once the vertices are named ([`name_edge_pieces`]); a lone piece
+/// too, where a set-named edge holds the rest of its member edge.
 struct PieceGroup {
     base: StableName,
     from_tie: bool,
     edges: Vec<topo::EdgeKey>,
+    lone: Lone,
 }
 
 /// One member of a union as [`name_union`] reads it: its node, its own
@@ -256,14 +266,17 @@ pub(crate) struct Member<'a, T: geom_core::Decide> {
 ///
 /// A row `FromMember(m, e)` followed only by the fold's
 /// `Fragment(Ends)`, `e` an edge, is a piece of `m`'s edge `e`; so is
-/// any edge row that lies along a member edge whatever the fold named
+/// any edge row that lies within a member edge whatever the fold named
 /// it (a merged edge the fold met as a seam). Either is a piece of the
 /// LEAST member edge it lies within ([`Flush`]), which is `e` unless `e`
-/// runs flush with a lesser member's edge there. Each group is named
-/// `FromMember(m, e)`, and several pieces of it by their ends over the
-/// union's published vertex names, read off the finished body: the
-/// fold's qualifiers record which step cut the edge and which member
-/// kept a flush stretch, both of which depend on member order.
+/// runs flush with a lesser member's edge there. An edge row that lies
+/// within none but runs along several member edges covering it, however
+/// the fold named it, is a piece of that SET. Each group is named
+/// `FromMember(m, e)` or `Merged` of the set, and several pieces of it
+/// by their ends over the union's published vertex names, read off the
+/// finished body: the fold's qualifiers record which step cut the edge
+/// and which member kept a flush stretch, both of which depend on member
+/// order.
 ///
 /// Returns the table without those rows, and the groups.
 fn group_member_edges<T: geom_core::Decide>(
@@ -272,8 +285,8 @@ fn group_member_edges<T: geom_core::Decide>(
     flush: &Flush<'_, T>,
 ) -> Result<(NameTable, Vec<PieceGroup>), NamingError> {
     let bug = |what| NamingError::Emission { what };
-    // (member, member edge) → (from a tie, its edges).
-    let mut groups: BTreeMap<MemberEntity, (bool, Vec<topo::EdgeKey>)> = BTreeMap::new();
+    // Member edge, or set of them → (from a tie, its edges).
+    let mut groups: BTreeMap<Along, (bool, Vec<topo::EdgeKey>)> = BTreeMap::new();
     let mut out = NameTable::new();
     let rows = t
         .iter()
@@ -293,9 +306,14 @@ fn group_member_edges<T: geom_core::Decide>(
             .collect::<Vec<_>>();
         let key = match (member_edge_piece(&name), edges.as_slice()) {
             (Some(_), []) => return Err(bug("a union's member-edge row names no edge")),
-            (Some((member, edge, _)), [k]) => Some(flush.least_edge(*k, (member, edge))),
-            (Some((member, edge, _)), _) => Some((member, edge)),
-            (None, [k]) => flush.least_within(*k),
+            (_, [k]) if flush.spans.contains_key(k) => {
+                Some(Along::Set(flush.spans[k].iter().cloned().collect()))
+            }
+            (Some((member, edge, _)), [k]) => {
+                Some(Along::One(flush.least_edge(*k, (member, edge))))
+            }
+            (Some((member, edge, _)), _) => Some(Along::One((member, edge))),
+            (None, [k]) => flush.least_within(*k).map(Along::One),
             (None, _) => None,
         };
         match key {
@@ -307,15 +325,41 @@ fn group_member_edges<T: geom_core::Decide>(
             None => put_entry(&mut out, name, &entry)?,
         }
     }
+    let in_sets: BTreeSet<MemberEntity> = groups
+        .keys()
+        .filter_map(|k| match k {
+            Along::Set(set) => Some(set.iter().cloned()),
+            Along::One(_) => None,
+        })
+        .flatten()
+        .collect();
     let groups = groups
         .into_iter()
         .map(|(key, (from_tie, edges))| PieceGroup {
-            base: entity_name(flush.union, &key),
+            lone: match &key {
+                Along::One(e) if in_sets.contains(e) => Lone::Piece,
+                _ => Lone::Whole,
+            },
+            base: match key {
+                Along::One(e) => entity_name(flush.union, &e),
+                Along::Set(set) => crate::names::merged::edge_set(
+                    flush.union,
+                    set.iter().map(|e| entity_name(flush.union, e)),
+                ),
+            },
             from_tie,
             edges,
         })
         .collect();
     Ok((out, groups))
+}
+
+/// What a union's edge is a piece of: one member edge, or the set of
+/// member edges it runs along where it lies within none of them.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum Along {
+    One(MemberEntity),
+    Set(Vec<MemberEntity>),
 }
 
 /// One row into a table, through the door its entry's shape takes.
@@ -379,7 +423,7 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 }
 
 /// **An entity of the finished body that belongs to several members
-/// at once is named for the least of them.**
+/// at once is named for the least of them, or for the set of them.**
 ///
 /// Where two members run flush, one stretch of the finished body's
 /// boundary is a stretch of both: a member edge lying along another
@@ -388,14 +432,18 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 /// its name for the stretch says which member was folded first. The
 /// union has no A and B; it names the stretch for the least member
 /// entity that holds it, in the order of the [`RoleSeg::FromMember`]
-/// names it publishes.
+/// names it publishes. A stretch the output stage joined across several
+/// member edges lies within none of them, and is named for the set of
+/// those it runs along.
 ///
 /// "Holds" is read off the finished body and the members' own bodies,
 /// never off the fold:
 /// - a finished EDGE lies within member `n`'s edge `e` when its two
 ///   faces descend from `e`'s two faces in `n` (their names cite them,
 ///   through a `Merged` set or a `Fragment`) and both its ends lie on
-///   `e`'s closed segment ([`ON_MEMBER_EDGE`]);
+///   `e`'s closed segment ([`ON_MEMBER_EDGE`]); it runs ALONG `e` when
+///   instead the two overlap over a length on one line
+///   ([`Segment::cover`]);
 /// - a finished VERTEX sits at member `n`'s vertex `w` when it is at
 ///   `w`'s point ([`ON_MEMBER_EDGE`]) and a face around it descends
 ///   from a face of `n` that `w` lies on.
@@ -412,6 +460,9 @@ struct Flush<'a, T: geom_core::Decide> {
     faces: BTreeMap<topo::FaceKey, BTreeSet<MemberEntity>>,
     /// Finished edge → the member edges it lies within.
     edges: BTreeMap<topo::EdgeKey, BTreeSet<MemberEntity>>,
+    /// Finished edge that lies within none → the several member edges
+    /// it lies along, which together cover it: the set it is named for.
+    spans: BTreeMap<topo::EdgeKey, BTreeSet<MemberEntity>>,
     /// Finished face → its name.
     face_names: BTreeMap<topo::FaceKey, StableName>,
     bnd: geom_core::Band,
@@ -441,17 +492,22 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             inc: Incidence::of(body)?,
             faces,
             edges: BTreeMap::new(),
+            spans: BTreeMap::new(),
             face_names,
             bnd,
         };
         let mut edges = BTreeMap::new();
+        let mut spans = BTreeMap::new();
         for (&k, fs) in &flush.inc.edge_faces {
-            let within = flush.edge_within(k, fs)?;
-            if !within.is_empty() {
-                edges.insert(k, within);
+            let cover = flush.edge_cover(k, fs)?;
+            if !cover.within.is_empty() {
+                edges.insert(k, cover.within.into_iter().collect());
+            } else if cover.covered {
+                spans.insert(k, cover.along.into_iter().collect());
             }
         }
         flush.edges = edges;
+        flush.spans = spans;
         Ok(flush)
     }
 
@@ -459,23 +515,27 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         member_of(self.members, node)
     }
 
-    /// The member edges finished edge `k`, between faces `fs`, lies
-    /// within.
-    fn edge_within(
+    /// How finished edge `k`, between faces `fs`, lies along the member
+    /// edges between two faces of one member that its faces descend
+    /// from ([`Segment::cover`]).
+    fn edge_cover(
         &self,
         k: topo::EdgeKey,
         fs: &[topo::FaceKey],
-    ) -> Result<BTreeSet<MemberEntity>, NamingError> {
-        let mut out = BTreeSet::new();
-        let [f0, f1] = fs else { return Ok(out) };
+    ) -> Result<Cover<MemberEntity>, NamingError> {
+        let none = Cover {
+            within: Vec::new(),
+            along: Vec::new(),
+            covered: false,
+        };
+        let [f0, f1] = fs else { return Ok(none) };
         let (Some(from0), Some(from1)) = (self.faces.get(f0), self.faces.get(f1)) else {
-            return Ok(out);
+            return Ok(none);
         };
         if !straight(self.body, k) {
-            return Ok(out);
+            return Ok(none);
         }
-        let (c0, c1) = edge_ends(self.body, k)?;
-        let ends = [vertex_point(self.body, c0)?, vertex_point(self.body, c1)?];
+        let mut candidates = BTreeMap::new();
         for (n, g0) in from0 {
             for (_, g1) in from1.iter().filter(|(n1, g1)| n1 == n && g1 != g0) {
                 let m = self.member(*n)?;
@@ -488,15 +548,47 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     if !straight(m.body, r) {
                         continue;
                     }
-                    let seg = Segment::of_edge(m.body, r)?;
-                    let mut on = true;
-                    for p in ends {
-                        on &= seg.place(p, ON_MEMBER_EDGE, self.bnd)? != OnSegment::Off;
-                    }
-                    if let (true, Some(name)) = (on, unique_name(m.table, EntityKey::Edge(r))) {
-                        out.insert((*n, name));
+                    if let Some(name) = unique_name(m.table, EntityKey::Edge(r)) {
+                        let (v0, v1) = edge_ends(m.body, r)?;
+                        candidates.insert(
+                            (*n, name),
+                            (vertex_point(m.body, v0)?, vertex_point(m.body, v1)?),
+                        );
                     }
                 }
+            }
+        }
+        Segment::of_edge(self.body, k)?.cover(
+            candidates.into_iter().map(|(c, (p0, p1))| (c, p0, p1)),
+            ON_MEMBER_EDGE,
+            self.bnd,
+        )
+    }
+
+    /// The member edges finished edge `k` lies on at its vertex `v`:
+    /// those it lies within, or those of the set it is named for whose
+    /// closed segment holds `v`, in name order.
+    fn lines_at(
+        &self,
+        v: topo::VertexKey,
+        k: topo::EdgeKey,
+    ) -> Result<Vec<MemberEntity>, NamingError> {
+        if let Some(w) = self.edges.get(&k) {
+            return Ok(w.iter().cloned().collect());
+        }
+        let Some(set) = self.spans.get(&k) else {
+            return Ok(Vec::new());
+        };
+        let p = vertex_point(self.body, v)?;
+        let mut out = Vec::new();
+        for (n, name) in set {
+            let m = self.member(*n)?;
+            let Some(Entry::Unique(e)) = m.table.lookup(name.name()) else {
+                continue;
+            };
+            let EntityKey::Edge(r) = e.key else { continue };
+            if Segment::of_edge(m.body, r)?.place(p, ON_MEMBER_EDGE, self.bnd)? != OnSegment::Off {
+                out.push((*n, name.clone()));
             }
         }
         Ok(out)
@@ -518,20 +610,20 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 
     /// **Finished vertex `v` where one member edge is crossed by one
     /// face**, named `Seam { edge, face }` in name order: the edge is the
-    /// least member edge the finished edges at `v` lie within, and it is
-    /// one line — every finished edge at `v` that lies within a member
-    /// edge names the same least one; the face is the one face at `v`
-    /// that descends from none of the faces of the member edges along
-    /// that line, cited without its `Fragment`s. Anything else is `None`.
+    /// least member edge the finished edges at `v` lie on there
+    /// ([`Flush::lines_at`]), and it is one line — every finished edge at
+    /// `v` that lies on a member edge names the same least one; the face
+    /// is the one face at `v` that descends from none of the faces of the
+    /// member edges along that line, cited without its `Fragment`s.
+    /// Anything else is `None`.
     fn crossing(&self, v: topo::VertexKey) -> Result<Option<StableName>, NamingError> {
         let at = self.inc.vertex_edges.get(&v).map_or(&[][..], Vec::as_slice);
         let mut lines = BTreeSet::new();
         let mut along = BTreeSet::new();
         for k in at {
-            if let Some(w) = self.edges.get(k) {
-                lines.extend(w.first().cloned());
-                along.extend(w.iter().cloned());
-            }
+            let on = self.lines_at(v, *k)?;
+            lines.extend(on.first().cloned());
+            along.extend(on);
         }
         let mut lines = lines.into_iter();
         let (Some((member, edge)), None) = (lines.next(), lines.next()) else {
@@ -591,18 +683,19 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 
     /// The member edge a name of finished vertex `v` cites whole, where
     /// its name cites `own`: the least member edge that a finished edge
-    /// at `v` lying within `own` lies within too.
-    fn least_at(&self, v: topo::VertexKey, own: MemberEntity) -> MemberEntity {
+    /// at `v` lying on `own` there lies on too ([`Flush::lines_at`]).
+    fn least_at(&self, v: topo::VertexKey, own: MemberEntity) -> Result<MemberEntity, NamingError> {
         let mut least = own.clone();
         for k in self.inc.vertex_edges.get(&v).into_iter().flatten() {
-            if let Some(w) = self.edges.get(k).filter(|w| w.contains(&own))
-                && let Some(first) = w.first()
+            let on = self.lines_at(v, *k)?;
+            if on.contains(&own)
+                && let Some(first) = on.first()
                 && *first < least
             {
                 least = first.clone();
             }
         }
-        least
+        Ok(least)
     }
 
     /// The least member vertex finished vertex `v` sits at, if any: a
@@ -982,7 +1075,7 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
         }
         if let Some((member, edge, _)) = member_edge_piece(n) {
             let (member, edge) = match self.at {
-                Some(v) => self.flush.least_at(v, (member, edge)),
+                Some(v) => self.flush.least_at(v, (member, edge))?,
                 None => (member, edge),
             };
             let whole = entity_name(self.union, &(member, edge));
@@ -1468,6 +1561,7 @@ fn name_by_parents<T: geom_core::Decide>(
             base,
             from_tie: tied,
             edges: keys,
+            lone: Lone::Whole,
         });
     }
 
