@@ -7,6 +7,8 @@ opened: 2026-10-01
 refs: [equator-seam-reauthor-refuses-the-hollowed-elbow, spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut, spiric-bounded-face-area-is-unimplemented]
 priority: P1
 cost: M
+pr: 4138
+branch: shell/klein-lift
 ---
 
 ## What
