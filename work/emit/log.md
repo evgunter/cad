@@ -1910,3 +1910,11 @@ member order decides whether the face is already split (ratified DM4).
   `seam_set`, `seam_edges` and the `vertex_merges` reads). It lands
   together with the join at every stage (PR 4140). Any fork in naming
   the set goes to Ev, and EMIT is told. (FUSE log, 2026-10-06.)
+
+## 2026-10-06 — covered-pair naming row parked on D10
+
+`a-pair-boolean-names-a-declared-covered-pair-by-operand-order` asks
+whether a pair boolean should name a declared covered pair the way the
+union now does. Declared pairs are on the D10 hold's ground, and stage 4
+retires them. Parked on `d10-one-way-to-say-intent-is-unbuilt`, beside
+the union member-order row (PR 4141).
