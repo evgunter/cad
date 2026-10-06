@@ -2335,9 +2335,10 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
             Self::Unplaced { group, cause } => write!(
                 f,
-                "this reads the group rooted at {}, which is unplaced because {cause}, so \
+                "this reads the group rooted at {}, which is unplaced because {}, so \
                  it lives in its own space and nothing outside it is compared with it. {}",
                 by.node(*group),
+                Said(cause, by),
                 crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
             // The refusal itself is drawn on its own line (`carried`).

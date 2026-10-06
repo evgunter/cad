@@ -34,3 +34,23 @@ then either panic or say why the state is reachable. PR 2928's body
 claims "`unreachable!` (denied here)", but `Cargo.toml` has
 `panic = "warn"` and `unreachable!` sits outside that family; correct the
 claim wherever it is repeated.
+
+## Evidence: one state, two D9 rows (PR 4096, 2026-10-06)
+
+"An earlier run at the vertex carried a strut's corner to its copy" is
+now typed in one lane and a panic in its twin:
+
+- `crates/topo/src/boolean/insert.rs` `corner_bound` returns
+  `ClassificationInvariant` for it.
+- `crates/topo/src/boolean/vtxfac.rs` `classify_vertex_on_face` (the
+  bisector-run arm) and `crates/topo/src/splitting/insert.rs`
+  `insert_null_edges` (the duplicate-run arm) prove it cannot happen
+  and `unreachable!` on it: the runs there are maximal, and no other
+  run's mint touches the corner's half.
+
+`insert.rs` was reachable by input before JOIN's PR 4036 (56
+`rc_wide_battery` poses). Since then `mint_plans`' `keyed` sort mints a
+shared vertex's struts before any fan, and the TOPO row's close says no
+battery reaches the check. If that ordering is a proof, `corner_bound`'s
+refusal is bug-only and belongs in row 4 with the other two. If it is
+not, its comment should name the input that reaches it.
