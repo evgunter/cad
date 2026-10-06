@@ -770,11 +770,8 @@ pub(crate) fn is_axial_in<T: Decide>(
             Ok(_) => {}
             // The gate's own definite verdicts: this body is not
             // axial, and that is an answer.
-            Err(e @ (ReplaceFaceError::TogetherAxialUnsupported { .. }
-            | ReplaceFaceError::TogetherNotAxial { .. })) => {
-                eprintln!("[klein-probe] is_axial_in declines {face:?} ({:?}): {e:?}", surface.kind());
-                return Ok(false);
-            }
+            Err(ReplaceFaceError::TogetherAxialUnsupported { .. })
+            | Err(ReplaceFaceError::TogetherNotAxial { .. }) => return Ok(false),
             Err(source) => return Err(source),
         }
     }
