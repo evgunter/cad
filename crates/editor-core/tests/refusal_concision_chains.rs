@@ -4163,17 +4163,18 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 R::TogetherAxialCorner {
                     vertex,
                     surfaces: 2,
-                    what: "a line profile and a plane containing the axis meet here off the \
+                    what: "a line profile and a plane parallel to the axis meet here off the \
                            axis: the plane fixes an azimuth and the line one coordinate, and \
-                           the corner's station along the line is a datum this door does not \
-                           carry",
+                           nothing records where along the line the corner stands",
                 },
             ),
             (
                 "TogetherAxialEdge",
                 R::TogetherAxialEdge {
                     edge,
-                    what: "a carrier kind this door does not parameterize",
+                    what: "a rim whose moved cap stands at or past the torus wall's inner equator, \
+                           or out of its reach — the section there is a node, one folded loop or \
+                           nothing, not two ovals",
                 },
             ),
             ("Escalated", R::Escalated { source: diag() }),

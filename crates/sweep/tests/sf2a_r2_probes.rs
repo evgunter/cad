@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use crate::common::approx::band;
-use crate::common::oracles::chamfered_cube_volume;
+use crate::common::oracles::{bulge_loop_area, chamfered_cube_volume, eroded_bulge_loop};
 use geom::Surface;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -333,29 +333,27 @@ fn r2a_one_move_spanning_two_planes() {
 // 5. Boundary rows: one curved face among planes; a drum stays put.
 // ---------------------------------------------------------------------
 
-/// **One curved face among planes takes the per-chart path and still
-/// refuses at the old door** — here an OBLIQUE-planar body wearing a
-/// cylindrical bore, so the planar corners the new door could solve
-/// coexist with a curved chart. The branch predicate is per-BODY, so
-/// the whole body must go the old way and refuse where it always did.
+/// **One curved face among oblique planes takes the AXIAL door** — an
+/// oblique-planar body wearing one cylindrical side: a hexagonal prism
+/// with ONE side bulged into an arc. Every flat side is parallel to the
+/// arc's cylinder axis and the ends are normal to it, so the body is
+/// axial in the gate's sense, and its hollow is the prism less its
+/// eroded profile's prism (`eroded_bulge_loop`): every oblique side
+/// corner solved against a station, the cylinder's line or a second
+/// side.
 #[test]
-fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
+fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
     let tol = Tol::witness();
-    // A hexagonal prism with ONE side bulged into an arc: every flat
-    // side oblique to its neighbours (the class the new door fixed),
-    // one curved face (the bulged wall) putting the body outside the
-    // door.
-    let r = 0.2;
-    let hex: Vec<(f64, f64)> = (0..6)
+    let (r, depth, t) = (0.2, 0.25, 0.02);
+    let hex: Vec<(f64, f64, f64)> = (0..6)
         .map(|i| {
             let a = core::f64::consts::TAU * f64::from(i) / 6.0;
-            (r * a.cos(), r * a.sin())
+            (r * a.cos(), r * a.sin(), if i == 0 { 0.2 } else { 0.0 })
         })
         .collect();
     let outer = bulge_loop(
         hex.iter()
-            .enumerate()
-            .map(|(i, &(x, y))| (Point2::new(x, y), if i == 0 { 0.2 } else { 0.0 }))
+            .map(|&(x, y, b)| (Point2::new(x, y), b))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![outer])
@@ -364,7 +362,7 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
     let body = extrude(
         &profile,
         Extrusion::Distance {
-            depth: 0.25,
+            depth,
             side: ExtrudeSide::Along,
         },
         tol,
@@ -375,21 +373,26 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
         .faces()
         .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
         .count();
-    assert!(curved > 0, "the bore is a curved chart");
-    let e = topo::shell(&finished("the operand", body.clone(), tol), 0.02, tol)
-        .expect_err("one curved face puts the whole body outside the simultaneous door");
-    println!("[r2a] one-arc hexagon: {e}");
-    if let ShellError::Face { ref error, .. } = e {
-        assert!(
-            !matches!(
-                **error,
-                ReplaceFaceError::TogetherNonPlanar { .. }
-                    | ReplaceFaceError::TogetherPartialSet { .. }
-                    | ReplaceFaceError::TogetherCorner { .. }
-            ),
-            "the new door's gates must not fire on the per-chart path: {error}"
-        );
-    }
+    assert_eq!(curved, 1, "the bulged side is the one curved chart");
+    assert!(
+        topo::is_axial(&body, band()).expect("the axis gate decides"),
+        "sides parallel to the arc's axis, ends normal to it"
+    );
+    let operand = topo::mass_properties(&body, tol).expect("props").volume;
+    let area = bulge_loop_area(&hex);
+    assert!(
+        (operand - area * depth).abs() <= 1e-15,
+        "the oracle's own profile area: {operand} against {}",
+        area * depth
+    );
+    let want = area * depth - bulge_loop_area(&eroded_bulge_loop(&hex, t)) * (depth - 2.0 * t);
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .unwrap_or_else(|e| panic!("the one-arc hexagon hollows: {e}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
+    let got = topo::mass_properties(&hollow, tol).expect("props").volume;
+    println!("[r2a] one-arc hexagon hollow: {got}, closed form {want}");
+    assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");
 }
 
 /// **The straight-footprint-vertex prism, through `shell` itself.**

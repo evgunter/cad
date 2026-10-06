@@ -1971,7 +1971,8 @@ fn plan_edge<T: Decide>(
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::DegenerateTorus
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
-                | geom_brep::SectionError::Carrier(_)) => unreachable!(
+                | geom_brep::SectionError::Carrier(_)
+                | geom_brep::SectionError::Spiric(_)) => unreachable!(
                     "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and \
                  returned {other:?}"
                 ),
