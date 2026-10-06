@@ -183,9 +183,9 @@ pub use names::{
     PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
     StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    band, band_pi, band_rim, carried, declare, declare_all, declared_pairs, denotation,
-    edge_carrier_kind, edge_frame, face_carrier_kind, face_frame, find_flush_candidates,
-    meridian_vertex, select, select_where, vertex_position,
+    band, band_pi, band_rim, band_rim_pi, carried, declare, declare_all, declared_pairs,
+    denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
+    find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
     AuthoredNode, Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
