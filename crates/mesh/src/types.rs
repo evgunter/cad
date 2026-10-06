@@ -204,6 +204,15 @@ pub enum TessellateError {
         /// The face whose trim loop touches itself.
         face: FaceKey,
     },
+    /// A planar face's loops pass several vertices at one point (a
+    /// pinch, one vertex per cone of the solid), and a triangle at that
+    /// point lies in no one vertex's corner of the face — or one vertex
+    /// meets the point twice there. The corners overlap, so the loops
+    /// cross at the point, which no valid face does.
+    PinchWedge {
+        /// The face whose corners at the pinch overlap.
+        face: FaceKey,
+    },
     /// A curved face's boundary walk does not trace its own UV
     /// bounding rectangle: some walk entry lies strictly inside the
     /// box, by more than the band, on a face whose domain the SHAPE
@@ -564,6 +573,11 @@ impl core::fmt::Display for TessellateError {
                  faces would disagree about that vertex — a 3-D T-junction no \
                  grid retry repairs. No at-rest construction mints a \
                  self-touching trim loop, so this is a kernel bug",
+            ),
+            Self::PinchWedge { .. } => f.write_str(
+                "tessellate: a planar face passes several vertices at one point, \
+                 and their corners of the face overlap there, so its loops cross \
+                 at that point — a kernel bug",
             ),
             Self::UnsupportedCurvedDomain {
                 off_bbox,

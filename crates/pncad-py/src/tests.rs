@@ -6142,6 +6142,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",
+            "pinch_wedge",
             "resolution_overflow",
             "ring_on_curved_face",
             "self_touching_trim_loop",

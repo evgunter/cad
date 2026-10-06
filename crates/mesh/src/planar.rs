@@ -408,6 +408,9 @@ fn triangulate_chart(
     // lane inserts only boundary points, and the assert below is what
     // keeps that true.
     let mut meta: Vec<PatchVertex> = Vec::new();
+    // Handle index -> every mesh id the walk brought to that point, in
+    // walk order. Two ids on one handle are a pinch ([`Pinches`]).
+    let mut ids_at: Vec<Vec<u32>> = Vec::new();
     let mut handles: Vec<Vec<FixedVertexHandle>> = Vec::new();
     for (ids, poly) in loops.iter().zip(polygons) {
         let mut hs = Vec::with_capacity(ids.len());
@@ -423,7 +426,9 @@ fn triangulate_chart(
                 .map_err(|_| TessellateError::Triangulation { face: fk })?;
             if h.index() == meta.len() {
                 meta.push(PatchVertex::Shared(id));
+                ids_at.push(Vec::new());
             }
+            ids_at[h.index()].push(id);
             hs.push(h);
         }
         handles.push(hs);
@@ -435,7 +440,8 @@ fn triangulate_chart(
     // traversals return the same edges twice — both handled by keying on
     // the sub-edges spade reports rather than on the segment endpoints.
     let mut crossings: HashMap<(usize, usize), u32> = HashMap::new();
-    for hs in &handles {
+    let mut pinches = Pinches::of(&ids_at, fk)?;
+    for (l, hs) in handles.iter().enumerate() {
         for i in 0..hs.len() {
             let (a, b) = (hs[i], hs[(i + 1) % hs.len()]);
             if a == b {
@@ -452,6 +458,7 @@ fn triangulate_chart(
             }
             for e in realised {
                 let e = cdt.directed_edge(e);
+                pinches.note_side(e, (a, loops[l][i]), (b, loops[l][(i + 1) % hs.len()]));
                 *crossings.entry(edge_key(e)).or_insert(0) += 1;
             }
         }
@@ -539,11 +546,16 @@ fn triangulate_chart(
             continue;
         }
         let vs = f.vertices();
-        let ids = [
+        let mut ids = [
             meta[vs[0].fix().index()],
             meta[vs[1].fix().index()],
             meta[vs[2].fix().index()],
         ];
+        for (corner, v) in ids.iter_mut().zip(vs) {
+            if let Some(id) = pinches.id_in(f, v.fix(), fk)? {
+                *corner = PatchVertex::Shared(id);
+            }
+        }
         // A triangle with two corners on one mesh vertex is
         // degenerate. Dropping it is `curved`'s idiom, and there it
         // collapses a pole fan (#678); here the drop is all it is —
@@ -558,6 +570,126 @@ fn triangulate_chart(
         triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
     }
     Ok(triangles)
+}
+
+/// **The pinches of one face's chart**: CDT handles the walk brought
+/// two or more distinct mesh ids to. A face whose loops pass several
+/// vertices at one point is a right body (one vertex per cone of the
+/// solid at a pinch), and spade dedups the equal positions to one
+/// handle, so the handle's one `meta` id would stand for all of them
+/// (here and in `trimmed`, whose CDT dedups the same way).
+/// Each vertex's corner of the face is a wedge at the handle, bounded
+/// by its two boundary sides there; a triangle at the handle takes the
+/// id of the one vertex whose wedge holds it. A handle met twice by
+/// one id is a slit's two traversals, and stays one id as before.
+/// One vertex's corner at a pinch: its mesh id and its two boundary
+/// sides there, as CDT edge keys (`None` until the constraints show it).
+type Wedge = (u32, [Option<(usize, usize)>; 2]);
+
+pub(crate) struct Pinches {
+    /// Pinch handle index -> the corner of each id there.
+    at: HashMap<usize, Vec<Wedge>>,
+}
+
+impl Pinches {
+    /// The pinch handles of `ids_at` (handle index -> the ids the walk
+    /// brought there, in walk order).
+    ///
+    /// # Errors
+    ///
+    /// [`TessellateError::PinchWedge`] where one id meets a pinch
+    /// handle twice: a slit through a pinch, whose wedges this lane
+    /// does not separate.
+    pub(crate) fn of(ids_at: &[Vec<u32>], fk: FaceKey) -> Result<Self, TessellateError> {
+        let mut at = HashMap::new();
+        for (h, ids) in ids_at.iter().enumerate() {
+            if ids.iter().all(|&id| id == ids[0]) {
+                continue;
+            }
+            let mut wedges: Vec<Wedge> = Vec::new();
+            for &id in ids {
+                if wedges.iter().any(|w| w.0 == id) {
+                    return Err(TessellateError::PinchWedge { face: fk });
+                }
+                wedges.push((id, [None, None]));
+            }
+            at.insert(h, wedges);
+        }
+        Ok(Self { at })
+    }
+
+    /// Records the sub-edge `e` of the boundary side `from → to` (each
+    /// a handle and the mesh id the walk gave it) where `e` leaves a
+    /// pinch handle: it is the side of that id's wedge.
+    pub(crate) fn note_side(
+        &mut self,
+        e: DirectedEdgeHandle<'_, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>,
+        (from, from_id): (FixedVertexHandle, u32),
+        (to, to_id): (FixedVertexHandle, u32),
+    ) {
+        for (end, id) in [(from, from_id), (to, to_id)] {
+            let touches = e.from().fix() == end || e.to().fix() == end;
+            if let (true, Some(wedges)) = (touches, self.at.get_mut(&end.index()))
+                && let Some(w) = wedges.iter_mut().find(|w| w.0 == id)
+                && let Some(slot) = w.1.iter_mut().find(|s| s.is_none())
+            {
+                *slot = Some(edge_key(e));
+            }
+        }
+    }
+
+    /// The id the inside face `f` takes at its corner `v`, where `v` is
+    /// a pinch handle; `None` elsewhere. The face's sector at `v` runs
+    /// round `v` to the nearest constraint edge on each side, and those
+    /// two edges must be one id's wedge.
+    ///
+    /// # Errors
+    ///
+    /// [`TessellateError::PinchWedge`] where the sector is no id's
+    /// wedge, or two ids': the loops cross at the point.
+    pub(crate) fn id_in(
+        &self,
+        f: spade::handles::FaceHandle<'_, InnerTag, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>,
+        v: FixedVertexHandle,
+        fk: FaceKey,
+    ) -> Result<Option<u32>, TessellateError> {
+        let Some(wedges) = self.at.get(&v.index()) else {
+            return Ok(None);
+        };
+        let refuse = TessellateError::PinchWedge { face: fk };
+        // The edge out of `v` with `f` on its left: `f` lies between it
+        // and the next edge counter-clockwise round `v`.
+        let first = f
+            .adjacent_edges()
+            .into_iter()
+            .find(|e| e.from().fix() == v)
+            .ok_or(refuse.clone())?;
+        let valence = first.from().out_edges().count();
+        let bound = |start: DirectedEdgeHandle<'_, _, _, _, _>, ccw: bool| {
+            let mut e = start;
+            for _ in 0..valence {
+                if e.is_constraint_edge() {
+                    return Some(edge_key(e));
+                }
+                e = if ccw { e.ccw() } else { e.cw() };
+            }
+            None
+        };
+        let (Some(cw), Some(ccw)) = (bound(first, false), bound(first.ccw(), true)) else {
+            return Err(refuse);
+        };
+        let mut owners = wedges.iter().filter(|(_, sides)| {
+            let mut sides = *sides;
+            sides.sort();
+            let mut sector = [Some(cw), Some(ccw)];
+            sector.sort();
+            sides == sector
+        });
+        match (owners.next(), owners.next()) {
+            (Some(&(id, _)), None) => Ok(Some(id)),
+            _ => Err(refuse),
+        }
+    }
 }
 
 /// A CDT edge's identity as an unordered pair of vertex indices.
@@ -663,6 +795,100 @@ mod tests {
 
     use super::{PatchVertex, shoelace2, triangulate_chart};
     use topo::FaceKey;
+
+    /// The square `[−3, 3]²` less two triangular notches meeting at the
+    /// origin: one runs to the bottom edge, the other stands inside. The
+    /// one outer loop passes the origin twice, as ids 2 and 5, and the
+    /// face holds the sector left of the origin at the first pass and
+    /// the one right of it at the second. `crossed` walks the inner
+    /// notch the other way round, so each pass pairs one side of the
+    /// left sector with one of the right: the loop crosses itself there.
+    fn pinched_square(crossed: bool) -> (Vec<u32>, Vec<[f64; 2]>) {
+        let o = [0.0, 0.0];
+        let walk: Vec<[f64; 2]> = if crossed {
+            vec![
+                [-3.0, -3.0],
+                [-1.0, -3.0],
+                o,
+                [1.0, 2.0],
+                [-1.0, 2.0],
+                o,
+                [1.0, -3.0],
+                [3.0, -3.0],
+                [3.0, 3.0],
+                [-3.0, 3.0],
+            ]
+        } else {
+            vec![
+                [-3.0, -3.0],
+                [-1.0, -3.0],
+                o,
+                [-1.0, 2.0],
+                [1.0, 2.0],
+                o,
+                [1.0, -3.0],
+                [3.0, -3.0],
+                [3.0, 3.0],
+                [-3.0, 3.0],
+            ]
+        };
+        ((0..10).collect(), walk)
+    }
+
+    /// **A pinch keeps its two ids.** Every triangle at the origin takes
+    /// the id of the pass whose sector holds it: 2 on the left, 5 on the
+    /// right, and both appear. Red where the CDT's one handle stands for
+    /// both passes (every triangle there reads the first id, 2).
+    #[test]
+    fn a_pinch_gives_each_triangle_the_id_of_the_corner_holding_it() {
+        let (ids, walk) = pinched_square(false);
+        let tris =
+            triangulate_chart(FaceKey::default(), &[ids], std::slice::from_ref(&walk)).unwrap();
+        let at = |v: PatchVertex| match v {
+            PatchVertex::Shared(id) => id,
+            other => panic!("an interior vertex {other:?} in the planar lane"),
+        };
+        let mut seen = [false; 2];
+        for t in &tris {
+            let t = t.map(at);
+            for (k, (id, side)) in [(2u32, -1.0), (5, 1.0)].into_iter().enumerate() {
+                if let Some(c) = t.iter().position(|&x| x == id) {
+                    seen[k] = true;
+                    let others: f64 = (0..3)
+                        .filter(|&j| j != c)
+                        .map(|j| walk[t[j] as usize][0])
+                        .sum();
+                    assert!(
+                        others * side > 0.0,
+                        "triangle {t:?} takes id {id} on the wrong side of the pinch"
+                    );
+                }
+            }
+            assert!(
+                !(t.contains(&2) && t.contains(&5)),
+                "triangle {t:?} spans both passes"
+            );
+        }
+        assert_eq!(
+            seen,
+            [true, true],
+            "both passes of the pinch carry triangles"
+        );
+    }
+
+    /// **Crossed corners at a pinch refuse typed.** The crossed walk
+    /// has the same constraint edges at the origin as the pinch, but no
+    /// pass's two sides bound a sector of the face. Red where the lane
+    /// keeps the first id and meshes on.
+    #[test]
+    fn crossed_corners_at_a_pinch_refuse_typed() {
+        let (ids, walk) = pinched_square(true);
+        let r = triangulate_chart(FaceKey::default(), &[ids], &[walk]);
+        assert!(
+            matches!(r, Err(crate::types::TessellateError::PinchWedge { .. })),
+            "{r:?}"
+        );
+    }
 
     /// Face `19v3` of the issue-#111 A×Z intersect (A's left inner-leg
     /// slant), captured as the exact projected chart the tessellator

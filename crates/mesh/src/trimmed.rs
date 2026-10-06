@@ -109,7 +109,7 @@ use topo::{Body, FaceKey};
 use crate::cert;
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells};
-use crate::planar::{classify_faces, edge_key, shoelace2};
+use crate::planar::{Pinches, classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
@@ -355,6 +355,7 @@ pub(crate) fn tessellate_trimmed(
         }
         let mut meta: Vec<(f64, f64, Slot)> = Vec::new();
         let mut handles = Vec::with_capacity(polygon.len());
+        let mut ids_at: Vec<Vec<u32>> = Vec::new();
         for &(u, v, id) in &polygon {
             let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
                 outcome = Some(Err(TessellateError::Triangulation { face: fk }));
@@ -362,9 +363,18 @@ pub(crate) fn tessellate_trimmed(
             };
             if h.index() == meta.len() {
                 meta.push((u, v, Slot::Boundary(id)));
+                ids_at.push(Vec::new());
             }
+            ids_at[h.index()].push(id);
             handles.push(h);
         }
+        let mut pinches = match Pinches::of(&ids_at, fk) {
+            Ok(p) => p,
+            Err(e) => {
+                outcome = Some(Err(e));
+                break 'retry;
+            }
+        };
         for (k, &(u, v)) in candidates.iter().enumerate() {
             if dropped.contains(&k) {
                 continue;
@@ -426,8 +436,10 @@ pub(crate) fn tessellate_trimmed(
                     }
                 }
             }
+            let ends = (polygon[i].2, polygon[(i + 1) % handles.len()].2);
             for e in realised {
                 let e = cdt.directed_edge(e);
+                pinches.note_side(e, (a, ends.0), (b, ends.1));
                 *crossings.entry(edge_key(e)).or_insert(0) += 1;
             }
         }
@@ -517,6 +529,14 @@ pub(crate) fn tessellate_trimmed(
                     Slot::Boundary(id) => PatchVertex::Shared(id),
                     Slot::Grid(c) => grid_ids[&c],
                 };
+                match pinches.id_in(f, vtx.fix(), fk) {
+                    Ok(Some(id)) => ids[k] = PatchVertex::Shared(id),
+                    Ok(None) => {}
+                    Err(e) => {
+                        outcome = Some(Err(e));
+                        break 'retry;
+                    }
+                }
             }
             // A triangle with two corners on one mesh vertex is
             // degenerate in 3-D. Dropping it is `curved`'s idiom, and
