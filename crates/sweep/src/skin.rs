@@ -882,9 +882,8 @@ fn validate_sections<L: SectionLoop>(
 ///
 /// The walls interpolate their sections, so section `k` is the body's
 /// cross-section at `v = params[k]` for any parameters: the parameters
-/// shape only the surface between sections. A loft's are
-/// [`loft_parameters`]; a path sweep's are its stations' normalised
-/// path parameters ([`sweep_geometry`]).
+/// shape only the surface between sections. A loft body's, and a path
+/// sweep's ([`sweep_geometry`]), are [`loft_parameters`].
 ///
 /// # The correspondence is the author's
 ///
@@ -1204,25 +1203,12 @@ pub fn sweep_geometry<L: SectionLoop>(
 ) -> Result<LoftGeometry, SkinError> {
     let places = sweep_places(place, path, stations)?;
     let sections: Vec<Section<L>> = core::iter::repeat_n(profile.to_vec(), stations).collect();
-    loft_geometry(
-        &sections,
-        &places,
-        v_degree,
-        &station_parameters(stations),
-        tol,
-    )
-}
-
-/// The normalised path parameter of each of a sweep's `stations`,
-/// `(tᵢ − lo)/(hi − lo)` — `i/(stations − 1)`, the share
-/// [`sweep_places`] samples the path at — and so the v-parameter each
-/// station's section sits at: v is the path's own parameter, which no
-/// spelling of the profile and no roll of the start frame enters.
-pub(crate) fn station_parameters(stations: usize) -> Vec<f64> {
-    #[allow(clippy::cast_precision_loss)]
-    let last = (stations - 1) as f64;
-    #[allow(clippy::cast_precision_loss)]
-    (0..stations).map(|i| i as f64 / last).collect()
+    // v is the loft's chord-length rule ([`loft_parameters`]), not the
+    // path parameter: the frame spins the section about its tangent
+    // near anti-parallel to the start tangent, and chord-length v
+    // absorbs the spin
+    // (`work/carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent.md`).
+    loft_geometry_by_chord_length(&sections, &places, v_degree, tol)
 }
 
 /// A path derivative normalised to the unit tangent, or the station's
@@ -1277,8 +1263,13 @@ pub fn sweep_places(
         place.translation.y,
         place.translation.z,
     );
-    let shares = station_parameters(stations);
-    let t_of = |i: usize| (hi - lo).mul_add(shares[i], lo);
+    #[allow(clippy::cast_precision_loss)]
+    let last = (stations - 1) as f64;
+    let t_of = |i: usize| {
+        #[allow(clippy::cast_precision_loss)]
+        let s = i as f64 / last;
+        (hi - lo).mul_add(s, lo)
+    };
     let (base_point, base_d) = path.ders1(t_of(0));
     let base_tangent = unit_tangent(0, base_d)?;
     let mut places = Vec::with_capacity(stations);

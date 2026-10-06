@@ -323,22 +323,19 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
 }
 
 /// **The inflecting duct from two start frames a quarter turn apart
-/// about the start tangent is one solid, and `v = 0.5` is the
-/// inflection.**
+/// about the start tangent is one solid.**
 ///
 /// The two are the kernel's frame and the retired cone recipe's, which
 /// is it turned by `R_z(−90°)` (`s393_start_frame_door`). A centred
 /// square is invariant under that quarter turn and the sweep carries
-/// the start frame rigidly, so every station's ring is
-/// the same set of world points in both builds; the quarter turn is
-/// the exact column permutation, so they are the same BITS, and only
-/// which edge is wall 0 differs. The sections sit at the path's own
-/// normalised parameter, so the walls are bit-identical, shifted by
-/// one edge — the solid, whose volume a first-strip parameterization moved
-/// in the fifth digit with the roll. The path is symmetric about its
-/// inflection, so the middle station — `v = 0.5` — is the inflection
-/// `(0, 2, 2)`: a parameterization read off one wall's chord lengths
-/// put it 0.354 off the spine there, and moved with the roll.
+/// the start frame rigidly, so every station's ring is the same set of
+/// world points in both builds; the quarter turn is the exact column
+/// permutation, so they are the same BITS, and only which edge is wall
+/// 0 differs. The sections sit at the loft's chord-length parameters,
+/// a function of the rows as a set, so the walls are bit-identical,
+/// shifted by one edge. A parameterization read off one wall moved the
+/// volume in the fifth digit with the roll, and where `v = 0.5` lands
+/// on the spine by 0.354.
 #[test]
 fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
     let path = inflecting_path();
@@ -362,19 +359,13 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
     let (chord_params, base, base_body) = build(place);
     let (_, other, other_body) = build(rolled);
 
-    let stations: Vec<f64> = (0..13).map(|i| f64::from(i) / 12.0).collect();
     assert_eq!(
-        base.section_params, stations,
-        "a sweep's sections sit at their stations' normalised path parameters"
+        base.section_params, chord_params,
+        "a sweep's sections sit at the loft's chord-length parameters"
     );
     assert_eq!(
-        base_body.section_params, stations,
+        base_body.section_params, chord_params,
         "the body reads back the parameters its walls were skinned at"
-    );
-    assert_ne!(
-        chord_params, stations,
-        "anti-vacuity: the duct's chord-length parameters are not the path's, so the \
-         row above can tell which rule the sweep took"
     );
     assert_eq!(
         other.section_params, base.section_params,
@@ -399,14 +390,15 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
         );
     }
 
-    let inflection = Point3::new(0.0, S_RADIUS, S_RADIUS);
-    for (what, body) in [("unrolled", &base_body), ("rolled", &other_body)] {
-        let mid = ring_centroid(body, 0.5);
-        assert!(
-            (mid - inflection).norm() < 1e-9,
-            "{what}: v = 0.5 must land on the inflection {inflection:?}, not {mid:?}"
-        );
-    }
+    let (mid, rolled_mid) = (
+        ring_centroid(&base_body, 0.5),
+        ring_centroid(&other_body, 0.5),
+    );
+    assert!(
+        (mid - rolled_mid).norm() < 1e-12,
+        "v = 0.5 must land on the same point of the spine under both frames: {mid:?} \
+         against {rolled_mid:?}"
+    );
 }
 
 /// **Every wall of a sweep along a nowhere-planar path faces out of

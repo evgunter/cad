@@ -77,8 +77,7 @@ use topo::{
 };
 
 use crate::skin::{
-    LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, loft_geometry_by_chord_length,
-    station_parameters, sweep_places,
+    LoftGeometry, Section, SectionLoop, SkinError, loft_geometry_by_chord_length, sweep_places,
 };
 use crate::swept::{
     SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
@@ -118,10 +117,9 @@ pub struct Lofted<T: Real> {
     ///
     /// This is a re-read of what the kernel chose, not a measurement
     /// — the produced surface IS the definition (DESIGN Q8), so no
-    /// residual pad accompanies it. For a [`loft_body`] it is
-    /// [`crate::loft_parameters`]' answer, askable BEFORE the body is
-    /// built; for a [`sweep_body`], each station's normalised path
-    /// parameter.
+    /// residual pad accompanies it. It is [`crate::loft_parameters`]'
+    /// answer for the body's sections, askable BEFORE the body is built
+    /// (a [`sweep_body`]'s sections are its stations').
     pub section_params: Vec<f64>,
 }
 
@@ -144,7 +142,7 @@ pub enum LoftError {
     Pcurve(PcurveMintError),
     /// The wall-boundary carrier extraction failed to re-wrap — a
     /// structurally corrupt skinned surface (unreachable from
-    /// [`loft_geometry`] output; surfaced rather than swallowed).
+    /// [`loft_geometry`](crate::loft_geometry) output; surfaced rather than swallowed).
     ///
     /// The payload is `geom_brep::boundary_iso_u`'s own refusal, which
     /// says WHICH structural invariant the extracted row broke; that
@@ -262,7 +260,7 @@ impl From<EulerOpError> for LoftError {
 }
 
 /// One end section as a profile at `T`: **the canonical form
-/// [`loft_geometry`] decided, lifted** ([`ValidatedProfile::lift_onto`])
+/// [`loft_geometry`](crate::loft_geometry) decided, lifted** ([`ValidatedProfile::lift_onto`])
 /// — the same shape the rest of this assembly has, where the walls are
 /// `f64` surfaces carried to `T` by `map_scalar`.
 ///
@@ -279,7 +277,7 @@ impl From<EulerOpError> for LoftError {
 /// form makes the caps the walls' own sections.
 ///
 /// The gate a section that would not extrude meets is
-/// [`loft_geometry`]'s, which refuses it
+/// [`loft_geometry`](crate::loft_geometry)'s, which refuses it
 /// [`SkinError::SectionProfile`] before any of this runs.
 fn end_profile<T: Real>(
     canonical: &ValidatedProfile<f64>,
@@ -721,7 +719,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 }
 
 /// **The loft body** (M6-PLAN unit 3, spec §1): skins
-/// [`loft_geometry`] and assembles the closed solid around it.
+/// [`loft_geometry`](crate::loft_geometry) and assembles the closed solid around it.
 ///
 /// `sections[i][l][j]` is section `i`, loop `l`, segment `j` in sketch
 /// coordinates; `places[i]` its rigid placement; `v_degree` the
@@ -734,7 +732,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 /// canonical form keeps each loop's AUTHORED start
 /// ([`profile::Profile::validate`] normalizes only the traversal sense),
 /// so segment `j` of every section is counted from the vertex you wrote
-/// first ([`loft_geometry`], "The correspondence is the author's").
+/// first ([`loft_geometry`](crate::loft_geometry), "The correspondence is the author's").
 /// **A section rotated relative to its neighbour rolls the body by the
 /// angle you authored**: the turning-orientation suite's authored-roll
 /// row lofts a square onto the same square rotated by `theta` about its
@@ -779,10 +777,9 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
 /// authored start still decides is which wall of the
 /// built body is which — the segment order the returned
 /// [`Lofted::side_faces`] is keyed in. The body's roll comes from the
-/// path frame ([`sweep_places`]), not from the sections, and each
-/// station's section sits at its normalised path parameter
-/// (`i / (stations − 1)`), which neither the spelling nor the roll
-/// enters.
+/// path frame ([`sweep_places`]), not from the sections. The stations
+/// sit at the loft's chord-length parameters ([`crate::loft_parameters`]),
+/// which neither the spelling nor the roll of the start frame moves.
 ///
 /// # The starting frame
 ///
@@ -810,13 +807,7 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
 ) -> Result<Lofted<T>, LoftError> {
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
     let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
-    let geometry = loft_geometry(
-        &sections,
-        &places,
-        v_degree,
-        &station_parameters(stations),
-        tol,
-    )
-    .map_err(LoftError::Skin)?;
+    let geometry = loft_geometry_by_chord_length(&sections, &places, v_degree, tol)
+        .map_err(LoftError::Skin)?;
     assemble(&places, &geometry, tol)
 }

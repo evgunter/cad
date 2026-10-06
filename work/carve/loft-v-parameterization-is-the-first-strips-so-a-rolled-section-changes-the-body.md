@@ -82,11 +82,13 @@ v. So the answer is built, not put to Ev.
   symmetry, sketch origin) then builds bit-identical parameters and
   walls. A pinned row abstains as today, and "every row pinned" stays
   the existing refusal.
-- **Sweep: v is the path's own parameter**, normalised
-  (`(t_i − lo)/(hi − lo)`, today `i/(k−1)`). The stations are samples of
-  the path at known parameters, and that is what the user wrote. The
-  answer is invariant under every re-spelling and every roll of the
-  start frame, because neither enters it.
+- **Sweep: the loft's rule, for now** (the orchestrator's ruling after
+  PR 4193's review). Both designers preferred the path's own parameter,
+  `(t_i − lo)/(hi − lo)`. Built, it exposed the frame's spin near
+  anti-parallel to the start tangent, and the tour's coil stopped
+  building. The loft's whole-set rule is just as free of labels and
+  rolls, and it absorbs the spin. The path parameter waits on a correct
+  frame: `sweep-frame-is-a-minimal-rotation-from-the-start-tangent`.
 - **Shape of the code.** `loft_geometry` takes the parameters as an
   argument, as `skin_on` already does one layer down. `loft_body`
   derives them by the whole-set rule, through the one helper
@@ -119,7 +121,8 @@ On `carve/loft-v-is-the-whole-sets` (PR 4193):
   the outer loop scaled lofts to the outer surface scaled (the tour's
   tube identity holds to 1.9e-16, where holes in the average put it
   5.1e-5 off).
-- `sweep_body` and `sweep_geometry` put each station at `i/(k − 1)`.
+- `sweep_body` and `sweep_geometry` read the same rule (the path
+  parameter was built, then retired by the ruling above).
 
 Pinned by `loft_v_is_the_section_set` (corners, symmetry roll,
 order-free means, holes, arcs: bit-identical parameters and walls;
@@ -127,18 +130,16 @@ the cap planes are not, see
 `a-loft-caps-plane-is-summed-in-the-authored-vertex-order`) and
 `turning_orientation::the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll`.
 
-**Open: the path-parameter sweep rule makes the tour's square coil
-escalate.** `demos/tour/src/projectbox.rs`'s 6-turn coil refuses at
-assembly with `Escalated { check: ParamSpan, predicate:
-"nurbs_span_meter", margin −0.055 }`. Root cause, measured: the spine
-advances uniformly between stations (centre chord 0.02756 at every
-step), but `sweep_places`' frame is the minimal rotation from the START
-tangent. On a helix that rotation swings the section about its own
-tangent where the tangent nears anti-parallel to `t₀`, every half-turn
-(stations 15–18 of each 32: a corner's step goes 0.0214 → 0.0607
-while `tangent·t₀` reaches −0.98). Chord-length v absorbed the spin;
-it deviated from uniform by 6.1e-3, more than a station step. Uniform
-v squeezes it into one step, so the cubic through the corner rows
-overshoots, and two seams' `speed_lower_bound` goes negative (−0.055,
-−0.016; +1.7 under chord-length v). The round-wire spring's wall 1
-holds as before.
+**The coil (resolved by the sweep ruling).** Under the path parameter
+the tour's square coil refused at assembly
+(`Escalated { ParamSpan, nurbs_span_meter }`); the root cause is the
+frame law, filed as
+`sweep-frame-is-a-minimal-rotation-from-the-start-tangent`. Under the
+loft's rule the coil builds again.
+
+**Open: `lily_leaf_b` escalates at the default ε.** Under the loft's
+rule its volume refuses with the in-band convergence arm (margin
+−2.7e-9 in (1e-9, 1e-8)). It measures at 1e-6 and 1e-12, and it measured
+under both the old rule and the path parameter. This is QUAD's
+`quadrature-convergence-test-escalates-instead-of-refining`, and the
+evidence is added there.

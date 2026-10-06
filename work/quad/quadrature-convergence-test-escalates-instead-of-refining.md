@@ -111,3 +111,20 @@ pass tiers 1, 3 and 3′. `mass_properties` of the lower half refuses
 `Face { face 11v1, Escalated { margin −2.936e-9, band (1e-9, 1e-8),
 predicate "props_quad_converged" } }`. The other 59 poses of that sweep
 measure.
+
+## Evidence (2026-10-06, CARVE `carve/loft-v-is-the-whole-sets`)
+
+The tour's `lily_leaf_b` (a swept lens leaf, `demos/tour/src/lily.rs`)
+lands here when its sweep's v moves from the first strip's chord shares
+to the chord rule over every row of its outer loop. That moves the walls
+by a small amount and nothing else. Its mass properties then refuse at
+the default ε with:
+
+```
+whether the quadrature's enclosure has converged is too close to call at this
+tolerance: margin -2.717410219170452e-9 lies inside the ambiguity band (1e-9, 1e-8)
+```
+
+It measures at ε = 1e-6 and 1e-12, and it measured under both the old
+rule and the path parameter. It is the same in-band convergence arm, on
+a body with no question about its shape.

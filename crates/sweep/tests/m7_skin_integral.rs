@@ -244,13 +244,9 @@ fn nonuniform_trapezoid_loft_body_is_tier3_valid() {
 /// through nine such stations — a polynomial approximation of circular
 /// motion, not the torus. So the honest claim is convergence to
 /// Pappus, not equality with it: at 9 stations the relative gap is
-/// ≈ 1.0e-5, and it falls by ~1.9 decades per doubling of the station
-/// count (measured 8.6e-4 → 1.03e-5 → 2.1e-7 at 5 → 9 → 17). The
-/// stations sit at the path's own parameter, which on this rational
-/// arc is not proportional to the angle, so the gap is the
-/// interpolation of the arc's motion in its own parameter. The
-/// certified enclosure `pad` is ~1e-13 here, eight orders TIGHTER
-/// than that gap — the bracket is a
+/// ≈ 4e-6, and it fell by ~1.8 decades when the station count went
+/// 5 → 9 (measured 2.2e-4 → 3.8e-6). The certified enclosure `pad` is
+/// ~1e-13 here, four orders TIGHTER than that gap — the bracket is a
 /// discretization statement, and the assertion below pins the pad
 /// separately so the tolerance can never be silently absorbed by a
 /// loosening enclosure.
@@ -294,7 +290,7 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
     let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * FRAC_PI_2;
     let rel = ((m.volume - pappus) / pappus).abs();
     assert!(
-        rel <= 2e-5,
+        rel <= 1e-5,
         "swept volume {} vs Pappus {pappus} (rel {rel}) — the 9-station \
          discretization bracket",
         m.volume

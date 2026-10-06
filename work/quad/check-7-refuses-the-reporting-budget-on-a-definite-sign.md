@@ -9,7 +9,7 @@ priority: P0
 
 Met while giving the tour lily's blades lanceolate sections
 (`demos/tour/src/lily.rs`, SHOW unit `lily-lanceolate-blade-sections`).
-Pinned live there as wall 16 of `lily::wall_probes` (wall 15 retired; see the evidence below).
+Pinned live there as walls 15 and 16 of `lily::wall_probes`.
 
 ## What
 
@@ -148,13 +148,3 @@ pinned at the default ε and tighter, and assert the pass at 1e-6.
 The lily's lofted blades (the long leaf, the three sepals) keep their
 straight kite-and-rectangle sections, and its swept leaves are fitted
 at degree 2 rather than the cubic the lofted blades use.
-
-## Evidence (2026-10-06, CARVE `carve/loft-v-is-the-whole-sets`)
-
-Wall 15 retired: with a sweep's v taken from its path parameter
-(`sweep::sweep_body`, `i/(k − 1)` per station) instead of the first
-strip's chord lengths, the cubic swept lens leaf certifies at ε = 1e-6,
-1e-9 and 1e-12, so the scene's swept leaves are now fitted at the cubic
-degree. Wall 16 (the lofted lens blade) still refuses at the default ε
-(`width_len` 1.237e-5, `target_len` 1.024e-6, `rounds: 1`) and at 1e-12,
-and passes at 1e-6. It is this row's one live pin now.

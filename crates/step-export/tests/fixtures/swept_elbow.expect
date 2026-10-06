@@ -6,7 +6,7 @@
 # arc anywhere) swept along a 90° arc of radius R = 3 in the world
 # YZ plane -- 9 stations, skinned at v-degree 3. `sweep::sweep_body`
 # had ZERO successful callers anywhere in the tree before #207: every
-# curved path drove a non-uniform station spacing, and the synthesized
+# curved path drives a chord-length station spacing, and the synthesized
 # weight channel's LU round-trip landed an ulp off 1.0 there, making the
 # walls bitwise RATIONAL, poisoning `speed_lower_bound`, and refusing
 # the body at assembly. Construction, constant for constant:
@@ -29,13 +29,13 @@
 #   A * Rbar * theta = (2h)^2 * R * (π/2) = 0.375·π
 #                    = 1.1780972450961724 m³.
 # The WALLS, though, are the degree-3 v-interpolation THROUGH those nine
-# stations, at the path's own parameter -- a polynomial approximation
-# of the rational arc's motion, not the torus. So the torus is a
-# CONVERGENCE reference, not this body's volume: the measured relative
-# gap is 1.03e-5 at 9 stations, falling from 8.6e-4 at 5 and to 2.1e-7
-# at 17 (the #210 convergence pin). The certified enclosure's PAD below
-# is 4.08e-5 mm³ -- 3.5e-14 relative, more than EIGHT orders tighter
-# than that gap -- so nothing here is being absorbed by a loose pad.
+# stations -- a polynomial approximation of circular motion, not the
+# torus. So the torus is a CONVERGENCE reference, not this body's
+# volume: the measured relative gap is 3.84e-6 at 9 stations and fell
+# from 2.2e-4 at 5 (the #210 convergence pin). The certified enclosure's
+# PAD below is 8.19e-5 mm³ -- its HALF-width, 7.0e-14 relative, nearly
+# EIGHT orders tighter than that gap -- so nothing here is being absorbed
+# by a loose pad.
 #
 # EXPECT_VOLUME_MM3 is therefore the kernel's OWN certified midpoint,
 # and the claim this oracle row makes is the one an external oracle can
@@ -44,16 +44,16 @@
 # not OCC's business; the two systems' quadratures are.
 #
 # EXPECT_VOLUME_RTOL = 1e-7 -- the corpus's first non-default RTOL, and
-# the reason is measured, not guessed. Local FreeCAD 1.1.2 read the
-# fixture's previous parameterization back 1.94e-8 relative off the
-# kernel's midpoint (22.82 mm³). That is quadrature disagreement on a
+# the reason is measured, not guessed. Local FreeCAD 1.1.2 reads back
+# 1178101795.21692 mm³, which is 22.82 mm³ / 1.94e-8 relative off the
+# kernel's 1178101772.4005454. That is quadrature disagreement on a
 # degree-3 wall: the divergence integrand over a degree 1x3 patch has
 # v-degree beyond what GProp's default Gauss order integrates exactly,
 # which is why `loft_prism` and `nonuniform_loft` (degree 1x2, piecewise
 # POLYNOMIAL ruled patches) read back exact at the 1e-9 default and this
 # one does not. 1e-7 is ~5x the measured disagreement -- headroom for
-# OCC version drift, and still 100x tighter than the discretization
-# gap it must never be confused with.
+# OCC version drift, and still 40x tighter than the discretization gap
+# it must never be confused with.
 #
 # KERNEL_* pin the NATIVE body's census and certified volume, full
 # precision (the literal is the export writer's round-tripping float
@@ -69,12 +69,12 @@ KERNEL_SHELLS=1
 KERNEL_FACES=6
 KERNEL_EDGES=12
 KERNEL_VERTICES=8
-KERNEL_VOLUME_MM3=1178109327.1662166
-KERNEL_VOLUME_PAD_MM3=4.08006961549745E-5
+KERNEL_VOLUME_MM3=1178101772.4005456
+KERNEL_VOLUME_PAD_MM3=4.490852134608758E-5
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=6
 EXPECT_EDGES=12
 EXPECT_VERTICES=8
-EXPECT_VOLUME_MM3=1178109327.1662166
+EXPECT_VOLUME_MM3=1178101772.4005456
 EXPECT_VOLUME_RTOL=1e-7
