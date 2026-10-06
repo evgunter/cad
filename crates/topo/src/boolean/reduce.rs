@@ -4567,8 +4567,8 @@ mod declaration_order_rows {
     /// **The lump takes a sector's in-band residue where the door
     /// bridges it**: the two poses of the row below at a tilt the door
     /// reads in band over both faces (standing tilted down by `1.2·ε`,
-    /// sunk at `2·ε`; standing at `2·ε` the zip refuses
-    /// `RestZipUnsupported { ChordBetweenIsolatedPierces }`). Standing
+    /// sunk at `2·ε`; standing tilted down by `2·ε` builds as well, and
+    /// neither reaches the declared-REST zip). Standing
     /// tilted UP, the union's residue crosses `vol(A) + vol(B)` and the
     /// volume backstop refuses it
     /// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
