@@ -977,7 +977,7 @@ their corners nest. Its retirement is filed.
   - the 217 In/Out lines are unchanged: they fail at insertion, which the
     split does not reach.
 
-**Review tier: DUAL, H / TRICKY (DR-92).** R1 APPROVE-WITH-FIXES 1/4/4,
+**Review tier: DUAL, H / TRICKY (DR-93).** R1 APPROVE-WITH-FIXES 1/4/4,
 R2 0/3/4. Tally 1.
 - **R1 MAJOR-1 (executed):** on a pinched operand whose pre-zip weld
   fired, 12 SOUND lines refused. The cause was the weld's site choice,
