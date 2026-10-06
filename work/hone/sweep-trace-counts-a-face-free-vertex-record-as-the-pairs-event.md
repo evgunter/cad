@@ -50,6 +50,6 @@ Make the trace's `accepted` mean a FACE-BOUND event: a pierce, a split,
 or a record this face's own trim placed. That is either a separate
 `Placement` (and `CurvedEvent`) for the face-free hit, or the face-free
 lookup moved out of the per-face arm into one per-vertex pass. Then
-drop the exemption. Whichever is chosen, `records_the_pair` and
+drop the exemption. Whichever is chosen, `Placement::declared` and
 `undeclared_no_interior` decide on `Recorded` today and must keep
 deciding the same way.

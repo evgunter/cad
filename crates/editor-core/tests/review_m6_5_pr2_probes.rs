@@ -12,6 +12,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -61,6 +62,7 @@ fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let node = Node::fillet(cube, len(0.125), prism_edges(&doc, cube, 4));
@@ -162,6 +164,7 @@ fn p3_totality_holds_for_a_triangular_prism() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let node1 = Node::fillet(prism, len(0.1), prism_edges(&doc, prism, 3));

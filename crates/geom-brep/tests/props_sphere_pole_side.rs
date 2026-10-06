@@ -527,7 +527,9 @@ fn the_refusing_faces_verdicts_are_a_face_fact_too() {
 /// the two records here), `props_rim_interior_side` is
 /// `props_rim_side`'s pointed by σ, and `props_rim_only_closed` is the
 /// `Δu` angle at the azimuthal arm `props_du_consistent` already
-/// meters.
+/// meters. `props_sphere_circle_tilt` is the arm's dispatch: the rim
+/// is not tilted against the chart, so the face takes this arm and not
+/// the Gauss–Bonnet one.
 #[test]
 fn the_rim_only_cap_records_its_named_decides() {
     let got = verdict_multiset(&[rim(0.5, 0.0, TAU, 0, 0)]);
@@ -543,6 +545,7 @@ fn the_rim_only_cap_records_its_named_decides() {
         ("props_rim_only_extent Zero", 1),
         ("props_rim_only_join Zero", 1),
         ("props_rim_side Positive", 1),
+        ("props_sphere_circle_tilt Zero", 1),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

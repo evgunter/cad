@@ -5,10 +5,10 @@ ordinary thing for one to hold, and until this unit Python could
 declare the parameters that expression reads and had no way to ask
 what it was WORTH — the façade's own words for the absence are "a
 panel that shows a slot before editing it needs this", and
-`Expr.literal_value` answers only for a bare literal.
+`Formula.literal_value` answers only for a bare literal.
 
 Three doors close it, all on `Doc` because all three read a
-per-document table: `parse_expr` reads the declared DIMENSIONS,
+per-document table: `parse_formula` reads the declared DIMENSIONS,
 `eval` and `eval_count` the bound VALUES. These are the door-level
 rows for them and, above all, for their REFUSALS — a text that is not
 an expression says WHERE it stopped being one, and a value that
@@ -31,12 +31,12 @@ from pncad import (
     ArcSide,
     Doc,
     DocEdit,
-    DocParam,
-    DocParamValue,
+    FreeVar,
+    FreeValue,
     EvalError,
-    Expr,
+    Formula,
     Length,
-    ParamName,
+    VarName,
     ParseError,
     PncadError,
     Radius,
@@ -55,9 +55,9 @@ def plate(width=0.1 * m, margin=3 * mm, holes=4):
     make every row depend on the evaluator that is NOT this one.
     """
     doc = Doc("expression-rows")
-    doc.apply(DocEdit.set_doc_param(ParamName("width"), DocParam.length(width)))
-    doc.apply(DocEdit.set_doc_param(ParamName("margin"), DocParam.length(margin)))
-    doc.apply(DocEdit.set_doc_param(ParamName("holes"), DocParam.count(holes)))
+    doc.apply(DocEdit.declare_var(VarName("width"), FreeVar.length(width)))
+    doc.apply(DocEdit.declare_var(VarName("margin"), FreeVar.length(margin)))
+    doc.apply(DocEdit.declare_var(VarName("holes"), FreeVar.count(holes)))
     return doc
 
 
@@ -66,19 +66,19 @@ class TestTheTextDoorBuildsCheckedTrees(unittest.TestCase):
         self.doc = plate()
 
     def test_an_expression_knows_what_it_measures(self):
-        self.assertEqual(self.doc.parse_expr("width").dimension, "length")
-        self.assertEqual(self.doc.parse_expr("30 deg").dimension, "angle")
-        self.assertEqual(self.doc.parse_expr("holes").dimension, "count")
-        self.assertEqual(self.doc.parse_expr("2.5").dimension, "scalar")
+        self.assertEqual(self.doc.parse_formula("width").dimension, "length")
+        self.assertEqual(self.doc.parse_formula("30 deg").dimension, "angle")
+        self.assertEqual(self.doc.parse_formula("holes").dimension, "count")
+        self.assertEqual(self.doc.parse_formula("2.5").dimension, "scalar")
 
     def test_the_declarations_come_from_the_document(self):
         """A bare identifier is a reference to THIS document's
         parameter, carrying the dimension it was declared with."""
-        self.assertEqual(self.doc.parse_expr("width").dimension, "length")
-        self.assertEqual(self.doc.parse_expr("holes").dimension, "count")
+        self.assertEqual(self.doc.parse_formula("width").dimension, "length")
+        self.assertEqual(self.doc.parse_formula("holes").dimension, "count")
         # The same text against a document that declares nothing.
         with self.assertRaises(ParseError) as caught:
-            Doc("empty").parse_expr("width")
+            Doc("empty").parse_formula("width")
         self.assertEqual(caught.exception.variant, "unknown_param")
         self.assertEqual(caught.exception.name, "width")
 
@@ -96,15 +96,15 @@ class TestTheTextDoorBuildsCheckedTrees(unittest.TestCase):
             "(width + margin) / 2.0",
         ]:
             with self.subTest(source=source):
-                self.assertIsInstance(self.doc.parse_expr(source), Expr)
+                self.assertIsInstance(self.doc.parse_formula(source), Formula)
 
     def test_a_tree_reads_back_as_text_that_parses_to_itself(self):
-        """`unparse` is `parse_expr`'s inverse — the door outward, and
+        """`unparse` is `parse_formula`'s inverse — the door outward, and
         the round trip is what makes it one."""
         for source in ["width / 2.0 - margin", "sin(30 deg)", "holes + 1"]:
             with self.subTest(source=source):
-                once = self.doc.parse_expr(source)
-                twice = self.doc.parse_expr(once.text)
+                once = self.doc.parse_formula(source)
+                twice = self.doc.parse_formula(once.text)
                 self.assertEqual(once, twice)
                 self.assertEqual(once.text, twice.text)
 
@@ -113,37 +113,37 @@ class TestTheTextDoorBuildsCheckedTrees(unittest.TestCase):
         normalise, which is why the docstring calls `text` a rendering
         — a panel that expects its own bytes back is wrong about the
         door."""
-        spaced = self.doc.parse_expr("  width   /   2.0  ")
-        self.assertEqual(spaced.text, self.doc.parse_expr("width / 2.0").text)
+        spaced = self.doc.parse_formula("  width   /   2.0  ")
+        self.assertEqual(spaced.text, self.doc.parse_formula("width / 2.0").text)
 
     def test_an_expression_names_the_parameters_it_reads(self):
         """Sorted, deduplicated, and the fact a consumer needs to know
         when a value it displayed has gone stale."""
-        expr = self.doc.parse_expr("width / 2.0 - margin + width")
+        expr = self.doc.parse_formula("width / 2.0 - margin + width")
         self.assertEqual([p.name for p in expr.params], ["margin", "width"])
-        self.assertEqual(self.doc.parse_expr("1 m + 2 m").params, [])
+        self.assertEqual(self.doc.parse_formula("1 m + 2 m").params, [])
 
     def test_a_bare_literal_answers_its_number_and_nothing_else_does(self):
         """`literal_value` is the narrow door, and the case it does
         NOT answer is the one that made the evaluator's absence
         bite."""
-        self.assertEqual(self.doc.parse_expr("25 mm").literal_value, 0.025)
-        self.assertIsNone(self.doc.parse_expr("width / 2.0").literal_value)
+        self.assertEqual(self.doc.parse_formula("25 mm").literal_value, 0.025)
+        self.assertIsNone(self.doc.parse_formula("width / 2.0").literal_value)
         # A count literal answers None: handing an exact integer back
         # as a float is the implicit promotion the language refuses.
-        self.assertIsNone(self.doc.parse_expr("4").literal_value)
+        self.assertIsNone(self.doc.parse_formula("4").literal_value)
 
     def test_equality_is_the_trees_and_a_tree_is_unhashable(self):
         self.assertEqual(
-            self.doc.parse_expr("width + margin"),
-            self.doc.parse_expr("width + margin"),
+            self.doc.parse_formula("width + margin"),
+            self.doc.parse_formula("width + margin"),
         )
         self.assertNotEqual(
-            self.doc.parse_expr("width + margin"),
-            self.doc.parse_expr("margin + width"),
+            self.doc.parse_formula("width + margin"),
+            self.doc.parse_formula("margin + width"),
         )
         with self.assertRaises(TypeError):
-            {self.doc.parse_expr("width")}
+            {self.doc.parse_formula("width")}
 
 
 class TestTheTextDoorRefusesTyped(unittest.TestCase):
@@ -152,7 +152,7 @@ class TestTheTextDoorRefusesTyped(unittest.TestCase):
 
     def refusal(self, source):
         with self.assertRaises(ParseError) as caught:
-            self.doc.parse_expr(source)
+            self.doc.parse_formula(source)
         return caught.exception
 
     def test_the_class_is_a_pncad_error(self):
@@ -268,57 +268,57 @@ class TestTheEvaluatorAnswersValues(unittest.TestCase):
     def test_a_length_expression_answers_a_length(self):
         """Dimensioned out — the crossing rule, not the kernel's
         unit-erased float."""
-        value = self.doc.eval(self.doc.parse_expr("width / 2.0 - margin"))
+        value = self.doc.eval(self.doc.parse_formula("width / 2.0 - margin"))
         self.assertIsInstance(value, Length)
         # The oracle is the arithmetic itself: 0.1/2 - 0.003, in
         # metres, with no rounding step anywhere in the evaluator.
         self.assertEqual(value.in_unit(m), 0.1 / 2.0 - 0.003)
 
     def test_an_angle_expression_answers_an_angle(self):
-        value = self.doc.eval(self.doc.parse_expr("atan2(1 m, 1 m)"))
+        value = self.doc.eval(self.doc.parse_formula("atan2(1 m, 1 m)"))
         self.assertIsInstance(value, Angle)
         self.assertAlmostEqual(value.in_unit(rad), math.pi / 4)
         self.assertAlmostEqual(value.in_unit(deg), 45.0)
 
     def test_a_dimensionless_expression_answers_a_bare_float(self):
-        value = self.doc.eval(self.doc.parse_expr("sin(30 deg)"))
+        value = self.doc.eval(self.doc.parse_formula("sin(30 deg)"))
         self.assertIsInstance(value, float)
         self.assertAlmostEqual(value, 0.5)
 
     def test_a_count_expression_answers_an_exact_integer(self):
-        self.assertEqual(self.doc.eval_count(self.doc.parse_expr("holes")), 4)
-        self.assertEqual(self.doc.eval_count(self.doc.parse_expr("holes * 3")), 12)
-        self.assertEqual(self.doc.eval_count(self.doc.parse_expr("-holes")), -4)
+        self.assertEqual(self.doc.eval_count(self.doc.parse_formula("holes")), 4)
+        self.assertEqual(self.doc.eval_count(self.doc.parse_formula("holes * 3")), 12)
+        self.assertEqual(self.doc.eval_count(self.doc.parse_formula("-holes")), -4)
 
     def test_the_value_follows_the_document_and_not_the_expression(self):
         """The point of the whole family: one expression, and its
         value moves when the parameter does."""
-        expr = self.doc.parse_expr("width / 2.0")
+        expr = self.doc.parse_formula("width / 2.0")
         self.assertEqual(self.doc.eval(expr).in_unit(m), 0.05)
         self.doc.apply(
-            DocEdit.set_doc_param_value(
-                ParamName("width"), DocParamValue.length(0.2 * m)
+            DocEdit.set_var_value(
+                VarName("width"), FreeValue.length(0.2 * m)
             )
         )
         self.assertEqual(self.doc.eval(expr).in_unit(m), 0.1)
 
     def test_an_expression_parsed_elsewhere_evaluates_here(self):
-        """An `Expr` is a plain value carrying the dimensions its refs
+        """A `Formula` is a plain value carrying the dimensions its refs
         were declared with, so it travels between documents that agree
         about them."""
         other = plate(width=0.4 * m, margin=1 * mm, holes=2)
-        expr = self.doc.parse_expr("width - margin")
+        expr = self.doc.parse_formula("width - margin")
         self.assertEqual(other.eval(expr).in_unit(m), 0.4 - 0.001)
 
     def test_a_count_promotes_only_where_the_expression_says_so(self):
-        promoted = self.doc.parse_expr("scalar(holes) * margin")
+        promoted = self.doc.parse_formula("scalar(holes) * margin")
         self.assertEqual(promoted.dimension, "length")
         self.assertAlmostEqual(self.doc.eval(promoted).in_unit(mm), 12.0)
 
     def test_evaluating_changes_nothing(self):
         before = self.doc.save()
-        self.doc.eval(self.doc.parse_expr("width / 2.0"))
-        self.doc.eval_count(self.doc.parse_expr("holes"))
+        self.doc.eval(self.doc.parse_formula("width / 2.0"))
+        self.doc.eval_count(self.doc.parse_formula("holes"))
         self.assertEqual(self.doc.save(), before)
 
 
@@ -333,21 +333,21 @@ class TestTheEvaluatorRefusesTyped(unittest.TestCase):
         """The absence the façade calls out: a slot whose value cannot
         be computed says which parameter is missing rather than
         displaying a blank."""
-        expr = self.doc.parse_expr("width / 2.0")
+        expr = self.doc.parse_formula("width / 2.0")
         with self.assertRaises(EvalError) as caught:
             Doc("empty").eval(expr)
-        self.assertEqual(caught.exception.variant, "unknown_param")
+        self.assertEqual(caught.exception.variant, "unlowered_name")
         self.assertEqual(caught.exception.name, "width")
 
     def test_a_redeclared_parameter_says_both_dimensions(self):
-        """The expression's reference recorded a length; this document
-        declares the same name as a count."""
-        expr = self.doc.parse_expr("width")
+        """The expression reads `width` as a length; this document holds
+        the same name as a count."""
+        expr = self.doc.parse_formula("width")
         counts = Doc("counts")
-        counts.apply(DocEdit.set_doc_param(ParamName("width"), DocParam.count(3)))
+        counts.apply(DocEdit.declare_var(VarName("width"), FreeVar.count(3)))
         with self.assertRaises(EvalError) as caught:
             counts.eval(expr)
-        self.assertEqual(caught.exception.variant, "param_dimension_mismatch")
+        self.assertEqual(caught.exception.variant, "var_kind_mismatch")
         self.assertEqual(caught.exception.name, "width")
         self.assertEqual(caught.exception.expected, "length")
         self.assertEqual(caught.exception.found, "count")
@@ -356,19 +356,19 @@ class TestTheEvaluatorRefusesTyped(unittest.TestCase):
         """Counts are exact and continuous values are not, so each
         door refuses the other's expression by name."""
         with self.assertRaises(EvalError) as continuous:
-            self.doc.eval(self.doc.parse_expr("holes"))
+            self.doc.eval(self.doc.parse_formula("holes"))
         self.assertEqual(
             continuous.exception.variant, "count_expr_in_continuous_eval"
         )
 
         with self.assertRaises(EvalError) as exact:
-            self.doc.eval_count(self.doc.parse_expr("width"))
+            self.doc.eval_count(self.doc.parse_formula("width"))
         self.assertEqual(exact.exception.variant, "continuous_expr_in_count_eval")
         self.assertEqual(exact.exception.found, "length")
 
     def test_a_count_that_cannot_promote_exactly_refuses(self):
         with self.assertRaises(EvalError) as caught:
-            self.doc.eval(self.doc.parse_expr("scalar(9999999999)"))
+            self.doc.eval(self.doc.parse_formula("scalar(9999999999)"))
         self.assertEqual(caught.exception.variant, "count_to_scalar_out_of_range")
         self.assertEqual(caught.exception.count, 9999999999)
 
@@ -377,7 +377,7 @@ class TestTheEvaluatorRefusesTyped(unittest.TestCase):
         the evaluator has no branches to hide it behind — so the
         poison flows through the arithmetic and is refused at the
         boundary, on the finished value."""
-        pole = self.doc.parse_expr("width / 0.0")
+        pole = self.doc.parse_formula("width / 0.0")
         with self.assertRaises(EvalError) as caught:
             self.doc.eval(pole)
         self.assertEqual(caught.exception.variant, "non_finite_result")
@@ -385,10 +385,10 @@ class TestTheEvaluatorRefusesTyped(unittest.TestCase):
     def test_every_payload_field_is_present_on_every_arm(self):
         fields = ["variant", "name", "expected", "found", "count"]
         cases = [
-            (Doc("empty").eval, self.doc.parse_expr("width")),
-            (self.doc.eval, self.doc.parse_expr("holes")),
-            (self.doc.eval_count, self.doc.parse_expr("width")),
-            (self.doc.eval, self.doc.parse_expr("width / 0.0")),
+            (Doc("empty").eval, self.doc.parse_formula("width")),
+            (self.doc.eval, self.doc.parse_formula("holes")),
+            (self.doc.eval_count, self.doc.parse_formula("width")),
+            (self.doc.eval, self.doc.parse_formula("width / 0.0")),
         ]
         for door, expr in cases:
             with self.assertRaises(EvalError) as caught:
@@ -407,15 +407,15 @@ class TestTheAuthoringHalfIsStillClosed(unittest.TestCase):
     """
 
     def test_an_arc_radius_is_a_length_and_not_an_expression(self):
-        radius = plate().parse_expr("width / 2.0")
+        radius = plate().parse_formula("width / 2.0")
         self.assertEqual(radius.dimension, "length")
         with self.assertRaises(TypeError):
             Radius(radius, ArcSide.Left)
 
     def test_a_parameter_is_a_number_and_not_an_expression(self):
-        derived = plate().parse_expr("width / 2.0")
+        derived = plate().parse_formula("width / 2.0")
         with self.assertRaises(TypeError):
-            DocParam.length(derived)
+            FreeVar.length(derived)
 
 
 # The deepest an expression nests, in levels: the refusal names it.
@@ -424,7 +424,7 @@ NESTING_BOUND = 128
 _NESTED = """
 import json, sys, threading
 
-from pncad import Doc, Expr, LiteralError, MeasureExpr, Node, ParseError, evaluate, load, m
+from pncad import Doc, Formula, LiteralError, MeasureExpr, Node, ParseError, evaluate, load, m
 
 bound, far = int(sys.argv[1]), int(sys.argv[2])
 said = {}
@@ -435,19 +435,19 @@ def run():
     corners = [(0, 0), (1, 0), (1, 1), (0, 1)]
     square = doc.insert(
         Node.polygon(
-            [(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners],
+            [(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners],
             plane=doc.sketch_frame(),
         )
     )
-    at_the_bound = doc.parse_expr(" + ".join(["1 m"] + ["0 m"] * (bound - 1)))
+    at_the_bound = doc.parse_formula(" + ".join(["1 m"] + ["0 m"] * (bound - 1)))
     box = doc.insert(Node.extrude(square, at_the_bound))
     said["volume"] = evaluate(doc).value(box).body().mass_properties().volume
     said["loaded_volume"] = (
         evaluate(load(doc.save()).doc).value(box).body().mass_properties().volume
     )
-    negative = doc.parse_expr(" + ".join(["-1 m"] + ["0 m"] * (bound - 1)))
-    said["negative_reads_back"] = doc.parse_expr(negative.text) == negative
-    said["brackets"] = doc.parse_expr("(" * far + "1" + ")" * far).text
+    negative = doc.parse_formula(" + ".join(["-1 m"] + ["0 m"] * (bound - 1)))
+    said["negative_reads_back"] = doc.parse_formula(negative.text) == negative
+    said["brackets"] = doc.parse_formula("(" * far + "1" + ")" * far).text
     refusals = {}
     for label, text in [
         ("one past", "+".join(["1"] * (bound + 1))),
@@ -455,12 +455,12 @@ def run():
         ("terms", "+".join(["1"] * far)),
     ]:
         try:
-            doc.parse_expr(text)
+            doc.parse_formula(text)
             refusals[label] = None
         except ParseError as refusal:
             refusals[label] = [refusal.variant, refusal.kind, str(refusal)]
     said["parse"] = refusals
-    measure = MeasureExpr.value(doc.parse_expr("1 m"))
+    measure = MeasureExpr.value(doc.parse_formula("1 m"))
     try:
         for _ in range(far):
             measure = MeasureExpr.neg(measure)

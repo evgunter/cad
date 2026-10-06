@@ -455,7 +455,9 @@ gate_exact_skip --statements \
 BOUNDS_ALLOWLIST=(
   # 2026-07-29 (M5 PR 8), the driver amendment: the boolean-sweep and
   # evaluation-service seams, and `separation` under the same entry.
-  'crates/topo/src/boolean/boxes.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  # boxes.rs's three are the box builders (`face_box`, `boundary_hull`,
+  # `edge_box`); its point read needs no `Bounds` and is `Real`-bound.
+  'crates/topo/src/boolean/boxes.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
   # are one driver seam: each reads the certified face boxes the sweep
@@ -465,12 +467,33 @@ BOUNDS_ALLOWLIST=(
   # callers, `interior_loop_verdict` (crossings) and
   # `section_extent_pass` (no crossings), which replaced the torus and
   # cylinder extent gates; and `section_report`, the test door over the
-  # same scan. With `sphere_extent_scan` and the rest of the file's
-  # pre-existing seams the count is 14. `section_cert.rs` itself, the
+  # same scan. With the eleven pre-existing seams (the nine public and
+  # pipeline doors, `sphere_extent_scan` and `apply_recuts`) the count
+  # is 15. Four more ride the same seam: `face_rows`, which builds each
+  # face's certified box once; `walk_pairs`, the one walker over
+  # box-overlapping row pairs that `section_pairs` and the extent
+  # scan's face-scoped reading both take; `pair_verdict`, the per-pair
+  # rule's driver, which builds the pair's reach from the two boxes;
+  # and `sphere_faces_apart`, that face-scoped reading of a crossing
+  # or touching sphere pair. 15 + 4 = 19. One more reads the edge boxes
+  # of one face against a region and decides on them:
+  # `face_boundary_meets`, the walk the plane arm's whole-circle
+  # membership takes. 19 + 1 = 20. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
-  # compound bound.
-  'crates/topo/src/boolean/ops.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  # compound bound. Four more carry the result gate's box read (the
+  # finished-body door, PR 3987): `gate`, which sorts the result into
+  # pieces through each face's certified box (`boxes::face_box`) before
+  # tier 3 finishes it; `fallback` and `finish_fallback`, the two
+  # fallback sites that build a result and hand it to `gate`; and
+  # `boolean_door`, the front door's body, split from `boolean_op_with`
+  # so the door can time and meter the call around it. 20 + 4 = 24.
+  'crates/topo/src/boolean/ops.rs 24 2026-07-29 (M5 PR 8), the driver amendment'
+  # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
+  # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
+  # `sweep_and_settle`, is the one driver every boolean sweeps through,
+  # and rides the same seam: it forwards to `sweep_direction` twice and
+  # reads no bracket of its own (`Decide` alone does not compile there).
+  'crates/topo/src/boolean/reduce.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,
@@ -489,7 +512,7 @@ BOUNDS_ALLOWLIST=(
   # in this file already reaches through, ratified for the same
   # seam. The added occurrence is the caller spelling that header,
   # not a new bracket read: nothing in `wire_shell` reads a bound.
-  'crates/editor-core/src/eval/wire.rs 16 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
@@ -549,7 +572,15 @@ BOUNDS_ALLOWLIST=(
   # the same ruling; `props.rs` keeps the assemblers, `QuadLane`,
   # `ShellDoor` and the wiring rows.
   'crates/topo/src/props.rs 9 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/props/quad_lane.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
+  # face's flux at the interval scalar, lifting the face's geometry
+  # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
+  # the volume backstop's sign arm decides a refusal on the bracket it
+  # returns. That is a certification act, which is this seam's right:
+  # the function is reached only through `QuadLane::certified`'s second
+  # field, the same door `cut_face_rounds` is, so it is never formed at
+  # a dual.
+  'crates/topo/src/props/quad_lane.rs 15 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
@@ -592,20 +623,17 @@ BOUNDS_ALLOWLIST=(
   'crates/geom-brep/src/ssi/certify.rs 14 M6-2, the SSI rung-3 certificate'
   # M7-8, the declare-and-check edge lane.
   'crates/geom-brep/src/edge_nurbs.rs 6 M7-8, the declare-and-check edge lane'
-  # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the two
-  # DOORS that name the certified body `plane_nurbs_limbs`. The second
-  # occurrence is the lane's door value, `NurbsLane::certified`'s block
-  # (`Decide + CertifiedBounds`) — the shape `FittedLane::certified`
-  # has: the certification RIGHT the value stands for, so the type
-  # cannot be written at a scalar without it; it holds one function
-  # pointer to `plane_nurbs_limbs` and reads no bracket. Same seam, the
-  # bound of the `certify_nurbs_lane` block beside it and nothing wider.
-  # The third is `wiring_rows::holds_the_certified_nurbs_lane`, which
-  # forms that constructor at each certifying scalar and so restates its
-  # bound and nothing wider, in a `#[cfg(test)]` module that reads no
-  # bracket.
-  'crates/geom-brep/src/certify.rs 3 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound'
-  'crates/topo/src/euler.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
+  # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
+  # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
+  # door value `NurbsLane::certified`'s block (`Decide +
+  # CertifiedBounds`) — the shape `FittedLane::certified` has: the
+  # certification RIGHT the value stands for, so the type cannot be
+  # written at a scalar without it; it holds one function pointer to
+  # `plane_nurbs_limbs` and reads no bracket. The second is
+  # `wiring_rows::holds_the_certified_nurbs_lane`, which forms that
+  # constructor at each certifying scalar and so restates its bound and
+  # nothing wider, in a `#[cfg(test)]` module that reads no bracket.
+  'crates/geom-brep/src/certify.rs 2 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound'
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'
   # 2026-08-29, the advisory-check registry.

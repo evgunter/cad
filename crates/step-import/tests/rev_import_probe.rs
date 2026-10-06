@@ -3,6 +3,7 @@
 
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
+use sweep::ExtrudeSide;
 
 fn fixture(name: &str, _ext: &str) -> String {
     std::fs::read_to_string(format!(
@@ -140,9 +141,16 @@ fn conic_trimmed_flip_slips_both_gates() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(2.5), Tol::witness())
-        .unwrap()
-        .body;
+    let cylinder = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.5,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let phi: f64 = 0.3;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),

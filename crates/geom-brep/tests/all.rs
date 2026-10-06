@@ -79,10 +79,14 @@ mod chart_box_span;
 
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
+#[path = "cylinder_green_conditioning.rs"]
+mod cylinder_green_conditioning;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
+#[path = "ellipse_signed_semi_axis_gate.rs"]
+mod ellipse_signed_semi_axis_gate;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
 #[path = "germ_pose_gate.rs"]
@@ -115,8 +119,12 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_wall_frame_interval.rs"]
 mod onb_wall_frame_interval;
+#[path = "pcurve_frame_premise_rows.rs"]
+mod pcurve_frame_premise_rows;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_sphere_circle_loop.rs"]
+mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
@@ -206,6 +214,8 @@ mod s58_iso_rectangle;
 mod s81_one_rim_level_rule;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
+#[path = "ssi_limb3_one_arc.rs"]
+mod ssi_limb3_one_arc;
 
 test_utils::every_suite_file_is_aggregated!();
 

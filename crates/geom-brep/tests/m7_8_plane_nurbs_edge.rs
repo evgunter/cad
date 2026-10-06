@@ -12,8 +12,8 @@
 //! vocabulary.
 //!
 //! SU3 adds the same three rows driven through the CERTIFICATION DOOR
-//! (`EdgeCurve::certify_nurbs_lane`) — the call the importer's attach
-//! door actually makes, so these pin that the lane's verdicts arrive
+//! (`EdgeCurve::certify_via` with the certified lane) — the call the
+//! importer's attach door makes at `f64`, so these pin that the lane's verdicts arrive
 //! in `certify`'s own vocabulary rather than as a private dialect —
 //! plus the row proving the LANELESS door still refuses the class.
 //!
@@ -166,8 +166,8 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
 
 // ---------------------------------------------------------------
 // The certification DOOR (M7-8 SU3): the same three rows driven
-// through `EdgeCurve::certify_nurbs_lane`, which is what the
-// importer's attach door actually calls. These pin the MAPPING —
+// through `EdgeCurve::certify_via` with the certified lane, which is
+// what the importer's attach door calls at `f64`. These pin the MAPPING —
 // that the lane's verdicts arrive in `certify`'s own vocabulary
 // rather than as a private dialect — and that the door refuses the
 // class identically when no lane is injected.
@@ -209,8 +209,15 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band())
-        .expect("the stated carrier certifies through the attach door");
+    let edge = EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    )
+    .expect("the stated carrier certifies through the attach door");
     println!(
         "M7-8 door: certified max_residual {:e} m over {} samples",
         edge.certificate().max_residual,
@@ -233,7 +240,14 @@ fn the_door_refuses_a_displaced_carrier_with_the_measured_bound() {
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    match EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band()) {
+    match EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    ) {
         Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, value })) => {
             println!("M7-8 door falsifier: {} measured {value:e} m", limb.name());
             assert!(value >= off * 0.5, "the measured bound: {value:e}");
@@ -258,7 +272,14 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(tangent, quarter_cylinder_wall(), carrier);
-    match EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band()) {
+    match EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    ) {
         Err(e @ CertifyError::NotTransverse { .. }) => {
             let msg = e.to_string();
             println!("M7-8 door tangential: {msg}");
@@ -300,8 +321,15 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, &arena, band())
-        .expect("the stated carrier certifies through the attach door");
+    let edge = EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        &arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    )
+    .expect("the stated carrier certifies through the attach door");
 
     let with_lane = edge.recertify_via(
         ends.0,
@@ -341,8 +369,15 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, &arena, band())
-        .expect("the stated carrier certifies through the attach door");
+    let edge = EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        &arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    )
+    .expect("the stated carrier certifies through the attach door");
 
     // A drifted start point: a check-2 finding of a class the lane has
     // nothing to do with.

@@ -13,6 +13,7 @@ use profile::{
     EscalationSite, Profile, ProfileError, SegmentRef, SketchPlane, ValidatedProfile,
     test_support::bulge_loop,
 };
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -28,9 +29,16 @@ fn try_polygon(pts: &[(f64, f64)]) -> Result<ValidatedProfile<f64>, ProfileError
 /// A right prism on a polygon (the PR's own helper, copied).
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = try_polygon(pts).expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a polygon extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a polygon extrudes")
+    .body
 }
 
 /// Shoelace area of a CCW polygon.
@@ -98,11 +106,7 @@ fn planes(body: &Body<f64>) -> Vec<PlaneFrame> {
 }
 
 fn points(body: &Body<f64>) -> Vec<Point3<f64>> {
-    body.vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
-        .copied()
-        .collect()
+    body.vertex_points().map(|(_, p)| p).collect()
 }
 
 fn report(what: &str, r: Result<Body<f64>, topo::ShellError<f64>>) -> Option<Body<f64>> {
@@ -486,9 +490,16 @@ fn r1f_one_curved_face_among_planars() {
     let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(vs)])
         .validate(Tol::witness())
         .expect("the bulged hexagon validates");
-    let body = extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrudes")
+    .body;
     let curved = body
         .faces()
         .filter(|(_, f)| {
@@ -555,11 +566,7 @@ fn wide_dump(body: &Body<f64>) -> String {
         body.loops().count(),
         body.shells().count(),
     );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|v| body.get_point(v.point))
-            .unwrap();
+    for (k, p) in body.vertex_points() {
         let _ = writeln!(
             s,
             "v {k:?} {:x} {:x} {:x}",

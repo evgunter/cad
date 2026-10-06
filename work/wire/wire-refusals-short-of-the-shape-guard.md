@@ -96,3 +96,12 @@ take no declaration:
 `SelectRefusal::PairInBand` (near :277) is not listed. It is the flush
 detector's in-band pair, and declaring that pair on the Boolean's
 `declare` input is a real way through.
+
+## One entry retired (PROPS, props/recourse-grammar, 2026-10-01)
+
+`Skin/KnotAlgebra` is out of `FILED_NO_RECOURSE`:
+`geom_core::spline::algebra::KnotAlgebraError` now names a repair on
+every arm, enforced by `every_knot_algebra_error_arm_names_a_recourse`
+beside it, so the row the admission was holding open renders a recourse
+and the admission went red for being unused — which is
+`every_admission_admits_a_row_it_is_needed_for` working.

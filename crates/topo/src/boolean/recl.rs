@@ -14,10 +14,19 @@
 //!   membership rule subsuming the angular sort and the Table I tie
 //!   rules — see `resolve_edge_edge`).
 //!
-//! Germ attribution (deterministic, symmetric): a crossing along an
-//! on-edge is recorded on the flanking sector holding the on-bound as
-//! its START (in both solids for edge-edge), with the On code rewritten
-//! to the transition partner of the sector's other bound.
+//! Germ attribution: a crossing along an on-edge is recorded on the
+//! flanking sector the one fold rule
+//! ([`super::sectors::fold_on_bound`], placed by
+//! [`super::sectors::crossing_flank`]) makes the transition — the
+//! on-bound joins the In run, so the germ goes on the flanker whose
+//! other bound reads Out — with the On code rewritten to the transition
+//! partner of that other bound. At an edge-edge site each solid applies
+//! the rule to its OWN flankers' membership keys, apart: the germ's
+//! record is the pair of the two solids' transition flankers, minted
+//! when `pair_search` met no such pair (two coplanar flankers touching
+//! along the edge never make a record of their own). An edge two
+//! crossing pairs at one vertex both run a germ along folds Out in
+//! each ([`Reversed`]).
 //!
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
@@ -26,7 +35,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
-use super::sectors::{BoolSector, PairRecord, side_code};
+use super::sectors::{BoolSector, Flank, PairRecord, crossing_flank, side_code};
 use super::tables::{eq15_3_lump, kept_copy, resolve_verdict, table_ii};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
@@ -80,7 +89,7 @@ pub(super) fn require_same<T: Decide>(
     body2: &Body<T>,
     o2: super::Operand,
     s2: &BoolSector<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
@@ -132,7 +141,17 @@ pub(super) fn require_same<T: Decide>(
         s2: g2.as_ref(),
         declared: declared_one_carrier,
     };
-    match super::carrier_eq::carrier_eq(&c1, &c2, id, arm, band) {
+    // A declared pair reads as the door read it at rest, over both
+    // faces; an undeclared one at the corner's arm.
+    let extent = if declared_one_carrier {
+        declared.consumed(o1, s1.face, o2, s2.face)?
+    } else {
+        super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+            geom_core::Point3::origin(),
+            arm,
+        ))
+    };
+    match super::carrier_eq::carrier_eq(&c1, &c2, id, &extent, band) {
         Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
@@ -145,16 +164,26 @@ pub(super) fn require_same<T: Decide>(
             ),
             diag,
         )),
-        Err(PlaneEqError::Undeclared { diag, relation }) => {
-            Err(BooleanError::UndeclaredCoincidence {
-                diag,
-                pair: [(o1, s1.face), (o2, s2.face)],
-                relation,
-            })
-        }
+        Err(PlaneEqError::Undeclared {
+            coincidence,
+            relation,
+        }) => Err(super::undeclared_coincidence(
+            coincidence,
+            [(o1, s1.face), (o2, s2.face)],
+            relation,
+        )),
         Err(PlaneEqError::Contradicted { fact, .. }) => {
             Err(BooleanError::DeclarationContradicted { fact })
         }
+        // Only a declared reading is unsettled.
+        Err(PlaneEqError::Unsettled { diag }) => Err(super::unsettled_rest(
+            declared.class_of(o1, s1.face, o2, s2.face).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "an undeclared sector pair's carrier reading was unsettled",
+                },
+            )?,
+            diag,
+        )),
     }
 }
 
@@ -172,16 +201,20 @@ fn cancel_uniform(r: &mut PairRecord) {
 /// Each coincident pair whose lump keeps one copy of the region is
 /// pushed onto `covered` as `(A face, B face)`
 /// (`BooleanReduction::covered`), and each edge of the kept copy's face
-/// that runs into the dropped copy's onto `held`.
+/// that runs into the dropped copy's onto `held`. `first_read` holds the codes
+/// as first read, parallel to `records`, which the germ loci are derived
+/// from ([`super::sectors::germ_locus`]); a declared-`Tangent` record's
+/// is overwritten with its second-order reading.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_sectors<T: Decide>(
     records: &mut [PairRecord],
+    first_read: &mut [PairRecord],
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     covered: &mut Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
     held: &mut Vec<super::HeldEdge>,
@@ -222,14 +255,11 @@ pub(super) fn recl_sectors<T: Decide>(
             };
             let s_a = surface_of(a_body, sa.face)?;
             let s_b = surface_of(b_body, sb.face)?;
-            let p = a_body
-                .get_half_edge(sa.he)
-                .and_then(|he| a_body.get_vertex(he.start))
-                .and_then(|v| a_body.get_point(v.point))
-                .copied()
-                .ok_or(BooleanError::ClassificationInvariant {
+            let p = a_body.half_edge_start_point(sa.he).ok_or(
+                BooleanError::ClassificationInvariant {
                     what: "v-v site lost its point",
-                })?;
+                },
+            )?;
             let side = |own: &geom::Surface<T>, other: &geom::Surface<T>, n, d| {
                 super::sectors::tangent_relative_side(own, other, n, p, d, arm, read, band)
             };
@@ -284,6 +314,11 @@ pub(super) fn recl_sectors<T: Decide>(
             rec.sa = ca;
             rec.sb = cb;
             cancel_uniform(rec);
+            // The first-order reading of a tangent pair is all On; its
+            // second-order one is the first that decides anything, and
+            // the germ loci are read from it.
+            first_read[i].sa = ca;
+            first_read[i].sb = cb;
             continue;
         }
         let rel = require_same(
@@ -308,7 +343,7 @@ pub(super) fn recl_sectors<T: Decide>(
                     what: "a covered sector's half-edge no longer resolves",
                 },
             )?;
-            for (edge, dir) in super::sectors::bound_edges(body, own)? {
+            for (edge, dir) in super::sectors::bound_edges(body, own) {
                 if super::sectors::runs_into(other, dir, arm, band)? {
                     held.push(super::HeldEdge {
                         holder: keeper,
@@ -473,16 +508,22 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 /// The event's germ is marked on ONE deterministic record; every other
 /// surviving record carrying an On in the event is cancelled (unless it
 /// was itself germ-marked by an earlier event).
+///
+/// An edge-edge germ along an edge in `reversed` goes on that solid's
+/// other flanker, folding the edge into the run on its Out side
+/// ([`Reversed`]).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_edges<T: Decide>(
-    records: &mut [PairRecord],
+    records: &mut Vec<PairRecord>,
+    first_read: &mut Vec<PairRecord>,
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
+    reversed: &Reversed,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
 
@@ -574,7 +615,22 @@ pub(super) fn recl_edges<T: Decide>(
                 band,
                 am.start_holder,
                 bm.start_holder,
-            )?,
+            )?
+            .map(|germ| match germ {
+                EdgeGerm::Held(g) => Ok(g),
+                EdgeGerm::Folded(mut germ) => {
+                    let bound =
+                        |secs: &[BoolSector<T>], f_s: usize| secs[(f_s + 1) % secs.len()].he;
+                    if reversed.a.contains(&bound(a_sectors, am.start_holder)) {
+                        (germ.a, germ.sa) = reflank(germ.a, germ.sa, n_a);
+                    }
+                    if reversed.b.contains(&bound(b_sectors, bm.start_holder)) {
+                        (germ.b, germ.sb) = reflank(germ.b, germ.sb, n_b);
+                    }
+                    place_germ(records, first_read, &marked, germ)
+                }
+            })
+            .transpose()?,
             (Some(am), bm) if am.real => resolve_edge_sector(
                 records,
                 a_sectors,
@@ -655,8 +711,147 @@ pub(super) fn recl_edges<T: Decide>(
     Ok(())
 }
 
+/// **The edges along which a vertex pair's edge-edge germs fold Out.**
+/// Two crossing pairs sharing a vertex may each hold a germ along one
+/// of its edges: an operand's two vertices at one point (a pinch) meet
+/// the other operand's vertex, whose edge runs along the pinch line.
+/// [`fold_on_bound`](super::sectors::fold_on_bound) folds the edge
+/// into each pair's In run, and the two In runs lie on either side of
+/// it, so the two pairs' cuts interleave around the shared vertex. The
+/// pinch's pieces meet only along the line, so the edge's Out side is
+/// one run for both: folded Out, each pair cuts on its own side of the
+/// edge.
+///
+/// A section segment along the edge puts its two ends' null edges into
+/// one face only if the fold is reversed at both ends, and each end is
+/// a v-v site of the edge's vertex with both pieces' vertices. An end
+/// at a vertex of the pinch is one already. An end inside the pinch's
+/// coincident edges, where the edge's own vertex meets them, or inside
+/// the edge where a pinch vertex meets it, starts as a vertex-on-edge
+/// event, and the reduction splits the edges there before this lane
+/// reads `contacts.vv`, so that end too pairs one vertex with both
+/// pieces' (the witness's top end does: its prism corner meets the
+/// pinch edges' interiors). The pieces' membership about the edge
+/// reads the same along it, so both ends hold the same two crossing
+/// germs, and both reverse.
+#[derive(Clone, Debug, Default)]
+pub(super) struct Reversed {
+    /// Bound half-edges in A's orbit (each the end bound's `he` of its
+    /// after-flanker).
+    pub a: Vec<crate::entity::HalfEdgeKey>,
+    /// Bound half-edges in B's orbit.
+    pub b: Vec<crate::entity::HalfEdgeKey>,
+}
+
+/// The bound half-edge, in `a_side`'s orbit, of a germ record (codes as
+/// first read) that runs along an edge of both solids: the edge's half
+/// at that vertex.
+pub(super) fn edge_edge_bound<T: geom_core::Real>(
+    read: &PairRecord,
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    a_side: bool,
+) -> Option<crate::entity::HalfEdgeKey> {
+    let bound = |secs: &[BoolSector<T>], idx: usize, codes| match on_bound(codes)? {
+        true => secs[idx]
+            .start_edge()
+            .then(|| secs[(idx + 1) % secs.len()].he),
+        false => secs[idx].end_edge().then_some(secs[idx].he),
+    };
+    let a = bound(a_sectors, read.a, read.sa)?;
+    let b = bound(b_sectors, read.b, read.sb)?;
+    Some(if a_side { a } else { b })
+}
+
+/// An edge-edge germ moved to its edge's other flanker, the edge read
+/// On at the bound that flanker holds and its other bound reading the
+/// opposite key, so [`mark_germ`] folds it to the same transition.
+fn reflank(idx: usize, codes: (SideCode, SideCode), n: usize) -> (usize, (SideCode, SideCode)) {
+    match codes {
+        (SideCode::On, k) => ((idx + 1) % n, (k.opposite(), SideCode::On)),
+        (k, _) => ((idx + n - 1) % n, (SideCode::On, k.opposite())),
+    }
+}
+
+/// Where an edge-edge event's germ goes.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum EdgeGerm {
+    /// On this flanking record as it stands (a declared-`Tangent`
+    /// flank, whose records carry the second-order sides).
+    Held(usize),
+    /// On the record of this sector pair with these codes as read: each
+    /// solid's own fold flanker, the edge On at its bound.
+    Folded(PairRecord),
+}
+
+/// Puts an edge-edge germ on the record of its sector pair, minting the
+/// record when `pair_search` met no such pair, with its codes as read
+/// (the edge On at its bound) in both arrays; `mark_germ` folds them.
+/// Returns the record's index.
+///
+/// An existing record of the pair is overwritten only when no earlier
+/// event marked it its germ: a record that crosses along one ray of
+/// the pair's two planes crosses along no other, so its codes then are
+/// this event's On codes (cancelled below whatever they read) or a
+/// lump with nothing to cross. A record an earlier event already holds
+/// as its germ would lose that germ, which is refused, never
+/// overwritten.
+fn place_germ(
+    records: &mut Vec<PairRecord>,
+    first_read: &mut Vec<PairRecord>,
+    marked: &[usize],
+    germ: PairRecord,
+) -> Result<usize, BooleanError> {
+    match records.iter().position(|r| r.a == germ.a && r.b == germ.b) {
+        Some(g) if marked.contains(&g) => Err(BooleanError::ClassificationInvariant {
+            what: "an edge-edge germ's sector pair already holds another event's germ",
+        }),
+        Some(g) => {
+            records[g] = germ;
+            first_read[g] = germ;
+            Ok(g)
+        }
+        None => {
+            records.push(germ);
+            first_read.push(germ);
+            Ok(records.len() - 1)
+        }
+    }
+}
+
 /// A flanker's representative direction and the reach behind it.
 type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
+
+/// **Whether a solid's dihedral wedge about the common line is
+/// reflex**: whether its second flanker's representative lies on the
+/// outer side of its first flanker's plane (`bool_wedge_reflex`), the
+/// sine of the dihedral angle levered at `arm` — its second face's
+/// distance at that arm from the first face's plane. A convex wedge's
+/// material is the intersection of its flanking half-spaces, a reflex
+/// one's their union. A decided zero (a wedge of a half-turn, or of
+/// none) refuses: a representative that splits the two planes' verdicts
+/// there has nothing to read it by.
+fn wedge_is_reflex<T: Decide>(
+    secs: &[BoolSector<T>],
+    fl: &[(usize, Rep<T>); 2],
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let ((first, _), (_, (second, _))) = (fl[0], fl[1]);
+    match crate::validate::decide_nonzero(
+        "bool_wedge_reflex",
+        Margin::levered(second.dot(secs[first].normal.vec()), arm),
+        band,
+    ) {
+        Ok(NonzeroSign::Positive) => Ok(true),
+        Ok(NonzeroSign::Negative) => Ok(false),
+        Err(diag) => Err(BooleanError::coincidence(
+            Coincide::Sectors,
+            DeclarationRead::Moot,
+            diag,
+        )),
+    }
+}
 
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
 /// angular sort and its Table I ties): around the common line, each
@@ -672,10 +867,14 @@ type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
 /// failure). For all-pairwise-coplanar configurations every membership
 /// resolves by lump and the rule reproduces Table I's verdicts; for
 /// generic (tie-free) configurations "exactly one inside" IS the mixed
-/// angular order. Limitation (flagged in the PR report): membership
-/// uses the convex-wedge test (In against both flanking planes);
-/// reflex dihedral wedges along a coincident edge are not yet
-/// discriminated — the A/B symmetry check refuses loudly if it bites.
+/// angular order.
+///
+/// "Inside" is read by the wedge's actual extent. A representative
+/// reads one half-space verdict per flanking plane (In, or an On
+/// resolved as above); two alike settle it at any wedge angle. Split
+/// verdicts put it in the material iff the wedge is reflex, the union
+/// of its two half-spaces rather than their intersection — which is
+/// [`wedge_is_reflex`]'s question, asked only then.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_edge_edge<T: Decide>(
     records: &[PairRecord],
@@ -684,11 +883,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     fa_s: usize,
     fb_s: usize,
-) -> Result<Option<usize>, BooleanError> {
+) -> Result<Option<EdgeGerm>, BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     let fa_e = (fa_s + 1) % n_a;
     let fb_e = (fb_s + 1) % n_b;
@@ -720,7 +919,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     let membership = |own_is_a: bool,
                       own_idx: usize,
                       (w, reach): Rep<T>,
-                      other: &[(usize, Rep<T>)]|
+                      other: &[(usize, Rep<T>); 2]|
      -> Result<bool, BooleanError> {
         let (own_secs, other_secs): (&[BoolSector<T>], &[BoolSector<T>]) = if own_is_a {
             (a_sectors, b_sectors)
@@ -732,8 +931,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         } else {
             (b_body, a_body)
         };
-        let mut inside = true;
-        for &(oi, (ow, _)) in other {
+        let mut halves = [true; 2];
+        for (inside, &(oi, (ow, _))) in halves.iter_mut().zip(other) {
             match side_code(
                 w,
                 reach,
@@ -742,7 +941,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 band,
             )? {
                 SideCode::In => {}
-                SideCode::Out => inside = false,
+                SideCode::Out => *inside = false,
                 SideCode::On => {
                     // On the flanking plane: overlap-tie or touch. No
                     // declaration the door verifies settles it: two
@@ -758,7 +957,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     };
                     let own_sec = &own_secs[own_idx];
                     let other_sec = &other_secs[oi];
-                    let same = match crate::validate::decide_nonzero_reported(
+                    let same = match crate::validate::decide_nonzero(
                         "bool_dir_same",
                         Margin::levered(w.dot(ow), arm),
                         band,
@@ -788,7 +987,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                         }
                     };
                     if !same {
-                        inside = false; // touching, not overlapping
+                        *inside = false; // touching, not overlapping
                     } else {
                         let comparison = if own_is_a { Operand::A } else { Operand::B };
                         // Declared-`Tangent` flanking pairs (distinct
@@ -817,17 +1016,21 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             };
                             let s_own = surface_of(own_body, own_sec.face)?;
                             let s_other = surface_of(other_body, other_sec.face)?;
-                            let p = own_body
-                                .get_half_edge(own_sec.he)
-                                .and_then(|he| own_body.get_vertex(he.start))
-                                .and_then(|vd| own_body.get_point(vd.point))
-                                .copied()
-                                .ok_or(BooleanError::ClassificationInvariant {
+                            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
+                                BooleanError::ClassificationInvariant {
                                     what: "edge-edge site lost its point",
-                                })?;
+                                },
+                            )?;
+                            let reach = declared.reach_of(
+                                own_op,
+                                own_sec.face,
+                                other_op,
+                                other_sec.face,
+                            )?;
                             super::sectors::tangent_lump(
                                 &s_own,
                                 &s_other,
+                                reach,
                                 other_sec.normal,
                                 p,
                                 op,
@@ -845,13 +1048,16 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             eq15_3_lump(op, comparison, rel)
                         };
                         if lump != SideCode::In {
-                            inside = false;
+                            *inside = false;
                         }
                     }
                 }
             }
         }
-        Ok(inside)
+        match halves {
+            [h0, h1] if h0 == h1 => Ok(h0),
+            _ => wedge_is_reflex(other_secs, other, arm, band),
+        }
     };
     // A declared-`Tangent` flanking pair short-circuits the wedge
     // membership: the verified declaration says the two carriers
@@ -872,7 +1078,9 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 b_sectors[ib].face,
             )
         });
-    if !tangent_flank {
+    let keys = if tangent_flank {
+        None
+    } else {
         let a_in = [
             membership(true, a_fl[0].0, a_fl[0].1, &b_fl)?,
             membership(true, a_fl[1].0, a_fl[1].1, &b_fl)?,
@@ -891,14 +1099,54 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         if !germ_a {
             return Ok(None);
         }
+        Some((a_in, b_in))
+    };
+    let code = |inside: bool| if inside { SideCode::In } else { SideCode::Out };
+    if let Some((a_in, b_in)) = keys {
+        // The one fold rule per solid, on that solid's own membership
+        // keys: the common edge joins the run `fold_on_bound` names, so
+        // the crossing is recorded on the flanker `crossing_flank`
+        // picks, with the edge read On at its bound — `mark_germ` then
+        // folds it. The two solids decide apart, so the record is the
+        // pair of their two flankers whether or not `pair_search` met
+        // that pair (two coplanar flankers touching along the edge are
+        // never a record of their own).
+        let pick = |fl: &[(usize, Rep<T>); 2], inside: [bool; 2]| {
+            let (before, after) = (code(inside[0]), code(inside[1]));
+            match crossing_flank(before, after) {
+                Some(Flank::Before) => Ok((fl[0].0, (SideCode::On, before))),
+                Some(Flank::After) => Ok((fl[1].0, (after, SideCode::On))),
+                None => Err(BooleanError::ClassificationInvariant {
+                    what: "an edge-edge germ whose flankers read one side",
+                }),
+            }
+        };
+        let (a, sa) = pick(&a_fl, a_in)?;
+        let (b, sb) = pick(&b_fl, b_in)?;
+        return Ok(Some(EdgeGerm::Folded(PairRecord {
+            a,
+            b,
+            sa,
+            sb,
+            intersect: true,
+        })));
     }
-    let combos = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)];
-    combos
-        .iter()
-        .find_map(|&(a, b)| find_on_record(records, a, b))
-        .map(Some)
+    // A declared-`Tangent` flank has no membership keys; its records
+    // carry the second-order sides. The crossing goes on the flanking
+    // record whose other bound reads Out on both solids, which is where
+    // the fold rule puts it when the other flanker reads In.
+    let other_out = |c: (SideCode, SideCode)| match c {
+        (SideCode::On, k) | (k, SideCode::On) => k == SideCode::Out,
+        _ => false,
+    };
+    [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)]
+        .into_iter()
+        .filter_map(|(a, b)| find_on_record(records, a, b))
+        .find(|&g| other_out(records[g].sa) && other_out(records[g].sb))
+        .map(|g| Some(EdgeGerm::Held(g)))
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "edge-edge germ record missing among the flanking combos",
+            what: "a declared-Tangent edge-edge germ with no flanking record that folds the \
+                   edge In on both solids",
         })
 }
 
@@ -913,7 +1161,7 @@ fn resolve_edge_sector<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     a_side: bool,
     f_s: usize,
@@ -973,8 +1221,22 @@ fn resolve_edge_sector<T: Decide>(
             band,
         )?;
     }
+    // A `Yes` cell is Table II's mixed row, which names the flanker keyed
+    // In. The one fold rule decides which flanker the crossing is
+    // recorded on ([`super::sectors::crossing_flank`]): the on-bound
+    // joins the In run, so the transition is across the flanker keyed
+    // Out.
+    let germ_flank = |flank: usize, verdict| match verdict {
+        super::tables::TableIiVerdict::Yes => match super::sectors::crossing_flank(k1, k2) {
+            Some(super::sectors::Flank::Before) => f_s,
+            Some(super::sectors::Flank::After) => f_e,
+            None => flank,
+        },
+        _ => flank,
+    };
     for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
         if resolve_verdict(verdict, op, comparison, relation) {
+            let flank = germ_flank(flank, verdict);
             let (ra, rb) = if a_side {
                 (flank, ref_idx)
             } else {
@@ -1095,6 +1357,64 @@ mod tests {
     use super::*;
     use crate::contact::BooleanCoincidence;
     use SideCode::{In, On, Out};
+
+    /// The wedge's extent is its second face's side of its first face's
+    /// plane: a quarter-turn is convex, three quarters reflex, and a
+    /// half-turn (the second face in the first face's plane) refuses.
+    /// Each wedge is two sectors with their own planes, flanking the
+    /// common line +z the way a site's flankers do: the first holds it
+    /// as its start, the second as its end.
+    #[test]
+    fn a_wedge_reads_reflex_by_its_second_faces_side_and_refuses_flat() {
+        use super::super::sectors::Reach;
+        use geom_brep::OutwardNormal;
+        use geom_core::Tol;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let v = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
+        let axis = v([0.0, 0.0, 1.0]);
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, normal: [f64; 3]| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: Reach::Bisector(1.0),
+            end_reach: Reach::Bisector(1.0),
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(v(normal), true),
+            arm: 1.0,
+        };
+        // Material lies off the first plane's +y side; `second` and its
+        // outward normal bound the wedge's other side.
+        let first_ray = v([1.0, 0.0, 0.0]);
+        let wedge = |second: [f64; 3], second_normal: [f64; 3]| {
+            let secs = [
+                sector(axis, first_ray, [0.0, -1.0, 0.0]),
+                sector(v(second), axis, second_normal),
+            ];
+            let fl = [
+                (0, (secs[0].end, Reach::Bisector(1.0))),
+                (1, (secs[1].start, Reach::Bisector(1.0))),
+            ];
+            wedge_is_reflex(&secs, &fl, 1.0, band)
+        };
+        assert!(
+            !wedge([0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]).unwrap(),
+            "a quarter-turn is convex"
+        );
+        assert!(
+            wedge([0.0, -1.0, 0.0], [1.0, 0.0, 0.0]).unwrap(),
+            "three quarters are reflex"
+        );
+        assert!(
+            matches!(
+                wedge([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
+                Err(BooleanError::Escalated {
+                    decision: crate::boolean::BooleanDecision::Coincidence(Coincide::Sectors, _),
+                    diag,
+                }) if diag.predicate == Some("bool_wedge_reflex")
+            ),
+            "a half-turn refuses"
+        );
+    }
 
     /// A grazing bisector between keys read Out is the band's Zero
     /// (reachable only at K ≤ 2), and it refuses rather than read "not
@@ -1246,7 +1566,8 @@ mod tests {
             };
             let one = crate::boolean::verify_declared_contacts(a.0, b.0, &decls, band)
                 .expect("the door verifies the declaration");
-            let declared = DeclaredPairs::from_verified(&decls, one);
+            let declared = DeclaredPairs::build(&decls, one, a.0, b.0, band)
+                .expect("the declared faces' extents read");
             resolve_edge_edge(
                 &records,
                 &corner(a.1),
@@ -1332,7 +1653,7 @@ mod tests {
                 );
                 let text = err.to_string();
                 let lever = "Recourse: make the edges at the corner where the two faces meet \
-                             clearly longer than the tolerance";
+                             span clearly more than the tolerance";
                 let ending = if class.is_some() {
                     format!(
                         "{lever}, or, if this length of the corner's shorter edge is intended, \
@@ -1419,12 +1740,14 @@ mod tests {
             arm,
         };
         let corner = [sector(z, x), sector(x, z)];
-        let mut records = [rec(0, 0, (On, Out), (On, Out))];
+        let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
+        let mut first_read = records.clone();
         let declared =
-            DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
         let body = crate::body::Body::<f64>::new();
         let err = recl_edges(
             &mut records,
+            &mut first_read,
             &corner,
             &corner,
             &body,
@@ -1432,6 +1755,7 @@ mod tests {
             BooleanOp::Union,
             &declared,
             band,
+            &Reversed::default(),
         )
         .expect_err("the sense at an in-band arm refuses");
         let BooleanError::Escalated { decision, diag } = &err else {
@@ -1474,9 +1798,19 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0),
         );
         let tilted = Vec3::new(0.0, mid.sin(), mid.cos());
-        let plane =
-            |n: Vec3<f64>| crate::test_support_fixtures::plane(&[o, o + x, o + n.cross(x)], tol);
-        let (b1, f1) = face_on(plane(z));
+        // Unit blocks whose tops meet at `o`, the second's tilted by
+        // `mid` about `x`: the door reads the pair over their tops.
+        let top = |body: &crate::body::Body<f64>| {
+            body.faces()
+                .map(|(k, _)| k)
+                .find(|&k| {
+                    matches!(crate::boolean::face_carrier(body, k),
+                        Some(crate::boolean::CarrierDesc::Plane { normal, .. }) if normal.z > 0.99)
+                })
+                .expect("a top face")
+        };
+        let b1 = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (-1.0, 0.0), tol);
+        let f1 = top(&b1);
         let sector = |face, normal: Vec3<f64>, sense| BoolSector {
             he: crate::entity::HalfEdgeKey::default(),
             start: x,
@@ -1508,7 +1842,11 @@ mod tests {
                 BooleanCoincidence::REST,
             ),
         ] {
-            let (mut b2, f2) = face_on(plane(tilted));
+            let mut b2 = crate::test_support_fixtures::mapped_cube(
+                move |u, v, w| Point3::new(u, v, w - 1.0 - mid.tan() * v),
+                tol,
+            );
+            let f2 = top(&b2);
             b2.set_face_sense(f2, sense).expect("a live face");
             let s2 = sector(f2, tilted, sense);
             let run = |class: Option<BooleanCoincidence>| {
@@ -1519,7 +1857,7 @@ mod tests {
                     ..BooleanDeclarations::none()
                 };
                 let one = crate::boolean::verify_declared_contacts(&b1, &b2, &decls, band)?;
-                let declared = DeclaredPairs::from_verified(&decls, one);
+                let declared = DeclaredPairs::build(&decls, one, &b1, &b2, band)?;
                 require_same(
                     &b1,
                     Operand::A,

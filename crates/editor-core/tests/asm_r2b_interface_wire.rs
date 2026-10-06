@@ -60,7 +60,13 @@ fn doc_with_a_crossing() -> ProfileDoc {
         at: node,
         name: face(node, cap),
     };
-    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let frame = MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame");
     host = push(
         &host,
         Box::new(Node::Mate {

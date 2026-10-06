@@ -28,3 +28,19 @@ The question is whether one home serves all of them, given the
 certification-doors gate's rule on naming `Real`, or whether each copy
 earns its place. A related shape that a min/max sweep cannot see: NaN
 manufactured by a quotient of finite operands (SSI log, PR 3646).
+
+## A dropped NaN that cost a bound (PR 3916 review, 2026-10-03)
+
+**Reproduced.** `Centred::of` and `Centred::of_affine`
+(`crates/geom-brep/src/ssi/enclose.rs`), the `f64` screen of the plane ×
+NURBS chart readings, folded their radii with `fold(0.0, f64::max)`.
+An offset spanning the whole finite range overflows its radius to `+∞`,
+a term that does not read it (`g` exactly zero) then forms `0·∞ = NaN`,
+and `f64::max` dropped it, so the radius collapsed to the smallest
+normal and the screen skipped the pair that held the maximum (1.0 read
+against a true 10). Both sites now fold with `max_bound` and read a
+zero factor as an exact zero; the row is
+`an_unbounded_radius_screens_nothing_out`. That is one more reason the
+inherent `f64::max` should not be the spelling anywhere a refusal can
+arrive.
+

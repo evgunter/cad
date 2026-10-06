@@ -46,8 +46,8 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 /// Every vertex of `body` whose point satisfies `pick`.
 fn vertices_where(body: &Body<f64>, pick: impl Fn(Point3<f64>) -> bool) -> Vec<topo::VertexKey> {
-    body.vertices()
-        .filter(|(_, v)| pick(*body.get_point(v.point).unwrap()))
+    body.vertex_points()
+        .filter(|(_, p)| pick(*p))
         .map(|(k, _)| k)
         .collect()
 }

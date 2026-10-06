@@ -659,6 +659,9 @@ impl CertifyError {
     /// appends this, or renders both through [`CertifyError::render`].
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
+        if let Self::PlaneNurbs(refusal) = self {
+            return refusal.ending(reading);
+        }
         self.decision()
             .map(|(check, arm)| recourse(check, arm, reading))
     }
@@ -949,6 +952,32 @@ impl<T: Real> EdgeCurveSpec<T> {
         })
     }
 
+    /// The straight SCAFFOLDING spec along an existing LINE carrier
+    /// between the given parameters: carrier and interval kept verbatim,
+    /// description the start point's trajectory under the translation to
+    /// the end ([`crate::MappedCurve::ExtrudedPoint`], as
+    /// [`Self::line_between`] states it). `None` for a non-line carrier.
+    pub fn segment_of_line(carrier: Curve3<T>, t0: T, t1: T) -> Option<Self>
+    where
+        T: SpanLocate,
+    {
+        use geom_core::{Affine3, Point2, Point3};
+        let Curve3::Line { .. } = carrier else {
+            return None;
+        };
+        let start = carrier.eval(t0);
+        Some(Self {
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::ExtrudedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(start - Point3::origin()),
+                vec: carrier.eval(t1) - start,
+            }),
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        })
+    }
+
     /// The same spec with a SCAFFOLDING description re-stated as an
     /// image in `surface`'s chart, the pushforward demoted to the
     /// authority record it always was (U2 Q3). `seam` carries D1's
@@ -1175,9 +1204,9 @@ impl<T: Decide> EdgeCurve<T> {
 
     /// The shared certification body, with the plane × NURBS lane
     /// ([`NurbsLane`]) as its argument: `None` mints exactly what
-    /// [`EdgeCurve::certify`] does and `Some` exactly what
-    /// [`EdgeCurve::certify_nurbs_lane`] does. A pass generic over its
-    /// scalar fills the argument from that scalar's policy
+    /// [`EdgeCurve::certify`] does and `Some` also certifies the plane ×
+    /// NURBS class through the lane. A pass generic over its scalar
+    /// fills the argument from that scalar's policy
     /// (`topo::AtRestPolicy::nurbs_lane`).
     ///
     /// # Errors
@@ -1374,35 +1403,27 @@ impl<T: Real> NurbsLane<T> {
     }
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
-    /// [`EdgeCurve::certify`] **with the plane × NURBS lane wired in**
-    /// ([`NurbsLane::certified`]): the door for callers whose scalar can
-    /// derive the declare-and-check certificate of an `Intersection`
-    /// between a PLANE and a described NURBS wall (M7-8).
-    ///
-    /// Every other check is identical, in the same order. No `Dual`
-    /// implements [`geom_core::CertifiedEnclosure`], so no `Dual`
-    /// reaches this door at all.
-    ///
-    /// # Errors
-    ///
-    /// As [`EdgeCurve::certify`], plus [`CertifyError::PlaneNurbs`]
-    /// carrying the lane's measured bound.
-    pub fn certify_nurbs_lane(
-        spec: EdgeCurveSpec<T>,
-        start: Point3<T>,
-        end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        band: Band,
-    ) -> Result<Self, CertifyError> {
-        Self::certify_via(
-            spec,
-            start,
-            end,
-            surfaces,
-            band,
-            Some(NurbsLane::certified()),
-        )
+impl<T: Decide> EdgeCurve<T> {
+    /// The carrier's derivative where a walk along the edge leaves and
+    /// where it arrives, each in the direction of travel: `he_plus`
+    /// walks `t₀ → t₁`, the other half `t₁ → t₀` with both negated.
+    /// Neither is normalized.
+    pub fn walk_tangents(&self, he_plus: bool) -> (geom_core::Vec3<T>, geom_core::Vec3<T>) {
+        let (t0, t1) = self.params();
+        if he_plus {
+            (self.carrier.deriv(t0), self.carrier.deriv(t1))
+        } else {
+            (-self.carrier.deriv(t1), -self.carrier.deriv(t0))
+        }
+    }
+
+    /// The carrier's second derivative where a walk along the edge
+    /// leaves ([`Self::walk_tangents`]' walk). Reversing the walk flips
+    /// the first derivative only: position along it is `c(t₁ − τ)`, so
+    /// `d²/dτ² = c″(t₁)`.
+    pub fn walk_departure_deriv2(&self, he_plus: bool) -> geom_core::Vec3<T> {
+        let (t0, t1) = self.params();
+        self.carrier.deriv2(if he_plus { t0 } else { t1 })
     }
 }
 
@@ -1897,17 +1918,19 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(radius * (T::one() - half_span.cos()))
         }
-        // The minor semi-axis / minor radius is the certified direction
-        // (doc above): the ellipse and the spiric each dominate their
-        // minor-radius circle pointwise, so both take the circle fold
-        // at that radius.
-        Curve3::Ellipse { minor, .. }
-        | Curve3::Spiric {
-            minor_radius: minor,
-            ..
-        } => {
+        // The smaller semi-axis / the minor radius is the certified
+        // direction (doc above): the ellipse and the spiric each dominate
+        // that circle pointwise, so both take the circle fold at that
+        // radius. The ellipse's semi-axes carry no order and no sign
+        // (`Conic`), so its radius is the smaller MAGNITUDE — `minor`
+        // itself for a frame stored in the ordinary order.
+        Curve3::Ellipse { major, minor, .. } => {
             let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(minor * (T::one() - half_span.cos()))
+            chord.max(major.abs().min(minor.abs()) * (T::one() - half_span.cos()))
+        }
+        Curve3::Spiric { minor_radius, .. } => {
+            let half_span = (t1 - t0) * T::from_f64(0.5);
+            chord.max(minor_radius * (T::one() - half_span.cos()))
         }
         Curve3::Line { .. } | Curve3::Nurbs(_) => chord,
     }
@@ -2192,6 +2215,18 @@ fn run_checks<T: Decide>(
         sample: NOT_A_SAMPLE,
         cause,
     };
+    // The ellipse's and the spiric's span check, at the speed floor
+    // each arm below reads.
+    let span_at_floor = |floor: T| -> Result<(), CertifyError> {
+        let rate = InfSpeed::new(floor);
+        forward(Margin::metered(span, rate))?;
+        let headroom = Margin::metered(T::tau() - span, rate);
+        match decide("interval_span_winding", headroom, band).map_err(winding_escalated)? {
+            Sign::Positive | Sign::Zero => {}
+            Sign::Negative => return Err(CertifyError::WindingExceeded),
+        }
+        Ok(())
+    };
     match &spec.carrier {
         Curve3::Circle { radius, .. } => {
             let rate = InfSpeed::new(*radius);
@@ -2206,29 +2241,26 @@ fn run_checks<T: Decide>(
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
             }
         }
-        // Ellipse spans are metered at the MINOR semi-axis — the
-        // conservative meter (|dP/dθ| ≥ minor, so `span·minor` is a
-        // certified lower bound on the child's arc length: a span this
-        // gate accepts as forward is truly forward, and near-threshold
-        // spans escalate rather than sneak through). The same winding
-        // bound applies: the 8kτ sample-alias argument is about the
-        // parameter period, which the ellipse shares with the circle.
-        // A spiric's speed floor is its MINOR radius (`|dP/dv| ≥ r`,
-        // the variant docs) and its period is the same 2π, so it takes
-        // this arm at that meter.
-        Curve3::Ellipse { minor, .. }
-        | Curve3::Spiric {
-            minor_radius: minor,
-            ..
-        } => {
-            let rate = InfSpeed::new(*minor);
-            forward(Margin::metered(span, rate))?;
-            let headroom = Margin::metered(T::tau() - span, rate);
-            match decide("interval_span_winding", headroom, band).map_err(winding_escalated)? {
-                Sign::Positive | Sign::Zero => {}
-                Sign::Negative => return Err(CertifyError::WindingExceeded),
-            }
-        }
+        // Ellipse spans are metered at the SMALLER semi-axis — the
+        // conservative meter (|dP/dθ| ≥ min(a, b), so the span times it
+        // is a certified lower bound on the child's arc length: a span
+        // this gate accepts as forward is truly forward, and
+        // near-threshold spans escalate rather than sneak through). The
+        // semi-axes' ORDER is not this gate's to decide (`Conic`); for a
+        // frame stored in the ordinary order the meter is `minor`. The
+        // same winding bound applies: the 8kτ sample-alias argument is
+        // about the parameter period, which the ellipse shares with the
+        // circle. A spiric's speed floor is its MINOR radius
+        // (`|dP/dv| ≥ r`, the variant docs) and its period is the same
+        // 2π, so it takes this arm at that meter.
+        // The floor is `min(|major|, minor)`: a frame stored in either
+        // order is metered at its smaller magnitude, and a non-positive
+        // `minor` makes the floor non-positive, so the span is refused
+        // (`IntervalNotForward`), as this gate has always refused one. A
+        // negative `major` (its `u_ref` flipped, the same locus) it
+        // admits, as it always has; tier 3 refuses it on its value.
+        Curve3::Ellipse { major, minor, .. } => span_at_floor(major.abs().min(*minor))?,
+        Curve3::Spiric { minor_radius, .. } => span_at_floor(*minor_radius)?,
         Curve3::Line { .. } => {
             forward(Margin::of(span))?;
         }
@@ -2251,8 +2283,9 @@ fn run_checks<T: Decide>(
         // reparametrized `t → 2t` halves the rate and doubles the
         // domain), which the bare rate is not, and it is the quantity
         // ε classifies under D4. The two failure modes stay distinct:
-        // a collapsed or poison meter answers `Invalid`/escalates,
-        // while a backwards or zero span is `IntervalNotForward` below.
+        // a collapsed meter escalates with its decided margin and a
+        // poison one as `Invalid`, while a backwards or zero span is
+        // `IntervalNotForward` below.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();

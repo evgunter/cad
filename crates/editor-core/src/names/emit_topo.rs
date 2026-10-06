@@ -47,7 +47,7 @@ struct Side<'a, T: Decide> {
 /// cursor would name faces after a stranger instead of refusing.
 /// Guarded by `a_cycling_fragment_map_refuses` below.
 fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, NamingError> {
-    topo::fragment_root(f, rows.len(), |k| rows.get(&k).copied())
+    topo::lineage_root(f, rows.len(), |k| rows.get(&k).copied())
         .ok_or(NamingError::FragmentLineage { face: f })
 }
 
@@ -1336,7 +1336,9 @@ fn name_boolean_vertices<T: Decide>(
         .iter()
         .flat_map(|g| g.edges.iter().map(move |&e| (e, (&g.base, g.from_tie))))
         .collect();
-    // Zip fusions: kept key → dead partners (a fused vertex may owe
+    // A-side weld and zip fusions (`vertex_merges`; a B-side weld kills
+    // a minted pierce vertex before the graft, which has no name to
+    // owe): kept key → dead partners (a fused vertex may owe
     // its operand identity to a DEAD partner's key — e.g. a B corner
     // vertex fused into an A-side crossing key on a shared plane).
     let mut fused: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
@@ -1516,8 +1518,17 @@ fn name_boolean_vertices<T: Decide>(
             // where k ≥ 2 seam LINES meet. Its name is the path of the
             // lines' Seam segments, in the canonical form's order —
             // deterministic, and unique per line set (straight lines
-            // meet once).
-            ([], [], _, _) if seam_lines.len() >= 2 => {
+            // meet once). A pinch is one too: several edges of one
+            // operand pierce a face of the other at one vertex, so no
+            // single edge is its parent.
+            (aes, bes, _, _)
+                if seam_lines.len() >= 2
+                    && match (aes.len(), bes.len()) {
+                        (0, 0) => true,
+                        (n, 0) | (0, n) => n >= 2,
+                        _ => false,
+                    } =>
+            {
                 let name = canonical::minted(StableName {
                     kind: EntityKind::Vertex,
                     node,
@@ -1900,12 +1911,8 @@ pub(super) fn crossed_edge_orientation<T: geom_core::Real>(
     if a == b {
         return Ok(None);
     }
-    let sides = topo::readback::edge_sides(body, e).map_err(|what| match what {
-        topo::DanglingRef::Entity(topo::EntityId::Edge(_)) => {
-            bug("a crossed seam edge is not live in its body")
-        }
-        _ => bug("a crossed seam edge's half-edge lies on no face"),
-    })?;
+    let sides = topo::readback::edge_sides(body, e)
+        .map_err(|_| bug("a crossed seam edge is not live in its body"))?;
     let mut names = Vec::with_capacity(2);
     let (plus, minus) = sides.faces();
     for face in [plus, minus] {
@@ -2324,7 +2331,10 @@ mod tests {
             .unwrap();
         sweep::extrude(
             &profile,
-            sweep::Extrusion::Distance(1.0_f64),
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -2992,7 +3002,7 @@ mod split_carries_candidates {
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
-    fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+    fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         let a = crate::apply(
             &doc,
             &DocEdit::InsertNode {
@@ -3020,6 +3030,7 @@ mod split_carries_candidates {
             Node::Extrude {
                 profile,
                 distance: len(dz),
+                side: crate::ExtrudeSide::Along,
             },
         )
     }
@@ -3058,7 +3069,7 @@ mod split_carries_candidates {
                 op: BooleanOp::Subtract,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let (doc, tool) = ins(

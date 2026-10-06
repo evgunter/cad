@@ -68,11 +68,8 @@ pub fn collinear_cap_drum() -> Body<f64> {
 
 /// The vertex of `body` at `p`.
 fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> VertexKey {
-    body.vertices()
-        .find(|(_, v)| {
-            body.get_point(v.point)
-                .is_some_and(|q| q.distance(p) <= 1e-12)
-        })
+    body.vertex_points()
+        .find(|(_, q)| q.distance(p) <= 1e-12)
         .unwrap_or_else(|| panic!("no vertex at {p:?}"))
         .0
 }
@@ -307,7 +304,7 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
     body.edges()
         .filter_map(|(ek, e)| {
             let curve = body.get_curve_geom(e.curve)?.certified()?;
-            if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) {
+            if curve.description().is_scaffold() {
                 return None;
             }
             let start_v = body.get_half_edge(e.he_plus)?.start;

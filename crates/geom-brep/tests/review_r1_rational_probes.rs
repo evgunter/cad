@@ -504,7 +504,7 @@ fn probe(
                     println!("FLOOR {name} {width_len:.12e} target {target_len:.6e}");
                     Posture::Budget(width_len)
                 }
-                PropsError::Escalated { cause } => {
+                PropsError::Escalated { cause, .. } => {
                     assert_eq!(
                         cause.predicate,
                         Some("props_quad_converged"),

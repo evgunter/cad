@@ -2,13 +2,15 @@
 id: site-rows-leaves-an-off-chart-edge-silent
 kind: issue
 title: an Euler op's site mint clears a face whose new edge is off its chart, so the op answers Ok and tier 3 answers [] on a body the mint refuses
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P0
 cost: M
 refs: [D36, S331]
 parent: S331
 branch: pcert/at-rest-rows-mandatory
+closed: 2026-10-02
+pr: 3759
 ---
 
 
@@ -33,3 +35,7 @@ the ruling on PR 3617 (`S331`): if tier 3 derives a rowless face at
 rest, it measures this wall and refuses `CarrierOffChart` with no change
 here; if rows stay mandatory, the site mint should keep the typed reason
 rather than `Clear` for a defect class. Specified after that ruling.
+
+## Closed
+
+Closed by PR 3759 (`pcert/at-rest-rows-mandatory`, merged 82b52c36c): on every curved chart a face's pcurve rows are mandatory at rest (C4). Tier 3 dry-mints a rowless face and reports `Unminted` or the derivation's refusal, re-certifies and continuity-checks a half-minted face's stored rows like a complete one's (with `RowInterval`), reads an excused face whole before excusing it, and `sweep::extrude` closes with `topo::mint_pcurves`. Residue has its own rows: the four uncovered-class `mint-has-no-route-*` rows and `at-rest-trim-containment-checks-against-the-stored-hull`.

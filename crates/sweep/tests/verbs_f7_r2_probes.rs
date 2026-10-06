@@ -75,8 +75,12 @@ fn dump_poles(b: &Body<f64>, label: &str) {
 }
 
 /// A brick that straddles the cone, so the boolean is a real cut.
-fn brick_operand() -> Body<f64> {
-    sweep::test_support::brick((-0.5, 0.5), (-0.5, 0.5), (0.0, 0.4), Tol::witness())
+fn brick_operand() -> topo::AtRestBody<f64> {
+    sweep::test_support::finished(
+        "the straddling brick",
+        sweep::test_support::brick((-0.5, 0.5), (-0.5, 0.5), (0.0, 0.4), Tol::witness()),
+        Tol::witness(),
+    )
 }
 
 /// The edges whose two sides are distinct PLANAR faces on one surface
@@ -104,6 +108,7 @@ fn r2_cone_carries_its_cap_whole() {
     assert_eq!(counts(&c), (3, 4, 3, 0));
     assert_eq!(planar_same_key(&c), 0, "no pole-split cap");
     dump_poles(&c, "cone");
+    let c = sweep::test_support::finished("the cone", c, Tol::witness());
     let res = boolean_reduce(BooleanOp::Union, &c, &brick_operand(), Tol::witness());
     assert!(
         !matches!(res, Err(topo::BooleanError::NonMaximalFaces { .. })),

@@ -135,7 +135,7 @@
 //!     .line_to(p2(0.0, 1.0), tol)?
 //!     .line_to(Start, tol)?;
 //! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
-//! let body = extrude(&profile, Extrusion::Distance(real(1.0)), tol)?;
+//! let body = extrude(&profile, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?;
 //! let props = mass_properties(&body.body, tol)?;
 //! assert!((props.volume - 1.0).abs() < 1e-12);
 //! # Ok::<(), Box<dyn std::error::Error>>(())

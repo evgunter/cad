@@ -21,7 +21,7 @@
 //! same fact twice. So the count slot holds `blades` and the step
 //! holds `360 deg / scalar(blades)`, both against ONE document
 //! parameter, and the tour's 6 → 8 → 12 is a single
-//! [`DocEdit::SetDocParamValue`] each time.
+//! [`DocEdit::SetVarValue`] each time.
 //!
 //! `scalar(n)` is what makes that sayable: a bare `blades` is a
 //! `Count`, `Div`'s divisor must be `Scalar`, and the grammar's one
@@ -29,18 +29,18 @@
 //!
 //! # Why the hub is a prism
 //!
-//! A real impeller's hub is round, and this one is a 24-gon. That is
-//! not a stylistic choice: a box leaving a cylinder through its wall
-//! refuses to union, so a round hub cannot have a blade unioned into
-//! it at all. The kernel's own row for that pose
+//! A real impeller's hub is round, and this one is a 24-gon. When the
+//! scene was written a box leaving a cylinder through its wall refused
+//! to union, so a round hub could not have a blade unioned into it at
+//! all. The kernel's own row for that pose
 //! (`sweep/tests/verbs_germarms.rs`,
-//! `a_bar_leaving_through_one_side_of_a_wall_reaches_the_join`) gets
-//! past the pierce door now and refuses at the join,
-//! `SectionArcWindow { NoChartedRun }`: the frontier is
-//! `work/tang/pierce-ring-has-no-join-arm`, beside
-//! `work/tang/boolean-refuses-on-arc-carrier-not-arc`. The faceted hub
-//! is the modelling the kernel currently permits, said out loud rather
-//! than passed off as the part.
+//! `a_bar_leaving_through_one_side_of_a_wall_builds`) builds now, at
+//! its closed form under every op (`work/tang/pierce-ring-has-no-join-arm`,
+//! closed); a round hub is no longer refused for that reason, and
+//! this scene's faceted hub is what it was authored as, not what the
+//! kernel still requires. Remodelling it is the scene's call
+//! (`work/tang/boolean-refuses-on-arc-carrier-not-arc` is the other
+//! frontier its note named).
 //!
 //! # The overlap, and why it is here
 //!
@@ -52,21 +52,21 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, DocParamValue,
-    EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, PatternKind, ProfileProgram,
-    RecipeNodeId, RefusingReach, ValuePayload, apply, evaluate, parse_expr,
+    BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
+    Formula, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
+    RefusingReach, ValuePayload, VarName, apply, evaluate, parse_formula,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
 
-/// The hub's facet count. Round enough to read as a hub, and a PRISM
-/// because the boolean has no arm for a curved operand its blade could
-/// reach.
+/// The hub's facet count. Round enough to read as a hub; why it is a
+/// prism is the module docs'.
 const HUB_FACETS: usize = 24;
 /// The hub's circumradius, metres.
 const HUB_R: f64 = 1.0;
@@ -111,20 +111,20 @@ struct Recipe {
 
 /// The parameter table every expression in this document resolves
 /// against — one entry, which is the scene's whole point.
-fn params() -> BTreeMap<ParamName, Dimension> {
-    [(ParamName::from_static("blades"), Dimension::Count)]
+fn params() -> BTreeMap<VarName, Dimension> {
+    [(VarName::from_static("blades"), Dimension::Count)]
         .into_iter()
         .collect()
 }
 
 /// Parse against [`params`]: every expression here may name `blades`.
-fn pe(src: &str) -> Expr {
-    parse_expr(src, &params()).expect("the impeller's expressions parse")
+fn pe(src: &str) -> Formula {
+    parse_formula(src, &params()).expect("the impeller's expressions parse")
 }
 
 /// The hub's cross-section: a regular [`HUB_FACETS`]-gon of
 /// circumradius [`HUB_R`].
-fn hub_polygon() -> LoopProgram {
+fn hub_polygon() -> LoopProgram<Formula> {
     #[allow(clippy::cast_precision_loss)]
     let pts: Vec<(f64, f64)> = (0..HUB_FACETS)
         .map(|i| {
@@ -137,7 +137,7 @@ fn hub_polygon() -> LoopProgram {
 
 /// One blade, in the xy plane: a rectangle reaching from inside the
 /// hub out to the tip.
-fn blade_polygon() -> LoopProgram {
+fn blade_polygon() -> LoopProgram<Formula> {
     LoopProgram::polygon([
         (BLADE_R0, -BLADE_T),
         (BLADE_R1, -BLADE_T),
@@ -145,6 +145,12 @@ fn blade_polygon() -> LoopProgram {
         (BLADE_R0, BLADE_T),
     ])
     .expect("the blade's corners are finite")
+}
+
+/// This scene's recipe at its first count, as a document the GUI can
+/// open: one `SetVarValue` on `blades` is the scene's whole edit.
+pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
+    build_doc(tol).doc
 }
 
 fn build_doc(tol: Tol) -> Recipe {
@@ -161,9 +167,9 @@ fn build_doc(tol: Tol) -> Recipe {
     // material).
     let applied = apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("blades"),
-            value: DocParam::Count { value: COUNTS[0] },
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("blades"),
+            def: pncad::document::VarDecl::Free(FreeVar::Count { value: COUNTS[0] }),
         },
         tol,
         &RefusingReach,
@@ -171,8 +177,8 @@ fn build_doc(tol: Tol) -> Recipe {
     .expect("the blade count declares");
     doc = applied.doc;
 
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
     let frame_at = |z: f64| {
         Node::Datum(Datum::Frame {
             origin: [len(0.0), len(0.0), len(z)],
@@ -195,6 +201,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Box::new(Node::Extrude {
             profile: hub_p,
             distance: len(HUB_H),
+            side: ExtrudeSide::Along,
         }),
     );
 
@@ -212,6 +219,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Box::new(Node::Extrude {
             profile: blade_p,
             distance: len(BLADE_H),
+            side: ExtrudeSide::Along,
         }),
     );
 
@@ -247,7 +255,7 @@ fn build_doc(tol: Tol) -> Recipe {
             op: BooleanOp::Union,
             a: hub_e,
             b: group,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     Recipe { doc, group, solid }
@@ -286,9 +294,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // moves the step when the count moves.
         let applied = apply(
             &doc,
-            &DocEdit::SetDocParamValue {
-                name: ParamName::from_static("blades"),
-                value: DocParamValue::Count(n),
+            &DocEdit::SetVarValue {
+                var: VarName::from_static("blades").into(),
+                value: FreeValue::Count(n),
             },
             tol,
             &RefusingReach,
@@ -405,17 +413,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         `Boolean` beside it. The blade COUNT and the angular STEP are \
                         two slots and they read the SAME document parameter — the \
                         count is `blades`, the step is `360 deg / scalar(blades)` — so \
-                        the tour's 6 -> 8 -> 12 is one `SetDocParamValue` each time \
+                        the tour's 6 -> 8 -> 12 is one `SetVarValue` each time \
                         and the blades still close the circle. A comb's count and \
                         spacing are genuinely independent; a wheel's are not, and the \
                         recipe layer can say which it is. The hub is a PRISM because \
-                        a box leaving a cylinder through its wall refuses to union \
-                        (at the join, `SectionArcWindow`), so a round hub cannot have a \
-                        blade unioned into it at all",
+                        it was authored when a box leaving a cylinder through its wall \
+                        refused to union; that pose builds now, and the faceted hub is \
+                        what the scene was authored as",
                 ops: "Datum::Frame x2 -> Profile(24-gon) -> Extrude; Profile(blade) -> \
                       Extrude; Datum::Axis -> Node::placed_union(blade, count = \
                       blades, Circular { axis, step = 360 deg / scalar(blades) }) -> \
-                      Boolean(Union) with the hub; then DocEdit::SetDocParamValue",
+                      Boolean(Union) with the hub; then DocEdit::SetVarValue",
                 delta: DELTA,
                 note: Some(format!(
                     "{recompute_note}. V = {vol:.9} m^3 at {n} blades, and the three \

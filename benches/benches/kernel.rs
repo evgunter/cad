@@ -149,7 +149,10 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         .expect("the slab profile validates");
     extrude(
         &profile,
-        Extrusion::Distance(real(z.1 - z.0)),
+        Extrusion::Distance {
+            depth: real(z.1 - z.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("the slab extrudes")
@@ -237,6 +240,11 @@ fn kernel_ops(c: &mut Criterion) {
     // genuinely interpenetrate and NO pair of faces is coincident, so this
     // is the plain seamed path rather than a declared-contact union.
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0));
+    // The boolean's operands, finished once outside the timed loop.
+    let finished = |body| {
+        pncad::topo::AtRestBody::validate(body, Tol::witness()).expect("a brick is a finished body")
+    };
+    let (base, post) = (finished(base), finished(post));
 
     let mut group = c.benchmark_group("kernel");
     group

@@ -125,8 +125,8 @@ pub(crate) struct ProfileVerb<T: Decide, A> {
 }
 
 /// The extrude's kernel payload.
-fn build_extrude<T: Decide>(distance: T) -> Verb<T> {
-    Verb::Extrude { distance }
+fn build_extrude<T: Decide>((distance, side): (T, sweep::ExtrudeSide)) -> Verb<T> {
+    Verb::Extrude { distance, side }
 }
 
 /// The revolve's kernel payload.
@@ -215,7 +215,7 @@ fn canonical_side_faces<T: Decide>(built: &Extruded<T>) -> Vec<Vec<Option<topo::
 /// A function rather than a `const` for the reason the blends' and the
 /// boolean's are: the struct is generic in the lane scalar and a
 /// module-level const cannot be; the call is monomorphized and inlined.
-pub(crate) fn extrude<T: Decide>() -> ProfileVerb<T, T> {
+pub(crate) fn extrude<T: Decide>() -> ProfileVerb<T, (T, sweep::ExtrudeSide)> {
     ProfileVerb {
         build: build_extrude,
         read: read_extrude,
@@ -253,7 +253,7 @@ mod tests {
     /// the blends' module makes for its pair.
     #[test]
     fn each_correspondence_builds_its_own_verb() {
-        let e: Verb<f64> = (extrude::<f64>().build)(1.0);
+        let e: Verb<f64> = (extrude::<f64>().build)((1.0, sweep::ExtrudeSide::Along));
         let r: Verb<f64> = (revolve::<f64>().build)((
             RevolveAxis {
                 origin: Point2::new(0.0, 0.0),

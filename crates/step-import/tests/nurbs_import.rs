@@ -164,7 +164,7 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
                     );
                     Posture::Budget
                 }
-                geom_brep::props::PropsError::Escalated { cause } => {
+                geom_brep::props::PropsError::Escalated { cause, .. } => {
                     assert_eq!(
                         cause.predicate,
                         Some("props_quad_converged"),

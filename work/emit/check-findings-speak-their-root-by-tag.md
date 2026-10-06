@@ -2,8 +2,9 @@
 id: check-findings-speak-their-root-by-tag
 kind: unit
 title: A check finding names its root by tag; ChecksReport and CheckRefusal take no document to speak it from
-status: review
+status: closed
 opened: 2026-10-02
+closed: 2026-10-02
 priority: P3
 cost: M
 parent: node-labels-are-document-data

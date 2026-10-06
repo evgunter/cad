@@ -84,7 +84,8 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, R
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{Reading, Refused, RefusedArm};
 use crate::ssi::{
-    ChartSpeedRefusal, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale, certify_rung3,
+    ChartSpeedRefusal, OneArcRefusal, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
+    certify_rung3,
 };
 
 /// What the plane × NURBS lane proved, in metres unless noted.
@@ -178,6 +179,16 @@ pub enum PlaneNurbsRefusal {
         /// How many boxes of the tube's chain the clearance above was
         /// certified over — the resolution the verdict was reached at.
         boxes: u32,
+    },
+    /// The uniqueness tube was a graph at some rung, but at none was its
+    /// chain proved to hold one arc spanning the carrier and nothing
+    /// else: the declared carrier may join two arcs of the intersection,
+    /// or overrun its arc's end.
+    TubeNotOneArc {
+        /// How many rungs were graphs but not proved one arc.
+        rungs: u32,
+        /// What the narrowest of them found.
+        cause: OneArcRefusal,
     },
     /// The per-sample transversality margin escalated: the same
     /// decision as [`NotTransverse`](Self::NotTransverse), undecided.
@@ -318,6 +329,9 @@ impl PlaneNurbsRefusal {
     /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
+        if let Self::TubeNotOneArc { cause, .. } = *self {
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+        }
         self.decision()
             .map(|(check, arm)| recourse(check, arm, reading))
     }
@@ -342,7 +356,10 @@ impl PlaneNurbsRefusal {
                 RefusedArm::Undecided(cause),
             ),
             Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain),
+            // The one-arc proof is the SSI door's own decision, and
+            // `ending` reads it there.
             Self::FootPointInconclusive { .. }
+            | Self::TubeNotOneArc { .. }
             | Self::PcurveFit
             | Self::CarrierDomain(_)
             | Self::Unsupported { .. } => {
@@ -393,6 +410,11 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::Escalated { limb, cause } => {
                 write!(f, "{} escalated: {}", limb.name(), cause.payload())
             }
+            Self::TubeNotOneArc { rungs, cause } => write!(
+                f,
+                "the tube was not proved to hold one arc spanning the carrier at {rungs} rungs; \
+                 at the narrowest, {cause}"
+            ),
             Self::ReportedTransversalityPoisoned(cause) => write!(
                 f,
                 "every interior sample decided the plane and the NURBS wall cross, yet \
@@ -413,6 +435,12 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 /// pcurve lane: the NURBS wall is operand **b**, because
 /// `certify_branch` reads the chart image of `b`, and the image this
 /// lane derives is the carrier's foot path on the wall.
+///
+/// The image is re-derived here on a fixed schedule of foot points, not
+/// read from the pcurve the trace fitted, so on a carrier of many spans
+/// its limb-2 bound is this lane's own: it need not reproduce the SSI
+/// door's certificate bit for bit. The door that re-certifies the
+/// trace's own triple is [`crate::ssi::certify_rung3`].
 ///
 /// # Errors
 ///
@@ -745,17 +773,18 @@ pub const PXN_FIT_SAMPLES: u32 = 33;
 /// the algebraic route already banked with #264's envelope findings.
 pub const PXN_IMAGE_DEGREE: usize = 1;
 
-/// The wall refined so the uniqueness tube can localize.
+/// The wall refined to [`PXN_WALL_SPANS`] spans per direction before the
+/// hull and tube limbs run.
 ///
-/// The tube's chart enclosures read `NurbsBoxes` derivative boxes,
-/// which are **cell-granular**: a box narrower than a knot span still
-/// reports that whole span's derivative variation. A one-span quarter
-/// cylinder therefore reports the derivative swinging through 90° no
-/// matter how far the tube ladder halves its radius, and the enclosure
-/// straddles zero forever — a resolution artifact of the operand's
-/// knot structure, not a sliver of the pair. Knot refinement is exact
-/// in ℝ (the surface's locus and parameterization are unchanged), so
-/// spending it here buys localization for free.
+/// The hull limb's composite is hulled per span, so finer spans tighten
+/// it. The tube's chart readings (`NurbsBoxes::speed_sup` and the
+/// transversality margin) cut each span cell to the tube window and
+/// meet that with the whole cell's reading, so they localize below a
+/// span on their own. Whether the
+/// tube still gains anything from this refinement is unmeasured
+/// (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
+/// Knot refinement is exact in ℝ (the surface's locus and
+/// parameterization are unchanged).
 ///
 /// Already-fine patches are returned unchanged, and a refusing knot
 /// algebra falls back to the original — a coarser enclosure can only
@@ -818,6 +847,9 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         SsiError::CertificateEscalated { limb, cause } => {
             PlaneNurbsRefusal::Escalated { limb, cause }
         }
+        SsiError::TubeNotOneArc { rungs, cause } => {
+            PlaneNurbsRefusal::TubeNotOneArc { rungs, cause }
+        }
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a
             // divergence there is the same class as the schedule's own,
@@ -858,6 +890,41 @@ mod tests {
         ];
         let weights = vec![1.0, 0.7, 1.3, 2.0, 0.9, 1.0];
         NurbsCurve2::new(knots, control, weights).unwrap()
+    }
+
+    /// **Limb 3's at-rest refusal is held to the concision standard**,
+    /// every cause at every reading: its payload then its ending, at most
+    /// 75 words, with one recourse that never speaks of a search. Red
+    /// under a lever that names the searched region at rest, and under
+    /// the payload and ending growing past the budget.
+    #[test]
+    fn the_tube_not_one_arc_refusal_renders_within_the_standard() {
+        use crate::recourse::Reading;
+        use crate::ssi::OneArcRefusal;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let undecided = geom_core::k_stats::decide_positive(
+            "ssi_tube_one_arc",
+            geom_core::Margin::of(f64::NAN),
+            band,
+        )
+        .unwrap_err();
+        for cause in [
+            OneArcRefusal::Count { solutions: 0 },
+            OneArcRefusal::Count { solutions: 4 },
+            OneArcRefusal::Unlinked,
+            OneArcRefusal::Short,
+            OneArcRefusal::Undecided(undecided),
+        ] {
+            let refusal = PlaneNurbsRefusal::TubeNotOneArc { rungs: 20, cause };
+            for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+                let ending = refusal.ending(reading).unwrap();
+                let rendered = format!("{refusal} {ending}");
+                let words = rendered.split_whitespace().count();
+                assert!(words <= 75, "{words} words: {rendered}");
+                assert_eq!(rendered.matches("Recourse").count(), 1, "{rendered}");
+                assert!(!rendered.contains("searched region"), "{rendered}");
+            }
+        }
     }
 
     /// The carrier interval the rows use: `0.3 + (0.9 − 0.3)` is an

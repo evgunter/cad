@@ -2,7 +2,7 @@
 id: fuse
 kind: program
 title: FUSE — the merge door and the rebuild: what the boolean's result is once its seams are closed
-status: ready
+status: active
 opened: 2026-10-02
 area: kernel
 prefix: fuse/

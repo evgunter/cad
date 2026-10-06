@@ -318,3 +318,169 @@ PR 3733 and is filed on PCERT's slate.
   change.
 - **Held:** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
   follows it, because both edit `reduce.rs`'s cover rungs.
+
+## 2026-10-02 — a pinch union builds one body in every member order (PR 3796) (TANG orchestrator)
+
+Review tier: a single full review, then two delta reviews; each round was
+APPROVE-WITH-FIXES. The first found M1: the weld fired on a section
+face. Its fix reads the weld site from lineage. The second asked that
+the weld's fusions be recorded on both sides and that merge chains be
+followed in one place (`zip::survivor`). The third left one gap that
+cannot be reached: no record a boolean produces cites a weld's keys,
+which the unit row now says. Closes the unit row and TESS's census
+sibling. Filed out of it: WIRE's dropped operand records, and TESS's
+non-manifold doubled edge. The m1 strut row stays open with a second
+witness. Merging main moved one fixture: REACH's continuation rule now
+refuses `(slab − p1) − p2`, so X is cut once as `slab − (p1 ∪ p2)`.
+
+## 2026-10-02 — the declared door reads one margin over the consumed extent (PR 3795) (TANG orchestrator)
+
+Review tier: a single full review, then two delta reviews, each
+APPROVE-WITH-FIXES with no MAJOR. The first found the bridge at about
+2·Kε (two margins decided apart) and `Contradicted` read off an upper
+bound. The second found three more: the merge's extent ball did not
+enclose its faces, so a 900·Kε corner glued; the escalation text
+reported a margin inside the band when it was past it; and the
+declared sum reached the undeclared corner sites. C4's `Rest` sentence
+is reworded in the PR, as text that moved with the code. The orchestrator
+ruled it a sharper reading of "definitely distinct ... at the consumed
+extent", not a new decision. The one input class that moves
+(contradicted → escalated) is named in the PR body for Ev to see. The
+tour is byte-identical. The lane also reported three tests on main that
+fail under `--all-features`, which CI never runs; they are filed with
+PR 3823's state-sync.
+
+## 2026-10-02 — the abutting equal-radius rim builds (PR 3823) (TANG orchestrator)
+
+- **Review.** A concurrent dual review (H); both reviews returned
+  APPROVE-WITH-FIXES with no MAJOR, so nothing enters the tally. Then
+  came the fix pass of the union, a delta review (APPROVE-WITH-FIXES),
+  and fix pass 2. Two merges of main moved the ground under the unit:
+  - REACH's PR 3657 brought `Continuation` and the sense bit at every
+    door, so the dumbbell, peg and stacked-tube rows build declared
+    `Continuation`;
+  - PR 3795's typed pair doors became the base of the one verification
+    door.
+- **Closed.** The P0 row, and REACH's stacked-rods row.
+- **Filed.** Four TANG rows (the turned lens, half-band order
+  dependence, seam-ruling rim, leftover valence-2 vertices).
+- **Filed on CIW** with this state-sync: three tests fail on main under
+  `--all-features`, and no CI leg runs them that way.
+- **Next.** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
+  is dispatched now that the cover rungs have landed.
+
+## 2026-10-03 — `BooleanCoincidence::Seam` lands (PR 3849) (TANG orchestrator)
+
+**What landed.** The declared G1 seam between two operands, as Ev ruled
+on PR 3756:
+- verified by the `Tangent` witness lane with the sense bit reversed;
+- the two faces must leave the locus on opposite sides wherever they
+  both lie on it (a coverage read along the rim angle or line
+  parameter);
+- a cover source only for kinds that keep one global side.
+
+The hemisphere on a tube, the plane×torus puck and the D-bar build; the
+lily stops at two filed gaps.
+
+**Review.**
+- A concurrent dual review (H). Both reviews returned APPROVE-WITH-FIXES.
+  The vacuous rim-wedge check (a cusp verified as a seam) was raised by
+  both, MAJOR on one side and MINOR on the other, so it is bilateral and
+  the tally is unchanged.
+- Three delta reviews followed. Two were NOT-MERGEABLE, each on a false
+  seam passing the declaration door. These were introduced by the fix
+  passes, not missed by the pair:
+  1. the boundary-sample line side (the dodge plate);
+  2. an edge anywhere on the locus standing in for the face where the
+     faces touch (the tab, partial and far plates).
+- The third delta found no further instance. The last pass was read by
+  the orchestrator.
+- Lesson recorded for briefs: a door that reads "which side" must read
+  it where the faces meet, and every cut in its parameter must have a
+  row that turns red without it.
+## 2026-10-03 — the pierce ring joins on a curved face (PR 3851) (TANG orchestrator)
+
+**Review.** A concurrent dual review (H); both reviewers returned
+APPROVE-WITH-FIXES with no MAJOR, so the tally is unchanged. Then a fix
+pass, a delta review (APPROVE-WITH-FIXES) and a last pass, read by the
+orchestrator.
+
+**What changed.**
+- The wall doors were pairing defects, not scaffolding:
+  - a cross-loop chord now reads the face's outer-cycle window;
+  - the island is wound on the wall's chart, with an exact closure;
+  - rings re-home by chart ray parity.
+- PROPS: a cylinder face's flux is its chart Green form over every loop,
+  anchored at mid-height. It now measures notched and ringed walls at
+  1e-14, and open loops and wrong-winding rings refuse.
+- Sphere islands refuse, typed (`RingOffCylinderChart`). No reachable
+  pose built one.
+
+**The rows that held it.** Three mutants were killed only after review:
+- off-axis ringed walls (MF2), whose mutant gave a silent wrong body;
+- a ring on a reversed-sense wall (MI2);
+- a bar turned about two axes (MI3), where the straight closure flips
+  the sign in 38 of 658 islands.
+
+**Filed.**
+- TANG: in-face rings paired across the gap, the planar ring's straight
+  closure, the cylinder-pair germ arm, a wedge across a full-turn
+  collar, and the carved-balls clearance row (vacuous on main).
+- CONTACT: point-in-solid on a ringed wall.
+- TESS: a notched or ringed wall mesh.
+- PROPS: level-recovery precision on tilted or off-origin axes, and
+  ellipse-trimmed rings.
+
+**Closed in the PR.** `pierce-ring-has-no-join-arm` (P0) and PROPS'
+notched-wall row.
+
+## 2026-10-03 — `tangent_locus` consumes the section classifiers' tangency (TANG implementer)
+
+The witness lane's plane×cylinder and parallel-cylinder tangency now
+run on the section classifiers' rows (`pc_*`, `cc_*`), not its own.
+Two band-edge disagreements resolved and pinned. One issue filed: the
+plane×cylinder section reads its gap at the stored origin.
+
+**Closed in the PR.** `tangent-locus-re-meters-the-section-classifiers-tangency`.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.

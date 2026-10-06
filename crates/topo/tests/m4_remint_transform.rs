@@ -8,7 +8,7 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_brep::{CERT_SAMPLES, EdgeDescription};
 use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Vec3};
@@ -21,6 +21,23 @@ fn rot_trans() -> Affine3<f64> {
     Affine3::from_parts(Mat3::rotation_about(axis, 1.0), Vec3::new(0.1, 0.2, 0.3))
 }
 
+/// The two bricks whose union is an L-shaped prism, finished.
+fn l_operands() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
+    let tol = Tol::witness();
+    (
+        finished(
+            "a",
+            brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        ),
+        finished(
+            "b",
+            brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75), tol),
+            tol,
+        ),
+    )
+}
+
 /// THE PIN: after transform, every Intersection witness is BIT-EQUAL
 /// to the mapped carrier evaluated at the pinned mid parameter — the
 /// construction-fresh property. (The old path — mapping the stored
@@ -30,8 +47,7 @@ fn rot_trans() -> Affine3<f64> {
 fn witnesses_are_construction_fresh_bits() {
     // An L-shaped prism union: guarantees boolean-minted Intersection
     // edges with real seam geometry.
-    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75), Tol::witness());
+    let (a, b) = l_operands();
     let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
@@ -66,12 +82,11 @@ fn witnesses_are_construction_fresh_bits() {
 /// the final body's witnesses are still construction-fresh bits.
 #[test]
 fn transform_chain_stays_fresh() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75), Tol::witness());
+    let (a, b) = l_operands();
     let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
-    let mut cur = bb.body;
+    let mut cur = bb.body.into_body();
     for i in 1..=5 {
         cur = transform_rigid(&cur, &rot_trans(), Tol::witness())
             .unwrap_or_else(|e| panic!("chain step {i} refused: {e:?}"));
@@ -94,8 +109,7 @@ fn transform_chain_stays_fresh() {
 /// bodies (re-mint is a pure function of the mapped carrier).
 #[test]
 fn remint_is_deterministic() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75), Tol::witness());
+    let (a, b) = l_operands();
     let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };

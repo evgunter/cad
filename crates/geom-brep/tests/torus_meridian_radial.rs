@@ -81,7 +81,7 @@ fn a_meridian_in_band_of_the_torus_axis_escalates_its_radial() {
     let off = 3.0 * band().zero();
     let (torus, outer) = fixture(off);
     let named = |e: Option<PropsError>| match e {
-        Some(PropsError::Escalated { cause }) => cause.predicate,
+        Some(PropsError::Escalated { cause, .. }) => cause.predicate,
         other => panic!("an in-band radial escalates, not {other:?}"),
     };
     let want = Some("props_meridian_radial");

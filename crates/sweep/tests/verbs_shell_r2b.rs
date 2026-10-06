@@ -13,6 +13,7 @@
 use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
 
@@ -64,9 +65,16 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("it extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("it extrudes")
+    .body
 }
 
 /// **Claim 3's MINT on MY OWN stepped meridian** — eight stations, all

@@ -1622,3 +1622,85 @@ The rule is now stated in the viewer README.
 - `check-findings-speak-their-root-by-tag`
 - `a-carried-rows-route-says-its-first-instance-by-tag`
 - the earlier P3/P4 label rows
+
+## 2026-10-02 — EditError re-speaks from a later version (PR 3832); check findings speak their root (PR 3833)
+
+**PR 3832: re-speaking edit refusals**
+
+- `SpokenNode`, `SpokenName`, `HeldNodes`, `RootFault` and `EditError` all gain `respoken(doc)`.
+- The rule: a node the later document holds is spoken as that document holds it now. Otherwise it keeps the spelling it was raised with. The mint-chain soundness argument has one home, at `SpokenNode::respoken`.
+- This replaced the row's specified `doc.spoken` rule. That rule would have dropped every refused insert's minting node to a bare tag.
+- Arms whose sentence asserts absence or collision stay as raised, alongside `LabelUnchanged`.
+- The viewer's `Refusal::Edit` now re-speaks within `batch_refusal`. Every viewer walk, `held_by` sets included, follows the one rule.
+- `replaces_the_document` is an exhaustive match over `SessionOp`.
+
+**PR 3833: check findings and reports**
+
+- `CheckFinding` gains `Say`.
+- `ChecksReport` and `CheckRefusal` carry `document` and `speaker` / `spoken`, with an assert on the document id (the PR 3749 pattern). The assert refuses another document, not another version of the same one.
+- The viewer's checks window speaks from the landed pair.
+- Python `Evaluation.doc` is shared through an `Arc`. Reports and findings speak from it.
+- Python equality means the same findings over the same document; labels are not compared.
+
+**Labels residue still open**
+
+- `a-cluster-act-speaks-its-gauges-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
+- the part design row (needs a designer pair)
+- earlier P3/P4 rows
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — PR 3839 ([ev]): a part's nodes are said by label, carried on the fault from the seam
+
+Designer pair (fork-log row 71, A = Fable, B = Opus) converged on option
+(d): the fault records the part's nodes while the pinned part is in hand
+and carries them, and the uncalled doors go. Ev approved the mechanism
+but asked for the Band 1 bullet to state the general principle instead
+of a part exception. It now reads "a value the evaluation memo reuses
+holds a label only when its memo key fixes that label", with host and
+part as its two consequences. The row
+`a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` stays open
+for the build, with a Ruled section naming it. Fork-log row renumbered
+from 45 to 71 on merging main (main had taken 45–70).

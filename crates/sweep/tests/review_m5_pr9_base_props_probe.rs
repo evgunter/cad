@@ -7,6 +7,7 @@
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 
 #[test]
@@ -18,9 +19,16 @@ fn symmetric_double_rim_split_volume_at_base() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let mut body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let mut body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let true_vol = std::f64::consts::PI * 0.25 * 1.0;
     let v0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!((v0 - true_vol).abs() < 1e-9, "pre-split volume sane");

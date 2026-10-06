@@ -45,6 +45,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use bvh::test_support::ray;
 use editor_core::resolve::{TSpan, ray_triangle};
@@ -85,6 +86,7 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

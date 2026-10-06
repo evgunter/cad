@@ -41,6 +41,7 @@ is the board and `work/README.md` its contract.
 | `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
+| `docs/VARIABLES-DESIGN.md` | Settled under D10 (designer pair, converged); unbuilt | Variables, VARIABLES-DESIGN VR1–VR9: minted identity with a separate unique optional name, a slot holds a `VarId`, `Expr` holds no float (rationals and `turn`), `Formula` authored and lowered at the edit door, lifecycle, id-keyed tokens and analysis seeds |
 | `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: `ParamSource` carries stored scalar fields only. Axis-shaped declarations invalidated structurally by placement-chain comparison, so no numerical check decides whether a rotation happened; absence of provenance refuses |
 | `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
@@ -170,14 +171,13 @@ representation of reversal. Normative consequences:
   normal.
 - Orientation reversal is **exact structure**, never a numeric decide:
   `revert` flips `sense` on every face carried by a non-plane surface,
-  negates the stored normal of `Plane`-carried faces, and moves every
-  loop's cycle anchor to its source predecessor (the anchor is where a
-  periodic chart's loop wrap is reported, and a reversed cycle keeps it
-  at the closure only if the anchor moves with the direction —
-  `topo`'s `LoopBoundary::Cycle`). The two normal encodings are
+  negates the stored normal of `Plane`-carried faces, and inverts every
+  joint element, moving it onto its source predecessor (a joint's
+  element read from the other side is its inverse — `topo`'s
+  `JointElement`); no loop's anchor moves. The two normal encodings are
   exclusive by surface kind, so every outward normal is negated exactly
-  once, the anchor move is a key swap, and `revert ∘ revert` is
-  bit-identical at every scalar backend.
+  once, inverting an element is exact integer arithmetic, and
+  `revert ∘ revert` is bit-identical at every scalar backend.
 - A face's `sense` is decided where its chart is decided. An Euler
   operator minting a face on its parent's chart (`same_chart`: one
   key, or keys sharing one payload) derives the bit from its own
@@ -243,9 +243,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
    empty loops, no valence-1 vertices, and c = 1 per shell (the third
    ban is independent: a promoted detached cycle ring disconnects a
-   shell with neither an empty loop nor a strut). Finished bodies must
-   pass tier 2; tier-1-only states are visible solely inside operation
-   sequences, never across an API boundary at rest.
+   shell with neither an empty loop nor a strut).
 3. **Tier 3 "geometric"** — D4 ¶2 residual certification, plus the
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
@@ -259,11 +257,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    body exactly as the π seam is: a cusp and a smooth seam are the same
    tangent junction on one shared edge, told apart only by the sign of
    the two faces' outward normals, which the body already certifies.
-   The shared edge is the structural record. Whether a cusp is *wanted*
-   is declared where the tangency is created — the profile's cusp
-   joint, a boolean's C7 `Tangent` operand declaration — never inferred
-   from values, and an op that could mint a wedge end its inputs never
-   declared owns that refusal. In-band κ_rel escalates; osculation
+   The shared edge is the structural record. A tangency is constructed
+   (the profile's cusp joint, a tangency construction, D10) or decided
+   Zero by its margin where an op meets it, and a tangency decided from
+   values is recorded and checked by the `unproven-coincidence` lint
+   like any coincidence. In-band κ_rel escalates; osculation
    refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
    A doubled cusp (two material wedges on one tangent line) is the
@@ -285,16 +283,28 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    parameter-box outer half above it in `editor-core`, so a verb that
    must certify a boundary embedded (`shell`'s cavity clone) runs the
    same engine at a certifying scalar and refuses typed at the door.
+
+   A **finished body** (`AtRestBody`) passes tier 3′ against its own
+   contact records: none, for a body that touches nothing, where the
+   census must find no coincidence at all. Every door that returns or
+   consumes one pays that gate once, at the door that built it.
+   The Boolean door's result meets tier 3 without the census: its
+   declared contacts ride beside it (`BooleanBody::contacts`), and the
+   census over them is parked on CONTACT's cross-solid curved lane
+   (`work/reach/boolean-door-runs-the-census-over-its-result.md`).
+   Construction state (tier 1, or tier 2 without geometric
+   certification) is what Euler operators hand back, and becomes a
+   finished body only through the at-rest gate.
 4. **Tier 3′ "pseudomanifold"** (`validate_pseudomanifold`) — the
    honest at-rest tier for boolean results that *touch*: contacts
    limited to entirely-coincident-but-distinct edges, edge-on-face,
    vertex-on-face, vertex-on-edge/vertex — touching allowed, proper
    self-intersection not. Composition: tier 3's local battery
    verbatim (shared extraction) plus a **global coincidence census**
-   plus **two-directional declared-contact certification**:
+   plus **two-directional contact-record certification**:
    - The census is exact on the planar inventory and admits every
      carrier kind: same-key opposed-sense curved pairs certify through
-     the conformal arm, declared curve/patch records through the jet
+     the conformal arm, curve/patch records through the jet
      schedule and the patch certifier, cross-solid pairs with a curved
      side in reach refuse as undecidable, and same-solid distinct-key
      curved pairs stay undetected until C9/C6 (`topo::census` module
@@ -303,16 +313,16 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      named Q1 trilean; indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
    - Certification runs **both directions and never scans-to-bless in
-     either**: a census finding with no backing declaration is
-     `UndeclaredContact` (discovery is never declaration); a
-     declaration with no geometric witness is
-     `StaleContactDeclaration`. Structural sharing (same key) is the
-     coincidence ladder's first rung and needs no record.
+     either**: a census finding with no backing record is never
+     silently blessed ((iii) below); a record with no geometric witness
+     is stale and refuses typed. Structural sharing (same surface or
+     point key) needs no record: an op that cuts one vertex into copies hands each copy the
+     original's point, as it hands a cut face's fragments one surface.
    - Contact records carry two granularities: vertex (`VvContact`,
      `VfContact`) — edge-on-face and coincident-edge *segments*
      certified by reconstruction from their bounding vertex records
      (between two backed bounds, two lines sharing two points are one
-     line; a missing bounding record is `UndeclaredContact`, never
+     line; a missing bounding record is an unbacked contact, never
      inferred) — and face (`CurveContact`, `PatchContact`; CONTACT-DESIGN
      C3), whose rungs back a subordinate vertex event.
    - **Certification strength equals its skeleton**: a `CurveContact`
@@ -323,27 +333,30 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      census-invisible and certifies — the voids story below, not a
      gap.
 
-   **Touching is always backed by explicit intent**: (i) operand
-   coincidences are only ever structural (shared key) or declared
-   (recipe data) — near-coincidence NEVER silently becomes contact
-   (escalated typed error instead); (ii) result-side touching arises
-   only from those intentional coincidences propagated through the
-   boolean node, and the result carries machine-checkable
-   declared-contact records (the ON-set survivors, carried across
-   seam-zip/merge mints by a descendant map, never re-derived);
-   (iii) an *undeclared* contact discovered at validation is a hard
-   error, never blessed.
+   **Touching is always recorded**: (i) operand coincidences are
+   decided by margined verdicts (D10) — a Zero margin is a coincidence,
+   and a sliver-band one is an escalated typed error, never contact;
+   (ii) result-side touching arises only from those coincidences
+   propagated through the op, or from an op's copies of one vertex at
+   such a coincidence, which share its point; the result carries
+   machine-checkable contact records (the ON-set survivors, carried
+   across seam-zip/merge mints by a descendant map, never re-derived),
+   each checked by the `unproven-coincidence` lint; (iii) a contact the
+   census discovers that no record backs is never silently blessed:
+   between copies at rest it is an `unproven-coincidence` finding
+   (D10), and inside one op's result it is that op's defect, refused
+   typed.
 
    **Validity class rides the result wrapper, never a mutable `Body`
    field**: a boolean result is `BooleanBody` — body + contacts — whose
-   non-empty contact list is the 3′-grade currency and whose at-rest
-   gate is `validate_pseudomanifold(&body, &contacts)`; empty-contact
-   results remain plain tier-3 currency, and the two gates agree there.
+   at-rest gate is `validate_pseudomanifold(&body, &contacts)` over its
+   own contact list, empty or not; with the list empty, the census must
+   find nothing.
 
    **Representability boundary**: pseudomanifold touching via
    *distinct* entities (two vertices at one point, two edges on one
    segment) is representable in the half-edge structure and is a typed
-   *success* carrying its 3′ declarations. Genuine non-manifoldness — a
+   *success* carrying its 3′ records. Genuine non-manifoldness — a
    single edge with >2 faces, a shared-entity wedge fan — is
    unrepresentable and stays a typed error at the site that would have
    needed it. "Non-manifold" means non-representable.
@@ -365,8 +378,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   birthplace. `UnsupportedToroid` is permanent: a D3 ring-torus
   boundary — spindle tori have no representation.
 - **∅, disjoint, and voids are typed results.** ∅ is a typed success
-  value (`BooleanResult::Empty`), not an error; disjoint unions and
-  voids are tier-2-legal multi-shell bodies. The extrude/full-revolve
+  value (`BooleanResult::Empty`), not an error. **A solid is one piece
+  of material**: the `Outer` shell around it and the `Void` shells of
+  the cavities in its material, which together bound that material and
+  nothing else. A cavity belongs to the piece whose material surrounds
+  it, so an island inside a cavity is a solid of its own, and a cavity
+  inside that island is the island's. Pieces that only touch (at a
+  corner, along an edge, or across a face that contact records hold
+  apart) are distinct solids, because touching is between distinct
+  entities (tier 3′). A piece that touches itself stays one solid. A
+  body is any number of solids, so a disjoint union is a body of
+  several solids. Booleans, `shell` and `split` take bodies and return
+  bodies, and each sorts its result into solids, so every output is an
+  operand. A product (an explicit list of `Body` variables, D10) is not
+  a boolean operand: the editor refuses it, naming the explicit union
+  of the copies that makes them one body
+  (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
+  structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
+  The extrude/full-revolve
   hole asymmetry is structural: extruded holes are cap-to-cap tunnels
   (one shell, genus); full-revolve holes are cavities (a second shell,
   through the door); partial revolve is extrude-shaped and carries
@@ -421,32 +450,40 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   storage. Winding is invisible to users (roles derive from
   containment). Downstream re-inspection of arc geometry uses the
   stored carrier data, never endpoint atan2.
-- **Declared-tangency discipline**: profiles refuse undeclared
-  definite-Zero tangency at junctions (`UndeclaredTangency`, with a
-  repair menu); declarations are verified, never trusted
-  (`TangencyContradicted`); the PATHS `.fillet(r)` constructor authors
-  exact tangency by construction and declares it, with fit gating
-  (`TangentJointOutOfRange`). Every zero-turn joint is a declared
-  tangent joint. Zero new ε: the per-junction classifier reuses the
-  carrier predicates verbatim. The flags persist as `tangent_joints`.
+- **Profile tangency**: each junction's tangency is a margined
+  verdict. The PATHS constructors (`.fillet(r)`, the tangent
+  continuations) author exact tangency by construction, verified, never
+  trusted (`TangencyContradicted`), with fit gating
+  (`TangentJointOutOfRange`); a junction decided Zero that no
+  constructor made is a tangent joint all the same, recorded for the
+  `unproven-coincidence` lint (D10); the sliver band refuses. Every
+  zero-turn joint is a tangent joint. Zero new ε: the per-junction
+  classifier reuses the carrier predicates verbatim. The tangent-joint
+  set is derived at lowering, from the constructors and the junction
+  verdicts, never stored.
 - **Curved booleans retire per arm, never wholesale.** A face kind with
   no arm refuses typed `CurvedBooleanUnsupported` /
   `CurvedPairUnsupported` naming the pair, never falling through to a
   containment verdict a curved boundary can defeat. The wired germ join
   arms are plane×cylinder and plane×sphere (`boolean::join`'s dispatch);
-  sphere×sphere and the declared-coaxial cylinder×sphere have section
+  sphere×sphere and the coaxial (sphere centre on the cylinder axis) cylinder×sphere have section
   frames but no join arm; cone and torus operands refuse. The curved
   extent test refuses typed `NurbsExtentUnsupported` on NURBS faces — a
   certified extent needs a foot point plus a bound on the patch's
   reach past it, a derivation not yet written (C12.1).
 - **Coincidence discipline in the reduction.** Every
   reduction/classification comparison is a Q1 trilean: definitely-off
-  ⇒ clean side, exactly-on ⇒ ON, in-band ⇒ escalated typed error (a
-  genuine sliver: the operand pair is ill-conditioned at this ε). No
-  EPS snapping anywhere in the pipeline. Booleans on independently
-  modeled nearly-touching bodies fail loudly rather than guess — the
-  design thesis; the resolution is an explicit D7-style
-  repair/adoption op.
+  ⇒ clean side, decided Zero ⇒ ON, in-band ⇒ escalated typed error (a
+  genuine sliver: the operand pair is ill-conditioned at this ε). An
+  ON verdict that only places topology is derived; one that would make
+  pieces of one result touch (a split vertex whose orbit has two or
+  more runs on one side) is a coincidence decided from values, built,
+  recorded and reported by the `unproven-coincidence` lint unless it is
+  structural (D10). No snapping beyond the Zero verdict: a merged face
+  keeps one operand's description, and nothing in the sliver band is
+  moved. Booleans on independently modeled nearly-touching bodies fail
+  loudly rather than guess — the design thesis; the resolution is one
+  construction or an explicit D7-style repair/adoption op.
 - **Maximal-faces precondition and the merge stage.** Booleans
   precondition no two adjacent coplanar faces (`NonMaximalFaces`); the
   explicit opt-in normalization op is `merge_coplanar_faces` (merging
@@ -455,26 +492,39 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   pairs by construction; the recipe records one boolean node, not
   hidden healing. A sweep mints no same-key adjacency to merge: it
   builds one wall per run of profile pieces on one carrier
-  (`crates/sweep/README.md`, "Walls"). Merge glues on the structural and declared rungs
-  only; numeric coincidence never merges. A boolean licenses a
-  cross-operand coplanar pair to merge by a declared continuation
-  (`crates/topo/README.md`, C4); a same-sense cosurface adjacency it
-  has no licence for refuses at the op that would create it, on every
-  carrier kind. A boolean whose output
-  stage cannot glue a planar group it was licensed to merge refuses
+  (`crates/sweep/README.md`, "Walls"). Merge glues on a Zero verdict
+  between the carriers (D10), never on bit-equality: a boolean merges a
+  cross-operand coplanar pair its margins decide a continuation, records
+  it for the `unproven-coincidence` lint, and keeps one description. A boolean whose output
+  stage cannot glue a planar group its verdicts decided a continuation refuses
   the step with the merge's own typed reason, so every boolean output
   is a legal boolean operand; only a curved group's skip is recorded
-  and shipped. Load-bearing dependency: `merge_coplanar_faces`
-  **never fuses two vertices into one and never removes a vertex from
-  a face's boundary**. The one vertex it deletes is the free end of a
-  seam edge the glue left dangling inside the merged face: that edge
-  encloses no area, so it and its free end go together, at any angle
-  and repeatedly along a seam chain, and the deletion is recorded in
-  `killed_vertices`. Tier 3′'s strict record-drop rule (a contact
-  record whose vertex pair fused into one vertex is consumed and
-  drops) is correct *because* nothing is fused; a record citing a
-  deleted free end drops as consumed. Any future fusing or
-  boundary-vertex elision re-opens the record-carriage class.
+  and shipped. Every op's output also has **maximal edges**: no
+  *joinable* vertex, meaning valence 2 with two distinct edges on one
+  carrier — shared, or decided Zero between the carriers (D10) —
+  between the same two faces. A sweep builds one rim
+  edge per run, as it builds one wall, and a boolean's output stage joins
+  every joinable vertex after the merge, whatever drew it. A body is then
+  the unique complex with maximal faces and maximal edges over its face
+  partition, so a union's body does not depend on its member order, and
+  the form is checked at tier 2 on the result alone, with no history.
+  Load-bearing dependency: `merge_coplanar_faces` **never fuses two
+  vertices into one**. A contact record is a pair of cells, one from each
+  touching shell (vertex, edge or face), whose interiors meet, plus its
+  backing. A vertex resting on an edge's interior is the record
+  (vertex, edge). The output stage deletes a vertex in two shapes, both
+  recorded in `killed_vertices`:
+  - the free end of a seam edge the glue left dangling inside the
+    merged face, which goes together with its edge;
+  - a joinable vertex, whose two edges become one.
+
+  The join carries every record citing the three cells it replaces to
+  the edge it makes, by substitution with its backing unchanged, so
+  records are written by the op that changes their entities and never
+  re-derived at the gate (F1). Tier 3′'s strict record-drop rule (a
+  contact record whose vertex pair fused into one vertex is consumed and
+  drops) is correct *because* nothing is fused. Any future fusing
+  re-opens the record-carriage class.
 
 **The frontier is typed, named and inventoried elsewhere.** Every
 unbuilt case refuses with a message naming its own blocker (D9 row 2),
@@ -490,12 +540,19 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Circle-carrier arm), so the oblique-trihedron octant faces store
   their rows; the cone/torus oblique classes have no ring-computable
   meters composite and refuse with the class named, their faces left
-  uncached until each class's route lands.
+  uncached, excused by C4's exemption until each class's route lands.
+  The same exemption covers a spline carrier at the closed-form door
+  and the zero-offset spiric, mirror-torus spiric and no-fitted
+  classes. Each class has its own PCERT row: the torus general circle,
+  the cone section, the spline carrier, and the spiric and no-fitted
+  classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
-  exists as `Pcurve::Fitted` and certifies at rest; what is missing is
-  the join window itself (`run_azimuth_window`/`chart_pcurve` have no
-  cyl×sphere analog). Sphere×sphere seams, cone and torus operands
-  refuse alongside it.
+  exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
+  its arc from the germs it joins, reading no window; what is missing
+  is the C5 table's cyl×sphere arm for the chord's carrier
+  (`chord_join::section_case` has no curved×curved arm) and a frame for
+  the germs' rotational-sense test (`boolean::join::pair_section_frame`).
+  Sphere×sphere seams, cone and torus operands refuse alongside it.
 - **(e) the NURBS extent test** — `NurbsExtentUnsupported`, above.
 - **(f) the canal-surface general blend** — an approximating surface
   for fillet chains whose rolling-ball spine is neither a line nor a
@@ -507,10 +564,10 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
 Unlettered standing entries: the both-sided zero-area pinch split
 (single-sided pinches succeed by the exact mirror identity
 `split(S, n) ≡ swap(split(S, −n))`; the `BOTH_SIDED` fixture pins the
-refusal); reflex-corner tilted crossings; the torus declared-`Rest`
+refusal); reflex-corner tilted crossings; the torus `Rest`
 lane (#968) and full-period walls in the cylindrical `Rest` lane
 (#1415, #1416); the coincident-plane classes beyond the
-declared/anchored repertoire, where the anchor-exhaustion arm is
+structural/anchored repertoire, where the anchor-exhaustion arm is
 load-bearing rather than unreachable. Two latent-and-loud limitations
 are recorded so they are not rediscovered as bugs: a meridian-tangent
 circle is in-lane but uncertifiable (no constructor mints one), and
@@ -684,9 +741,9 @@ Five commitments:
    levers and shared by all its refused arms, with the margin riding
    the payload as data; kernel semantics keep the distinction (message
    policy, not predicate policy). The recourse follows from the
-   decision and its verdict: *declare the coincidence* only at a door
-   that takes a declaration whose presence would change the verdict;
-   *move the geometry*, phrased as the decision's own lever, always;
+   decision and its verdict: *make the two one construction* (D10)
+   only where the refused side is a coincidence a shared construction
+   would decide; *move the geometry*, phrased as the decision's own lever, always;
    *tighten the tolerance* only where the refused margin is a size the
    user may intend and a smaller ε decides it — the band-decided arms
    (in band, or Zero where Zero does not pass) of a decision that passes
@@ -711,11 +768,11 @@ Five commitments:
    coincidence distance, not to this run's) names setting ε to ε_in as
    a stopgap, beside re-exporting the file more precisely. A change to
    a document's ε reports what it flips at the change itself. The
-   three-arm sentence (declare the coincidence / move the geometry /
-   tighten the tolerance) is thus the recourse of a decision whose
-   refused side is a declarable coincidence; a contact site, whose
-   question is "did anyone declare this", drops the third arm per
-   SELECT-DESIGN §3d. The decision is a closed type at its site (as
+   three-arm sentence (make them one construction / move the geometry
+   / tighten the tolerance) is thus the recourse of a decision whose
+   refused side is a coincidence a construction could decide; an
+   `unproven-coincidence` finding refuses nothing, and its recourse is
+   one construction or an assertion at its site (D10). The decision is a closed type at its site (as
    `CertCheck` is), so its recourse is an exhaustive match, never a
    lookup by predicate name. (ii) Error variants may stay distinct as
    data; their user stories converge per decision. `Indeterminate`
@@ -824,18 +881,18 @@ dimensional types inside. The public API uses hand-rolled newtypes
 Hand-rolled rather than `uom`: uom's dimensional generics fight the
 scalar-type parameter and we need ~five quantities, not the SI lattice.
 
-**A stored literal always names its notation.** Units erase at the
+**A stored value always names its notation.** Units erase at the
 accessor doors because the kernel wants them gone. One consumer wants
 them kept: a document records what a person *wrote*, so it can be read
-back that way. Every continuous literal therefore carries a display
-unit — a row of `quantity::UNITS`, presentation metadata excluded from
+back that way. Every free continuous variable's value (D10) therefore
+carries a display unit — a row of `quantity::UNITS`, presentation metadata excluded from
 expression identity, keys and evaluation — and that unit is **not
 optional**: the table carries a dimensionless row (`ONE`, empty symbol,
-factor 1.0) so a `Scalar` literal names its notation rather than
+factor 1.0) so a `Scalar` value names its notation rather than
 declining to. `Count` needs no row: a count is an integer, not a
 quantity. A value crossing into a document carries the unit it was
-written in, never a bare number — which is why the GUI's creation ops
-carry `Expr`, and what `quantity::WrittenLength`/`WrittenAngle` are the
+written in, never a bare number — which is why a GUI creation op mints
+a free variable carrying the written unit (D10), and what `quantity::WrittenLength`/`WrittenAngle` are the
 library spelling of.
 
 ### D7 (agreed): Import is adoption, not admission
@@ -859,20 +916,18 @@ convention, adopted directly. Pipeline:
    (refit/nudge) or fail loudly naming the unhealable entities.
 4. **The shared at-rest gate**: steps 1–3 certify each *entity*; the
    *body* is then handed to the kernel's own at-rest validator — tier
-   3, or tier 3′ where declared contacts exist — and only a body it
+   3, or tier 3′ where solids touch — and only a body it
    passes ships from import. Same function, same tiers as a native
    caller runs; import holds no idea of validity of its own. *Per
    solid, not merely per file*: whole-body sums (the +V flux) would let
    an inside-out solid cancel against a right-side-out neighbour, so
    each solid is gated on its own body before aggregation, and the
-   aggregate pass remains for the cross-solid structure. A file carries
-   no arena keys, so the import-side declaration channel is
-   POSITION-anchored and belongs to the adopting caller
-   (`ImportOptions::declared_contacts`): declarations resolve against
-   the assembled body and are certified by the same tier-3′ gate, and
-   an anchor that does not resolve refuses typed. An imported assembly
-   whose parts touch therefore refuses UNDECLARED and certifies WITH
-   the declaration — the equivalence with a natively built twin.
+   aggregate pass remains for the cross-solid structure. An imported
+   assembly whose parts touch certifies, and its contacts — decided
+   from values, since no imported cell is a construction of the
+   document's variables — are `unproven-coincidence` findings (D10),
+   quieted by an assertion that the gap is zero at the site: the equivalence with a natively built twin whose parts
+   touch by value.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
@@ -893,9 +948,8 @@ patches data into self-consistency): it must *explain* the data.
 
 ### D8 (agreed): The recipe is data
 
-A model document is an operation DAG — typed feature nodes referencing
-parameters and each other — plus a small expression sublanguage for
-derived quantities. The kernel interprets the recipe at any scalar `T`;
+A model document is a graph of operations over typed variables (D10)
+plus a small expression sublanguage for derived quantities. The kernel interprets the recipe at any scalar `T`;
 user-facing Rust is a *generator* of recipes. Consequences: the recipe
 is the save format; recipe node IDs are the substrate for D5 naming;
 every value-dependent branch stays inside kernel code where predicates
@@ -943,15 +997,11 @@ topology change is stated, not emergent.
   by name — and the two sites where a borrow forbids the guard are
   held instead by a runtime depth read at the next phase boundary. The
   reach of each, and what none of them sees, is
-  `work/perf/door-scopes-outside-topo-are-unguarded`. **The one door outside the
-  property is `instance`'s graft**, a raw transplant: a `JoinDesync`
-  raised mid-transplant leaves the destination partially written and
-  *spent, never resumable*, so a caller that discards the `Err` and
-  keeps the body can fire a later postcondition from API misuse rather
-  than a kernel bug. That state class is the open ruling **S14**
-  (`work/pipe/S14.md`), Ev's; row 0 below reframes it (stage
-  into a fresh body and commit on success, the shape
-  `merge_coplanar_faces` already uses) without answering it.
+  `work/perf/door-scopes-outside-topo-are-unguarded`. **`instance`'s graft is held to the
+  property by staging** (S14, Ev, PR 4006): it transplants into a fresh
+  body and commits only on success, the shape `merge_coplanar_faces`
+  already uses, so a refused graft leaves the caller's destination as
+  it was and no public door leaves a body tier-1-invalid.
 - Essentially no unsafe Rust outside vetted dependencies.
 
 **The bug-vs-invalid-state taxonomy (the D2 addendum).** Silent discard
@@ -996,17 +1046,23 @@ swallowed.
   (Q1). `sup_norm_bound` returning NaN on every poison path is the
   pattern.
 - *Rows 4 and 5 split on re-derivation, not on cost.* `unreachable!` is
-  for an invariant the code can *observe* — a failed lookup of a key
-  minted in the same call or proven live by a check in the same call
-  (`topo`'s `Live` brand; a shared helper takes a proven-live key as
-  its argument type and is `#[track_caller]`), **never** by the body's
-  tier-1 validity, which is a whole-body property no single call
-  establishes. `debug_assert` is for a check that *re-derives* the
+  for a state the current best understanding says only a kernel bug
+  reaches, however many interacting parts that understanding rests on
+  (Ev, PR 4006): a failed lookup of a key minted or proven live in the
+  same call (`topo`'s `Live` brand; a shared helper takes a proven-live
+  key as its argument type and is `#[track_caller]`), and equally a
+  failed read through a record of a body that every door keeps
+  tier-1-valid. `debug_assert` is for a check that *re-derives* the
   invariant (`assert_euler_postcondition`, O(body)). Row 4's message
   states WHY the state cannot occur, not merely what was violated, and
   carries the values a reader debugging it would want; this stays
   prose, not a gate (`topo`'s `d18_no_unreachable_message_can_impersonate_the_postcondition`
   forbids one spelling and that is all a shape gate can do).
+- *A torn body is a kernel bug.* A failed read through a record the
+  body holds (a `next`, a `parent_loop`, a mate slot, a face's surface
+  key) is row 4: `unreachable!`, its message naming the record and why
+  it cannot dangle. A key the caller passed that does not resolve is
+  row 1, a typed refusal stating the fact, and never the same variant.
 - *Row 5's boundary:* `debug_assert` also serves the expensive check
   whose failure PROBABLY indicates a bug — a tripwire, not a proof.
   Its contract: (i) the assertion's absence never changes shipped
@@ -1109,6 +1165,110 @@ grounds (rounding control, f64, portability) are re-checkable facts.
    UNVERIFIED; an audit is banked, not assumed. Do not cite the kernel
    as equivariant without checking the claim at the site in question.**
 
+### D10: One way to say dependency, placement and intent
+
+A document says "this depends on that" in one way (reading a
+variable), says "this is there" in one way (a placement), and says
+"these are meant to coincide" in two ways (constructing the
+coincidence, or asserting a bound). Nothing else carries dependency or
+intent.
+
+**Variables.** Every slot that admits more than one value holds a
+variable whose type suits the slot. The types are the scalars (`Length`,
+`Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
+sense), the geometric values (`Point`, `Direction`, `Axis`, `Plane`,
+`Frame`) and the references (`Face`, `Edge`, `Body`). A variable is
+**free** — a value, its written unit (D6) and optionally a distribution
+— or **defined**, by an `Expr` over other variables or as an output of
+an operation. A dimensioned literal stands nowhere, neither in a slot
+nor inside a formula: the only constants are dimensionless rationals and
+rational fractions of a turn, which are the shape of a formula rather
+than a dimension. Typing a value in the GUI mints a free variable and
+offers an existing variable of equal value; declining the offer is what
+makes the two distinct.
+
+**Operations.** A node is an operation: it reads variables and defines
+one or more. Reading is the only dependency; nothing consumes anything,
+so an operand stays a first-class value after a boolean reads it. The
+product is an explicit list of `Body` variables. A `Face` or `Edge`
+variable is a selection of a `Body` variable by `StableName`, and the
+N5 resolution ladder lives there; deleting a variable leaves its
+readers unresolved, typed, never silently re-pointed.
+
+**Spaces and placement.** A part has no location. A **space** is a set
+of copies related to one another; a part is born in its own space. A
+**placement** is the bundle of mates that pins one copy of a part
+relative to others: two placements of a part are two copies, and a mate
+added to a pinned copy refuses as an overconstraint, decided by
+subgroup algebra (A11 (1)) without measuring. A mate places and never
+checks. The **world** is one undeletable frame that copies may be
+related to like a part; export reads its coordinates and nothing else
+does. The kernel computes each space in the frame of its earliest
+member, chosen from the recipe and never from values or from the world,
+so an unrelated edit moves no bit (D9).
+
+**Coincidence.** Whether two cells coincide is a margined verdict like
+any other (Q1): a margin decided Zero glues them, a definite one keeps
+them apart, and one in the sliver band between refuses. Structure
+decides something else: whether the coincidence holds across the
+family. Two cells are **structurally** one when they are the same
+construction of the same variables. Each construction states which of
+its inputs each output carrier is a function of (an extrude's end cap
+is `plane(frame, direction, depth)`, independent of the profile; a side
+wall is independent of where along the direction it sits), and carriers
+compare in a canonical form per kind: the frame modulo the kind's own
+symmetry (a plane forgets in-plane motion and folds a shift along its
+normal into its offset; an axis forgets slide and spin along itself),
+with offsets summed as linear forms over the variables with exact
+rational coefficients and derived variables read as their formulas.
+Equality of canonical forms is an equivalence relation, so a chain of
+blocks each built on its neighbour's floor closes into a loop, and a
+brick laid across two of them sits on both, with nothing more said.
+Coaxiality is one `Axis` variable read twice; tangency is constructed (a
+sketch may read another surface's trace in its plane and continue
+tangent to it).
+
+Every coincidence the kernel infers from values — a boolean's glue, a
+split's ON verdict that makes pieces of one result touch, a contact the
+at-rest census finds — is recorded at the one door where structure is
+decided, and the **`unproven-coincidence` lint** checks whether each one
+holds structurally. One that does not holds only
+at the current values of the variables: the f64 build glues it all the
+same, so no setting changes a built body, and the lint reports it with
+the edit that would make it one construction. The analysis lanes, which
+run over a parameter box, see such a coincidence as the point it is and
+escalate there. "Structurally" is decided at that door; today it is the
+canonical-form equality above, and a later rung — such as the symbolic
+tier's identities — is one addition there that may only prove more.
+
+**Booleans.** A boolean's operands must already be in one space;
+otherwise it refuses. It glues what its verdicts decide Zero where an
+arm exists for the carrier pair (D1's frontier), keeping one fixed
+operand's description for a merged face, and refuses what falls in the
+sliver band.
+
+**Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
+the bound a variable) checks and never places. At rest, contact
+between copies is an `unproven-coincidence` finding unless it is
+structural (a mate-placed face is), and interference is a finding of
+its own; neither refuses where the census has a lane. A finding is
+quiet exactly when an assertion on the same measure at the same site has
+a bound the observation meets and that does not straddle zero: a
+contact finding under an assertion that the gap is zero, an
+interference finding under a bound on one side of zero.
+
+D10 governs where a companion clause disagrees, and these retire as
+the program that builds it reaches them: the declared-contact seats
+(CONTACT-DESIGN C4's `BooleanCoincidence` on booleans, a mate's
+`ContactClass`, C6's `Fit` as a class); the undeclared-coincidence,
+undeclared-contact and undeclared-tangency refusals, which become
+`unproven-coincidence` findings, with ASSEMBLY A5's hard error on an
+unattributed contact; DISCIPLINES DS2's identification grade; the axis
+declaration channel; `ParamSource`'s literal tokens; PARAM-LINT's
+declared-distinct record; the profiles' stored tangent-joint flags; and
+ASSEMBLY A3, A10's sink rule, A11 (2)'s gauges and offsets, A11 (4)'s
+declaring mates and A12's reading edges.
+
 ## Layering
 
 Each layer depends only on the layers below it.
@@ -1122,7 +1282,7 @@ Each layer depends only on the layers below it.
 | `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
-| `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/declared-contact machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
+| `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
 | `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one closed `Verb` enum reifying an operation's parameters as data, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
 | `mesh` / `stl` | Certified tessellation (watertight triangle meshes with source-`Face`/`Edge` back-references); STL export (binary + ASCII) |
@@ -1165,14 +1325,14 @@ kernel residuals the demos raised; M9 the declared-contact join lane.
 Standing outcomes that still bind:
 
 - **Production bit-identity coincidence checking is RETIRED** (Ev, #53;
-  #102). The ratified mechanism is NAMING-DESIGN N6 recipe-source
-  identity — `GeomSource`: same source ⇒ same bits by D9, converse
-  deliberately unclaimed. `geom_core::bit_identity`'s consumers are
+  #102). The ratified mechanism is D10's structural identity (the same
+  construction of the same variables, in canonical form): same source
+  ⇒ same bits by D9, converse deliberately unclaimed. `geom_core::bit_identity`'s consumers are
   debug-only with an EMPTY production allowlist (CI tripwires stay
   armed; a new consumer must be allowlisted and carry a
-  retirement-scheduled note). Undeclared value-equal flush booleans
-  refuse typed at the coincidence door — declared intent is the
-  supported road.
+  retirement-scheduled note). A value-equal flush boolean glues on its
+  Zero verdict and is reported by the `unproven-coincidence` lint
+  (D10); one construction is the supported road.
 - **K = 10 is the permanent ratified default** (#89 CLOSED,
   `docs/K-REPORT.md`).
 
@@ -1252,8 +1412,14 @@ these. All are shipped in `editor-core` except where noted:
   it; it is not unique and never identity (references hold ids, and
   nothing resolves a label). Kernel sentences speak a node as its
   kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
-  and tag when it has none; the label is read off the document when
-  the sentence is made, never from a value the evaluation memo reuses.
+  and tag when it has none. A spoken label is never one its value can
+  outlive: a value the evaluation memo reuses holds a label only when
+  its memo key fixes that label. A document's own labels are outside
+  its evaluation key (a rename re-evaluates nothing), so what it
+  memoizes keeps bare ids and the label is read off the document when
+  the sentence is made; a part's labels are in its pin, and the pin is
+  in the instance's key, so a fault from inside a part carries the
+  part's nodes as the pinned part says them.
   The kernel mints no label; the viewer's create forms propose an
   editable "Kind N", stored only when the person commits it. Faces and
   bodies carry the same `Label` text as an appearance attribute.
@@ -1283,8 +1449,8 @@ framing because that is what they still cost.
 ### Band 3 — the subsystems beyond the kernel proper
 
 - **Assemblies — shipped at v1 scope** (`crates/editor-core/ASSEMBLY.md`):
-  an assembly document is a recipe DAG of the same formalism —
-  instantiate-part, mates and patterns are ordinary feature nodes, so
+  an assembly document is a recipe of the same formalism (D10) —
+  copies of parts, mates and patterns are ordinary operations, so
   the editor and solver machinery transfers unchanged; binding is
   pinned-with-explicit-update, the Cargo.lock model. Interference
   checks fall out of booleans / M10 clearance.
@@ -1318,20 +1484,17 @@ Cross-milestone commitments; each binds at the layer named.
   correctness proof; no dirty-flag invalidation. The key shape is
   shipped (mesh back-references, the content/naming keys); a
   finer-grained per-artifact transfer service remains future.
-- **Coincidence is structural or declared, never inferred from
-  values.** Treating bit-equal descriptions as semantic coincidence
-  would make topology hinge on an UNMARGINED predicate — a razor-thin
-  equal-vs-one-ulp cliff with no escalation band, exactly what Q1
-  forbids — and value equality is not evidence of intent anyway. The
-  ladder: (a) **shared surface key** — coincidence explicit by
-  construction; (b) equal-but-independent descriptions do **not** glue
-  — if the user means flush, the recipe must say so (share the surface,
-  or declare the relation); description-equality *detection* is a
-  diagnostic affordance only; (c) near-coincidence between unrelated
-  definitions is a typed sliver error whose resolution is an explicit
-  repair/adoption operation — D7's machinery applied natively.
-  Consequence: topology depends only on recipe structure and margined
-  verdicts, so predicate flips remain the *only* topology-change sites.
+- **Coincidence is a margined verdict.** Bit-equality is never the
+  test — it would make topology hinge on an UNMARGINED predicate, a
+  razor-thin equal-vs-one-ulp cliff with no escalation band, exactly
+  what Q1 forbids. A margin decided Zero is a coincidence and glues; a
+  definite margin keeps the cells apart; a margin in the sliver band
+  refuses typed, its resolution an explicit construction or
+  repair/adoption — D7's machinery applied natively. Nothing is
+  declared. The `unproven-coincidence` lint (D10) checks whether each
+  coincidence so decided holds structurally. Consequence: topology
+  depends only on recipe structure and margined verdicts, so predicate
+  flips remain the *only* topology-change sites.
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
@@ -1383,9 +1546,9 @@ Cross-milestone commitments; each binds at the layer named.
   formatting (serde_json with `float_roundtrip`) for finite values;
   NaN/inf refuse typed (`PersistError::NonFinite`); lossy formatters
   banned; enforced by a save/load/replay-identity test. Replay never
-  solves: no edit records a frame (A11 (2)), so load re-applies the
-  edits alone, and a saved document reproduces its gauges and offsets
-  bit for bit with no part store in hand.
+  solves: no edit records a frame (a placement is its mates, D10), so load re-applies the
+  edits alone, and a saved document reproduces its placements bit for
+  bit with no part store in hand.
 - **Flags banked**: mate solving needs witnesses/interval contraction
   on SE(3), not ℝⁿ; recipe-level provenance carries **pattern indices**
   explicitly so references into indexed families never degrade to

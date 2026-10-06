@@ -52,20 +52,21 @@
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
+use pncad::document::ExtrudeSide;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Label,
-    LoopProgram, Maintenance, MaintenanceNet, Node, ParamName, PartReach, PartResolver,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId, StepId, Subject, apply, assemble_gathered,
-    cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Formula, FreeValue,
+    FreeVar, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
+    apply, assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{FlushFinding, Resolution, RunCtx, declare_node, resolve};
+use pncad::select::{FlushFinding, Resolution, RunCtx, declared_pairs, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
@@ -124,16 +125,13 @@ enum GestureTarget {
     /// **No unit, and it is not the slot arm's omission.** A slot's
     /// edit rebuilds the literal, so the notation has to be carried
     /// into it or the drag rewrites it; a parameter's edit is the
-    /// value door (`DocEdit::SetDocParamValue`), which writes a number
+    /// value door (`DocEdit::SetVarValue`), which writes a number
     /// into the standing declaration and leaves the authored unit
     /// beside it untouched. There is nothing here for a captured unit
     /// to protect. The panel still SHOWS the drag in the parameter's
     /// written unit — it converts before the value crosses into this
     /// layer, which is canonical throughout.
-    Param {
-        name: ParamName,
-        dimension: Dimension,
-    },
+    Param { var: VarId, dimension: Dimension },
 }
 
 impl GestureTarget {
@@ -152,7 +150,7 @@ impl GestureTarget {
     ///
     /// # Errors
     ///
-    /// [`SlotValue::of`]'s, which is `Expr::literal`'s own
+    /// [`SlotValue::of`]'s, which is `Formula::literal`'s own
     /// finiteness refusal reached for a `Count` target, where the
     /// literal door is not on the path.
     fn value_of(&self, value: f64) -> Result<SlotValue, pncad::document::DimensionError> {
@@ -175,7 +173,7 @@ impl GestureTarget {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param { name, .. } => ValueGestureName::Param(name.clone()),
+            Self::Param { var, .. } => ValueGestureName::Param(*var),
         }
     }
 
@@ -187,7 +185,7 @@ impl GestureTarget {
     fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
             Self::Slot { node, slot, unit } => props::slot_edit(*node, *slot, value, *unit),
-            Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
+            Self::Param { var, .. } => Ok(props::param_edit(*var, value)),
         }
     }
 }
@@ -241,6 +239,14 @@ fn driver_of(
     Ok((row.driver, row.value.ok()))
 }
 
+/// Whether `expr` reads any variable, by id or by name.
+fn reads_a_variable(expr: &Formula) -> bool {
+    let (mut ids, mut names) = (Vec::new(), Vec::new());
+    expr.var_reads(&mut ids);
+    expr.named_reads(&mut names);
+    !ids.is_empty() || !names.is_empty()
+}
+
 /// Refuse a numeric edit to a driven slot, with the affordance.
 fn guard_driven(
     doc: &Doc<ProfileProgram>,
@@ -288,10 +294,10 @@ fn carry_unmoved(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     current: &ProfileProgram,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: &[Vec<Option<StepId>>],
     notation: Notation,
-) -> Result<Vec<LoopProgram>, Refusal> {
+) -> Result<Vec<LoopProgram<Formula>>, Refusal> {
     let was: std::collections::HashMap<StepId, (u32, u32)> = current
         .ids
         .iter()
@@ -343,7 +349,9 @@ fn carry_unmoved(
             arg,
         };
         match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(committed) => *held = committed.clone(),
+            Some(held) if held.bit_eq(&Formula::from(committed)) => {
+                *held = Formula::from(committed)
+            }
             _ if committed.literal_value().is_some() => {}
             _ => guard_driven(doc, node, slot, notation)?,
         }
@@ -902,9 +910,9 @@ impl DocSession {
                 node: *node,
                 present: self.doc().node(*node).is_some(),
             },
-            Selection::Param(name) => Standing::Param {
-                name: name.clone(),
-                present: self.doc().params().contains_key(name),
+            Selection::Param(var) => Standing::Param {
+                var: self.doc().spoken_var(*var),
+                present: self.doc().var(*var).is_some(),
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
@@ -1407,23 +1415,28 @@ impl DocSession {
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
-            SessionOp::SetParam { name, value } => self.set_param(&name, value),
-            SessionOp::SetParamUnit { name, unit } => self.set_param_unit(name, unit),
-            SessionOp::SetParamText { name, text } => self.set_param_text(name, &text),
-            SessionOp::CreateParam { name, value } => self.create_param(name, value),
+            SessionOp::SetParam { var, value } => self.set_param(var, value),
+            SessionOp::SetParamUnit { var, unit } => self.set_param_unit(var, unit),
+            SessionOp::SetParamText { var, text } => self.set_param_text(var, &text),
+            SessionOp::DeclareVar { name, value } => self.declare_var(name, value),
+            SessionOp::RenameVar { var, name } => self.commit(DocEdit::RenameVar {
+                var: var.into(),
+                name,
+            }),
+            SessionOp::DeleteVar { var } => self.commit(DocEdit::DeleteVar { var: var.into() }),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
-            SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
+            SessionOp::BeginParamGesture { var } => self.begin_param_gesture(var),
             SessionOp::PreviewGesture { node, slot, value } => {
                 self.preview_gesture(&ValueGestureName::Slot { node, slot }, value)
             }
             SessionOp::CommitGesture { node, slot } => {
                 self.commit_gesture(&ValueGestureName::Slot { node, slot })
             }
-            SessionOp::PreviewParamGesture { name, value } => {
-                self.preview_gesture(&ValueGestureName::Param(name), value)
+            SessionOp::PreviewParamGesture { var, value } => {
+                self.preview_gesture(&ValueGestureName::Param(var), value)
             }
-            SessionOp::CommitParamGesture { name } => {
-                self.commit_gesture(&ValueGestureName::Param(name))
+            SessionOp::CommitParamGesture { var } => {
+                self.commit_gesture(&ValueGestureName::Param(var))
             }
             SessionOp::CancelGesture => match self.gesture.cancel(gesture_words()) {
                 // Only a drag that actually put a scratch document on
@@ -1838,23 +1851,8 @@ impl DocSession {
             .map(Refusal::SlotUnit)
     }
 
-    /// **The declared dimensions `parse_expr` reads text against** —
-    /// every text door's first argument, and one function because
-    /// both of them wanted it.
-    ///
-    /// The parser needs them so a parameter reference records the
-    /// dimension `apply` will re-check it against; a door that built
-    /// the map itself would be free to build a different one.
-    fn param_dims(&self) -> std::collections::BTreeMap<ParamName, Dimension> {
-        self.committed_doc()
-            .params()
-            .iter()
-            .map(|(name, param)| (name.clone(), param.dim()))
-            .collect()
-    }
-
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.param_dims()) {
+        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
@@ -1874,38 +1872,38 @@ impl DocSession {
         // source is no echo of anything. `Self::writes_nothing` asks the question
         // that is actually being asked here — whether the expression
         // offered is the expression standing — and the `unparse` /
-        // `parse_expr` round trip preserves both the bits and the
+        // `parse_formula` round trip preserves both the bits and the
         // display unit, so a source re-typed as itself compares equal.
         self.commit_written(edit)
     }
 
     /// The value door: write a declared parameter's value.
     ///
-    /// A name the document does not declare takes the commit path so
+    /// A variable the document does not hold takes the commit path so
     /// the typed refusal comes from the door rather than from here —
-    /// `DocEdit::SetDocParamValue` carries an existing declaration
-    /// forward and refuses `EditError::DocParamNotDeclared` when there
-    /// is none.
-    fn set_param(&mut self, name: &ParamName, value: SlotValue) -> OpOutcome {
-        self.commit_written(props::param_edit(name.clone(), value))
+    /// `DocEdit::SetVarValue` carries an existing definition forward
+    /// and refuses `EditError::UnknownVar` when there is none.
+    fn set_param(&mut self, var: VarId, value: SlotValue) -> OpOutcome {
+        self.commit_written(props::param_edit(var, value))
     }
 
     /// The notation door: rewrite a declared parameter's display unit,
     /// its value untouched.
     ///
     /// No pre-check, for [`Self::set_param`]'s reason: every way this
-    /// can refuse — an undeclared name, a `Count`, a unit that does
-    /// not measure the declared dimension — is refused by
-    /// `DocEdit::SetDocParamUnit` in the door's own words, and a
+    /// can refuse — a variable the document does not hold, a `Count`,
+    /// a unit that does not measure the declared dimension — is refused by
+    /// `DocEdit::SetVarUnit` in the door's own words, and a
     /// second opinion here could only agree or disagree.
-    fn set_param_unit(&mut self, name: ParamName, unit: UnitDef) -> OpOutcome {
-        self.commit_written(props::param_unit_edit(name, unit))
+    fn set_param_unit(&mut self, var: VarId, unit: UnitDef) -> OpOutcome {
+        self.commit_written(props::param_unit_edit(var, unit))
     }
 
     /// The text door: a number, and the notation to write it in, from
-    /// one piece of typed text.
+    /// one piece of typed text — or an expression, which DEFINES the
+    /// variable (`DocEdit::DefineVar`), keeping its identity.
     ///
-    /// **One parser.** `parse_expr` reads `50 mm` into a literal that
+    /// **One parser.** `parse_formula` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
     /// the one multiply is the parser's — so what arrives here is read
     /// off the literal and never scaled again.
@@ -1932,40 +1930,87 @@ impl DocSession {
     /// one fact, and a number that reads back as the one standing
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
-    fn set_param_text(&mut self, name: ParamName, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.param_dims()) {
+    fn set_param_text(&mut self, var: VarId, text: &str) -> OpOutcome {
+        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
-        // A literal is the whole of what a parameter can hold. Every
-        // other kind of expression — a reference, an operator, a count
-        // — is refused by name rather than flattened to a number,
-        // because flattening would store a value the text does not
-        // say.
-        let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
-            return OpOutcome::refused(Refusal::ParamNotANumber { name });
+        // Text that reads a variable defines this one by it.
+        let constant = (!reads_a_variable(&expr))
+            .then(|| Expr::try_from(&expr).ok())
+            .flatten();
+        let Some(stored) = constant else {
+            return self.commit(DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::defined(expr),
+            });
         };
-        let declared = self.committed_doc().params().get(&name).map(DocParam::dim);
-        let notation = props::param_unit_edit(name.clone(), unit);
-        let written = props::param_edit(name.clone(), SlotValue::Continuous(value));
-        match declared {
-            // An undeclared name takes the commit path so the typed
+        // Constant text is a value, folded as a written quantity is, so
+        // `50 mm + 1 mm` writes 51 mm and keeps the variable's identity
+        // and distribution. Only a literal carries a notation to write.
+        let env = pncad::document::VarEnv::<f64>::default();
+        let folded = if expr.dim() == Dimension::Count {
+            pncad::document::eval_count(&stored, &env).map(SlotValue::Count)
+        } else {
+            pncad::document::eval(&stored, &env).map(SlotValue::Continuous)
+        };
+        let value = match folded {
+            Ok(value) => value,
+            Err(source) => {
+                return OpOutcome::refused(Refusal::ConstantRefused {
+                    var: self.committed_doc().spoken_var(var),
+                    source,
+                });
+            }
+        };
+        let doc = self.committed_doc();
+        let Some(held) = doc.var(var) else {
+            // An undeclared variable takes the commit path so the typed
             // refusal comes from the door rather than from here, the
             // way [`Self::set_param`]'s does.
-            None => return self.commit(written),
-            // **A `Count` gets the VALUE edit and only that.** A count
-            // names no notation at all, so the notation half of this
-            // door has nothing to say about one, and submitting it
-            // anyway answers what the user did — typing a value — in
-            // the words of a change nobody asked for ("it has no
-            // display unit to change"). The value edit is the act, and
-            // refusing it names the right half: a count declared where
-            // a continuous value was typed.
-            Some(Dimension::Count) => return self.commit(written),
-            Some(Dimension::Length | Dimension::Angle | Dimension::Scalar) => {}
+            return self.commit(props::param_edit(var, value));
+        };
+        let kind = held.kind();
+        let defined = held.def().defined().is_some();
+        let notation = match (value, expr.display_unit()) {
+            (SlotValue::Continuous(_), Some(unit)) => Some(props::param_unit_edit(var, unit)),
+            _ => None,
+        };
+        let written = props::param_edit(var, value);
+        // A value typed over a definition frees the variable first, at
+        // its own kind and in its kind's canonical notation, and then
+        // writes the value through the same doors a free variable's
+        // field does — one action, so a value of another kind refuses
+        // in the value door's words and leaves the definition standing.
+        if defined {
+            let freed = match kind {
+                pncad::document::VarKind::Count => FreeVar::Count { value: 0 },
+                _ => FreeVar::continuous(kind.dimension(), 0.0),
+            };
+            let free_again = DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::Free(freed),
+            };
+            return self.commit_action(
+                std::iter::once(free_again)
+                    .chain(notation)
+                    .chain([written])
+                    .collect(),
+            );
         }
-        let edits: Vec<DocEdit<ProfileProgram>> = [notation, written]
+        // **A `Count` gets the VALUE edit and only that.** A count names
+        // no notation at all, so the notation half of this door has
+        // nothing to say about one, and submitting it anyway answers
+        // what the user did — typing a value — in the words of a change
+        // nobody asked for ("it has no display unit to change"). The
+        // value edit is the act, and refusing it names the right half:
+        // a count declared where a continuous value was typed.
+        if kind == pncad::document::VarKind::Count {
+            return self.commit(written);
+        }
+        let edits: Vec<DocEdit<ProfileProgram>> = notation
             .into_iter()
+            .chain([written])
             .filter(|edit| !self.writes_nothing(edit))
             .collect();
         if edits.is_empty() {
@@ -1974,17 +2019,14 @@ impl DocSession {
         self.commit_action(edits)
     }
 
-    /// The create door: refuse an already-declared name typed, commit
-    /// the edit for a new one. See [`SessionOp::CreateParam`] for why
-    /// this door narrows the edit's create-or-replace semantics.
-    fn create_param(&mut self, name: ParamName, value: DocParam) -> OpOutcome {
-        if let Some(existing) = self.committed_doc().params().get(&name) {
-            return OpOutcome::refused(Refusal::ParamExists {
-                dimension: existing.dim(),
-                name,
-            });
-        }
-        self.commit(DocEdit::SetDocParam { name, value })
+    /// The create door: one `DeclareVar`. A taken name is the
+    /// declare's to refuse (`EditError::VarNameTaken`), and reaches the
+    /// caller through [`Refusal::Edit`] in the door's own words.
+    fn declare_var(&mut self, name: VarName, value: FreeVar) -> OpOutcome {
+        self.commit(DocEdit::DeclareVar {
+            name,
+            def: pncad::document::VarDecl::Free(value),
+        })
     }
 
     /// The slot door: a drag over a literal slot's number.
@@ -2004,16 +2046,17 @@ impl DocSession {
         })
     }
 
-    /// The parameter door: a drag over a declared parameter's value.
-    fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
-        let name = name.clone();
+    /// The parameter door: a drag over a declared parameter's value. A
+    /// defined one opens too, at its kind, and its first preview is
+    /// refused by the value door in its own words
+    /// ([`pncad::document::EditError::NotAFreeVar`]).
+    fn begin_param_gesture(&mut self, var: VarId) -> OpOutcome {
         self.start(move |doc| {
             let dimension = doc
-                .params()
-                .get(&name)
-                .map(|param| param.dim())
-                .ok_or_else(|| Refusal::NoSuchParam(name.clone()))?;
-            Ok(GestureTarget::Param { name, dimension })
+                .var(var)
+                .map(|held| held.kind().dimension())
+                .ok_or(Refusal::NoSuchParam(var))?;
+            Ok(GestureTarget::Param { var, dimension })
         })
     }
 
@@ -2102,7 +2145,7 @@ impl DocSession {
                 // check can hold; the other half is that
                 // [`GestureTarget::edit`] can produce nothing but
                 // `SetParam`, `SetStructuralParam` and
-                // `SetDocParamValue`, none of which removes a node
+                // `SetVarValue`, none of which removes a node
                 // either.
                 assert!(
                     applied.record.minted.is_none(),
@@ -2344,7 +2387,7 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
         let plane = match plane {
             // The plane is a PICK, so it is gated where every other
             // pick is: at this door, by kind, before the edit. Without
@@ -2378,38 +2421,25 @@ impl DocSession {
     /// committed action and therefore one undo
     /// ([`ProfilePlane::NewXy`]).
     ///
-    /// The frame's id is not predicted: each edit is built from what
-    /// its predecessor MINTED ([`Self::commit_run`]), so the profile
+    /// The frame's id is not predicted: the profile is built from what
+    /// the frame's insert MINTED ([`Self::commit_run`]), so the profile
     /// names the node the door actually created. All-or-nothing comes
     /// free with that — a profile the insert door refuses leaves no
     /// orphan frame behind, because nothing is recorded until both
     /// edits have landed.
-    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
         let frame = match ProfilePlane::world_xy() {
             Ok(frame) => datum_node(frame),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
-        let mut loops = Some(loops);
-        self.commit_run(|minted| match minted {
-            [] => Some(DocEdit::InsertNode {
-                node: Box::new(frame.clone()),
-            }),
-            [Some(plane)] => Some(DocEdit::InsertNode {
-                node: Box::new(Node::Profile(ProfileProgram {
-                    plane: *plane,
-                    // Loud, like the arm below: ending the run here
-                    // instead would commit the lone frame, which is
-                    // the exact orphan all-or-nothing promises
-                    // against. The generator is called once per
-                    // position and this position comes round once.
-                    loops: loops
-                        .take()
-                        .unwrap_or_else(|| unreachable!("the profile's position comes round once")),
-                    ids: Vec::new(),
-                })),
-            }),
-            [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
-            _ => None,
+        self.commit_run(|run| {
+            let plane = run.insert(frame)?;
+            run.insert(Node::Profile(ProfileProgram {
+                plane,
+                loops,
+                ids: Vec::new(),
+            }))?;
+            Ok(())
         })
     }
 
@@ -2419,7 +2449,7 @@ impl DocSession {
         &mut self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> OpOutcome {
         match self.set_program_of(node, base, loops, ids) {
@@ -2432,9 +2462,9 @@ impl DocSession {
     /// **What [`SessionOp::EditProfile`] would report, without
     /// committing it** — the edit door's own `Applied::maintenance` for
     /// the one `SetProgram` the op would commit, netted by
-    /// [`MaintenanceNet`] as the commit nets it: every name on a step
-    /// the reshaping drops, stranded. Empty when the op would write
-    /// nothing.
+    /// [`Recording`] as the commit nets it: every name on a step
+    /// the reshaping drops, or on a kept step's piece it stops drawing,
+    /// stranded. Empty when the op would write nothing.
     ///
     /// The profile editor reads it BEFORE its Apply, while the person
     /// can still keep the step; the op's outcome carries the same rows
@@ -2447,7 +2477,7 @@ impl DocSession {
         &self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> Result<Vec<Maintenance>, Refusal> {
         let Some(edit) = self.set_program_of(node, base, loops, ids)? else {
@@ -2455,11 +2485,10 @@ impl DocSession {
         };
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        let applied = apply(self.committed_doc(), &edit, self.tol, &reach)
-            .map_err(|error| Refusal::Edit(Box::new(error)))?;
-        let mut net = MaintenanceNet::new();
-        net.push(&applied);
-        Ok(net.finish(&applied.doc))
+        let mut run = Recording::start(self.committed_doc(), self.tol, &reach);
+        let refused = |error| Refusal::Edit(Box::new(error));
+        run.apply(edit).map_err(refused)?;
+        Ok(run.finish().map_err(refused)?.maintenance)
     }
 
     /// **The one `SetProgram` [`SessionOp::EditProfile`] commits**, or
@@ -2468,7 +2497,7 @@ impl DocSession {
         &self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> Result<Option<DocEdit<ProfileProgram>>, Refusal> {
         self.require_kind(node, NodeKindWanted::Profile)?;
@@ -2492,18 +2521,27 @@ impl DocSession {
 
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
-    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Expr) -> OpOutcome {
+    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Formula) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Extrude { profile, distance }),
+            node: Box::new(Node::Extrude {
+                profile,
+                distance,
+                side: ExtrudeSide::Along,
+            }),
         })
     }
 
     /// Insert one revolve of an existing profile about an existing
     /// axis datum ([`SessionOp::AddRevolve`]).
-    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Expr) -> OpOutcome {
+    fn add_revolve(
+        &mut self,
+        profile: RecipeNodeId,
+        axis: RecipeNodeId,
+        angle: Formula,
+    ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
@@ -2519,8 +2557,8 @@ impl DocSession {
         })
     }
 
-    /// Insert one regularized boolean of two existing bodies, and the
-    /// declaration of the contacts it names
+    /// Insert one regularized boolean of two existing bodies, carrying
+    /// the declaration of the contacts it names
     /// ([`SessionOp::AddBoolean`]).
     fn add_boolean(
         &mut self,
@@ -2542,32 +2580,19 @@ impl DocSession {
         // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        let declaration = if declare.is_empty() {
-            None
-        } else {
-            Some(declare_node(&declare).unwrap_or_else(|error| {
-                unreachable!(
-                    "`declare_node` refuses only an empty list, and this one is not: {error}"
-                )
-            }))
-        };
-        let boolean = |declare| DocEdit::InsertNode {
-            node: Box::new(Node::Boolean { op, a, b, declare }),
-        };
-        let staged = self.stage_run(|minted| match (minted, &declaration) {
-            ([], None) => Some(boolean(None)),
-            ([], Some(node)) => Some(DocEdit::InsertNode {
-                node: Box::new(node.clone()),
-            }),
-            ([Some(declared)], Some(_)) => Some(boolean(Some(*declared))),
-            _ => None,
+        // An empty list is the undeclared boolean.
+        let pairs = declared_pairs(&declare);
+        let staged = self.stage_run(|run| {
+            run.insert(Node::Boolean {
+                op,
+                a,
+                b,
+                declare: pairs,
+            })
         });
-        let staged = match staged {
+        let (staged, node) = match staged {
             Ok(staged) => staged,
             Err(refusal) => return OpOutcome::refused(refusal),
-        };
-        let Some(Some(node)) = staged.minted.last().copied() else {
-            unreachable!("the run ends on the boolean's `InsertNode`")
         };
         // Judged before it is recorded: the one recourse to a contact
         // refusal is a declaration in the same action, which cannot be
@@ -2607,9 +2632,9 @@ impl DocSession {
     fn add_transform(
         &mut self,
         input: RecipeNodeId,
-        translation: [Expr; 3],
-        rotation_axis: [Expr; 3],
-        rotation_angle: Expr,
+        translation: [Formula; 3],
+        rotation_axis: [Formula; 3],
+        rotation_angle: Formula,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
@@ -2730,22 +2755,12 @@ impl DocSession {
         // takes the root slot the pattern took from the body it
         // replicates; each later projection's input has stopped being a
         // root by then, so it is APPENDED to the root list.
-        self.commit_run(|minted| match minted.split_first() {
-            None => Some(DocEdit::InsertNode {
-                node: Box::new(pattern.clone()),
-            }),
-            Some((Some(pattern), projections)) => i64::try_from(projections.len())
-                .ok()
-                .filter(|index| *index < combine::DUPLICATE_COUNT)
-                .map(|index| DocEdit::InsertNode {
-                    node: Box::new(combine::part_node(
-                        *pattern,
-                        PartSelectSpec::Instance(index),
-                    )),
-                }),
-            Some((None, _)) => {
-                unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)")
+        self.commit_run(|run| {
+            let pattern = run.insert(pattern)?;
+            for index in 0..combine::DUPLICATE_COUNT {
+                run.insert(combine::part_node(pattern, PartSelectSpec::Instance(index)))?;
             }
+            Ok(())
         })
     }
 
@@ -2764,7 +2779,7 @@ impl DocSession {
     fn add_blend(
         &mut self,
         target: RecipeNodeId,
-        size: Expr,
+        size: Formula,
         selection: Vec<StableName>,
         kind: BlendKindChoice,
     ) -> OpOutcome {
@@ -2826,32 +2841,43 @@ impl DocSession {
     fn writes_nothing(&self, edit: &DocEdit<ProfileProgram>) -> bool {
         let doc = self.committed_doc();
         match edit {
-            // A slot's literal, against the expression the node
-            // stands at — the same comparison for a structural slot,
-            // which differs only in which edit carries it.
+            // A slot's expression, against the one the node stands at
+            // — the same comparison for a structural slot, which
+            // differs only in which edit carries it. The offered one is
+            // compared as the door would store it: its name leaves
+            // lowered to the variables they name, since a stored
+            // expression reads ids.
             DocEdit::SetParam { node, slot, expr }
             | DocEdit::SetStructuralParam { node, slot, expr } => {
-                doc.node(*node).and_then(|node| node.expr(*slot)) == Some(expr)
+                doc.lowered(expr).is_ok_and(|offered| {
+                    doc.node(*node).and_then(|node| node.expr(*slot)) == Some(&offered)
+                })
             }
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:
             // the edit is a redeclaration and the door refuses it.
-            DocEdit::SetDocParamValue { name, value } => match (doc.params().get(name), value) {
-                (
-                    Some(DocParam::Continuous { value: stood, .. }),
-                    DocParamValue::Continuous(offered),
-                ) => stood == offered,
-                (Some(DocParam::Count { value: stood }), DocParamValue::Count(offered)) => {
-                    stood == offered
+            DocEdit::SetVarValue { var, value } => {
+                match (doc.resolve_var(var).and_then(|id| doc.free(id)), value) {
+                    (
+                        Some(FreeVar::Continuous { value: stood, .. }),
+                        FreeValue::Continuous(offered),
+                    ) => stood == offered,
+                    (Some(FreeVar::Count { value: stood }), FreeValue::Count(offered)) => {
+                        stood == offered
+                    }
+                    _ => false,
                 }
-                _ => false,
-            },
-            DocEdit::SetDocParamUnit { name, unit } => matches!(
-                doc.params().get(name),
-                Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
+            }
+            DocEdit::SetVarUnit { var, unit } => matches!(
+                doc.resolve_var(var).and_then(|id| doc.free(id)),
+                Some(FreeVar::Continuous { display_unit, .. }) if display_unit == unit
             ),
             // The rename field's text, against the label the node has.
             DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),
+            DocEdit::SetExtrudeSide { node, side } => matches!(
+                doc.node(*node),
+                Some(Node::Extrude { side: stood, .. }) if stood == side
+            ),
             // Every other edit submits. The structure of the recipe and
             // the shape of the product: a node inserted, deleted,
             // re-parented or re-pointed has no standing value of its
@@ -2859,6 +2885,7 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
+            | DocEdit::SetDeclare { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -2871,14 +2898,20 @@ impl DocSession {
             // on, not a panel field's value.
             | DocEdit::SetOffset { .. }
             | DocEdit::SetGauge { .. }
-            // The declaration doors that are not the value or the
-            // notation half. `SetDocParam` is create-or-replace: a
-            // redeclaration is an act — it is how a parameter's
-            // DIMENSION changes — and the door refuses or performs it
-            // on its own terms. A distribution is an annotation no
-            // panel field shows.
-            | DocEdit::SetDocParam { .. }
-            | DocEdit::SetDocParamDistribution { .. }
+            | DocEdit::Promote { .. }
+            | DocEdit::Fold { .. }
+            // The variable doors that are not the value or the
+            // notation half. A declare mints a variable and a
+            // definition replaces one whole: each is an act the door
+            // refuses or performs on its own terms. A distribution is
+            // an annotation no panel field shows. A rename's unchanged
+            // name is the door's own refusal (`VarNameUnchanged`), and
+            // a delete has no standing value to equal.
+            | DocEdit::DeclareVar { .. }
+            | DocEdit::DefineVar { .. }
+            | DocEdit::SetVarDistribution { .. }
+            | DocEdit::RenameVar { .. }
+            | DocEdit::DeleteVar { .. }
             // A subtree rewrite at an `ExprPath`, which no panel door
             // emits: the comparison it would want is against the
             // REBUILT ancestor rather than against the payload, and
@@ -2959,96 +2992,75 @@ impl DocSession {
     /// list of them: one run of [`Self::commit_run`], so one user
     /// action is one undo.
     fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
-        let mut edits = edits.into_iter();
-        self.commit_run(|_| edits.next())
+        self.commit_run(|run| {
+            for edit in edits {
+                run.apply(edit)?;
+            }
+            Ok(())
+        })
     }
 
     /// The same door again, for an action whose later edits name the
     /// ids its earlier ones MINTED: [`Self::stage_run`], then
     /// [`Self::record_run`].
-    fn commit_run<F>(&mut self, next: F) -> OpOutcome
-    where
-        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
-    {
-        match self.stage_run(next) {
-            Ok(staged) => self.record_run(staged),
+    fn commit_run(
+        &mut self,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError>,
+    ) -> OpOutcome {
+        match self.stage_run(action) {
+            Ok((staged, ())) => self.record_run(staged),
             Err(refusal) => OpOutcome::refused(refusal),
         }
     }
 
-    /// **An action's edits, applied and not yet recorded.**
+    /// **An action's edits, applied and not yet recorded**, beside what
+    /// `action` answered.
     ///
-    /// `next` is handed what each edit so far minted, in order — an
-    /// `InsertNode`'s new id, `None` for every edit that creates no
-    /// node — and answers with the next edit, or `None` to end the
-    /// run. The slice's LENGTH is how many edits have landed, so a
-    /// caller that only inserts can match on its shape and a caller
-    /// with a fixed list ([`Self::commit_action`]) ignores it.
+    /// `action` records its edits on the [`Recording`] it is handed — an
+    /// insert through [`Recording::insert`], which answers the id it
+    /// minted, so a later edit names the node the door actually
+    /// created.
     ///
     /// **All or nothing**: each edit is applied to the value the last
     /// one produced and nothing is recorded until [`Self::record_run`]
-    /// takes the result, so a refusal anywhere — or a caller that
-    /// drops the staged run — leaves the session on the document it
-    /// started from. That is purity doing the work — no rollback
-    /// exists to be got wrong.
-    fn stage_run<F>(&self, mut next: F) -> Result<StagedRun, Refusal>
-    where
-        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
-    {
+    /// takes the result. A refused edit ends the run — the recording
+    /// answers its refusal from then on, `finish` included — so a
+    /// refusal leaves the session on the document it started from
+    /// whether or not `action` stops at it, and so does a caller that
+    /// drops the staged run. That is purity doing the work — no
+    /// rollback exists to be got wrong.
+    fn stage_run<T>(
+        &self,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<T, EditError>,
+    ) -> Result<(Recorded<ProfileProgram>, T), Refusal> {
         // ONE reach for the whole action, over the session's own seam
         // (the directory rule; `None` refuses typed): an inserted
         // mate's clocking rider asks it, and nothing it decides is
         // recorded — the edits are the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        // Threaded rather than cloned up front: the first `apply`
-        // reads the history's value in place, and each later one reads
-        // its predecessor's output, so a group of one costs exactly
-        // what a single commit always cost.
-        let mut produced: Option<Doc<ProfileProgram>> = None;
-        let mut logged: Vec<DocEdit<ProfileProgram>> = Vec::new();
-        let mut net = MaintenanceNet::new();
-        let mut minted: Vec<Option<RecipeNodeId>> = Vec::new();
-        while let Some(edit) = next(&minted) {
-            let attempt = {
-                let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
-                apply(base, &edit, self.tol, &reach)
-            };
-            match attempt {
-                Ok(applied) => {
-                    logged.push(edit);
-                    minted.push(applied.record.minted);
-                    net.push(&applied);
-                    produced = Some(applied.doc);
-                }
-                Err(error) => return Err(Refusal::Edit(Box::new(error))),
-            }
-        }
-        let Some(doc) = produced else {
+        let mut run = Recording::start(self.history.doc(), self.tol, &reach);
+        let answer = action(&mut run);
+        let refused = |error| Refusal::Edit(Box::new(error));
+        let staged = run.finish().map_err(refused)?;
+        let answer = answer.map_err(refused)?;
+        if staged.edits.is_empty() {
             unreachable!("an action commits at least one edit")
-        };
-        Ok(StagedRun {
-            doc,
-            logged,
-            net,
-            minted,
-        })
+        }
+        Ok((staged, answer))
     }
 
     /// **A staged run, recorded**: the whole run is one history state,
     /// so one user action is one undo.
-    fn record_run(&mut self, staged: StagedRun) -> OpOutcome {
-        let StagedRun {
+    fn record_run(&mut self, staged: Recorded<ProfileProgram>) -> OpOutcome {
+        let Recorded {
             doc,
-            logged,
-            net,
+            edits,
+            maintenance,
             minted,
         } = staged;
-        let committed = logged.clone();
-        // Net over the action: a row an earlier edit reported can be
-        // made moot by a later one ([`MaintenanceNet`]).
-        let maintenance = net.finish(&doc);
-        self.history.commit_group(logged, doc);
+        let committed = edits.clone();
+        self.history.commit_group(edits, doc);
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
@@ -3094,19 +3106,6 @@ impl DocSession {
     }
 }
 
-/// An action's edits applied in order and not yet recorded
-/// ([`DocSession::stage_run`]).
-struct StagedRun {
-    /// The document the last edit produced.
-    doc: Doc<ProfileProgram>,
-    /// Each edit, for the history.
-    logged: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance, netted over the whole action.
-    net: MaintenanceNet,
-    /// What each edit minted, in the order the edits applied.
-    minted: Vec<Option<RecipeNodeId>>,
-}
-
 /// Whether a document is assembly-shaped — one of the two conditions
 /// [`AtRestBadge`] names for taking an A5 badge: a document that
 /// instantiates no part declares no cross-instance rest and has
@@ -3130,9 +3129,6 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         Node::Mate { .. } => false,
         // A frame instances stand on; it puts nothing in.
         Node::Gauge { .. } => false,
-        // Declares contacts between faces of a consumer's operands,
-        // and puts no body of its own in.
-        Node::Declare { .. } => false,
         Node::Datum(_)
         | Node::Profile(_)
         | Node::Extrude { .. }
@@ -3242,5 +3238,49 @@ impl core::fmt::Debug for DocSession {
             .field("derived", derived)
             .field("notation", notation)
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::{DocSession, ProfilePlane, Refusal, datum_node};
+    use pncad::document::{Doc, Node, ProfileProgram};
+    use pncad::geom_core::Tol;
+
+    /// **An action that swallows a refusal commits nothing.** The
+    /// action lands a frame, has its profile refused (an empty loop
+    /// list), ignores the refusal, lands a second frame and answers
+    /// success; the door still refuses the whole action, so neither
+    /// frame is committed. This reds if the run goes on past a refusal,
+    /// which would commit the two frames around it.
+    #[test]
+    fn an_action_that_swallows_a_refusal_commits_nothing() {
+        let tol = Tol::witness();
+        let mut session = DocSession::inline(Doc::empty_derived("swallowed-refusal", tol), tol);
+        let frame = || datum_node(ProfilePlane::world_xy().expect("the world frame"));
+        let before = session.history().len();
+        let outcome = session.commit_run(|run| {
+            let plane = run.insert(frame())?;
+            let _ = run.insert(Node::Profile(ProfileProgram {
+                plane,
+                loops: Vec::new(),
+                ids: Vec::new(),
+            }));
+            let _ = run.insert(frame());
+            Ok(())
+        });
+        assert!(
+            matches!(outcome.refusal, Some(Refusal::Edit(_))),
+            "the profile's refusal is the action's: {:?}",
+            outcome.refusal
+        );
+        assert!(outcome.committed.is_empty(), "nothing is committed");
+        assert_eq!(session.history().len(), before, "nothing is recorded");
+        assert!(
+            session.committed_doc().order().is_empty(),
+            "neither frame landed"
+        );
     }
 }

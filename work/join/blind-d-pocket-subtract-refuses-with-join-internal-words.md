@@ -2,11 +2,13 @@
 id: blind-d-pocket-subtract-refuses-with-join-internal-words
 kind: issue
 title: boolean: a blind D-profile pocket (block minus a D rod) refuses JoinDesync from the top face — an internal-desync payload for an ordinary pocket
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: H
 refs: [an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired, ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum]
+parent: JOIN-3
+closed: 2026-10-03
 ---
 
 
@@ -91,6 +93,15 @@ decides, and the run winding to take a conic closing chord's bulge —
 `Body::planar_run_winding_decided`'s `Closing::Chord` is the place.
 Both sit in shared join ground (`chord_join.rs` is REACH/TANG's too).
 
+## Another pose with the same payload
+
+`contact8_dangling_seam`'s exactly plugged hole (a holed block and the
+plug filling it, declared flush) reaches the same
+`JoinDesync { what: "ring-run winding is degenerate (zero enclosed
+area)" }` from the join on a union; the declared-REST zip then builds
+it. `an_exactly_plugged_hole_merges_to_whole_caps` pins that refusal
+(JOIN-2, PR 3880).
+
 ## Why it matters
 
 A D-shaped blind pocket is an ordinary feature, and the ruled fillet
@@ -104,3 +115,20 @@ the blind one.
 
 `band/ruled-d-hole-ring-crease`'s class sweep (a mixed crease, one end
 in a ring and one in an outer cycle), probing for a fixture.
+
+## Built (JOIN-3)
+
+Defect 1 was gone on JOIN-1's head: the top pose still refused the
+same `JoinDesync`, and the arc side's skip reads its locus (`InFace` on
+the block), so its chord is minted. Defect 2 is fixed by the segment's
+curve: a match computes its chord curve once (`chord_join::SegmentCurve`,
+`ChordJoiner::segment_curve`), the joiner mints both chords on it, and
+the ring lane closes its run with it (`boolean::join::ring_run_ccw`,
+`loop_winding::RunClosing`). Both poses build at `3.6632128205514776`,
+exactly `4 − 0.5·A_D`, through tiers 2 and 3′ and the at-rest
+certificate, and are legal operands
+(`sweep/tests/axis_lap.rs`, `a_blind_d_pocket_builds_from_either_face`).
+Closing the run with the straight chord again turns that row red with
+this item's original payload.
+
+Closed with JOIN-3, PR 3895, 2026-10-03.

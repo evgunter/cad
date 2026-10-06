@@ -111,11 +111,17 @@ pub(crate) struct PartValue<T: Decide> {
     /// The same for the refusals it carried up.
     pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
     /// The referenced document's own UNPLACED GROUPS, by root, with
-    /// their causes: material its world product leaves out (A9), which
-    /// the instantiating document must still be able to name.
+    /// their causes, in that document's order: material its world
+    /// product leaves out (A9), which the instantiating document must
+    /// still be able to name.
     pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
     /// The same for the unplaced groups it carried up from its parts.
     pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
+    /// How many parts the referenced document's product is: its
+    /// distinct root outputs ([`crate::product::Product::solid_roots`]),
+    /// each counted at its own value's `parts`, so a sub-assembly's
+    /// parts count through (`NodeValue::parts`).
+    pub parts: usize,
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -130,6 +136,7 @@ impl<T: Decide> Clone for PartValue<T> {
             carried_unminted: Arc::clone(&self.carried_unminted),
             unplaced: Arc::clone(&self.unplaced),
             carried_unplaced: Arc::clone(&self.carried_unplaced),
+            parts: self.parts,
         }
     }
 }
@@ -277,10 +284,7 @@ impl crate::spoken::Say for PartFault {
             ),
             // The resolver knows what went wrong in its store, so its
             // message states the recourse of a pin or a lookup. The ε
-            // seam's is the same whatever the store: a document keeps
-            // the ε it was written at, a process holds one, and the
-            // recorded-ε edit moves a part onto another while it keeps
-            // its id, whether that was minted or derived.
+            // seam's is the same whatever the store.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
                     write!(f, "the reference's pin does not hold: {message}")
@@ -289,11 +293,7 @@ impl crate::spoken::Say for PartFault {
                     f,
                     "the referenced document's recorded tolerance disagrees with this process's: \
                      {message}. {}",
-                    Recourse(
-                        "open the part in a process at its own tolerance, record the edit that \
-                         sets this process's tolerance, save it over its file, then accept its \
-                         updated version here"
-                    )
+                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
@@ -634,14 +634,14 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             resolver: self.resolver.map(Arc::clone),
             profile_lift: self.profile_lift,
             // NOT inherited, unlike the two rows above: a parameter box
-            // is a set of THIS document's parameter names, and a
-            // referenced document is a different document with its own
-            // names (AQ4 — v1 instantiation takes no arguments). A box
-            // that crossed the seam would either name nothing there or,
-            // worse, collide by name with an unrelated parameter.
+            // is keyed by THIS document's variable ids, and a referenced
+            // document is a different document with its own variables
+            // (AQ4 — v1 instantiation takes no arguments). A box that
+            // crossed the seam would name nothing there: an id is minted
+            // by one document's chain and read by no other.
             param_box: None,
-            // NOT inherited, by the same argument: a seed is a name of
-            // THIS document's parameters. A part's geometry is constant
+            // NOT inherited, by the same argument: a seed is one of THIS
+            // document's variable ids. A part's geometry is constant
             // with respect to them (AQ4 — v1 instantiation takes no
             // arguments), which the unseeded nested run states exactly:
             // every tangent it carries is zero.
@@ -673,22 +673,28 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // they cross beside it: its own, and those its parts carried up
         // to it, read off the evaluation rather than the product so a
         // group below an instance no root gathers is named too.
-        let unplaced = Arc::new(
-            evaluation
-                .unplaced
-                .values()
-                .copied()
-                .collect::<BTreeMap<_, _>>()
-                .into_iter()
-                .collect(),
-        );
+        let unplaced = Arc::new(evaluation.unplaced_groups(doc));
         let carried_unplaced = Arc::new(evaluation.all_unplaced_below());
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
         // `Arc`s are the cache's, so every instance of one part shares
         // one row set.
+        let parts = product
+            .solid_roots
+            .iter()
+            .map(|o| (o.node, o.output))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|(node, _)| {
+                let Some(value) = evaluation.value(node) else {
+                    unreachable!("a gathered root's value is the one the product read")
+                };
+                value.parts
+            })
+            .sum();
         Ok(PartValue {
+            parts,
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
@@ -718,7 +724,7 @@ impl<T: Decide> Reached<T> {
 /// instantiate node. Both askers read it: the instantiate node's own op
 /// (`wire::wire_instantiate_part`) and the mate solve's reach over a
 /// member's instance (`mate::solve`'s `part_of`, which the lever's
-/// `pair_reach` and a `FromFace` side's face pose both ask through).
+/// `pair_reach` and a face-based side's face pose both ask through).
 /// The descent enters every reference it names before the document
 /// evaluates, and a nested cache refuses any other ask
 /// ([`PartFault::NotEntered`]).
