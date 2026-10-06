@@ -2,11 +2,12 @@
 id: an-edge-crossing-a-cone-face-has-no-root-lane
 kind: issue
 title: A line, circle or ellipse edge that the enclosures cannot clear of a cone face refuses at the frontier: the cone cell has no root lane, though its quadric form is a degree-2 residual along a conic
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: H
 refs: [ellipse-edge-crossing-a-torus-has-no-root-lane]
+pr: 4135
 ---
 
 
