@@ -835,9 +835,10 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     let intrinsic =
                         matches!(demanded, geom_brep::MustCarryDescription::Intrinsic(_));
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
-                        geom_brep::EdgeDescription::Chart(ref ch) if ch.wrap => {
-                            !intrinsic && ch.surface == s_self && ch.surface == s_other
-                        }
+                        // A wrap edge's two halves bound one face (D1);
+                        // this edge bounds two, so a wrap flag on it is
+                        // restated.
+                        geom_brep::EdgeDescription::Chart(ref ch) if ch.wrap => false,
                         geom_brep::EdgeDescription::Chart(ref ch) => {
                             !intrinsic && (ch.surface == s_self || ch.surface == s_other)
                         }
