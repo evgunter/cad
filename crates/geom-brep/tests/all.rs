@@ -216,6 +216,8 @@ mod s81_one_rim_level_rule;
 mod span_meter_dim_twins;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
+#[path = "rev3983_probes.rs"]
+mod rev3983_probes;
 
 test_utils::every_suite_file_is_aggregated!();
 

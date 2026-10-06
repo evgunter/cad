@@ -379,8 +379,68 @@ impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
     }
 
     fn lever_arm(&self, x: &[f64; 3]) -> f64 {
+        // ANALYSIS BRANCH ONLY: "extent" drops the curvature arm here too.
+        if probe_mode() == ProbeMode::Extent {
+            return f64::MAX;
+        }
         crate::dihedral::pair_lever_arm(self.a, self.b, Point3::from_array(*x))
     }
+}
+
+
+/// ANALYSIS BRANCH ONLY: which lever the ℝ⁴ march reads (`LEVER_PROBE`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ProbeMode {
+    Chart,
+    Normal,
+    Extent,
+}
+
+pub(crate) fn probe_mode() -> ProbeMode {
+    static MODE: std::sync::OnceLock<ProbeMode> = std::sync::OnceLock::new();
+    *MODE.get_or_init(|| match std::env::var("LEVER_PROBE").as_deref() {
+        Ok("normal") => ProbeMode::Normal,
+        Ok("extent") => ProbeMode::Extent,
+        _ => ProbeMode::Chart,
+    })
+}
+
+/// ANALYSIS BRANCH ONLY: the largest |principal curvature| of a chart at a
+/// jet — the shape operator's spectral radius from the first and second
+/// fundamental forms. Zero where the chart is flat there; poison where
+/// the jet is.
+pub(crate) fn max_normal_curvature(j: &SurfaceJet3<f64>) -> f64 {
+    let (su, sv) = (j.jet.du, j.jet.dv);
+    let n = su.cross(sv);
+    let nn = n.norm();
+    if nn == 0.0 {
+        return f64::NAN;
+    }
+    let n = n * (1.0 / nn);
+    let (e, f, g) = (su.dot(su), su.dot(sv), sv.dot(sv));
+    let (l, m, nn2) = (n.dot(j.jet.duu), n.dot(j.jet.duv), n.dot(j.jet.dvv));
+    let det = e * g - f * f;
+    if det <= 0.0 {
+        return f64::NAN;
+    }
+    let gauss = (l * nn2 - m * m) / det;
+    let mean = (e * nn2 - 2.0 * f * m + g * l) / (2.0 * det);
+    let disc = (mean * mean - gauss).max(0.0).sqrt();
+    (mean + disc).abs().max((mean - disc).abs())
+}
+
+/// ANALYSIS BRANCH ONLY: the chart arm as main reads it, for the trace.
+pub(crate) fn chart_arm(j: &SurfaceJet3<f64>) -> f64 {
+    let mut arm = f64::MAX;
+    for (speed, second) in [
+        (j.jet.du.norm(), j.jet.duu.norm()),
+        (j.jet.dv.norm(), j.jet.dvv.norm()),
+    ] {
+        if second != 0.0 {
+            arm = Real::min(arm, speed * speed / second);
+        }
+    }
+    arm
 }
 
 impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
@@ -391,23 +451,45 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
     }
 
     fn lever_arm(&self, x: &[f64; 4]) -> f64 {
-        // Chart curvature is not bounded in closed form for a NURBS
-        // patch, so the honest arm at this shape is the CHART SPEED
-        // over the second-derivative magnitude — the local radius of
-        // curvature of the two parameter lines, folded min-wins, with
-        // `f64::MAX` where the chart is flat (the plane identity). A
-        // flat line never shrinks the arm; a poisoned one makes it
-        // poison.
+        // ANALYSIS BRANCH ONLY (design fork, lever B): the lever the march
+        // reads is selected by `LEVER_PROBE`:
+        //   unset / "chart" — main's arm: chart speed² over the parameter
+        //     line's second derivative (geodesic + normal curvature);
+        //   "normal" — the geometric arm: 1/κ_max from the shape operator
+        //     (normal curvature only, chart-invariant);
+        //   "extent" — no curvature arm (the extent alone).
+        let mode = probe_mode();
         let mut arm = f64::MAX;
         for j in [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])] {
-            for (speed, second) in [
-                (j.jet.du.norm(), j.jet.duu.norm()),
-                (j.jet.dv.norm(), j.jet.dvv.norm()),
-            ] {
-                if second != 0.0 {
-                    arm = Real::min(arm, speed * speed / second);
+            match mode {
+                ProbeMode::Chart => {
+                    for (speed, second) in [
+                        (j.jet.du.norm(), j.jet.duu.norm()),
+                        (j.jet.dv.norm(), j.jet.dvv.norm()),
+                    ] {
+                        if second != 0.0 {
+                            arm = Real::min(arm, speed * speed / second);
+                        }
+                    }
                 }
+                ProbeMode::Normal => {
+                    let k = max_normal_curvature(&j);
+                    if k != 0.0 {
+                        arm = Real::min(arm, 1.0 / k);
+                    }
+                }
+                ProbeMode::Extent => {}
             }
+        }
+        if std::env::var_os("LEVER_PROBE_TRACE").is_some() {
+            let jb = self.b.jet3(x[2], x[3]);
+            let (n1, n2) = <Self as super::march::TransversalityData<4>>::normals(self, x);
+            let sin = n1.cross(n2).norm() / (n1.norm() * n2.norm());
+            eprintln!(
+                "LEVERTRACE x=({:.6e},{:.6e},{:.6e},{:.6e}) p=({:.4e},{:.4e},{:.4e}) sin={sin:.4e} chart_arm={:.4e} normal_arm={:.4e} chosen={arm:.4e}",
+                x[0], x[1], x[2], x[3], jb.jet.point.x, jb.jet.point.y, jb.jet.point.z,
+                chart_arm(&jb), { let k = max_normal_curvature(&jb); if k == 0.0 { f64::MAX } else { 1.0 / k } }
+            );
         }
         arm
     }

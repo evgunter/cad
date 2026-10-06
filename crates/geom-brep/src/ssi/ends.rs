@@ -550,6 +550,13 @@ impl<'a> Ends<'a> {
     /// ([`decide_transversality`]), and the certificate's refusal of the
     /// candidate, after any of which the caller marches.
     fn hermite(&self, a: Crossing, b: Crossing, length: f64) -> Result<SsiBranch, SsiError> {
+        // ANALYSIS BRANCH ONLY: `LEVER_PROBE_FORCE_MARCH` skips the Hermite
+        // candidate so the march's per-state decision is what answers.
+        if std::env::var_os("LEVER_PROBE_FORCE_MARCH").is_some() {
+            return Err(SsiError::UnsupportedCertificate {
+                what: "probe: the Hermite candidate is skipped",
+            });
+        }
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
         for x in [&a.state, &b.state] {
             let sigma = Svd::<3, 4>::new(self.sys.jacobian(x)).sigma_min();
