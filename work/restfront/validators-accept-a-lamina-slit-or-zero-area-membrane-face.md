@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P2
 cost: M
+refs: [tessellator-panics-on-a-self-slit-face-every-validator-passes]
 ---
 
 

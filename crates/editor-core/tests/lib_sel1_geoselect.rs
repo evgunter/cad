@@ -284,7 +284,7 @@ fn at(datum: RecipeNodeId, cmp: Cmp, v: f64) -> [GeomPred; 1] {
     [GeomPred::DatumDistance {
         datum,
         cmp,
-        value: len(v),
+        value: editor_core::test_support::stored_expr(&len(v)),
     }]
 }
 
@@ -404,7 +404,7 @@ fn a_non_length_value_refuses() {
     let bad = [GeomPred::DatumDistance {
         datum,
         cmp: Cmp::Approx,
-        value: ang(1.0),
+        value: editor_core::test_support::stored_expr(&ang(1.0)),
     }];
     assert!(matches!(
         select_where(

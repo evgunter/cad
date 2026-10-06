@@ -16,6 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -36,7 +37,7 @@ use geom_core::Tol;
 
 /// A declaring `Rest` coincidence between two heads, both sides framed
 /// on their own head faces, outward normals opposed.
-fn face_mate(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn face_mate(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -54,7 +55,7 @@ fn face_mate(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
 /// `node` (a mate) with its `a` side authored at the part's origin
 /// instead: the authored twin the frame rule holds to all three
 /// conditions.
-fn authored_a(node: Node<editor_core::ProfileProgram>) -> Node<editor_core::ProfileProgram> {
+fn authored_a(node: AuthoredNode) -> AuthoredNode {
     let Node::Mate {
         a,
         b,
@@ -81,11 +82,7 @@ fn authored_a(node: Node<editor_core::ProfileProgram>) -> Node<editor_core::Prof
 
 /// Inserts a mate through the store's reach, which resolves its face
 /// sides at the door.
-fn insert_mate(
-    doc: ProfileDoc,
-    node: Node<editor_core::ProfileProgram>,
-    o: &EvalOptions,
-) -> (ProfileDoc, RecipeNodeId) {
+fn insert_mate(doc: ProfileDoc, node: AuthoredNode, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
     let reach = editor_core::mate_reach::<f64>(o, Tol::witness());
     let (doc, id) = step_with(
         doc,
@@ -282,7 +279,7 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a), (b) and (c): the top is no root.
-    let Some(face_side) = doc.node(m).cloned() else {
+    let Some(face_side) = doc.node(m).map(Node::authored) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -320,7 +317,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
         doc,
         Node::Pattern {
             input: leg,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -371,7 +368,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a): it reads a copy.
-    let Some(face_side) = doc.node(m).cloned() else {
+    let Some(face_side) = doc.node(m).map(Node::authored) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -483,7 +480,7 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         doc,
         Node::Pattern {
             input: leg,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -611,7 +608,7 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
 
 /// The top seated on the base's upper cap, the base side framed on its
 /// head: the top's origin lands on the cap's canonical origin.
-fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> AuthoredNode {
     Node::Mate {
         a: top,
         b: base_cap,

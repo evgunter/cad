@@ -489,7 +489,7 @@ pub const SUB_KINDS: [&str; 20] = [
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).
-pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
+pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str> {
     match node {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
@@ -582,7 +582,7 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
 /// the census counts. Not `editor_core::node_kind_noun`, whose words
 /// split `Datum` by flavour — a split this tally's sub-kind half
 /// (`sub_kinds`) already counts on its own.
-pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
+pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
     match node {
         Node::Datum(_) => "Datum",
         Node::Profile(_) => "Profile",
@@ -663,7 +663,7 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
     for d in documents() {
         let mut seen_n = BTreeSet::new();
         let mut seen_s = BTreeSet::new();
-        let note = |n: &Node<ProfileProgram>,
+        let note = |n: &editor_core::Node<editor_core::ProfileProgram>,
                     seen_n: &mut BTreeSet<&'static str>,
                     seen_s: &mut BTreeSet<&'static str>| {
             seen_n.insert(node_kind(n));
@@ -680,7 +680,8 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
         for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
             seen_e.insert(edit_kind(e));
             if let DocEdit::InsertNode { node } = e {
-                note(node, &mut seen_n, &mut seen_s);
+                seen_n.insert(node_kind(node));
+                seen_s.extend(sub_kinds(node));
             }
         }
         for k in seen_n {

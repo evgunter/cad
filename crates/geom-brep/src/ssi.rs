@@ -491,10 +491,10 @@ pub enum SsiError {
         /// Boxes in the chain.
         boxes: u32,
     },
-    /// Limb 3, where a search banks the tube (either arm): at every rung
-    /// whose boxes made the locus a graph, the chain was not proved to
-    /// hold the traced arc alone, and the narrowest such rung is the
-    /// narrowest probed. Its `cause` says what that rung found.
+    /// Limb 3, at every door (either arm): at every rung whose boxes made
+    /// the locus a graph, the chain was not proved to hold one arc
+    /// spanning the carrier and nothing else, and the narrowest such rung
+    /// is the narrowest probed. Its `cause` says what that rung found.
     TubeNotOneArc {
         /// How many rungs were graphs over their chain but not proved
         /// one arc.
@@ -903,28 +903,11 @@ impl core::fmt::Display for SsiError {
                  branch may lie inside the tube",
                 verdict.margin()
             ),
-            Self::TubeNotOneArc { rungs, cause } => {
-                write!(
-                    f,
-                    "ssi: at {rungs} rungs the uniqueness tube was a graph but not proved one \
-                     arc; at the narrowest, "
-                )?;
-                match cause {
-                    OneArcRefusal::Count { solutions } => write!(
-                        f,
-                        "a box cut to the searched region holds {solutions} boundary solutions, \
-                         not two: a second arc, or the locus leaving and re-entering the region"
-                    ),
-                    OneArcRefusal::Unlinked => f.write_str(
-                        "two consecutive boxes each hold one piece, and no shared solution joins \
-                         them",
-                    ),
-                    OneArcRefusal::Undecided(_) => f.write_str(
-                        "a box's boundary walk resolved no count: a solution tangent to it, on a \
-                         corner, or below the walk's resolution",
-                    ),
-                }
-            }
+            Self::TubeNotOneArc { rungs, cause } => write!(
+                f,
+                "ssi: at {rungs} rungs the uniqueness tube was a graph but not proved one arc; \
+                 at the narrowest, {cause}"
+            ),
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,
                 "ssi: the certified foot point at t = {t} would not converge (last \
@@ -1166,18 +1149,8 @@ impl SsiError {
             Self::CertificateLimb { limb, .. } => {
                 crate::certify::recourse(limb.check(), RefusedArm::SignCertain, reading)
             }
-            // A certified count or a certified missing link is a second
-            // arc or a graze of the region, and moving either clears it;
-            // a walk that resolved nothing escalates, with no tolerance
-            // to name, since it read no margin.
-            Self::TubeNotOneArc { cause, .. } => match cause {
-                OneArcRefusal::Undecided(cause) => {
-                    TUBE_ONE_ARC.recourse(RefusedArm::Undecided(cause), reading)
-                }
-                OneArcRefusal::Count { .. } | OneArcRefusal::Unlinked => {
-                    TUBE_ONE_ARC.recourse(RefusedArm::SignCertain, reading)
-                }
-            },
+            // The search's one lever ([`OneArcRefusal::ending`]).
+            Self::TubeNotOneArc { cause, .. } => cause.ending(OneArcDoor::Search, reading),
             Self::TubeStraddles { verdict, .. } => {
                 crate::certify::recourse(SsiLimb::Tube.check(), verdict.arm(), reading)
             }
@@ -2110,23 +2083,66 @@ const OPEN_END: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// The closure's tangent decision (`ssi_closure_tangent`), refused when
-/// the trace comes back across or against the way it left: the locus
-/// cusps or crosses itself. Read on its sign-certain arm alone, since
-/// the closure angle is the march's own.
-/// Limb 3's one-arc proof where a search banks the tube
-/// ([`SsiError::TubeNotOneArc`]): a second arc of the locus in the tube,
-/// or the locus grazing the searched region inside it, clears by moving
-/// either the geometry or the region.
+/// Limb 3's one-arc decision at a search ([`SsiError::TubeNotOneArc`]):
+/// one recourse whatever the cause ([`OneArcRefusal`], the payload's
+/// data). The tube must hold one arc of the locus from end to end of the
+/// traced branch and nothing else; moving the geometry or the region
+/// clears an arc missing, a second arc, a graze of the region, a gap
+/// between pieces, or a branch running past its arc.
 const TUBE_ONE_ARC: SizedDecision = SizedDecision {
-    lever: "move the geometry, or the searched region, until no second arc or graze of the \
-            region's boundary lies in the traced branch's tube",
+    lever: "move the geometry, or the searched region, until each traced branch's tube \
+            holds one arc of the locus, end to end, and nothing else",
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
 
+/// Limb 3's one-arc decision at rest
+/// ([`crate::PlaneNurbsRefusal::TubeNotOneArc`]): one recourse whatever
+/// the cause. The stored curve is what the lever edits.
+const REST_ONE_ARC: SizedDecision = SizedDecision {
+    lever: "store the edge's curve along one arc of its faces' crossing, end to end, with \
+            no second arc beside it",
+    size: "clearance",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// Where limb 3's one-arc proof refused: the door decides the lever.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OneArcDoor {
+    /// A search, over its own traced branch and searched region.
+    Search,
+    /// A stored edge's curve, re-certified against its faces.
+    AtRest,
+}
+
+impl OneArcRefusal {
+    /// The ending this refusal carries at `door`, read at `reading`: the
+    /// door's one recourse ([`TUBE_ONE_ARC`], [`REST_ONE_ARC`]), on its
+    /// sign-certain arm for a certified count, missing link or short
+    /// end, and escalating for a walk that resolved nothing.
+    #[must_use]
+    pub fn ending(self, door: OneArcDoor, reading: Reading) -> String {
+        let decision = match door {
+            OneArcDoor::Search => TUBE_ONE_ARC,
+            OneArcDoor::AtRest => REST_ONE_ARC,
+        };
+        match self {
+            Self::Undecided(cause) => decision.recourse(RefusedArm::Undecided(&cause), reading),
+            Self::Count { .. } | Self::Unlinked | Self::Short => {
+                decision.recourse(RefusedArm::SignCertain, reading)
+            }
+        }
+    }
+}
+
+/// The closure's tangent decision (`ssi_closure_tangent`), refused when
+/// the trace comes back across or against the way it left: the locus
+/// cusps or crosses itself. Read on its sign-certain arm alone, since
+/// the closure angle is the march's own.
 const SELF_CROSSING: SizedDecision = SizedDecision {
     lever: "move the surfaces so their intersection does not cusp or cross itself",
     size: "closure angle",
@@ -3850,6 +3866,13 @@ mod ending_tests {
                 SsiError::TubeNotOneArc {
                     rungs: 3,
                     cause: super::OneArcRefusal::Unlinked,
+                },
+            ),
+            (
+                "tube not one arc, short",
+                SsiError::TubeNotOneArc {
+                    rungs: 3,
+                    cause: super::OneArcRefusal::Short,
                 },
             ),
             (

@@ -2,10 +2,11 @@
 id: declared-joint-kind-zero-margin-reads-smooth
 kind: issue
 title: profile: a declared joint whose heading margin is Zero at validation is silently recorded smooth, and its guided escalation is not the typed indeterminate its siblings raise
-status: open
+status: parked
 opened: 2026-09-26
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

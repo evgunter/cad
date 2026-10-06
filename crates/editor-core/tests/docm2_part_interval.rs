@@ -138,7 +138,7 @@ fn widened_runs(width: f64) -> (ProfileDoc, Evaluation<Interval>, Evaluation<Int
 /// The node of `doc` matching `pick`, by evaluation order.
 fn node_where(
     doc: &ProfileDoc,
-    pick: impl Fn(&Node<editor_core::ProfileProgram>) -> bool,
+    pick: impl Fn(&editor_core::Node<editor_core::ProfileProgram>) -> bool,
 ) -> RecipeNodeId {
     *doc.order()
         .iter()

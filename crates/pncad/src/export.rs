@@ -121,7 +121,8 @@ impl Say for ExportError {
                 )
             }
             // A group below is spelled in its part's ids, so its row
-            // keeps its own words.
+            // keeps its tags, but for its route's first instance, which
+            // is this document's.
             ExportError::UnplacedBelow { groups } => {
                 write!(
                     f,
@@ -129,7 +130,7 @@ impl Say for ExportError {
                      world leaves out:"
                 )?;
                 for group in groups {
-                    write!(f, " {group};")?;
+                    write!(f, " {};", Said(group, by))?;
                 }
                 write!(
                     f,

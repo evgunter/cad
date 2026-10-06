@@ -47,13 +47,14 @@
 
 use core::f64::consts::{PI, SQRT_2};
 use pncad::document::ExtrudeSide;
+use pncad::prelude::AuthoredNode;
 
 use pncad::document::{NodeErrorKind, PartSelect, RefusingReach};
 use pncad::geom_core::Tol;
 use pncad::prelude::{
     BlendError, CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation,
-    Expr, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag, Selector,
-    SplitHalf, Start, ValuePayload, apply, evaluate, p2, select,
+    Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag,
+    Selector, SplitHalf, Start, ValuePayload, apply, evaluate, p2, select,
 };
 use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
@@ -72,11 +73,11 @@ const CUT: f64 = 2.75;
 /// The setback the walls' blends ask for.
 const SETBACK: f64 = 0.1;
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("a length")
 }
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("a scalar")
 }
 
 /// The outline, in the PATHS algebra.
@@ -106,7 +107,7 @@ fn outline(tol: Tol) -> ClosedLoop<f64> {
         .expect("bracket seam")
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -205,7 +206,7 @@ pub(crate) fn probe_body(tol: Tol) -> Body<pncad::geom_core::k_stats::Probe> {
 struct WallProbe {
     n: u32,
     what: &'static str,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     pinned: fn(&BlendError) -> bool,
 }
 

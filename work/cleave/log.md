@@ -429,3 +429,63 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 - Steep tube (PR 3981, DR-65, renumbered from 64 at merge) merged after its fix pass, with main merged in after PR 3979. Split's pcurve check 5 decides only an escape's positive part, through one `escape` helper. The tour's tip ratio is now pinned per link count. Row closed. M-tier units toward the readout: 4. Mints step 2's withdrawn lane is told to push its uncommitted edits to `cleave/mints-coincidence` as held, unreviewed WIP, with no PR.
+
+## 2026-10-06 — a new CLEAVE orchestrator picks the track up
+
+The previous orchestrator has exited; this session holds the track (`status: active` stands).
+- **The P0 on two vertices at one point moves to JOIN.** Ev's PR 4057 ruling says that row is
+  settled by JOIN's `a-pinch-no-kept-face-can-cross-refuses` (its bodies are right; its check
+  becomes "every corner is a slice of its own face"). It is moved by `git mv`, keeping its id,
+  parked on and riding with that unit. A note is on JOIN's log.
+- **`three-corners-alternating-round-a-corner-refuse-at-the-join` is parked** on the same JOIN
+  unit. On main its three ops refuse `SharedVertexCrossings` at the shared corner (FUSE's
+  interleave arm) or `PinchUncrossed`, and JOIN's draft PR 4074 rebuilds exactly that ground: a
+  pinch becomes one vertex per cone and `PinchUncrossed`, the crossing pre-pass and the pinch welds
+  retire. Working the join under it now would be built twice. Alternative not taken: dispatch it
+  against today's zips and accept the rework.
+- **Dispatched** (review tier for each: single FULL — both change what a door accepts or how a
+  section arc is decided, so believing them takes more than reading them):
+  - `cleave/split-operand-gate`: `split-answers-an-inside-out-operand-with-two-inside-out-halves`,
+    with `split-gates-its-operand-on-null-edges-not-on-tier-2` riding along (priced P1/E). The
+    split door takes the Boolean's finished-operand shape (REACH PR 3987).
+  - `cleave/split-segment-curve`: `split-lane-second-chord-recomputes-the-first-chords-arc`.
+- **Design weighing**: `closest-crossing-and-graze-abandon-have-three-homes` (`design: true`) went
+  to the designer pair, blinding record on `analysis/design-fork/cleave-ray-walk-protocol`. It goes
+  to Ev only if the reports leave a fork that is Ev's.
+
+Signed (CLEAVE orchestrator).
+- **The ray-walk design question is decided without Ev** (`closest-crossing-and-graze-abandon-have-three-homes`).
+  Both designers' first reports agree on the final state, and neither touches ratified text:
+  - one walk driver (the retry ladder: graze → next ray, a ray-level in-band reading abandons and the
+    first is kept, refuse, exhausted → typed) and one closest-crossing fold, in `topo::ray_walk`, grown
+    from `ray_parity`;
+  - the per-ray reading stays two kinds: parity (planar, chart) and closest crossing (solid, sphere);
+  - each geometry keeps its schedule, crossings, no-hit verdict, K rows and error enum.
+
+  Both corrected the row's premise: the planar walk is parity, and there are five driver copies in
+  `topo` plus `profile`'s, not three. Their differences are of detail (a set-aside kind for confined
+  limits; a sphere boundary pre-pass; geom-core against topo). The orchestrator reconciled them: `topo`;
+  one precedence rule written once in the driver, decided on semantics; the sphere pre-pass measured
+  first. Re-priced H, `design` cleared. Dispatched as `cleave/ray-walk`. Review tier: DUAL (concurrent,
+  H) — a protocol consolidated across five readers, with refusal semantics that are hard to change later.
+  It is not a design-fork row: nothing went to Ev. The blinding record stays on its analysis branch.
+- **PR 4081 merges** (`split-lane-second-chord-recomputes-the-first-chords-arc`, closed). The split's
+  segment curve and its chord plan are each decided once (`ChordJoiner::segment_curve`, `JoinPlan`),
+  shared with the Boolean lane. The row's `NoChartedRun` premise had been dead on main since
+  `5ec92edc58`. What the double decision cost was measured on a new fixture, a pocketed drum split
+  across its ring: the two halves' wall arcs could sit a period apart, and half volumes failed to sum by
+  up to 5.9e-9. Goldens re-baselined: `tilted_below` and editor-core `cut_cylinder`.
+  - Review: single FULL, then the orchestrator's read of the fix pass's delta. The delta plans the
+    second chord before the first chord's surgery; the invariant that makes this exact is documented on
+    `JoinPlan`, and topo and sweep are green.
+  - Filed: `split-halves-volumes-sum-to-the-whole-only-within-their-pads` (P3, `design`). Its misses
+    track unequal quadrature pads, so it may belong to FLUX's quadrature ground; it stays here until
+    measured further.
+  - Class noted from the review: "decided once" has to cover the plan as well as the value. A
+    computed value that is shared while the plan choosing it is re-derived is the shape to grep for.
+- **Re-homed off CLEAVE's ground**: the lamina validator row went to RESTFRONT and the self-slit
+  tessellator panic to TESS, each with a note on its owner's log.
+- **Dispatched** (single FULL review each: both are refusal paths whose cause is untraced):
+  - `cleave/concave-graze`: `a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge`;
+  - `cleave/pierce-strut-after`: `a-pierce-strut-after-half-may-be-moved-by-the-other-run` (prove,
+    or refuse typed).

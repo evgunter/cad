@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use std::collections::BTreeMap;
 
 use crate::fixture;
@@ -513,7 +514,7 @@ fn rest(
     ids: [RecipeNodeId; 2],
     origin: [f64; 3],
     axis: [f64; 3],
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     let side = |o| {
         MateFrame::authored(o, axis, [0.0, 1e152, 0.0], geom_core::Tol::witness())
             .expect("a definite frame")

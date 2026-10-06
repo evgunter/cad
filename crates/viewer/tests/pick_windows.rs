@@ -31,7 +31,7 @@ use std::collections::BTreeMap;
 
 use crate::common;
 
-use pncad::document::{Doc, Evaluation, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Formula, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{NodePick, UnnamedEntity};
@@ -68,7 +68,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         Node::Pattern {
             input: block,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: pncad::document::PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),

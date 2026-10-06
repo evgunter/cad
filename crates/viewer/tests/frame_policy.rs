@@ -25,7 +25,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use common::asm;
 use pncad::document::NodeStanding;
 use pncad::document::{
-    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Expr, Frame, Node,
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Formula, Frame, Node,
     ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, VarName,
 };
 use pncad::geom_core::{Point3, Tol};
@@ -893,7 +893,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         &doc,
         Node::Extrude {
             profile: broken_profile,
-            distance: Expr::div(common::len(0.008), common::scl(0.0))
+            distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },

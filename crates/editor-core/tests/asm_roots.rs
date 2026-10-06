@@ -360,7 +360,7 @@ fn row3b_pattern_root_gathers_n_solids_with_provenance() {
         doc,
         Node::Pattern {
             input: extrude,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),

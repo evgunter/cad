@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Formula;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
@@ -34,7 +35,7 @@ fn outer_pole(doc: &editor_core::ProfileDoc, node: RecipeNodeId, v: u32) -> Stab
 
 /// A revolve doc for one authored chain on the xz-authoring plane of
 /// [`m4_pr3_names`]'s ball fixture (axis = sketch y).
-fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
+fn revolve_chain(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(

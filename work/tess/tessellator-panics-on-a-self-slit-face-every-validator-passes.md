@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P2
 cost: M
+refs: [validators-accept-a-lamina-slit-or-zero-area-membrane-face, 4074]
 ---
 
 

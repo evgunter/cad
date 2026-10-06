@@ -29,7 +29,7 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, FreeVar, MeasureExpr, Node, PersistError, ProfileDoc,
+    Dimension, DocEdit, EditError, Formula, FreeVar, MeasureExpr, Node, PersistError, ProfileDoc,
     RecipeNodeId, SlotId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{insert, len, on_frame, square};
@@ -94,7 +94,7 @@ fn with_depth() -> (ProfileDoc, VarName) {
 fn measuring_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, name) = with_depth();
     let expr = MeasureExpr::add(
-        MeasureExpr::value(Expr::named(name.clone(), Dimension::Length)),
+        MeasureExpr::value(Formula::named(name.clone(), Dimension::Length)),
         MeasureExpr::value(len(-0.0)),
     )
     .expect("two length leaves add");
@@ -149,7 +149,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Measure {
-                expr: MeasureExpr::value(Expr::named(missing.clone(), Dimension::Length)),
+                expr: MeasureExpr::value(Formula::named(missing.clone(), Dimension::Length)),
                 refs: Vec::new(),
             }),
         },
@@ -232,7 +232,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     );
     let bound = |n: &VarName| Node::Assertion {
         measure,
-        bound: Expr::named(n.clone(), Dimension::Length),
+        bound: Formula::named(n.clone(), Dimension::Length),
         dir: editor_core::AssertionDir::AtLeast,
     };
     let (doc, assertion) = insert(doc, bound(&name));
@@ -318,7 +318,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: Expr::named(name.clone(), Dimension::Length),
+            expr: Formula::named(name.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -328,7 +328,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
     let (doc, _) = insert(
         doc,
         Node::Measure {
-            expr: MeasureExpr::value(Expr::named(name.clone(), Dimension::Length)),
+            expr: MeasureExpr::value(Formula::named(name.clone(), Dimension::Length)),
             refs: Vec::new(),
         },
     );
@@ -378,7 +378,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         doc,
         Node::Assertion {
             measure,
-            bound: Expr::named(name.clone(), Dimension::Length),
+            bound: Formula::named(name.clone(), Dimension::Length),
             dir: editor_core::AssertionDir::AtLeast,
         },
     );
@@ -389,7 +389,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
                 measure: extrude,
-                bound: Expr::named(name.clone(), Dimension::Length),
+                bound: Formula::named(name.clone(), Dimension::Length),
                 dir: editor_core::AssertionDir::AtLeast,
             }),
         },
