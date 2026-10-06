@@ -184,8 +184,9 @@ pub struct BlendNaming {
     pub feet: Vec<(VertexKey, VertexKey, FaceKey)>,
     /// Corner boundary edge ← (the source corner vertex, the source
     /// edge whose blend it bounds): the fillet's corner ARC, the
-    /// chamfer's straight chord, or a ruled band's cut-off arc in its
-    /// cap — the row names the role, not the carrier shape.
+    /// chamfer's straight chord, or a cut-off's end curve in its end
+    /// face (a chord, or an arc of a circle or an ellipse) — the row
+    /// names the role, not the carrier shape.
     pub arcs: Vec<(EdgeKey, VertexKey, EdgeKey)>,
 
     // ---- The rim phase (closed chains). ----
