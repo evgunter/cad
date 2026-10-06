@@ -518,3 +518,13 @@ Signed (CLEAVE orchestrator).
     covered `boolean/` only and missed the splitting twin. Name the scope as the blind spot.
   - Filed: `run-loops-of-split-and-pierce-are-twins` (P3). Evidence added to
     `classification-invariant-family-types-bug-only-states-against-d9-row-4`.
+- **Six unpriced rows priced** (the bands are per `work/README.md`):
+  - P1, two implementations of one logic: `which-fragment-of-a-divided-face-holds-a-segment-is-spelled-three-ways`
+    (M) and `topo-smooth-arms-decide-descriptions-outside-the-must-carry-rule` (M; its boolean arm
+    folds an in-band station into the conventional description, against `must_carry_over_edge`'s contract).
+  - P2, error propagation: `recl-flanker-representative-normalizes-an-undecided-residual` (M) and
+    `lily-walls-curved-clearance-crowds-the-band-under-k-lint` (M).
+  - P3: `boolean-operand-refusals-that-precede-or-outlive-the-tier-two-gate` (M).
+  - P4, tooling: `site-census-attributes-a-parents-decisions-to-its-nested-fn` (E).
+- **Dispatched** `cleave/fragment-lineage` (`which-fragment-…`; single FULL review). The smooth-arms
+  P1 waits for PR 4098 to merge, because both edit `splitting/finish.rs`.
