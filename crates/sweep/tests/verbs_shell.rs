@@ -1178,8 +1178,11 @@ fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
 /// chart seams — re-author onto the corners the moved caps turned
 /// about the axis. The SEALED arm then hollows to tier 3 and stops at
 /// the props door (check 7, a spiric-bounded cap's area). The OPENED
-/// arm stops a stage earlier, at the rim stage's LIFT: the per-chart
-/// door re-anchors a curved corner off its carrier
+/// arm stops a stage earlier, at the rim stage's LIFT. The lifted
+/// solid holds the cavity, whose meridian caps were translated one
+/// wall off the axis, so the axial gate declines it ("a plane parallel
+/// to the axis but not through it") and the per-chart door re-anchors
+/// a curved corner off its carrier
 /// (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
 ///
 /// **The old door, verbatim (measured at the unit's head before the
@@ -1261,8 +1264,9 @@ fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_lift() {
     );
 
     // The opened arm stops one stage earlier, at the rim stage's LIFT:
-    // the lifted solid's scope is offset by the per-chart door, whose
-    // re-anchor leaves a curved corner off its carrier.
+    // the cavity's off-axis caps keep the lifted solid off the axial
+    // door, and the per-chart door's re-anchor leaves a curved corner
+    // off its carrier.
     let open = topo::shell_open(
         &finished("the operand", solid.clone(), Tol::witness()),
         KLEIN_WALL,
