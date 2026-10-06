@@ -42,11 +42,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssertionDir, Datum, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SplitHalf, TubeWindow,
+    AssertionDir, Datum, DocEdit, EvalOptions, Formula, Node, NodeErrorKind, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, SplitHalf, TubeWindow,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
@@ -124,7 +125,7 @@ fn wired() -> (
         doc,
         Node::Pattern {
             input: body,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -139,7 +140,7 @@ fn wired() -> (
                rows: &mut Vec<Row>,
                what: &'static str,
                owes: Owes,
-               node: Node<ProfileProgram>,
+               node: AuthoredNode,
                input: RecipeNodeId|
      -> ProfileDoc {
         match d.apply(
@@ -203,7 +204,7 @@ fn wired() -> (
         Owes::Refusal("body or instances", "profile"),
         Node::Pattern {
             input: profile,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -329,7 +330,7 @@ fn wired() -> (
         Owes::Refusal("instances", "body"),
         Node::Part {
             of: body,
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
         body,
     );
@@ -340,7 +341,7 @@ fn wired() -> (
         Owes::Refusal("datum axis", "datum"),
         Node::Pattern {
             input: body,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Circular {
                 axis: plane,
                 step: ang(0.5),
@@ -358,7 +359,7 @@ fn wired() -> (
         Owes::Refusal("profile", "body"),
         Node::Loft {
             profiles: vec![profile, body],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
         body,
     );
@@ -369,7 +370,7 @@ fn wired() -> (
         Owes::Refusal("profile", "datum"),
         Node::Loft {
             profiles: vec![profile, sketch],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
         sketch,
     );
@@ -381,8 +382,8 @@ fn wired() -> (
         Node::Sweep {
             profile: body,
             path: profile,
-            stations: Expr::count(3),
-            v_degree: Expr::count(1),
+            stations: Formula::count(3),
+            v_degree: Formula::count(1),
         },
         body,
     );

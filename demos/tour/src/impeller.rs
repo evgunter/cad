@@ -57,8 +57,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
-    Expr, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
-    RefusingReach, ValuePayload, VarName, apply, evaluate, parse_expr,
+    Formula, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
+    RefusingReach, ValuePayload, VarName, apply, evaluate, parse_formula,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
@@ -118,13 +118,13 @@ fn params() -> BTreeMap<VarName, Dimension> {
 }
 
 /// Parse against [`params`]: every expression here may name `blades`.
-fn pe(src: &str) -> Expr {
-    parse_expr(src, &params()).expect("the impeller's expressions parse")
+fn pe(src: &str) -> Formula {
+    parse_formula(src, &params()).expect("the impeller's expressions parse")
 }
 
 /// The hub's cross-section: a regular [`HUB_FACETS`]-gon of
 /// circumradius [`HUB_R`].
-fn hub_polygon() -> LoopProgram {
+fn hub_polygon() -> LoopProgram<Formula> {
     #[allow(clippy::cast_precision_loss)]
     let pts: Vec<(f64, f64)> = (0..HUB_FACETS)
         .map(|i| {
@@ -137,7 +137,7 @@ fn hub_polygon() -> LoopProgram {
 
 /// One blade, in the xy plane: a rectangle reaching from inside the
 /// hub out to the tip.
-fn blade_polygon() -> LoopProgram {
+fn blade_polygon() -> LoopProgram<Formula> {
     LoopProgram::polygon([
         (BLADE_R0, -BLADE_T),
         (BLADE_R1, -BLADE_T),
@@ -177,8 +177,8 @@ fn build_doc(tol: Tol) -> Recipe {
     .expect("the blade count declares");
     doc = applied.doc;
 
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
     let frame_at = |z: f64| {
         Node::Datum(Datum::Frame {
             origin: [len(0.0), len(0.0), len(z)],

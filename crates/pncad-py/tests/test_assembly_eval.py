@@ -110,7 +110,7 @@ from bench_scene import (
     SHELF_VOLUME,
     STAND_SEATS,
 )
-from pncad import CapEnd, DocEdit, DocRef, Expr, Node, SegTag, Workspace, evaluate, m, mm
+from pncad import CapEnd, DocEdit, DocRef, Formula, Node, SegTag, Workspace, evaluate, m, mm
 
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
@@ -448,9 +448,9 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         moved = self.assembly.insert(
             Node.transform(
                 self.instance,
-                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.literal(0.0 * pncad.rad),
+                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                Formula.literal(0.0 * pncad.rad),
             )
         )
         refusal = failures(evaluate(self.assembly, resolver=self.store))[moved]
@@ -483,22 +483,22 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         profile = part.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(0.02, m), Expr.length_in(0, m)),
-                    (Expr.length_in(0.02, m), Expr.length_in(0.02, m)),
-                    (Expr.length_in(0, m), Expr.length_in(0.02, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(0.02, m), Formula.length_in(0, m)),
+                    (Formula.length_in(0.02, m), Formula.length_in(0.02, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0.02, m)),
                 ],
-                plane=part.sketch_frame(elevation=Expr.length_in(0, m)),
+                plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
             )
         )
         # No length to extrude, so the extrude refuses.
-        self.extrude = part.insert(Node.extrude(profile, Expr.length_in(0.0, m)))
+        self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.0, m)))
         self.root = part.insert(
             Node.transform(
                 self.extrude,
-                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.literal(0.0 * pncad.rad),
+                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                Formula.literal(0.0 * pncad.rad),
             )
         )
         self.store.create(part)
@@ -546,9 +546,9 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         bracket.insert(
             Node.transform(
                 inner,
-                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.literal(0.0 * pncad.rad),
+                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                Formula.literal(0.0 * pncad.rad),
             )
         )
         self.store.create(bracket)
@@ -788,7 +788,7 @@ class TestTheMemoIsObservable(CorpusCase):
         first = evaluate(post)
         frame, profile, extrude = first.order()
         post.apply(DocEdit.delete_node(extrude))
-        post.insert(Node.extrude(profile, Expr.length_in(2 * POST_HEIGHT, m)))
+        post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m)))
         again = evaluate(post, prior=first)
         # TWO reused: the post's sketch frame and the section drawn on
         # it are what the deleted extrude consumed, and neither moved.

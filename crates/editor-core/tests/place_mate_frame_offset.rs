@@ -16,12 +16,13 @@
 use crate::fixture;
 use crate::p2_gauges::{Parts, block, body_of, cut, literal, min_corner, parts, set_gauge};
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
 
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocumentId, EditError, EvalOptions,
-    Expr, Frame, FrameSite, FreeValue, FreeVar, MateFrame, MatePrimitive, MateRole, MateSide, Node,
-    PersistError, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RigidArg, SitedFace, SlotId,
-    SnapshotError, SplitError, Step, VarName, apply, load, save,
+    Formula, Frame, FrameSite, FreeValue, FreeVar, MateFrame, MatePrimitive, MateRole, MateSide,
+    Node, PersistError, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RigidArg, SitedFace,
+    SlotId, SnapshotError, SplitError, Step, VarName, apply, load, save,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -35,7 +36,7 @@ fn slide() -> VarName {
 }
 
 /// A rigid step that only translates, by `t`.
-fn shift(t: [Expr; 3]) -> Step {
+fn shift(t: [Formula; 3]) -> Step<Formula> {
     Step::Rigid {
         translation: t,
         axis: [0.0, 0.0, 1.0].map(scl),
@@ -45,14 +46,19 @@ fn shift(t: [Expr; 3]) -> Step {
 
 /// The shift along the base cap's local +Y — its reference, world +x —
 /// by the document's `slide`.
-fn slid_by_the_parameter() -> Placement {
-    shift([len(0.0), Expr::named(slide(), Dimension::Length), len(0.0)]).into()
+fn slid_by_the_parameter() -> Placement<Formula> {
+    shift([
+        len(0.0),
+        Formula::named(slide(), Dimension::Length),
+        len(0.0),
+    ])
+    .into()
 }
 
 /// "Seat the top on the base": the top's lower cap (the mover) on its
 /// own face, the base's upper cap on its face composed with `offset`,
 /// outward normals opposed.
-fn seat(top: SitedFace, base: SitedFace, offset: Placement) -> Node<ProfileProgram> {
+fn seat(top: SitedFace, base: SitedFace, offset: Placement<Formula>) -> AuthoredNode {
     Node::Mate {
         a: top,
         b: base,
@@ -73,7 +79,7 @@ fn seat(top: SitedFace, base: SitedFace, offset: Placement) -> Node<ProfileProgr
 /// empty document first (a parameter's declaration).
 fn seated(
     label: &str,
-    offset: Placement,
+    offset: Placement<Formula>,
     prelude: impl FnOnce(ProfileDoc) -> ProfileDoc,
 ) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     let p = parts(label);
@@ -233,10 +239,10 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
-    let named = |name: &'static str, dim| -> Placement {
+    let named = |name: &'static str, dim| -> Placement<Formula> {
         shift([
             len(0.0),
-            Expr::named(VarName::from_static(name), dim),
+            Formula::named(VarName::from_static(name), dim),
             len(0.0),
         ])
         .into()
@@ -550,7 +556,7 @@ fn top_image(map: &editor_core::NodeMap, top: RecipeNodeId) -> RecipeNodeId {
 /// with. `SetExpression` at the same address refuses alike.
 #[test]
 fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
-    let turn: Placement = Step::Rigid {
+    let turn: Placement<Formula> = Step::Rigid {
         translation: [len(0.0), len(0.5), len(0.0)],
         axis: [0.0, 0.0, 1.0].map(scl),
         angle: ang(0.0),
@@ -624,7 +630,10 @@ fn a_mates_alignment_compares_by_bits() {
             path: vec![editor_core::RoleSeg::Cap(end)],
         })
     };
-    let mate = |offset: Placement, clocking: Option<f64>| Node::<ProfileProgram>::Mate {
+    let mate = |offset: Placement<Formula>, clocking: Option<f64>| Node::<
+        ProfileProgram<Formula>,
+        Formula,
+    >::Mate {
         a: cap(1, editor_core::CapEnd::Start),
         b: cap(2, editor_core::CapEnd::End),
         class: ContactClass::Rest,
