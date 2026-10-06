@@ -218,3 +218,41 @@ fn plane_section_across_a_revolve_seam_is_an_annulus() {
         }
     }
 }
+
+/// **A plane whose section touches a rim splits at the closed form.**
+/// The tube about y, cut by planes leaning `t = 0.2` whose outer
+/// ellipse touches the top rim (or the bottom one) at one point: at the
+/// seam vertex itself (azimuth 0), where the whole conic's one corner
+/// is also a vertex of the cap, and at two rim points between vertices.
+/// The plane stays inside the band of the tube elsewhere, so the cap's
+/// side holds `A·tan t` of the annulus `A = 3π/4`. On main every pose
+/// refuses, `DegenerateSection` at the seam vertex and
+/// `Finish(Corrupt)` at the others.
+#[test]
+fn a_section_touching_a_rim_splits_at_the_closed_form() {
+    let t = 0.2f64;
+    let (whole, cap_side) = (0.75 * PI, 0.75 * PI * t.tan());
+    let tube = revolved(SketchPlane::xy(), &TUBE);
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    for az in [0.0, 0.5 * PI, PI] {
+        let d = Vec3::new(az.cos(), 0.0, az.sin());
+        // Top rim: the cap's side is above; bottom rim: below.
+        for (rim, lean) in [(1.0, 1.0), (0.0, -1.0)] {
+            let n = y * t.cos() - d * (t.sin() * lean);
+            for s in [1.0, -1.0] {
+                let label = format!("rim {rim}, azimuth {az}, s = {s}");
+                let plane =
+                    topo::test_support::split_plane(Point3::new(d.x, rim, d.z), n * s, tol());
+                let [below, above] = halves_at_rest(&label, &tube, &plane)
+                    .map(|h| mass_properties(&h, tol()).unwrap().volume);
+                let cap = if (rim == 1.0) == (s > 0.0) {
+                    above
+                } else {
+                    below
+                };
+                near(&label, cap, cap_side, 1e-8);
+                near(&label, below + above, whole, 1e-8);
+            }
+        }
+    }
+}
