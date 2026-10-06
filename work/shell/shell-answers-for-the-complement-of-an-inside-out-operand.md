@@ -2,10 +2,13 @@
 id: shell-answers-for-the-complement-of-an-inside-out-operand
 kind: issue
 title: topo::shell consumes an inside-out operand and answers for its complement: no orientation gate on the way in
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
+pr: 4112
+branch: shell/operand-at-rest
+closed: 2026-10-06
 ---
 
 
@@ -72,3 +75,24 @@ the operand's own strut, reported as the offset's result failure.
 The blend doors' half of the posture is filed on BAND:
 `work/band/blend-doors-answer-an-inside-out-operand-with-an-inside-out-body.md`.
 The split's is closed by that branch (its doors take `AtRestBody`).
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4112)
+
+`topo::shell`, `topo::shell_open` and `ShellDoor::open` take an
+`&AtRestBody`, the shape the boolean and split doors use. An inside-out
+or otherwise invalid operand cannot reach shell's construction. The
+editor-core wire takes the operand through `finished_operand`. The
+operand type is pinned at compile time (`const _` fn-pointer
+coercions in `crates/topo/tests/shell_operand_gate.rs`; the verbs seat
+was already pinned by lane3's `RunShellAtDual`), so reverting the doors
+to `&Body`
+no longer builds. The reviewer showed it compiled clean before the
+pins. A merge-base differential over every shell call in the
+workspace, the ignored cost rows and `demos/tour` changed outcome only
+on test-only operands. Residues filed:
+- on SHELF, `shelled-result-discards-its-own-closing-verdict` (P3/E);
+- on SHELL, the offset doors' operand posture
+  (`replace-face-offset-answers-for-the-complement-of-an-inside-out-body`,
+  P2);
+- on SHELL, the now-unreachable piece sort
+  (`shell-operand-shape-arms-behind-the-at-rest-gate`, P3).

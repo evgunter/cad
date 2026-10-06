@@ -145,6 +145,8 @@ pub(super) struct SweepKnobs {
 #[derive(Default)]
 pub(super) struct ContactAcc {
     records: ContactRecords,
+    /// Every edge split the sweep made, in split order.
+    pub(super) splits: Vec<super::EdgeSplit>,
     seen_vv: std::collections::BTreeSet<(VertexKey, VertexKey)>,
     seen_ab: std::collections::BTreeSet<(VertexKey, FaceKey)>,
     seen_ba: std::collections::BTreeSet<(VertexKey, FaceKey)>,
@@ -1157,18 +1159,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 match at {
                     FaceContainment::Out => continue,
                     FaceContainment::In => {
-                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         contacts.vf(x_is, VfContact { vertex: w, face });
                         requeue(&mut worklist, x, edge_key, w, j)?;
                     }
                     FaceContainment::OnEdge(ey) => {
-                        let w = split_at(x, x_is, edge_key, t, tol)?;
-                        let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                        let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                         push_vv(contacts, x_is, w, wy);
                         requeue(&mut worklist, x, edge_key, w, j)?;
                     }
                     FaceContainment::OnVertex(vy) => {
-                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         push_vv(contacts, x_is, w, vy);
                         requeue(&mut worklist, x, edge_key, w, j)?;
                     }
@@ -1337,21 +1339,28 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             match containment {
                                 FaceContainment::Out => {}
                                 FaceContainment::In => {
-                                    let w = split_at(x, x_is, edge_key, t, tol)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                                     contacts.vf(x_is, VfContact { vertex: w, face });
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnEdge(ey) => {
-                                    let w = split_at(x, x_is, edge_key, t, tol)?;
-                                    let wy =
-                                        split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                                    let wy = split_other_at_point(
+                                        y,
+                                        x_is.other(),
+                                        ey,
+                                        p,
+                                        band,
+                                        tol,
+                                        contacts,
+                                    )?;
                                     push_vv(contacts, x_is, w, wy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnVertex(vy) => {
-                                    let w = split_at(x, x_is, edge_key, t, tol)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                                     push_vv(contacts, x_is, w, vy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
@@ -1420,20 +1429,21 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     match containment {
                         FaceContainment::Out => {}
                         FaceContainment::In => {
-                            let w = split_at(x, x_is, edge_key, t, tol)?;
+                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                             contacts.vf(x_is, VfContact { vertex: w, face });
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
                         }
                         FaceContainment::OnEdge(ey) => {
-                            let w = split_at(x, x_is, edge_key, t, tol)?;
-                            let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                            let wy =
+                                split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                             push_vv(contacts, x_is, w, wy);
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
                         }
                         FaceContainment::OnVertex(vy) => {
-                            let w = split_at(x, x_is, edge_key, t, tol)?;
+                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                             push_vv(contacts, x_is, w, vy);
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
@@ -2894,77 +2904,67 @@ fn boundary_meets_circle_only_at<T: Decide>(
             Err(_) => None,
         }
     };
-    for (_, l) in y.face_loops_linked(face, f) {
-        match l.boundary {
-            crate::entity::LoopBoundary::Empty { vertex } => {
+    for member in y.face_boundary_linked(face, f) {
+        match member {
+            crate::live::BoundaryMember::Isolated { vertex, .. } => {
                 if place(vertex).is_none() {
                     return Ok(false);
                 }
             }
-            crate::entity::LoopBoundary::Cycle { first } => {
-                for he in y.loop_walk(first).closed("loop", first) {
-                    let ek = crate::live::proven(&y.half_edges, he, EntityId::HalfEdge).edge;
-                    let e = crate::live::linked(
-                        &y.edges,
-                        ek,
-                        EntityId::Edge,
-                        EntityId::HalfEdge(he),
-                        "edge",
-                    );
-                    let end = |h, field| {
-                        crate::live::linked(
-                            &y.half_edges,
-                            h,
-                            EntityId::HalfEdge,
-                            EntityId::Edge(ek),
-                            field,
-                        )
-                        .start
-                    };
-                    let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
-                    let (Some(sa), Some(sb)) = (place(a), place(b)) else {
-                        return Ok(false);
-                    };
-                    let Some(c) = y.edge_curve_linked(ek, e).certified() else {
-                        return Ok(false);
-                    };
-                    let (t0, t1) = c.params();
-                    let clear = match crate::splitting::plane_crossing_lane(
-                        c.carrier(),
-                        t0,
-                        t1,
-                        center,
-                        axis,
-                        band,
-                    ) {
-                        PlaneCrossingLane::Line => {
-                            let (pa, pb) = (point(a), point(b));
-                            match (sa, sb) {
-                                (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
-                                    let (ha, hb) = (height(pa), height(pb));
-                                    off_circle(pa + (pb - pa) * (ha / (ha - hb)))
-                                }
-                                (PlaneSide::Off(_), _) | (_, PlaneSide::Off(_)) => true,
-                                (PlaneSide::At, PlaneSide::At) => {
-                                    off_circle(pa.lerp(pb, T::from_f64(0.5)))
-                                }
-                                _ => false,
+            crate::live::BoundaryMember::Edge { ek, edge: e, .. } => {
+                let end = |h, field| {
+                    crate::live::linked(
+                        &y.half_edges,
+                        h,
+                        EntityId::HalfEdge,
+                        EntityId::Edge(ek),
+                        field,
+                    )
+                    .start
+                };
+                let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
+                let (Some(sa), Some(sb)) = (place(a), place(b)) else {
+                    return Ok(false);
+                };
+                let Some(c) = y.edge_curve_linked(ek, e).certified() else {
+                    return Ok(false);
+                };
+                let (t0, t1) = c.params();
+                let clear = match crate::splitting::plane_crossing_lane(
+                    c.carrier(),
+                    t0,
+                    t1,
+                    center,
+                    axis,
+                    band,
+                ) {
+                    PlaneCrossingLane::Line => {
+                        let (pa, pb) = (point(a), point(b));
+                        match (sa, sb) {
+                            (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
+                                let (ha, hb) = (height(pa), height(pb));
+                                off_circle(pa + (pb - pa) * (ha / (ha - hb)))
                             }
+                            (PlaneSide::Off(_), _) | (_, PlaneSide::Off(_)) => true,
+                            (PlaneSide::At, PlaneSide::At) => {
+                                off_circle(pa.lerp(pb, T::from_f64(0.5)))
+                            }
+                            _ => false,
                         }
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
-                            roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
-                        }
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => matches!(
-                            decide("bool_arc_plane_side", Margin::of(offset), band),
-                            Ok(Sign::Positive | Sign::Negative)
-                        ),
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(_)))
-                        | PlaneCrossingLane::Unlaned => false,
-                    };
-                    if !clear {
-                        return Ok(false);
                     }
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
+                        roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
+                    }
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => matches!(
+                        decide("bool_arc_plane_side", Margin::of(offset), band),
+                        Ok(Sign::Positive | Sign::Negative)
+                    ),
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(_)))
+                    | PlaneCrossingLane::Unlaned => false,
+                };
+                if !clear {
+                    return Ok(false);
                 }
             }
         }
@@ -3510,7 +3510,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
             return Ok((Placement::Recorded, Some(vy)));
         }
         Some(FaceContainment::OnEdge(ey)) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
+            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol, contacts)?;
             push_vv(contacts, x_is, vx, wy);
             return Ok((Placement::Recorded, Some(wy)));
         }
@@ -3634,7 +3634,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => contacts.vf(x_is, VfContact { vertex: vx, face }),
         FaceContainment::OnEdge(ey) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
+            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol, contacts)?;
             push_vv(contacts, x_is, vx, wy);
         }
         FaceContainment::OnVertex(vy) => push_vv(contacts, x_is, vx, vy),
@@ -3642,20 +3642,30 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     Ok(true)
 }
 
+/// Splits `x`'s `edge` at `t` and logs the split, the lineage a
+/// carried `(vertex, edge)` record follows onto the piece it rests on.
 fn split_at<T: Decide + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     x_is: Operand,
     edge: EdgeKey,
     t: T,
     tol: Tol,
+    contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
-    x.split_edge(edge, t, tol)
-        .map(|c| c.vertex)
+    let created = x
+        .split_edge(edge, t, tol)
         .map_err(|source| BooleanError::CrossingInsertion {
             operand: x_is,
             edge,
             source: source.from_driver(),
-        })
+        })?;
+    contacts.splits.push(super::EdgeSplit {
+        operand: x_is,
+        parent: edge,
+        vertex: created.vertex,
+        child: created.new_edge,
+    });
+    Ok(created.vertex)
 }
 
 /// Splits the OTHER solid's boundary edge at the (already-computed)
@@ -3693,6 +3703,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     p: Point3<T>,
     band: Band,
     tol: Tol,
+    contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
     let (t0, t1) = curve.params();
@@ -3759,7 +3770,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
             operand: y_is,
             edge,
         })?;
-    split_at(y, y_is, edge, t, tol)
+    split_at(y, y_is, edge, t, tol, contacts)
 }
 
 /// Requeues both children of a just-split edge (parent keeps the
@@ -5230,8 +5241,16 @@ mod lying_on_rows {
         );
         let bottom = edge_between(&y, from, to);
         let mid = Point3::new(FRAC_PI_4.cos(), FRAC_PI_4.sin(), 0.0);
-        split_other_at_point(&mut y, Operand::B, bottom, mid, band(), Tol::witness())
-            .expect("the arc splits");
+        split_other_at_point(
+            &mut y,
+            Operand::B,
+            bottom,
+            mid,
+            band(),
+            Tol::witness(),
+            &mut super::ContactAcc::default(),
+        )
+        .expect("the arc splits");
         let reach = |circle| {
             arc_chain_reaches(&y, from, to, Vec3::unit_y(), circle, band()).expect("no escalation")
         };
@@ -5754,8 +5773,9 @@ mod esc_tests {
 }
 
 /// **`boundary_meets_circle_only_at`: a stale face refuses typed; a torn
-/// curve past one that resolves panics**, where it read as a curve the
-/// certificate cannot place and answered `Ok(false)`.
+/// ring link or curve past one that resolves panics**, where the ring
+/// was stepped over and the curve read as one the certificate cannot
+/// place, answering `Ok(false)`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -5784,6 +5804,14 @@ mod torn_hop_rows {
                 Err(BooleanError::ClassificationInvariant { .. })
             ),
             "a face the caller carries that does not resolve refuses typed"
+        );
+        let mut torn = body.clone();
+        let named = crate::review_d18::tear_ring(&mut torn, face);
+        assert_torn_op_panics(
+            "boundary_meets_circle_only_at (ring)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| boundary_meets_circle_only_at(b, face, circle, &[], band),
         );
         let outer = body.get_face(face).unwrap().outer;
         let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary

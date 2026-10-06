@@ -143,7 +143,7 @@ use super::neighborhood::{chord, sector_face};
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::live::{Proven, proven};
+use crate::live::{BoundaryMember, Proven, proven};
 use crate::validate::decide;
 
 /// Rule (a): reclassify both bounding entries of every
@@ -483,28 +483,22 @@ pub(crate) fn face_extent<T: Decide>(
     vertex: VertexKey,
     face: FaceKey,
 ) -> Result<T, UnboundedFace> {
-    use crate::entity::LoopBoundary;
     let p_base = body.resolve_vertex_point(vertex, Proven);
     let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = T::zero();
     let outer = face_data.outer;
-    let loops = core::iter::once(outer).chain(face_data.rings.iter().copied());
-    for loop_key in loops {
-        let first = match proven(&body.loops, loop_key, EntityId::Loop).boundary {
-            LoopBoundary::Cycle { first } => first,
-            // An unbounded face has no finite lever arm (docs above).
-            LoopBoundary::Empty { vertex: lone } if loop_key == outer => {
-                return Err(UnboundedFace { face, vertex: lone });
-            }
-            LoopBoundary::Empty { vertex: lone } => {
-                let p = body.linked_vertex_point(lone, EntityId::Loop(loop_key), "boundary");
-                extent = extent.max((p - p_base).norm());
-                continue;
-            }
-        };
-        for he in body.loop_walk(first).closed("loop", first) {
-            let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-            let p = body.linked_vertex_point(start, EntityId::HalfEdge(he), "start");
+    for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
+        for member in members {
+            let p = match member {
+                // An unbounded face has no finite lever arm (docs above).
+                BoundaryMember::Isolated { vertex: lone, .. } if loop_key == outer => {
+                    return Err(UnboundedFace { face, vertex: lone });
+                }
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
+                }
+            };
             extent = extent.max((p - p_base).norm());
         }
     }
@@ -535,6 +529,25 @@ fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> &geom::Surface<T> {
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **The face extent panics on a ring link that does not resolve**,
+    /// where it stepped over it.
+    #[test]
+    fn the_face_extent_panics_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let vertex = body.vertices().next().map(|(k, _)| k).unwrap();
+        assert!(face_extent(&body, vertex, face).is_ok(), "a bounded face");
+        let named = tear_ring(&mut body, face);
+        assert_torn_op_panics(
+            "face_extent",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| face_extent(b, vertex, face),
+        );
+    }
 
     fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
         classes
