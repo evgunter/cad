@@ -6,7 +6,7 @@ status: dispatched
 priority: P1
 cost: M
 opened: 2026-09-24
-refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
+refs: [declared-flush-union-edge-and-vertex-names-follow-member-order, sweeps-build-one-rim-edge-per-segment-not-per-run, curved-joinable-vertices-are-left-unjoined]
 branch: fuse/join-every-stage
 ---
 
@@ -163,9 +163,43 @@ Contact records are cell pairs, recorded coincidences under D10:
   - INTENT stage 4 retires `StaleDeclaration::VertexOnEdge` / `EdgeEdge`
     and their tags (list in the PR body).
 
+## Step 2 (FUSE, PR 4140, 2026-10-06)
+
+Built: the boolean half of step 2. Steps 2 and 4 land together: the
+join makes a flush rim one edge across two members' rims, which the
+pair emitter can only name as a set (step 4, PR 4161 on
+`fuse/set-names`, based on this branch).
+
+- **The join at every boolean output stage:** `edge_join::join_stage`
+  runs after the merge in the seamed path, the graft and
+  single-operand fallbacks and the declared-REST lane, and writes its
+  substitution rows into the op's one `Descendants`. Every output has
+  maximal edges for the planar inventory.
+- **The join's chords along an edge are substitution rows.** A chord
+  the join mints on a segment whose locus is an edge holds that edge's
+  interior where the op drops the edge (`join::Connected::along`), so a
+  carried record on it lands without a search of the result.
+- **Edge-edge carriage:** `CarriedContacts.ee`, checked at the door
+  (line edges only), and `ee_lineage` placing a split edge's record on
+  its pieces by the census's own segment questions. `split_lineage`'s
+  vertex-on-edge side asks the same questions.
+- **Fail-loud:** every pair `carry` drops is an explicit arm with its
+  reason; the census's segment questions refuse a `None` with no
+  escalation.
+- **Naming facts for step 4:** `BooleanNaming::edge_joins`,
+  `joined_edge`, `joined_into`, `stretch_through_joins`.
+- **Review:** dual. Lane 1's two MAJORs (a door search for an edge's
+  holder; untested stage paths) fixed; lane 2 accounted for the perf12
+  census golden's every moved row.
+- **Not built, filed P1:**
+  - `sweeps-build-one-rim-edge-per-segment-not-per-run` (sweeps);
+  - `curved-joinable-vertices-are-left-unjoined` (curved joins; ruled
+    in PR 3881).
+  Both precede step 3.
+
 **Next:**
-- step 2, the join at every output stage, with sweeps building one rim
-  per run;
+- step 2's rest: sweeps building one rim per run, and curved joins
+  (the two P1 rows above);
 - step 3, the tier-2 no-joinable-vertex check;
 - step 4, merged-set edge names (EMIT).
 
