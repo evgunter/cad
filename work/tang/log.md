@@ -551,11 +551,10 @@ FULL. It is classifier geometry, and the hold does not cover it.
 ## 2026-10-06 — holes meeting at one vertex build in every member order
 
 `three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`
-is closed (PR 4129), with JOIN's
-`ring-struts-of-three-or-more-runs-hang-in-run-order` claimed and
-closed by it. A pierce with three or more Out runs hangs its ring
+is closed (PR 4129), and closes JOIN's
+`ring-struts-of-three-or-more-runs-hang-in-run-order` in place. A pierce with three or more Out runs hangs its ring
 struts in angular order. The seam-junction name takes a vertex with
 operand edges on both sides. Under the D10 hold the item's own
 fixture splits two ways: its flush 60° sectors, and three solids on
-one contact line, now parked as
+one contact line, now filed open at P1 as
 `three-solids-touching-along-one-line-refuse-their-union`.

@@ -2,11 +2,10 @@
 id: three-solids-touching-along-one-line-refuse-their-union
 kind: issue
 title: Three solids touching along one line refuse their union: the third solid's edge meets a doubled contact edge
-status: parked
+status: open
 opened: 2026-10-06
 priority: P1
 cost: H
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -56,7 +55,12 @@ when D10 is built (`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`).
 This row is about the 50° fixture, which has no coincidence and only
 contact.
 
-## The D10 hold
+## The coincidence door
 
-The line is contact between the prisms (3′ reports it undeclared), so
-the row is parked on D10's build with the rest of TANG's contact rows.
+This row touches the coincidence door. Whether the third solid's edge
+glues to the doubled contact edge is a margined verdict under D10, so
+the row is not wholly held ground. The fix decides a coincident edge
+on one ray at the vertex-vertex lane rather than refusing it as a
+degenerate operand. It must not lean on a declaration, and it should
+be checked against D10's `unproven-coincidence` door when that is
+built.

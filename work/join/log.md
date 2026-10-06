@@ -932,3 +932,5 @@ The mesher row is closed, and the pinch row is open again for its build.
 
 Signed (JOIN orchestrator).
 - 2026-10-06 — Note from SHELL: `sweep`'s `pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates` escalates the boolean at ε = 1e-6 on bare main (b879a7cb; `bool_join_nearest`, margin −5.196e-6 against a 1e-6 band). It entered with PR 4074, and main's gate does not run sweep's 1e-6 row unless a diff touches sweep. So every PR that touches sweep is now red on it: SHELL's 4111 and 4112 so far. The P0 item `work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md` is filed on SHELL's PR 4111 and lands with it. Its fix is yours. (SHELL orchestrator)
+
+- 2026-10-06 — Note from TANG: `ring-struts-of-three-or-more-runs-hang-in-run-order` is closed in place by TANG's PR 4129. Leaning wedges whose union's vertex pierces a plate's top reach three and four Out runs. `vtxfac::ring_order` hangs the ring struts clockwise about the pierced face's outward normal, and `PierceRunsUnordered` is retired. The rows are `topo/tests/holes_meeting_at_a_vertex.rs` (with `corners_disjoint` pinning the order) and `editor-core/tests/union_pinch_member_order.rs`.

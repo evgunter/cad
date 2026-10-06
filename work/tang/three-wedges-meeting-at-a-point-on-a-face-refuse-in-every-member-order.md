@@ -14,30 +14,27 @@ pr: 4129
 
 ## What
 
-The plate `[0,3] × [0,2] × [0,1]` with three triangular prisms standing on
-it, z ∈ (0.5, 2.0). Their plans are the sectors 0°–60°, 120°–180° and
-240°–300° of radius 0.4 about (1.5, 1.0). The prisms touch pairwise only
-along the vertical line through (1.5, 1.0), and their footprints on the
-plate's top are three holes meeting at one vertex. The union refuses in
-all 24 member orders, and which refusal depends on the order:
+The fixture as filed is the plate `[0,3] × [0,2] × [0,1]` with three
+triangular prisms over the sectors 0°–60°, 120°–180° and 240°–300° of
+radius 0.4 about (1.5, 1). They stand on it with z ∈ (0.5, 2.0), and
+their footprints on its top are three holes meeting at one vertex. The
+original probe declared the prisms' coincidences, and reported three
+refusals (`RingHomingAmbiguous`, a zero-area ring-run `JoinDesync`, and
+`ClassificationInvariant`).
 
-- `Join(RingHomingAmbiguous)` when two prisms come before the plate
-  (`crates/topo/src/chord_join.rs`, `rehome_rings`);
-- `JoinDesync { "ring-run winding is degenerate (zero enclosed area)" }`
-  (`crates/topo/src/boolean/join.rs`, `ring_run_ccw`);
-- `ClassificationInvariant { "two distinct same-solid bounds share one
-  ray (degenerate operand)" }`.
+Those sectors are a flush continuation. The lateral faces at 0° and
+180° are coplanar, face the same way and touch along the line, and so
+are 60°/240° and 120°/300°. Undeclared, every order refuses
+`UndeclaredCoincidence` before the join. Under D10 that refusal becomes
+an `unproven-coincidence` finding, and declaring the pairs is held
+ground, so the fixture as filed is not this row's to build.
 
-The counts were the same before and after the branch
-`tang/pinch-union-order`. That branch welds two pierces that meet on one
-kept face (`crates/topo/src/boolean/finish.rs`, `weld_pinches`), which
-covers two holes meeting at a corner. The wedges never reach the weld:
-every order refuses earlier, in the join, and which step raises each of
-the three refusals was not traced. What is missing is building a face
-whose holes pass through one vertex, in any order. The probe
-was a scratch test over these members (`block` and an `on_frame` prism in
-`crates/editor-core/tests/docm7_union_declare.rs`'s helpers), run in
-every member order through `fixture::union_over`.
+The row's question is a face whose holes pass through one vertex,
+with k holes, in any order. This PR builds that with right prisms
+leaning out of their footprints, which meet only at the vertex.
+Upright prisms with non-flush sectors leave a second problem: three
+solids sharing one contact line. That is filed as
+`three-solids-touching-along-one-line-refuse-their-union`.
 
 ## Review tier
 
@@ -69,7 +66,7 @@ vertex pierce the top with one Out run per prism. Two fixes:
 - **The ring struts hang in angular order.**
   `vtxfac::classify_vertex_on_face` refused three or more runs
   (`PierceRunsUnordered`; this also closes
-  `ring-struts-of-three-or-more-runs-hang-in-run-order`). Now it hangs
+  `ring-struts-of-three-or-more-runs-hang-in-run-order`, closed in JOIN's directory). Now it hangs
   the ring struts clockwise about the pierced face's outward normal
   (`vtxfac::ring_order`), and each strut faces its germs from the next
   run's start germ.

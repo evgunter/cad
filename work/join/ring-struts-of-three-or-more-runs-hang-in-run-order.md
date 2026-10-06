@@ -66,7 +66,8 @@ pierce sweep's grid, are all SOUND, and none mints a third run.
 
 ## Closed (2026-10-06, TANG, PR 4129)
 
-Claimed by `three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`,
+Closed in place by TANG's PR 4129
+(`three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`),
 whose leaning wedges reach three and four Out runs. A prism's vertex
 cannot reach three, but the union of several prisms' vertices at one
 point can.
