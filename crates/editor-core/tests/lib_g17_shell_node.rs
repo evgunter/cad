@@ -352,6 +352,40 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
     assert_eq!(rims, 1, "one chart, one rim");
 }
 
+/// **A pole-touching cap opens from a document into a seamed band.**
+/// The revolve wears the cap on two half-faces and the document names
+/// both; the kernel keeps both as the band's branches, and the name
+/// table names each for its own designation — the first through the
+/// record's `rim`, the second as a live branch — with no face left
+/// unnamed. Tier 3 holds on the evaluated body.
+#[test]
+fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
+    let (doc, shell, pot) = vessel::capped_document();
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "capped vessel:\n{}", bad.join("\n"));
+    let body = body_of(&ev, shell);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    // Outer: base, foot ×2; the band ×2; cavity: base, foot ×2.
+    assert_eq!(body.faces().count(), 8, "3 outer + 2 band + 3 cavity");
+    let table = &ev.value(shell).expect("evaluated").name_table;
+    let cap = fixture::piece(&doc, pot, 0, vessel::SEG_CAP as usize);
+    for (which, name) in [
+        ("the u = 0 half", editor_core::band(pot, cap.clone())),
+        ("the u = π half", editor_core::band_pi(pot, cap.clone())),
+    ] {
+        let rim = shelled(shell, EntityKind::Face, RoleSeg::Rim(name.into()));
+        assert!(
+            matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
+            "{which} of the cap is named as a branch of the band"
+        );
+    }
+}
+
 // ---------------------------------------------------------------
 // 3. The refusal families
 // ---------------------------------------------------------------

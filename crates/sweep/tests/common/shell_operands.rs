@@ -94,6 +94,30 @@ pub fn capped_vessel(r: f64, h: f64, deg: f64) -> (Body<f64>, f64, f64) {
     (body, rho, h + rise - rho)
 }
 
+/// **The hollow capped vessel**: [`capped_vessel`]`(0.5, 0.6, 60)`
+/// shelled sealed at `0.2`, so its void is the same vessel eroded — a
+/// void with a pole-touching cap. Returns the body, the void cap's two
+/// half-faces and the operand's sphere radius.
+pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
+    let (vessel, rho, _) = capped_vessel(0.5, 0.6, 60.0);
+    let hollow = topo::shell(
+        &finished("the operand", vessel, Tol::witness()),
+        0.2,
+        Tol::witness(),
+    )
+    .expect("the capped vessel shells sealed")
+    .body;
+    let cap = hollow
+        .faces()
+        .filter(|(_, f)| {
+            matches!(hollow.get_surface(f.surface),
+                Some(geom::Surface::Sphere { radius, .. }) if (*radius - (rho - 0.2)).abs() < 1e-12)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    (hollow, cap, rho)
+}
+
 /// **The domed vessel**: a cylinder of radius `r` and height `h` under
 /// a hemisphere of the same radius, tangent to the wall at the equator.
 pub fn domed_vessel(r: f64, h: f64) -> Body<f64> {

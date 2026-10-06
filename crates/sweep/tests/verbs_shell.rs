@@ -18,7 +18,8 @@ use crate::common::census::{genus_of, rings_of};
 use crate::common::charts::{charts, moves_by};
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{
-    capped_vessel, hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
+    capped_vessel, hollow_box, hollow_capped_vessel, outer_and_void, roles_by_solid, tube,
+    two_void_box, vessel,
 };
 use crate::common::torus_walls::{klein_elbow, props_door};
 use geom_core::k_stats::Bracket;
@@ -2620,15 +2621,19 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             .filter(|&t| body.get_face(t).is_some()),
     );
     for rim in &record.rims {
-        named.push(rim.rim);
+        // On a void designation the rim is a cavity twin, which the
+        // twin channel already names; so is a void band's every branch.
+        if rim.side == RimShell::Outer {
+            named.push(rim.rim);
+            // A seamed band keeps every face of its chart as a rim face.
+            named.extend(
+                rim.sources
+                    .iter()
+                    .copied()
+                    .filter(|&f| f != rim.rim && body.get_face(f).is_some()),
+            );
+        }
         named.extend(rim.holes.iter().map(|h| h.face));
-        // A seamed band keeps every face of its chart as a rim face.
-        named.extend(
-            rim.sources
-                .iter()
-                .copied()
-                .filter(|&f| f != rim.rim && body.get_face(f).is_some()),
-        );
     }
     let (named, dups) = sorted_dedup(&named);
     assert!(!dups, "{what}: a live face is named by two channels");
@@ -2698,9 +2703,14 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
     // ---- rims.
     let mut designated_seen: Vec<FaceKey> = Vec::new();
     for rim in &record.rims {
+        let host_of = |f: FaceKey| match rim.side {
+            RimShell::Outer => Some(f),
+            RimShell::Void => record.inner_of(f),
+        };
         assert_eq!(
-            rim.rim, rim.sources[0],
-            "{what}: the rim is the FIRST designated face of its chart"
+            Some(rim.rim),
+            host_of(rim.sources[0]),
+            "{what}: the rim is the FIRST designated face of its chart, or its twin on a void"
         );
         for &src in &rim.sources {
             assert!(
@@ -2721,33 +2731,66 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
         let data = body.get_face(rim.rim).expect("the rim resolves");
         if record.dead.loops.contains(&rim.ring) {
             // A seamed band: the ring was absorbed into the band's outer
-            // loops, so its edge rows each bound one of the band's faces.
-            let band: Vec<topo::EdgeKey> = rim
+            // loops, so its rows each lie on one of the band's faces —
+            // the designated chart's own on the outer shell, its twins on
+            // a void.
+            let faces: Vec<&topo::Face> = rim
                 .sources
                 .iter()
-                .filter_map(|&f| body.get_face(f))
-                .flat_map(|f| loop_edges(body, f.outer))
+                .filter_map(|&f| host_of(f))
+                .filter_map(|f| body.get_face(f))
                 .collect();
+            assert_eq!(
+                faces.len(),
+                rim.sources.len(),
+                "{what}: every branch survives"
+            );
             assert!(
-                rim.sources
-                    .iter()
-                    .filter_map(|&f| body.get_face(f))
-                    .all(|f| f.rings.is_empty()),
+                faces.iter().all(|f| f.rings.is_empty()),
                 "{what}: a seamed band carries no ring"
             );
-            let bounding = boundary_edges(source, &rim.sources);
+            let band_e: Vec<topo::EdgeKey> = faces
+                .iter()
+                .flat_map(|f| loop_edges(body, f.outer))
+                .collect();
+            let band_v: Vec<topo::VertexKey> = faces
+                .iter()
+                .flat_map(|f| loop_vertices(body, f.outer))
+                .collect();
+            let bounding_e = boundary_edges(source, &rim.sources);
+            let bounding_v = boundary_vertices(source, &rim.sources);
             for pair in &rim.ring_edges {
                 assert!(
-                    band.contains(&pair.0),
+                    band_e.contains(&pair.0),
                     "{what}: {pair:?} bounds no band face"
                 );
                 assert!(
-                    record.inner_edges.contains(pair),
-                    "{what}: {pair:?} is no twin row"
+                    bounding_e.contains(&pair.1),
+                    "{what}: {pair:?} names no chart boundary"
                 );
                 assert!(
-                    bounding.contains(&pair.1),
-                    "{what}: {pair:?} names no chart boundary"
+                    match rim.side {
+                        RimShell::Outer => record.inner_edges.contains(pair),
+                        RimShell::Void => pair.0 == pair.1,
+                    },
+                    "{what}: {pair:?} reads neither as a twin row nor as the chart's own"
+                );
+            }
+            for pair in &rim.ring_vertices {
+                assert!(
+                    band_v.contains(&pair.0),
+                    "{what}: {pair:?} is no band corner"
+                );
+                assert!(
+                    bounding_v.contains(&pair.1),
+                    "{what}: {pair:?} names no chart corner"
+                );
+                assert!(
+                    match rim.side {
+                        RimShell::Outer => record.inner_vertices.contains(pair),
+                        RimShell::Void => pair.0 == pair.1,
+                    },
+                    "{what}: {pair:?} reads neither as a twin row nor as the chart's own"
                 );
             }
             continue;
@@ -2759,6 +2802,7 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
         assert_ring_rows(
             what,
             "rim",
+            rim.side,
             source,
             body,
             record,
@@ -2779,6 +2823,7 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             assert_ring_rows(
                 what,
                 "hole",
+                rim.side,
                 source,
                 body,
                 record,
@@ -2828,6 +2873,7 @@ fn assert_dead_arena<K: Ord + Copy + core::fmt::Debug>(
 fn assert_ring_rows(
     what: &str,
     which: &str,
+    side: RimShell,
     source: &Body<f64>,
     body: &Body<f64>,
     record: &topo::ShellNaming,
@@ -2849,8 +2895,12 @@ fn assert_ring_rows(
     let bounding_e = boundary_edges(source, sources);
     for &pair in edges {
         assert!(
-            record.inner_edges.contains(&pair),
-            "{what}: the {which} row {pair:?} is not verbatim in inner_edges"
+            match side {
+                RimShell::Outer => record.inner_edges.contains(&pair),
+                RimShell::Void => pair.0 == pair.1,
+            },
+            "{what}: the {which} row {pair:?} is neither verbatim in inner_edges (outer) nor \
+             the chart's own (void)"
         );
         assert!(
             bounding_e.contains(&pair.1),
@@ -2861,8 +2911,12 @@ fn assert_ring_rows(
     let bounding_v = boundary_vertices(source, sources);
     for &pair in vertices {
         assert!(
-            record.inner_vertices.contains(&pair),
-            "{what}: the {which} vertex row {pair:?} is not verbatim in inner_vertices"
+            match side {
+                RimShell::Outer => record.inner_vertices.contains(&pair),
+                RimShell::Void => pair.0 == pair.1,
+            },
+            "{what}: the {which} vertex row {pair:?} is neither verbatim in inner_vertices \
+             (outer) nor the chart's own (void)"
         );
         assert!(
             bounding_v.contains(&pair.1),
@@ -2893,6 +2947,9 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         })
         .collect();
     let (capped, _, _) = capped_vessel(0.5, 0.6, 60.0);
+    let hollow = hollow_box();
+    let ceiling = plane_face_at(&hollow, 4.0 - 0.25);
+    let (hollow_cap, void_cap, _) = hollow_capped_vessel();
     let capped_chart: Vec<FaceKey> = capped
         .faces()
         .filter(|(_, f)| {
@@ -2927,6 +2984,13 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         ("the annular cup", tube_body, tube_chart, 0.05),
         ("the holed square cup", slab, slab_chart, 0.05),
         ("the capped cup", capped, capped_chart, 0.05),
+        ("the hollow box's void ceiling", hollow, vec![ceiling], 0.05),
+        (
+            "the hollow capped vessel's void cap",
+            hollow_cap,
+            void_cap,
+            0.05,
+        ),
     ]
 }
 

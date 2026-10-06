@@ -12,7 +12,8 @@
 
 use crate::common::census::{genus_of, rings_of};
 use crate::common::shell_operands::{
-    capped_vessel, cone_tipped_vessel, d_section, dome_sector, domed_vessel, vessel,
+    capped_vessel, cone_tipped_vessel, d_section, dome_sector, domed_vessel, hollow_capped_vessel,
+    vessel,
 };
 use core::f64::consts::PI;
 use geom_core::Tol;
@@ -105,6 +106,52 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
         mesh::tessellate(cup, delta, tol)
             .unwrap_or_else(|e| panic!("the band must triangulate at delta = {delta}, got {e:?}"));
     }
+}
+
+/// **A void's cap opens to a seamed band too, with the roles swapped.**
+/// The hollow capped vessel's void is the vessel eroded by `0.2`, so it
+/// has a pole-touching cap of two half-faces. Designated, the void's
+/// own faces and seams die and its dilated twin survives as the band —
+/// both twin half-faces live, ring-free. The outer wall keeps its
+/// cavity; the void's wall becomes a cup opening into the gap. Its
+/// volume is the outer wall's plus that cup, each a difference of two
+/// vessels `w(a, b, ρ)`: a foot of radius `a` standing at `b` under a
+/// cap of radius `ρ` about the operand's own centre.
+#[test]
+fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
+    let tol = Tol::witness();
+    let (hollow, cap, rho) = hollow_capped_vessel();
+    assert_eq!(cap.len(), 2, "the void's cap is two half-faces");
+    let t = 0.05;
+    let shelled = open(&hollow, &cap, t).expect("the void's cap opens");
+    let body = &shelled.body;
+    assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
+    let rim = &shelled.naming.rims[0];
+    assert_eq!(rim.side, topo::RimShell::Void);
+    for &face in &cap {
+        assert!(body.get_face(face).is_none(), "a designated void face dies");
+        let twin = shelled.naming.inner_of(face).expect("its twin");
+        let data = body.get_face(twin).expect("the twin survives as a branch");
+        assert!(data.rings.is_empty(), "a seamed band carries no ring");
+    }
+    assert_eq!(rings_of(body), 0, "no ring anywhere");
+
+    let (_, _, centre) = capped_vessel(0.5, 0.6, 60.0);
+    let w = |a: f64, b: f64, sphere: f64| {
+        let reach = (sphere * sphere - a * a).sqrt();
+        PI * a * a * (centre + reach - b) + cap_volume(sphere, sphere - reach)
+    };
+    let outer_wall = w(0.5, 0.0, rho) - w(0.5 - t, t, rho - t);
+    let cup = w(0.3 + t, 0.2 - t, rho - 0.2) - w(0.3, 0.2, rho - 0.2);
+    let props = topo::mass_properties(body, tol).expect("props");
+    assert!(
+        (props.volume - (outer_wall + cup)).abs() <= 1e-12 + props.volume_pad,
+        "volume: got {} (pad {}), want {}",
+        props.volume,
+        props.volume_pad,
+        outer_wall + cup
+    );
+    mesh::tessellate(body, 1e-2, tol).expect("the void's band triangulates");
 }
 
 /// **A cap that bulges past its equator does not open**: the cavity's
