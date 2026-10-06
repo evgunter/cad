@@ -465,3 +465,11 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   stale variant doc, the equal-codes arm made an invariant, the hook
   reverses within-plan record order and counts only the op under test,
   and the pins assert locations.
+- 2026-10-06 — PR 3955 lands as step 1 of the PR 3881 build: cell-pair
+  records (`VeContact`, `EeContact`), census both ways, one substitution
+  door, edge-split lineage, and the unwired join. The dual review's
+  MAJORs were fixed and re-checked. Lane 2's n2: the fix pass deleted
+  ZIP's slit-zip row although it still holds in part, so the
+  orchestrator re-filed it with the corrected premise and folded in n1
+  (the REST lane's new edge rows are untested). The unit row returns to
+  `open` for step 2.
