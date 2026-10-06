@@ -3121,7 +3121,7 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
 pub struct ShellDoor<T: Decide> {
     /// [`ShellDoor::open`]'s body — `crate::shell_open`, and nothing
     /// else can be written here (`wiring_rows` pins the pointer).
-    open: fn(&Body<T>, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
+    open: fn(&crate::AtRestBody<T>, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds + AtRestPolicy> ShellDoor<T> {
@@ -3150,7 +3150,7 @@ impl<T: Decide> ShellDoor<T> {
     /// [`ShellError`] — the door's own, verbatim.
     pub fn open(
         self,
-        body: &Body<T>,
+        body: &crate::AtRestBody<T>,
         thickness: T,
         open_faces: &[FaceKey],
         tol: Tol,

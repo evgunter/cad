@@ -28,6 +28,7 @@ use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{
     ArcSweep, Profile, ProfileLoop, SketchPlane, bulge_from_center, test_support::bulge_loop,
 };
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
@@ -153,9 +154,13 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
             (v0 - frustum_volume(r0, r1, H)).abs() <= 1e-15,
             "{what}: operand volume"
         );
-        let hollow = topo::shell(&body, T, Tol::witness())
-            .unwrap_or_else(|e| panic!("{what}: shell refused: {e}"))
-            .body;
+        let hollow = topo::shell(
+            &finished("the operand", body.clone(), Tol::witness()),
+            T,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: shell refused: {e}"))
+        .body;
         assert_eq!(
             topo::validate_geometric(&hollow, Tol::witness()),
             Ok(()),
@@ -175,7 +180,11 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
         // A thick request: what does a user get when the wall would
         // reach its own apex?
         for t in [0.03, 0.04] {
-            match topo::shell(&body, t, Tol::witness()) {
+            match topo::shell(
+                &finished("the operand", body.clone(), Tol::witness()),
+                t,
+                Tol::witness(),
+            ) {
                 Ok(s) => println!(
                     "[r1] {what} t={t}: shell BUILT, cavity {} (closed form {})",
                     v0 - volume(&s.body),

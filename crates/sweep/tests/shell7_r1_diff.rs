@@ -12,6 +12,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
@@ -83,7 +84,7 @@ fn dump(label: &str, body: &Body<f64>) {
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
-    match topo::shell(body, t, tol()) {
+    match topo::shell(&finished("the operand", body.clone(), tol()), t, tol()) {
         Ok(s) => {
             dump(label, &s.body);
             Some(s.body)
