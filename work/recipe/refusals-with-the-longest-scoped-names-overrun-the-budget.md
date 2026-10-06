@@ -2,12 +2,13 @@
 id: refusals-with-the-longest-scoped-names-overrun-the-budget
 kind: issue
 title: Refusals forwarding the corpus's longest names overrun the 75-word budget
-status: review
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-03
 pr: 3886
 branch: recipe/leaf-role-words
+closed: 2026-10-06
 ---
 
 

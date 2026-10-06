@@ -2,12 +2,13 @@
 id: names-render-a-faces-leaf-role-in-words
 kind: issue
 title: The names layer renders a face's leaf role in words through one public renderer, and StableName's Display carries it (Ev, #3571)
-status: review
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
 branch: recipe/leaf-role-words
 pr: 3886
+closed: 2026-10-06
 ---
 
 
