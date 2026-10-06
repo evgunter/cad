@@ -78,3 +78,17 @@ position and the arc tangent there; this is a hypothesis, not traced.
 ## Found by
 
 CLEAVE DR-51's review of PR 3892, `review-tests/dr51` (74e151b6).
+
+## Measured on cleave/inband-graze (2026-10-06)
+
+The hypothesis above holds: the inserted graze root sat at the
+residue's crossing, √(2m/R) off the extremum whenever the rounded
+margin `m` fell inside the conic, so the departure there read in the
+band. With the root at the extremum
+(`an-in-band-concave-graze-refuses-at-certification-on-one-side-of-tangency`)
+the frusta (narrowing θ = 0.3, widening θ ∈ {1.1, 2.9}) and the slab at
+φ = 1.2 answer at 1e-9, 1e-6 and 1e-12, and their allowances are removed;
+the filleted hole at φ = 1.2 and an L-bracket cove refuse the knife edge
+at all three. The full cone through its apex is unmoved:
+`Reduce(SliverSector)` on `sector_straight` at the apex vertex, margin 0,
+at every azimuth of `THETAS`, both normals, all three rows.

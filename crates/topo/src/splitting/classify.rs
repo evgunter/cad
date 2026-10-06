@@ -746,11 +746,20 @@ fn conic_plane_meet<T: Decide>(
         Ok(Sign::Negative) => (T::zero() - b).atan2(T::zero() - a) + T::pi(),
         Ok(Sign::Positive | Sign::Zero) | Err(_) => b.atan2(a),
     };
-    // Clamped acos (rounding can push the ratio a hair outside ±1 at
-    // the graze boundary; min/max are Real lattice ops).
-    let arg = ((T::zero() - d0) / r)
-        .min(T::one())
-        .max(T::zero() - T::one());
+    // The roots solve cos(θ − φ) = −D/R. A graze's one root is the
+    // sinusoid's extremum nearest the plane, cos(θ − φ) = −sign D: the
+    // residue's own roots lie up to √(2ε/R) radians either side of it
+    // (3e-5 m on a radius of 0.5 at ε = 1e-9), far outside ε, so solving
+    // the residue would place the contact off the tangency. |D| ≥ R − ε
+    // is nonzero there, since the parallel gate decided R ≥ Kε. Clamped
+    // acos (rounding can push the ratio a hair outside ±1; min/max are
+    // Real lattice ops).
+    let ratio = if both_roots {
+        (T::zero() - d0) / r
+    } else {
+        (T::zero() - d0) / d0.abs()
+    };
+    let arg = ratio.min(T::one()).max(T::zero() - T::one());
     let delta = arg.acos();
     let tau = T::tau();
     // The conservative meter (radians → meters): the smaller semi-axis
@@ -1079,7 +1088,7 @@ mod tests {
     }
 
     /// `split_conic_belly_graze`, all three arms: definitely-secant
-    /// (two roots), definitely-missing (no roots), exactly-tangent
+    /// (two roots), definitely-missing (no roots), tangent within ε
     /// (one graze root), and in-band (typed escalation).
     #[test]
     fn belly_graze_trio() {
@@ -1095,10 +1104,18 @@ mod tests {
             on_split_plane(&c, 0.1, 6.0, &plane_y(2.0), band()),
             PlaneCrossingLane::Conic(ConicPlaneMeet::Miss)
         ));
-        // Exactly tangent (margin 0): ONE graze root at π/2.
-        let roots = roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(1.0), band())).unwrap();
-        assert_eq!(roots.len(), 1);
-        assert!((roots[0] - core::f64::consts::FRAC_PI_2).abs() < 1e-4);
+        // Tangent within ε, either side (margin 0, ±ε/2): ONE graze root,
+        // at the extremum π/2. Inside, the residue's own roots lie
+        // √(2·5e-10) ≈ 3.2e-5 either side of it.
+        for y in [1.0, 1.0 - 5e-10, 1.0 + 5e-10] {
+            let roots = roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(y), band())).unwrap();
+            assert_eq!(roots.len(), 1, "y = {y}: one graze root");
+            assert!(
+                (roots[0] - core::f64::consts::FRAC_PI_2).abs() < 1e-12,
+                "y = {y}: the graze root {} sits at the extremum",
+                roots[0]
+            );
+        }
         // In-band (margin −3ε): typed escalation, named.
         let diag =
             roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(1.0 + 3e-9), band())).unwrap_err();

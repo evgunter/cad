@@ -2,8 +2,8 @@
 //! between a plane and a cylinder (convex on a D-shaped bar, reflex on a
 //! D-shaped hole); the convex graze of a cylinder and of a cone, which
 //! lands the body whole on its material's side; and the concave graze
-//! of a round hole, a conical socket, a counterbore and a filleted
-//! hole, which refuses the knife edge it would mint.
+//! of a round hole, a conical socket, a counterbore, a filleted hole and
+//! a cove, which refuses the knife edge it would mint.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::SurfaceKind;
@@ -209,7 +209,7 @@ fn refuses_the_knife_edge(
             for v in ends {
                 let q = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
                 assert!(
-                    (q - p.origin).dot(p.normal.get()).abs() <= 1e-9,
+                    (q - p.origin).dot(p.normal.get()).abs() <= Tol::witness().eps(),
                     "{label}: the contact edge lies in the plane"
                 );
             }
@@ -243,6 +243,64 @@ fn a_concave_graze_of_a_round_hole_refuses() {
                     SurfaceKind::Cylinder,
                     if seam { Contact::Edge } else { Contact::Vertex },
                 );
+            }
+        }
+    }
+}
+
+/// The round hole's wall and a plane δ off tangency (δ < 0 inside the
+/// hole), at every azimuth of [`THETAS`] with either normal: one graze
+/// decision across the band. Tangent within ε on either side, it refuses
+/// its knife edge ([`refuses_the_knife_edge`]), the contact read at the
+/// rim's extremum rather than at one of the two roots the residue solves
+/// for inside the hole (4.5e-5 apart along the rim at δ = −ε/2, ε =
+/// 1e-9). In the band
+/// the plane's distance from the wall escalates: at the seam vertex, or
+/// across the rim. Beyond it the split answers.
+#[test]
+fn a_plane_within_the_band_of_a_hole_wall_tells_one_story() {
+    let tol = Tol::witness();
+    let (eps, k) = (tol.eps(), tol.k());
+    let b = extruded(vec![outer(), vec![((-0.5, 0.0), 1.0), ((0.5, 0.0), 1.0)]]);
+    let operand = sweep::test_support::finished("the plate", b.clone(), tol);
+    let plate = 16.0 - std::f64::consts::PI * 0.25;
+    for t in THETAS {
+        let u = unit(t);
+        let seam = t == 0.0 || t == std::f64::consts::PI;
+        for d in [-100.0, -2.0, -0.5, 0.0, 0.5, 2.0, 100.0].map(|m| m * eps) {
+            for s in [1.0, -1.0] {
+                let label = format!("θ = {t}, δ = {d:e}, s = {s} at ε = {eps:e}");
+                let r = 0.5 + d;
+                let p = plane((r * u.0, r * u.1), (s * u.0, s * u.1));
+                if d.abs() <= eps {
+                    let contact = if seam { Contact::Edge } else { Contact::Vertex };
+                    refuses_the_knife_edge(&label, &b, &p, SurfaceKind::Cylinder, contact);
+                    continue;
+                }
+                let got = split(&operand, &p, tol);
+                if d.abs() >= k * eps {
+                    let r = got.unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+                    let sum = volume(&label, &r.above).unwrap() + volume(&label, &r.below).unwrap();
+                    assert!(close(Some(sum), Some(plate)), "{label}: {sum} ≠ {plate}");
+                    continue;
+                }
+                let predicate =
+                    match got {
+                        Err(SplitError::Reduce(SplitReduceError::SliverVertex {
+                            diag, ..
+                        })) if seam => diag.predicate,
+                        Err(SplitError::Reduce(SplitReduceError::CrossingEscalated {
+                            fault: topo::ConicRootFault::BellyGraze(diag),
+                            ..
+                        })) if !seam => diag.predicate,
+                        other => panic!("{label}: in band, refused {other:?}"),
+                    };
+                let want = if seam {
+                    "split_vertex_side"
+                } else {
+                    "split_conic_belly_graze"
+                };
+                assert_eq!(predicate, Some(want), "{label}");
             }
         }
     }
@@ -358,7 +416,8 @@ fn a_convex_graze_of_a_cylinder_lands_it_whole_at_interval() {
 /// Planes just off the cylinder's top ruling, inside (a thin circular
 /// segment above) and outside (the whole below), both normals. An
 /// answer is the true one, or — inside, where the segment is below
-/// rounding scale — the whole; the tightest inside offsets refuse.
+/// rounding scale or its depth within ε — the whole; the tightest inside
+/// offsets refuse.
 #[test]
 fn a_near_graze_of_a_cylinder_never_answers_wrongly() {
     let disc = extruded(vec![vec![((-0.5, 0.0), 1.0), ((0.5, 0.0), 1.0)]]);
@@ -383,7 +442,8 @@ fn a_near_graze_of_a_cylinder_never_answers_wrongly() {
                     (opt(v - seg), opt(seg))
                 };
                 let got = (volume(&label, &res.above), volume(&label, &res.below));
-                let whole = seg < 1e-12 && got.0.xor(got.1).is_some_and(|g| (g - v).abs() < 1e-9);
+                let graze = seg < 1e-12 || (inside && d <= Tol::witness().eps());
+                let whole = graze && got.0.xor(got.1).is_some_and(|g| (g - v).abs() < 1e-9);
                 assert!(
                     (close(got.0, want.0) && close(got.1, want.1)) || whole,
                     "{label}: {got:?}, want {want:?}"
@@ -459,18 +519,11 @@ fn cone_tangent(r0: f64, slope: f64, u: (f64, f64), s: f64) -> SplitPlane<f64> {
     )
 }
 
-/// The cone grazes that may refuse, by (frustum, azimuth): at the
-/// default ε they stop before rule (b) reads the wall, and at a wider
-/// band they answer
-/// (`work/cleave/a-convex-graze-of-a-cone-refuses-at-some-azimuths.md`).
-const CONE_GRAZES_REFUSED: [(&str, f64); 3] =
-    [("narrowing", 0.3), ("widening", 1.1), ("widening", 2.9)];
-
 /// A cone frustum grazed from outside along a ruling, narrowing and
 /// widening upward (the two nappes of the stored cone), at every
 /// azimuth of [`THETAS`] (the revolve's seam is at +x): the wall bends
 /// into its material, so the whole frustum, `7π/12`, lands on the
-/// material side — save the refusals of [`CONE_GRAZES_REFUSED`].
+/// material side.
 #[test]
 fn a_convex_graze_of_a_cone_lands_it_whole() {
     let v = 7.0 * std::f64::consts::PI / 12.0;
@@ -489,7 +542,6 @@ fn a_convex_graze_of_a_cone_lands_it_whole() {
         ),
     ] {
         for t in THETAS {
-            let refused = CONE_GRAZES_REFUSED.contains(&(name, t));
             for s in [1.0, -1.0] {
                 let label = format!("{name}, θ = {t}, s = {s}");
                 match split(
@@ -509,7 +561,7 @@ fn a_convex_graze_of_a_cone_lands_it_whole() {
                             "{label}: {got:?}, want {want:?}"
                         );
                     }
-                    Err(e) => assert!(refused, "{label}: {e:?}"),
+                    Err(e) => panic!("{label}: {e:?}"),
                 }
             }
         }
@@ -611,9 +663,7 @@ fn rounded_outline() -> profile::ProfileLoop<f64> {
 /// door (declared tangent joints, smooth edges between each flat and
 /// its corner wall), grazed along its NE corner wall at angle φ and
 /// coplanar with the flats the corner continues (φ = 0, π/2): the slab
-/// lands whole on the material side. φ = 1.2 may refuse before rule (b)
-/// (`split_conic_departure` at the default ε, filed with the cone's
-/// refusals).
+/// lands whole on the material side.
 #[test]
 fn a_convex_graze_of_a_filleted_corner_lands_the_slab_whole() {
     let (w, h, r, t) = (6.0, 4.0, 0.5, Tol::witness());
@@ -645,7 +695,7 @@ fn a_convex_graze_of_a_filleted_corner_lands_the_slab_whole() {
                         "{label}: {got:?}, want {want:?}"
                     );
                 }
-                Err(e) => assert!(phi == 1.2, "{label}: {e:?}"),
+                Err(e) => panic!("{label}: {e:?}"),
             }
         }
     }
@@ -693,9 +743,6 @@ fn a_concave_graze_of_a_revolved_hole_refuses() {
 /// coplanar with a flat the corner continues (φ = 0, π/2), along the
 /// smooth edge between the flat and the wall; at the interior angles,
 /// through the vertices where the contact crosses the caps' rims.
-/// φ = 1.2 stops before the wall is read, as the slab's φ = 1.2 does
-/// (`work/cleave/a-convex-graze-of-a-cone-refuses-at-some-azimuths.md`),
-/// and its payload is pinned per ε row ([`phi_1_2_refusal`]).
 #[test]
 fn a_concave_graze_of_a_filleted_hole_refuses() {
     use profile::RawLoop;
@@ -713,34 +760,40 @@ fn a_concave_graze_of_a_filleted_hole_refuses() {
         for s in [1.0, -1.0] {
             let label = format!("φ = {phi}, s = {s}");
             let p = plane((c.0 + r * n.0, c.1 + r * n.1), (s * n.0, s * n.1));
-            if phi == 1.2 {
-                let operand =
-                    sweep::test_support::finished("the plate", body.clone(), Tol::witness());
-                phi_1_2_refusal(&label, split(&operand, &p, Tol::witness()));
-            } else {
-                let flat = phi == 0.0 || phi == FRAC_PI_2;
-                let contact = if flat { Contact::Edge } else { Contact::Vertex };
-                refuses_the_knife_edge(&label, &body, &p, SurfaceKind::Cylinder, contact);
-            }
+            let flat = phi == 0.0 || phi == FRAC_PI_2;
+            let contact = if flat { Contact::Edge } else { Contact::Vertex };
+            refuses_the_knife_edge(&label, &body, &p, SurfaceKind::Cylinder, contact);
         }
     }
 }
 
-/// The filleted hole's φ = 1.2 graze, per ε row. Its rounded contact
-/// sits ~3.9e-9 off tangency: at 1e-9 that is in the band, and the
-/// first-order departure at the graze vertex refuses before the wall is
-/// read; at 1e-6 the wall is read tangent, and the knife edge refuses;
-/// at 1e-12 the plane reads as cutting the wall at two roots ~4e-9
-/// apart, and the chord between them does not certify.
-fn phi_1_2_refusal(label: &str, got: Result<topo::splitting::SplitResult<f64>, SplitError>) {
-    let eps = Tol::witness().eps();
-    match got {
-        Err(SplitError::Reduce(SplitReduceError::SliverSector { .. })) if eps == 1e-9 => {}
-        Err(e) if eps == 1e-6 && e.knife_edge().is_some() => {}
-        Err(SplitError::Join(topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
-            error: geom_brep::CertifyError::ResidualExceeded { .. },
-        }))) if eps == 1e-12 => {}
-        other => panic!("{label} at ε = {eps}: {other:?}"),
+/// An L-bracket whose inner corner is a declared concave cove (r = 0.5,
+/// centre (1.5, 1.5)), grazed from the corner's side at angles across
+/// the cove, under either normal: each refuses its knife edge
+/// ([`refuses_the_knife_edge`]) through the vertices where the contact
+/// crosses the caps' rims.
+#[test]
+fn a_concave_graze_of_a_cove_refuses() {
+    use profile::RawLoop;
+    let q = (std::f64::consts::PI / 8.0).tan();
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(3.0, 0.0), 0.0),
+        (Point2::new(3.0, 1.0), 0.0),
+        (Point2::new(1.5, 1.0), -q),
+        (Point2::new(1.0, 1.5), 0.0),
+        (Point2::new(1.0, 3.0), 0.0),
+        (Point2::new(0.0, 3.0), 0.0),
+    ])
+    .with_tangent_joints(vec![3, 4]);
+    let body = extruded_loops(vec![lp]);
+    for phi in [3.3, 3.6, 4.0, 4.2, 4.5] {
+        let n = unit(phi);
+        for s in [1.0, -1.0] {
+            let label = format!("φ = {phi}, s = {s}");
+            let p = plane((1.5 + 0.5 * n.0, 1.5 + 0.5 * n.1), (s * n.0, s * n.1));
+            refuses_the_knife_edge(&label, &body, &p, SurfaceKind::Cylinder, Contact::Vertex);
+        }
     }
 }
 
