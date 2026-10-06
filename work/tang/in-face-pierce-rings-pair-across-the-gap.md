@@ -8,6 +8,7 @@ priority: P0
 cost: M
 closed: 2026-10-06
 branch: tang/in-face-ring-pairing
+pr: 4132
 ---
 
 
