@@ -154,11 +154,18 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
 
 /// **Crossing axes, wherever the origins are stored.** Two unit
 /// cylinders crossing about the origin, the second lifted `g`
-/// along `a1×a2`, `g` swept across the zero band's edge. Whether the
+/// along `a1×a2`, `g` swept across both edges of the band. Whether the
 /// axes meet (`cc_axes_coplanar`) is one verdict for each `g` at every
-/// stored origin, in both operand orders: the gap is read between the
-/// axes' feet at the reach, not between the stored origins, whose
-/// difference at 1e6 m rounds by more than the band's width.
+/// stored origin, in both operand orders.
+///
+/// The gap is read between the axes' feet at the reach. Read between
+/// the stored origins, the verdict changed with the stored origin for
+/// every `g` within about `0.14·zero` of either edge (at 0.9 and 1.1,
+/// meet at one stored origin and escalate at another). Read at the
+/// feet, it changes only within about `0.07·zero`. That remainder is
+/// the stored lines themselves: a coordinate near 1e6 m carries its own
+/// rounding, which no reading undoes, so the sweep's `g` sit between
+/// the two windows (measured in `f64` at the default ε).
 #[test]
 fn crossing_axes_read_one_verdict_at_every_stored_origin() {
     let reach = ExtentBall::new(Point3::origin(), 1.0);
@@ -173,7 +180,7 @@ fn crossing_axes_read_one_verdict_at_every_stored_origin() {
         Err(geom_brep::SectionError::Escalated(_)) => "escalate",
         other => panic!("crossing equal cylinders answer only meet, skew or escalate: {other:?}"),
     };
-    for frac in [0.5, 0.9, 0.99, 1.01, 1.1, 2.0] {
+    for frac in [0.5, 0.9, 1.1, 2.0, 9.92, 10.08, 20.0] {
         let g = frac * band().zero();
         let mut seen: Option<&str> = None;
         for s1 in [0.0, 1e3, -1e3, 1e6, -1e6] {

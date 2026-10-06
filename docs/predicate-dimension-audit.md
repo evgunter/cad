@@ -436,8 +436,7 @@ which is what actually moves the number.
 | boolean/join.rs (`nearer_along`, through `turned_past`) | bool_join_arc_travel | the same distance read from the incumbent partner's site: which of two sites in one half-turn the germ reaches first | m | OK |
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs (`rotational_sense`) | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
-| boolean/join.rs (`pair_section_frame`, cylinder pair) | cc_axes_parallel (retired `bool_germ_frame_axes_parallel`) | the section table's own row, asked through `geom_brep::cylinder_axes_parallel`: `‖a₁ × a₂‖` levered across the germ's reach (the smaller face's ball, `germ_reach`) by `ExtentBall::lever_between` | m | FIXED (TANG; was levered by the larger radius, then by the germ walls' span, under a second name) |
-| boolean/join.rs (`germ_reach`) | bool_germ_reach_smaller | the difference of the two germ faces' ball radii: which ball the frame is read across (either encloses the section; the band keeps the first) | m | OK |
+| boolean/join.rs (`pair_section_frame`, cylinder pair) | cc_axes_parallel (retired `bool_germ_frame_axes_parallel`) | the section table's own row, asked through `geom_brep::cylinder_axes_parallel`: `‖a₁ × a₂‖` levered across the germ's reach (the smaller face's ball, `germ_reach`) by `ExtentBall::lever_between`; the reach is chosen unlogged (F21) | m | FIXED (TANG; was levered by the larger radius, then by the germ walls' span, under a second name) |
 | boolean/join.rs (`pair_section_frame`, cylinder pair) | bool_germ_frame_axes_coplanar | the signed axis-to-axis gap along the common perpendicular, `w·(a₁ × a₂) / ‖a₁ × a₂‖`, `w` between the axes' feet at the reach (`ExtentBall::foot_on`) | m | FIXED (TANG; was read between the stored origins, `o₂ − o₁`, which rounds with where an origin is stored) |
 | boolean/join.rs (`cs_transverse_frame`) | bool_germ_frame_cs_offset | the sphere centre's distance from the cylinder's axis, `‖(c − o) − a·((c − o)·a)‖` with `a` unit; only a definite offset names a frame | m | OK |
 | boolean/join.rs (`cs_transverse_frame`) | bool_germ_frame_cs_reach | `|R| − |r| − d`: how far the sphere reaches past the wall's far side (two loops when positive, one when negative, the walls tangent at Zero) | m | OK |
@@ -1034,6 +1033,20 @@ Flagged, NOT fixed here (dispositions):
   sample over the band still refuses the certificate, and the witness
   build with it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
   does not move.
+- **F21** (added by TANG's `classifiers-read-at-the-reach` fix pass,
+  PR 4118) `topo/src/boolean/join.rs` `germ_reach`:
+  `bool_germ_reach_smaller`, the difference of the two germ faces' ball
+  radii in metres, choosing which ball the germ frame reads its section
+  rows across. Either ball encloses the section, which lies on both
+  faces, so the choice is between two sound statements of one reach;
+  in the band the first is kept. It states nothing a certificate
+  carries. Logged, a resized germ face flipped it, and the verdict diff
+  named that flip as the cause of every stable name the resize moved
+  (measured: seven editor-core diagnosis rows reported
+  `PredicateFlip { predicate: "bool_germ_reach_smaller" }`). **Carried as
+  `k_stats::check_unlogged(.., "F21")`**. The section rows the frame
+  then decides on the chosen ball are logged as before. Not a
+  `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

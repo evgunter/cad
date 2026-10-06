@@ -2714,9 +2714,8 @@ mod pose_reach_rows {
     /// the arm cannot tell from a parabola.
     #[test]
     fn a_line_edges_pose_is_read_at_its_endpoints_not_its_ball() {
-        let tol = Tol::witness();
-        let eps = tol.eps();
-        let band = Band::linear(tol).expect("a linear band");
+        let band = Band::linear(Tol::witness()).expect("a linear band");
+        let eps = band.zero();
         let alpha: f64 = 0.5;
         let cone = Surface::Cone {
             apex: Point3::new(0.0, 0.0, 0.0),

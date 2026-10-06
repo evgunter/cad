@@ -1867,15 +1867,22 @@ pub(super) fn pair_section_frame<T: Decide>(
 /// of the two faces' balls ([`germ_section_frame`]). Each encloses the
 /// section, so the choice is free where the radii are in the band, and
 /// the first is kept.
+///
+/// **Unlogged** (`docs/predicate-dimension-audit.md` F21): the choice
+/// is between two sound statements of one reach and states nothing a
+/// certificate carries, so a flip in it is not a verdict that changed.
+/// Logged, it read to the verdict diff as the cause of every name a
+/// resized germ face moved.
 fn germ_reach<T: Decide>(
     a: geom_brep::ExtentBall<T>,
     b: geom_brep::ExtentBall<T>,
     band: Band,
 ) -> geom_brep::ExtentBall<T> {
-    match decide(
+    match geom_core::k_stats::check_unlogged(
         "bool_germ_reach_smaller",
-        Margin::of(a.radius() - b.radius()),
+        a.radius() - b.radius(),
         band,
+        "F21",
     ) {
         Ok(Sign::Positive) => b,
         Ok(Sign::Zero | Sign::Negative) | Err(_) => a,
