@@ -34,15 +34,24 @@ fn empty_profile_is_rejected() {
 }
 
 #[test]
-fn single_vertex_loop_fails_arity() {
-    let p = profile(vec![chain(&[(0.0, 0.0, 1.0)])]);
+fn empty_loop_fails_arity() {
+    let p = profile(vec![chain(&[])]);
     assert_eq!(
         err(&p),
         ProfileError::TooFewVertices {
             loop_index: 0,
-            count: 1,
+            count: 0,
         }
     );
+}
+
+/// One vertex is a legal arity (D1's full turn), but the bulge door
+/// cannot express a full turn: its lowering of the zero chord has
+/// radius zero, a segment of no length.
+#[test]
+fn single_bulge_vertex_is_a_degenerate_segment() {
+    let p = profile(vec![chain(&[(0.0, 0.0, 1.0)])]);
+    assert_eq!(err(&p), ProfileError::DegenerateSegment(sref(0, 0)));
 }
 
 #[test]

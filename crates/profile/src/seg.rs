@@ -240,8 +240,9 @@ pub(crate) enum Consistency {
 ///     sign for |Δθ| < 2π, so what this reads is the upper bound:
 ///     Positive ⇒ |Δθ| < 2π, and a sweep past a full turn is Negative
 ///     (its gap, or its quarter tangent's sign, has turned). A full turn
-///     is Zero here and refused, as no loop of two or more vertices can
-///     hold one past `vertex_separation`.
+///     is Zero here and refused: between two vertices it is a zero
+///     chord, and D1's full turn is one segment at one vertex
+///     ([`build_loop_seg`]'s other arm).
 /// - **`arc_diameter_clearance`** (arcs only) — margin:
 ///   2r − |a − apex| = 2r·(1 − sin(|Δθ|/4)) (meters, computed in the
 ///   second form): how far the arc's half-span chord sits below the
@@ -264,12 +265,118 @@ pub(crate) fn build_seg<T: Decide>(
 ) -> Result<Seg<T>, SegIssue<T>> {
     match consistency {
         Consistency::Decide => classify(a, b, segment, band, |arc, span| {
-            check_carrier(arc, a, b, span, band)
+            check_carrier(arc, a, b, span, Range::Chord, band)
         }),
         Consistency::ByConstruction => {
             build_constructed_seg(a, b, segment, band).map_err(SegIssue::Shape)
         }
     }
+}
+
+/// Builds and classifies segment `k` of the loop `vertices` /
+/// `segments` ([`build_seg`] with the loop's arity in hand): a loop of
+/// one vertex holding an arc is D1's full turn, read by
+/// [`build_full_turn`]; every other segment runs from vertex `k` to
+/// vertex `k + 1 (mod n)` through [`build_seg`] — a one-vertex LINE
+/// included, whose zero chord `vertex_separation` refuses.
+pub(crate) fn build_loop_seg<T: Decide>(
+    vertices: &[Point2<T>],
+    segments: &[Segment<T>],
+    k: usize,
+    consistency: Consistency,
+    band: Band,
+) -> Result<Seg<T>, SegIssue<T>> {
+    let n = vertices.len();
+    let a = vertices[k];
+    match (n, segments[k]) {
+        (1, Segment::Arc(arc)) => match consistency {
+            Consistency::Decide => full_turn(a, arc, band, |arc, span| {
+                check_carrier(arc, a, a, span, Range::FullTurn, band)
+            }),
+            Consistency::ByConstruction => {
+                full_turn(a, arc, band, |_, _| Ok(())).map_err(SegIssue::Shape)
+            }
+        },
+        _ => build_seg(a, vertices[(k + 1) % n], segments[k], consistency, band),
+    }
+}
+
+/// **A full turn at one vertex** (D1: the loop's one segment, from its
+/// vertex `a` back to it through |Δθ| = 2π) — [`build_seg`]'s
+/// predicates where a full turn has no chord to write them on:
+///
+/// - **`vertex_separation`** — margin: the full turn's reach from its
+///   vertex, |m| with m = 2r·Δθ/2π (meters: the sweep as a fraction of
+///   a turn, levered by the diameter — the diameter at |Δθ| = 2π).
+///   Zero ⇒ degenerate (a carrier below the band, or a sweep of
+///   nothing).
+/// - **`segment_straightness`** — margin: m itself, the antipode's
+///   signed offset from the tangent at the vertex (the sagitta, whose
+///   limit a chord arc's (L/2)·tan(Δθ/4) is). Its sign is the turn;
+///   its magnitude was just decided Positive, so Zero is unreachable
+///   and is refused as degenerate rather than read as a line.
+/// - **The consistency checks** (under [`Consistency::Decide`]), as
+///   [`build_seg`] states them with `b = a`, except that
+///   **`arc_sweep_range`** reads the full-turn factor of its range
+///   product, r·(2π − |Δθ|), and ACCEPTS Zero — |Δθ| = 2π — refusing
+///   either sign: short of a full turn, or past it (a landing two
+///   turns round is Zero at `arc_landing`).
+///
+/// No `arc_diameter_clearance`: a full turn is the circle that gate
+/// keeps chord arcs short of. The apex is the antipode
+/// ([`Arc2::antipode`]) and the span chord its distance from `a`, so
+/// `arc_span` reads every carrier point but the vertex Positive and the
+/// vertex Zero — an endpoint, as at a chord arc's ends. The chordal
+/// defect is second order at the vertex (cos(|θ|/4) = 0), so a Zero
+/// there means within ≈ √(4rKε) of the vertex along the carrier; Zero
+/// routes to a touch (refused between loops) or a grazing ray
+/// (retried), never to an accept.
+fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
+    a: Point2<T>,
+    arc: Arc2<T>,
+    band: Band,
+    check: impl FnOnce(Arc2<T>, T) -> Result<(), E>,
+) -> Result<Seg<T>, E> {
+    let escalated = |source| E::from(ShapeIssue::Escalated(source));
+    let reach = Margin::levered(arc.sweep / T::tau(), arc.radius + arc.radius);
+    let m = reach.value();
+    match decide("vertex_separation", Margin::of(m.abs()), band).map_err(escalated)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Err(ShapeIssue::Degenerate { margin: m }.into()),
+    }
+    let turn = match decide("segment_straightness", reach, band).map_err(escalated)? {
+        Sign::Zero => return Err(ShapeIssue::Degenerate { margin: m }.into()),
+        turn @ (Sign::Positive | Sign::Negative) => turn,
+    };
+    let span = match turn {
+        Sign::Negative => arc.reversed().sweep,
+        Sign::Positive | Sign::Zero => arc.sweep,
+    };
+    check(arc, span)?;
+    let apex = arc.antipode(a);
+    let frame = ChordFrame::of(a, a);
+    Ok(Seg {
+        a,
+        b: a,
+        chord: frame.chord,
+        len: frame.len,
+        unit: frame.unit,
+        kind: SegKind::Arc(ArcGeom {
+            arc,
+            apex,
+            span_chord: a.distance(apex),
+            turn,
+        }),
+    })
+}
+
+/// Which sweeps [`check_carrier`]'s `arc_sweep_range` accepts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Range {
+    /// 0 < |Δθ| < 2π: an arc between two vertices.
+    Chord,
+    /// |Δθ| = 2π: the full turn at one vertex.
+    FullTurn,
 }
 
 /// [`build_seg`] of a constructed arc's segment
@@ -417,13 +524,15 @@ fn resolves<T: Decide>(
 
 /// Validation's three consistency checks of a stored arc against its
 /// endpoints `a → b`, decided in order at the run's band ([`build_seg`]
-/// states each margin). `span` is the sweep signed by the arc's decided
-/// turn into |Δθ|, without an `abs`.
+/// states each margin; `range` which sweeps the last one accepts,
+/// [`full_turn`] the full turn's). `span` is the sweep signed by the
+/// arc's decided turn into |Δθ|, without an `abs`.
 fn check_carrier<T: Decide>(
     arc: Arc2<T>,
     a: Point2<T>,
     b: Point2<T>,
     span: T,
+    range: Range,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
     let refuse = |check: ArcCheck| Err(SegIssue::Inconsistent { check });
@@ -464,12 +573,16 @@ fn check_carrier<T: Decide>(
         }
     }
     let tau = T::tau();
-    let ratio = span * (tau - span) / tau;
-    match decide("arc_sweep_range", Margin::levered(ratio, arc.radius), band)
-        .map_err(SegIssue::escalated)?
-    {
-        Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => refuse(ArcCheck::SweepRange),
+    let (ratio, accept) = match range {
+        Range::Chord => (span * (tau - span) / tau, Sign::Positive),
+        Range::FullTurn => (tau - span, Sign::Zero),
+    };
+    let read = decide("arc_sweep_range", Margin::levered(ratio, arc.radius), band)
+        .map_err(SegIssue::escalated)?;
+    if read == accept {
+        Ok(())
+    } else {
+        refuse(ArcCheck::SweepRange)
     }
 }
 

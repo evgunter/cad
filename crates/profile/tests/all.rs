@@ -116,6 +116,8 @@ mod guided_replay;
 mod interval_lane;
 #[path = "lift_census.rs"]
 mod lift_census;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "onarc_probe.rs"]
 mod onarc_probe;
 #[path = "path_differential.rs"]

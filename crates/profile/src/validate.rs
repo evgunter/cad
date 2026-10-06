@@ -3,15 +3,16 @@
 //!
 //! # The checks, in order
 //!
-//! 1. **Arity** — every loop has ≥ 2 vertices (structural; a 2-vertex
-//!    loop with two arc segments is the legal minimal circle).
+//! 1. **Arity** — every loop has a vertex (structural; D1's full turn
+//!    is one arc segment at one vertex, so a closed carrier is one
+//!    segment).
 //! 2. **Degeneracy and consistency** — no zero-length segments
-//!    (chord-level vertex coincidence), via the `vertex_separation`
-//!    distance predicate, in-band ⇒ escalation (the Q1 sliver
-//!    semantics); and, for a table's arcs, the three consistency checks
-//!    of each stored carrier against its vertices, past the scene's
-//!    resolution refused as unreadable rather than inconsistent
-//!    (`seg::build_seg`). A [`ConstructedProfile`]'s arcs were verified
+//!    (chord-level vertex coincidence, or a full turn's reach), via the
+//!    `vertex_separation` distance predicate, in-band ⇒ escalation (the
+//!    Q1 sliver semantics); and, for a table's arcs, the three
+//!    consistency checks of each stored carrier against its vertices,
+//!    past the scene's resolution refused as unreadable rather than
+//!    inconsistent (`seg::build_loop_seg`). A [`ConstructedProfile`]'s arcs were verified
 //!    at their construction and skip them.
 //! 3. **Simplicity** — pairwise closed-form segment/segment contact
 //!    classification (line/line, line/arc, arc/arc; O(n²), fine at M2).
@@ -84,11 +85,11 @@
 //!
 //! | predicate | margin | lever arm |
 //! |---|---|---|
-//! | `vertex_separation` | chord length | direct displacement |
-//! | `segment_straightness` | sagitta (L/2)·tan(Δθ/4) | half-chord (tan(Δθ/4) → meters) |
+//! | `vertex_separation` | chord length; a full turn's reach 2r·\|Δθ\|/2π | direct displacement; diameter |
+//! | `segment_straightness` | sagitta (L/2)·tan(Δθ/4); a full turn's 2r·Δθ/2π | half-chord (tan(Δθ/4) → meters); diameter |
 //! | `arc_start_on_carrier` | ‖a − c‖ − r | direct |
 //! | `arc_landing` | ‖a turned by Δθ about c − b‖ | direct |
-//! | `arc_sweep_range` | r·\|Δθ\|·(2π − \|Δθ\|)/2π | radius |
+//! | `arc_sweep_range` | r·\|Δθ\|·(2π − \|Δθ\|)/2π; a full turn's r·(2π − \|Δθ\|) | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
@@ -170,7 +171,7 @@ pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the ori
 
 use crate::path::num;
 use crate::seg::{
-    self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_seg,
+    self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,
 };
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
@@ -971,8 +972,8 @@ pub enum ProfileError {
     Band(BandError),
     /// The profile has no loops — there is no region to sweep.
     EmptyProfile,
-    /// A loop has fewer than two vertices (a closed carrier needs ≥ 2 —
-    /// the crate docs' minimal-circle rule).
+    /// A loop has no vertex (a closed carrier needs one: D1's full turn
+    /// is one segment at one vertex).
     TooFewVertices {
         /// Index of the offending loop.
         loop_index: usize,
@@ -1129,8 +1130,8 @@ impl fmt::Display for ProfileError {
             Self::EmptyProfile => f.write_str("profile has no loops — nothing to sweep"),
             Self::TooFewVertices { loop_index, count } => write!(
                 f,
-                "loop {loop_index} has {count} vertex(es); a closed loop needs at least 2 \
-                 (two arc segments make the minimal circle)"
+                "loop {loop_index} has {count} vertices; a closed loop needs at least one \
+                 (a full circle is one arc at one vertex)"
             ),
             Self::DegenerateSegment(s) => write!(
                 f,
@@ -2110,7 +2111,9 @@ impl CanonGuide {
     }
 }
 
-/// Arity check + segment construction for one input loop.
+/// Arity check + segment construction for one input loop. One vertex
+/// is enough: D1's full turn is one segment at one vertex
+/// ([`seg::build_loop_seg`]).
 fn build_loop_segs<T: Decide>(
     lp: &ProfileLoop<T>,
     loop_index: usize,
@@ -2118,7 +2121,7 @@ fn build_loop_segs<T: Decide>(
     band: Band,
 ) -> Result<Vec<Seg<T>>, ProfileError> {
     let n = lp.vertices.len();
-    if n < 2 {
+    if n < 1 {
         return Err(ProfileError::TooFewVertices {
             loop_index,
             count: n,
@@ -2126,9 +2129,8 @@ fn build_loop_segs<T: Decide>(
     }
     let mut segs = Vec::with_capacity(n);
     for k in 0..n {
-        let (a, b) = (lp.vertices[k], lp.vertices[(k + 1) % n]);
         segs.push(
-            build_seg(a, b, lp.segments[k], consistency, band).map_err(|issue| {
+            build_loop_seg(&lp.vertices, &lp.segments, k, consistency, band).map_err(|issue| {
                 let at = SegmentRef {
                     loop_index,
                     segment_index: k,
@@ -2281,6 +2283,12 @@ fn judge_joints<T: Decide>(
 ) -> Result<Vec<usize>, ProfileError> {
     let n = segs.len();
     let mut cusps = Vec::new();
+    if n == 1 {
+        // A full turn's one joint is its carrier continuing into
+        // itself: one carrier, one heading, so it is never refused and
+        // never a cusp, declared or not.
+        return Ok(cusps);
+    }
     for joint in 0..n {
         let prev = (joint + n - 1) % n;
         let first = SegmentRef {
@@ -2490,8 +2498,7 @@ fn canonicalize_loop<T: Decide>(
     let mut segments = Vec::with_capacity(n);
     let mut shapes = Vec::with_capacity(n);
     for k in 0..n {
-        let (a, b) = (vertices[k], vertices[(k + 1) % n]);
-        let s = build_seg(a, b, stored[k], consistency, band).map_err(|issue| {
+        let s = build_loop_seg(&vertices, &stored, k, consistency, band).map_err(|issue| {
             let at = SegmentRef {
                 loop_index,
                 segment_index: k,
