@@ -216,12 +216,7 @@ fn a_bar_through_the_cone_wall_refuses_at_every_pose() {
     let tol = Tol::witness();
     for s in SCALES {
         let cone = frustum(s, tol);
-        let bar = brick::<f64>(
-            (-1.0 * s, 1.0 * s),
-            (0.25 * s, 0.35 * s),
-            (-0.05 * s, 0.05 * s),
-            tol,
-        );
+        let bar = brick::<f64>((-s, s), (0.25 * s, 0.35 * s), (-0.05 * s, 0.05 * s), tol);
         for (pose, map) in poses() {
             let label = format!("ε {:e}, scale {s}, {pose}", tol.eps());
             let (a, b) = (
