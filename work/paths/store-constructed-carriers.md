@@ -192,3 +192,17 @@ are on the PR:
   tree merged 2026-10-06: `[1259, 45, 154, 1087]` → `[1401, 45, 49, 1050]`.
   It now certifies whole at M10-9's scale, and that closed
   `pcert/fillet-meridian-radius-term-is-registered-only`.
+
+## 5b's fix pass (2026-10-06)
+
+- A fillet registers only what its construction proves. The offset
+  intersection says which branch it took (`sugar::OffsetCentres`): a
+  crossing proves its centres, a decided tangency does not. With the
+  exact fit (the arc springs off the chain head, or ends on the entry
+  vertex), the fillet is `Facts::Decided` (`path::fillet_facts`).
+- Arc-side runs store the authored `|r|` where the mode authors one.
+- `FirstSeg` comes from the verb's kind again.
+- The fillet's and the `Center` arc's X share one spelling,
+  `sugar::quarter_tan_about`, with no `copysign`.
+- The full-turn refusal is `ArcSweepNotShortOfFullTurn`.
+

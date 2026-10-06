@@ -2567,7 +2567,11 @@ impl<T: Decide> Core<T> {
 
     /// Sets the CLOSING segment, the one leaving the last vertex for
     /// the entry vertex.
-    fn close_leaving(&mut self, arc: Option<BuiltArc<T>>, kind: FirstSeg) -> Result<(), PathError<T>> {
+    fn close_leaving(
+        &mut self,
+        arc: Option<BuiltArc<T>>,
+        kind: FirstSeg,
+    ) -> Result<(), PathError<T>> {
         let to = self.entry()?;
         self.set_leaving(arc, kind, to)
     }

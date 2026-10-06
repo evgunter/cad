@@ -82,11 +82,7 @@ fn segs_of(verts: &[((f64, f64), f64)]) -> Vec<Seg> {
 /// (center, radius, start angle, signed sweep) of a bulged segment.
 fn arc_of(s: &Seg) -> ((f64, f64), f64, f64, f64) {
     let (ax, ay) = s.a;
-    let arc = geom_core::Arc2::from_chord(
-        Point2::new(ax, ay),
-        Point2::new(s.b.0, s.b.1),
-        s.bulge,
-    );
+    let arc = geom_core::Arc2::from_chord(Point2::new(ax, ay), Point2::new(s.b.0, s.b.1), s.bulge);
     let c = (arc.centre.x, arc.centre.y);
     let start = (ay - c.1).atan2(ax - c.0);
     (c, arc.radius, start, arc.sweep)

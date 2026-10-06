@@ -96,4 +96,3 @@ fn a_circle_circle_fillet_on_a_decided_offset_tangency_builds_at_every_scalar() 
 fn a_line_circle_fillet_on_a_decided_offset_tangency_builds_at_every_scalar() {
     builds_at_every_scalar("line×circle", line_circle::<f64>, line_circle::<Interval>);
 }
-

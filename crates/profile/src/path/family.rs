@@ -136,9 +136,9 @@ use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
-    ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PAIRED,
-    PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming, carriers_are_identical,
-    in_state, junction_check, leg_end_tip, linear_band,
+    ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
+    PAIRED, PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming,
+    carriers_are_identical, in_state, junction_check, leg_end_tip, linear_band,
 };
 
 // ------------------------------------------------------------------
