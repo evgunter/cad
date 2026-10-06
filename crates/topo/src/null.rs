@@ -92,6 +92,20 @@ pub struct NullEdge {
     pub above_end: VertexKey,
 }
 
+impl NullEdge {
+    /// The copy a strut minted at `site` hangs: its end that is not
+    /// `site`. `None` when `site` is neither end.
+    pub(crate) fn copy_at(self, site: VertexKey) -> Option<VertexKey> {
+        if self.below_end == site {
+            Some(self.above_end)
+        } else if self.above_end == site {
+            Some(self.below_end)
+        } else {
+            None
+        }
+    }
+}
+
 /// The F9 typed attribute of a null face: which of its two loops plays
 /// which role — never derived from `outer`-vs-ring designation or list
 /// position.

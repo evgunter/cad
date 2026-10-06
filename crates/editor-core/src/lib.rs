@@ -171,7 +171,7 @@ pub use measure::{
     MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
     WINDOW_TIGHTENING,
 };
-pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
+pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub(crate) use mint::NodeIdCollides;
 pub use mint::{Mint, Minted};
 pub use names::{

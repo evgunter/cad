@@ -454,7 +454,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     );
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     m.insert("neg".to_owned(), MetaValue::Float(-0.0));
     push(
         &mut doc,
@@ -628,11 +628,11 @@ fn attack_meta_order_canonical() {
     let tree = |order: bool| {
         let mut m = std::collections::BTreeMap::new();
         if order {
-            m.insert("v".to_owned(), MetaValue::Int(1));
-            m.insert("a".to_owned(), MetaValue::Int(2));
+            m.insert("v".to_owned(), MetaValue::Int(1.into()));
+            m.insert("a".to_owned(), MetaValue::Int(2.into()));
         } else {
-            m.insert("a".to_owned(), MetaValue::Int(2));
-            m.insert("v".to_owned(), MetaValue::Int(1));
+            m.insert("a".to_owned(), MetaValue::Int(2.into()));
+            m.insert("v".to_owned(), MetaValue::Int(1.into()));
         }
         MetaValue::map(m).expect("a shallow value")
     };
@@ -696,7 +696,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .unwrap()
     .doc;
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     let doc = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {

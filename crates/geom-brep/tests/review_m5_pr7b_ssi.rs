@@ -1,6 +1,6 @@
 //! **Blinded-review probes for M5 PR 7b** — the SSI side: deviation 2's
-//! independent reproduction (the inflected-wall fit deviation is REAL
-//! geometry), the domain-mismatch typed-refusal shape (deviations 1
+//! independent measurement (the inflected wall's fit deviation, read
+//! without the ring), the domain-mismatch typed-refusal shape (deviations 1
 //! and 3), and the retirement's practical breadth on a multi-cell
 //! (interior-knot) wall.
 
@@ -77,88 +77,34 @@ fn trace_deviation(w: &NurbsSurface<f64>, e: f64, samples: u32) -> (f64, f64) {
     (max, pb.eval(arg).x)
 }
 
-/// The u where the wall's section curvature crosses zero, by scanning
-/// the signed cross product x'y'' − y'x'' of the 2-D section Bézier.
-fn section_curvature_zero() -> f64 {
-    let pts = [(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)];
-    let cross = |u: f64| -> f64 {
-        // Cubic Bézier derivatives via the control differences.
-        let d1: Vec<(f64, f64)> = (0..3)
-            .map(|i| {
-                (
-                    3.0 * (pts[i + 1].0 - pts[i].0),
-                    3.0 * (pts[i + 1].1 - pts[i].1),
-                )
-            })
-            .collect();
-        let d2: Vec<(f64, f64)> = (0..2)
-            .map(|i| (2.0 * (d1[i + 1].0 - d1[i].0), 2.0 * (d1[i + 1].1 - d1[i].1)))
-            .collect();
-        let b = |c: &[(f64, f64)], u: f64| -> (f64, f64) {
-            let mut v = c.to_vec();
-            while v.len() > 1 {
-                v = (0..v.len() - 1)
-                    .map(|i| {
-                        (
-                            (1.0 - u) * v[i].0 + u * v[i + 1].0,
-                            (1.0 - u) * v[i].1 + u * v[i + 1].1,
-                        )
-                    })
-                    .collect();
-            }
-            v[0]
-        };
-        let p1 = b(&d1, u);
-        let p2 = b(&d2, u);
-        p1.0 * p2.1 - p1.1 * p2.0
-    };
-    let mut prev = cross(0.0);
-    for i in 1..=1000 {
-        let u = f64::from(i) / 1000.0;
-        let c = cross(u);
-        if prev.signum() != c.signum() {
-            return u;
-        }
-        prev = c;
-    }
-    panic!("no curvature zero found — fixture changed?");
-}
-
 #[test]
-fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
-    // Reproduce the fit-pair deviation with NO ring code in the loop:
-    // two independently fitted objects (carrier, pcurve∘surface)
-    // evaluated directly, 200k samples. If the number were an artifact
-    // of the composite or the certificate, this scan could not see it.
+fn deviation2a_the_inflected_walls_fit_deviation_is_measured_without_the_ring() {
+    // The fit-pair deviation with NO ring code in the loop: two
+    // independently fitted objects (carrier, pcurve∘surface) evaluated
+    // directly, 200k samples.
     //
     // The march runs at ε = 1e-9, handed to `trace_deviation`
-    // explicitly. The door then refines the trace where the certificate,
-    // at the ambient band, refuses it, as the certifying door does. On a
-    // band whose zero is above the march's own deviation nothing is
-    // refined, and the scan reproduces it: measured 4.503e-9 m at
-    // u = 0.4868, and the window is ±7% of it. On a finer band the gap at
-    // the inflection is halved until limb 2 is answered, and the scan
-    // reads below the march's deviation; what is left peaks wherever
-    // refinement stopped, not necessarily at the inflection.
+    // explicitly, and keeps each step only where its predicted state lies
+    // on the locus, so the section's curvature zero, where the
+    // `h_fit ∝ (ε/κ³)^¼` rung unbinds, is stepped as finely as the locus
+    // asks: the march's own deviation measures 1.31e-10 m at u = 0.536.
+    // The door then refines the trace where the certificate, at the
+    // ambient band, refuses it. On a band whose zero is above that
+    // deviation nothing is refined, and the scan reads the march's within
+    // ±7%; on a finer one (ε 1e-12) the gaps are halved until the limbs
+    // are answered, and the scan reads below it (measured 2.27e-11 m).
     let w = nurbs_wall();
     let (max, u_at_max) = trace_deviation(&w, 1e-9, 200_000);
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
-    if band().zero() > 4.8e-9 {
+    let march = 1.31e-10;
+    if band().zero() > 1.1 * march {
         assert!(
-            (4.2e-9..=4.8e-9).contains(&max),
-            "reported ~4.5e-9 m not reproduced: {max:e}"
-        );
-        // And it sits at the section's curvature-zero crossing, where
-        // the step rule's h_fit ∝ (ε/κ³)^¼ rung unbinds.
-        let u_kzero = section_curvature_zero();
-        eprintln!("[review] section curvature zero at u = {u_kzero:.4}");
-        assert!(
-            (u_at_max - u_kzero).abs() < 0.15,
-            "deviation peak (u = {u_at_max:.4}) is not at the inflection (u = {u_kzero:.4})"
+            (0.93 * march..=1.07 * march).contains(&max),
+            "the march's own deviation, unrefined: {max:e} at u = {u_at_max:.4}"
         );
     } else {
         assert!(
-            max < 4.2e-9,
+            max < 0.93 * march,
             "the march's deviation is not refined at ε {:e}: {max:e}",
             band().zero()
         );

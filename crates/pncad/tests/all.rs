@@ -4605,7 +4605,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **Types whose curated face is a different shape**
 ///   (`ProfilePayload`, `ParamValue`,
 ///   `BifurcationKind`,
-///   `MetaValue`, `MetaError`, `from_value`,
+///   `MetaValue`, `MetaInt`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
 ///   behind one.
 ///
@@ -4641,9 +4641,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   stored metadata value breaks the D7 producer convention, and the
 ///   type that word is minted from has to be nameable to mint it.
 ///   `crate::document` carries it now. Its neighbourhood does not
-///   come with it — `MetaValue` and `MetaError` are the value tree
-///   and the producer boundary's own refusal, and no curated carrier
-///   answers in either.
+///   come with it — `MetaValue` and `MetaInt` are the value tree
+///   and `MetaError` the producer boundary's own refusal, and no
+///   curated carrier answers in any of them.
 ///
 ///   **The A5 gate used to be in this family and was wrong to be.**
 ///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
@@ -4792,6 +4792,7 @@ const NOT_CARRIED: [&str; 94] = [
     "MeshPatchKey",
     "MeshPick",
     "MetaError",
+    "MetaInt",
     "MetaValue",
     "MinClearanceLane",
     "MinClearanceOperand",

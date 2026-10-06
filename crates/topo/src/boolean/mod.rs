@@ -121,6 +121,8 @@ pub mod solid_contain;
 pub(crate) mod sphere_region;
 mod surface_group;
 pub mod tables;
+#[cfg(test)]
+mod torn_hop_rows;
 pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;

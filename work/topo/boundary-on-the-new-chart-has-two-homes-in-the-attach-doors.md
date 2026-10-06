@@ -2,11 +2,14 @@
 id: boundary-on-the-new-chart-has-two-homes-in-the-attach-doors
 kind: issue
 title: whether a moved face's boundary lies on its new chart has two homes in the attach doors, and they disagree on curved charts and the lone vertex
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
-refs: [set-face-surface-passes-a-swap-off-the-faces-own-boundary, mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move, validate-tier3-curved-boundary-containment, 3598]
+refs: [set-face-surface-passes-a-swap-off-the-faces-own-boundary, mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move, validate-tier3-curved-boundary-containment, 3598, a-listed-spec-cannot-name-a-fresh-chart-a-neighbour-keeps-the-old-key-of]
+pr: 4060
+branch: topo/moved-boundary-one-home
+closed: 2026-10-05
 ---
 
 ## What
@@ -86,3 +89,16 @@ returns `Ok`. The four edges keep their images in the cap's chart, and
 tier 3 at rest reports only `UncertifiableSurface`. The describing door
 certified nothing about the boundary on the placeholder, which the
 keys-only reading refuses. Not fixed there: it is this row's decision.
+
+## Resolution (PR 4060)
+
+`Body::unvouched` (`attach.rs`) is the one home: by key at every door,
+and by plane residual at the describing door, which holds a band. Onto a
+curved chart, both doors refuse an edge no description names
+(`RechartDoor::SetFaceSurfacesDescribing`). The lone vertex and scaffold
+and null edges carry no certificate, and neither door asks them. The
+describing door onto the plug's placeholder refuses as `mfkrh_plug`
+does. `Body::description_surfaces` is folded into `Named::keys`. A
+listed spec still cannot name a fresh chart where the neighbour keeps
+the old key; that gap is
+`a-listed-spec-cannot-name-a-fresh-chart-a-neighbour-keeps-the-old-key-of`.

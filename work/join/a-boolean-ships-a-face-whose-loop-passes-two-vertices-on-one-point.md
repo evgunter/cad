@@ -2,11 +2,14 @@
 id: a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point
 kind: issue
 title: A boolean ships a SOUND body whose one face passes two distinct vertices on one point (cube minus prism with a notch corner on a cube edge)
-status: open
+status: parked
 opened: 2026-10-05
 priority: P0
 cost: M
 refs: [boolean-declares-no-touching-between-copies-of-one-operand-vertex, a-pinch-no-kept-face-can-cross-refuses]
+blocked_on: [a-pinch-no-kept-face-can-cross-refuses]
+rides_with: a-pinch-no-kept-face-can-cross-refuses
+parent: a-pinch-no-kept-face-can-cross-refuses
 ---
 
 
@@ -47,3 +50,11 @@ two vertices, and decide whether a weld should have joined them (a
 face meets both) or the face should have been divided. Add a check that
 can go red on a face meeting two vertices at one point to a battery
 that reaches these poses.
+
+## Ruling (Ev, PR 4057, 2026-10-05)
+
+A pinch is one vertex per cone: several vertices on one point key, and
+no face crosses between cones. See
+`work/join/a-pinch-no-kept-face-can-cross-refuses.md`, "The shape to
+give". This row is settled by that unit.
+Under the ruling, a face meeting two vertices on one point is a right body when each vertex is a manifold cone. The check this row asked for becomes a tier-3 check that every corner is a slice of its own face.

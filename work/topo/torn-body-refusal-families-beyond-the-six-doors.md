@@ -116,3 +116,38 @@ face is a working copy of a gated operand, so an arena miss there is
 the kernel's own surgery, not the user's broken face: the text went
 from "our bug" to "your face is broken" for that arm. Whichever
 reading the `CorruptFace` split settles on, it decides this text too.
+
+## 2026-10-05 — typed torn hops the boolean's record-hop unit converted
+
+`torn-hops-read-as-absent-across-the-boolean`'s unit turned these typed
+raises over a hop past a resolved record into premise panics, and kept
+each one over a key the caller carries:
+- `finish.rs` `pinch_site`: `JoinDesync` "a pierce vertex no longer
+  resolves" (both callers resolve it first), "a pierce vertex's face",
+  "a face's loop no longer resolves", "a face's loop is not walkable".
+  `discarded`'s walks keep "a section face no longer resolves" and
+  panic past it.
+- `zip.rs` `split_across`: `ZipCorrespondence` "a pinch half-edge" /
+  "a pinch loop no longer resolves", "a pinch vertex's orbit does not
+  close"; the vertex itself keeps "a pinch vertex no longer resolves".
+- `carrier_cross.rs` `boundary_crossing`: `ClassificationInvariant`
+  "boundary loop lost", "does not close", "half-edge lost"; "face lost"
+  stays.
+- `reduce.rs` `boundary_meets_circle_only_at`: every hop past the face;
+  the face keeps its `ClassificationInvariant`.
+- `ops.rs` `describe_edges`: `EdgeDescribeFailure::NotWalkable` now
+  means only a worklist edge that does not resolve, or an edge whose
+  curve is not certified on the smooth arm.
+- `surface_group.rs` `unmated_boundary`: its `Err(face)` now means only
+  a member key that does not resolve.
+
+`PointInSolidError::CorruptFace`'s raises in `wall_outline`,
+`torus_chart_windows` and `sphere_chart_trim` are untouched: only the
+curve reads that answered as a kind were converted there.
+The result is that one walk can answer in two ways. In
+`sphere_chart_trim`, a torn loop walk, half-edge, vertex or point
+answers `CorruptFace`, while a torn edge or curve panics. `wall_outline`
+splits the same way, and so does `torus_chart_windows`, where a torn
+edge is also typed. Each site carries a comment that hands its
+`CorruptFace` raises to this row. Once this row's split ("record misses
+panic") lands, each walk answers one way.
