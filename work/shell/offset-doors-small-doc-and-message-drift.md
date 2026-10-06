@@ -2,11 +2,14 @@
 id: offset-doors-small-doc-and-message-drift
 kind: issue
 title: Offset doors: a door name printed on another door's errors, stale shell.rs module docs, two conventions for a move's distance, and stale test prose
-status: open
+status: closed
 opened: 2026-09-28
 priority: P4
 cost: E
 rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
+pr: 4163
+branch: shell/refusal-text
+closed: 2026-10-06
 ---
 
 
@@ -34,3 +37,7 @@ A fifth finding is not repeated here: one chart split across two moves gets past
 
 Rides `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`
 (bullet 1 is that row's text); bullets 2–4 are prose and go with it.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4163)
+
+Rode `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`. See its closing note.

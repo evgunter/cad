@@ -96,7 +96,9 @@ pub enum Fidelity {
 /// surfaced verbatim through [`LiftOutcome::ReplayRefused`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LiftRefusal {
-    /// Fewer than two vertices: there is no loop to lift.
+    /// Fewer than two vertices: the chain vocabulary spells a loop
+    /// from two vertices up, so a one-segment loop (D1's full turn) has
+    /// no spelling here yet.
     TooFewVertices {
         /// How many the loop carried.
         vertices: usize,
@@ -134,7 +136,10 @@ impl std::fmt::Display for LiftRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::TooFewVertices { vertices } => {
-                write!(f, "a loop needs at least two vertices; found {vertices}")
+                write!(
+                    f,
+                    "the chain vocabulary spells a loop of at least two vertices; found {vertices}"
+                )
             }
             Self::NonFinite { vertex } => {
                 write!(

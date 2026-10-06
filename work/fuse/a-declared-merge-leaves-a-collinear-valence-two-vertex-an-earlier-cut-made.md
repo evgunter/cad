@@ -2,12 +2,11 @@
 id: a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made
 kind: issue
 title: A declared coplanar merge leaves a collinear valence-2 vertex that an earlier fold step's cut made, so a union's finished body depends on member order
-status: dispatched
+status: open
 priority: P1
 cost: M
 opened: 2026-09-24
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order, sweeps-build-one-rim-edge-per-segment-not-per-run, curved-joinable-vertices-are-left-unjoined]
-branch: fuse/join-every-stage
 ---
 
 
@@ -197,11 +196,26 @@ pair emitter can only name as a set (step 4, PR 4161 on
     in PR 3881).
   Both precede step 3.
 
+## Steps 2 and 4 landed (FUSE, PR 4140 with PR 4161, 2026-10-06)
+
+PR 4161 (step 4) merged into `fuse/join-every-stage`, and PR 4140
+landed both on main.
+- A joined union edge is named as the flat set of member edges it
+  covers (`RoleSeg::Merged` on an edge), order-free. It was witnessed
+  on this row's `[a, b, slab]` document, PR 3881's three edge-contact
+  documents, and four flush boxes in all 24 orders.
+- A retired rim piece is offered the joined edge.
+- PR 4140's body lists the readings of the 3881 naming bullet that the
+  orchestrator ruled within the ruling, under "Readings of the 3881
+  naming bullet".
+- 4161's single FULL review found no BLOCKER. Its README overclaim was
+  ruled as wording and fixed.
+
 **Next:**
 - step 2's rest: sweeps building one rim per run, and curved joins
   (the two P1 rows above);
-- step 3, the tier-2 no-joinable-vertex check;
-- step 4, merged-set edge names (EMIT).
+- step 3, the tier-2 no-joinable-vertex check, planar-only until
+  curved joins land.
 
 
 ## The refusing orders reach `SeamVertexParentage` (EMIT, 2026-10-06)

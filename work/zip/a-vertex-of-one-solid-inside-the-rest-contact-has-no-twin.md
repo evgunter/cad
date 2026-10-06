@@ -2,10 +2,11 @@
 id: a-vertex-of-one-solid-inside-the-rest-contact-has-no-twin
 kind: issue
 title: A vertex of one solid strictly inside a declared Rest contact, with no vertex of the other there, has no twin for the REST zip
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: H
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -66,3 +67,7 @@ Measured on `origin/main` 3f1e3b0d: `split_collar()` against
 - **Undeclared:** through refuses `CurvedPierceUnsupported` in the
   reduction. Flush and the proud spans refuse `UndeclaredCoincidence`
   (`SameOriented`, the shaft's cap flush with the collar's).
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
