@@ -127,7 +127,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Split/Reduce/CrossingInsertion",
         "inserting the plane crossing on edge EdgeKey    refused",
     ),
-    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
     (
         "Revolve/VoidInsertion",
         "inserting the cavity of hole loop 1 refused",
@@ -155,7 +155,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Boolean/Join/SectionInvariant",
         "curved-section invariant at face FaceKey",
     ),
-    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
@@ -358,7 +358,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
     "Extrude/SidePlane",
