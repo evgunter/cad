@@ -2,10 +2,11 @@
 id: lever-a-declared-pair-by-its-contact-patch-not-both-whole-faces
 kind: issue
 title: A declared pair is levered over both whole faces, so a small part on a large plate refuses a tilt its contact patch holds in band
-status: open
+status: parked
 opened: 2026-10-02
 priority: P2
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: A bar whose section closes inside one wall face refuses RingHomingAmbiguous when its arc is wider than the gap between its rings: the ring lane's loose-end pairing reads the germ line as planar
 status: open
 opened: 2026-10-02
+priority: P0
+cost: M
 ---
 
 
