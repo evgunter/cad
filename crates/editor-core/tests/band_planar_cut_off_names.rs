@@ -121,3 +121,83 @@ fn a_cut_off_is_named_by_its_end_arcs_and_feet() {
         }
     }
 }
+
+/// **An oblique cut-off is named the same way**: a parallelogram
+/// extruded through the document, its top front edge ending at two
+/// slanted side walls. Filleted by name, each end curve is an arc of
+/// the wall's elliptic section — `EndArc { vertex, edge }`, unique,
+/// resolving to an edge whose certified carrier is that ellipse, of
+/// minor semi-axis `r` and major `r / cos θ` for the walls' 26.6° lean
+/// — and its four feet are `FootVertex`es; chamfered, the same names
+/// resolve to chords.
+#[test]
+fn an_oblique_cut_off_is_named_by_its_elliptic_end_arcs_and_feet() {
+    let doc = ProfileDoc::empty_derived("band_planar_oblique_names", Tol::witness());
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.5, 1.0), (0.5, 1.0)]],
+    );
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let ev = run(&doc);
+    let front = edge_named(&ev, prism, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let cos = 1.0 / 1.25_f64.sqrt();
+    for chamfer in [false, true] {
+        let node = if chamfer {
+            Node::chamfer(prism, len(0.1), vec![front.clone()])
+        } else {
+            Node::fillet(prism, len(0.1), vec![front.clone()])
+        };
+        let (doc, f) = insert(doc.clone(), node);
+        let ev = run(&doc);
+        let body = body_at(&ev, f);
+        let t = table(&ev, f);
+        let mine = |n: &StableName| n.node == f;
+        let mut arcs = 0;
+        let mut feet = 0;
+        for (n, entry) in t.iter().filter(|(n, _)| mine(n)) {
+            match (n.path.first(), entry) {
+                (Some(RoleSeg::EndArc { .. }), Entry::Unique(r)) => {
+                    arcs += 1;
+                    let EntityKey::Edge(e) = r.key else {
+                        panic!("an end arc names an edge, got {:?}", r.key);
+                    };
+                    let curve = body
+                        .get_curve_geom(body.get_edge(e).unwrap().curve)
+                        .and_then(|g| g.certified())
+                        .expect("a certified end curve");
+                    match (chamfer, curve.carrier()) {
+                        (true, geom::Curve3::Line { .. }) => {}
+                        (false, geom::Curve3::Ellipse { major, minor, .. }) => {
+                            assert!((minor - 0.1).abs() < 1e-15, "minor = r, got {minor}");
+                            assert!(
+                                (major - 0.1 / cos).abs() < 1e-12,
+                                "major = r / cos θ, got {major}"
+                            );
+                        }
+                        (_, other) => panic!("chamfer {chamfer}: an end curve, got {other:?}"),
+                    }
+                }
+                (Some(RoleSeg::FootVertex { .. }), Entry::Unique(_)) => feet += 1,
+                (Some(RoleSeg::EndArc { .. } | RoleSeg::FootVertex { .. }), Entry::Tied(_)) => {
+                    panic!("chamfer {chamfer}: a cut-off name is tied: {n:?}")
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(
+            (arcs, feet),
+            (2, 4),
+            "chamfer {chamfer}: two end arcs, four feet"
+        );
+    }
+}
