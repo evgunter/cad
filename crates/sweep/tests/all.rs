@@ -926,3 +926,9 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+
+#[path = "review_4121_r2_dump.rs"]
+mod review_4121_r2_dump;
+
+#[path = "review_4121_r2_probes.rs"]
+mod review_4121_r2_probes;
