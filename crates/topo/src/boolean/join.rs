@@ -786,6 +786,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             ),
             GermLane::ring_closures,
         );
+        sa.joiner
+            .place_pending(&mut red.a, (ea, ra))
+            .map_err(BooleanError::Join)?;
+        sb.joiner
+            .place_pending(&mut red.b, (eb, rb))
+            .map_err(BooleanError::Join)?;
         let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)?;
         let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)?;
         let (a_halves, b_halves) = (a_lane.curve_order((ea, ra)), b_lane.curve_order((eb, rb)));
@@ -975,6 +981,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             count: leftovers,
         }));
     }
+    // A pierce ring deferred at a pinch is placed by the join that
+    // reaches it; one still pending after every join has run never was.
+    sa.joiner.finish(&red.a).map_err(BooleanError::Join)?;
+    sb.joiner.finish(&red.b).map_err(BooleanError::Join)?;
     Ok(Connected {
         completed,
         a_fragments: sa.joiner.take_fragments(),

@@ -1047,3 +1047,13 @@ is an elaboration of D1's seam convention. Design-fork log: no row,
 because nothing went to Ev. The blinding byte stays on its analysis
 branch. Unit 7 dispatches after units 2 and 3 land, since all three
 edit `shell.rs`.
+
+## Reviews dispatched (2026-10-06, ~07:42 UTC)
+
+Units 1 (PR 4111) and 2 (PR 4112) have delivered. Both are red only on
+the inherited `pinch_faces_tessellate` ε = 1e-6 row, which is JOIN's,
+was noted on its log, and does not block merge (annotated at merge).
+Each gets a single full review as its own cloud session, posting to
+its PR. Units 3 (PR 4115) and 4 (PR 4117) are still in their lanes;
+4117's first red was its own (a `NurbsLane` field the census helper
+did not compare).
