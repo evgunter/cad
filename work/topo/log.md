@@ -7290,3 +7290,11 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
     - precedence NIT and module doc.
   - Reviewer archived (about $7.1).
 - Nothing new on PR 3970.
+
+## 03:52 (2026-10-06)
+
+- **PR 4078 merged** at `15030b16` (head `650e921b`, main with #4081 merged in; CI green).
+- **Dispatched** two lanes with disjoint files:
+  - `face-boundary-walks-spell-the-linked-prelude-by-hand` (P3, E; `boolean/*`, `merge_faces.rs`, `offset_nappe.rs`; leaves `pcurves.rs` and `offset_together.rs`) → `session_014ujViosHtDxQMi868W586R`;
+  - `kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale` (P3; `euler_kill.rs`, `attach.rs`, `pcurves.rs`; re-mint through the site mint per D1's atomic contract; stop on a fork) → `session_01Rih1zQMgwVF4FhCch5Yr3Z`.
+- `minting-doors-take-…` stays open. Its own text calls it the same describing-door-or-reorder question as `kef-and-kfmrh-across-keys-…`, which is PR 3970's.
