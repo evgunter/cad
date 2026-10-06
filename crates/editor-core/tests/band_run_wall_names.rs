@@ -171,8 +171,8 @@ fn a_wrapping_run_begins_after_the_start_vertex() {
 /// the run either way. A partial revolve's wedge caps keep the station:
 /// its meridians stay per piece and the station's meridian vertices are
 /// named, but no `BandRim` stands there. A full revolve keeps no entity
-/// for the station: one seam meridian over the run, no rim, no
-/// meridian vertex.
+/// for the station: the run sweeps one plane annulus with no meridian,
+/// and the station has no rim and no meridian vertex.
 #[test]
 fn a_revolved_run_wall_is_named_by_its_pieces() {
     for angle in [std::f64::consts::FRAC_PI_2, std::f64::consts::TAU] {
@@ -201,7 +201,10 @@ fn a_revolved_run_wall_is_named_by_its_pieces() {
                 rev,
                 RoleSeg::Meridian(MeridianEnd::Seam, run_of(&doc, rev, &[0, 1])),
             );
-            assert!(t.lookup(&seam).is_some(), "the run's one seam meridian");
+            assert!(
+                t.lookup(&seam).is_none(),
+                "the run's plane annulus has no meridian"
+            );
             let v = minted(
                 EntityKind::Vertex,
                 rev,
