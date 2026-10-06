@@ -2853,7 +2853,7 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
         Void,
         "the premise: read with no lane, the upright slab's rounded sum calls it a cavity"
     );
-    let inverted = upright.revert().expect("the slab reverts");
+    let inverted = upright.revert();
     for (body, want) in [(&upright, Outer), (&inverted, Void)] {
         let classified = crate::classify_shells(body, tol).expect("the shell classifies")[0].role;
         let gate = crate::census::gate_role(body, shell, band, tol);
@@ -3165,9 +3165,8 @@ fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
     }
     let band = geom_core::Band::linear(tol).expect("a band");
     let mut body = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
-    let cavity = crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol)
-        .revert()
-        .expect("the cavity reverts");
+    let cavity =
+        crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol).revert();
     crate::graft_disjoint_all_keyed(&mut body, &cavity).expect("the graft");
     body.merge_all_solids().expect("one solid");
     let [slab] = solids_of(&body)[..] else {
