@@ -5444,7 +5444,15 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
             .unwrap_or_else(|crate::NodeIdCollides { id }| id);
         SpokenNode::entering(would, &held)
     };
-    // D6's slot rule, of the formulas as written: each carries the
+    // The node as the door writes it, lowered before anything else is
+    // asked of it (VR4): the fresh table minted, then every slot the
+    // variable it stores. Its id is minted from the lowered node, so a
+    // node authored by name and the same node authored by id mint one
+    // id.
+    let lowering = Lowering::start(new, fresh)?;
+    let node = &lower_node(new, &lowering, authored, tol, would)?;
+    // D6's slot rule, of the formulas as written, asked after the names
+    // as the door has always asked it: each carries the
     // dimension its address fixes (`Node::formula_dimension_fault`).
     if let Some(SlotDimensionFault {
         slot,
@@ -5458,13 +5466,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
             found,
         });
     }
-    // The node as the door writes it, lowered before anything else is
-    // asked of it (VR4): the fresh table minted, then every slot the
-    // variable it stores. Its id is minted from the lowered node, so a
-    // node authored by name and the same node authored by id mint one
-    // id.
-    let lowering = Lowering::start(new, fresh)?;
-    let node = &lower_node(new, &lowering, authored, tol, would)?;
     // Liveness, and it stays spelled here rather than moving to
     // a shared home: the rule IS the node map's own lookup, so
     // the load door's `DanglingInput` walk and this loop share
@@ -5737,8 +5738,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             // Every argument as written, in program order, at its
-            // address: its dimension (D6), then its lowering and its
-            // reads — the first argument that does not hold refuses.
+            // address: its lowering and its reads, then its dimension
+            // (D6) — the first argument that does not hold refuses.
             let rows: Vec<(SlotId, &Formula)> = loops
                 .iter()
                 .enumerate()
@@ -5749,6 +5750,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     })
                 })
                 .collect();
+            let lowering = Lowering::start(new, fresh)?;
+            let loops = lower_loops(new, &lowering, doc.spoken(*node), loops)?;
             if let Some(SlotDimensionFault {
                 slot,
                 expected,
@@ -5763,8 +5766,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     found,
                 });
             }
-            let lowering = Lowering::start(new, fresh)?;
-            let loops = lower_loops(new, &lowering, doc.spoken(*node), loops)?;
             // The ids FIRST: ids the door could not honour make the
             // replay below moot, and the caller mends the field named
             // rather than the program. Minting extends a mint held
@@ -6393,6 +6394,15 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 None => None,
                 Some(offset) => {
                     let rows = offset.rows();
+                    let spoken = || doc.spoken(*instance);
+                    let lowered = lower_value(new, &lowering, &rows, |f| {
+                        offset.try_map_slots(&mut |e| f(e))
+                    })
+                    .map_err(|unlowered| {
+                        unlowered.refuse(new, spoken, ExprSite::Slot, |fault| {
+                            fault.at(new, spoken(), ExprSite::Payload)
+                        })
+                    })?;
                     if let Some(SlotDimensionFault {
                         slot,
                         expected,
@@ -6407,15 +6417,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                             found,
                         });
                     }
-                    let spoken = || doc.spoken(*instance);
-                    let lowered = lower_value(new, &lowering, &rows, |f| {
-                        offset.try_map_slots(&mut |e| f(e))
-                    })
-                    .map_err(|unlowered| {
-                        unlowered.refuse(new, spoken, ExprSite::Slot, |fault| {
-                            fault.at(new, spoken(), ExprSite::Payload)
-                        })
-                    })?;
                     Some(lowered)
                 }
             };

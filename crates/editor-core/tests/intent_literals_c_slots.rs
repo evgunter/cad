@@ -4,8 +4,9 @@
 //! (the lifecycle of a slot's own variables), 8 (a variable's identity
 //! survives a gesture), 9 (Monte Carlo draws only what varies), 10
 //! (split carries anonymity) and 14's C half (the load door's slot
-//! reads), and a row per guard the fresh table adds. Row 11 (range
-//! names nothing) is `docm9_range`'s.
+//! reads), a row per guard the fresh table adds, and the rows of VR8's
+//! tolerance rule (spec §11: only a toleranced variable is an analysis
+//! axis). Row 11 (range names nothing) is `docm9_range`'s.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -263,11 +264,11 @@ fn an_anonymous_variable_read_only_by_an_unread_definition_refuses_at_load() {
 
 // --------------------------------------------------------------- row 8
 
-/// The square's corner argument, `(loop 0, step 1, x)`.
+/// The square's first corner's x, `(loop 0, step 0, x)`.
 fn corner_x() -> SlotId {
     SlotId::Profile {
         loop_: 0,
-        step: 1,
+        step: 0,
         arg: editor_core::StepArg::PointX,
     }
 }
@@ -306,7 +307,7 @@ fn a_sketch_arguments_identity_survives_a_gesture_and_a_reshaping() {
         &doc,
         DocEdit::SetVarValue {
             var: var.into(),
-            value: FreeValue::Continuous(0.75),
+            value: FreeValue::Continuous(-0.25),
         },
     )
     .doc;
@@ -678,4 +679,183 @@ fn the_load_door_reads_every_slots_variable() {
         ),
         other => panic!("a length slot reading a count refuses, got {other:?}"),
     }
+}
+
+// ------------------------------------------- the analysis axes (VR8)
+
+fn sym_session<R>(f: impl FnOnce() -> R) -> (R, geom_core::SymCounts) {
+    geom_core::sym::with_session_rules(
+        geom_core::SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        },
+        geom_core::SymRules::shipped(),
+        f,
+    )
+}
+
+/// `a − b` as the symbolic lane binds the two variables over `doc`'s
+/// nominal box, decided, with the session's counts.
+fn sym_difference(
+    doc: &ProfileDoc,
+    a: VarId,
+    b: VarId,
+) -> (
+    Result<geom_core::predicate::Sign, geom_core::predicate::Indeterminate>,
+    geom_core::SymCounts,
+) {
+    use geom_core::Sym;
+    sym_session(|| {
+        let leaf = editor_core::ParamBox::from_axes(std::collections::BTreeMap::new());
+        let env = editor_core::var_env_over::<Sym<f64>, _>(doc, &leaf).expect("binds");
+        let bound = |var: VarId| match env.bindings[&var] {
+            editor_core::ParamValue::Continuous { value, .. } => value,
+            ref other => panic!("{var}: {other:?}"),
+        };
+        geom_core::k_stats::decide(
+            "intent_literals_c",
+            geom_core::predicate::Margin::of(bound(a) - bound(b)),
+            geom_core::predicate::Band::new(1.0e-9, 1.0e-8).unwrap(),
+        )
+    })
+}
+
+/// Two blends typed `125 mm` apart, the two radius variables, and the
+/// document.
+fn typed_twice(seed: &str) -> (ProfileDoc, VarId, VarId, RecipeNodeId, RecipeNodeId) {
+    let typed = || Formula::length_in(R_MM, quantity::MM).unwrap();
+    let (doc, _, a) = filleted(empty(seed), 0.0, typed());
+    let (doc, _, b) = filleted(doc, 4.0, typed());
+    let (x, y) = (radius(&doc, a), radius(&doc, b));
+    (doc, x, y, a, b)
+}
+
+fn toleranced(doc: &ProfileDoc, var: VarId) -> ProfileDoc {
+    step(
+        doc,
+        DocEdit::SetVarDistribution {
+            var: var.into(),
+            distribution: Some(Distribution::Normal { sigma: 0.001 }),
+        },
+    )
+    .doc
+}
+
+/// An untoleranced variable is a constant of the symbolic lane (VR8):
+/// two separately typed equal values decide `x − y` Zero there, named
+/// or anonymous, while their tokens still differ — coincidence is
+/// structure's question, not the analysis's. Breaks if the lane binds
+/// an untoleranced variable as a symbol.
+#[test]
+fn an_untoleranced_variable_is_a_constant_in_the_symbolic_lane() {
+    let (doc, x, y, a, b) = typed_twice("intent-literals-c-untoleranced");
+    assert_ne!(x, y, "two writings, two variables");
+    let (decided, _) = sym_difference(&doc, x, y);
+    assert_eq!(decided, Ok(geom_core::predicate::Sign::Zero));
+    let ev = eval(&doc);
+    assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
+    assert_ne!(
+        radius_token(body_of(&ev, a)),
+        radius_token(body_of(&ev, b)),
+        "the tokens read ids"
+    );
+
+    let doc = declare(&doc, "w", length(0.0625));
+    let doc = declare(&doc, "v", length(0.0625));
+    let (w, v) = (doc.var_named("w").unwrap(), doc.var_named("v").unwrap());
+    let (decided, _) = sym_difference(&doc, w, v);
+    assert_eq!(decided, Ok(geom_core::predicate::Sign::Zero), "named alike");
+}
+
+/// A toleranced variable is an axis and a symbol, named or anonymous:
+/// the analyzed box carries it, `x − x` is a theorem and `x − y` at
+/// equal nominals is not. Breaks if the tolerance rule drops a
+/// toleranced anonymous variable from the axes or binds it as a number.
+#[test]
+fn a_toleranced_variable_is_an_axis_and_a_symbol_named_or_anonymous() {
+    let (doc, x, y, _, _) = typed_twice("intent-literals-c-toleranced");
+    let doc = toleranced(&toleranced(&doc, x), y);
+    let doc = declare(
+        &doc,
+        "w",
+        VarDecl::Free(FreeVar::continuous_with(
+            Dimension::Length,
+            R_MM / 1000.0,
+            Distribution::Normal { sigma: 0.001 },
+        )),
+    );
+    let w = doc.var_named("w").unwrap();
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let mut axes = vec![x, y, w];
+    axes.sort();
+    assert_eq!(analyzed.params().keys().copied().collect::<Vec<_>>(), axes);
+    for (a, b) in [(x, y), (x, w)] {
+        let (_, same) = sym_difference(&doc, a, a);
+        assert_eq!(same.symbolic_zero, 1, "{a} − {a} is a theorem");
+        let (_, apart) = sym_difference(&doc, a, b);
+        assert_eq!(apart.symbolic_zero, 0, "{a} − {b} is two symbols");
+    }
+}
+
+/// The stackup's entries and the Monte Carlo draws list only the
+/// toleranced variables: a measure reading a toleranced `w` and an
+/// untoleranced `v`, beside a point at three typed lengths, has one
+/// entry and one draw, `w`'s. Breaks if an untoleranced variable is an axis again.
+#[test]
+fn stackup_and_monte_carlo_list_only_toleranced_variables() {
+    let doc = empty("intent-literals-c-entries");
+    let doc = declare(
+        &doc,
+        "w",
+        VarDecl::Free(FreeVar::continuous_with(
+            Dimension::Length,
+            0.0625,
+            Distribution::Normal { sigma: 0.001 },
+        )),
+    );
+    let doc = declare(&doc, "v", length(0.0625));
+    let sum = Formula::add(
+        Formula::add(named("w"), named("v")).unwrap(),
+        Formula::length_in(5.0, quantity::MM).unwrap(),
+    )
+    .unwrap();
+    let applied = step(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(
+                Node::measure(editor_core::MeasureExpr::value(sum), Vec::new()).unwrap(),
+            ),
+            fresh: Vec::new(),
+        },
+    );
+    let (doc, measure) = (applied.doc, applied.record.minted.expect("an insert mints"));
+    // Typed lengths at slot roots: anonymous free variables, untoleranced.
+    let doc = step(&doc, point([len(0.25), len(0.5), len(0.75)], Vec::new())).doc;
+    let w = doc.var_named("w").unwrap();
+    assert_eq!(
+        crate::fixture::continuous_vars(&doc),
+        5,
+        "the premise: w, v and the point's three typed lengths"
+    );
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    assert_eq!(
+        analyzed.params().keys().copied().collect::<Vec<_>>(),
+        vec![w]
+    );
+    let entries =
+        editor_core::stackup::sensitivities(&doc, measure, None, None, false, None, Tol::witness())
+            .expect("the driver runs");
+    assert_eq!(
+        entries.iter().map(|e| e.param).collect::<Vec<_>>(),
+        vec![w],
+        "one entry, w's"
+    );
+    let draw =
+        editor_core::mc::sample_offsets(&doc, &analyzed, &editor_core::mc::McConfig::default(), 0)
+            .expect("draws");
+    assert_eq!(
+        draw.keys().copied().collect::<Vec<_>>(),
+        vec![w],
+        "one draw, w's"
+    );
 }

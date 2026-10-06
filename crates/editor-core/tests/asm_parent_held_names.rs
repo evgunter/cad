@@ -386,25 +386,25 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
 /// branch has minted the other's, so a name minted by either node and
 /// carried to the other branch resolves as a node that branch never
 /// had: `NodeGone` blaming `ForeignNode`, never another node's face.
+///
+/// Two nodes that differ only in a typed value are NOT two nodes: each
+/// branch's slot reads the variable its mint chain draws next, the same
+/// id in both, so the two inserts mint one node id, as one insert and a
+/// value edit (`SetVarValue`) would — a value is not identity (D10). The
+/// two siblings here differ in their side.
 #[test]
 fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     let (base, profile, _) = part();
-    let (a, tall) = insert(
-        base.clone(),
-        Node::Extrude {
-            profile,
-            distance: len(3.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let (b, taller) = insert(
-        base,
-        Node::Extrude {
-            profile,
-            distance: len(5.0),
-            side: ExtrudeSide::Along,
-        },
-    );
+    let extrude = |distance: f64, side| Node::Extrude {
+        profile,
+        distance: len(distance),
+        side,
+    };
+    let (_, three) = insert(base.clone(), extrude(3.0, ExtrudeSide::Along));
+    let (_, five) = insert(base.clone(), extrude(5.0, ExtrudeSide::Along));
+    assert_eq!(three, five, "a typed value is not a node's identity");
+    let (a, tall) = insert(base.clone(), extrude(3.0, ExtrudeSide::Along));
+    let (b, taller) = insert(base, extrude(5.0, ExtrudeSide::Against));
     assert_ne!(tall, taller, "each branch mints its own node's id");
     assert!(
         !a.has_minted(taller) && !b.has_minted(tall),

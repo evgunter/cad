@@ -7,7 +7,6 @@
 use crate::fixture;
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
-use editor_core::Formula;
 
 use crate::corpus::body_of;
 use editor_core::{
@@ -642,12 +641,15 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .collect();
     assert_eq!(blends.len(), 2, "the box-edge blend and the rim blend");
     let before = run(&doc);
-    let (rim_target, rim_radius, rims) = match doc.node(blends[1]) {
+    // The radius as written: deleting the blend retires the anonymous
+    // variable its radius reads, so the re-authored blend writes it
+    // again.
+    let (rim_target, rim_radius, rims) = match doc.node(blends[1]).map(|n| n.written(&doc)) {
         Some(Node::Fillet {
             target,
             radius,
             selection,
-        }) => (*target, radius.clone(), selection.clone()),
+        }) => (target, radius, selection),
         other => panic!("the die's last node is the rim blend, got {other:?}"),
     };
     assert_eq!(rims.len(), 42, "the die selects two rim arcs per pip");
@@ -720,11 +722,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .doc;
         let (edited, rim) = insert(
             edited,
-            Node::fillet(
-                rim_target,
-                Formula::var(rim_radius, editor_core::Dimension::Length),
-                kept_rims.clone(),
-            ),
+            Node::fillet(rim_target, rim_radius.clone(), kept_rims.clone()),
         );
         let after = evaluate::<f64>(
             &edited,

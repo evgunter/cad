@@ -50,12 +50,14 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
+/// A length carrying a tolerance, so the analysis varies it (VR8: an
+/// untoleranced variable is a constant of every analysis lane).
 fn length(value: f64) -> FreeVar {
     FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),
-        distribution: None,
+        distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
     }
 }
 
@@ -171,8 +173,8 @@ fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
     ];
     assert_eq!(
         entries.len(),
-        crate::fixture::continuous_vars(&doc),
-        "one entry per continuous variable, every written dimension's included (VR8)"
+        closed.len(),
+        "one entry per toleranced variable, no written dimension's (VR8)"
     );
     let mut misses = Vec::new();
     for &(param, nominal, want) in &closed {

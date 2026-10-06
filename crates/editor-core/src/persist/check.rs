@@ -174,7 +174,8 @@ pub(crate) enum Walk {
     /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
     /// [`first_var_fault`] over the variable table (VARIABLES-DESIGN
-    /// VR1–VR3): every variable's stored kind is its definition's,
+    /// VR1–VR3): the mint log it asks is strictly ascending, every
+    /// variable's stored kind is its definition's,
     /// every id is logged in the mint as a variable's, every name sits
     /// on a live variable, and no name is held twice. Snapshot only.
     Vars,
@@ -491,6 +492,12 @@ fn free_vars(snapshot: &ProfileDoc) -> impl Iterator<Item = (VarId, &FreeVar)> {
 /// twice. The names are walked by id, so the pair a twice-held name
 /// reports is the two lowest ids holding it.
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    // The mint log first, since `has_var` below asks it: strictly
+    // ascending, the only log a mint writes. The structural walk asks
+    // it again for a snapshot checked alone (`validate_snapshot`).
+    if let Some(entry) = snapshot.mint.out_of_order() {
+        return Some(SnapshotError::MintLogOrder { entry });
+    }
     for (&id, var) in &snapshot.vars {
         if !var.kind_holds() {
             return Some(SnapshotError::VarKind {
@@ -2018,7 +2025,10 @@ mod tests {
         match err {
             // `validate_document` itself, from the expression walks it
             // maps into this vocabulary.
+            // `MintLogOrder`: both this walk and the structural one
+            // raise it; this one runs first.
             SnapshotError::VarKind { .. }
+            | SnapshotError::MintLogOrder { .. }
             | SnapshotError::VarNotMinted { .. }
             | SnapshotError::VarOrderMismatch
             | SnapshotError::NameOnMissingVar { .. }
@@ -2038,7 +2048,6 @@ mod tests {
             SnapshotError::OrderMismatch
             | SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
-            | SnapshotError::MintLogOrder { .. }
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DeclaredSiteNotAnOperand { .. }
             | SnapshotError::DeclaredNameNotUpstream { .. }

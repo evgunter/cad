@@ -1222,14 +1222,18 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
 /// **A cut name reaching outside the cut names the earliest node it
 /// reaches, in document order**, whatever the ids. The name is a
 /// union's face kept from operand A, so it reaches the union and A's
-/// block; A's block is lengthened until the two ids do not run in
-/// document order, so a pick by lowest id would name the union.
+/// block; the mint chain is advanced ([`padded`]) until the two ids do
+/// not run in document order, so a pick by lowest id would name the
+/// union.
 #[test]
 fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
     use editor_core::{BooleanOp, EntityKind, derivation_nodes};
     for k in 0..64u32 {
-        let doc = ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness());
-        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0 + f64::from(k) / 8.0);
+        let doc = padded(
+            ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness()),
+            k,
+        );
+        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
         let (doc, u) = insert(
             doc,
@@ -1284,7 +1288,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         }
         return;
     }
-    panic!("no length in 0..64 put the reached ids out of document order");
+    panic!("no padding in 0..64 put the reached ids out of document order");
 }
 
 /// A cut-local block and a fillet on it whose selection is `name`,
@@ -1318,6 +1322,25 @@ fn fillet_of(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> RecipeNodeId {
         .expect("the cut holds its fillet")
 }
 
+/// `doc` with `k` unread named lengths declared, which advances its mint
+/// chain `k` draws: every id minted after moves, and nothing else does
+/// (a typed value is not identity, so varying one moves no id).
+fn padded(doc: ProfileDoc, k: u32) -> ProfileDoc {
+    (0..k).fold(doc, |doc, i| {
+        step(
+            doc,
+            DocEdit::DeclareVar {
+                name: VarName::new(format!("pad{i}")).expect("a legal name"),
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                    editor_core::Dimension::Length,
+                    1.0,
+                )),
+            },
+        )
+        .0
+    })
+}
+
 /// **A deleted node the name reaches is named after every live one**:
 /// a deleted node has no place in the document, so the live node is
 /// the one the author can still act on. The union whose face the cut
@@ -1328,8 +1351,11 @@ fn fillet_of(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> RecipeNodeId {
 fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
     use editor_core::{BooleanOp, EntityKind, derivation_nodes};
     for k in 0..64u32 {
-        let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
-        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0 + f64::from(k) / 8.0);
+        let doc = padded(
+            ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness()),
+            k,
+        );
+        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
         let (doc, u) = insert(
             doc,
@@ -1373,7 +1399,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
         }
         return;
     }
-    panic!("no length in 0..64 gave the union the lower id");
+    panic!("no padding in 0..64 gave the union the lower id");
 }
 
 /// Inline's parameter, tolerance, and metadata refusals.

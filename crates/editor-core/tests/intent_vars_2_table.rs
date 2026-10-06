@@ -197,9 +197,11 @@ fn bound(var: VarId, env: &editor_core::VarEnv<Sym<f64>>) -> Sym<f64> {
     }
 }
 
-/// Row 6: the symbolic tier reads a variable as its id's symbol, so
-/// `w − w` is a theorem, `w − v` at equal values is not, and the
-/// symbol is `ParamSymbol::new(id)` exactly.
+/// Row 6: the symbolic tier reads a toleranced variable as its id's
+/// symbol, so `w − w` is a theorem, `w − v` at equal values is not, and
+/// the symbol is `ParamSymbol::new(id)` exactly. The twins carry a law:
+/// an untoleranced variable is a constant of the lane (VR8), which
+/// `intent_literals_c_slots` pins.
 #[test]
 fn the_symbol_is_the_variables_id() {
     let doc = twins();

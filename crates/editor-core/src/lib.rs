@@ -96,7 +96,7 @@ pub mod witness;
 pub use analysis::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
     DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError, SeedError,
-    SeedScalar, analyzed_box, box_mass, sample_offset, seed_env, std_deviation, tail_mass,
+    SeedScalar, analyzed_box, box_mass, is_axis, sample_offset, seed_env, std_deviation, tail_mass,
     var_env_over,
 };
 pub use appearance::{

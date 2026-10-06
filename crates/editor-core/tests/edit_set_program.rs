@@ -450,13 +450,18 @@ fn a_leg_inserted_into_a_square_keeps_every_walls_name() {
 }
 
 /// **The identity edit is accepted, reports nothing, and is
-/// structural.** The program the node holds, every step kept.
+/// structural.** The program the node holds, re-authored from the node
+/// ([`Node::authored`]: every argument a reader of the variable it
+/// holds), every step kept.
 #[test]
 fn the_identity_edit_is_accepted_and_reports_nothing() {
     let r = rod("set-program-identity", &[CREASE]);
     let ids = keep_all(&r.doc, r.profile);
-    let applied = accepted(&r.doc, r.profile, vec![rod_loop(false)], ids);
-    assert!(crate::fixture::without_anonymous(&applied.maintenance).is_empty());
+    let Some(Node::Profile(held)) = r.doc.node(r.profile).map(|n| n.authored(&r.doc)) else {
+        panic!("the rod's profile is a profile")
+    };
+    let applied = accepted(&r.doc, r.profile, held.loops, ids);
+    assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
     assert!(applied.record.structural);
     assert!(applied.doc.bit_eq(&r.doc), "nothing moved");
 }
@@ -1176,12 +1181,18 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     let set_log = |log: Vec<serde_json::Value>| {
         edited(&|v| v["snapshot"]["mint"]["log"] = log.clone().into())
     };
+    // Aimed at the first node entry and the entry after it: the
+    // variables the slots mint are logged too.
+    let nodes: Vec<usize> = (0..written.len())
+        .filter(|&i| written[i].get("node").is_some())
+        .collect();
+    let (i, j) = (nodes[0], nodes[0] + 1);
     let mut twice = written.clone();
-    twice.insert(1, written[0].clone());
+    twice.insert(i + 1, written[i].clone());
     let mut swapped = written.clone();
-    swapped.swap(0, 1);
+    swapped.swap(i, j);
     let first: editor_core::Minted =
-        serde_json::from_value(written[0].clone()).expect("a log entry");
+        serde_json::from_value(written[i].clone()).expect("a log entry");
     for (label, log) in [
         ("an entry twice", twice),
         ("two entries out of order", swapped),
@@ -1231,7 +1242,10 @@ fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
     let at = log
         .iter()
         .position(|entry| {
-            let bits = entry["node"].as_u64().or(entry["step"].as_u64());
+            let bits = entry["node"]
+                .as_u64()
+                .or(entry["step"].as_u64())
+                .or(entry["var"].as_u64());
             bits.expect("a tagged entry") > drawn.0
         })
         .unwrap_or(log.len());
@@ -1838,8 +1852,8 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
     );
     let via_slot = set_radius(&doc, profile, 2.0);
     assert!(
-        via_program.doc.bit_eq(&via_slot.doc),
-        "the two edits land the same document"
+        crate::fixture::same_as_written(&via_program.doc, &via_slot.doc),
+        "the two edits land the same document, up to the variables each mints"
     );
     assert_eq!(
         crate::fixture::without_anonymous(&via_program.maintenance),

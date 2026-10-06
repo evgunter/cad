@@ -182,9 +182,9 @@ impl AnalyzedParam {
     }
 }
 
-/// The analyzed box: one axis per CONTINUOUS free variable, in id
-/// order (VR8: the axes are keyed by identity, so a rename moves none).
-/// Derived, never stored.
+/// The analyzed box: one axis per TOLERANCED variable ([`is_axis`]),
+/// in id order (VR8: the axes are keyed by identity, so a rename moves
+/// none). Derived, never stored.
 ///
 /// Equality is the axes' alone: the spoken forms beside them are how a
 /// refusal names a variable, and a rename — which moves no axis — must
@@ -318,20 +318,39 @@ impl AnalyzedBox {
     }
 }
 
+/// **Whether a free variable is an analysis axis** (VR8): a continuous
+/// variable that carries a tolerance — a band or a distribution. A
+/// variable with none is a constant in every analysis lane: the box,
+/// the dual seeds of a stackup, the symbolic lane, Monte Carlo and the
+/// stackup's entries all read it at its nominal. Named or anonymous
+/// alike: what makes a variable vary is its tolerance, not its name.
+/// A query that names a variable itself ([`var_env_over`]'s box, a
+/// [`seed_env`] seed, `range`) widens it whatever it carries.
+pub fn is_axis(free: &FreeVar) -> bool {
+    matches!(
+        free,
+        FreeVar::Continuous {
+            distribution: Some(_),
+            ..
+        }
+    )
+}
+
 /// The analyzed box of a document under a policy (E1's first
 /// consumable).
 ///
-/// Per continuous parameter: the bounded support for
+/// Per axis ([`is_axis`]): the bounded support for
 /// [`Band`](Distribution::Band),
 /// [`Uniform`](Distribution::Uniform) and
 /// [`TruncatedNormal`](Distribution::TruncatedNormal); the symmetric
-/// quantile interval `±z·sigma` for [`Normal`](Distribution::Normal);
-/// and [`OffsetInterval::FIXED`] for a parameter with no distribution.
-/// `Count` parameters are not axes.
+/// quantile interval `±z·sigma` for [`Normal`](Distribution::Normal).
+/// A variable with no tolerance is no axis, and neither is a `Count`
+/// parameter: both are constants of the analysis.
 pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
     let z = quantile_z(policy.quantile_mass());
     let params: BTreeMap<VarId, AnalyzedParam> = doc
         .free_vars()
+        .filter(|(_, p)| is_axis(p))
         .filter_map(|(id, p)| match *p {
             FreeVar::Continuous {
                 dim,
@@ -1019,7 +1038,11 @@ impl ParamBox {
 /// Each axis binds `nominal + [lo, hi]`, formed in the scalar's own
 /// arithmetic so the enclosure rounds outward; `Count` parameters bind
 /// exactly as [`Doc::var_env`] binds them (they are structural, never
-/// axes). A parameter the box does not name binds its nominal.
+/// axes). A toleranced parameter the box does not name binds its
+/// nominal as an axis of no width; a parameter with no tolerance the
+/// box does not name is no axis ([`is_axis`]) and binds its nominal as
+/// a constant, as [`Doc::var_env`] binds it — so the symbolic lane
+/// reads it as a number, not a symbol.
 ///
 /// # Errors
 ///
@@ -1042,6 +1065,12 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
         // Bound by id, as `Doc::var_env` binds it: the two environment
         // doors read one iteration base.
         let v = match *p {
+            FreeVar::Continuous { dim, value, .. } if box_.get(id).is_none() && !is_axis(p) => {
+                crate::expr::ParamValue::Continuous {
+                    dim,
+                    value: T::from_f64(value),
+                }
+            }
             FreeVar::Continuous { dim, value, .. } => {
                 let (lo, hi) = box_.get(id).map_or((0.0, 0.0), BoxAxis::span);
                 // The IDENTIFIED door (E12): a scalar that tracks

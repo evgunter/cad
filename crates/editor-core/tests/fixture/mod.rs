@@ -1844,6 +1844,26 @@ pub fn without_anonymous(
         .collect()
 }
 
+/// **Two documents that say the same thing**: one node order, each
+/// node the same as written ([`Node::written`]: an anonymous variable
+/// its value or definition, a named one its reader), and one named
+/// variable table. What two edits that write the same values through
+/// different doors land: the anonymous variables they mint are their
+/// own, so the documents are not [`ProfileDoc::bit_eq`].
+pub fn same_as_written(a: &ProfileDoc, b: &ProfileDoc) -> bool {
+    let named = |doc: &ProfileDoc| -> Vec<_> {
+        doc.var_names()
+            .iter()
+            .map(|(id, name)| (*id, name.clone(), doc.var(*id).cloned()))
+            .collect()
+    };
+    a.order() == b.order()
+        && a.order()
+            .iter()
+            .all(|&id| a.node(id).map(|n| n.written(a)) == b.node(id).map(|n| n.written(b)))
+        && named(a) == named(b)
+}
+
 /// **Retypes, in a saved document's wire, the free variable a slot
 /// reads**: the slot at `slot`'s JSON holds its variable's id, and the
 /// variable's kind, dimension and display unit all move to `dim` and
