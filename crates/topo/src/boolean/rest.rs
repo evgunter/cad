@@ -89,8 +89,8 @@ use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
-    Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, of_merge, remap_carried, remap_contacts,
+    Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
+    merge_rows, of_merge, split_lineage,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -187,6 +187,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     if decls.coincident_faces.is_empty() || red.null_pairs.is_empty() {
         return Ok(None);
     }
+    // Read before the lane's surgery on the clones.
+    let carried = split_lineage(&red, decls, band)?;
 
     // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
     let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
@@ -405,19 +407,11 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let mut contacts = remap_contacts(
+    let contacts = carry(
         &body,
         &contacts,
-        KeyView::Direct,
-        KeyView::Graft(&graft),
-        &desc,
-    )?;
-    remap_carried(
-        &mut contacts,
-        &body,
-        decls,
-        &KeyView::Direct,
-        &KeyView::Graft(&graft),
+        [&carried[0], &carried[1]],
+        [&KeyView::Direct, &KeyView::Graft(&graft)],
         &desc,
     )?;
     body.sweep_and_close();
@@ -1745,13 +1739,16 @@ fn glue_pair<T: Decide + crate::props::AtRestPolicy>(
         } else {
             slit_zip(body, da, db, &shared, vmap, tol)?
         };
-        report
-            .vertex_merges
-            .extend(rep.vertex_merges.iter().copied());
-        report.seam_edges.extend(rep.seam_edges.iter().copied());
-        report
-            .interior_edges
-            .extend(rep.interior_edges.iter().copied());
+        let ZipReport {
+            vertex_merges,
+            seam_edges,
+            interior_edges,
+            edge_merges,
+        } = rep;
+        report.vertex_merges.extend(vertex_merges);
+        report.seam_edges.extend(seam_edges);
+        report.interior_edges.extend(interior_edges);
+        report.edge_merges.extend(edge_merges);
     }
     Ok(report)
 }
@@ -2059,9 +2056,13 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
             } else {
                 return Err(corr("slit-zip final pair is not one copy per side"));
             };
-            report
-                .seam_edges
-                .push(if b_edges.contains_key(e0) { e1 } else { e0 });
+            let (b_copy, a_copy) = if b_edges.contains_key(e0) {
+                (e0, e1)
+            } else {
+                (e1, e0)
+            };
+            report.seam_edges.push(a_copy);
+            report.edge_merges.push((b_copy, a_copy));
             body.kef_minting(b_half, tol)
                 .map_err(|_| desync("REST lane: final slit kef refused"))?;
             break;
@@ -2073,11 +2074,11 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
             let next = walk[(i + 1) % walk.len()];
             let en = edge_in(next);
             if a_edges.contains_key(e) && b_edges.contains_key(en) {
-                fold = Some((he, next));
+                fold = Some((he, next, (en, e)));
                 break;
             }
         }
-        let Some((ha, hb)) = fold else {
+        let Some((ha, hb, copies)) = fold else {
             return Err(corr("slit-zip fold not found"));
         };
         let sa = proven(&body.half_edges, ha, EntityId::HalfEdge).start;
@@ -2101,6 +2102,9 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         debug_assert_eq!(merge, (eb, sa), "the slit fuse keeps the a copy");
         report.vertex_merges.push(merge);
         report.seam_edges.push(edge_of(body, ha)?);
+        // `ha` runs from `sa` and `hb` back to its correspondent: one
+        // segment, the b copy retired onto the a copy.
+        report.edge_merges.push(copies);
         body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }

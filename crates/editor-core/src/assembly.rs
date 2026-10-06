@@ -1726,8 +1726,8 @@ fn attribute(
         // `UndeclaredContact` is the definition of unattributed: no
         // mate authored it, which is what makes it F1's hard error.
         //
-        // The VERTEX-granular staleness arms name a v-v or v-on-f
-        // record, and [`mint`] makes `PatchContact` and nothing else
+        // The VERTEX- and EDGE-granular staleness arms name a v-v,
+        // v-on-f, v-on-e or e-e record, and [`mint`] makes `PatchContact` and nothing else
         // — so no declaration of this document is the subject, and a
         // stale record a PART carries is a finding against the
         // document that a mate cannot answer for. Sharing a face with
@@ -1766,7 +1766,9 @@ fn attribute(
         | ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::VertexVertex { .. }
-                | topo::StaleDeclaration::VertexOnFace { .. },
+                | topo::StaleDeclaration::VertexOnFace { .. }
+                | topo::StaleDeclaration::VertexOnEdge { .. }
+                | topo::StaleDeclaration::EdgeEdge { .. },
         }
         | ValidationError::CensusEscalated { .. }
         | ValidationError::CensusLaneUnsupported { .. }
