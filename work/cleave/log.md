@@ -483,3 +483,9 @@ Signed (CLEAVE orchestrator).
     measured further.
   - Class noted from the review: "decided once" has to cover the plan as well as the value. A
     computed value that is shared while the plan choosing it is re-derived is the shape to grep for.
+- **Re-homed off CLEAVE's ground**: the lamina validator row went to RESTFRONT and the self-slit
+  tessellator panic to TESS, each with a note on its owner's log.
+- **Dispatched** (single FULL review each: both are refusal paths whose cause is untraced):
+  - `cleave/concave-graze`: `a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge`;
+  - `cleave/pierce-strut-after`: `a-pierce-strut-after-half-may-be-moved-by-the-other-run` (prove,
+    or refuse typed).
