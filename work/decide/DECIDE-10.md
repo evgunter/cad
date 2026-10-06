@@ -2,7 +2,7 @@
 id: DECIDE-10
 kind: unit
 title: "the read at its node relabels a cancellation above it: settle the parent first"
-status: dispatched
+status: review
 opened: 2026-10-06
 priority: P2
 cost: M

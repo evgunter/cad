@@ -235,3 +235,144 @@ S8, S12 and S13 move from refused to the answer the read-shut tier
 gives (a theorem, `registered`, a theorem). That is the class's own
 defect, not a value the read decides: on each, a read-free form
 settles.
+
+## What Phase 2 shipped (DECIDE-10)
+
+**Candidate 1, as 1h.** On the DECISION path (`discharge_retried`),
+`rungs` in `crates/geom-core/src/sym.rs` walks a rung again with every
+value read shut (`SymRules::without_value_reads`: the decision read and
+rule C's fold, the two dials under which a walk reads the box). It does
+this where the early or door form is gated, or where the leaf has frozen
+a node over a gated kid (`Session::froze_gated`). An ungated zero there
+is the rung's answer: a theorem at the early rung, `registered` at the
+door.
+- The walks are `WalkKind::EarlyShut` and `WalkKind::DoorShut`, each in
+  its own memo. A retry attempt has its own pair (`RetryMemo`), and the
+  growth guard counts them.
+- A registration clears the door one.
+- The contradiction check (`discharge`) does not ask the shut walk. It
+  reads only whether a rung found a zero, and a gated zero already is
+  one.
+
+`Form::gated`'s doc now lists the four places the walk drops a gate,
+which the argument rests on:
+- a zero factor that is itself ungated;
+- the `Select` arm A0 does not take;
+- a freeze;
+- a poison.
+
+Phase 1 gives the argument. The read's doc, its rules-table row, the
+module header and `signed`'s "Where it runs" now say what the code
+keeps: the read is ordered behind every value-free fold, at its node
+and above it. "At its node" is gone.
+
+**The invariant, shown.**
+- **The shapes** (`sym_root_rows`). Each row is decided read on and
+  read shut, and each is a soundness row first (`row`):
+  - `a_cancellation_above_the_read_is_a_theorem`: nine shapes, S1–S7,
+    S10 and S11 of the Phase 1 table. It is the renamed
+    `the_read_relabels_a_cancellation_above_its_node_filed_defect`.
+  - `a_cancellation_the_read_leaves_non_zero_is_a_theorem`: S8.
+  - `a_cancellation_above_a_frozen_read_is_a_theorem`: S13.
+  - `a_registered_cancellation_above_the_read_is_registered`: S12, and
+    S9 kept `sign_gated` by the ladder's order.
+  - `the_read_still_answers_what_no_form_settles`: four comparisons,
+    `sign_gated` with the read on and numeric or refused with it shut.
+
+  Two patches showed the rows are load-bearing. With the shut walk
+  disabled, four of the new rows red. With the freeze trigger removed,
+  `a_cancellation_above_a_frozen_read_is_a_theorem` reds alone.
+- **The documents.**
+  - R2's pad leaf at `1e2·ε` reads `1137 / 2 / 156 / 1373` before and
+    after.
+  - `m10_9_no_registrant_lies_on_any_measured_document` (all five
+    documents at `certifies_at`) and `m10_10_pins_interval` are green
+    unmoved.
+  - Every other editor-core module that names the tier's counts or
+    rule sets is green except the two rows below. The list is
+    `grep -l "sign_gated\|symbolic_zero\|SymRules\|SymCounts"` over
+    `crates/editor-core/tests`, run in dev.
+- **Where the class lives: the tilted derived-frame family.** Phase 1
+  found no measured document carrying the shape. The family in
+  `m10_derived_frame_tilted_interval` carries it, at `half = 1e-3`,
+  `Guided`, ε = 1e-9:
+
+  | document | before | after | read shut |
+  | --- | --- | --- | --- |
+  | tilt-`u` start cap | 572 / 400 / 0 / 510, certifies | **972 / 0** / 0 / 510, certifies | 972 / 0 / 0 / 510, certifies |
+  | tilt-`u` end cap | 572 / 400 / 0 / 510, certifies | **692 / 280** / 0 / 510, certifies | 573 / 0 / 0 / 294, refuses at `newell_plane_residual` |
+  | `FlipZ` | 572 / 400 / 0 / 510, certifies | **692 / 280** / 0 / 510, certifies | as the end cap |
+
+  - Before: `all-before`, the release binary of `923478946` (this
+    branch before any Phase 2 code), printing the two rows.
+  - After: the dev run of the rows.
+  - Read shut: a probe, not committed, evaluating each document under
+    `SymRules::without_the_reads`.
+
+  `numeric`, `registered`, `frozen` (1350) and every verdict are
+  unmoved. 400 and 120 decisions move from `sign_gated` to theorem, and
+  on the start cap the shipped receipt is now the read-shut tier's,
+  exactly. Per predicate on the end cap:
+  - `carrier_endpoint_end` moves `[32, 16, 0, 0]` → `[48, 0, 0, 0]`;
+  - `newell_plane_residual` moves `[24, 24, 0, 0]` → `[28, 20, 0, 0]`.
+
+  The twenty still `sign_gated` are what the read settles: with it shut
+  the document refuses there.
+
+**Re-baselines**, each said in its row:
+- `m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame`:
+  - `carrier_endpoint_end` `[32, 16, 0, 0]` → `[48, 0, 0, 0]`. Its
+    message said the sixteen were "comparisons no form settles"; a form
+    with the reads shut settles them.
+  - The row now also pins `newell_plane_residual` `[28, 20, 0, 0]`.
+  - It adds a third evaluation, read shut, refusing at
+    `newell_plane_residual`, so its name's claim (the read certifies
+    the frame) is asserted rather than inferred against SYM-5's tier.
+- `m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert`:
+  - It asserted the start cap's labelled receipt EQUAL to the end cap's.
+    The labels now differ (972 / 0 against 692 / 280), because the
+    start cap's read-shut forms settle all 400 and the end cap's settle
+    120.
+  - The cross-document claim, "the sign of n.z costs the tier nothing",
+    is now asserted in decisions: discharged, registered, numeric and
+    frozen, whole and per predicate.
+  - Rule F's inertness keeps the full labelled comparison.
+  - The doc's measured numbers are re-taken.
+- `sym_root_rows::the_read_relabels_a_cancellation_above_its_node_filed_defect`
+  is renamed `a_cancellation_above_the_read_is_a_theorem`, and its
+  label flips to `theorem`.
+
+**Leaf cost**, R2's pad, release, `ON + the ladder`, one whole-box leaf
+at `1e2·ε`, best of 3. Before is `all-before` (`923478946`).
+After is this branch at `fb11461c3`, before the merge of `main`. The
+sets were taken before, after, before, after on one shared box:
+
+| set | before | after |
+| --- | --- | --- |
+| first | 43.076 s | 44.008 s |
+| second | 43.378 s | 43.657 s |
+
+The after sets are 0.28–0.93 s slower (0.6–2.2 %), against a 0.30 s
+spread between the two before sets. The shut walk ran on the pad's two
+gated decisions per leaf (Phase 1's 1h count).
+
+**The sweep.**
+- Every reader of the box's brackets (`Session::params`) is `signed`'s
+  three doors:
+  - `read_decision` behind `decision` and `order`, under
+    `decision_read`;
+  - `fold`, under `signed_root`, in `combine` and in `root`'s magnitude;
+  - `enclose_poly`, under `signed_root`, as rule G's side condition.
+  - `signed::instrument` re-encloses under `sym-profile-testing` and
+    decides nothing.
+
+  So `without_value_reads` shuts every value read the walk makes.
+- The pattern cannot see a value read made outside `params`. `combine`
+  takes forms only, and nothing in `sym/` reads a node's numeric
+  channel.
+
+**Filed** on this slate:
+- `an-atom-over-a-gated-argument-is-another-indeterminate` (P3): the
+  key that makes S8 non-zero, and a reach loss of its own (C6).
+- `the-registration-contradiction-check-misses-a-door-zero-the-read-gated`
+  (P3): `door_zero`, the one door reader this unit left alone.
