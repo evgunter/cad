@@ -7,6 +7,7 @@ opened: 2026-10-03
 priority: P1
 cost: M
 branch: reach/torus-touch-off-faces
+pr: 4159
 ---
 
 
