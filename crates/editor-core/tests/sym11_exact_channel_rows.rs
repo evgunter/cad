@@ -32,19 +32,26 @@ use crate::m10_9_pins_interval::measured_studies;
 /// ε = 1e-6, 1e-9 and 1e-12: the atoms a residual carries do not
 /// depend on the band, and neither does what the tier proves about
 /// them.
+///
+/// Re-taken when the constructions began storing the carriers they
+/// build. The plate and the annulus no longer refuse anywhere the
+/// bisection reaches, and replay at [`PAST_NO_CEILING`]; the link,
+/// the bracket and the pad replay at their new ceilings, where the
+/// bracket and the pad now stop at the replayed profile's validation,
+/// before any registrant runs.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [803, 140, 470, 1044]),
-    ("r1_annulus", [328, 140, 209, 1056]),
-    ("r2_link", [214, 76, 175, 556]),
-    // +1 `symbolic_zero` and +1 `numeric` from the fillet run out's
-    // carrier decision (`path_run_out_carrier`).
-    ("r2_filleted_bracket", [429, 141, 342, 1096]),
-    // +28 `symbolic_zero` and +84 `numeric` from the must-carry rule's
-    // per-station dihedral gate (16 edges x 7 stations of
-    // `dihedral_wedge`), and +3 of each from the run outs' carrier
-    // decision.
-    ("r2_rounded_pad", [885, 128, 1058, 2750]),
+    ("two_hole_plate", [1103, 0, 704, 612]),
+    ("r1_annulus", [588, 0, 451, 804]),
+    ("r2_link", [373, 9, 284, 484]),
+    ("r2_filleted_bracket", [644, 0, 516, 806]),
+    ("r2_rounded_pad", [368, 0, 302, 302]),
 ];
+
+/// The scale, in multiples of ε, a document with no measured refusal
+/// replays at. Not the bisection's top, `1e6·ε`: at ε = 1e-6 that is a
+/// scale of one, and the annulus's extrude refuses there geometrically
+/// before the tier is asked what it is here to be asked.
+const PAST_NO_CEILING: f64 = 1e5;
 
 /// One whole-box replay at `Sym<Interval>`, ON ITS OWN THREAD: the
 /// session's counts and the first node that refused, or the panic's
@@ -82,8 +89,10 @@ fn replay_on_a_thread(
 
 /// **THE STOP CLAUSE'S ROW.** The five measured documents replayed at
 /// `Sym<Interval>` past their ceilings — `Study::refuses_at`, the
-/// scale the measured bracket says the drive refuses at — where every
-/// leaf's residuals are the widest the corpus produces. The exact
+/// scale the measured bracket says the drive refuses at, or
+/// [`PAST_NO_CEILING`] for a document that refuses nowhere the
+/// bisection reaches — where every leaf's residuals are the widest the
+/// corpus produces. The exact
 /// witness contradicts its own form at NONE of them, at any ε.
 ///
 /// **The receipts are ASSERTED, not recorded in prose**, so a re-take
@@ -93,8 +102,9 @@ fn replay_on_a_thread(
 ///
 /// **WHEN IT IS RE-TAKEN: by hand, at each SYM unit's close**, because
 /// nothing schedules it — it is `#[ignore]`d (five whole-box replays
-/// of the corpus on top of the ones the gating rows already pay, about
-/// two minutes) and no sweep names it. The register of that obligation
+/// of the corpus on top of the ones the gating rows already pay; a few
+/// seconds in a dev build since the bracket and the pad stop at their
+/// profiles' validation) and no sweep names it. The register of that obligation
 /// is the unit item, not this comment:
 /// `work/sym/sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`
 /// while it is open, and the SYM log after it closes.
@@ -111,7 +121,8 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
             "PAST_THE_CEILING is read positionally against `measured_studies`, and the two \
              have gone out of order"
         );
-        let doc = (study.at)(study.refuses_at * eps);
+        let past = study.refuses_at.unwrap_or(PAST_NO_CEILING);
+        let doc = (study.at)(past * eps);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         match replay_on_a_thread(doc, ParamBox::of(&analyzed), tol) {
             Ok((refusal, counts)) => {

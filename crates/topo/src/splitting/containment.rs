@@ -1288,7 +1288,10 @@ pub(crate) fn carrier_loop<T: Decide>(
 /// times its half-width of its midpoint, a spline within its control
 /// hull's ball. `None` for a line, whose segment
 /// its two end vertices hold, and for a spline with no control points.
-fn carrier_ball<T: Decide>(carrier: &geom::Curve3<T>, (t0, t1): (T, T)) -> Option<(Point3<T>, T)> {
+pub(crate) fn carrier_ball<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+) -> Option<(Point3<T>, T)> {
     match *carrier {
         geom::Curve3::Line { .. } => None,
         geom::Curve3::Circle { center, radius, .. } => Some((center, radius)),
