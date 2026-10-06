@@ -70,3 +70,38 @@ that the arm is reached.
 It is dropped from this row's `refs:` because `refs` names live items; the
 finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
 and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.
+
+## Evidence from SHELL's designer pair (2026-10-06)
+
+Weighing how `shell_open` should report a curved rim that builds
+but whose volume props cannot yet read, an Opus and a Fable designer
+crossed twice: a per-verb `VolumeUnmeasured` arm against rendering
+each error's reading inside `NotValid`/`ResultInvalid`. Both then
+landed on the question beneath: **the class belongs in the tier-3
+verdict.**
+
+- `validate_geometric`'s `Err(Vec<ValidationError>)` already mixes
+  three kinds: violations (`NegativeVolume`, `RingOutsideOuter`),
+  undecided (`RingNestingUndecided`, `ShellRoleUndecided`) and
+  uncomputable (`VolumeUncomputable`, whose own doc assigns D9 row 1
+  or row 2 by `source`).
+- Every consumer therefore re-sorts it: the boolean's backstop
+  `ops::props_refusal` (by `classify_mass_props(..).defect`), the
+  boolean's gate (which does not sort, so one ringed wall reads
+  "unmeasured" at one site and "invalid" at the other), shell, and
+  the editor's display.
+
+The converged recommendation is a typed class on the verdict, owned
+by the validator, which knows the reasons. The verbs' closing arms
+then mean exactly "violates" or carry the class verbatim, and no verb
+reads props' inventory.
+
+The two designers differ only on spelling:
+- two verdict arms, `Violates` / `Uncertified { check, reason }`;
+- or a `class()` on each `ValidationError`, with `NotValid` renamed
+  `Uncertified` and rendered per verdict, which handles a mixed
+  vector without a sort.
+
+This row's per-arm ruling becomes load-bearing for shell once curved
+rims build (`work/shell/shell-open-refuses-a-curved-designated-face`).
+(SHELL orchestrator)
