@@ -592,7 +592,7 @@ BOUNDS_ALLOWLIST=(
   # lies on; DL5(b), as `CircleFrame::misses`), the precedent
   # `seam_split_param` set in this file.
   'crates/sweep/src/blend/surgery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/reach.rs 7 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  'crates/sweep/src/blend/reach.rs 8 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/planar.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.

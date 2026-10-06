@@ -65,7 +65,10 @@
 //! metered on cells. A face on a surface of revolution about a circular
 //! reach's axis is metered in the reach's meridian sheet: the reach and
 //! the surface are both solids of revolution there, so a point of one in
-//! the other would rotate into the sheet. Every other face is metered on
+//! the other would rotate into the sheet; its extent along its trace is
+//! read off its own boundary where that boundary says it
+//! ([`sheet_clip`]), since its box may be its whole surface's (a
+//! sphere's always is). Every other face is metered on
 //! its box clipped to the reach's, in space. A cell is clear when a lower
 //! bound over it of either the face's own surface distance (no point of
 //! the face lies in it) or one of the reach's bounds (no point of it lies
@@ -1154,12 +1157,262 @@ fn face_bound<T: Decide + Bounds>(
     least.done(band)
 }
 
+/// A coaxial face's image in the sheet, along its own trace: an axial
+/// range for a sphere, a cylinder or a cone, a radial one for a plane ⊥
+/// the axis.
+enum Clip<T: Real> {
+    Z(T, T),
+    Rho(T, T),
+}
+
+/// **The extent of a coaxial face's image along its trace**, read from
+/// its boundary (`None` where it cannot be).
+///
+/// The sheet map restricted to a surface of revolution is open away from
+/// the axis, so the image of a connected face is an arc of the trace
+/// whose ends are images of its boundary — or of a singular point of the
+/// surface on the axis (a sphere's pole, a cone's apex, a plane's axis
+/// point) that the face contains. On a line trace or a sphere's
+/// half-circle (monotone in `z`) that arc lies in the hull of those
+/// points.
+///
+/// Whether the face contains a singular point is read off its boundary
+/// when every boundary edge is a latitude circle coaxial with the axis or
+/// a meridian edge, which is what a revolved face is bounded by, both
+/// exactly so: the azimuth winding `W` of the boundary (oriented by the
+/// face's own outward normal) counts the singular points inside, and on
+/// a sphere, where `W = 0` leaves none or both poles, the sign of
+/// `∮ (z − z_c) dθ = 2πR·k − A/R` (Archimedes, `A` the face's area, `k`
+/// the poles inside) decides. Any other boundary leaves the face's box
+/// alone. A torus's trace is a whole circle and is not clipped.
+fn sheet_clip<T: Decide + Bounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    surface: &Surface<T>,
+    o: Point3<T>,
+    a: Vec3<T>,
+    band: Band,
+) -> Option<Clip<T>> {
+    // How far a direction is from the axis (`|b̂ − ±a|`, the chord),
+    // and how far a point is from it.
+    let tilt = |b: Vec3<T>| {
+        let b = b.normalize();
+        (T::from_f64(2.0) - T::from_f64(2.0) * b.dot(a).abs())
+            .max(T::zero())
+            .sqrt()
+    };
+    let off = |p: Point3<T>| sheet_of(o, a, p).0;
+    let near = |x: T| x.hi() <= band.zero();
+    // The surface, read about the axis it must share with the band.
+    enum Kind<T: Real> {
+        Sphere { zc: T, r: T, center: Point3<T> },
+        Cylinder,
+        Cone { z_apex: T },
+        Plane,
+    }
+    let kind = match surface {
+        Surface::Sphere { center, radius, .. } if near(off(*center)) => Kind::Sphere {
+            zc: sheet_of(o, a, *center).1,
+            r: *radius,
+            center: *center,
+        },
+        Surface::Cylinder { origin, axis, .. } if near(off(*origin)) && near(tilt(*axis)) => {
+            Kind::Cylinder
+        }
+        Surface::Cone { apex, axis, .. } if near(off(*apex)) && near(tilt(*axis)) => Kind::Cone {
+            z_apex: sheet_of(o, a, *apex).1,
+        },
+        Surface::Plane { normal, .. } if near(tilt(*normal)) => Kind::Plane,
+        _ => return None,
+    };
+    let pad = T::from_f64(band.escalate());
+    let f = body.get_face(face)?;
+    let mut range: Option<[T; 4]> = None;
+    let mut grow = |b: [T; 4]| {
+        range = Some(range.map_or(b, |r: [T; 4]| {
+            [
+                r[0].min(b[0]),
+                r[1].max(b[1]),
+                r[2].min(b[2]),
+                r[3].max(b[3]),
+            ]
+        }));
+    };
+    // The azimuth the boundary turns through and `∮ (z − z_c) dθ`, each
+    // with a bound on its error (module docs of [`sheet_clip`]).
+    let mut turn = [T::zero(); 4];
+    let zc = match kind {
+        Kind::Sphere { zc, .. } => zc,
+        _ => T::zero(),
+    };
+    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let first = match body.get_loop(lp)?.boundary {
+            topo::LoopBoundary::Cycle { first } => first,
+            topo::LoopBoundary::Empty { vertex } => {
+                let (r, z) = sheet_of(o, a, super::surgery::point_of(body, vertex)?);
+                grow([r - pad, r + pad, z - pad, z + pad]);
+                continue;
+            }
+        };
+        for he in body.loop_cycle(first)? {
+            let h = body.get_half_edge(he)?;
+            let e = body.get_edge(h.edge)?;
+            let forward = e.he_plus == he;
+            let cert = body.get_curve_geom(e.curve)?.certified()?;
+            let (t0, t1) = cert.params();
+            let carrier = cert.carrier();
+            let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
+            let aabb = match carrier {
+                Curve3::Line { .. } => {
+                    let lo = |k: fn(&Point3<T>) -> T| k(&p0).min(k(&p1));
+                    let hi = |k: fn(&Point3<T>) -> T| k(&p0).max(k(&p1));
+                    [
+                        [lo(|p| p.x).lo(), lo(|p| p.y).lo(), lo(|p| p.z).lo()],
+                        [hi(|p| p.x).hi(), hi(|p| p.y).hi(), hi(|p| p.z).hi()],
+                    ]
+                }
+                Curve3::Circle { .. } => {
+                    let b = geom::curves::boxes::circle_arc_aabb(carrier, t0, t1, p0, p1)?;
+                    [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
+                }
+                Curve3::Ellipse { .. } => {
+                    let b = geom::curves::boxes::ellipse_arc_aabb(carrier, t0, t1, p0, p1)?;
+                    [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
+                }
+                Curve3::Nurbs(n) => {
+                    let b = geom::curves::boxes::nurbs_curve_aabb(n);
+                    [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
+                }
+                Curve3::Spiric { .. } => return None,
+            };
+            if aabb.iter().flatten().any(|v| !v.is_finite()) {
+                return None;
+            }
+            let [r0, r1, z0, z1] = sheet_box(o, a, &Cell::<T>::new(aabb[0], aabb[1]));
+            grow([r0 - pad, r1 + pad, z0 - pad, z1 + pad]);
+            let dt = if forward { t1 - t0 } else { t0 - t1 };
+            let pi = T::pi();
+            let (z0e, z1e) = (sheet_of(o, a, p0).1 - zc, sheet_of(o, a, p1).1 - zc);
+            let z_far = z0e
+                .abs()
+                .max(z1e.abs())
+                .max((z0 - zc).abs())
+                .max((z1 - zc).abs());
+            let (d_theta, e_theta, e_j, z_e) = match *carrier {
+                Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } => {
+                    let ax = axis.normalize();
+                    let dot = ax.dot(a);
+                    let d_lat = off(center) + tilt(ax) * radius;
+                    let lean = (T::from_f64(2.0)
+                        - T::from_f64(2.0) * (T::one() - dot.powi(2)).max(T::zero()).sqrt())
+                    .max(T::zero())
+                    .sqrt();
+                    let d_mer = off(center) + lean * radius;
+                    if d_lat.hi() <= d_mer.lo() {
+                        // A latitude circle: the azimuth turns with the
+                        // parameter; a circle displaced by `D` from the
+                        // coaxial one sees each point's azimuth move by
+                        // at most `π/2·D/ρ_min`.
+                        let e = pi * d_lat / (radius - d_lat).max(T::zero());
+                        let z = sheet_of(o, a, center).1 - zc;
+                        (
+                            dot / dot.abs() * dt,
+                            e,
+                            (z.abs() + d_lat) * e + d_lat * dt.abs(),
+                            z,
+                        )
+                    } else {
+                        // A meridian edge clear of the axis: no turn,
+                        // within the same bound about the meridian it
+                        // is displaced from.
+                        let e = pi * d_mer / (r0 - d_mer).max(T::zero());
+                        (T::zero(), e, (z_far + d_mer) * e, T::zero())
+                    }
+                }
+                Curve3::Line { .. } => {
+                    // A segment clear of the axis turns through the
+                    // angle between its ends' radial directions.
+                    let (v0, v1) = (p0 - o, p1 - o);
+                    let (u0, u1) = (v0 - a * v0.dot(a), v1 - a * v1.dot(a));
+                    let turn = u0.cross(u1).dot(a).atan2(u0.dot(u1));
+                    let turn = if forward { turn } else { -turn };
+                    let span = (z0e - z1e).abs() / T::from_f64(2.0);
+                    let clear = if r0.lo() > 0.0 {
+                        T::zero()
+                    } else {
+                        T::from_f64(f64::NAN)
+                    };
+                    (
+                        turn,
+                        clear,
+                        span * turn.abs(),
+                        (z0e + z1e) / T::from_f64(2.0),
+                    )
+                }
+                _ => {
+                    let nan = T::from_f64(f64::NAN);
+                    (nan, nan, nan, nan)
+                }
+            };
+            turn = [
+                turn[0] + d_theta,
+                turn[1] + e_theta,
+                turn[2] + z_e * d_theta,
+                turn[3] + e_j,
+            ];
+        }
+    }
+    let [r_lo, r_hi, z_lo, z_hi] = range?;
+    let tau = T::tau();
+    let (w, ew) = (turn[0] / tau, turn[1] / tau);
+    let none = (w.abs() + ew).hi() < 0.25;
+    let one = ((w.abs() - T::one()).abs() + ew).hi() < 0.25;
+    Some(match kind {
+        Kind::Cylinder => Clip::Z(z_lo, z_hi),
+        Kind::Plane => match (none, one) {
+            (true, _) => Clip::Rho(r_lo, r_hi),
+            (_, true) => Clip::Rho(T::zero(), r_hi),
+            _ => return None,
+        },
+        Kind::Cone { z_apex } => match (none, one) {
+            (true, _) => Clip::Z(z_lo, z_hi),
+            (_, true) => Clip::Z(z_lo.min(z_apex), z_hi.max(z_apex)),
+            _ => return None,
+        },
+        Kind::Sphere { zc, r, center } => {
+            // Orient by the face's own outward normal against the radial.
+            let sigma = outward(body, face, center + a * r)?.dot(a);
+            let (w, j, ej) = (w * sigma, turn[2] * sigma, turn[3]);
+            let (north, south) = (zc + r, zc - r);
+            let zero = T::from_f64(band.zero());
+            if ((w - T::one()).abs() + ew).hi() < 0.25 {
+                Clip::Z(z_lo, north)
+            } else if ((w + T::one()).abs() + ew).hi() < 0.25 {
+                Clip::Z(south, z_hi)
+            } else if none && (j + ej + zero).hi() < 0.0 {
+                Clip::Z(z_lo, z_hi)
+            } else if none && (j - ej - zero).lo() > 0.0 {
+                Clip::Z(south, north)
+            } else {
+                return None;
+            }
+        }
+    })
+}
+
 /// **The least cell bound of one face against a circular reach, in the
 /// reach's meridian sheet** (module docs): the face's surface read about
 /// the reach's axis with its slack, over the sheet rectangle of the
 /// face's clipped box. `None` where the surface has no sheet form or a
 /// bound of the reach is not a sheet bound.
 fn face_bound_in_sheet<T: Decide + Bounds>(
+    body: &Body<T>,
+    face: FaceKey,
     reach: &Reach<T>,
     surface: &Surface<T>,
     (lo, hi): ([f64; 3], [f64; 3]),
@@ -1168,7 +1421,23 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     let (o, a) = reach.sheet?;
     let lever = |p: Point3<T>| corner_max(reach.lo, reach.hi, |x| (x - p).norm());
     let (f, slack) = sheet_fn(surface, o, a, lever)?;
-    let rect = sheet_box(o, a, &Cell::<T>::new(lo, hi));
+    let mut rect = sheet_box(o, a, &Cell::<T>::new(lo, hi));
+    // The face's own extent along its trace, where its boundary says it.
+    match sheet_clip(body, face, surface, o, a, band) {
+        Some(Clip::Z(z0, z1)) => {
+            rect[2] = rect[2].max(z0);
+            rect[3] = rect[3].min(z1);
+        }
+        Some(Clip::Rho(r0, r1)) => {
+            rect[0] = rect[0].max(r0);
+            rect[1] = rect[1].min(r1);
+        }
+        None => {}
+    }
+    if (rect[1] - rect[0]).hi() < 0.0 || (rect[3] - rect[2]).hi() < 0.0 {
+        // The face's image misses the reach's box: nothing to meter.
+        return Some(T::from_f64(band.escalate()));
+    }
     let mut queue = VecDeque::from([rect]);
     let mut least = Least::new();
     while let Some(rect) = queue.pop_front() {
@@ -1352,7 +1621,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             };
             let lo: [f64; 3] = core::array::from_fn(|k| clip(flo[k], rlo[k], f64::max));
             let hi: [f64; 3] = core::array::from_fn(|k| clip(fhi[k], rhi[k], f64::min));
-            let in_sheet = face_bound_in_sheet(reach, &surface, (lo, hi), band);
+            let in_sheet = face_bound_in_sheet(body, face, reach, &surface, (lo, hi), band);
             let bound = match in_sheet {
                 Some(m) if m.lo() >= band.escalate() => m,
                 Some(m) => m.max(face_bound(reach, &surface, (lo, hi), band)),

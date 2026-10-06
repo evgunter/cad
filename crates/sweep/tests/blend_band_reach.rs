@@ -200,3 +200,40 @@ fn the_reach_replays_at_the_interval_scalar() {
         panic!("the band stays inside the wall: {e:?}");
     }
 }
+
+/// The tour teapot's lid, its three rims in one call (the flange's cone
+/// × plane, the dome's sphere × cone, the knob's cylinder × plane). The
+/// dome is a sphere ZONE beside the flange's band: its sphere passes
+/// through that band's reach below the dome's foot, and the zone does
+/// not. The meter reads a coaxial face's extent off its own boundary, so
+/// the lid builds.
+#[test]
+fn a_sphere_zone_beside_a_band_is_metered_by_its_own_extent() {
+    let u = 1.0 / 256.0;
+    let base = 0.3;
+    // The dome: the circle about `(0, base + u)` through `(12u, base +
+    // 6u)` and `(5u, base + 13u)`, the 5-12-13 points.
+    let bulge = ((120.0_f64 / 169.0).acos() / 4.0).tan();
+    let lid = vec![
+        (Point2::new(0.0, base), 0.0),
+        (Point2::new(14.0 * u, base), 0.0),
+        (Point2::new(12.0 * u, base + 6.0 * u), bulge),
+        (Point2::new(5.0 * u, base + 13.0 * u), 0.0),
+        (Point2::new(5.0 * u, base + 18.0 * u), 0.0),
+        (Point2::new(0.0, base + 18.0 * u), 0.0),
+    ];
+    let body = revolved_about_y(lid, Revolution::Full, tol());
+    let rims = [
+        (14.0 * u, base),
+        (12.0 * u, base + 6.0 * u),
+        (5.0 * u, base + 18.0 * u),
+    ];
+    let edges: Vec<_> = rims
+        .iter()
+        .flat_map(|&(r, y)| rim_arcs_at(&body, r, y))
+        .collect();
+    assert_eq!(edges.len(), 6, "three rims, two half-arcs each");
+    let f = fillet_edges(&body, &edges, 2.0 * u, tol())
+        .unwrap_or_else(|e| panic!("the dome is clear of the flange's band: {:?}", e.error));
+    assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "tier 3");
+}

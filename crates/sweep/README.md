@@ -61,8 +61,11 @@ over the whole turn of a circular one; per corner patch, the three
 supports, the three band-end planes and the ball. The faces are pruned
 by their certified boxes (`topo::FaceBoxes`); a face on a surface of
 revolution about a circular band's axis is metered in the band's
-meridian sheet, every other face on cells of its box in space, and a
-face's margin is the least lower bound over its cells. It skips the
+meridian sheet over its own extent along its trace (read off its
+boundary: the azimuth it winds, and on a sphere the sign of
+`∮ (z − z_c) dθ`, say which singular points it covers), every other face
+on cells of its box in space, and a face's margin is the least lower
+bound over its cells. It skips the
 chain's own supports, every face at a chain vertex (the faces the band
 runs into, which predicate 6 and the surgery judge), and any face on a
 support's own stored surface (which can touch the reach only on its
@@ -70,7 +73,9 @@ boundary).
 
 Consumers: an island standing in a filleted cavity, on one shell and as
 a second solid, and a thin revolved wall whose convex inner fillet
-leaves through the far wall (`crates/sweep/tests/blend_band_reach.rs`).
+leaves through the far wall, all refused; the teapot lid's dome, a
+sphere zone beside the flange's band, clear
+(`crates/sweep/tests/blend_band_reach.rs`).
 
 ## Walls: one per run
 
