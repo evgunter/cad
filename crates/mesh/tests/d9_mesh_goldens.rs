@@ -221,6 +221,7 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     )
     .expect("the disc extrudes")
     .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, H / 2.0),
         Vec3::new(PHI.sin(), 0.0, PHI.cos()),

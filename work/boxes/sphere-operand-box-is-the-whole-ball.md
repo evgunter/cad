@@ -27,7 +27,7 @@ CURVED — the operand boxes are the operand-reach lane's.
 
 ## Evidence from the split gate (REACH, 2026-10-02)
 
-The split's operand gate (`splitting/classify.rs` `gate_operand`) is
+The split's carrier gate (`splitting/classify.rs` `carrier_gate`) is
 reach-scoped since `reach/split-gate-refuses-a-whole-body-for-one-unarmed-face`,
 and the whole ball made it useless for the very fixture that filed it:
 a cylinder under a spherical cap (sphere radius 5/4 about `(0, 1/4)`,

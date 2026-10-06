@@ -1,15 +1,18 @@
-//! The split's operand gate, one row per kind the split has no arm
+//! The split's carrier gate, one row per kind the split has no arm
 //! for: the unit cube with its top face's surface swapped for a small
 //! sphere, torus, spline or approximated spline whose box straddles
-//! the level `z = 1.008`, just above the top face. A plane through the cube's mid-height
-//! clears that box and reduces. A level plane just above the top face
-//! meets the box and none of the cube's edges or vertices, so nothing
-//! but the gate can refuse it: each kind's refusal is read through
-//! `vertex_sides`, the gate and the vertex sweep alone.
+//! the level `z = 1.008`, just above the top face. A plane through the
+//! cube's mid-height clears that box and reduces. A level plane just
+//! above the top face meets the box and none of the cube's edges or
+//! vertices, so nothing but the gate can refuse it: each kind's refusal
+//! is read through the gate and the vertex sweep alone.
 //!
-//! The swapped face strands the top face's edge descriptions, so these
-//! rows read the gate and never a whole split; a whole split of a body
-//! carrying each kind is `sweep`'s `reach_split_gate_per_face`.
+//! The swapped face strands the top face's edge descriptions, so the
+//! body does not finish and no split door takes it (`cube_topped` pins
+//! that): these rows read the gate past the door
+//! (`topo::test_support::split_carrier_gate`, `split_reduce_unfinished`)
+//! and never a whole split; a whole split of a body carrying each kind
+//! is `sweep`'s `reach_split_gate_per_face`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,7 +22,8 @@ use crate::common;
 use geom::{NurbsSurface, Surface, SurfaceKind};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{Body, FaceKey, FaceSurface, SplitPlane, SplitReduceError, split_reduce, vertex_sides};
+use topo::test_support::{split_carrier_gate, split_reduce_unfinished};
+use topo::{Body, FaceKey, FaceSurface, SplitPlane, SplitReduceError};
 
 /// A gently bowed biquadratic patch over the cube's top face, its
 /// control net spanning `z ∈ [1, 1.015]` (the bowed patch
@@ -62,7 +66,8 @@ fn unarmed_tops() -> Vec<Surface<f64>> {
     ]
 }
 
-/// The described unit cube with its top face on `surface`.
+/// The described unit cube with its top face on `surface`, which the
+/// at-rest gate refuses for the edges the swap strands.
 fn cube_topped(surface: Surface<f64>) -> (Body<f64>, FaceKey) {
     let cube = common::geometric_cube::<f64>(Tol::witness());
     let mut body = cube.body;
@@ -75,6 +80,10 @@ fn cube_topped(surface: Surface<f64>) -> (Body<f64>, FaceKey) {
         },
     )
     .unwrap();
+    assert!(
+        <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness()).is_err(),
+        "the swapped top is not a finished body"
+    );
     (body, cube.seed.face)
 }
 
@@ -92,14 +101,14 @@ fn an_unarmed_face_refuses_only_where_the_plane_may_meet_it() {
     for surface in unarmed_tops() {
         let kind = surface.kind();
         let (body, top) = cube_topped(surface);
-        let reduced = split_reduce(&body, &level(0.5), Tol::witness())
+        let reduced = split_reduce_unfinished(&body, &level(0.5), Tol::witness())
             .unwrap_or_else(|e| panic!("{kind:?}: a plane clear of the face reduces: {e}"));
         assert_eq!(
             reduced.on_vertices.len(),
             4,
             "{kind:?}: the mid-height plane crosses the four struts"
         );
-        match vertex_sides(&body, &level(1.008), Tol::witness()) {
+        match split_carrier_gate(&body, &level(1.008), Tol::witness()) {
             Err(e @ SplitReduceError::CurvedBooleanUnsupported { face, kind: k }) => {
                 assert_eq!(
                     (face, k),
@@ -137,7 +146,7 @@ fn the_box_is_read_with_its_pad() {
     let (body, _) = cube_topped(ball);
     assert!(
         matches!(
-            vertex_sides(&body, &level(0.9 - (escalate + 1.5 * zero)), Tol::witness()),
+            split_carrier_gate(&body, &level(0.9 - (escalate + 1.5 * zero)), Tol::witness()),
             Err(SplitReduceError::CurvedBooleanUnsupported {
                 kind: SurfaceKind::Sphere,
                 ..
@@ -145,7 +154,7 @@ fn the_box_is_read_with_its_pad() {
         ),
         "a plane inside the pad and definitely clear of the bare box refuses"
     );
-    vertex_sides(
+    split_carrier_gate(
         &body,
         &level(0.9 - 2.0 * (escalate + 2.0 * zero)),
         Tol::witness(),

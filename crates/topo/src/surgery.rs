@@ -764,7 +764,13 @@ pub(crate) mod tests {
             geom_core::Vec3::new(0.0, 0.0, 1.0),
             geom_core::Tol::witness(),
         );
-        let cut = crate::splitting::split(&body, &plane, tol).expect("a cube splits");
+        // The split serves finished bodies, so its operand is described.
+        let operand = crate::test_support::finished(
+            "unit cube",
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        );
+        let cut = crate::splitting::split(&operand, &plane, tol).expect("a cube splits");
         for (side, part) in [("above", &cut.above), ("below", &cut.below)] {
             let Some(part) = part.body() else {
                 panic!("a mid-height cut leaves material on both sides")
