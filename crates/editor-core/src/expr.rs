@@ -1278,6 +1278,22 @@ impl<L: LeafSet> ExprTree<L> {
         }
     }
 
+    /// This tree with every literal's display unit the canonical one
+    /// for its dimension: what a value's identity reads, the display
+    /// unit being presentation only (D6).
+    pub(crate) fn erase_display_units(&mut self) {
+        let dim = self.dim;
+        match &mut self.kind {
+            ExprKind::Literal(lit) => lit.display_unit = UnitSym::canonical_for(dim),
+            ExprKind::CountLiteral(_) | ExprKind::Var(_) | ExprKind::Leaf(_) => {}
+            unary_kind!(a) => a.erase_display_units(),
+            binary_kind!(a, b) => {
+                a.erase_display_units();
+                b.erase_display_units();
+            }
+        }
+    }
+
     /// Bit-semantic equality (M4 PR 1 review non-blocker): structural
     /// equality with float literals compared by BITS — `0.0` and
     /// `-0.0` are DIFFERENT expressions here, unlike `PartialEq`

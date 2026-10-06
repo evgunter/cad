@@ -857,13 +857,15 @@ fn toleranced(doc: &ProfileDoc, var: VarId) -> ProfileDoc {
 /// two separately typed equal values decide `x − y` Zero there, named
 /// or anonymous, while their tokens still differ — coincidence is
 /// structure's question, not the analysis's. Breaks if the lane binds
-/// an untoleranced variable as a symbol.
+/// an untoleranced variable as a symbol: the decision is then numeric
+/// ([`assert_constants`]), though it still reads Zero.
 #[test]
 fn an_untoleranced_variable_is_a_constant_in_the_symbolic_lane() {
     let (doc, x, y, a, b) = typed_twice("intent-literals-c-untoleranced");
     assert_ne!(x, y, "two writings, two variables");
-    let (decided, _) = sym_difference(&doc, x, y);
+    let (decided, counts) = sym_difference(&doc, x, y);
     assert_eq!(decided, Ok(geom_core::predicate::Sign::Zero));
+    assert_constants(&counts, "two typed values");
     let ev = eval(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     assert_ne!(
@@ -875,8 +877,22 @@ fn an_untoleranced_variable_is_a_constant_in_the_symbolic_lane() {
     let doc = declare(&doc, "w", length(0.0625));
     let doc = declare(&doc, "v", length(0.0625));
     let (w, v) = (doc.var_named("w").unwrap(), doc.var_named("v").unwrap());
-    let (decided, _) = sym_difference(&doc, w, v);
+    let (decided, counts) = sym_difference(&doc, w, v);
     assert_eq!(decided, Ok(geom_core::predicate::Sign::Zero), "named alike");
+    assert_constants(&counts, "two named variables");
+}
+
+/// That `x − y` was decided over two constants: a theorem of the tier
+/// and no numeric decision. Two symbols of no width at equal nominals
+/// also read Zero, but numerically (`numeric: 1`), so a `Sign` alone
+/// cannot tell the lane's binding apart (reviews r1 m1, r2 MINOR-2).
+fn assert_constants(counts: &geom_core::SymCounts, what: &str) {
+    assert_eq!(
+        (counts.symbolic_zero, counts.numeric),
+        (1, 0),
+        "{what}: an untoleranced variable binds a constant, so its difference is a \
+         theorem, not a numeric zero between two symbols: {counts:?}"
+    );
 }
 
 /// A toleranced variable is an axis and a symbol, named or anonymous:

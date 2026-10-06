@@ -11,11 +11,15 @@
 //! An edit that mints nothing leaves the chain alone. So an id is a
 //! function of the minting edits that led to it: one sequence mints one
 //! set of ids (D9), and two sequences that part from one value mint
-//! different ids from there on. A `DeclareVar`, and each anonymous
-//! variable an edit's lowering mints, extends the chain by the
-//! variable's kind and then once for the variable it mints; neither the
-//! name (VR2) nor the value is in the preimage, so two declares of one
-//! kind mint two ids only because the chain moved between them.
+//! different ids from there on. A `DeclareVar` extends the chain by the
+//! variable's kind and then once for the variable it mints; its name is
+//! not in the preimage (VR2), so two declares of one kind mint two ids
+//! only because the chain moved between them. Each anonymous variable an
+//! edit's lowering mints extends it by its kind and what it holds
+//! ([`MintingEdit::DeclareAnonymous`], [`Held`]: a value by its bits, a
+//! definition with its literals canonical), so two sibling inserts that
+//! differ only in a value they hold mint two nodes; a display unit is in
+//! neither preimage (D6).
 //!
 //! The log holds every id the document has minted, deleted nodes' and
 //! dropped steps' included, each tagged with what it names ([`Minted`]),
@@ -156,32 +160,39 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
         /// The kind.
         kind: VarKind,
         /// What it holds.
-        held: Held<'a>,
+        held: Held,
     },
 }
 
 /// **What an anonymous variable holds, as its mint reads it**
 /// ([`MintingEdit::DeclareAnonymous`]): a continuous value's bits, a
-/// count, or a definition.
+/// count, or a definition with every literal in its canonical unit. A
+/// display unit is never in it (D6): a value's carries none, and a
+/// definition's literals are read canonical, so `w + 125 mm` and
+/// `w + 0.125 m` mint one id.
 #[derive(Serialize)]
-pub(crate) enum Held<'a> {
+pub(crate) enum Held {
     /// A continuous value, by its bits.
     Value(u64),
     /// A count.
     Count(i64),
-    /// A definition.
-    Defined(&'a crate::Expr),
+    /// A definition, its display units erased.
+    Defined(crate::Expr),
 }
 
-impl<'a> Held<'a> {
+impl Held {
     /// What `def` holds.
-    pub(crate) fn of(def: &'a crate::var::VarDef) -> Self {
+    pub(crate) fn of(def: &crate::var::VarDef) -> Self {
         match def {
             crate::var::VarDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
                 Self::Value(value.to_bits())
             }
             crate::var::VarDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
-            crate::var::VarDef::Defined(expr) => Self::Defined(expr),
+            crate::var::VarDef::Defined(expr) => {
+                let mut canonical = expr.clone();
+                canonical.erase_display_units();
+                Self::Defined(canonical)
+            }
         }
     }
 }
@@ -617,14 +628,32 @@ mod tests {
         );
     }
 
-    /// The display unit a slot's value is written in enters neither the
-    /// variable's preimage (its kind alone) nor the node's (its
-    /// variable's id): one point written in millimetres and in metres
-    /// mints one id (D6).
+    /// The display unit a slot is written in enters neither the
+    /// anonymous variable's preimage (its kind and what it holds, a
+    /// value by its bits and a definition with its literals canonical:
+    /// [`Held`]) nor the node's (its variables' ids). So one point
+    /// written in millimetres and in metres mints one id, and so does
+    /// one written `w + 125 mm` and `w + 0.125 m` (D6).
     #[test]
     fn the_display_unit_is_not_part_of_what_an_insert_hashes() {
+        let base = || {
+            crate::edit::apply(
+                &crate::ProfileDoc::empty_derived("mint_units", geom_core::Tol::witness()),
+                &crate::DocEdit::DeclareVar {
+                    name: crate::VarName::from_static("w"),
+                    def: crate::VarDecl::Free(crate::FreeVar::continuous(
+                        crate::Dimension::Length,
+                        1.0,
+                    )),
+                },
+                geom_core::Tol::witness(),
+                &crate::RefusingReach,
+            )
+            .unwrap()
+            .doc
+        };
         let point = |position: [crate::Formula; 3]| -> RecipeNodeId {
-            let doc = crate::ProfileDoc::empty_derived("mint_units", geom_core::Tol::witness());
+            let doc = base();
             let applied = crate::edit::apply(
                 &doc,
                 &crate::DocEdit::InsertNode {
@@ -643,6 +672,23 @@ mod tests {
             point(mm),
             point(m),
             "one point in two units mints one id (D6)"
+        );
+        let w =
+            || crate::Formula::named(crate::VarName::from_static("w"), crate::Dimension::Length);
+        let plus = |offset: crate::Formula| {
+            let x = crate::Formula::add(w(), offset).unwrap();
+            [
+                x,
+                crate::test_support::len(0.0),
+                crate::test_support::len(0.0),
+            ]
+        };
+        assert_eq!(
+            point(plus(
+                crate::Formula::length_in(125.0, quantity::MM).unwrap()
+            )),
+            point(plus(crate::test_support::len(0.125))),
+            "one definition in two units mints one id (D6)"
         );
     }
 
