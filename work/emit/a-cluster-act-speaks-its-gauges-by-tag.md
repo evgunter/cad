@@ -23,6 +23,6 @@ The type this row names is gone. PR #3676 (`edit/placement-gauges`, commit `1441
 What was left were comments citing the deleted rule. The closing PR removes them:
 
 - `written` and `spoken_before_else_after` in `edit.rs` named a "cluster gauge" exception through `mate::solve::gauge_spoken`.
-- `Doc::name_carriers` in `doc.rs` and the header of `tests/rv_dm7_probes.rs` cited `an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`. That test is now `a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset`. The closing PR re-measured the doc's claim: with `Carrier::ALL` reversed, exactly the three cited rows fail.
+- `Doc::name_carriers` in `doc.rs` and the header of `tests/rv_dm7_probes.rs` cited `an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`. That test is now `a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset`, and its own doc comment told the history of the rename. The PR cuts that history and keeps the invariant. The closing PR re-measured the doc's claim: with `Carrier::ALL` reversed, exactly the three cited rows fail.
 
 Sweep: every arm of `Maintenance` (`OffsetCleared`, `Strand`, `StrandedAppearance`, `AnonymousVarRemoved`, `LabelDropped`) holds a `SpokenNode`, `SpokenName` or `SpokenVar`, so none of them names a node by bare tag.
