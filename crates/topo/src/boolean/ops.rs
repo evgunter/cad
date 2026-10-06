@@ -130,7 +130,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::{BoundaryMember, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
@@ -1055,14 +1055,8 @@ impl PairVerdict {
 #[track_caller]
 fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
-    core::iter::once(fd.outer)
-        .chain(fd.rings.iter().copied())
-        .any(|l| {
-            matches!(
-                linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), "loop").boundary,
-                LoopBoundary::Empty { .. }
-            )
-        })
+    body.face_loops_linked(face, fd)
+        .any(|(_, l)| matches!(l.boundary, LoopBoundary::Empty { .. }))
 }
 
 /// Places a witness point in one face: `contfp` on a plane, the chart
@@ -1201,6 +1195,13 @@ fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> bvh::Aabb {
 /// **Whether a boundary edge of `face` may meet `region`**: some edge of
 /// one of its loops has a certified box, padded by `pad`, overlapping it.
 /// `face` is one the caller read out of `body`.
+///
+/// # Panics
+///
+/// Where a boundary hop past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 #[track_caller]
 fn face_boundary_meets<T: Decide + Bounds>(
     body: &Body<T>,
@@ -1209,15 +1210,12 @@ fn face_boundary_meets<T: Decide + Bounds>(
     pad: f64,
 ) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
-    for (_, l) in body.face_loops_linked(face, fd) {
-        let LoopBoundary::Cycle { first } = l.boundary else {
+    for member in body.face_boundary_linked(face, fd) {
+        let BoundaryMember::Edge { ek, .. } = member else {
             continue;
         };
-        for he in body.loop_walk(first).closed("loop", first) {
-            let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            if boxes::edge_box(body, ek, pad).overlaps(region) {
-                return true;
-            }
+        if boxes::edge_box(body, ek, pad).overlaps(region) {
+            return true;
         }
     }
     false
@@ -1507,28 +1505,26 @@ fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey
 }
 
 /// Every face each vertex bounds, from the faces' own loops.
+///
+/// # Panics
+///
+/// Where a face's boundary hop (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn faces_by_vertex<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<FaceKey>> {
     let mut out: BTreeMap<VertexKey, Vec<FaceKey>> = BTreeMap::new();
     for (face, fd) in body.faces() {
-        for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+        for member in body.face_boundary_linked(face, fd) {
             // A lone-vertex loop's vertex bounds the face as much as a
             // cycle's do.
-            let vertices =
-                match linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), "loop").boundary
-                {
-                    LoopBoundary::Empty { vertex } => vec![vertex],
-                    LoopBoundary::Cycle { first } => body
-                        .loop_walk(first)
-                        .closed("loop", first)
-                        .into_iter()
-                        .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
-                        .collect(),
-                };
-            for v in vertices {
-                let faces = out.entry(v).or_default();
-                if !faces.contains(&face) {
-                    faces.push(face);
-                }
+            let v = match member {
+                BoundaryMember::Isolated { vertex, .. } => vertex,
+                BoundaryMember::Edge { half, .. } => half.start,
+            };
+            let faces = out.entry(v).or_default();
+            if !faces.contains(&face) {
+                faces.push(face);
             }
         }
     }
@@ -5686,7 +5682,9 @@ mod tests {
 }
 
 /// **`sphere_extent_scan`: a torn surface panics**, where it read as a
-/// face that is neither NURBS nor a sphere.
+/// face that is neither NURBS nor a sphere; **the face boundary walks
+/// panic on a ring link that does not resolve**, where they stepped
+/// over it.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -5717,5 +5715,33 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |a| sphere_extent_scan(a, &b, &[], band).map(|r| r.len()),
         );
+    }
+
+    #[test]
+    fn the_face_boundary_walks_panic_on_a_torn_ring_link() {
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let far = bvh::Aabb {
+            min_x: 10.0,
+            min_y: 10.0,
+            min_z: 10.0,
+            max_x: 11.0,
+            max_y: 11.0,
+            max_z: 11.0,
+        };
+        assert!(!face_boundary_meets(&body, face, &far, 0.0), "a far box");
+        assert!(!has_lone_vertex(&body, face), "a cube face has none");
+        assert_eq!(faces_by_vertex(&body).len(), 8, "eight corners");
+        let named = crate::review_d18::tear_ring(&mut body, face);
+        let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
+        assert_torn_op_panics("face_boundary_meets", &mut body, &premise, |b| {
+            face_boundary_meets(b, face, &far, 0.0)
+        });
+        assert_torn_op_panics("has_lone_vertex", &mut body, &premise, |b| {
+            has_lone_vertex(b, face)
+        });
+        assert_torn_op_panics("faces_by_vertex", &mut body, &premise, |b| {
+            faces_by_vertex(b).len()
+        });
     }
 }

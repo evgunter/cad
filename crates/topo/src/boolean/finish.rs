@@ -42,11 +42,9 @@ use super::shell_witness::{
 use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
 use crate::body::Body;
-use crate::entity::{
-    EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey,
-};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
-use crate::live::proven;
+use crate::live::{BoundaryMember, proven};
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
@@ -612,7 +610,8 @@ fn descendants<'r>(
 ///
 /// Where `u`, which both callers resolved just before, or a record
 /// past it does not resolve, or a walk does not close (D2 row 4): its
-/// orbit, each face and loop on it, and each member's start. `body` is
+/// orbit, each face and loop on it, a lone vertex's point, and each
+/// member and its edge. `body` is
 /// an operand mid-operation: carved, whose links the carve leaves
 /// resolving ([`carve`] checks that it drops only records no kept
 /// record names), then partly welded, whose links hold by
@@ -633,18 +632,21 @@ pub(super) fn pinch_site<T: Decide>(
         let f = proven(&body.faces, face, EntityId::Face);
         let mut hus = Vec::new();
         let mut hws = Vec::new();
-        for (l, boundary, members) in face_cycles(body, face, f) {
-            if let LoopBoundary::Empty { vertex } = boundary
-                && (vertex == u || vertex == w)
-            {
-                return Err(desync("a kept pierce vertex stands alone on its face"));
-            }
-            for he in members {
-                let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                if v == u {
-                    hus.push((l, he));
-                } else if v == w {
-                    hws.push((l, he));
+        for (l, members) in body.face_boundary_by_loop(face, f) {
+            for member in members {
+                match member {
+                    BoundaryMember::Isolated { vertex, .. } => {
+                        if vertex == u || vertex == w {
+                            return Err(desync("a kept pierce vertex stands alone on its face"));
+                        }
+                    }
+                    BoundaryMember::Edge { he, half, .. } => {
+                        if half.start == u {
+                            hus.push((l, he));
+                        } else if half.start == w {
+                            hws.push((l, he));
+                        }
+                    }
                 }
             }
         }
@@ -687,8 +689,8 @@ fn one_kept(kept: &[(VertexKey, VertexKey)]) -> Option<VertexKey> {
 ///
 /// # Panics
 ///
-/// Where a record past `face` does not resolve or a loop walk does not
-/// close (D2 row 4). `body` is an operand mid-operation, whose links
+/// Where a record past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve or a loop walk does not close (D2 row 4). `body` is an operand mid-operation, whose links
 /// hold by [`crate::live::OPERATORS_KEEP_LINKS`].
 fn section_boundary<T: Decide>(
     body: &Body<T>,
@@ -697,30 +699,13 @@ fn section_boundary<T: Decide>(
     let f = body.get_face(face).ok_or(BooleanError::JoinDesync {
         what: "a section face no longer resolves",
     })?;
-    Ok(face_cycles(body, face, f)
-        .flat_map(|(_, _, members)| members)
+    Ok(body
+        .face_boundary_linked(face, f)
+        .filter_map(|member| match member {
+            BoundaryMember::Edge { he, .. } => Some(he),
+            BoundaryMember::Isolated { .. } => None,
+        })
         .collect())
-}
-
-/// Each loop of `face` (whose record is `f`), outer first: its key, its
-/// boundary, and its members in walk order (none for a lone vertex).
-///
-/// # Panics
-///
-/// Where a loop `f` names does not resolve or a loop walk does not
-/// close (D2 row 4).
-fn face_cycles<'a, T: Decide>(
-    body: &'a Body<T>,
-    face: FaceKey,
-    f: &'a Face,
-) -> impl Iterator<Item = (LoopKey, LoopBoundary, Vec<HalfEdgeKey>)> + 'a {
-    body.face_loops_linked(face, f).map(|(l, lp)| {
-        let members = match lp.boundary {
-            LoopBoundary::Cycle { first } => body.loop_walk(first).closed("loop", first),
-            LoopBoundary::Empty { .. } => Vec::new(),
-        };
-        (l, lp.boundary, members)
-    })
 }
 
 /// The discarded faces of one operand solid (`boolean::discard`): every
