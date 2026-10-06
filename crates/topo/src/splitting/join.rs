@@ -170,6 +170,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
+                joiner.place_pending(&mut red.body, (end, half))?;
                 let plan = joiner.plan(&red.body, (end, half), SegmentEdge::InPlane(section))?;
                 let lane = JoinLane::Split(section);
                 if let Some(curve) = joiner.segment_curve(&mut red.body, &plan, lane, leave)? {
@@ -195,6 +196,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
             count: st.ends.len(),
         });
     }
+    st.joiner.finish(&red.body)?;
     let fragments = st.joiner.take_fragments();
     Ok((st.completed, fragments))
 }

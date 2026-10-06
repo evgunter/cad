@@ -227,9 +227,10 @@ impl crate::spoken::Say for HitTestError {
             Self::AcrossSpaces { group, cause } => write!(
                 f,
                 "hit test: the targets live in different spaces — one is in the own space of the \
-                 group rooted at {}, unplaced because {cause}, and nothing outside an \
+                 group rooted at {}, unplaced because {}, and nothing outside an \
                  unplaced group is ordered against it. {}",
                 by.node(*group),
+                crate::spoken::Said(cause, by),
                 crate::sentence::Recourse("pick each space by itself, or place the group")
             ),
         }
