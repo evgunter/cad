@@ -2,10 +2,11 @@
 id: the-rest-lane-zips-no-pinch-apex
 kind: issue
 title: The REST lane reads its vertex correspondence one-to-one, so a pinch apex meeting one vertex refuses
-status: open
+status: parked
 opened: 2026-10-05
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -57,3 +58,7 @@ already is, "one each, except a welded pinch"), carried into the patch
 pairing and the glue, and a glue that keeps a pinch apex's vertices
 apart; then the `PinchApex` refusal goes. The witness's assertion is
 pinned to today's refusal and moves with the fix.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
