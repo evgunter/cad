@@ -60,3 +60,56 @@ rotated by a about y.
 
 `cleave/seam-ruling-split`'s sweep of planes through a seam ruling, which compares the seam
 azimuth with two off-seam twins.
+
+## Built (branch cleave/frustum-apex)
+
+**Cause, measured.** The wall's crossings were never given fixed partners. `fixed_partners`
+(`splitting/join.rs`) hands a curved face with more than two crossings to `conic_pairs`, and
+`conic_pairs` paired only a `SectionCase::Conic`: the cone's `ApexLinePair` (and the cylinder's
+`ParallelLines`) reached it as `SectionCase::Straight`, which carried no lines, so the face fell
+back to the book's rule — the first loose half of opposite sense, in the sweep's lexicographic
+order. That order keys first on the in-plane `u` axis, the projection of x. At a = 0.3,
+t = 0.05 the four wall crossings sort as the top crossings at azimuths 0.30 (x = 0.478) and 0.19
+(x = 0.491), then the two base crossings near x = 0.96, so the first join on the cone face paired the two top crossings (a traced
+`Sweep::take_neighbor` print: `end … down=true at (0.4777, 1, 0.1478) <- half … down=false at
+(0.4912, 1, 0.0936) fixed=false`). At t = 0.4 the two rulings straddle the seam, each lands in
+its own wall face with two crossings, and the book's rule has only one choice; that is why
+those tilts answered.
+
+**Fix.** `SectionCase::Straight` carries the two rulings (`chord_join.rs`, `section_case`), and
+`conic_pairs` hands a two-ruling section to `ruling_pairs`: each crossing goes to the ruling it
+lies on (`split_join_ruling_side`, its distance from the other ruling less its distance from
+this one, refused undecided), and each ruling's crossings are paired along it by
+`pair_along_line`, the planar face's along-line pairing factored out of `line_pairs`. Nothing
+is special to the frustum: the same arm pairs a cylinder cut parallel to its axis.
+
+**Measured at ε 1e-6, 1e-9 and 1e-12, main against the branch**, by a probe over azimuths
+{0, 0.3, 1, 2, 3, 4, 5.5}, tilts {±0.05, ±0.4, 1, π/2, 2, ±3, −1.2} and the near-tangent
+{1e-3, 1e-4, 1e-5}, both normals:
+
+- frustum and flared frustum (radii ½ → 1, apex below), tilts ≥ 0.05: 44 of 140 poses each
+  refused `DegenerateSection` on main at every ε; on the branch every one answers at the closed
+  form with tiers 1, 2, 3, 3′ on both sides;
+- both frusta about axes (1, 1) and (1, 0.2) as well as y, φ ∈ {0, 0.3, 1, 2, 4}, the eight
+  tilts of the pose table: 76 of 240 refused on main at every ε; all answer;
+- a solid cylinder about the same three axes cut parallel to it at offsets {0, 0.5, 0.9, −0.7}:
+  20 of 120 refused `DegenerateSection` on main at every ε, all on the tilted axes (the same
+  interleaving); all answer;
+- `plane_section` of the frustum through a ruling: 28 of 112 refused on main at every ε; all
+  answer one region with the trapezoid's closed-form area;
+- no pose that answered on main refuses or answers wrongly on the branch.
+
+Pinned in `crates/sweep/tests/split_through_a_seam_ruling.rs`:
+`a_frustum_split_through_a_ruling_answers`, `a_flared_frustum_split_through_a_ruling_answers`,
+`a_frustum_about_a_tilted_axis_split_through_a_ruling_answers` (slow set),
+`a_cylinder_cut_parallel_to_its_tilted_axis_answers`,
+`a_frustum_section_through_a_ruling_is_its_trapezoid` (all red on main), and
+`a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly`.
+
+**The full cone is a different defect.** It refuses `Reduce(SliverSector)` on `sector_straight`
+at the apex vertex, margin exactly 0.0, in the reduction, before any pairing; evidence added to
+`a-convex-graze-of-a-cone-refuses-at-some-azimuths`.
+
+**Near tangency** (t ∈ {1e-3, 1e-4, 1e-5}): the frustum's refusals there that remain are in-band
+reductions and pcurve escalations; the flared frustum at ε 1e-12 answers seven poses whose sliver
+side tier 3 or 3′ escalates on — evidence added to `split-sides-are-not-finished-bodies`.

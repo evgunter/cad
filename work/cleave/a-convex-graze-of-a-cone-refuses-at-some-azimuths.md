@@ -80,6 +80,15 @@ the plane holding its ruling at θ ∈ {0, 0.3, 2}, turned t ∈ {1e-3, 0.05, 0.
 ε 1e-6, 1e-9 and 1e-12, on main at 78bee3ac68. Each such plane holds the apex, so each side is a
 cone over a base segment, with closed-form volumes.
 
+Measured again on branch `cleave/frustum-apex`, which pairs a two-ruling section's
+crossings along each ruling: the full cone through a ruling at a = 0.3, t = 0.05 still refuses
+`Reduce(SliverSector { predicate: "sector_straight" })` at the apex vertex, margin exactly 0.0, in
+the reduction. That is before any pairing, so it is not the frustum's top↔top pairing defect
+(`a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section`). Once the
+reduction passes, a null-edge half at the apex lies on both rulings, so `ruling_pairs`
+(`splitting/join.rs`) will refuse it undecided on `split_join_ruling_side` wherever the wall
+face holds more than two halves. That is unmeasured, because nothing reaches it yet.
+
 ## Found by
 
 CLEAVE DR-51's review of PR 3892, `review-tests/dr51` (74e151b6).
