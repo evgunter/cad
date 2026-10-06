@@ -46,7 +46,7 @@ pub use predicate::{
     KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE,
     KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind, MissingRecourse,
     NO_DECLARATION_RECOURSE, NOT_YET_ENDING, RANGE_RECOURSE, SPLIT_PLANE_RECOURSE, Sign, SizedPass,
-    SizedWords, SupSpeed, UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE,
+    SizedWords, SupSpeed, UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE, UnderTail,
 };
 pub use readable::Readable;
 pub use real::{

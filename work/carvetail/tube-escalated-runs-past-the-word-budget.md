@@ -4,6 +4,8 @@ kind: issue
 title: TubeError::Escalated renders 52 words
 status: open
 opened: 2026-10-01
+priority: P4
+cost: E
 ---
 
 

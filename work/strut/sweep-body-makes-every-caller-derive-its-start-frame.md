@@ -4,6 +4,8 @@ kind: issue
 title: sweep_body takes a start placement every caller derives the same way, from path_start_frame at the path's start
 status: open
 opened: 2026-10-03
+priority: P3
+cost: M
 ---
 
 
