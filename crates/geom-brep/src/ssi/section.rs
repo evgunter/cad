@@ -50,8 +50,9 @@ pub enum BoundarySection {
     On {
         /// The certified sup of `|φ|` over the curve, in metres.
         sup: f64,
-        /// The sign of `φ` along the whole curve, where its enclosure is
-        /// one-signed: `Some(true)` for the plane's positive side.
+        /// The sign of `φ` along the whole curve, where its hull, refined
+        /// where it straddles zero, is certified one-signed: `Some(true)`
+        /// for the plane's positive side.
         side_of_plane: Option<bool>,
     },
     /// The curve meets the plane at isolated roots, or not at all.
@@ -222,10 +223,14 @@ impl Pieces {
         ratio_hull(self.pieces.iter().map(|(_, hc, wc)| (hc, wc)))
     }
 
-    /// The plane distance over `[a, b]`, enclosed as [`Pieces::distance`]
-    /// encloses the whole curve's, from the pieces cut to it.
-    fn distance_over(&self, a: f64, b: f64) -> Interval {
-        ratio_hull(self.over(a, b).iter().map(|(hc, wc, _)| (hc, wc)))
+    /// The sign of `φ` along the whole curve, read on its refined hull
+    /// ([`refined_sign`]).
+    fn sign(&self) -> Result<Option<bool>, SsiError> {
+        refined_sign(
+            self.pieces
+                .iter()
+                .map(|(_, hc, wc)| (hc.clone(), wc.clone())),
+        )
     }
 
     /// For each piece overlapping `[a, b]`: the Bernstein coefficients
@@ -265,6 +270,76 @@ fn ratio_hull<'a>(
         .unwrap_or_else(Interval::refused)
 }
 
+/// **The sign of `φ` over pieces, read on a refined hull.** Each piece's
+/// hull of Bernstein ratios ([`ratio_hull`]) is read; where it straddles
+/// zero the piece is halved (de Casteljau in interval arithmetic, `h` and
+/// `W` alike) and the halves are read, until every piece's hull is
+/// certified one-signed, all of one sign (`Some`). It is `None` (in band,
+/// not one-signed) at the first piece whose hull is refused, two pieces of
+/// opposite sign, or a straddling piece whose halves' hull is not
+/// narrower than its own: the arithmetic's floor at that piece. A loose
+/// net's hull straddles zero where `φ` does not, and its halves' hulls
+/// converge to `φ`'s values, so a piece clear of zero turns one-signed; a
+/// piece holding a zero of `φ` narrows until rounding stops it, and a side
+/// flush with the plane, `φ` at rounding along it, stops at its first
+/// halving.
+///
+/// # Errors
+///
+/// [`SsiError::CellBudget`] where the pieces read pass
+/// [`super::SSI_MAX_CELLS`].
+fn refined_sign(
+    pieces: impl Iterator<Item = (Vec<Interval>, Vec<Interval>)>,
+) -> Result<Option<bool>, SsiError> {
+    let mut stack: Vec<(Vec<Interval>, Vec<Interval>)> = pieces.collect();
+    stack.reverse();
+    let mut found = None;
+    let mut reads = 0usize;
+    while let Some((hc, wc)) = stack.pop() {
+        reads += 1;
+        if reads > super::SSI_MAX_CELLS {
+            return Err(SsiError::CellBudget {
+                budget: super::SSI_MAX_CELLS,
+            });
+        }
+        let phi = ratio_hull(core::iter::once((&hc, &wc)));
+        if let Some(s) = sign(phi) {
+            if found.is_some_and(|f| f != s) {
+                return Ok(None);
+            }
+            found = Some(s);
+            continue;
+        }
+        let ((hl, hr), (wl, wr)) = (halves(&hc), halves(&wc));
+        let split = Interval::hull(
+            ratio_hull(core::iter::once((&hl, &wl))),
+            ratio_hull(core::iter::once((&hr, &wr))),
+        );
+        let (before, after) = (Certification::width(phi), Certification::width(split));
+        if before.is_nan() || after.is_nan() || after >= before {
+            return Ok(None);
+        }
+        stack.push((hr, wr));
+        stack.push((hl, wl));
+    }
+    Ok(found)
+}
+
+/// The Bernstein coefficients of the two halves of a Bézier piece, by de
+/// Casteljau at `½` in interval arithmetic.
+fn halves(c: &[Interval]) -> (Vec<Interval>, Vec<Interval>) {
+    let half = Interval::point(0.5);
+    let mut level = c.to_vec();
+    let (mut left, mut right) = (Vec::with_capacity(c.len()), Vec::with_capacity(c.len()));
+    while let (Some(&first), Some(&last)) = (level.first(), level.last()) {
+        left.push(first);
+        right.push(last);
+        level = level.windows(2).map(|w| half * (w[0] + w[1])).collect();
+    }
+    right.reverse();
+    (left, right)
+}
+
 /// **A side's plane distance, read as [`boundary_section`] reads it**,
 /// over any stretch of the side: the side's Bernstein pieces
 /// ([`Pieces::enclosed`], the arithmetic [`boundary_section`] reads a
@@ -287,10 +362,46 @@ impl SectionReader {
         Pieces::enclosed(knots, control, weights, (origin, normal)).map(|pieces| Self { pieces })
     }
 
+    /// The stretch `[a, b]` of the curve: its pieces cut to it.
+    pub(crate) fn stretch(&self, (a, b): (f64, f64)) -> Stretch {
+        Stretch {
+            pieces: self
+                .pieces
+                .over(a, b)
+                .into_iter()
+                .map(|(hc, wc, _)| (hc, wc))
+                .collect(),
+        }
+    }
+
     /// The plane distance `φ` over the stretch `[a, b]` of the curve,
     /// enclosed.
-    pub(crate) fn over(&self, (a, b): (f64, f64)) -> Interval {
-        self.pieces.distance_over(a, b)
+    pub(crate) fn over(&self, t: (f64, f64)) -> Interval {
+        self.stretch(t).distance()
+    }
+}
+
+/// A stretch of a curve, as the Bernstein coefficients of `h` and `W`
+/// over its pieces cut to it ([`SectionReader::stretch`]).
+pub(crate) struct Stretch {
+    pieces: Vec<(Vec<Interval>, Vec<Interval>)>,
+}
+
+impl Stretch {
+    /// The plane distance `φ` over the stretch, enclosed as
+    /// [`Pieces::distance`] encloses the whole curve's.
+    pub(crate) fn distance(&self) -> Interval {
+        ratio_hull(self.pieces.iter().map(|(hc, wc)| (hc, wc)))
+    }
+
+    /// The sign of `φ` over the stretch, read on its refined hull as
+    /// [`boundary_section`] reads a whole side's.
+    ///
+    /// # Errors
+    ///
+    /// As [`refined_sign`].
+    pub(crate) fn sign(&self) -> Result<Option<bool>, SsiError> {
+        refined_sign(self.pieces.iter().cloned())
     }
 }
 
@@ -378,19 +489,21 @@ pub fn boundary_section(
     // ---- On: the curve's sup distance from the plane ----
     let d = pieces.distance();
     let sup = magnitude(d);
-    let on = BoundarySection::On {
-        sup,
-        side_of_plane: sign(d),
+    let on = || -> Result<BoundarySection, SsiError> {
+        Ok(BoundarySection::On {
+            sup,
+            side_of_plane: pieces.sign()?,
+        })
     };
     match decide("ssi_boundary_on_plane", Margin::of(sup), band) {
         Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => return Ok(on),
+        Ok(Sign::Zero | Sign::Negative) => return on(),
         Err(cause) if cause.margin.is_invalid() => {
             return Err(super::TraceDecision::BoundarySection.escalated(cause));
         }
         // In band: the curve lies within the band's reach of the plane,
         // and the caller reports it as a region, not a crossing.
-        Err(_) => return Ok(on),
+        Err(_) => return on(),
     }
 
     roots(curve, &pieces, speed, floor_meters, arm, band)
@@ -575,3 +688,70 @@ pub(crate) fn settle_root(
 /// The fixed iteration count of [`settle_root`] (D9): enough bisections
 /// to cut any `f64` bracket to adjacent floats.
 const SECTION_SETTLE_ITERS: usize = 128;
+
+#[cfg(test)]
+mod tests {
+    use geom_core::Interval;
+
+    use super::{SsiError, refined_sign};
+
+    /// One Bézier piece of `h` with unit weights.
+    fn piece(c: &[f64]) -> (Vec<Interval>, Vec<Interval>) {
+        (
+            c.iter().map(|&x| Interval::from_certified(x)).collect(),
+            vec![Interval::from_certified(1.0); c.len()],
+        )
+    }
+
+    fn read(pieces: Vec<(Vec<Interval>, Vec<Interval>)>) -> Result<Option<bool>, SsiError> {
+        refined_sign(pieces.into_iter())
+    }
+
+    /// **A loose hull clear of zero reads its sign.** `m` pieces each
+    /// `(P, −N, P)`, `P > N`: every hull holds `−N`, but `φ ≥ (P − N)/2`
+    /// on each, and one halving makes both halves one-signed. Mirrored,
+    /// it reads negative. Red under no subdivision (`None`) and under the
+    /// stop on one-signed removed (the cell budget refuses).
+    #[test]
+    fn a_loose_hull_clear_of_zero_reads_its_sign() {
+        for (p, n) in [(0.6e-9, 0.2e-9), (0.9e-9, 0.5e-9)] {
+            for m in [1, 64, 1024] {
+                let up = read(vec![piece(&[p, -n, p]); m]);
+                assert_eq!(
+                    up.ok(),
+                    Some(Some(true)),
+                    "(P, −N, P) = ({p:e}, {n:e}) × {m}"
+                );
+                let down = read(vec![piece(&[-p, n, -p]); m]);
+                assert_eq!(down.ok(), Some(Some(false)), "(−P, N, −P) × {m}");
+            }
+        }
+    }
+
+    /// **A hull holding a zero of `φ` reads in band, not signed.** A
+    /// linear piece through zero, a quadratic with two zeros, and a flush
+    /// piece `h ≡ 0`: each reads `None`, the first two once the pieces
+    /// about each zero stop narrowing under halving, the flush one at its
+    /// first halving. Red under the floor stop removed: the pieces about
+    /// the zero never turn one-signed, and the cell budget refuses.
+    #[test]
+    fn a_hull_holding_a_zero_of_phi_reads_in_band() {
+        let e = 1e-9;
+        for c in [
+            vec![-0.5 * e, 0.5 * e],
+            vec![0.3 * e, -0.5 * e, 0.3 * e],
+            vec![0.0; 3],
+        ] {
+            assert_eq!(read(vec![piece(&c)]).ok(), Some(None), "{c:?}");
+        }
+    }
+
+    /// **Pieces of two signs read no sign.** Each piece is one-signed, so
+    /// no refinement runs; the side is not on one side of the plane.
+    #[test]
+    fn pieces_of_two_signs_read_no_sign() {
+        let e = 1e-9;
+        let got = read(vec![piece(&[e, e]), piece(&[-e, -e])]);
+        assert_eq!(got.ok(), Some(None));
+    }
+}

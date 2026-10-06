@@ -948,7 +948,8 @@ fn nth_piece(along: (f64, f64), count: u32, k: u32) -> (f64, f64) {
 pub(crate) enum Reading {
     /// A piece of it [`clears`]: no zero lies along it or beside it.
     Clear,
-    /// `φ` along a piece is refused.
+    /// `φ` along a piece is refused, or its sign's refinement passed
+    /// the cell budget.
     Refused,
     /// `|φ|` along it is not certified within ε: no side's piece, and
     /// the clear test is not read.
@@ -962,9 +963,10 @@ pub(crate) enum Reading {
 /// side ([`super::section::SectionReader`], the boundary section's own
 /// arithmetic). The stretch is cut into `2^`[`STRIP_PIECES_LOG2`]
 /// pieces, each read for `φ` along it; where `|φ|` over them is within
-/// `eps`, each piece where `φ` is one-signed is read for the slope across
-/// `r` beside it too, and a piece that [`clears`] (the side's own test)
-/// makes the stretch [`Reading::Clear`].
+/// `eps`, each piece where `φ` is one-signed (on the refined hull the
+/// boundary section reads a whole side's sign by) is read for the slope
+/// across `r` beside it too, and a piece that [`clears`] (the side's own
+/// test) makes the stretch [`Reading::Clear`].
 pub(crate) fn read_stretch<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     normal: [Interval; 3],
@@ -979,18 +981,21 @@ pub(crate) fn read_stretch<T: CertifiedBounds>(
     let mut pieces = Vec::with_capacity(count as usize);
     for k in 0..count {
         let piece = nth_piece((a, b), count, k);
-        let phi = reader.over(piece);
-        let m = magnitude(phi);
+        let stretch = reader.stretch(piece);
+        let m = magnitude(stretch.distance());
         if !m.is_finite() {
             return Reading::Refused;
         }
         sup = max_bound(sup, m);
-        pieces.push((piece, sign(phi)));
+        pieces.push((piece, stretch));
     }
     if sup > eps {
         return Reading::Beyond;
     }
-    for (piece, side_of_plane) in pieces {
+    for (piece, stretch) in pieces {
+        let Ok(side_of_plane) = stretch.sign() else {
+            return Reading::Refused;
+        };
         if side_of_plane.is_some() {
             let q = cut_along(side, r, piece);
             let d = boxes.deriv_box(q.u.0, q.u.1, q.v.0, q.v.1, across_u);

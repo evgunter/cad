@@ -1568,6 +1568,66 @@ mod tests {
         NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap()
     }
 
+    /// `z = k·x + h(y)` over `[0, 1]²`, `h` over `m` C0 quadratic spans
+    /// of `y` with Bernstein coefficients `(P, −N, P)` on each: along the
+    /// side `u = 0`, `φ = h ≥ (P − N)/2 > 0`, though every span's hull
+    /// holds `−N`.
+    fn loose_wall(k: f64, m: u32, (p, n): (f64, f64)) -> NurbsSurface<f64> {
+        let mut kv = vec![0.0, 0.0, 0.0];
+        for i in 1..m {
+            let t = f64::from(i) / f64::from(m);
+            kv.extend([t, t]);
+        }
+        kv.extend([1.0, 1.0, 1.0]);
+        let rows = 2 * m + 1;
+        let control = (0..2 * rows)
+            .map(|i| {
+                let (x, j) = (f64::from(i / rows), i % rows);
+                let h = if j % 2 == 0 { p } else { -n };
+                Point3::new(x, f64::from(j) / f64::from(rows - 1), k * x + h)
+            })
+            .collect();
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            KnotVector::clamped(kv, 2).unwrap(),
+            control,
+            vec![1.0; 2 * rows as usize],
+        )
+        .unwrap()
+    }
+
+    /// **A side whose hull is loose reads clear at limb 3's side arm, as
+    /// the boundary pass reads it.** On [`loose_wall`], ε = 10⁻⁹, the wall
+    /// rises inward from a side the plane is clear of: a stretch of it
+    /// reads [`super::Reading::Clear`], so no window on it holds the
+    /// side's piece. Red under the sign read on the unrefined hull: every
+    /// piece's hull straddles zero, the stretch reads `Within`, and the
+    /// side arm takes the window.
+    #[test]
+    fn a_window_on_a_side_whose_hull_is_loose_holds_no_sides_piece() {
+        let whole = rect((0.0, 1.0), (0.0, 1.0));
+        for (k, m, pn) in [(10.0, 64, (0.6e-9, 0.2e-9)), (100.0, 256, (0.9e-9, 0.5e-9))] {
+            let wall = loose_wall(k, m, pn);
+            let boxes = NurbsBoxes::new(&wall);
+            let readers = super::side_readers(&boxes, ground());
+            let side = super::SIDES[0];
+            assert_eq!((side.fixed, side.end), (ChartAxis::U, super::ChartEnd::Low));
+            let reader = super::reader_of(&readers, side).unwrap();
+            for r in [rect((0.0, 0.01), (0.25, 0.5)), rect((0.0, 0.2), whole.v)] {
+                assert_eq!(
+                    super::read_stretch(&boxes, ground().0, reader, (side, r), band().zero()),
+                    super::Reading::Clear,
+                    "k {k}, m {m}: the stretch {r:?}"
+                );
+                assert_eq!(
+                    super::side_piece(&boxes, ground(), (whole, &readers), r, band()),
+                    None,
+                    "k {k}, m {m}: the window {r:?}"
+                );
+            }
+        }
+    }
+
     /// A polyline pcurve through `pts`, one span per segment.
     fn polyline(pts: &[(f64, f64)]) -> NurbsCurve2<f64> {
         let n = pts.len() - 1;

@@ -201,7 +201,12 @@ crossings, each found to the sweep floor and decided transversal along
 the side, or refused as a graze, the locus tangent to the side, naming
 the side (`SsiError::BoundaryGraze`). A side within the band is
 decided over a strip beside it where the wall's slope across it is
-one-signed: nothing where the strip is clear of the plane, a `Side`
+one-signed: nothing where the strip is clear of the plane (the side's
+plane distance certified one-signed, read on its Bernstein hull with
+each piece whose hull straddles zero halved until its hull is
+one-signed, or until halving no longer narrows it, the arithmetic's
+floor there, where the side is not clear; and the wall moving further
+that way inward), a `Side`
 region where the locus is coincident with the side (below); where that
 slope does not clear the band the surfaces may be tangent along the
 side, and it refuses toward C7 (`SsiError::BoundaryTangent`); where no
