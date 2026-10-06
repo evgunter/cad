@@ -296,14 +296,17 @@ fn both_sweeps_evaluate_in_one_document() {
 /// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
 /// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
 /// declares nothing held its word.
+/// Re-blessed when contact records gained the `(vertex, edge)` kind:
+/// the digest feeds the records' `Debug`, which now prints an empty
+/// `ve` list; with that field stripped every constant here held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x63de_edf2_4dee_ef58),
-        ("corner_table", 0xd8b1_634f_074f_de08),
+        ("die", 0x36b0_d000_9753_2ff1),
+        ("corner_table", 0x0ed0_c4c4_4a88_0d04),
         ("cut_cylinder", 0xcea6_3bbf_f0ce_47ad),
-        ("boss_union", 0x9149_8127_2c43_ed66),
-        ("kitchen_sink", 0x6160_217f_8bea_4d5a),
+        ("boss_union", 0xa328_4b93_5337_9179),
+        ("kitchen_sink", 0xaa9e_23cf_952c_1b53),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

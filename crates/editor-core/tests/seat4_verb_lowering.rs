@@ -325,13 +325,16 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// rows (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`) held
 /// untouched, and every row of a document that declares nothing held
 /// its word.
+/// Re-blessed when contact records gained the `(vertex, edge)` kind:
+/// the digest feeds the records' `Debug`, which now prints an empty
+/// `ve` list; with that field stripped every constant here held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x681d_d105_677a_1f01u64),
-        ("heat_sink", 0xf3d9_20e7_90d8_8c5f),
-        ("kiss_carry", 0x0bad_41ce_ff6a_c1e6),
+        ("crossing_slots", 0x8e6e_3c92_65d5_5ca7u64),
+        ("heat_sink", 0x4b5e_d1a9_8940_524e),
+        ("kiss_carry", 0xec75_260a_4baa_10e8),
     ] {
         let doc = corpus::documents()
             .into_iter()

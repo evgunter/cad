@@ -16,10 +16,12 @@ use std::collections::BTreeMap;
 
 use geom_core::{Band, Decide, Real, Tol};
 
-use super::ops::{Descendants, carry_in_place, describe_minted_edges, gate};
+use super::ops::{Descendants, carry_in_place, describe_minted_edges, structural_gate};
 use super::{BooleanBody, BooleanError, Cell};
 use crate::body::Body;
-use crate::entity::{EdgeKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
+use crate::live::{linked, proven};
+use crate::readback::edge_sides_of;
 
 /// A joinable vertex's two edges: `gone` dies with the vertex, `kept`
 /// becomes the joined edge; `he` is `gone`'s half-edge that ends at the
@@ -51,7 +53,8 @@ fn starts<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<HalfEdgeKey>> {
     out
 }
 
-/// `w`'s join, if `w` is joinable (module docs).
+/// `w`'s join, if `w` is joinable (module docs). The half-edges in
+/// `starts` were read out of the arena, so every hop past them is a link.
 fn joinable<T: Real>(
     body: &Body<T>,
     w: VertexKey,
@@ -60,13 +63,26 @@ fn joinable<T: Real>(
     let [h1, h2] = starts.get(&w)?.as_slice() else {
         return None;
     };
-    let edge = |h: HalfEdgeKey| body.get_half_edge(h).map(|h| h.edge);
-    let (e1, e2) = (edge(*h1)?, edge(*h2)?);
+    let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
+    let (e1, e2) = (edge(*h1), edge(*h2));
     if e1 == e2 {
         return None;
     }
-    let sides = |e| crate::readback::edge_sides(body, e).ok();
-    let (s1, s2) = (sides(e1)?, sides(e2)?);
+    let d1 = linked(
+        &body.edges,
+        e1,
+        EntityId::Edge,
+        EntityId::HalfEdge(*h1),
+        "edge",
+    );
+    let d2 = linked(
+        &body.edges,
+        e2,
+        EntityId::Edge,
+        EntityId::HalfEdge(*h2),
+        "edge",
+    );
+    let (s1, s2) = (edge_sides_of(body, e1, d1), edge_sides_of(body, e2, d2));
     let pair = |s: crate::readback::EdgeSides| {
         let (f, g) = s.faces();
         if f <= g { (f, g) } else { (g, f) }
@@ -76,17 +92,22 @@ fn joinable<T: Real>(
         return None;
     }
     let (sf, sg) = s1.surfaces();
-    let planar = |k| matches!(body.get_surface(k), Some(geom::Surface::Plane { .. }));
-    if sf == sg || !planar(sf) || !planar(sg) {
+    let planar = |side: crate::readback::EdgeSide| {
+        let face = proven(&body.faces, side.face, EntityId::Face);
+        matches!(
+            body.face_surface_linked(side.face, face),
+            geom::Surface::Plane { .. }
+        )
+    };
+    if sf == sg || !planar(s1.plus) || !planar(s1.minus) {
         return None;
     }
-    let line = |e: EdgeKey| {
-        body.get_edge(e)
-            .and_then(|d| body.get_curve_geom(d.curve))
-            .and_then(|c| c.certified())
+    let line = |e: EdgeKey, d| {
+        body.edge_curve_linked(e, d)
+            .certified()
             .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
     };
-    if !line(e1) || !line(e2) {
+    if !line(e1, d1) || !line(e2, d2) {
         return None;
     }
     Some(Join {
@@ -106,14 +127,14 @@ pub fn joinable_vertices<T: Real>(body: &Body<T>) -> Vec<VertexKey> {
         .collect()
 }
 
-impl<T: Decide + geom_core::Bounds + crate::props::AtRestPolicy> BooleanBody<T> {
+impl<T: Decide + crate::props::AtRestPolicy> BooleanBody<T> {
     /// Joins every joinable vertex ([`joinable_vertices`]), one at a
     /// time in vertex-arena order, and carries the contact records by
     /// substitution: a record naming a joined vertex or a killed edge
     /// names the joined edge. The joined edge is described from its two
     /// faces, as the boolean describes the edges it mints, the pcurve
-    /// map is re-minted, and the joined body passes the boolean's own
-    /// result gate. Returns the result and the joins in the order made,
+    /// map is re-minted, and the joined body passes the at-rest gate the
+    /// boolean's result gate ends in. Returns the result and the joins in the order made,
     /// a later one's `gone` or `kept` possibly an earlier one's `kept`.
     ///
     /// # Errors
@@ -154,8 +175,16 @@ impl<T: Decide + geom_core::Bounds + crate::props::AtRestPolicy> BooleanBody<T> 
         } else {
             carry_in_place(&finished, &self.contacts, &desc)?
         };
+        // The join kills no material, so the result's pieces stand; the
+        // body passes the at-rest gate the boolean's own result gate ends
+        // in.
+        let body = T::gate_at_rest_kept(finished, tol)
+            .map_err(|errors| BooleanError::ResultInvalid { errors })?;
+        if body.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
+            structural_gate(&body)?;
+        }
         let out = Self {
-            body: gate(finished, band, tol)?,
+            body,
             contacts,
             ..self
         };

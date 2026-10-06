@@ -3001,10 +3001,22 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End) {
             }
         }
         (Cell::Vertex(vertex), Cell::Edge(edge)) | (Cell::Edge(edge), Cell::Vertex(vertex)) => {
-            let ends = body
-                .get_edge(edge)
-                .map(|e| [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).map(|h| h.start)));
-            let incident = ends.is_some_and(|ends| ends.contains(&Some(vertex)));
+            // Both cells are live ([`Descendants::live`]); every hop past
+            // them is a link.
+            let e = proven(&body.edges, edge, EntityId::Edge);
+            let incident = [(e.he_plus, "he_plus"), (e.he_minus, "he_minus")]
+                .into_iter()
+                .any(|(h, field)| {
+                    linked(
+                        &body.half_edges,
+                        h,
+                        EntityId::HalfEdge,
+                        EntityId::Edge(edge),
+                        field,
+                    )
+                    .start
+                        == vertex
+                });
             if !incident && !out.ve.iter().any(|r| (r.vertex, r.edge) == (vertex, edge)) {
                 out.ve.push(VeContact { vertex, edge });
             }
@@ -3033,21 +3045,18 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End) {
     }
 }
 
-/// Whether `vertex` is on one of `face`'s loops.
+/// Whether `vertex` is on one of `face`'s loops. `face` is live
+/// ([`Descendants::live`]), so every hop past it is a link.
 fn bounds<T: Real>(body: &Body<T>, face: FaceKey, vertex: VertexKey) -> bool {
-    let Some(f) = body.get_face(face) else {
-        return false;
-    };
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
-        .filter_map(|l| body.get_loop(l))
-        .any(|l| match l.boundary {
+    let f = proven(&body.faces, face, EntityId::Face);
+    body.face_loops_linked(face, f)
+        .any(|(_, l)| match l.boundary {
             LoopBoundary::Empty { vertex: v } => v == vertex,
-            LoopBoundary::Cycle { first } => body.loop_cycle(first).is_some_and(|cycle| {
-                cycle
-                    .iter()
-                    .any(|&h| body.get_half_edge(h).is_some_and(|h| h.start == vertex))
-            }),
+            LoopBoundary::Cycle { first } => body
+                .loop_walk(first)
+                .closed("loop", first)
+                .into_iter()
+                .any(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start == vertex),
         })
 }
 
@@ -3139,7 +3148,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// which read no certification arithmetic and so answer at every
 /// scalar. An edge of the result still described as a scaffold is a
 /// construction that stopped half-way.
-fn structural_gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
+pub(super) fn structural_gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
     validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     let errors = scaffolds_at_rest(body);
