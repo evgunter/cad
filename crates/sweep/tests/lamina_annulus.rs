@@ -89,7 +89,10 @@ fn rim_spandrel(rc: f64, r: f64, outward: bool) -> f64 {
 // The topology across the lamina matrix.
 // ---------------------------------------------------------------------
 
-fn lamina_matrix() -> Vec<(&'static str, Vec<Vec<(Point2<f64>, f64)>>, i64)> {
+/// A profile loop: its vertices and their bulges.
+type Loop = Vec<(Point2<f64>, f64)>;
+
+fn lamina_matrix() -> Vec<(&'static str, Vec<Loop>, i64)> {
     vec![
         (
             "washer",
@@ -155,7 +158,7 @@ fn lamina_matrix() -> Vec<(&'static str, Vec<Vec<(Point2<f64>, f64)>>, i64)> {
     ]
 }
 
-fn revolve_loops(loops: &[Vec<(Point2<f64>, f64)>]) -> Body<f64> {
+fn revolve_loops(loops: &[Loop]) -> Body<f64> {
     let lps: Vec<ProfileLoop<f64>> = loops
         .iter()
         .map(|l| ProfileLoop::polygon(l.iter().map(|p| p.0)))
@@ -204,7 +207,7 @@ fn every_lamina_full_revolve_has_one_unslit_face_per_plane_wall() {
         }
         let want = {
             // Pappus: 2π Σ x̄·A over the profile loops (outer minus holes).
-            let area_moment = |l: &Vec<(Point2<f64>, f64)>| {
+            let area_moment = |l: &Loop| {
                 let n = l.len();
                 let (mut a, mut mx) = (0.0, 0.0);
                 for i in 0..n {
