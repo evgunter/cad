@@ -1242,7 +1242,8 @@ impl Maintenance {
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
-            d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
+            d::Maintenance::Strand { name, .. }
+            | d::Maintenance::StrandedAppearance { name, .. } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
             d::Maintenance::OffsetCleared { .. }

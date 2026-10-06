@@ -7,7 +7,7 @@ Opened 2026-09-20 by CARVE's priority-seam cut
 
 ## The slate
 
-**18.5 budget points** of dispatchable work against a ceiling of 30.
+**23.5 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -19,6 +19,8 @@ Opened 2026-09-20 by CARVE's priority-seam cut
 | P1 | `interpolate-columns-averaged-knots-could-be-mirror-symmetric` | D | interpolate_columns' averaged knots could be minted mirror-symmetric when the parameters are |
 | P1 | `seed-finder-home-reads-only-the-y-station` | E | the homed seed finder reads center.y, so every z-poled fixture rolls its own scan |
 | P1 | `segment-curve-takes-a-section-index-only-to-fill-an-error-payload` | E | segment_curve's section index exists only to fill an error payload and is the first line a sweep caller writes |
+| P2 | `extrude-arc-walls-are-ruled-in-n-not-w` | M | extrude rules an arc leg's wall cylinder in the sketch normal, not in w, so an admitted tilted Vector fails untyped |
+| P3 | `sweep-body-makes-every-caller-derive-its-start-frame` | M | sweep_body takes a start placement every caller derives the same way, from path_start_frame |
 | P3 | `perp-unit-takes-an-unchecked-unit-axis` | E | blend/arms.rs perp_unit takes a unit axis it does not check — the Meridian's stored axis, so no caller holds the witness yet |
 | P4 | `blend-mod-recourse-docs-accumulate` | E | blend: mod.rs's recourse constants and BlendError carry 200+ lines of justification prose |
 | P4 | `test-support-has-become-four-modules` | E | sweep's test_support is four modules in one file, with six f64/_at twin pairs |
