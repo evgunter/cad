@@ -16,6 +16,7 @@ use geom::SurfaceKind;
 use geom_brep::intersect::route;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -276,10 +277,8 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             let outer = topo::mass_properties(body, tol).map(|p| p.volume);
             let inner = topo::mass_properties(&cavity, tol).map(|p| p.volume);
             println!("  {what}: outer {outer:?} cavity {inner:?}");
-            for (k, v) in cavity.vertices() {
-                if let Some(p) = cavity.get_point(v.point) {
-                    println!("    {k:?} -> [{:.6}, {:.6}, {:.6}]", p.x, p.y, p.z);
-                }
+            for (k, p) in cavity.vertex_points() {
+                println!("    {k:?} -> [{:.6}, {:.6}, {:.6}]", p.x, p.y, p.z);
             }
         }
     }
@@ -292,7 +291,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
     let tol = Tol::witness();
     let t = 1.0 / 128.0;
     let body = bellied_pot();
-    match topo::shell(&body, t, tol) {
+    match topo::shell(&finished("the operand", body.clone(), tol), t, tol) {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] SEALED hollows: {} shells, props {:?}",
             p.shells().count(),
@@ -309,7 +308,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         .map(|(k, _)| k)
         .collect();
     println!("[pot] mouth chart: {} face(s)", mouth.len());
-    match topo::shell_open(&body, t, &mouth, tol) {
+    match topo::shell_open(&finished("the operand", body.clone(), tol), t, &mouth, tol) {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] OPENED: {} shells, props {:?}",
             p.shells().count(),
@@ -334,7 +333,7 @@ fn sf2b_head_measurement() {
         ("the drum", drum()),
     ] {
         println!("=== {what} ===");
-        match topo::shell(&body, t, tol) {
+        match topo::shell(&finished("the operand", body.clone(), tol), t, tol) {
             Ok(_) => println!("  HOLLOWS"),
             Err(e) => {
                 println!("  Display: {e}");

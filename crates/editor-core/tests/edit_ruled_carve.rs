@@ -48,7 +48,7 @@
 //! Two documents, the pair the ruled header pins through the extrude
 //! door: the D-profile rod (convex creases, the band REMOVES material)
 //! and a rod's section standing on a block's top edge (concave creases,
-//! the band ADDS it, and the cap gains the region under the arc). Both
+//! the band ADDS it, its fill covering the region under the arc). Both
 //! are the same chord on the same [`ROD_R`] circle at the same
 //! [`ROD_FLAT`] standoff (`sweep::test_support::rod_chord_at`): the
 //! rod extrudes the arc the flat leaves standing, the sunk rod the arc
@@ -67,6 +67,7 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
@@ -159,7 +160,7 @@ struct Ruled {
 fn carve(
     what: &'static str,
     side: Side,
-    lp: LoopProgram,
+    lp: LoopProgram<Formula>,
     height: f64,
     creases: &'static [(u32, [u32; 2])],
     rims: &'static [(u32, [RimEnd; 2])],
@@ -251,7 +252,7 @@ fn d_rod() -> Ruled {
 /// own flat cuts away — rising above `y = 0`, on a block whose top
 /// plane it interrupts. Same circle, same standoff, same chord as
 /// [`d_rod`]; the other arc of it. Its two creases are CONCAVE — the
-/// band ADDS material and the cap GAINS the region under the arc.
+/// band ADDS material, its fill covering the region under the arc.
 ///
 /// The arc is segment 3; the top plane is TWO faces (segments 2 and 4),
 /// so the two creases share the cylinder support and have different

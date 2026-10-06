@@ -2,7 +2,7 @@
 //! two answers `ASSEMBLY.md` A11 rule 5 lets cross into the solve: a
 //! part's EXTENT, the body term of the lever a mate's angular
 //! decisions turn on, and a named FACE's canonical pose, the frame a
-//! `FromFace` side resolves to.
+//! face-based side resolves to.
 //!
 //! A parallelism verdict is consumed as "the separation is constant
 //! across the parts", so its margin is `sin θ · L` where `L` is the
@@ -58,7 +58,7 @@
 //! non-finite refuses where it is read.
 
 use geom::Surface;
-use geom_core::{Decide, Point3};
+use geom_core::{Decide, Point3, Real};
 use topo::Body;
 use topo::entity::FaceKey;
 use topo::readback::Pose;
@@ -89,7 +89,14 @@ use crate::ident::DocRef;
 /// part that is asked for is evaluated exactly once per evaluation
 /// (the evaluation's implementation reads its own part cache, which
 /// the instantiate node then hits).
-pub trait MateReach {
+///
+/// **At the scalar the solve runs at, `T`** (`ASSEMBLY.md` A11 (5)): a
+/// face's pose crosses as the part's own product reads it — a seed
+/// run's carrying its tangent, a box run's an enclosure — and the
+/// reach crosses as an `f64` upper bound in every lane, since the lever
+/// it forms only ever needs to over-state. `f64` is the default, the
+/// scalar every door outside an evaluation solves at.
+pub trait MateReach<T: Real = f64> {
     /// The reach `R` of the part `part` names, from its own origin.
     ///
     /// # Errors
@@ -103,7 +110,7 @@ pub trait MateReach {
     /// names**, in the part's own coordinates: the name resolved in
     /// the part's own product table to its face, then
     /// `topo::readback::face_pose` on the part's own body — the
-    /// frame a `FromFace` mate frame resolves to
+    /// frame a face-based mate frame resolves to
     /// ([`super::MateFrame`]). The pose is the CARRIER's, read off
     /// its surface parameters exactly, with the face's orientation
     /// sense beside the axis and not folded into it.
@@ -111,14 +118,9 @@ pub trait MateReach {
     /// # Errors
     ///
     /// [`FacePoseRefusal`]: the part does not resolve (the resolver's
-    /// own fault), the table has no row for the name or ties it, the
-    /// readback refuses the face (no canonical frame, a dangling
-    /// key), or the product's scalar pins no `f64`.
-    fn face_pose(
-        &self,
-        part: &DocRef,
-        face: &crate::FaceName,
-    ) -> Result<Pose<f64>, FacePoseRefusal>;
+    /// own fault), the table has no row for the name or ties it, or the
+    /// readback refuses the face (no canonical frame, a dangling key).
+    fn face_pose(&self, part: &DocRef, face: &crate::FaceName) -> Result<Pose<T>, FacePoseRefusal>;
 }
 
 /// Why a face's pose is not in hand ([`MateReach::face_pose`]) —
@@ -163,14 +165,6 @@ pub enum FacePoseRefusal {
     /// its own body does not hold: the table and the body are one
     /// evaluation's product, emitted together, so no door reaches it.
     Readback(topo::readback::ReadbackError),
-    /// The product is elaborated at a scalar that pins no single
-    /// `f64` (`eval`'s `SectionScalar`: an enclosure or a sensitivity
-    /// lane), so the pose has no `f64` coordinates to read. Reading
-    /// the nominal would drop the pose's own sensitivity to the
-    /// parameters, and pinning an enclosure there would certify a
-    /// face that moves inside the box, so a face frame resolves on
-    /// the nominal lane only ([`super::MateFrame`]).
-    Unpinned,
 }
 
 impl core::fmt::Display for FacePoseRefusal {
@@ -206,12 +200,6 @@ impl core::fmt::Display for FacePoseRefusal {
             Self::Readback(_) => write!(
                 f,
                 "the part's table names a face its own body does not read back. {defect}"
-            ),
-            Self::Unpinned => f.write_str(
-                "the part is elaborated at a scalar that pins no single number, so the face \
-                 has no coordinates the solve can read: a face frame resolves on the nominal \
-                 lane only. Recourse: to solve on this lane, delete the mate and insert it \
-                 again with authored vectors",
             ),
         }
     }
@@ -294,7 +282,7 @@ impl core::fmt::Display for ReachRefusal {
 
 /// **The refusing reach** — the reach of a door with no resolver in
 /// hand: every part is [`crate::eval::PartFault::NoResolver`], typed,
-/// so a solve through it levers no mate, resolves no `FromFace`
+/// so a solve through it levers no mate, resolves no face-based
 /// frame, and refuses each one in the resolver's own voice, and an
 /// edit whose maintenance needs a solved frame refuses at the door.
 /// What `eval::mate_reach` answers over options carrying no resolver,
@@ -306,7 +294,7 @@ impl core::fmt::Display for ReachRefusal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RefusingReach;
 
-impl MateReach for RefusingReach {
+impl<T: Real> MateReach<T> for RefusingReach {
     fn reach(&self, _part: &DocRef) -> Result<f64, ReachRefusal> {
         Err(ReachRefusal::PartUnresolved {
             fault: crate::eval::PartFault::NoResolver,
@@ -317,7 +305,7 @@ impl MateReach for RefusingReach {
         &self,
         _part: &DocRef,
         _face: &crate::FaceName,
-    ) -> Result<Pose<f64>, FacePoseRefusal> {
+    ) -> Result<Pose<T>, FacePoseRefusal> {
         Err(FacePoseRefusal::PartUnresolved {
             fault: crate::eval::PartFault::NoResolver,
         })

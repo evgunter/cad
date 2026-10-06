@@ -99,7 +99,7 @@ use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{Body, FaceKey, ShellError};
+use pncad::topo::{AtRestBody, Body, FaceKey, ShellError};
 
 use crate::{SceneBody, Stop, View};
 
@@ -324,10 +324,7 @@ fn axial(p: Point3<f64>) -> (f64, f64) {
 /// `1e-13`, stated both ways. `torax_axial::has_corner`'s bound, on
 /// this scene's own bodies.
 fn assert_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
-    let all: Vec<(f64, f64)> = body
-        .vertices()
-        .map(|(_, v)| axial(*body.get_point(v.point).expect("a vertex carries a point")))
-        .collect();
+    let all: Vec<(f64, f64)> = body.vertex_points().map(|(_, p)| axial(p)).collect();
     assert!(
         all.iter()
             .any(|q| (q.0 - rho).abs() <= 1e-14 && (q.1 - h).abs() <= 1e-14),
@@ -411,11 +408,8 @@ fn wall_probes(tol: Tol) {
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol,
     );
-    assert_eq!(
-        pncad::topo::validate_geometric(&quarter, tol),
-        Ok(()),
-        "the sectioned vessel is a valid body — it is the HOLLOW that has no carrier"
-    );
+    let quarter = AtRestBody::validate(quarter, tol)
+        .expect("the sectioned vessel is a valid body — it is the HOLLOW that has no carrier");
     let sectioned = pncad::topo::shell(&quarter, WALL, tol);
     crate::walls::wall(
         "torus-walled vessel",
@@ -448,14 +442,9 @@ fn wall_probes(tol: Tol) {
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let body = bellied(tol);
+    let body = AtRestBody::validate(bellied(tol), tol).expect("the operand: tier 3");
     assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
     assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
-    assert_eq!(
-        pncad::topo::validate_geometric(&body, tol),
-        Ok(()),
-        "the operand: tier 3"
-    );
     let props = pncad::topo::mass_properties(&body, tol).expect("the operand's props");
     let (v_out, a_out) = boundary(R_BELLIED, 0.0);
     assert!(
@@ -566,7 +555,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let litres = v_cav * 1000.0;
 
     // ---- THE SENSE TWIN: the same stations, the other centre ----
-    let twin = waisted(tol);
+    let twin = AtRestBody::validate(waisted(tol), tol).expect("the twin is a finished body");
     assert_eq!(census(&twin), (12, 18, 10), "the twin's operand census");
     let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")

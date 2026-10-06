@@ -376,6 +376,49 @@ fn digest() -> String {
 /// anchor-free). Only `bulged_extrusion`'s verdict row moves again,
 /// 13 → 18, and its hash; its volume and area bits, and every other
 /// row, are unchanged.
+///
+/// **Re-cut at all three ε when check 5 of the pcurve certificate
+/// decided only an escape's positive part** (`geom_brep::pcurve_cache`'s
+/// `trim_containment`). Only `sym_arc_loft`'s `validate_geometric` row
+/// moves: two of its numeric decisions become theorems (`sz` 54 → 56,
+/// `num` 638 → 636). Every verdict, pad and other row is unchanged.
+///
+/// **Re-cut at all three ε when check 7 took a quadrature face about the
+/// body's corner** (`topo::props::certify_role`: a sign the walk's own
+/// enclosure leaves unresolved is read again with those faces measured
+/// about the corner). Only `sym_thin_strip`'s `validate_geometric` row
+/// moves, the strip whose sign the schedule never decides: its
+/// quadrature faces are measured once more, eight more decisions
+/// (`num` 654 → 662, `decisions` 692 → 700). Every verdict, pad and other row,
+/// `sym_arc_loft`'s included, is unchanged.
+///
+/// **Re-cut at all three ε when a pcurve row became an image plus a
+/// joint element** (`topo::joint`, the re-anchor ruling, PR 4024). Only
+/// the two `validate_geometric` rows move, the same at every ε but
+/// `frozen`. Tier 3 decides the closure joint as every other joint and
+/// reads the winding off the elements: the closure margins go
+/// (`pcurve_loop_closure` 4, `pcurve_loop_closure_height` 4), the
+/// closure joint's two continuity margins come in (8), and the lever is
+/// read at all 16 joints (`pcurve_loop_pole_joint`, all definite) — 16
+/// more numeric decisions on each body (`sym_arc_loft` 692 → 708, `num`
+/// 636 → 652). The window a row certifies against is now the hull of
+/// the face's images, so on `sym_thin_strip` an image's escape against
+/// the window end it sets cancels: 16 `pcurve_trim_containment` and 6
+/// `pcurve_iso_boundary` decisions become theorems (`sz` 38 → 64,
+/// `num` 662 → 652, `decisions` 700 → 716) and the early walk freezes
+/// 46 fewer nodes (`frozen` 719 → 673 at 1e-9). Every verdict, pad and
+/// f64 row is unchanged.
+///
+/// **Re-cut at all three ε when `skin::segment_curve` began building an
+/// arc's NURBS from the evaluation's own points and the spoke
+/// `a − centre`** (PATHS 5b) instead of the stored radius and an
+/// endpoint `atan2`. Only the two arc lofts move: `arc_loft_1e9eps`'s
+/// `v`, `a`, `vpad` and `apad` in their last bits (its volume by 4, 5
+/// and 7 ulps at ε = 1e-6 / 1e-9 / 1e-12), and the `frozen` column of
+/// the two `validate_geometric` rows — `sym_arc_loft` 654 → 607 /
+/// 568 → 539 / 638 → 606 and `sym_thin_strip` 708 → 704 / 673 → 674 /
+/// 706 → 699. Decisions, discharges, shapes, refusals and every verdict
+/// hash are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

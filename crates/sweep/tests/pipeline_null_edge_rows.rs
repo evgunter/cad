@@ -18,7 +18,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::test_support::{boolean_through_the_join, split_through_the_join};
 
@@ -74,10 +74,11 @@ fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<String> {
         .filter_map(|he| {
             let c = body.pcurve(he)?;
             Some(format!(
-                "{he:?} {:?} {:?} {:?}",
+                "{he:?} {:?} {:?} {:?} {:?}",
                 c.params(),
                 c.pcurve(),
-                c.certificate()
+                c.certificate(),
+                body.joint(he)
             ))
         })
         .collect();
@@ -129,7 +130,7 @@ fn every_minted_face_is_the_passs(body: &Body<f64>, what: &str) -> usize {
 fn an_oblique_split_leaves_the_cut_wall_minted_whole_at_the_join() {
     let theta = 20f64.to_radians();
     let body = split_through_the_join(
-        &rod(),
+        &sweep::test_support::finished("the operand", rod(), tol()),
         &topo::test_support::split_plane(
             Point3::new(0.0, 2.0, 0.0),
             Vec3::new(0.0, theta.cos(), theta.sin()),
@@ -150,8 +151,13 @@ fn an_oblique_split_leaves_the_cut_wall_minted_whole_at_the_join() {
 /// row for the join to leave half-minted and is not read.
 #[test]
 fn a_slab_across_a_minted_boss_leaves_its_walls_minted_whole_at_the_join() {
-    let plate = brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), tol());
-    let first = topo::union(&plate, &m5_boss(3, 0.3, 1.3), tol())
+    let plate = finished(
+        "the plate",
+        brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), tol()),
+        tol(),
+    );
+    let boss = finished("the boss", m5_boss(3, 0.3, 1.3), tol());
+    let first = topo::union(&plate, &boss, tol())
         .expect("the boss unions on")
         .body()
         .expect("a body remains")

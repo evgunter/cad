@@ -48,6 +48,7 @@ use pncad::geom_core::{Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
+use pncad::topo::AtRestBody;
 use pncad::topo::Body;
 
 /// The scene's meridian, in units of `1/64` m before scaling: foot
@@ -187,9 +188,7 @@ fn axial(p: Point3<f64>) -> (f64, f64) {
 }
 
 fn corners(body: &Body<f64>) -> Vec<(f64, f64)> {
-    body.vertices()
-        .map(|(_, v)| axial(*body.get_point(v.point).expect("a vertex carries a point")))
-        .collect()
+    body.vertex_points().map(|(_, p)| axial(p)).collect()
 }
 
 /// `1e-14` m absolute, `torax_axial::has_corner`'s bound — on bodies
@@ -221,9 +220,13 @@ fn sense_row(centre_rho: f64, winding: ArcSweep, scale: f64, what: &str) {
 
     for k in [1.0_f64, 2.0, 3.0, 4.0] {
         let t = scale * k / 128.0;
-        let hollow = pncad::topo::shell(&body, t, tol)
-            .unwrap_or_else(|e| panic!("{what} at t = {k}/128 x {scale}: {e}"))
-            .body;
+        let hollow = pncad::topo::shell(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            t,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what} at t = {k}/128 x {scale}: {e}"))
+        .body;
         assert_eq!(
             pncad::topo::validate_geometric(&hollow, tol),
             Ok(()),
@@ -311,9 +314,13 @@ fn one_body_carrying_both_senses_moves_each_chart_its_own_way() {
     );
 
     let t = 1.0 / 128.0;
-    let hollow = pncad::topo::shell(&body, t, tol)
-        .expect("a body carrying both senses hollows in one call")
-        .body;
+    let hollow = pncad::topo::shell(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        t,
+        tol,
+    )
+    .expect("a body carrying both senses hollows in one call")
+    .body;
     assert_eq!(
         pncad::topo::validate_geometric(&hollow, tol),
         Ok(()),

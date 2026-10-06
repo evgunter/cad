@@ -88,3 +88,138 @@ alternative was four PRs on one file.
   - `RegionUnbounded` retired: its only reaching case was truly empty.
   - Class finding: every number Ev questioned (5, Kε, the reach cap, the clip threshold) was a representation choice, not a soundness one. State that distinction up front when asking.
   - Class finding: a ruling (mine, "no rung brings the reach under ⇒ near-tangency") was refuted by the lane's first measurement. Ask the lane to measure a rule before building on it.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+- 2026-10-03 — Read the #3990 hold. SSI's open rows, its two live lanes (`ssi/limb3-one-arc`, `ssi/step-max-certify`) and the held PR 3983 are plane × NURBS marching and certification inside `geom-brep`; none uses the node vocabulary, document parameters, placement, declared contact or `Measure`/`Assertion` (the rigid-map rows rotate geometry in tests, not a document `Transform`). Nothing parked; the program continues. (SSI orchestrator)
+
+- 2026-10-03 — **Limb 3 banked a second arc as accounted: P1, reachable on main.** On the ℝ³ cylinder × sphere lane, a slab cutting the circle into a long arc (11°..355°) and a short arc (5°..11°) returns Ok with one branch: the short arc's seed lands in the long arc's end box, so it is skipped, and accounting banks its cells. Root cause: limb 3 proved only one solution per slice, C2 deferred a disjoint component to C3, and C3 counted tube cells as proved. On the chart lane, open arcs can't be lost on main (every boundary crossing starts or ends a march), but the hermite-first fold of PR 3983 loses one there. Fix: PR 3999 (`ssi/limb3-one-arc`), which counts the boundary zeros of each banked box cut to the searched region and links consecutive boxes; it adds the `SsiError::TubeNotOneArc` refusal. Rows `limb-3-tube-banks-a-second-arc-as-accounted` (P1, closed by 3999) and `limb3-at-rest-proves-the-graph-not-the-arc` (open). The lane's README draft narrowed C2 to "the graph alone at rest". That retires half of Ev's ratified CURVED-DESIGN OQ2 ("the C2.3 uniqueness tube is required for every fitted `Intersection` at rest", #85, c0c74ea9b3), so the sentence comes out. The at-rest gap is recorded as a defect against that text; its options go to designers. Review tier: **dual** (concurrent pair, class H, on frozen head `7a59515b38`). Reason: a new certificate argument (counting boundary zeros, Krawczyk on faces) whose failure is silent topology loss. (SSI orchestrator)
+
+- 2026-10-03 — **`SSI_STEP_MAX` is replaced by refinement by certificate: PR 3998** (`ssi/step-max-certify`), answering Ev's question on 3862. Steps come from the curvature rungs, capped by the domain diagonal and `|AB|/5`. Where limb 1 or 2 refuses, the refused gaps are halved until the band stop or the fit budget, then refit and recertified. Across the suite, samples fall 4–7% and more branches certify (1e-9: 123 → 145). The cost at 1e-12 is 101 s → 657 s, dominated by the dense collocation solve (filed on flux). Review tier: **single FULL** on `548592de4e`. Reason: a loop around the certificate whose failure modes are a stale verdict or non-termination, but the certificate itself does not change. 3998 and 3999 share `certify.rs`, `ends.rs` and the C3 README, so 3999 (the P1) merges first and 3998 merges main after. (SSI orchestrator)
+
+- 2026-10-03 — **A second P1: limb 3 at rest certifies an edge that joins two arcs.** The 3999 lane measured it: a declared carrier on the fold wall (c = 800ε, β ≤ ε) certifies Ok through `plane_nurbs_limbs`, but the locus is two separate arcs. At rest the certificate proves the graph only. Ev ruled the opposite (CURVED-DESIGN OQ2, #85, c0c74ea9b3: the tube is required at rest). Requiring the one-arc proof there refuses 9 band-flush edges. Row: `limb3-at-rest-proves-the-graph-not-the-arc` (P1). This is a design fork. Designers dispatched concurrently against PR 3999's head, under protocol 26db1af89e; blinding byte 96 is on `analysis/design-fork/limb3-at-rest`. 3999 stays scoped to the banked lanes and merges without waiting on the fork. (SSI orchestrator)
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+- 2026-10-03 — **PR 3998 merged** (0f409ea569): `SSI_STEP_MAX` is gone; refinement by certificate in `ssi/refine.rs`. The single FULL review (on 548592de4e) was APPROVE-WITH-FIXES with no false pass; it re-certified every refined branch bit-identically. One fix pass, read by the orchestrator:
+  - Each refused gap is halved with its neighbours, bounding rounds at about half the budget; the reviewer's stand-in had taken 1196 rounds.
+  - A NaN or invalid margin is not located.
+  - `RefinementExhausted` names its stop.
+  - `StepBound::Cap` names its own lane's cap and lever.
+  - `STEP_SCALE`'s domain clause is corrected (a larger domain is what helps).
+  - The uncertified door's doc tells the truth.
+  - New rows pin `Both`, `TubeLadderEmpty` from a marched door, and `retirement_breadth`.
+
+  The SSI suite at 1e-12 now takes 368 s (657 s before the pass; 101 s with the cap). The weight-9 rational row is still 444 s, which is the dense collocation solve filed on flux. Filed: `the-march-domain-diagonal-mixes-state-units-on-the-chart-lane` (P3) and `the-cylinder-chart-ellipse-pcurve-samples-a-fixed-schedule`. Main was red on `bounds_census` for REACH's `ops::centred_box` (from #3978); I ported REACH's own roster line from #3976 into 3998 and commented on the PR. (SSI orchestrator)
+
+- 2026-10-03 — **Limb-3-at-rest fork: the designers converged after four rounds.**
+  - Round 1 split: the boundary count plus a side-cover arm, against the section theorem.
+  - Round 2 crossed.
+  - Round 3 named the question beneath (a claim on the window against a claim on the carrier) and found that #3999's count leaves the carrier's end slices unchecked. That is reachable at rest only; the searches' ends are certified crossings.
+  - Round 4 settled it on a fixture: a correct branch leaving through a side parallel to its slices is refused by the section theorem at every rung and certified by the count plus end slices.
+
+  Converged: per-window count or side cover (`strip_reach` as one shared door), plus knot and end-slice coverage, at every door, with `Banked` retired. OQ2 stands; C2's proof sentence changes, so it goes to Ev as an `[ev]` PR once 3999 lands. Probes are on `analysis/design-fork/limb3-at-rest-{a,b}`. Both designers name carrier-to-locus placement (2·residual/margin, up to 10⁴ε on correct shallow carriers) as a separate D4 question, not raised. (SSI orchestrator)
+
+- 2026-10-04 — **PR 3999 merged** (031b4ade4c): limb 3 proves the one arc where a search banks the tube (`ssi/one_arc.rs`; `certify_branch(…, Lane)`; `TubeNotOneArc { rungs, cause }`), closing the P1 `limb-3-tube-banks-a-second-arc-as-accounted`.
+  - **Dual review:** DR-72, concurrent, class H. Both reviewers APPROVE-WITH-FIXES; neither found a soundness hole in about 320 adversarial runs. The only MAJOR (the chart lane's proof had no guarding row) was bilateral, so there is no tally candidate.
+  - **Fix pass:** a row for every soundness arm; refusal causes split; one lane door; the cylinder gradient made exact for a non-unit axis.
+  - **Independent verifier** (`analysis/ssi-verify/3999`): mutants 1–9 red; it refuted the lane's claim that mutant 10 (the edge depth cut) was equivalent, using a C0 kink wall. Those kink rows landed, and all 12 mutants are red.
+  - **Merge with 3998:** refinement certifies through the lane door, and a limb-3 refusal is never located. The edge walk's slope strip was narrowed after a twisted wall refused at 1e-12.
+  - **Filed:** `chart-point-signs-are-f64-evaluations` (P3).
+- 2026-10-04 — **`[ev]` PR 4012 opened** for the limb-3-at-rest fork: C2's proof sentence gains a side-cover arm and end-slice coverage at every door. The work row is `needs_ev`, `spec`, with its Done-when; fork-log row 63 records the recommendation half. The build lands on that branch after Ev rules.
+- 2026-10-04 — **PR 3983 (Hermite-first) resumed**, now that limb 3 proves one arc. The lane merges main (3968, 3998, 3999), certifies the Hermite through `Lane::Chart`, pins the fold with a row that goes red without the chart lane's proof, fixes m1–m3 and strengthens the converging row. Review tier: the orchestrator's read of the fix delta plus a delta review, since the earlier review was a BLOCK. (SSI orchestrator)
+
+- 2026-10-04 — **Main was red on `certified_endpoint_census`** after PR 3999. Its one-arc walk added endpoint reads with no census lines, and main's gate skips the geom-core census on a geom-brep-only diff. The PR 3983 lane found it. #4015 carried its two roster lines alone and has merged (1c6e169b46). My process miss: I merged 3999 on its own gate, which did not run that census.
+- 2026-10-04 — **PR 3983 merged** (2bb5b2c039): Hermite first, march where anything refuses it.
+  - **Fold closed:** with the one-arc limb, the fold pairs correctly or refuses at both L values and all three ε. The row goes red with the Hermite certified at rest, and a 180-case sweep found 0 wrong pairings per ε.
+  - **Review findings:** m1 (`neither`) fixed; m2 restored at the ends; m3 removed (`min_transversality`, no reader).
+  - **Delta review:** APPROVE-WITH-FIXES, with 0 wrong pairings across several hundred adversarial cases of its own. Its MINOR: between a Hermite's ends transversality is the tube's, levered by the extent, while the march levers by `min(lever_arm, extent)`, which reads the chart's parameterisation. A flat wall with a bent chart now answers where main refused. I ruled for honest text plus a row now and a design row for later.
+  - **Filed:** `ssi-transversality-at-a-point-is-spelled-three-ways` (P2, design) and `ssi-short-branch-uncertified-length-can-name-another-branchs-crossing` (P3).
+  - **Cost:** about +1.5–3% on the SSI rows. (SSI orchestrator)
+
+- 2026-10-04 — **Fit-budget fork: the designers converged, no `[ev]` PR needed** (protocol 26db1af89e; byte 197 on `analysis/design-fork/fit-budget`). The question was how a fitted carrier stays certifiable and affordable as ε falls. The PR 4019 re-measure found that at ε 1e-12 every curved dome cut refuses only `FitSampleBudget`, and every one certifies once it is lifted.
+  - **Round 1.** Both designers found the defect in the solver: a dense O(n³) LU on a banded collocation system, factored three times. Banded, the solve is bit-identical, measured at n ≤ 5787: 1.6 ms against 429 s. Both would retire `SSI_MAX_FIT_SAMPLES`, which an agent wrote in PR 146 with no derivation and whose doc's two claims are false. They split on the refinement stop: A, a margin-progress stop; B, a per-branch count wall.
+  - **Round 2.** Both measured A's stop refusing converging carriers. The refused margin is non-monotone (the tilt at 1e-13 is non-monotone 14 times and certifies at round 36), switches limb, and is missing on in-band rounds. A withdrew it. At 1e-14 a floor shows as the sup flat at the enclosure's width while the samples double, so a resource wall is needed.
+  - **Converged.** Banded solve and storage; the budget retired; the band rule plus one per-branch sample wall (`SSI_MAX_STEPS`, covering inserted samples too); the refusal typed as a resource limit, carrying each round's margin and saying the floor may be the arithmetic's. Both lean toward the one constant. Its number (20 000, agent-written in PR 7) is a named resource wall like the cell budget, not a derivation.
+  - **Why it does not go to Ev.** No Ev-ratified text changes: the C3 refinement sentences are PR 3998's description of code. If Ev wants the wall derived, that needs a stated envelope (largest model, curvature, finest ε); recorded here.
+  - **Sequencing.** The banded-solve unit is building now (`ssi/banded-fit`, closing the flux row). The retirement unit follows it, because banded storage is a precondition at n ≳ 15k: the probes died of memory at 23–25k with dense storage.
+  - **Off-question notes.** A floor detector inside limb 2 is the parked `plane-nurbs-certificate-bound-does-not-refine-with-eps`'s question. `SSI_STEP_DEVIATION` = 0.02 samples about 5× denser than interpolation needs; a constant factor, not filed. (SSI orchestrator)
+
+- 2026-10-04 — **PR 4019 merged** (d51af4c69f): the curved dome re-measured on current main; its loop and oblique arc are pinned at the run's ε. At 1e-12 every curved cut refused only `FitSampleBudget`, which opened the fit-budget fork above.
+- 2026-10-04 — **PR 4023 merged** (f0abee07b5): the collocation fit solves its banded system banded, with one factorisation for every right-hand side (crate-private `geom/src/curves/banded.rs` behind `Collocation`). The flux banded-fit row is closed.
+- 2026-10-04 — **PR 4028 merged** (76958b8b25): `SSI_MAX_FIT_SAMPLES` retired. The one per-branch step wall `SSI_MAX_STEPS` now counts inserted samples. The refusal is `RefinementExhausted { stop, rounds }`, and the floor clause is conditional on `refine::stopped_falling`. The curved-dome row is closed.
+- 2026-10-04 — **Correction on `[ev]` PR 3862.** I had told Ev that the step caps were "the fit's minimum sample count, not a guess". That was wrong. A correction comment is posted on 3862. The retirements in 3998 and 4028 answer it.
+- 2026-10-04 — **`[ev]` PR 4012 (limb 3 at rest) built, reviewed and fixed.**
+  - **Dual review, DR-77 on the branch.** Two MAJORs.
+    - The side-cover arm proved that the locus lies within ε of a side, but not that the locus reaches it. Three declared edges certified where the search door reads the side as clear.
+    - A stretch-sup regression on cone and twisted walls.
+  - **Fix.** The side arm now reads the boundary pass's own clear test (`boundary::clears`, `SectionReader`, `side_stretch`), so the two doors cannot disagree.
+  - **Delta review.** Its MINORs are fixed: the end clause is restored to Ev's form, each door has one recourse sentence, and an overrun is typed `Short`.
+  - **Tally.** 1 (A's stretch-sup regression).
+  - **State.** Green; waiting on Ev's OK of the final C2 text. Main's DR-77 is now #3987, so the row renumbers at merge.
+  - **Filed:** `limb3-ladder-stops-on-a-certified-second-arc` (P3, answering Ev's question on miss cost), `limb3-carrier-ends-read-at-f64-points` (P3), `ssi-loose-side-hull-reports-a-region-on-an-empty-locus` (P2), `d4-placement-carrier-to-locus-within-eps` (P2, design).
+- 2026-10-04 — **Neighbour-cap fork, `[ev]` PR 4034** (`ssi/neighbour-cap`; fork-log row 67; byte 93 on `analysis/design-fork/neighbour-cap`).
+  - **Converged design.** The crossing march's step reads only its own branch's curvature and the domain diagonal, and the cap set by the neighbouring crossing retires.
+  - **Review: NOT-MERGEABLE.**
+    - MAJOR 1: without the cap, a far-field step can overshoot or jump to another branch. The cap was a hidden far-field step bound.
+    - MAJOR 2: the `Fit(TooFewPoints)` defect ending is reachable.
+  - **Status.** Ev was asked to hold the ruling, and the question went back to the designers for round 3: a fixed, own-branch far-field step rule.
+  - **Measured so far.** A corrector acceptance test (k·δ·ε) turns the review's failures into `TubeStraddles` or `Escalated(StepProgress)`, not Ok, at k = 1, 10 or 100.
+  - **Filed on the branch:** `ssi-match-exit-picks-the-crossing-nearest-a-chord` and `ssi-a-polyline-whose-midpoints-will-not-settle-reaches-the-fit-short` (both P3).
+- 2026-10-04 — **Process fix: blinding.** Reviewers in a pair could see each other's lane names through the shared scratchpad, and one fork's mapping file sat there. Mapping files now live outside the scratchpad, where no lane reads them. (SSI orchestrator)
+
+- 2026-10-05 — **`[ev]` PR 4034 merged by Ev** ("sounds good!"; neighbour-cap fork, fork-log row 67).
+  - **The crossing cap is retired.** The march keeps a step whose predicted state's residual is within ε plus the settling tolerance; a leaving step must also have its midpoint and last state inside. Otherwise the step halves to the band's edge. Each step starts at no more than twice the last kept, and every try counts against `SSI_MAX_STEPS`.
+  - **Refinement** keeps a settled midpoint as a sample. A midpoint that does not settle is read by the transversality decision there; in band it refuses near-tangent. Limb 3 is asked once where the refused margin stops falling. A long branch whose march cannot step refuses `MarchStepInBand`, and only a branch whose |AB| is in band is sized short.
+  - **History.**
+    - The first build's review was NOT-MERGEABLE: no far-field bound remained once the cap went.
+    - The design reopened for rounds 3–6. The designers measured a reach rung, a corrector acceptance test and a residual test, withdrew the per-step proofs as duplicating limb 3, and converged.
+    - The rebuild's review was MERGEABLE-WITH-FIXES. Its two MAJORs were a false half-chord lemma refusing ε-slivers with a kernel-limit ending, and long branches called short.
+    - A delta review followed, then a verifier: MERGEABLE, with 0 wrong pairings in about 1 900 probe runs.
+  - **Filed:**
+    - `ssi-the-residual-test-samples-a-bent-chart-at-eps-to-the-quarter-along-its-whole-bend` (P3): 3.5–5.3× main's samples at 1e-12;
+    - `ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end` (P2): 225 against main's 153 of 423 at 1e-6.
+  - **Closed:** `ssi-a-polyline-whose-midpoints-will-not-settle-reaches-the-fit-short`.
+  - **Correction posted on the PR:** my status comment had cited the refuted half-chord lemma. (SSI orchestrator)
+- 2026-10-06 — **`[ev]` PR 4012 merged** (d021859a59) on Ev's OK of the final C2 text ("this is good!"). Limb 3 proves one arc spanning the carrier at every door, at rest included. This closes the P1 `limb3-at-rest-proves-the-graph-not-the-arc`.
+  - **Renumbering.** Main merged in three times before the merge. The dual-review row was renumbered DR-77 → DR-86 (tally 22; pairs with a MAJOR, 40). The fork-log row went 66 → 70 as main took rows 66–69.
+  - **The merge with 4034** joined `Limbs` and `band_verdict` with the at-rest limb 3.
+  - **A merge mistake caught locally.** One merge put the at-rest rows inside the last slow-set entry's parentheses in `nextest.toml`; the local run caught it before the push.
+  - **Checks on the final merge:** 3 257 geom-brep and topo rows passed, plus the census, the gates and lint. (SSI orchestrator)

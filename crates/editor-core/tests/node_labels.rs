@@ -819,7 +819,7 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
 fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     use editor_core::range::{RangeField, RangeSeed, derive};
     use editor_core::{
-        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McRefusal, McReport, ParamBox, ParamName,
+        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McRefusal, McReport, ParamBox,
         Sensitivity, SensitivityOutcome, SlotId, StackupRefusal, render_sensitivity, sensitivities,
     };
 
@@ -847,7 +847,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         "{unknown_slot}"
     );
 
-    let not_a_measure = sensitivities(&doc, extrude, None, None, false, Tol::witness())
+    let not_a_measure = sensitivities(&doc, extrude, None, None, false, None, Tol::witness())
         .expect_err("an extrude is not a measure");
     assert_eq!(
         not_a_measure.to_string(),
@@ -856,20 +856,21 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
 
     let pinned = Sensitivity {
         document: doc.id(),
-        param: ParamName::new("w").expect("an identifier"),
+        param: editor_core::VarId(7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
             refusal: LiftRefusal::PinnedSection {
                 section: profile,
-                param: ParamName::new("w").expect("an identifier"),
+                param: editor_core::VarId(7),
             },
         },
     };
     assert_eq!(
         render_sensitivity(&pinned, &doc),
         format!(
-            "unliftable at {plate}: w feeds the section of Profile \"sketch\" ({p}), which \
-             stays f64 (C6/D9)"
+            "unliftable at {plate}: {} feeds the section of Profile \"sketch\" ({p}), which \
+             stays f64 (C6/D9)",
+            doc.spoken_var(editor_core::VarId(7))
         )
     );
 
@@ -962,7 +963,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
 #[test]
 #[should_panic(expected = "its node ids would name another document's nodes")]
 fn a_report_rendered_from_another_document_fails_loud() {
-    use editor_core::{ParamName, Sensitivity, SensitivityOutcome, render_sensitivity};
+    use editor_core::{Sensitivity, SensitivityOutcome, render_sensitivity};
     let doc = ProfileDoc::empty_derived("node-labels-taken-of", Tol::witness());
     let (doc, [_, _, extrude]) = block(doc, 0.0);
     let other = ProfileDoc::empty_derived("node-labels-another", Tol::witness());
@@ -973,12 +974,12 @@ fn a_report_rendered_from_another_document_fails_loud() {
     );
     let entry = Sensitivity {
         document: doc.id(),
-        param: ParamName::new("w").expect("an identifier"),
+        param: editor_core::VarId(7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
             refusal: editor_core::LiftRefusal::PinnedSection {
                 section: extrude,
-                param: ParamName::new("w").expect("an identifier"),
+                param: editor_core::VarId(7),
             },
         },
     };
@@ -1138,10 +1139,10 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let from_extrude = [editor_core::GeomPred::DatumDistance {
         datum: extrude,
         cmp: Cmp::Approx,
-        value: fixture::len(0.0),
+        value: editor_core::test_support::stored_expr(&fixture::len(0.0)),
     }];
     let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
-    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.param_env(), tol)
+    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.var_env(), tol)
         .expect_err("an extrude is not a datum");
     assert!(matches!(refusal, SelectRefusal::NotADatum { datum, .. } if datum == extrude));
     assert!(

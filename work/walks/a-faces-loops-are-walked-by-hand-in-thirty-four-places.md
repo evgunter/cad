@@ -57,8 +57,9 @@ names the two loop kinds another way, and still stops at
 **The inner half has one home now, for two of the sites.** PR 2549
 gave the per-loop part of the walk — the `LoopBoundary::Cycle`
 let-else plus `loop_cycle` — one function, `pcurves::loop_rows`, whose
-answer is a three-way `LoopRows` (`Cycle`, `NoCycle`, `Corrupt`) so a
-caller states its disposition instead of re-deciding it.
+answer is the loop's cycle (empty for a lone-vertex loop) and which
+panics naming the walk on a loop that does not walk as its own (D2
+row 4), so no caller re-decides it.
 `pcurves::stored_rows` and the loop-re-parenting doors' drop
 (`Body::drop_rows_on_chart_change`) both call it, and the discard
 register carries one `audited` entry there instead of an `unaudited`

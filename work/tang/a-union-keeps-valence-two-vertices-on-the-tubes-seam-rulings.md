@@ -4,6 +4,8 @@ kind: issue
 title: A dome rim lying on a tube's wall leaves valence-2 vertices on the tube's seam rulings in the union
 status: open
 opened: 2026-10-02
+priority: P3
+cost: M
 ---
 
 ## What
@@ -37,3 +39,20 @@ The finish stage (or the merge it runs) could fuse a valence-2 vertex
 between two edges on one line carrier, the inverse of the sweep's
 split, when no record names it. The pinned rows cite this file, so the
 fix turns them red at `(6, 10, 7)` knowingly.
+
+## Also on the rim where it crosses a ruling
+
+`a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared`
+(same file) turns the sunk dome about the axis, so each rim semicircle
+crosses a seam ruling mid-arc and the sweep splits it there. The split
+vertices stay:
+
+- the intersections are `(4, 8, 6)` on the two-face tube and
+  `(4, 10, 8)` on the four-face tube where each semicircle crosses two
+  rulings, against `(4, 6, 4)` unturned: valence-2 vertices on the rim
+  circle, where no ruling survives to meet them;
+- `t ∖ d` is `(7, 16, 12)` and `(9, 26, 20)`, against `(7, 14, 10)`;
+- the four-face tube's unions are `(8, 20, 15)` at every turn, the
+  rulings split at the rim height and at the top rim.
+
+The same fusion would turn those rows red knowingly.

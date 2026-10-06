@@ -188,7 +188,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
         doc,
         Node::Pattern {
             input: body,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -201,7 +201,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
         DocEdit::SetStructuralParam {
             node: pattern,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(2),
+            expr: editor_core::Formula::count(2),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));

@@ -378,3 +378,160 @@ lane, because both edit `remap_contacts`.
     substitution door replacing `remap_contacts`/`remap_carried`; and
     edge-split lineage. It folds in the P1
     `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-04 — #3955 is partly on D10's retired ground (INTENT note)
+
+A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pairs) partly superseded: its new declared-backing arms (`Declared::ve_backed`, `StaleDeclaration::VertexOnEdge`, the Python `vertex_on_edge` tag) sit on declared contact, which INTENT stage 4 retires; the cell-pair record model, the single substitution door, edge-split lineage and the joinable-vertex join survive under D10's "every value-decided coincidence is recorded". It was started before the hold, so it may finish; please add no new declaration vocabulary (or keep it minimal for stage 4 to retire) and avoid declaration language in the tier-3′ prose it edits.
+
+- 2026-10-06 — Resumed after the usage reset. Both open lanes have PRs:
+  - #3953 (one-arc struts: an order-free Out-holds rule);
+  - #3955 (#3881 step 1: cell-pair records).
+
+  Both sit about 1,700 commits behind main and conflict. Both lanes
+  were sent back to merge main:
+  - #3953 first measures main alone, because JOIN's `insert.rs`
+    rewrites (c50f2ff22e, 2313350276, ca9de38ac5) cover nearby ground.
+    If main already builds the one-arc case, only the tests land.
+  - #3955 follows the D10 INTENT note: no new declaration vocabulary,
+    records framed as recorded coincidences, and its tier-3′ wording
+    re-done on main's D10 text.
+
+  Under the D10 hold, eight FUSE rows whose substance is declared or
+  undeclared contact records or settled declared pairs are now
+  `parked` on `d10-one-way-to-say-intent-is-unbuilt`. The P1 carried-row
+  row stays, because #3955 (started before the hold) folds it in.
+  Dispatched `one-home-for-where-a-shell-stands` (P2, off the held
+  ground) on `fuse/one-home-shell-stands`.
+
+- 2026-10-06 — PR 3955 (step 1 of the 3881 build), dual review:
+  - Lane 1 (records, census, D10): mergeable.
+  - Lane 2 (carriage, lineage, join): not mergeable, on three MAJORs:
+    - **M1:** zip `edge_merges` pairs each ring edge one seam edge off.
+    - **M2:** the join collapses a transverse crossing's v-v pair onto
+      (edge, edge) and drops it. The orchestrator rules this within
+      Ev's PR 3881 text, so not a fork: a cell-pair record of two edge
+      interiors meeting is a contact record. Add a stored edge/edge
+      *crossing* record, which the census uses to back
+      `EdgeEdgeCross`. Excluding contact vertices from the join would
+      break maximal edges.
+    - **M3:** edge-split lineage's stay-on-parent branch is unreached.
+  - Sent as one fix pass, with lane 1's minors: stale premises, the two
+    DESIGN.md definitions of a contact record made to agree, and D10
+    wording in the pyi.
+  - PR 3953 lands first, then 3955 flips its lens pins to clean.
+- 2026-10-06 — PR 3953: FULL review, mergeable. The fix pass is out:
+  stale variant doc, the equal-codes arm made an invariant, the hook
+  reverses within-plan record order and counts only the op under test,
+  and the pins assert locations.
+- 2026-10-06 — PR 3955 lands as step 1 of the PR 3881 build: cell-pair
+  records (`VeContact`, `EeContact`), census both ways, one substitution
+  door, edge-split lineage, and the unwired join. The dual review's
+  MAJORs were fixed and re-checked. Lane 2's n2: the fix pass deleted
+  ZIP's slit-zip row although it still holds in part, so the
+  orchestrator re-filed it with the corrected premise and folded in n1
+  (the REST lane's new edge rows are untested). The unit row returns to
+  `open` for step 2.
+
+- 2026-10-06 — Dispatched step 2 of the PR 3881 build (the join at
+  every output stage; sweeps build one rim per run; `ee` carriage) on
+  `fuse/join-every-stage`. It is topology, outside the D10 hold.
+- 2026-10-06 — Main is red at eps 1e-6 on `sweep::all
+  pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates`.
+  The orchestrator reproduced it on main alone. It is JOIN's
+  (`bool_join_nearest` in `join::nearer`), filed by the 3953 lane as
+  `work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md` (the 3953 lane's duplicate file was folded into it).
+  PR 3953 is held on it rather than merged on red. PR 3955 landed
+  first.
+
+- 2026-10-06 — PR 4140 (step 2a of the 3881 build) is open on
+  `fuse/join-every-stage`. The join runs at every boolean output stage,
+  and `ee` records carry into a later op. The kernel is green. 33
+  editor-core naming rows are red: a joined flush rim is one edge
+  across two members' rims, which only step 4's set names can name.
+  The orchestrator's ruling: step 4 is built now, by a new lane on
+  `fuse/set-names` branched from 4140, with its PR based on
+  `fuse/join-every-stage`. Steps 2 and 4 then land on main together
+  in 4140, so main never carries the red rows. Ev's "each step its own
+  unit" holds as rows, and only the landing is shared. Step 4 is on
+  EMIT's ground, so a seam note is posted on EMIT's log.
+- The parts of step 2 that are not built yet, (b) sweeps building one
+  rim per run and (c) curved joinable vertices, are being filed as P1
+  rows ahead of step 3. Step 3's check stays planar-only until (c)
+  lands.
+- The 4140 dual review is dispatched: lane 1 covers design
+  conformance and carriage, including the new `held_by_ends` door
+  fallback; lane 2 covers correctness, readers, mutants and timing.
+- PR 3953 and PR 4108 are still held on JOIN's eps-1e-6 red on main
+  (`work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md`, open P0).
+
+- 2026-10-06 — The 4140 dual review is in, with no BLOCKER.
+  - **Lane 1:** three MAJORs. `held_by_ends` was a door-time search,
+    contrary to the merge-stage clause. The REST-lane join had no
+    witness. The curved arm was filed as a fork, but it is not one:
+    PR 3881's ratified body decides it.
+  - **Lane 2:** MINORs only. Its census golden accounting showed no
+    contact lost.
+  - **Fix pass (2809d22f9):** the join writes the chord rows itself
+    from `Locus::OnEdge`, so `held_by_ends` is gone and no Ev
+    question was needed. It adds witnesses for every stage path and
+    lineage arm, makes `record()` exhaustive, re-blesses perf12 and
+    merges main. A focused re-check of the new carriage is running.
+- 2026-10-06 — PR 4161 (step 4, merged-set edge names) is open on
+  `fuse/set-names`, based on 4140's branch. The FULL review found
+  no BLOCKER, and every order-freedom probe held.
+  - **README:** its N3-parity claim overreached. Ruled as wording, not
+    a fork: the readings of the 3881 naming bullet are listed in the
+    PR body.
+  - **Fix pass (660c1c9b):** accepted. It merges 4140's head next.
+- 2026-10-06 — Main has a second PR-CI red: demo-tour's Klein pin
+  (`klein.rs:876`). The 3953 lane bisected it to PR 3774 (PATHS 5b),
+  and it is filed on PATHS as
+  `a-klein-wall-radius-pin-fires-on-main-since-paths-5b` (P0). PR 3953
+  and PR 4108 stay held on both main reds.
+- 2026-10-06 — Both main reds are fixed on main. JOIN's 1e-6 row was
+  folded and closed in PR 4083 (cleave/ray-walk), and the Klein
+  tripwire was retired in 65b1b0a8 (SHELL, PR 4168). The PATHS row the
+  orchestrator filed is closed against that commit. PR 3953 and
+  PR 4108 are told to merge main and land when green.

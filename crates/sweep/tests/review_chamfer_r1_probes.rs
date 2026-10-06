@@ -77,12 +77,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 /// `validate_geometric`'s internals; a single flipped sense bit or a
 /// wrongly-folded chart normal reddens it.
 fn assert_every_face_outward(body: &Body<f64>) {
-    let pts: Vec<Point3<f64>> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
-        .copied()
-        .collect();
+    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p).collect();
     let n = pts.len() as f64;
     let interior = Point3::new(
         pts.iter().map(|p| p.x).sum::<f64>() / n,
@@ -354,22 +349,8 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
         )
         .expect("the ball translates")
     };
-    let dimpled = {
-        use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
-        boolean_op_with(
-            BooleanOp::Subtract,
-            &cube,
-            &ball,
-            &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
-            Tol::witness(),
-        )
-        .expect("the dimple subtracts")
-        .body()
-        .expect("a body")
-        .body
-        .clone()
-    };
+    let dimpled =
+        sweep::test_support::realized(topo::BooleanOp::Subtract, &cube, &ball, Tol::witness());
     let surviving: Vec<EdgeKey> = box_edges
         .into_iter()
         .filter(|k| dimpled.get_edge(*k).is_some())
@@ -497,14 +478,11 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
 /// all-CONVEX-edges request (the concave inner edge deliberately left
 /// out) still refuses, and this row pins WHAT it refuses with. The two
 /// requested cap edges flanking the omitted inner edge meet at its end
-/// vertices as two-link junctions, so the battery's chain-G1 predicate
-/// reaches the request before any coverage door does and the consumer
-/// reads `ChainNotG1` — "supply a tangent-continuous chain, or split
-/// the request at the tangent break" — although splitting at the break
-/// refuses again (run-out), so the recourse leads nowhere on this
-/// body. A refusal that is TRUE but points at chain smoothness when
-/// the situation is v1's all-or-nothing corner coverage: recorded as a
-/// review finding; the pin keeps the verdict decided and visible.
+/// vertices as two-link junctions; chain G1 reads a definite turn there
+/// and breaks the chain, and the corner predicate refuses each such
+/// vertex for its configuration: two convex edges and the omitted
+/// concave one are not one convexity, so it is `MixedConvexity` before
+/// it is a turn.
 #[test]
 fn the_brackets_best_convex_request_still_refuses_typed() {
     let bracket = prism(
@@ -544,8 +522,13 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
     let err = chamfer_edges(&bracket, &edges, 0.05, Tol::witness())
         .expect_err("a corner with an unrequested edge cannot be patched");
     assert!(
-        matches!(err.error, BlendError::ChainNotG1 { .. }),
-        "today's decided answer is the chain-G1 kink at the omitted edge's ends \
-         (see the row doc for why that framing is itself a finding): {err:?}"
+        matches!(
+            err.error,
+            BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::MixedConvexity { convex: 2 },
+                ..
+            }
+        ),
+        "the omitted edge's ends are mixed-convexity vertices: {err:?}"
     );
 }

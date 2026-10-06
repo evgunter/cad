@@ -30,9 +30,8 @@ const D: f64 = 0.1;
 /// two bodies' vertex SETS can be compared bit for bit.
 fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut pts: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p)
         .map(|p| (p.x, p.y, p.z))
         .collect();
     pts.sort_by(|a, b| a.partial_cmp(b).expect("finite coordinates"));
@@ -205,24 +204,23 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
     }
 }
 
-/// **A partial request refuses typed as a RUN-OUT** — the first thing
-/// a consumer tries. One edge of a cube terminates at two trivalent
-/// corners whose other four edges are not requested, which is a
-/// property of the REQUEST, not of the corners' configuration.
+/// **One edge of a cube is cut off at both end faces** — the first
+/// thing a consumer tries. Each end is a trivalent corner whose other
+/// two edges are not requested, so the band ends in each end face's
+/// plane section: a chord, the strip a prism of section `d²/2`.
 #[test]
-fn one_edge_of_a_cube_refuses_as_a_run_out() {
+fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
     let body = cube(L, Tol::witness());
     let edges = query::all_edges(&body);
-    let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
-        .expect_err("a partially-requested corner is a run-out");
+    let out =
+        chamfer_edges(&body, &edges[..1], D, Tol::witness()).expect("one edge of a cube chamfers");
+    let removed = L.powi(3)
+        - topo::mass_properties(&out.body, Tol::witness())
+            .expect("closed-form props")
+            .volume;
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "the request's coverage is what ran out: {err:?}"
-    );
-    let text = format!("{err}");
-    assert!(
-        text.contains("not implemented"),
-        "the refusal names the unbuilt door: {text}"
+        (removed - D * D / 2.0 * L).abs() < 1e-12,
+        "the strip removes its prism: {removed}"
     );
 }
 

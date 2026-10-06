@@ -119,7 +119,7 @@ fn boxes(doc: &ProfileDoc) -> [(&'static str, ParamBox); 3] {
             .map(|(n, a)| {
                 let m = a.midpoint();
                 (
-                    n.clone(),
+                    *n,
                     BoxAxis::Varying {
                         lo: m - eps(),
                         hi: m + eps(),
@@ -263,6 +263,12 @@ fn eps_row(eps: f64) -> usize {
 /// are unchanged. Measured by restoring the old end samples on a probe,
 /// which restores the old line.
 ///
+/// Re-captured again when a variable's symbol became its minted id
+/// (INTENT-VARS-1 PR 2) rather than a hash of its name: the slab's
+/// variables sort differently inside the forms, so three digests move
+/// at every row while every count — calls, forms, frozen — holds, and
+/// `Early/Decision`, which reads no variable, holds its digest.
+///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
 /// edges' mid-parameter points are the lever — the witness an edge is
 /// minted with, the certificate's midpoint check and its schedule's
@@ -271,20 +277,20 @@ fn eps_row(eps: f64) -> usize {
 /// here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest d7f80a97523e0c39f3318a28750839c1\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest ebd5dc4da3bdeaa10c0afd94b42b2d87\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest 94e74ce235f1ad337f14d70fee78dfaa\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest ec472ae73ea4c7420d838e1560bb36d0",
+     Early/Assertion calls 510 forms 1958 frozen 0 digest e5cb8ee95d081c9f651fd197dd80e7e9",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 2710dc0cfa425787e71ead1da8b6beaf\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 8494d680ab698df2f3469e823fc87b98\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest c4e86cf612989dd24ae45b72f30fd596\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest e83eae7723869354725ac1ce959e7302",
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 6fd6d5b744c7357422ed4a8d661ba4d6",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 855dea1b67548e891960c9fa117e7ad3\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 22f0ef9b79cc104cbde46fca27614b59\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest a8c20d17a2cffae31de30c639ce090f4\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 171de8349a6fabdbdc04441d2abb73b7",
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 37994725fc1705f26abe6dff8c3ececf",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -354,7 +360,7 @@ const SLAB_LEDGER: [&str; 3] = [
 /// COEFFICIENT bound (`2^186`-scale coefficients). Folding `tan` the way
 /// rule D folds `sin`/`cos` takes both lines back to 0, measured on a
 /// probe and reverted
-/// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
+/// (`work/rules/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
 /// The plate's receipt is `[811, 0, 140, 462]` either way, and the
 /// `*/Report` rows stay absent.
 ///
@@ -384,8 +390,18 @@ const SLAB_LEDGER: [&str; 3] = [
 /// lines freeze nothing: the 104 nodes each that `tan(1·atan(1))` froze
 /// are gone, as folding `tan` measured above. A probe spelling
 /// `quarter_tan` as `tan` restores 104 on both lines.
+///
+/// **When the circles began storing their authored carrier** (centre
+/// and `|r|`, `store-constructed-carriers`), the 148 decisions the door
+/// answered on the plate became theorems: `Door/Decision` calls
+/// 596 → 448 (forms 13624 → 6768), and the walks build smaller forms —
+/// the plate's largest 252 → 28 terms, `Plain/Decision` forms
+/// 16596 → 16228 and frozen 696 → 252, `Plain/Assertion` 3944 → 3915
+/// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
+/// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
+/// and the `Report` lines' moves. The slab, a polygon, does not move.
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 252;
+const PLATE_MAX_TERMS: usize = 28;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -410,15 +426,15 @@ const PLATE_MAX_TERMS: usize = 252;
 /// PR 3812), every line moved. Against the pin it replaced, in three
 /// steps, each measured on its own head:
 ///
-/// | line | base | parts 1 + 2 | literal branch | frame twin |
-/// |---|---|---|---|---|
-/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16429 / 696 |
-/// | `Plain/Assertion` calls / forms | 578 / 3233 | 612 / 3237 | 666 / 3474 | 666 / 4051 |
-/// | `Plain/Report` calls | 176 | 62 | 32 | 32 |
-/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9188 |
-/// | `Early/Assertion` calls / forms | 578 / 4144 | 612 / 4166 | 666 / 4404 | 666 / 5015 |
-/// | `Door/Decision` calls / forms | 662 / 19170 | 558 / 13722 | 590 / 13212 | 590 / 13928 |
-/// | `Door/Assertion` calls | 322 | 356 | 410 | 410 |
+/// | line | base | parts 1 + 2 | literal branch | frame twin | escape (PR 3981) |
+/// |---|---|---|---|---|---|
+/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16429 / 696 | 1143 / 16623 / 696 |
+/// | `Plain/Assertion` calls / forms | 578 / 3233 | 612 / 3237 | 666 / 3474 | 666 / 4051 | 650 / 3921 |
+/// | `Plain/Report` calls | 176 | 62 | 32 | 32 | 40 |
+/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9188 | 432 / 9430 |
+/// | `Early/Assertion` calls / forms | 578 / 4144 | 612 / 4166 | 666 / 4404 | 666 / 5015 | 650 / 4837 |
+/// | `Door/Decision` calls / forms | 662 / 19170 | 558 / 13722 | 590 / 13212 | 590 / 13928 | 582 / 13610 |
+/// | `Door/Assertion` calls | 322 | 356 | 410 | 410 | 394 |
 ///
 /// - **Parts 1 and 2.** Check 3's samples on the wall rows are no longer
 ///   decided over the box (they cross-check at the point witness,
@@ -438,15 +454,37 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   normalisations and the invariants are new forms in every walk.
 ///   Calls and freezes do not move: the twin is the same frame on this
 ///   plate's literal charts, so no decision is added or lost.
+/// - **The escape (PR 3981).** Check 5 decides only an escape's
+///   positive part (`geom_brep::pcurve_cache::escape`), so every
+///   trim-containment margin carries a `Max` node: new forms in every
+///   walk, and the calls move between lines (`Plain` and `Early`
+///   `Decision` +16 and `Assertion` −16, `Door/Decision` −8,
+///   `Door/Assertion` −16). Eight trim margins that read a definite
+///   clearance now read Zero numerically, and the form cannot discharge
+///   through the `Max`, so the blocked residuals the `Report` lines
+///   render rise 32 → 40 (40 → 48 without the canonical root). Every
+///   verdict passes as before: Zero and Negative are both contained.
+/// - **The variable table (INTENT-VARS-1 PR 2).** A variable's symbol
+///   is its minted id rather than a hash of its name, so the plate's
+///   variables sort differently inside the forms: the five digests of
+///   lines that build forms move, and every count — calls, forms,
+///   frozen — holds.
+/// - **The joint elements (the re-anchor ruling, PR 4024).** A loop's
+///   walk decides its closure joint as every other joint, between two
+///   images, and reads the winding off the integer elements, so the
+///   closure margins go and the closure joints' branch, pole-lever and
+///   continuity margins come: `Assertion` calls +14 on every walk and
+///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
+///   −31. Every digest moves; the freezes hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1127 forms 16429 frozen 696 digest f0075c185b84ceaa1e6776fef010ba7a\n\
-     Plain/Assertion calls 666 forms 4051 frozen 372 digest 2d8a3120e46d4f5e79adece7f2080b4f\n\
-     Plain/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 416 forms 9188 frozen 8 digest 4a83df50386eccfa36dc691f0258eb7e\n\
-     Early/Assertion calls 666 forms 5015 frozen 0 digest f8fb8acfd73cd5e780d9157d6836fa88\n\
-     Early/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 590 forms 13928 frozen 0 digest ad9c2d1d4a3be10b1f9edb793fc74e67\n\
-     Door/Assertion calls 410 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1143 forms 16228 frozen 252 digest ec7f0e1f5408b1a10acfda342f5c2ec4\n\
+     Plain/Assertion calls 664 forms 3915 frozen 360 digest fad58c6c6cf5c21324e21b64ab8b051b\n\
+     Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 432 forms 9117 frozen 0 digest 118d6298ed4bc7280acf1d0749f45f88\n\
+     Early/Assertion calls 664 forms 4831 frozen 0 digest 617250390b9c9641d9be0c89ae3c8e57\n\
+     Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Door/Decision calls 448 forms 6768 frozen 0 digest 5fc0f6b71848d4b2d9b698bbcde6851d\n\
+     Door/Assertion calls 408 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -609,20 +647,20 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|n| n.parse::<u64>().ok())
     };
     let sets: [(&str, SymRules, u64); 4] = [
-        ("shipped", SymRules::shipped(), 32),
+        ("shipped", SymRules::shipped(), 40),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            40,
+            48,
         ),
-        ("without_the_reads", SymRules::without_the_reads(), 32),
+        ("without_the_reads", SymRules::without_the_reads(), 40),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            40,
+            48,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

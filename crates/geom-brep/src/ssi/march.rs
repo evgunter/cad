@@ -30,14 +30,27 @@
 //!    derivation from unit speed).
 //! 4. `A·d₃ = b₃` minimum-norm, then `d₃ ← d₃ − κ²·d₁` with
 //!    `κ = ‖d₂‖` — Frenet's γ₃ = −κ².
-//! 5. **Step size by the small-contribution heuristic** (p. 215): the
-//!    quadratic and cubic terms of the approximant may each deviate by
-//!    at most [`SSI_STEP_DEVIATION`]·ε in meters, giving
-//!    `h ≤ √(2δ/κ)` and `h ≤ ∛(6δ/‖d₃‖)`; clamped into
-//!    `[h_min, h_max]`. **`ssi_step_progress`** refuses if the step
-//!    collapses into the band — a stepper that cannot move at this
+//! 5. **Step size**: the smallest of these rungs binds.
+//!    - Hoffmann's small-contribution heuristic (p. 215): the
+//!      approximant's quadratic and cubic terms within
+//!      [`SSI_STEP_RELATIVE`] of its linear one, read twice, on the
+//!      carrier `C = P(x)` in metres ([`LocalSystem::carrier_jet`]),
+//!      `H ≤ 2ρ/κ` with `κ = ‖C″⊥‖/‖C′‖²` and the cubic rung on `‖C‴⊥‖`,
+//!      and on the state, whose bending on the ℝ⁴ lane holds the wall
+//!      chart's.
+//!    - The eventual cubic fit's between-sample error within
+//!      [`SSI_STEP_DEVIATION`]·ε on the carrier (`H ≤ (24δε/κ³)^¼`).
+//!    - The domain's diagonal.
+//!    - The restart: twice the last step kept.
+//! 6. **The residual test.** The predicted state is kept where its
+//!    residual is at most ε plus the settling residual the start state
+//!    carries; a step whose end leaves the domain has its midpoint inside
+//!    and kept instead. Otherwise the step halves and predicts again,
+//!    every try counting against the step budget
+//!    ([`super::SSI_MAX_STEPS`]), down to the band, where
+//!    **`ssi_step_progress`** refuses: a stepper that cannot move at this
 //!    tolerance says so.
-//! 6. Advance by the cubic approximant, then **Newton refinement** to
+//! 7. Advance by the cubic approximant, then **Newton refinement** to
 //!    the surface pair: a fixed [`SSI_NEWTON_ITERS`] cap of
 //!    minimum-norm corrections, early-exiting on
 //!    [`SSI_NEWTON_TOL`]·ε, or the coordinates' noise where that is larger
@@ -45,7 +58,7 @@
 //!
 //! # The idealized stepper (the differential spec, T4/PERF-PLAN §4.4)
 //!
-//! [`StepperMode::Idealized`] replaces steps 3–5 with a **tangent-line
+//! [`StepperMode::Idealized`] replaces steps 3–6 with a **tangent-line
 //! step of fixed tiny length** [`SSI_IDEALIZED_STEP`] — ten readable
 //! lines that *define* the traced locus. Everything else (the
 //! transversality band, Newton refinement, the closure trio, the
@@ -127,11 +140,11 @@
 use geom_core::linalg::svd::Svd;
 use geom_core::{Band, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
-use crate::dihedral::{decide, decide_positive, decide_reported};
-use crate::recourse::Refused;
+use crate::dihedral::{decide, decide_positive};
 
 use super::enclose::Box3;
 use super::exhaust::{self, ExhaustLane, UvRect};
+use super::section::{BandVerdict, band_verdict};
 use super::system::LocalSystem;
 use super::{SSI_FIT_DEGREE, SsiError, TraceDecision};
 
@@ -384,11 +397,14 @@ pub const SSI_STEP_RELATIVE: f64 = 0.1;
 /// Hoffmann's relative heuristic alone is not enough here, and saying
 /// why matters: it keeps the *approximant* honest, but our samples are
 /// then handed to a cubic fitting stack whose product must be within ε
-/// of the locus **between** them (C2.2). The standard interpolation
-/// bound `‖C − fit‖ ≲ h⁴·‖C⁗‖/384` with `‖C⁗‖ ≈ κ³` for a curve of
-/// slowly-varying curvature turns that into a cap on `h`, which is the
-/// one that actually binds on a small tight loop. Both caps are
-/// applied; the step is the smaller.
+/// of the locus **between** them (C2.2). The rung holds a step of `h`
+/// metres to `h⁴·‖C⁗‖/4! ≤ δ·ε`, with `‖C⁗‖ ≈ κ³` for a curve of
+/// slowly-varying curvature: `h ≤ (24·δ·ε/κ³)^¼`. That is the remainder
+/// of a cubic Taylor step over one spacing, sixteen times the standard
+/// interpolation bound `‖C − fit‖ ≲ h⁴·‖C⁗‖/384`, so the step is half
+/// what the interpolation bound alone would allow. It is the rung that
+/// binds on a small tight loop. Both caps are applied; the step is the
+/// smaller.
 ///
 /// Two caveats keep this a *design target* rather than a bound, and
 /// the certificate — never this constant — is what refuses when the
@@ -399,20 +415,34 @@ pub const SSI_STEP_RELATIVE: f64 = 0.1;
 /// The value is therefore set well below ε rather than at it.
 pub const SSI_STEP_DEVIATION: f64 = 0.02;
 
+/// Hoffmann's relative rungs (module docs, step 5) on an approximant
+/// whose linear term moves `speed` per unit of `h`, and whose second
+/// and third derivatives have norms `second` and `third`: the longest
+/// `h` keeping `h²·second/2` and `h³·third/6` within
+/// [`SSI_STEP_RELATIVE`] of `h·speed`. Each is unbounded at an exact
+/// zero, and the cubic where `cubic` is false; a poisoned norm carries
+/// through to the step guard.
+fn relative_rungs(speed: f64, second: f64, third: f64, cubic: bool) -> [f64; 2] {
+    let quad = if second != 0.0 {
+        2.0 * SSI_STEP_RELATIVE * speed / second
+    } else {
+        f64::INFINITY
+    };
+    let cub = if third != 0.0 && cubic {
+        (6.0 * SSI_STEP_RELATIVE * speed / third).sqrt()
+    } else {
+        f64::INFINITY
+    };
+    [quad, cub]
+}
+
 /// The idealized stepper's fixed step, as a fraction of the caller's
-/// named extent, and never longer than the march's step cap
-/// (`march_both`). Tiny by construction: the tangent-line step's own
+/// named extent, clipped by the domain's diagonal where that is
+/// shorter. Tiny by construction: the tangent-line step's own
 /// truncation is `O(h²κ)`, so at a thousandth of the feature extent it
 /// is far below ε on anything with sane curvature, and Newton removes
 /// what remains.
 pub const SSI_IDEALIZED_STEP: f64 = 1.0e-3;
-
-/// The realized stepper's largest step, as a fraction of the caller's
-/// named extent — a cap so a nearly-straight branch still gets sampled
-/// densely enough for the fit to have data. A branch too short for the
-/// cubic fit at that cap is marched once more with its own length cut
-/// into an odd number of steps (`march_both`).
-pub const SSI_STEP_MAX: f64 = 1.0 / 32.0;
 
 /// Which stepper — the realized third-order approximant or the
 /// idealized tangent-line spec (module docs, PERF-PLAN §4.4).
@@ -448,9 +478,33 @@ pub enum StepFault {
     DoesNotMove,
 }
 
+/// Which cap held a step short when the curvature did not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepCap {
+    /// The domain box's diagonal, in state units: the longest step any
+    /// march takes.
+    Diagonal,
+    /// The idealized stepper's fixed step, [`SSI_IDEALIZED_STEP`] of the
+    /// caller's feature extent.
+    Idealized,
+}
+
+impl StepCap {
+    /// Every cap, in the fixed order [`StepBound`] breaks a tie in (D9).
+    const ALL: [Self; 2] = [Self::Diagonal, Self::Idealized];
+
+    fn index(self) -> usize {
+        match self {
+            Self::Diagonal => 0,
+            Self::Idealized => 1,
+        }
+    }
+}
+
 /// Which rungs held a march's steps short ([`SsiError::StepBudget`]):
-/// the cap a caller's knobs set, the curvature, or both. A rung holding
-/// fewer than [`STEP_BOUND_MINORITY`] of the steps is not named.
+/// the curvature, a cap, or both. A rung holding fewer than
+/// [`STEP_BOUND_MINORITY`] of the steps is not named, and the cap named
+/// is the one that held the most of the capped steps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StepBound {
     /// The curvature rungs. The fit's between-sample rung shrinks with
@@ -460,11 +514,11 @@ pub enum StepBound {
     /// the torsion is extreme, and there the tolerance is an
     /// approximate lever. No extent lengthens any of them.
     Curvature,
-    /// The cap: a fraction of the feature extent, or the domain's
-    /// diagonal.
-    Cap,
-    /// Each held at least [`STEP_BOUND_MINORITY`] of the steps.
-    Both,
+    /// A cap.
+    Cap(StepCap),
+    /// The curvature and a cap, each holding at least
+    /// [`STEP_BOUND_MINORITY`] of the steps.
+    Both(StepCap),
 }
 
 /// The share of a march's steps a rung must hold to be named in
@@ -472,14 +526,21 @@ pub enum StepBound {
 pub const STEP_BOUND_MINORITY: (usize, usize) = (1, 4);
 
 impl StepBound {
-    /// The rungs `curvature` of `steps` steps name.
-    fn of(curvature: usize, steps: usize) -> Self {
+    /// The rungs that held `steps` steps name: `curvature` by the
+    /// curvature, `caps[k]` by [`StepCap::ALL`]`[k]`.
+    fn of(curvature: usize, caps: [usize; 2], steps: usize) -> Self {
         let (num, den) = STEP_BOUND_MINORITY;
         let named = |n: usize| n * den >= steps * num;
+        let mut cap = StepCap::ALL[0];
+        for k in StepCap::ALL {
+            if caps[k.index()] > caps[cap.index()] {
+                cap = k;
+            }
+        }
         match (named(curvature), named(steps - curvature)) {
-            (true, true) => Self::Both,
+            (true, true) => Self::Both(cap),
             (true, false) => Self::Curvature,
-            (false, _) => Self::Cap,
+            (false, _) => Self::Cap(cap),
         }
     }
 }
@@ -517,14 +578,37 @@ pub struct Trace<const N: usize, E> {
     pub states: Vec<[f64; N]>,
     /// How the march ended, in its lane's terms.
     pub end: E,
-    /// The smallest `sin θ · arm` (meters) seen along the trace — the
-    /// transversality headroom, reported so a consumer can see how
-    /// close to the C7 regime this branch ran.
-    pub min_transversality: f64,
-    /// The smallest σ_min seen — Hoffmann's own signal, diagnostic.
-    pub min_sigma: f64,
     /// Steps consumed.
     pub steps: usize,
+    /// The longest step the march minted, in metres.
+    pub longest_step: f64,
+    /// Which rungs held the steps short.
+    pub(crate) held: Held,
+}
+
+/// How many of a march's steps each rung held short: the curvature, and
+/// each cap by [`StepCap::ALL`]'s order.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Held {
+    /// Steps the curvature held.
+    pub(crate) curvature: usize,
+    /// Steps each cap held.
+    pub(crate) caps: [usize; 2],
+}
+
+impl Held {
+    /// The steps kept, every one held by some rung.
+    fn steps(self) -> usize {
+        self.curvature + self.caps.iter().sum::<usize>()
+    }
+
+    /// Both marches' tallies.
+    fn plus(self, other: Self) -> Self {
+        Self {
+            curvature: self.curvature + other.curvature,
+            caps: core::array::from_fn(|k| self.caps[k] + other.caps[k]),
+        }
+    }
 }
 
 /// How a march ends an open branch: one implementation per lane, so a
@@ -563,6 +647,9 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
         ctx: &MarchContext<N>,
         band: Band,
     ) -> Result<Option<Self::End>, SsiError>;
+    /// Whether a state lies in the lane's domain: the wall's rectangle,
+    /// or the caller's slab.
+    fn holds(&self, x: &[f64; N], ctx: &MarchContext<N>) -> bool;
     /// The end of a march whose predicted step to `predicted` would not
     /// settle back onto the locus, or `None` when that is the march
     /// losing its branch.
@@ -640,6 +727,10 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
             inside,
             outside: next,
         }))
+    }
+
+    fn holds(&self, x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
+        Self::inside(x, ctx)
     }
 
     fn unsettled(
@@ -733,6 +824,10 @@ impl<S: LocalSystem<2, 3>> Exit<2, 3, S> for SlabExit {
         }
     }
 
+    fn holds(&self, x: &[f64; 3], ctx: &MarchContext<3>) -> bool {
+        within(x, &ctx.domain)
+    }
+
     fn unsettled(
         &self,
         _inside: [f64; 3],
@@ -750,17 +845,31 @@ pub(crate) struct MarchContext<const N: usize> {
     /// The domain box in state coordinates, `[lo, hi]` per coordinate.
     pub domain: [[f64; 2]; N],
     /// The caller's named feature extent, in meters — the lever arm of
-    /// last resort and the scale of the idealized step. The realized
-    /// step's cap is [`march`]'s `step_cap`.
+    /// last resort and the scale of the idealized step.
     pub extent: f64,
     /// The candidate generator's step tolerance. Derived from the run
     /// band on every certifying door — see [`MarchTol`].
     pub tol: MarchTol,
     /// Step budget.
     pub max_steps: usize,
+    /// The steps an earlier march of the same branch spent, and the
+    /// rungs that held them ([`Self::rest`]); none on a branch's first.
+    pub(crate) spent: (usize, Held),
 }
 
 impl<const N: usize> MarchContext<N> {
+    /// This context for the second half of a branch marched both ways
+    /// from its seed: the steps `half` spent come off the budget, so the
+    /// budget is the branch's ([`super::SSI_MAX_STEPS`]), and a refusal
+    /// names the rungs that held both halves.
+    pub(crate) fn rest<E>(&self, half: &Trace<N, E>) -> Self {
+        Self {
+            max_steps: self.max_steps.saturating_sub(half.steps),
+            spent: (self.spent.0 + half.steps, self.spent.1.plus(half.held)),
+            ..*self
+        }
+    }
+
     /// The domain box's diagonal, in state units: the longest step the
     /// stepper takes. The trace ends at its first exit, so a longer step
     /// buys nothing, and it costs the trace twice. Landed far outside the
@@ -796,8 +905,44 @@ pub(crate) trait TransversalityData<const N: usize> {
     fn lever_arm(&self, x: &[f64; N]) -> f64;
 }
 
-/// March one branch from `seed` (module docs), no step longer than
-/// `step_cap` meters.
+/// **`ssi_transversality`** at the state `x`: the surfaces cross at a
+/// clear angle there, `sin θ · arm` in metres with the arm clamped to
+/// `extent`, `sigma` the state's σ_min reported beside it.
+///
+/// # Errors
+///
+/// [`SsiError::TransversalityBand`] in the sliver band, and
+/// [`SsiError::Escalated`] where the arm or the transversality is
+/// undecided.
+pub(crate) fn decide_transversality<const N: usize>(
+    sys: &impl TransversalityData<N>,
+    x: &[f64; N],
+    sigma: f64,
+    extent: f64,
+    band: Band,
+) -> Result<(), SsiError> {
+    let (n1, n2) = sys.normals(x);
+    let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
+    let arm = Real::min(sys.lever_arm(x), extent);
+    decide_positive("ssi_transversality_arm", Margin::of(arm), band)
+        .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
+    let transversality = Margin::levered(sin_theta, arm);
+    // Zero is the sliver band: a tangential (or in-band tangential)
+    // contact along the candidate locus, C7's regime. `sin θ · arm` is a
+    // magnitude, so a definite negative cannot arise.
+    match band_verdict("ssi_transversality", transversality, band) {
+        None => Ok(()),
+        Some(BandVerdict::Refused(verdict)) => Err(SsiError::TransversalityBand {
+            sin_theta,
+            arm,
+            sigma_min: sigma,
+            verdict,
+        }),
+        Some(BandVerdict::Undecided(diag)) => Err(TraceDecision::Transversality.escalated(diag)),
+    }
+}
+
+/// March one branch from `seed` (module docs).
 ///
 /// # Errors
 ///
@@ -819,7 +964,6 @@ pub(crate) fn march<const M: usize, const N: usize, S, E>(
     mode: StepperMode,
     direction: f64,
     band: Band,
-    step_cap: f64,
 ) -> Result<Trace<N, E::End>, SsiError>
 where
     S: LocalSystem<M, N> + TransversalityData<N>,
@@ -832,47 +976,19 @@ where
     let mut states = vec![x];
     let mut prev_tangent: Option<[f64; N]> = None;
     let mut seed_tangent: Option<[f64; N]> = None;
-    let mut min_transversality = f64::INFINITY;
-    let mut min_sigma = f64::INFINITY;
     let mut left_start = false;
     let mut steps = 0usize;
-    let mut curvature_bound = 0usize;
+    let mut held = Held::default();
+    let mut longest_step = 0.0f64;
+    let mut last_kept: Option<f64> = None;
 
     while steps < ctx.max_steps {
         // ---- 1. the local decomposition ----
         let a = sys.jacobian(&x);
         let svd = Svd::<M, N>::new(a);
-        let sigma = svd.sigma_min();
-        if sigma < min_sigma {
-            min_sigma = sigma;
-        }
 
         // ---- 2. ssi_transversality (the σ₂ sliver band ⇒ C7) ----
-        let (n1, n2) = sys.normals(&x);
-        let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-        let arm = Real::min(sys.lever_arm(&x), ctx.extent);
-        decide_positive("ssi_transversality_arm", Margin::of(arm), band)
-            .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
-        let transversality = Margin::levered(sin_theta, arm);
-        if transversality.value() < min_transversality {
-            min_transversality = transversality.value();
-        }
-        // Zero is the sliver band: a tangential (or in-band tangential)
-        // contact along the candidate locus, C7's regime. `sin θ · arm`
-        // is a magnitude, so a definite negative cannot arise.
-        match decide_reported("ssi_transversality", transversality, band) {
-            Ok(decided) => {
-                if let Some(verdict) = Refused::of(decided, band) {
-                    return Err(SsiError::TransversalityBand {
-                        sin_theta,
-                        arm,
-                        sigma_min: sigma,
-                        verdict,
-                    });
-                }
-            }
-            Err(diag) => return Err(TraceDecision::Transversality.escalated(diag)),
-        }
+        decide_transversality(sys, &x, svd.sigma_min(), ctx.extent, band)?;
 
         // ---- 3. the tangent, oriented along the march ----
         let mut d1 = svd.null_direction();
@@ -904,14 +1020,19 @@ where
             return Err(unusable(StepFault::SpeedUnusable));
         }
 
-        // ---- 4./5. the step ----
+        // ---- 4.–6. the step ----
+        let mut halved = 0usize;
+        let mut out_of_budget = false;
         let (dx, h_meters, bound) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
-                let h = [step_cap / speed, ctx.diagonal()]
-                    .into_iter()
-                    .fold((SSI_IDEALIZED_STEP * ctx.extent) / speed, Real::min);
-                (scale(&d1, h), h * speed, StepBound::Cap)
+                let idealized = (SSI_IDEALIZED_STEP * ctx.extent) / speed;
+                let (h, held) = if ctx.diagonal() < idealized {
+                    (ctx.diagonal(), StepCap::Diagonal)
+                } else {
+                    (idealized, StepCap::Idealized)
+                };
+                (scale(&d1, h), h * speed, StepBound::Cap(held))
             }
             StepperMode::Realized => {
                 let b2 = sys.rhs2(&x, &d1);
@@ -924,33 +1045,30 @@ where
                 for (i, v) in d3.iter_mut().enumerate() {
                     *v -= kappa_sq * d1[i];
                 }
-                let n3 = norm(&d3);
-                // (a) Hoffmann's relative heuristic: |h²κ/2| ≤ ρ·h and
-                //     |h³‖d₃‖/6| ≤ ρ·h.
-                // κ and ‖d₃‖ are the system's own answers, so each
-                // bound is unbounded only at an exact zero and a
-                // poisoned one carries through `h` to the step guard.
-                // An overflowed κ² is not poison but makes ‖d₃‖ NaN
-                // through ∞·0 in the correction above; `h_quad` already
-                // binds there, so the cubic rung stands aside.
-                let h_quad = if kappa != 0.0 {
-                    2.0 * SSI_STEP_RELATIVE / kappa
-                } else {
-                    f64::INFINITY
-                };
-                let h_cub = if n3 != 0.0 && kappa_sq != f64::INFINITY {
-                    (6.0 * SSI_STEP_RELATIVE / n3).sqrt()
-                } else {
-                    f64::INFINITY
-                };
-                // (b) the fit's between-sample budget (module docs).
-                // κ and ‖d₃‖ are in state units; the curvature that
-                // governs the 3-D fit is κ/speed², so convert once.
-                // `> 0.0`, not `!= 0.0`: the quotient is NaN at an
-                // underflowing speed (0/0) or an overflowing one (∞/∞),
-                // which is the speed's fault, not a poisoned κ — and a
-                // poisoned κ already reaches `h` through `h_quad`.
-                let kappa3d = kappa / (speed * speed);
+                // Every rung bounds the carrier in metres, not the state
+                // curve: on the ℝ⁴ lane the state curve's bending holds
+                // the wall pcurve's, which moves no 3-D point.
+                let [c1, c2, c3] = sys.carrier_jet(&x, &d1, &d2, &d3);
+                let bend = across(c1, c2, speed);
+                let n3 = across(c1, c3, speed);
+                // (a) Hoffmann's relative heuristic on the carrier
+                //     ([`relative_rungs`]), on the parts of `C″` and `C‴`
+                //     across the tangent: the part along it re-times the
+                //     step along the line the linear term already
+                //     carries, and on the ℝ⁴ lane it holds the state's
+                //     Frenet `−κ²·d₁`, the wall pcurve's bending. An
+                //     overflowed κ² is not poison but makes `C‴` NaN
+                //     through ∞·0 in the correction above; the quadratic
+                //     rung already binds there, so the cubic stands aside.
+                let cubic = kappa_sq != f64::INFINITY;
+                let [h_quad, h_cub] = relative_rungs(speed, bend, n3, cubic);
+                // (b) the fit's between-sample budget (module docs), at
+                // the carrier's curvature `‖C″⊥‖/speed²`. `> 0.0`, not
+                // `!= 0.0`: the quotient is NaN at an underflowing speed
+                // (0/0) or an overflowing one (∞/∞), which is the speed's
+                // fault, not a poisoned bend — and a poisoned bend
+                // already reaches `h` through `h_quad`.
+                let kappa3d = bend / (speed * speed);
                 let h_fit = if kappa3d > 0.0 {
                     // ¼ power as TWO square roots, not `powf(0.25)`:
                     // `f64::sqrt` is IEEE-correctly-rounded and so is
@@ -966,24 +1084,82 @@ where
                 } else {
                     f64::INFINITY
                 };
-                let h_curve = [h_cub, h_fit].into_iter().fold(h_quad, Real::min);
-                let h_cap = Real::min(step_cap / speed, ctx.diagonal());
-                let h = Real::min(h_curve, h_cap);
+                // (c) the same heuristic on the approximant the step
+                //     advances, the state's, in state units. On the ℝ⁴
+                //     lane the state holds the wall chart's bending, which
+                //     the carrier rungs do not read.
+                let [s_quad, s_cub] = relative_rungs(1.0, kappa, norm(&d3), cubic);
+                let h_curve = [h_cub, h_fit, s_quad, s_cub]
+                    .into_iter()
+                    .fold(h_quad, Real::min);
+                let h_cap = ctx.diagonal();
+                // (d) the restart: no more than twice the last step kept.
+                let mut h = [h_cap, last_kept.map_or(f64::INFINITY, |l| 2.0 * l)]
+                    .into_iter()
+                    .fold(h_curve, Real::min);
+                // (e) the residual test: the predicted state on the locus
+                //     to ε plus the settle tolerance; a step whose end
+                //     leaves the domain has its midpoint and its last
+                //     predicted state inside on the locus instead. Otherwise
+                //     halve, down to the band, where the step guard below
+                //     speaks.
+                let reach = ctx.tol.meters() + ctx.tol.settling();
+                let predict = |h: f64| -> [f64; N] {
+                    core::array::from_fn(|i| {
+                        h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i]
+                    })
+                };
+                let on_locus = |at: &[f64; N]| {
+                    exit.holds(at, &ctx) && sys.residual(at).iter().all(|r| r.abs() <= reach)
+                };
+                let kept = |h: f64| {
+                    let end = add(&x, &predict(h));
+                    if exit.holds(&end, &ctx) {
+                        return on_locus(&end);
+                    }
+                    // A step that leaves: its midpoint, and the last of
+                    // its predicted states inside, by a fixed bisection.
+                    if !on_locus(&add(&x, &predict(0.5 * h))) {
+                        return false;
+                    }
+                    let (mut lo, mut hi) = (0.5 * h, h);
+                    for _ in 0..SSI_LEAVING_BISECTIONS {
+                        let m = 0.5 * (lo + hi);
+                        if exit.holds(&add(&x, &predict(m)), &ctx) {
+                            lo = m;
+                        } else {
+                            hi = m;
+                        }
+                    }
+                    on_locus(&add(&x, &predict(lo)))
+                };
+                // An infinite `h` is no try: its step is not finite, which
+                // the step's own guard below refuses. Every try counts
+                // against the budget, the kept one included.
+                while h.is_finite() && h * speed > band.escalate() && !kept(h) {
+                    if steps + halved + 1 >= ctx.max_steps {
+                        out_of_budget = true;
+                        break;
+                    }
+                    h *= 0.5;
+                    halved += 1;
+                }
+                last_kept = Some(h);
                 // Bookkeeping for the budget's refusal only: a poisoned
                 // `h` reaches the step guard below whichever rung is named.
-                let bound = if h_curve < h_cap {
+                let bound = if h < h_cap {
                     StepBound::Curvature
                 } else {
-                    StepBound::Cap
+                    StepBound::Cap(StepCap::Diagonal)
                 };
-                let mut step = [0.0f64; N];
-                for (i, s) in step.iter_mut().enumerate() {
-                    *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
-                }
-                (step, h * speed, bound)
+                (predict(h), h * speed, bound)
             }
         };
 
+        if out_of_budget {
+            break;
+        }
+        longest_step = Real::max(longest_step, h_meters);
         // The stepper must be able to move at this tolerance.
         match decide("ssi_step_progress", Margin::of(h_meters), band) {
             Ok(Sign::Positive) => {}
@@ -1014,7 +1190,7 @@ where
             return Err(unusable(StepFault::DoesNotMove));
         }
 
-        // ---- 6. Newton refinement to the surface pair ----
+        // ---- 7. Newton refinement to the surface pair ----
         let Some(refined) = newton_refine(sys, next, ctx.tol) else {
             // A step that will not settle is a step into nothing:
             // refuse rather than record a bad sample, unless it left
@@ -1023,9 +1199,9 @@ where
                 return Ok(Trace {
                     states,
                     end,
-                    min_transversality,
-                    min_sigma,
-                    steps: steps + 1,
+                    steps: steps + 1 + halved,
+                    longest_step,
+                    held,
                 });
             }
             return Err(SsiError::StepRefinementFailed {
@@ -1034,9 +1210,10 @@ where
             });
         };
         next = refined;
-        steps += 1;
-        if bound == StepBound::Curvature {
-            curvature_bound += 1;
+        steps += 1 + halved;
+        match bound {
+            StepBound::Curvature => held.curvature += 1,
+            StepBound::Cap(cap) | StepBound::Both(cap) => held.caps[cap.index()] += 1,
         }
 
         // ---- the lane's exit ----
@@ -1044,9 +1221,9 @@ where
             return Ok(Trace {
                 states,
                 end,
-                min_transversality,
-                min_sigma,
                 steps,
+                longest_step,
+                held,
             });
         }
 
@@ -1084,9 +1261,9 @@ where
                             return Ok(Trace {
                                 states,
                                 end: E::CLOSED,
-                                min_transversality,
-                                min_sigma,
                                 steps,
+                                longest_step,
+                                held,
                             });
                         }
                         Ok(Sign::Zero | Sign::Negative) => {
@@ -1106,10 +1283,12 @@ where
         states.push(next);
         x = next;
     }
+    let (spent, before) = ctx.spent;
+    let held = held.plus(before);
     Err(SsiError::StepBudget {
         mode: mode.name(),
-        budget: ctx.max_steps,
-        bound: StepBound::of(curvature_bound, steps),
+        budget: ctx.max_steps + spent,
+        bound: StepBound::of(held.curvature, held.caps, held.steps()),
     })
 }
 
@@ -1175,12 +1354,28 @@ fn norm<const N: usize>(a: &[f64; N]) -> f64 {
     dot(a, a).sqrt()
 }
 
+/// `‖v⊥‖`: the length of the part of `v` across the velocity `c1`, whose
+/// length is `speed`. Read as `‖v‖·√(1 − cos²)`, so a `v` already square
+/// to the tangent keeps its own norm's bits.
+fn across(c1: Vec3<f64>, v: Vec3<f64>, speed: f64) -> f64 {
+    let len = v.norm();
+    if !(len.is_finite() && len > 0.0) {
+        return len;
+    }
+    let cos = (c1 / speed).dot(v) / len;
+    len * Real::max(1.0 - cos * cos, 0.0).sqrt()
+}
+
 fn neg<const N: usize>(a: &[f64; N]) -> [f64; N] {
     let mut o = *a;
     for v in o.iter_mut() {
         *v = -*v;
     }
     o
+}
+
+fn add<const N: usize>(a: &[f64; N], b: &[f64; N]) -> [f64; N] {
+    core::array::from_fn(|i| a[i] + b[i])
 }
 
 fn scale<const N: usize>(a: &[f64; N], k: f64) -> [f64; N] {
@@ -1243,9 +1438,16 @@ where
 /// Fixed bisection count for the ℝ³ lane's slab-crossing search (D9).
 pub const SSI_SLAB_BISECTIONS: usize = 32;
 
+/// Fixed bisection count for the last predicted state inside the domain
+/// of a step that leaves it, on either lane (D9), from half the step to
+/// the whole. The state found is a selection, not a decision: it is the
+/// one whose residual the step's residual test reads, so the count sets
+/// only how near the boundary that reading is, within `h/2³³` of it.
+pub(crate) const SSI_LEAVING_BISECTIONS: usize = 32;
+
 /// Whether a state is inside the named domain box (a structure test on
 /// the raw coordinates — C6's lane, not a predicate).
-fn within<const N: usize>(x: &[f64; N], domain: &[[f64; 2]; N]) -> bool {
+pub(crate) fn within<const N: usize>(x: &[f64; N], domain: &[[f64; 2]; N]) -> bool {
     x.iter()
         .enumerate()
         .all(|(i, v)| *v >= domain[i][0] && *v <= domain[i][1])
@@ -1333,22 +1535,20 @@ where
 /// seed as the join. A closed forward march needs no second pass: it
 /// already covered the component.
 ///
-/// The first march caps its steps at [`SSI_STEP_MAX`] of the caller's
-/// extent. A trace with fewer samples than the cubic fit needs, and a
-/// positive length, is marched once more with its steps capped at that
-/// length over [`SHORT_BRANCH_STEPS`]. The rule is fixed and taken at
-/// most once (D9). Written for the ℝ³ state alone: the plane × NURBS
-/// lane knows its branches' ends before it marches and never reaches
-/// this.
+/// The steps are the curvature's against ε, no longer than the
+/// domain's diagonal. A trace with fewer samples than the cubic fit
+/// needs is given them where it is fitted, by halving
+/// ([`super::refine::fit_minimum`]). Written for the ℝ³ state alone:
+/// the plane × NURBS lane knows its branches' ends before it marches and
+/// never reaches this.
 ///
 /// # Errors
 ///
-/// As [`march`]; a refusal in either direction, on either march, is the
-/// operation's. [`SsiError::TraceUnresolved`] when the first trace has
-/// no length to cut, or the re-march is still too short to fit: a limit
-/// of the march against the caller's slab, not a branch. A trace with a
-/// non-finite sample (a `NaN` length) goes to the fit, which refuses
-/// the sample by name.
+/// As [`march`]; a refusal in either direction is the operation's.
+/// [`SsiError::TraceUnresolved`] when a trace too short for the fit has
+/// no length to halve: a limit of the march against the caller's slab,
+/// not a branch. A trace with a non-finite sample (a `NaN` length) goes
+/// to the fit, which refuses the sample by name.
 pub(crate) fn march_both<S>(
     sys: &S,
     seed: [f64; 3],
@@ -1359,66 +1559,23 @@ pub(crate) fn march_both<S>(
 where
     S: LocalSystem<2, 3> + TransversalityData<3>,
 {
-    let cap = SSI_STEP_MAX * ctx.extent;
-    let first = march_both_at(sys, seed, ctx, mode, band, cap)?;
-    if first.states.len() > SSI_FIT_DEGREE {
-        return Ok(first);
-    }
-    let length = arc_length(sys, &first.states);
-    if length.is_nan() {
-        // A non-finite sample: the fit refuses it by name. Finite
-        // samples whose chords overflow read `+∞`, which re-marches at
-        // the extent's cap and refuses below if still short.
-        return Ok(first);
-    }
-    if length <= 0.0 {
-        return Err(SsiError::TraceUnresolved {
-            samples: first.states.len(),
-            step: cap,
-        });
-    }
-    let step = Real::min(cap, length / SHORT_BRANCH_STEPS as f64);
-    let again = march_both_at(sys, seed, ctx, mode, band, step)?;
-    if again.states.len() > SSI_FIT_DEGREE {
-        return Ok(again);
-    }
-    Err(SsiError::TraceUnresolved {
-        samples: again.states.len(),
-        step,
-    })
-}
-
-/// How many steps a short branch's re-march cuts its length into: the
-/// fewest odd count that gives the cubic fit its samples without the
-/// two boundary ends, which [`push_boundary`] may drop. Odd, because a
-/// seed lands near the middle of a branch as often as not: from there
-/// an odd count leaves `n` states strictly inside the branch and each
-/// end half a step from the nearest, where an even one walks a state
-/// onto each end.
-pub(crate) const SHORT_BRANCH_STEPS: usize = (SSI_FIT_DEGREE + 1) | 1;
-
-/// [`march_both`]'s two marches and their splice, at one `step_cap`.
-fn march_both_at<S>(
-    sys: &S,
-    seed: [f64; 3],
-    ctx: MarchContext<3>,
-    mode: StepperMode,
-    band: Band,
-    step_cap: f64,
-) -> Result<Trace<3, SlabEnd>, SsiError>
-where
-    S: LocalSystem<2, 3> + TransversalityData<3>,
-{
-    let fwd = march(sys, &SlabExit, seed, ctx, mode, 1.0, band, step_cap)?;
+    let fwd = march(sys, &SlabExit, seed, ctx, mode, 1.0, band)?;
     if fwd.end == SlabEnd::Closed {
         return Ok(fwd);
     }
-    let bwd = march(sys, &SlabExit, seed, ctx, mode, -1.0, band, step_cap)?;
+    let bwd = march(sys, &SlabExit, seed, ctx.rest(&fwd), mode, -1.0, band)?;
     let mut states = bwd.states;
     states.reverse();
     // `states` now runs backward-end → seed; append the forward half
     // without repeating the seed.
     states.extend_from_slice(&fwd.states[1..]);
+    let longest_step = Real::max(fwd.longest_step, bwd.longest_step);
+    if states.len() <= SSI_FIT_DEGREE && arc_length(sys, &states) <= 0.0 {
+        return Err(SsiError::TraceUnresolved {
+            samples: states.len(),
+            step: longest_step,
+        });
+    }
     Ok(Trace {
         states,
         // If either end is in band of the slab, the branch's end is in
@@ -1428,19 +1585,19 @@ where
         } else {
             SlabEnd::Slab
         },
-        min_transversality: fwd.min_transversality.min(bwd.min_transversality),
-        min_sigma: fwd.min_sigma.min(bwd.min_sigma),
         steps: fwd.steps + bwd.steps,
+        longest_step,
+        held: fwd.held.plus(bwd.held),
     })
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::{
         Box3, LocalSystem, MarchContext, MarchTol, NormalPair, ReachBound, Readout, SSI_NEWTON_TOL,
-        SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_STEP_MAX, SsiError, StepFault, StepperMode,
-        TraceDecision, TransversalityData, march,
+        SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SsiError, StepFault, StepperMode, TraceDecision,
+        TransversalityData, march,
     };
     use crate::ssi::ExhaustLane;
     use geom_core::{Band, Point3, Vec3};
@@ -1467,7 +1624,7 @@ mod tests {
     /// two normals meet at a right angle — so the only thing a march
     /// over this system can refuse on is the one value the row spoils,
     /// and the refusal it produces names that value's guard.
-    struct FixedSpeedR3 {
+    pub(crate) struct FixedSpeedR3 {
         /// Meters per unit of the march parameter.
         speed: f64,
         /// Both components of the order-2 right-hand side.
@@ -1481,7 +1638,7 @@ mod tests {
     }
 
     impl FixedSpeedR3 {
-        fn at_speed(speed: f64) -> Self {
+        pub(crate) fn at_speed(speed: f64) -> Self {
             Self {
                 speed,
                 rhs2: 0.0,
@@ -1520,6 +1677,16 @@ mod tests {
         fn tangent_speed(&self, _x: &[f64; 3], _d: &[f64; 3]) -> f64 {
             self.speed
         }
+
+        fn carrier_jet(
+            &self,
+            _x: &[f64; 3],
+            d1: &[f64; 3],
+            d2: &[f64; 3],
+            d3: &[f64; 3],
+        ) -> [Vec3<f64>; 3] {
+            [*d1, *d2, *d3].map(|d| Vec3::from_array(d) * self.speed)
+        }
     }
 
     impl TransversalityData<3> for FixedSpeedR3 {
@@ -1529,6 +1696,243 @@ mod tests {
 
         fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
             self.arm
+        }
+    }
+
+    /// The locus `y = ψ(x)`, `z = 0` in ℝ³, the state in metres: the
+    /// system the stepper's step rule is tested over. `ψ` returns
+    /// `[ψ, ψ′, ψ″]` and is at most quadratic piecewise.
+    pub(crate) struct GraphR3(pub(crate) fn(f64) -> [f64; 3]);
+
+    impl LocalSystem<2, 3> for GraphR3 {
+        fn residual(&self, x: &[f64; 3]) -> [f64; 2] {
+            [x[1] - (self.0)(x[0])[0], x[2]]
+        }
+
+        fn jacobian(&self, x: &[f64; 3]) -> [[f64; 3]; 2] {
+            [[-(self.0)(x[0])[1], 1.0, 0.0], [0.0, 0.0, 1.0]]
+        }
+
+        fn rhs2(&self, x: &[f64; 3], d1: &[f64; 3]) -> [f64; 2] {
+            [(self.0)(x[0])[2] * d1[0] * d1[0], 0.0]
+        }
+
+        fn rhs3(&self, x: &[f64; 3], d1: &[f64; 3], d2: &[f64; 3]) -> [f64; 2] {
+            [3.0 * (self.0)(x[0])[2] * d1[0] * d2[0], 0.0]
+        }
+
+        fn point(&self, x: &[f64; 3]) -> Point3<f64> {
+            Point3::from_array(*x)
+        }
+
+        fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
+            [1.0; 3]
+        }
+
+        fn tangent_speed(&self, _x: &[f64; 3], d: &[f64; 3]) -> f64 {
+            Vec3::from_array(*d).norm()
+        }
+
+        fn carrier_jet(
+            &self,
+            _x: &[f64; 3],
+            d1: &[f64; 3],
+            d2: &[f64; 3],
+            d3: &[f64; 3],
+        ) -> [Vec3<f64>; 3] {
+            [*d1, *d2, *d3].map(Vec3::from_array)
+        }
+    }
+
+    impl TransversalityData<3> for GraphR3 {
+        fn normals(&self, x: &[f64; 3]) -> NormalPair {
+            (
+                Vec3::new(-(self.0)(x[0])[1], 1.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            )
+        }
+
+        fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
+            1.0
+        }
+    }
+
+    /// Straight for `x ≤ 0`, then bending by `−8x²`.
+    pub(crate) fn straight_then_bend(x: f64) -> [f64; 3] {
+        if x <= 0.0 {
+            [0.0; 3]
+        } else {
+            [-8.0 * x * x, -16.0 * x, -16.0]
+        }
+    }
+
+    /// **A step the jet overreaches is halved, restarts near the last
+    /// kept, and every try counts against the wall.** The locus
+    /// `y = ψ(x)` is straight for `x ≤ 0` and bends by `−8x²` after, so
+    /// at a state on the straight part every rung but the diagonal is
+    /// unbounded, and a step of the diagonal lands far off the bend. The
+    /// residual test halves it until its predicted end lies on the locus
+    /// to ε: the march samples the bend (at least ten states past
+    /// `x = 0`, where an unhalved diagonal step leaves the unit box from
+    /// the straight part). The tries it halved are steps on the wall: the
+    /// trace is charged more steps than it kept, and a budget of the kept
+    /// steps refuses. Each step's first try is at most twice the last
+    /// kept: the branch keeps about 400 steps and halves 288 times,
+    /// where restarting every step from its rungs halves 465.
+    #[test]
+    fn a_step_the_jet_overreaches_is_halved_and_every_try_counts() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = GraphR3(straight_then_bend);
+        let ctx = |max_steps| MarchContext {
+            max_steps,
+            ..unit_ctx(band)
+        };
+        let trace = super::march_both(
+            &sys,
+            [-0.9, 0.0, 0.0],
+            ctx(4096),
+            StepperMode::Realized,
+            band,
+        )
+        .unwrap_or_else(|e| panic!("the bend marched: {e}"));
+        let bent = trace.states.iter().filter(|s| s[0] > 0.0).count();
+        assert!(bent >= 10, "the bend sampled: {bent} states past x = 0");
+        let kept = trace.held.steps();
+        let halved = trace.steps - kept;
+        assert!(
+            halved > 0,
+            "the halved tries charged: {} steps, {kept} kept",
+            trace.steps
+        );
+        assert!(halved <= 350, "the restart: {halved} halvings");
+        match super::march_both(
+            &sys,
+            [-0.9, 0.0, 0.0],
+            ctx(kept),
+            StepperMode::Realized,
+            band,
+        ) {
+            Err(SsiError::StepBudget { budget, .. }) => assert_eq!(budget, kept),
+            other => panic!("a budget of the kept steps: expected the step budget, got {other:?}"),
+        }
+    }
+
+    /// **No march holds more tries than its budget.** The `x` axis
+    /// marched from `x = ½` in the unit context: the first try, the
+    /// domain's diagonal, and its half leave the box with their midpoints
+    /// outside it too, so the march keeps its third try, which leaves the
+    /// box with its midpoint inside, and the trace ends on its first kept
+    /// step, three tries in. Under budgets of one and two tries the march
+    /// refuses naming the budget, rather than overrunning it inside one
+    /// step's halvings; from three it traces.
+    #[test]
+    fn no_march_holds_more_tries_than_its_budget() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let run = |max_steps| {
+            let ctx = MarchContext {
+                max_steps,
+                ..unit_ctx(band)
+            };
+            march(
+                &sys,
+                &super::SlabExit,
+                [0.5, 0.0, 0.0],
+                ctx,
+                StepperMode::Realized,
+                1.0,
+                band,
+            )
+        };
+        for budget in 1..=4 {
+            match run(budget) {
+                Ok(trace) => {
+                    assert!(budget >= 3, "traced under {budget}");
+                    assert_eq!(trace.steps, 3, "three tries under {budget}");
+                }
+                Err(SsiError::StepBudget { budget: named, .. }) => {
+                    assert!(budget < 3, "refused under {budget}");
+                    assert_eq!(named, budget);
+                }
+                Err(e) => panic!("under {budget}: {e}"),
+            }
+        }
+    }
+
+    /// **A branch marched both ways from its seed spends one step
+    /// budget.** The idealized stepper crosses the unit context's domain
+    /// from its centre in about a thousand steps each way. Under a budget
+    /// that holds each half but not the two together, the second half
+    /// spends what the first left and refuses, naming the branch's budget.
+    #[test]
+    fn a_branch_marched_both_ways_spends_one_step_budget() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let run = |max_steps| {
+            super::march_both(
+                &sys,
+                [0.0, 0.0, 0.0],
+                MarchContext {
+                    max_steps,
+                    ..unit_ctx(band)
+                },
+                StepperMode::Idealized,
+                band,
+            )
+        };
+        let steps = run(4096).unwrap().states.len() - 1;
+        assert!(
+            (1800..2200).contains(&steps),
+            "about a thousand steps each way: {steps}"
+        );
+        let budget = steps * 3 / 4;
+        match run(budget) {
+            Err(SsiError::StepBudget { budget: named, .. }) => {
+                assert_eq!(named, budget, "the branch's budget, named");
+            }
+            other => panic!("expected the step budget at {budget} steps, got {other:?}"),
+        }
+    }
+
+    /// **A second half's refusal names the rungs that held both halves.**
+    /// A first half of 1000 steps the curvature held, then an idealized
+    /// second half the wall stops at 100 steps: the curvature held 1000
+    /// of the branch's 1100 steps and the idealized cap under a quarter,
+    /// so the bound is the curvature's, where the second half alone
+    /// would name the cap.
+    #[test]
+    fn a_second_halfs_refusal_names_the_rungs_that_held_both_halves() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let ctx = MarchContext {
+            max_steps: 1100,
+            ..unit_ctx(band)
+        };
+        let first = super::Trace {
+            states: Vec::new(),
+            end: super::SlabEnd::Slab,
+            steps: 1000,
+            longest_step: 0.0,
+            held: super::Held {
+                curvature: 1000,
+                caps: [0; 2],
+            },
+        };
+        let r = march(
+            &sys,
+            &super::SlabExit,
+            [0.0, 0.0, 0.0],
+            ctx.rest(&first),
+            StepperMode::Idealized,
+            -1.0,
+            band,
+        );
+        match r {
+            Err(SsiError::StepBudget { budget, bound, .. }) => {
+                assert_eq!(budget, 1100, "the branch's budget, named");
+                assert_eq!(bound, super::StepBound::Curvature, "both halves' rungs");
+            }
+            other => panic!("expected the step budget, got {other:?}"),
         }
     }
 
@@ -1560,7 +1964,6 @@ mod tests {
                 StepperMode::Idealized,
                 1.0,
                 band,
-                SSI_STEP_MAX * unit_ctx(band).extent,
             );
             match r {
                 Err(SsiError::StepUnusable {
@@ -1639,16 +2042,7 @@ mod tests {
         ];
         for (speed, mode, ctx, x0, fault) in rows {
             let sys = FixedSpeedR3::at_speed(speed);
-            let r = march(
-                &sys,
-                &super::SlabExit,
-                [x0, 0.0, 0.0],
-                ctx,
-                mode,
-                1.0,
-                band,
-                SSI_STEP_MAX * ctx.extent,
-            );
+            let r = march(&sys, &super::SlabExit, [x0, 0.0, 0.0], ctx, mode, 1.0, band);
             let named = match (fault, &r) {
                 (None, Err(SsiError::StepCollapsed { speed, .. })) => *speed,
                 (Some(want), Err(SsiError::StepUnusable { speed, fault, .. }))
@@ -1668,12 +2062,13 @@ mod tests {
     }
 
     /// The context every row below marches in.
-    fn unit_ctx(band: Band) -> MarchContext<3> {
+    pub(crate) fn unit_ctx(band: Band) -> MarchContext<3> {
         MarchContext::<3> {
             domain: [[-1.0, 1.0]; 3],
             extent: 1.0,
             tol: MarchTol::from_band(band, reaching(1.0)).unwrap(),
             max_steps: 64,
+            spent: Default::default(),
         }
     }
 
@@ -1734,7 +2129,6 @@ mod tests {
                 mode,
                 1.0,
                 band,
-                SSI_STEP_MAX * unit_ctx(band).extent,
             ) {
                 Err(ref e @ SsiError::Escalated { decision, .. }) => {
                     assert_eq!(decision, guard, "the poisoned operand's guard");
@@ -1782,7 +2176,6 @@ mod tests {
                 StepperMode::Realized,
                 1.0,
                 band,
-                SSI_STEP_MAX * unit_ctx(band).extent,
             );
             assert!(
                 !matches!(
@@ -1930,7 +2323,6 @@ mod tests {
                 StepperMode::Idealized,
                 1.0,
                 band,
-                SSI_STEP_MAX,
             )
         };
         match run(0.1) {
@@ -1965,19 +2357,110 @@ mod tests {
     }
 
     /// **A rung is named from a quarter of the steps**, on either side
-    /// of the line, for each rung.
+    /// of the line, for each rung; the cap named is the one that held
+    /// the most of the capped steps, a tie going to the earlier in
+    /// [`super::StepCap::ALL`].
     #[test]
     fn a_rung_is_named_from_a_quarter_of_the_steps() {
-        use super::StepBound;
+        use super::{StepBound, StepCap};
+        let idealized = |n: usize| [0, n];
         for (curvature, want) in [
-            (0, StepBound::Cap),
-            (4, StepBound::Cap),
-            (5, StepBound::Both),
-            (15, StepBound::Both),
+            (0, StepBound::Cap(StepCap::Idealized)),
+            (4, StepBound::Cap(StepCap::Idealized)),
+            (5, StepBound::Both(StepCap::Idealized)),
+            (15, StepBound::Both(StepCap::Idealized)),
             (16, StepBound::Curvature),
             (20, StepBound::Curvature),
         ] {
-            assert_eq!(StepBound::of(curvature, 20), want, "{curvature} of 20");
+            assert_eq!(
+                StepBound::of(curvature, idealized(20 - curvature), 20),
+                want,
+                "{curvature} of 20"
+            );
         }
+        for (caps, want) in [
+            ([5, 3], StepCap::Diagonal),
+            ([3, 5], StepCap::Idealized),
+            ([4, 4], StepCap::Diagonal),
+        ] {
+            assert_eq!(StepBound::of(0, caps, 8), StepBound::Cap(want), "{caps:?}");
+        }
+    }
+
+    /// **The step rungs read the carrier's curvature, not the state
+    /// curve's.** The plane `y = −1/8` cuts the dome
+    /// `y = −4·s(1−s)·t(1−t)` (a quadratic 3×3 net, `x = s`, `z = t`) in
+    /// a loop of 3-D curvature 1.4–4.7/m. The wall's pcurve bends in its
+    /// chart as much as the plane's, so the ℝ⁴ state curve's curvature
+    /// over speed² is √2 times the carrier's. At ε = 1e-9 the fit rung
+    /// holds every step, so each chord is `(24·δ·ε/κ³)^¼` at the
+    /// carrier's own curvature κ, read here off the circle through three
+    /// consecutive marched points rather than off the stepper. Every
+    /// chord lies within 5% of it, and the loop takes about 1030 steps.
+    /// A rung read on the state curve makes every chord 2^(−3/8) ≈ 0.77
+    /// of it.
+    #[test]
+    fn the_fit_rung_reads_the_carriers_curvature_on_a_curved_wall() {
+        use super::{RectEnd, RectExit, SSI_STEP_DEVIATION};
+        use crate::ssi::system::{Chart, ParametricPairR4};
+        use geom::{NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = (0..9)
+            .map(|n| {
+                let (i, j) = (f64::from(n / 3), f64::from(n % 3));
+                let y = if n == 4 { -1.0 } else { 0.0 };
+                Point3::new(i / 2.0, y, j / 2.0)
+            })
+            .collect();
+        let wall = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap();
+        let level = Surface::Plane {
+            origin: Point3::new(0.5, -0.125, 0.5),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let sys = ParametricPairR4 {
+            a: Chart::plane_of(&level, (-2.0, 2.0), (-2.0, 2.0)).unwrap(),
+            b: Chart::Nurbs(&wall),
+        };
+        let eps = 1.0e-9;
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        let ctx = MarchContext::<4> {
+            domain: [[-2.0, 2.0], [-2.0, 2.0], [0.0, 1.0], [0.0, 1.0]],
+            extent: 1.0,
+            tol: MarchTol::from_band(band, reaching(2.0)).unwrap(),
+            max_steps: 4096,
+            spent: Default::default(),
+        };
+        // On the loop at t = ½: s(1 − s) = ⅛.
+        let s = 0.5 * (1.0 - std::f64::consts::FRAC_1_SQRT_2);
+        let seed = [s - 0.5, 0.0, s, 0.5];
+        let trace = march(&sys, &RectExit, seed, ctx, StepperMode::Realized, 1.0, band).unwrap();
+        assert!(
+            matches!(trace.end, RectEnd::Closed),
+            "the level cut is a loop"
+        );
+        let p: Vec<Vec3<f64>> = trace
+            .states
+            .iter()
+            .map(|x| sys.point(x) - Point3::origin())
+            .collect();
+        let target = 24.0 * SSI_STEP_DEVIATION * eps;
+        for i in 1..p.len() - 1 {
+            let (a, b) = (p[i] - p[i - 1], p[i + 1] - p[i - 1]);
+            let kappa = 2.0 * a.cross(b).norm() / (a.norm() * b.norm() * (b - a).norm());
+            let chord = (p[i + 1] - p[i]).norm();
+            let rung = (target / (kappa * kappa * kappa)).sqrt().sqrt();
+            assert!(
+                (chord / rung - 1.0).abs() < 0.05,
+                "step {i}: chord {chord:e} m against the fit rung {rung:e} m at κ = {kappa:.3}/m"
+            );
+        }
+        assert!(
+            (1000..1060).contains(&trace.steps),
+            "the loop takes {} steps",
+            trace.steps
+        );
     }
 }

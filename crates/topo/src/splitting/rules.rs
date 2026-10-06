@@ -56,7 +56,7 @@
 //! | `S`-ON-`S` | convex edge | `S` |
 //! | `S`-ON-`S` | reflex edge | opposite `S` |
 //! | `S`-ON-`S` | smooth edge or duplicate, convex graze | `S` |
-//! | `S`-ON-`S` | smooth edge or duplicate, concave graze | opposite `S` |
+//! | `S`-ON-`S` | smooth edge or duplicate, concave graze | refused by rule (a), [`SplitReduceError::KnifeEdge`] |
 //! | `S`-ON-`S` | smooth edge or duplicate, no graze | opposite `S` (a safety default) |
 //! | `A`-ON-`B`, `B`-ON-`A` | any | `Below` |
 //! | | in the band | refused, [`SplitReduceError::SliverSector`] |
@@ -106,31 +106,34 @@
 //!   cylinder or a cone touched from outside. Every bit of material at
 //!   the vertex is on `S`, so the entry goes to `S` and the body lands
 //!   whole on its material's side, as a planar edge contact does.
-//! - **Concave graze** — the material lies across the plane at first
-//!   order, and the wall bends away from it: a round hole or a conical
-//!   socket touched from inside. Material lies on both sides, and the
-//!   piece on `S` meets the cut face tangentially along the contact:
-//!   two crescents vanishing to a knife edge that the split, having no
-//!   declaration channel, refuses. The entry goes opposite `S`, which
-//!   mints the null edge, and the graze refuses
-//!   (`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`
-//!   pins the knife edge's refusal, and
-//!   `split_tangent_edge_curved.rs`'s concave rows pin it at every
-//!   azimuth). Sending it to `S` instead returns the true volumes with
-//!   the hole's wall touching the cut face's interior along the
-//!   contact, with no edge for it, and tier 3 passes that
+//! - **Concave graze** — the wall bends away from its material: a
+//!   round hole or a conical socket touched from inside. Material lies
+//!   on both sides of the plane, and the piece on the wall's side meets
+//!   the cut face tangentially along the contact: two crescents
+//!   vanishing to a knife edge that the split, having no declaration
+//!   channel, refuses. Rule (a) refuses it where it finds the wall
+//!   tangent ([`SplitReduceError::KnifeEdge`]), so rule (b) never holds
+//!   one; it reads the same contact there whether the wall's neighbours
+//!   are rim edges, a seam or a face in the plane
+//!   (`split_tangent_edge_curved.rs`'s concave rows). Sending it to `S`
+//!   instead returns the true volumes with the hole's wall touching the
+//!   cut face's interior along the contact, with no edge for it, and
+//!   tier 3 passes that
 //!   (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
-//! - A wall's first- and second-order reads that disagree contradict
-//!   the `S`-ON-`S` neighbours, which are curves on the same wall, and
-//!   refuse as a sliver; a wall that osculates its tangent plane is
-//!   [`SplitReduceError::TangencyUnsupported`].
+//! - A convex wall whose material, read at first order, lies across
+//!   from its `S`-ON-`S` neighbours contradicts them (they are curves
+//!   on the same wall) and refuses as a sliver; a wall that osculates
+//!   its tangent plane is [`SplitReduceError::TangencyUnsupported`].
 //!
 //! Anywhere else — a plane face, or a curved one not tangent to the
 //! plane — opposite `S` stays a safety default, not a derivation: it
-//! mints the null edge, so the configuration is cut or refuses, never
-//! answered wrongly. The rows are
+//! mints the null edge, and the join cuts there. A contact with no
+//! material across it never takes the default: a cusp's zero-width
+//! sector is refused by the neighbourhood classifier before either
+//! rule runs (`SliverSector` on `sector_straight`), and a curved wall
+//! tangent to the plane is rule (a)'s. The rows are
 //! `sweep/tests/split_tangent_edge_curved.rs` (convex grazes of a
-//! cylinder and a cone answered, concave ones guarded).
+//! cylinder and a cone answered, concave ones refused).
 //!
 //! **Mixed** neighbours are a free convention: either side yields
 //! manifold results; `Below` is kept for both witnesses' agreement and
@@ -140,9 +143,12 @@ use geom_brep::{EntersMaterial, WallBend, enters_material};
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::neighborhood::{chord, sector_face};
-use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
+use super::{
+    KnifeEdge, KnifeEdgeSite, PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError,
+};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::{BoundaryMember, Proven, proven};
 use crate::validate::decide;
 
 /// Rule (a): reclassify both bounding entries of every
@@ -153,9 +159,10 @@ use crate::validate::decide;
 /// last-wins, as the book).
 ///
 /// Returns, per entry, whether its sector's face is a curved wall the
-/// plane grazes (tangent at the vertex, definitely bending off it):
-/// rule (b) reads those walls' convexity rather than deciding the
-/// tangency again.
+/// plane grazes from outside (tangent at the vertex, definitely bending
+/// into its material), which rule (b) reads rather than deciding the
+/// tangency again. A wall that bends away from its material is a knife
+/// edge, refused here ([`SplitReduceError::KnifeEdge`]).
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -165,6 +172,12 @@ pub(super) fn apply_rule_a<T: Decide>(
 ) -> Result<Vec<bool>, SplitReduceError> {
     let n = entries.len();
     let mut grazes = vec![false; n];
+    // The edges lying in the plane, as classified before this rule
+    // rewrites any entry: where a knife edge's contact runs.
+    let in_plane: Vec<bool> = entries
+        .iter()
+        .map(|e| e.class == PlaneSide::On && e.kind == SectorEntryKind::Edge)
+        .collect();
     for k in 0..n {
         let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
@@ -208,12 +221,8 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-                    let surface_key = body.get_face(face).ok_or_else(corrupt)?.surface;
-                    let surface = body.get_surface(surface_key).ok_or_else(corrupt)?;
-                    let p_base = *body
-                        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-                        .ok_or_else(corrupt)?;
+                    let surface = face_surface(body, face);
+                    let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
                     // WHOLE-FACE extent, which decides a bend more
@@ -222,8 +231,55 @@ pub(super) fn apply_rule_a<T: Decide>(
                     let so_margin = Margin::sagitta(kappa, extent);
                     match decide("tangent_sector_osculation", so_margin, band) {
                         Ok(Sign::Positive) => {
-                            grazes[k] = true;
-                            continue;
+                            let bend = geom_brep::bends_into_material(
+                                surface, p_base, n_face, extent, band,
+                            )
+                            .map_err(|e| match e {
+                                geom_brep::WallBendError::Indefinite(kind) => unreachable!(
+                                    "a {kind:?} wall reached rule (a): `sector_face` admits \
+                                     only planes, cylinders and cones"
+                                ),
+                                geom_brep::WallBendError::Lever(geom_brep::LeverEscalation {
+                                    diag,
+                                    ..
+                                }) => sliver(diag),
+                            })?;
+                            match bend {
+                                WallBend::IntoMaterial => {
+                                    grazes[k] = true;
+                                    continue;
+                                }
+                                WallBend::OutOfMaterial => {
+                                    let at = [k, (k + 1) % n]
+                                        .into_iter()
+                                        .filter(|&j| in_plane[j])
+                                        .map(|j| {
+                                            proven(
+                                                &body.half_edges,
+                                                entries[j].he,
+                                                EntityId::HalfEdge,
+                                            )
+                                            .edge
+                                        })
+                                        .find(|&e| straight(body, e))
+                                        .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge);
+                                    return Err(SplitReduceError::KnifeEdge(KnifeEdge {
+                                        wall: face,
+                                        at,
+                                    }));
+                                }
+                                // A cylinder or cone has one zero principal
+                                // curvature, so this margin is half the
+                                // osculation margin just decided ≥ Kε: it
+                                // reads flat only when K ≤ 2, which
+                                // `CAD_AMBIGUITY_K` admits (any K > 1).
+                                WallBend::Flat => {
+                                    return Err(SplitReduceError::TangencyUnsupported {
+                                        face,
+                                        vertex,
+                                    });
+                                }
+                            }
                         }
                         Ok(Sign::Zero | Sign::Negative) => {
                             return Err(SplitReduceError::TangencyUnsupported { face, vertex });
@@ -267,6 +323,16 @@ pub(super) fn apply_rule_a<T: Decide>(
         entries[(k + 1) % n].class = class;
     }
     Ok(grazes)
+}
+
+/// Whether `edge` is a straight line: the shape of the contact a plane
+/// tangent to a cylinder or a cone makes, along a ruling.
+fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
+    let curve = proven(&body.edges, edge, EntityId::Edge).curve;
+    matches!(
+        body.get_curve_geom(curve).and_then(crate::null::CurveGeom::certified),
+        Some(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
+    )
 }
 
 /// Rule (b): reclassify every remaining ON entry by its cyclic
@@ -352,7 +418,6 @@ fn edge_wedge<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<Option<bool>, SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
     let (own_face, n_own, _) = sector_face(body, vertex, prev)?;
     let (mate_face, n_mate, _) = sector_face(body, vertex, he)?;
     let sliver = |diag| SplitReduceError::SliverSector {
@@ -360,15 +425,8 @@ fn edge_wedge<T: Decide>(
         face: mate_face,
         diag,
     };
-    let surface = |face: FaceKey| {
-        body.get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .ok_or_else(corrupt)
-    };
-    let (s_own, s_mate) = (surface(own_face)?, surface(mate_face)?);
-    let p = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
+    let (s_own, s_mate) = (face_surface(body, own_face), face_surface(body, mate_face));
+    let p = body.resolve_vertex_point(vertex, Proven);
     let (_, along, _) = chord(body, vertex, he)?;
     let extent = along.norm();
     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
@@ -407,60 +465,43 @@ fn wall_graze<T: Decide>(
     side: PlaneSide,
     band: Band,
 ) -> Result<PlaneSide, SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let p = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
     let toward_side = if side == PlaneSide::Above {
         plane.normal.get()
     } else {
         -plane.normal.get()
     };
     let mut verdict = None;
-    for &(he, tangent) in sectors {
+    for &(he, grazed) in sectors {
         let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
-        let contradiction = |predicate| sliver(crate::invalid_margin::invalid(band, predicate));
-        let this =
-            if tangent {
-                let extent = face_extent(body, vertex, face)?;
-                let surface = body
-                    .get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .ok_or_else(corrupt)?;
-                let material_on_side = match enters_material(toward_side, n_face, extent, band) {
-                    Ok(EntersMaterial::Enters) => true,
-                    Ok(EntersMaterial::Exits) => false,
-                    Ok(EntersMaterial::Tangent) => return Err(contradiction("enters_material")),
-                    Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
-                };
-                let bend = geom_brep::bends_into_material(surface, p, n_face, extent, band)
-                    .map_err(|e| match e {
-                        geom_brep::WallBendError::Indefinite(kind) => {
-                            SplitReduceError::CurvedBooleanUnsupported { face, kind }
-                        }
-                        geom_brep::WallBendError::Lever(geom_brep::LeverEscalation {
-                            diag,
-                            ..
-                        }) => sliver(diag),
-                    })?;
-                match (material_on_side, bend) {
-                    (true, WallBend::IntoMaterial) => side,
-                    (false, WallBend::OutOfMaterial) => side.opposite(),
-                    (_, WallBend::Flat) => {
-                        return Err(SplitReduceError::TangencyUnsupported { face, vertex });
-                    }
-                    _ => return Err(contradiction("wall_bend_order2")),
+        let this = if grazed {
+            // Rule (a) read this wall bending into its material, so its
+            // material lies on the side it leaves the plane toward.
+            let extent = face_extent(body, vertex, face)?;
+            match enters_material(toward_side, n_face, extent, band) {
+                Ok(EntersMaterial::Enters) => side,
+                Ok(EntersMaterial::Exits | EntersMaterial::Tangent) => {
+                    return Err(sliver(crate::invalid_margin::invalid(
+                        band,
+                        "wall_bend_order2",
+                    )));
                 }
-            } else {
-                side.opposite()
-            };
+                Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+            }
+        } else {
+            side.opposite()
+        };
         match verdict {
-            Some(v) if v != this => return Err(contradiction("wall_bend_order2")),
+            Some(v) if v != this => {
+                return Err(sliver(crate::invalid_margin::invalid(
+                    band,
+                    "wall_bend_order2",
+                )));
+            }
             _ => verdict = Some(this),
         }
     }
-    verdict.ok_or_else(corrupt)
+    Ok(verdict.unwrap_or_else(|| unreachable!("rule (b) hands wall_graze at least one sector")))
 }
 
 /// The face-extent lever arm for the coplanarity/sense predicates: the
@@ -482,24 +523,16 @@ fn wall_graze<T: Decide>(
 ///   outer boundary at all, so its locus is unbounded and no finite
 ///   arm over-estimates anything. That is refused, not measured.
 ///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
-///   validated operand cannot carry one; the boolean's operand gate
-///   (`gate_operand_pairs`) runs it, but the split's operand gate does
-///   not, which is why the refusal is here rather than assumed.
+///   validated operand cannot carry one. The split's doors run tier 2
+///   on an operand that carries no verdict, but this read does not
+///   assume its caller's gate (a test-support door reaches it past
+///   that gate), which is why the refusal is here rather than assumed.
 ///
-/// The refusal is [`SplitReduceError::CorruptOperand`], whose own doc
-/// is *"a traversal failed (broken orbit/loop or a **lone vertex**):
-/// the operand is not a well-formed closed solid"* — which is what an
-/// empty outer loop is, and what `validate_closed` calls
-/// `ScaffoldingEmptyLoop`. It names the loop's **lone vertex**, not the
-/// caller's base vertex, so the message points at the thing that is
-/// wrong. It cannot also name the FACE: the variant carries a
-/// `VertexKey` only, and widening it to an `EntityId` is public API,
-/// filed as issue #695 (`splitting/neighborhood.rs`). Both outside
-/// callers (`chord_join.rs:1088`, `:1289`) then `map_err` this into
-/// their own corrupt-face / corrupt-vertex refusals, so at those two
-/// the distinction is flattened on arrival — loud, but reported as a
-/// body corruption for what is really unsupported inventory. Closing
-/// that properly is #695's, not this arm's.
+/// The refusal is [`UnboundedFace`], naming the face
+/// and the loop's lone vertex. Every caller resolves `vertex` and
+/// `face` in the same `&Body` call, by a refusal of its own or as a
+/// record it just read, so every hop past them is a link, and a miss
+/// panics.
 ///
 /// [`LoopBoundary::Empty`]: crate::entity::LoopBoundary::Empty
 /// [`Margin::levered`]: geom_core::Margin::levered
@@ -507,40 +540,46 @@ pub(crate) fn face_extent<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     face: FaceKey,
-) -> Result<T, SplitReduceError> {
-    use crate::entity::LoopBoundary;
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let point_of = |v: VertexKey| -> Result<geom_core::Point3<T>, SplitReduceError> {
-        Ok(*body
-            .get_point(body.get_vertex(v).ok_or_else(corrupt)?.point)
-            .ok_or_else(corrupt)?)
-    };
-    let p_base = point_of(vertex)?;
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+) -> Result<T, UnboundedFace> {
+    let p_base = body.resolve_vertex_point(vertex, Proven);
+    let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = T::zero();
     let outer = face_data.outer;
-    let loops = core::iter::once(outer).chain(face_data.rings.iter().copied());
-    for loop_key in loops {
-        let loop_data = body.get_loop(loop_key).ok_or_else(corrupt)?;
-        let first = match loop_data.boundary {
-            LoopBoundary::Cycle { first } => first,
-            // An unbounded face has no finite lever arm (docs above).
-            // Named at the loop's own lone vertex, not the caller's
-            // base vertex: that is the entity the refusal is about.
-            LoopBoundary::Empty { vertex: lone } if loop_key == outer => {
-                return Err(SplitReduceError::CorruptOperand { vertex: lone });
-            }
-            LoopBoundary::Empty { vertex: lone } => {
-                extent = extent.max((point_of(lone)? - p_base).norm());
-                continue;
-            }
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let start = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-            extent = extent.max((point_of(start)? - p_base).norm());
+    for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
+        for member in members {
+            let p = match member {
+                // An unbounded face has no finite lever arm (docs above).
+                BoundaryMember::Isolated { vertex: lone, .. } if loop_key == outer => {
+                    return Err(UnboundedFace { face, vertex: lone });
+                }
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
+                }
+            };
+            extent = extent.max((p - p_base).norm());
         }
     }
     Ok(extent)
+}
+
+/// [`face_extent`]'s refusal: `face`'s outer loop is the lone `vertex`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct UnboundedFace {
+    pub(crate) face: FaceKey,
+    pub(crate) vertex: VertexKey,
+}
+
+impl From<UnboundedFace> for SplitReduceError {
+    fn from(UnboundedFace { face, vertex }: UnboundedFace) -> Self {
+        Self::UnboundedFace { face, vertex }
+    }
+}
+
+/// `face`'s surface, for a face the caller resolved: its `surface` is a
+/// link, and a miss panics.
+fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> &geom::Surface<T> {
+    body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
 }
 
 #[cfg(test)]
@@ -548,6 +587,25 @@ pub(crate) fn face_extent<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **The face extent panics on a ring link that does not resolve**,
+    /// where it stepped over it.
+    #[test]
+    fn the_face_extent_panics_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let vertex = body.vertices().next().map(|(k, _)| k).unwrap();
+        assert!(face_extent(&body, vertex, face).is_ok(), "a bounded face");
+        let named = tear_ring(&mut body, face);
+        assert_torn_op_panics(
+            "face_extent",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| face_extent(b, vertex, face),
+        );
+    }
 
     fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
         classes
@@ -608,6 +666,7 @@ mod tests {
     fn classify_apex(row: &Row) -> (PlaneSide, PlaneSide, Option<bool>, PlaneSide) {
         let tol = Tol::witness();
         let fx = crate::test_support_fixtures::prism::<f64>(row.profile, 1.0, tol);
+        let operand = crate::test_support::finished("the fixture", fx.body.clone(), tol);
         let plane = crate::test_support_fixtures::split_plane(
             geom_core::Point3::new(0.0, 1.0, 0.0),
             geom_core::Vec3::new(0.0, row.normal, 0.0),
@@ -623,7 +682,7 @@ mod tests {
         };
         let (base, far) = (at(0.0), at(1.0));
         let band = Band::linear(tol).unwrap();
-        let (sides, _) = crate::vertex_sides(&fx.body, &plane, tol).unwrap();
+        let (sides, _) = crate::vertex_sides(&operand, &plane, tol).unwrap();
         let entries =
             super::super::classify_neighborhood(&fx.body, &plane, &sides, base, band).unwrap();
         let n = entries.len();
@@ -676,6 +735,7 @@ mod tests {
         let tol = Tol::witness();
         let body =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let body = crate::test_support::finished("the body", body, tol);
         let band = Band::linear(tol).unwrap();
         let h = core::f64::consts::FRAC_1_SQRT_2;
         let point = |v: VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
@@ -751,24 +811,10 @@ mod tests {
             body.get_loop(seed.r#loop).unwrap().boundary,
             crate::entity::LoopBoundary::Empty { .. }
         ));
-        // `face_extent` mints `CorruptOperand` from eleven arena
-        // lookups as well as from the arm under test, so the variant
-        // alone cannot tell the refusal from a broken fixture. Pin the
-        // fixture first — every lookup the function makes resolves —
-        // and then pin the vertex the refusal NAMES, which is the
-        // loop's lone vertex and not the base vertex the eleven others
-        // would report.
-        assert!(body.get_face(seed.face).is_some(), "fixture: face resolves");
-        assert!(
-            body.get_vertex(seed.vertex)
-                .and_then(|v| body.get_point(v.point))
-                .is_some(),
-            "fixture: the base vertex and its point resolve"
-        );
         assert!(
             matches!(
                 face_extent(&body, seed.vertex, seed.face),
-                Err(SplitReduceError::CorruptOperand { vertex }) if vertex == seed.vertex
+                Err(UnboundedFace { face, vertex }) if face == seed.face && vertex == seed.vertex
             ),
             "an empty OUTER loop refuses at its own lone vertex; it must not answer zero"
         );
@@ -797,11 +843,8 @@ mod tests {
             .unwrap();
         let (far, far_d) = cube
             .body
-            .vertices()
-            .map(|(k, v)| {
-                let p = *cube.body.get_point(v.point).unwrap();
-                (k, (p - p_base).norm())
-            })
+            .vertex_points()
+            .map(|(k, p)| (k, (p - p_base).norm()))
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
             .unwrap();
         assert!(

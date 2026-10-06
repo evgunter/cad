@@ -9,12 +9,11 @@
 //! tiers and to its volume against the two spherical caps the radical
 //! plane cuts, computed here from the radii alone.
 //!
-//! **What builds is the COPLANAR-seam pose.** Both balls are revolved
-//! from the same seam, so each seam meridian pierces the other sphere
-//! on the other's seam meridian and every chord runs seam to seam. Spin
-//! one ball about the shared axis and the pierce lands inside a
-//! half-band instead, which is the pierce-ring door — pinned below as
-//! the frontier, not as a body.
+//! **The seams need not be coplanar.** Both balls are revolved from the
+//! same seam, so each seam meridian pierces the other sphere on the
+//! other's seam meridian and every chord runs seam to seam. Spin one
+//! ball about the shared axis and the pierce lands inside a half-band
+//! instead, a pierce ring, which joins: that pose builds too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -25,19 +24,20 @@ use super::common::certificates::assert_certificates_fresh;
 
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
-use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp, EdgeKey, ShellKey};
+use sweep::test_support::{finished, revolved_about_y};
+use topo::{AtRestBody, Body, BooleanOp, EdgeKey, ShellKey};
 
 /// A ball of radius `r` centred on the y axis at height `y`.
-fn ball(r: f64, y: f64) -> Body<f64> {
-    revolved_about_y(
+fn ball(r: f64, y: f64) -> AtRestBody<f64> {
+    let ball = revolved_about_y(
         vec![
             (Point2::new(0.0, y - r), 1.0),
             (Point2::new(0.0, y + r), 0.0),
         ],
         Revolution::Full,
         Tol::witness(),
-    )
+    );
+    finished("the ball", ball, Tol::witness())
 }
 
 fn ball_volume(r: f64) -> f64 {
@@ -62,6 +62,20 @@ fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
 /// closed-form faces, so the slack is rounding's and a wrong body (a
 /// lens counted twice, a cap dropped) misses by orders of magnitude.
 fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
+    let m = mesh::tessellate(body, 1e-3, Tol::witness())
+        .unwrap_or_else(|e| panic!("{label}: tessellates, got {e:?}"));
+    assert_eq!(
+        mesh::validate::check_mesh(&m),
+        Ok(()),
+        "{label}: a closed manifold mesh"
+    );
+    assert_solid(label, body, expected);
+}
+
+/// [`assert_body`] short of the mesh, for a body carrying a sphere face
+/// a tilted circle bounds, which has no tessellation lane
+/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
         topo::validate_closed(body),
@@ -72,13 +86,6 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         topo::validate_geometric(body, Tol::witness()),
         Ok(()),
         "{label}: validate_geometric"
-    );
-    let m = mesh::tessellate(body, 1e-3, Tol::witness())
-        .unwrap_or_else(|e| panic!("{label}: tessellates, got {e:?}"));
-    assert_eq!(
-        mesh::validate::check_mesh(&m),
-        Ok(()),
-        "{label}: a closed manifold mesh"
     );
     let p = topo::mass_properties(body, Tol::witness())
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
@@ -94,7 +101,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 
 /// The boolean's body; an empty result or a refusal fails with the
 /// payload.
-fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn run(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
     let out = match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
         BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
@@ -131,7 +138,7 @@ fn the_snowman_builds_under_every_boolean() {
 }
 
 /// The boolean's refusal; a body fails with the op named.
-fn refusal(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> topo::BooleanError {
+fn refusal(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> topo::BooleanError {
     match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
         BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
@@ -265,8 +272,7 @@ fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
     let h = delta * (2.0 * R2 - delta) / (2.0 * d);
     let (y_star, a) = (R1 - h, (h * (2.0 * R1 - h)).sqrt());
     let mut pierces = 0;
-    for (key, _) in body.vertices() {
-        let p = topo::readback::vertex_point(body, key).unwrap();
+    for (_, p) in body.vertex_points() {
         let off_axis = p.x.hypot(p.z);
         if off_axis <= eps {
             continue;
@@ -382,15 +388,16 @@ fn a_nested_pair_builds_under_every_boolean() {
 fn the_snowman_builds_at_the_interval_scalar() {
     use crate::common::interval::iv;
     use geom_core::{Bounds, Interval};
-    let ball_iv = |r: f64, y: f64| -> Body<Interval> {
-        sweep::test_support::revolved_about_y_at::<Interval>(
+    let ball_iv = |r: f64, y: f64| -> AtRestBody<Interval> {
+        let ball = sweep::test_support::revolved_about_y_at::<Interval>(
             vec![
                 (Point2::new(iv(0.0), iv(y - r)), iv(1.0)),
                 (Point2::new(iv(0.0), iv(y + r)), iv(0.0)),
             ],
             Revolution::Full,
             Tol::witness(),
-        )
+        );
+        finished("the ball", ball, Tol::witness())
     };
     let (a, b) = (ball_iv(R1, 0.0), ball_iv(R2, D));
     let lens = lens_volume(R1, R2, D);
@@ -556,6 +563,7 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
     // into one first.
     hemi.merge_coplanar_faces(Tol::witness())
         .expect("the hemisphere's cap halves merge");
+    let hemi = finished("the hemisphere", hemi, Tol::witness());
     let (r, c) = (0.9, -0.2);
     let b = ball(r, c);
     let spheres = [(1.0, 0.0), (r, c)];
@@ -579,8 +587,8 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
 /// **The snowman builds spun, too.** Spin B about the shared axis by any
 /// angle off `0` and `π` and A's seam meridian pierces B's sphere at a
 /// point INSIDE B's half-band rather than on B's seam: that pierced face
-/// carries a pierce ring, and its chords take their arc from the face's
-/// own azimuth window. The spin moves no volume, so every op meets the
+/// carries a pierce ring, and its chords take the arc the pierce germs'
+/// directions name. The spin moves no volume, so every op meets the
 /// coplanar pose's closed form.
 #[test]
 fn a_spun_snowman_builds_under_every_boolean() {
@@ -593,7 +601,11 @@ fn a_spun_snowman_builds_under_every_boolean() {
             geom_core::Vec3::new(0.0, 1.0, 0.0),
             angle,
         );
-        let b = topo::transform_rigid(&ball(R2, D), &spin, Tol::witness()).unwrap();
+        let b = finished(
+            "the spun ball",
+            topo::transform_rigid(&ball(R2, D), &spin, Tol::witness()).unwrap(),
+            Tol::witness(),
+        );
         for (label, op, x, y, expected) in [
             ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - lens),
             ("A ∩ B", BooleanOp::Intersect, &a, &b, lens),
@@ -612,28 +624,70 @@ fn a_spun_snowman_builds_under_every_boolean() {
 /// **A straight edge through a ball** reaches the line × sphere roots
 /// through a public op: a square bar poking out of a ball, its long
 /// edges straddling the sphere. They pierce, the pierce points' sector
-/// sides certify, and the op goes on to the join, where the bar's faces
-/// cut the sphere in circles tilted against its polar axis. Those take
-/// the run-side arc rule, and a run end the bar's corner leaves reflex
-/// refuses there (`SectionArcSide { ReflexRunEnd }`), typed, for every
-/// op. A refusal at the pierce door would mean the root lane went dark.
+/// sides certify, and the bar's faces cut the sphere in circles tilted
+/// against its polar axis, each chord ending at a corner of the bar
+/// where the face it divides turns reflex. Every op builds. The shared
+/// volume is `∬ (√(1 − y² − z²) − ½) dy dz` over the bar's square
+/// section, integrated here in `z` in closed form and in `y` by
+/// Simpson's rule. The sphere faces left are bounded by circles tilted
+/// against the ball's chart, which the tessellator does not draw yet
+/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`),
+/// so the rows stop at the exact volume and the three tiers.
 #[test]
-fn a_bar_through_a_ball_crosses_the_sphere() {
+fn a_bar_through_a_ball_builds_under_every_boolean() {
     let a = ball(R1, 0.0);
-    let bar =
-        topo::test_support::brick::<f64>((0.5, 2.0), (-0.3, 0.3), (-0.3, 0.3), Tol::witness());
-    for op in OPS {
-        let e = refusal(op, &a, &bar);
+    let half = 0.3;
+    let bar = finished(
+        "the bar",
+        topo::test_support::brick::<f64>((0.5, 2.0), (-half, half), (-half, half), Tol::witness()),
+        Tol::witness(),
+    );
+    // ∫_{−h}^{h} √(c² − z²) dz = h·√(c² − h²) + c²·asin(h/c), c² = 1 − y².
+    let slice = |y: f64| {
+        let c2 = 1.0 - y * y;
+        half * (c2 - half * half).sqrt() + c2 * (half / c2.sqrt()).asin() - half
+    };
+    let n = 2000;
+    let step = 2.0 * half / f64::from(n);
+    let simpson: f64 = (0..=n)
+        .map(|i| {
+            let w = if i == 0 || i == n {
+                1.0
+            } else if i % 2 == 1 {
+                4.0
+            } else {
+                2.0
+            };
+            w * slice(-half + f64::from(i) * step)
+        })
+        .sum();
+    let shared = simpson * step / 3.0;
+    let (va, vb) = (ball_volume(R1), 1.5 * (2.0 * half).powi(2));
+    for (label, op, x, y, expected) in [
+        ("ball ∪ bar", BooleanOp::Union, &a, &bar, va + vb - shared),
+        ("ball ∩ bar", BooleanOp::Intersect, &a, &bar, shared),
+        ("ball ∖ bar", BooleanOp::Subtract, &a, &bar, va - shared),
+        ("bar ∖ ball", BooleanOp::Subtract, &bar, &a, vb - shared),
+    ] {
+        let body = run(op, x, y);
+        assert_eq!(topo::validate(&body), Ok(()), "{label}: validate");
+        assert_eq!(
+            topo::validate_closed(&body),
+            Ok(()),
+            "{label}: validate_closed"
+        );
+        assert_eq!(
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "{label}: validate_geometric"
+        );
+        let p = topo::mass_properties(&body, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
+        assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
         assert!(
-            matches!(
-                e,
-                topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide {
-                    case: topo::ArcSideCase::ReflexRunEnd,
-                    ..
-                })
-            ),
-            "bar through a ball under {op:?}: expected to cross the sphere and stop at the \
-             run-side rule's reflex run end, got {e:?}"
+            (p.volume - expected).abs() <= 1e-9 * expected.max(1.0),
+            "{label}: volume {} against the slice integral {expected}",
+            p.volume
         );
     }
 }
@@ -713,7 +767,11 @@ fn the_snowman_waist_fillets() {
 
 /// The boolean's body, `None` for an empty result; a refusal fails
 /// with the payload.
-fn run_or_empty(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
+fn run_or_empty(
+    op: BooleanOp,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> Option<AtRestBody<f64>> {
     let out = match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
         BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
@@ -806,8 +864,11 @@ fn a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds() {
     let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
     let v_lens = lens_volume(R1, R2, D);
     for (label, (y0, y1)) in [("below", (-3.0, -0.5)), ("above", (1.6, 3.0))] {
-        let slab: Body<f64> =
-            sweep::test_support::brick((-2.0, 2.0), (y0, y1), (-2.0, 2.0), Tol::witness());
+        let slab: AtRestBody<f64> = finished(
+            "the slab",
+            sweep::test_support::brick((-2.0, 2.0), (y0, y1), (-2.0, 2.0), Tol::witness()),
+            Tol::witness(),
+        );
         let v_slab = 16.0 * (y1 - y0);
         for (op, x, y, want) in [
             (BooleanOp::Union, &lens, &slab, v_lens + v_slab),
@@ -827,22 +888,77 @@ fn a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds() {
 }
 
 /// A 6 × 1 × 6 slab whose near face lies in the plane at distance `s`
-/// from the origin along the y axis tilted by `tilt` degrees about x —
-/// toward azimuth π/2 of the lens's chart for a positive tilt, 3π/2 for
-/// a negative one, so the plane's circle on a lens sphere stays clear of
-/// the seam meridians in `z = 0`. Wide enough that its side faces clear
-/// every sphere.
-fn tilted_slab(tilt: f64, s: f64) -> Body<f64> {
+/// from the origin along the y axis turned by `tilt` degrees about
+/// `axis`. Wide enough that its side faces clear every sphere.
+fn tilted_slab_about(axis: geom_core::Vec3<f64>, tilt: f64, s: f64) -> AtRestBody<f64> {
     use geom_core::{Affine3, Point3, Vec3};
-    let rot = Affine3::rotation_about_axis(
-        Point3::origin(),
-        Vec3::new(1.0, 0.0, 0.0),
-        tilt.to_radians(),
-    );
+    let rot = Affine3::rotation_about_axis(Point3::origin(), axis, tilt.to_radians());
     let n = rot.transform_vec(Vec3::new(0.0, 1.0, 0.0));
     let slab: Body<f64> =
         sweep::test_support::brick((-3.0, 3.0), (0.0, 1.0), (-3.0, 3.0), Tol::witness());
-    topo::transform_rigid(&slab, &(Affine3::translation(n * s) * rot), Tol::witness()).unwrap()
+    let slab =
+        topo::transform_rigid(&slab, &(Affine3::translation(n * s) * rot), Tol::witness()).unwrap();
+    finished("the tilted slab", slab, Tol::witness())
+}
+
+/// [`tilted_slab_about`] the x axis: toward azimuth π/2 of the lens's
+/// chart for a positive tilt, 3π/2 for a negative one, so the plane's
+/// circle on a lens sphere stays clear of the seam meridians in `z = 0`.
+fn tilted_slab(tilt: f64, s: f64) -> AtRestBody<f64> {
+    tilted_slab_about(geom_core::Vec3::new(1.0, 0.0, 0.0), tilt, s)
+}
+
+/// Every op in both orders of `x` (volume `vx`) and `y` (`vy`), whose
+/// common part is `meet`, against the closed forms. Each result carries
+/// a tilted circle ([`assert_solid`]).
+fn assert_every_op(
+    label: &str,
+    (x, vx): (&AtRestBody<f64>, f64),
+    (y, vy): (&AtRestBody<f64>, f64),
+    meet: f64,
+) {
+    for (op, p, q, want) in [
+        (BooleanOp::Union, x, y, vx + vy - meet),
+        (BooleanOp::Union, y, x, vx + vy - meet),
+        (BooleanOp::Intersect, x, y, meet),
+        (BooleanOp::Intersect, y, x, meet),
+        (BooleanOp::Subtract, x, y, vx - meet),
+        (BooleanOp::Subtract, y, x, vy - meet),
+    ] {
+        let name = format!("{label}, ε {}: {op:?}", Tol::witness().eps());
+        assert_solid(&name, &run(op, p, q), want);
+    }
+}
+
+/// [`assert_every_op`] for `body` against a 6 × 1 × 6 slab whose plane
+/// cuts a cap of `cap` off it and nothing else.
+fn assert_cap_cut(label: &str, body: &AtRestBody<f64>, v: f64, slab: &AtRestBody<f64>, cap: f64) {
+    assert_every_op(label, (body, v), (slab, 36.0), cap);
+}
+
+/// The unit direction at latitude `lat` (from the xz plane toward +y)
+/// and azimuth `az` (from +x toward +z), in degrees.
+fn dir(lat: f64, az: f64) -> geom_core::Vec3<f64> {
+    let (lat, az) = (lat.to_radians(), az.to_radians());
+    geom_core::Vec3::new(lat.cos() * az.cos(), lat.sin(), lat.cos() * az.sin())
+}
+
+/// A `2w × t × 2w` brick whose near face lies in the plane `n·p = s`,
+/// centred on its foot, its material beyond the plane.
+fn brick_toward(n: geom_core::Vec3<f64>, s: f64, w: f64, t: f64) -> AtRestBody<f64> {
+    use geom_core::{Affine3, Point3, Vec3};
+    let tol = Tol::witness();
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let n = n / n.norm();
+    let axis = y.cross(n);
+    let rot = Affine3::rotation_about_axis(
+        Point3::origin(),
+        axis / axis.norm(),
+        axis.norm().atan2(y.dot(n)),
+    );
+    let brick: Body<f64> = sweep::test_support::brick((-w, w), (0.0, t), (-w, w), tol);
+    let brick = topo::transform_rigid(&brick, &(Affine3::translation(n * s) * rot), tol).unwrap();
+    finished("the brick", brick, tol)
 }
 
 /// **A tilted slab against the lens, away from its seam.** The slab's
@@ -854,14 +970,14 @@ fn tilted_slab(tilt: f64, s: f64) -> Body<f64> {
 ///   part of the unit sphere the lens trims away: the lens's faces are
 ///   certified apart from the plane face, so it is no escape, and every
 ///   op builds against the lens's caps and the slab's 36.
-/// - Tilted 20°, the circle lies inside the lens's top face: the plane
-///   cuts a cap of height 0.015 off the lens, a real escape of a
-///   TRIMMED group, which the re-chart cannot serve. Every op refuses
-///   it typed. Skipping the trimmed group without asking whether its
-///   faces meet the plane face would instead build tier-3-valid bodies
-///   short or long by that cap.
+/// - Tilted 20°, the circle lies inside the lens's top face, a TRIMMED
+///   group, and the plane cuts a cap of height 0.015 off the lens. The
+///   face takes a cut along its chart's meridian through the circle, and
+///   every op builds against the cap `πh²(3 − h)/3`. Skipping the
+///   trimmed group without asking whether its faces meet the plane face
+///   would instead build tier-3-valid bodies short or long by that cap.
 #[test]
-fn a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape() {
+fn a_tilted_slab_against_the_lens_builds_off_the_seam() {
     let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
     let v_lens = lens_volume(R1, R2, D);
     let v_slab = 36.0;
@@ -883,36 +999,265 @@ fn a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape() {
         }
     }
     for tilt in [20.0, -20.0] {
-        let slab = tilted_slab(tilt, 0.985);
-        for (x, y) in [(&lens, &slab), (&slab, &lens)] {
-            for op in OPS {
-                let e = refusal(op, x, y);
-                assert!(
-                    matches!(
-                        e,
-                        topo::BooleanError::FallbackExtentUnsupported { what, .. }
-                            if what.contains("TRIMMED sphere face group escapes")
-                    ),
-                    "slab tilted {tilt}° under {op:?}: expected the trimmed escape, got {e:?}"
-                );
-            }
-        }
+        let label = format!("slab tilted {tilt}° about x");
+        assert_cap_cut(
+            &label,
+            &lens,
+            v_lens,
+            &tilted_slab(tilt, 0.985),
+            cap_volume(R1, 0.015),
+        );
     }
 }
 
-/// **A millimetre lens inside a ball, at the tolerance that cannot
-/// place the section circle.** The lens of [`R1`], [`R2`], [`D`] scaled
-/// by `k = 1e-3`, inside `ball(0.9k)` centred at `(0.1, 1, −0.1)·k`: the
-/// ball's sphere crosses the carriers of both lens spheres off the
-/// lens's faces. At ε 1e-6 the band is a thousandth of the bodies, and
-/// the section certificate's witness on one crossing circle lands in
-/// it: no point placed, so the pair refuses with the certificate's own
-/// reason (R-undec) as `FallbackExtentUnsupported`, never as spheres
-/// that meet, and never as apart. At every other ε the circles are
-/// certified off the faces and every op builds against the caps,
-/// to 1e-9 of the result (the volumes are of order k³).
+/// **The same cap, with the circle across the lens's seam meridians**:
+/// the slab turned 20° about z instead, so the plane's circle crosses
+/// the seams in `z = 0` and the crossing layer sees it without a cut.
+/// Every op builds against the cap of height 0.015.
 #[test]
-fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
+fn a_slab_tilted_across_the_lens_seams_builds() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+    for tilt in [20.0, -20.0] {
+        let label = format!("slab tilted {tilt}° about z");
+        let slab = tilted_slab_about(z, tilt, 0.985);
+        assert_cap_cut(
+            &label,
+            &lens,
+            lens_volume(R1, R2, D),
+            &slab,
+            cap_volume(R1, 0.015),
+        );
+    }
+}
+
+/// **A cap off a banded ball**: the unit ball kept between the planes
+/// `y = ±0.6`, a trimmed group whose two half-bands run rim to rim, cut
+/// by a slab whose plane lies 0.985 from the centre toward latitude 10°
+/// at azimuth π/2. The circle lies inside one half-band, and the
+/// meridian cut through it runs from the lower rim to the upper, so both
+/// of its ends split a rim. Every op builds against the band's
+/// `π(2·0.6 − 2·0.6³/3)` and the cap of height 0.015.
+#[test]
+fn a_slab_cutting_a_cap_off_a_banded_ball_builds() {
+    let band = finished(
+        "the band's box",
+        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
+    let v_banded = PI * (1.2 - 2.0 * 0.6f64.powi(3) / 3.0);
+    let slab = tilted_slab(80.0, 0.985);
+    assert_cap_cut(
+        "banded ball",
+        &banded,
+        v_banded,
+        &slab,
+        cap_volume(1.0, 0.015),
+    );
+}
+
+/// **A cap off a pole-strut carve.** The ball of radius 0.5 less the box
+/// `[−1, 0.25] × [−1, 1] × [−1, 0]` (`join1_r1_rows`'s pole-strut pose),
+/// cut by a slab 0.4925 from the centre: toward latitude 10° at azimuth
+/// π/2, and toward `(0.866, 0.1, −0.5)` inside the face the box's
+/// `x = 0.25` circle trims. The second cut's meridian meets that one
+/// tilted arc at both its ends. Every op builds against the carve's
+/// ball less the `z ≤ 0` half-ball's `x ≤ 0.25` part, and the cap of
+/// height 0.0075.
+#[test]
+fn a_slab_cutting_a_cap_off_a_pole_strut_carve_builds() {
+    use geom_core::Vec3;
+    let tol = Tol::witness();
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_y(0.5, Vec3::new(0.0, 0.0, 0.0), tol),
+        tol,
+    );
+    let cutter = finished(
+        "the box",
+        sweep::test_support::brick((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol),
+        tol,
+    );
+    let carve = run(BooleanOp::Subtract, &ball, &cutter);
+    let v_carve = ball_volume(0.5) - (ball_volume(0.5) - cap_volume(0.5, 0.25)) / 2.0;
+    let t = 10f64.to_radians();
+    for n in [
+        Vec3::new(0.0, t.sin(), t.cos()),
+        Vec3::new(0.866, 0.1, -0.5),
+    ] {
+        assert_cap_cut(
+            &format!("pole strut, slab toward {n:?}"),
+            &carve,
+            v_carve,
+            &brick_toward(n, 0.4925, 3.0, 1.0),
+            cap_volume(0.5, 0.0075),
+        );
+    }
+}
+
+/// **A pole-to-pole cut**: the unit ball's half-disc revolved by 4
+/// radians about y, whose one sphere face runs pole to pole between two
+/// meridian arcs, cut by a slab 0.985 from the centre toward latitude 0
+/// at azimuth −114.6° (the face's middle) and toward latitude −20° at
+/// −160.4°. The cut's two ends are the poles, a half-turn apart, whatever
+/// sign the rounding gives the cross term between them. Every op builds
+/// against the wedge's `2θ/3` and the cap of height 0.015.
+#[test]
+fn a_pole_to_pole_cut_of_a_ball_wedge_builds() {
+    let theta: f64 = 4.0;
+    let wedge = finished(
+        "the wedge",
+        revolved_about_y(
+            vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
+            Revolution::Partial(theta),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    );
+    for (lat, share) in [(0.0, 0.5), (-20.0, 0.7)] {
+        let az = -(theta * share).to_degrees();
+        assert_cap_cut(
+            &format!("wedge, slab toward lat {lat} az {az:.1}"),
+            &wedge,
+            2.0 * theta / 3.0,
+            &brick_toward(dir(lat, az), 0.985, 3.0, 1.0),
+            cap_volume(1.0, 0.015),
+        );
+    }
+}
+
+/// **Two cut-ins on one face, in either order.** Each later cut lies on
+/// whichever piece of the face an earlier cut left its circle on.
+///
+/// - The lens against two disjoint bricks whose near planes lie 0.985
+///   from the unit sphere's centre toward latitude 68° at azimuths 130°
+///   and 50°, both caps inside the lens's top face, united as one
+///   operand in both orders.
+/// - The banded ball against a cube of half-side 0.985 turned 45° and
+///   135° about y: the same point set, whose four side faces cut four
+///   caps, two on each half-band, met in different orders.
+///
+/// Every op builds against the closed forms.
+#[test]
+fn two_cut_ins_on_one_face_build_in_either_order() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let cap = cap_volume(1.0, 0.015);
+    for (az1, az2) in [(130.0, 50.0), (50.0, 130.0)] {
+        let bricks = run(
+            BooleanOp::Union,
+            &brick_toward(dir(68.0, az1), 0.985, 0.2, 0.3),
+            &brick_toward(dir(68.0, az2), 0.985, 0.2, 0.3),
+        );
+        assert_every_op(
+            &format!("lens, bricks at az {az1}/{az2}"),
+            (&lens, lens_volume(R1, R2, D)),
+            (&bricks, 2.0 * 0.4 * 0.4 * 0.3),
+            2.0 * cap,
+        );
+    }
+    let band = finished(
+        "the band's box",
+        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
+    let v_banded = PI * (1.2 - 2.0 * 0.6f64.powi(3) / 3.0);
+    let a: f64 = 0.985;
+    for turn in [45.0f64, 135.0] {
+        use geom_core::{Affine3, Point3, Vec3};
+        let cube: Body<f64> = sweep::test_support::brick((-a, a), (-a, a), (-a, a), Tol::witness());
+        let spin = Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(0.0, 1.0, 0.0),
+            turn.to_radians(),
+        );
+        let cube = finished(
+            "the cube",
+            topo::transform_rigid(&cube, &spin, Tol::witness()).unwrap(),
+            Tol::witness(),
+        );
+        assert_every_op(
+            &format!("banded ball, cube turned {turn}°"),
+            (&banded, v_banded),
+            (&cube, 8.0 * a.powi(3)),
+            v_banded - 4.0 * cap,
+        );
+    }
+}
+
+/// **A second circle across an earlier cut.** The banded ball against
+/// two disjoint bricks whose near planes lie 0.985 from the centre toward
+/// latitudes 20° and −20°: at azimuth 90° for both, the second circle's
+/// crossings lie on the first cut's meridian, which the crossing layer
+/// meets as a seam, so it takes no cut of its own; at 90° and 92°, on
+/// the piece of the half-band the first cut left it. Every op builds
+/// against the closed forms.
+#[test]
+fn a_circle_across_an_earlier_cut_takes_none_of_its_own() {
+    let band = finished(
+        "the band's box",
+        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
+    let v_banded = PI * (1.2 - 2.0 * 0.6f64.powi(3) / 3.0);
+    for az in [90.0, 92.0] {
+        let bricks = run(
+            BooleanOp::Union,
+            &brick_toward(dir(20.0, 90.0), 0.985, 0.3, 0.3),
+            &brick_toward(dir(-20.0, az), 0.985, 0.25, 0.25),
+        );
+        assert_every_op(
+            &format!("banded ball, bricks at az 90/{az}"),
+            (&banded, v_banded),
+            (&bricks, 0.6 * 0.6 * 0.3 + 0.5 * 0.5 * 0.25),
+            2.0 * cap_volume(1.0, 0.015),
+        );
+    }
+}
+
+/// **A cut whose half-meridian meets the face's boundary more than once
+/// below the circle.** The unit ball less the box `x ≥ 0.5`, cut by a
+/// slab 0.999 from the centre toward latitude ±60° at azimuth 30°. Along
+/// that half-meridian, from the circle toward the far pole, the face's
+/// boundary is the box's `x = 0.5` arc at latitude ∓54.7°, that arc again
+/// at ±54.7°, then the pole: the cut ends at the nearest. Every op
+/// builds against the ball less the cap of height 0.5, and the cap of
+/// height 0.001.
+#[test]
+fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
+    let box_ = finished(
+        "the box",
+        sweep::test_support::brick((0.5, 2.0), (-2.0, 2.0), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let carve = run(BooleanOp::Subtract, &ball(1.0, 0.0), &box_);
+    for lat in [60.0, -60.0] {
+        assert_cap_cut(
+            &format!("ball less a box, slab toward lat {lat} az 30"),
+            &carve,
+            ball_volume(1.0) - cap_volume(1.0, 0.5),
+            &brick_toward(dir(lat, 30.0), 0.999, 3.0, 1.0),
+            cap_volume(1.0, 0.001),
+        );
+    }
+}
+
+/// **A millimetre lens inside a ball builds at every tolerance.** The
+/// lens of [`R1`], [`R2`], [`D`] scaled by `k = 1e-3`, inside `ball(0.9k)`
+/// centred at `(0.1, 1, −0.1)·k`: the ball's sphere crosses the carriers
+/// of both lens spheres off the lens's faces. At ε 1e-6 the band is a
+/// thousandth of the bodies, and the section certificate's witness on
+/// one crossing circle lands in the band of a lens face's boundary
+/// arc's carrier circle, past the arc: that used to place no point, and
+/// the pair refused `FallbackExtentUnsupported` (R-undec). The face's
+/// boundary is read as the distance to the arc
+/// (`topo`'s `ConicArc::hit`), so the witness is placed off the face, the
+/// circles are certified off the faces at every ε, and every op builds
+/// against the caps, to 1e-9 of the result (the volumes are of order k³).
+#[test]
+fn a_millimetre_lens_inside_a_ball_builds_at_every_tolerance() {
     let k = 1e-3;
     let tol = Tol::witness();
     let lens = run(
@@ -921,7 +1266,11 @@ fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
         &ball(R2 * k, D * k),
     );
     let shift = geom_core::Affine3::translation(geom_core::Vec3::new(0.1 * k, k, -0.1 * k));
-    let b = topo::transform_rigid(&ball(0.9 * k, 0.0), &shift, tol).unwrap();
+    let b = finished(
+        "the shifted ball",
+        topo::transform_rigid(&ball(0.9 * k, 0.0), &shift, tol).unwrap(),
+        tol,
+    );
     let (v_lens, v_ball) = (lens_volume(R1 * k, R2 * k, D * k), ball_volume(0.9 * k));
     for (op, x, y, want) in [
         (BooleanOp::Union, &lens, &b, v_ball),
@@ -932,18 +1281,6 @@ fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
         (BooleanOp::Subtract, &b, &lens, v_ball - v_lens),
     ] {
         let label = format!("ε {} {op:?}", tol.eps());
-        if tol.eps() == 1e-6 {
-            let e = refusal(op, x, y);
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::FallbackExtentUnsupported { what, .. }
-                        if what.contains("no witness could place")
-                ),
-                "{label}: expected the certificate's undecided refusal, got {e:?}"
-            );
-            continue;
-        }
         match run_or_empty(op, x, y) {
             None => assert!(want == 0.0, "{label}: empty against {want}"),
             Some(out) => {
@@ -1043,11 +1380,19 @@ fn carried_edges(
 #[test]
 fn the_fallback_assembly_carries_the_kept_operands_certificates() {
     let tol = Tol::witness();
-    let slab: Body<f64> = sweep::test_support::brick((-2.0, 2.0), (-3.0, -2.0), (-2.0, 2.0), tol);
+    let slab: AtRestBody<f64> = finished(
+        "the slab",
+        sweep::test_support::brick((-2.0, 2.0), (-3.0, -2.0), (-2.0, 2.0), tol),
+        tol,
+    );
     let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
     // ∩ keeps shells of both operands: A's cavity sphere lies in B's
     // material and B's outer sphere in A's.
-    let block: Body<f64> = sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), tol);
+    let block: AtRestBody<f64> = finished(
+        "the block",
+        sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), tol),
+        tol,
+    );
     let holed = run(BooleanOp::Subtract, &block, &ball(1.0, 0.0));
     let shell = run(BooleanOp::Subtract, &ball(2.0, 0.0), &ball(0.5, 0.0));
     // (label, op, A, B, B's kept shell, B's certificates fresh)

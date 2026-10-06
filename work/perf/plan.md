@@ -82,7 +82,7 @@ findings, whose numbering is kept so the two docs cross-reference.
 | Whole-body pcurve re-mint per operation | `topo/src/pcurves.rs:995` — `body.pcurves.clear()` then every face re-walked | chain of N booleans on a growing body ⇒ quadratic | commit | 7 |
 | CDT insertion on nested near-cocircular loops | `mesh` — a planar face with a hole | quadratic; near-linear otherwise | export | 7b |
 | Boolean gate validates tier 1 twice | `topo/src/boolean/ops.rs:1395` — `validate` then `validate_closed`, each running `tier1` | 2× a 13-pass arena sweep, in release | commit | 4 |
-| Kill-direction Euler ops are O(arena) | `topo/src/body.rs:417,440,485` — three full-arena `.values().any()` orphan scans per kill; `description_surfaces` allocates a `Vec` per curve | zip killing n seams ⇒ O(n·N) | build | 9 |
+| Kill-direction Euler ops are O(arena) | `topo/src/body.rs` `remove_curve_if_orphaned`, `remove_surface_if_orphaned`, `remove_point_if_orphaned` — three full-arena `.values().any()` orphan scans per kill (the per-curve key read, `Named::of(curve).keys()`, no longer allocates) | zip killing n seams ⇒ O(n·N) | build | 9 |
 | `merge_group` rescans the edge arena per kill | `topo/src/merge_faces.rs:755` — `loop { for edge in self.edges() … break }` | O(kills × E) | commit | 11 |
 | Boolean `join` is O(n³) | `boolean/join.rs:282` loops `find_match`, itself O(open²) over slot pairs (`:520`) | plus a `Vec` alloc per slot scan | commit | 13 |
 | `graft_solid` is O(E²) | `boolean/combine.rs:411` — `.find(\|(_, e)\| e.curve == k)` inside the per-curve loop | missing inverse map | commit | 14 |

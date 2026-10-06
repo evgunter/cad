@@ -28,6 +28,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, ChartMove, FaceKey, ReplaceFaceError, ShellError};
@@ -110,7 +111,7 @@ fn r2a_valence4_nonconcurring_corner_refuses_typed() {
         (24, 48),
         "every vertex 4-valent (2E/V = 4)"
     );
-    let e = topo::shell(&chamfered, 0.02, tol)
+    let e = topo::shell(&finished("the operand", chamfered.clone(), tol), 0.02, tol)
         .expect_err("a chamfered cube's corners do not concur under a uniform inset");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
@@ -155,11 +156,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     // signed along the STORED normal so every plane moves INWARD.
     let centroid = {
         let (mut x, mut y, mut z, mut n) = (0.0, 0.0, 0.0, 0.0);
-        for (k, _) in chamfered.vertices() {
-            let p = chamfered
-                .get_vertex(k)
-                .and_then(|v| chamfered.get_point(v.point))
-                .unwrap();
+        for (_, p) in chamfered.vertex_points() {
             x += p.x;
             y += p.y;
             z += p.z;
@@ -233,7 +230,7 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
         ),
     ] {
         let body = prism(&pts, h);
-        let hollow = topo::shell(&body, t, tol)
+        let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .unwrap_or_else(|e| panic!("{what} hollows, got {e}"))
             .body;
         let props = topo::mass_properties(&hollow, tol).expect("props");
@@ -384,7 +381,7 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
         .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
         .count();
     assert!(curved > 0, "the bore is a curved chart");
-    let e = topo::shell(&body, 0.02, tol)
+    let e = topo::shell(&finished("the operand", body.clone(), tol), 0.02, tol)
         .expect_err("one curved face puts the whole body outside the simultaneous door");
     println!("[r2a] one-arc hexagon: {e}");
     if let ShellError::Face { ref error, .. } = e {
@@ -417,7 +414,7 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
         &[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         0.4,
     );
-    match topo::shell(&body, 0.05, tol) {
+    match topo::shell(&finished("the operand", body.clone(), tol), 0.05, tol) {
         Ok(topo::Shelled { body: hollow, .. }) => {
             let props = topo::mass_properties(&hollow, tol).expect("props");
             println!(
@@ -452,14 +449,16 @@ fn r2a_zero_total_offset_reports_singular() {
         })
         .collect();
     let before: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .vertex_points()
+        .map(|(_, p)| p)
+        .map(|p| (p.x, p.y, p.z))
         .collect();
     topo::offset_planes_together(&mut body, &moves, band(), tol)
         .expect("a zero offset is a no-move, not a singular corner");
     let after: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .vertex_points()
+        .map(|(_, p)| p)
+        .map(|p| (p.x, p.y, p.z))
         .collect();
     println!("[r2a] all-zero distances: {} points, unmoved", after.len());
     assert_eq!(

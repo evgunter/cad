@@ -17,7 +17,7 @@ use pncad::document::ExtrudeSide;
 
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Expr,
+    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
     MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, evaluate,
 };
@@ -59,7 +59,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &doc,
         Node::Pattern {
             input: legs,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -68,8 +68,10 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         tol,
     );
     let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
-    let frame =
-        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
+    let frame = |origin: [f64; 3], axis: [f64; 3]| {
+        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
+    };
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
@@ -197,7 +199,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         &doc,
         Node::Pattern {
             input: legs,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -211,7 +213,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
                 &doc,
                 Node::Part {
                     of: pattern,
-                    select: PartSelect::Instance(Expr::count(i)),
+                    select: PartSelect::Instance(Formula::count(i)),
                 },
                 tol,
             );
@@ -232,8 +234,10 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         Some(part) => common::head_at(part, named),
         None => common::head(named),
     };
-    let frame =
-        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
+    let frame = |origin: [f64; 3], axis: [f64; 3]| {
+        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
+    };
     // The mate must MINT while its copy is there: a refusal here would
     // be a broken fixture, not the fault the rows below read once a
     // later edit to the named node strands it.
@@ -342,7 +346,7 @@ fn a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at() {
         DocEdit::SetStructuralParam {
             node: s.pattern,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
         tol,
     );
@@ -371,7 +375,7 @@ fn a_part_selecting_another_copy_blames_the_mate_and_not_the_part() {
         DocEdit::SetStructuralParam {
             node: part,
             slot: SlotId::Instance,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
         tol,
     );
@@ -439,7 +443,7 @@ fn a_part_past_its_patterns_count_fails_beside_the_mate() {
         DocEdit::SetStructuralParam {
             node: part,
             slot: SlotId::Instance,
-            expr: Expr::count(5),
+            expr: Formula::count(5),
         },
         tol,
     );
@@ -480,7 +484,7 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
         DocEdit::SetStructuralParam {
             node: s.pattern,
             slot: SlotId::Count,
-            expr: Expr::count(0),
+            expr: Formula::count(0),
         },
         tol,
     );
@@ -502,8 +506,8 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
 fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
     let tol = Tol::witness();
     let s = copies("msolve3-view-count-overflow", 1, None, tol);
-    let overflowing =
-        Expr::mul(Expr::count(i64::MAX), Expr::count(2)).expect("a count times a count is a count");
+    let overflowing = Formula::mul(Formula::count(i64::MAX), Formula::count(2))
+        .expect("a count times a count is a count");
     let (doc, _) = common::edited(
         &s.doc,
         DocEdit::SetStructuralParam {

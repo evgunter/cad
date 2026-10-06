@@ -82,20 +82,22 @@
 //! > a convex box) forces `f₁` and `f₂` to have a common critical
 //! > direction somewhere on it — which the enclosure has just excluded.
 //! > So each slice holds **at most one** solution, and the solution set
-//! > in `B` is a graph over the `e` axis: one arc, no branch point, no
-//! > loop, no second sheet **at the same `e`-level**.
+//! > in `B` is a graph over the `e` axis: no branch point, no loop, no
+//! > second sheet **at the same `e`-level**.
 //!
-//! Note what that does *not* say. It is a convexity/mean-value
-//! argument over the enclosure, not a bare appeal to the implicit
-//! function theorem (which is local and would not, by itself, cover the
-//! whole box). And it says nothing about a **disjoint component
-//! threading the padded chain at `e`-levels the carrier never
-//! occupies**: the slice argument is silent there. What excludes that
-//! is the other obligation entirely — [`super::exhaust`]'s accounting
-//! pass, which requires every cell of the bounded domain to be
-//! excluded by enclosure or *contained* in a tube, and refuses typed at
-//! the floor otherwise. Uniqueness in this module and completeness
-//! there are two theorems, and neither is doing the other's work.
+//! It is a convexity/mean-value argument over the enclosure, not a bare
+//! appeal to the implicit function theorem (which is local and would
+//! not, by itself, cover the whole box). A graph is not yet one arc: a
+//! second arc beside the first along `e`, leaving through the box's
+//! sides, passes the slice argument. The solution set in the chain is
+//! one arc spanning the carrier, and limb 3 proves it at every door
+//! ([`super::one_arc`]): each box holds one piece, consecutive boxes
+//! share it, and it reaches both ends of the carrier. A search banks
+//! every cell of a tube as accounted ([`super::exhaust`]); what lies
+//! outside every tube is that pass's to exclude or refuse.
+//!
+//! Which rung speaks when none certifies is [`limb_three`]'s: the
+//! narrowest probed, as the most specific reading of the carrier.
 //!
 //! An enclosure that **straddles** zero at every rung escalates, typed,
 //! never retried: `ssi_tube_transversality` lands in `Sign::Zero` and
@@ -117,17 +119,21 @@ use geom_core::spline::algebra::{
     GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points, range_grid_points,
 };
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
-use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Real, Sign, Vec3};
+use geom_core::{
+    Band, Bounds, CertifiedEnclosure, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
+    Vec3,
+};
 
 use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
-use crate::dihedral::{decide, decide_reported};
-use crate::recourse::Refused;
+use crate::dihedral::{decide, decide_positive};
 
 use super::enclose::{
     Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
+use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
+use super::section::{BandVerdict, band_verdict};
 use super::{SsiError, SsiOperand, TubeScale};
 
 /// The **largest** tube radius tried, as a fraction of the caller's
@@ -412,7 +418,35 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     surface: &Surface<T>,
     band: Band,
+    at: &mut Vec<RefusedSpan>,
 ) -> Result<(T, T), SsiError> {
+    // Limb 2's hull: the implicit form composed with the refined
+    // carrier, in metres.
+    let hull = || -> Result<Hull, SsiError> {
+        let (form, to_meters) =
+            composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
+        let fine = refined(carrier);
+        let coords = fine.certified_coords();
+        let data = CurveCertData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
+            SsiError::UnsupportedCertificate {
+                what: "the fitted carrier's enclosure data is malformed",
+            }
+        })?;
+        let composite = compose::implicit_composite(&data, &form).map_err(|_| {
+            SsiError::UnsupportedCertificate {
+                what: "the implicit composite refused the fitted carrier",
+            }
+        })?;
+        Ok(Hull {
+            sup: composite.sup_bound() * to_meters,
+            breaks: composite.num.breaks().to_vec(),
+            spans: composite
+                .span_sup_bounds()
+                .into_iter()
+                .map(|b| b * to_meters)
+                .collect(),
+        })
+    };
     // ---- limb 1: the fixed schedule ----
     let (t0, t1) = carrier.domain();
     let mut worst = T::zero();
@@ -422,7 +456,14 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
-        match decide("ssi_on_locus", Margin::of(r), band) {
+        let decided = decide("ssi_on_locus", Margin::of(r), band);
+        if locatable(&decided) {
+            at.push(RefusedSpan { lo: t, hi: t });
+            if let Ok(hull) = hull() {
+                hull.uncleared(band, at);
+            }
+        }
+        match decided {
             // Zero is the affirmative: the residual is zero to
             // tolerance (the `dihedral_wedge` convention).
             Ok(Sign::Zero) => {}
@@ -442,25 +483,16 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     }
 
     // ---- limb 2: the certified hull bound ----
-    let (form, to_meters) =
-        composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
-    let fine = refined(carrier);
-    let coords = fine.certified_coords();
-    let data = CurveCertData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
-        SsiError::UnsupportedCertificate {
-            what: "the fitted carrier's enclosure data is malformed",
-        }
-    })?;
-    let composite = compose::implicit_composite(&data, &form).map_err(|_| {
-        SsiError::UnsupportedCertificate {
-            what: "the implicit composite refused the fitted carrier",
-        }
-    })?;
+    let hull = hull()?;
     // Interval arithmetic answers with an `f64` upper bound — that is what a hull
     // bound is — and it is lifted here so the limb is banded at the
     // caller's scalar like every other residual (field docs).
-    let sup = T::from_f64(composite.sup_bound() * to_meters);
-    match decide("ssi_hull_sup", Margin::of(sup), band) {
+    let sup = T::from_f64(hull.sup);
+    let decided = decide("ssi_hull_sup", Margin::of(sup), band);
+    if locatable(&decided) {
+        hull.uncleared(band, at);
+    }
+    match decided {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
@@ -480,7 +512,65 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
     band: Band,
+    at: &mut Vec<RefusedSpan>,
 ) -> Result<(T, T), SsiError> {
+    // Limb 2's hull: `S(P(t)) − C(t)` enclosed as one composite, in
+    // metres.
+    let hull = || -> Result<Hull, SsiError> {
+        // The tensor-product Bernstein composition encloses the difference
+        // at the coefficient level, so the cancellation that IS the content
+        // of S(P(t)) = C(t) survives into the bound (PR 7's first-order
+        // enclosure added the two variation radii instead and scaled with
+        // the span width — ~1e-2 m where the truth is ~1e-10 m). Data in,
+        // bounds out: nothing here samples anything (C2.2).
+        //
+        // The OQ4-aligned fit (carrier and pcurve on one knot vector) stays
+        // the cache contract, and the composite serves the unaligned case
+        // over the same bound: both curves are decomposed onto the MERGED
+        // break list by exact knot insertion, so alignment is recovered
+        // structurally rather than approximated by a whole-domain radius.
+        // The `SSI_CERT_SPANS` uniform breaks are injected for hull
+        // tightness — the same structure choice `refined` makes for the box
+        // chain (C6's f64 lane), expressed as breaks instead of a refit.
+        let coords = carrier.certified_coords();
+        let cdata =
+            CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
+                SsiError::UnsupportedCertificate {
+                    what: "the fitted carrier's enclosure data is malformed",
+                }
+            })?;
+        let pcoords = pcurve.certified_coords();
+        let pdata =
+            CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
+                SsiError::UnsupportedCertificate {
+                    what: "the traced pcurve's enclosure data is malformed",
+                }
+            })?;
+        let scoords = surface.certified_coords();
+        let sdata = tensor::SurfaceCertData::new(
+            surface.knots_u(),
+            surface.knots_v(),
+            surface.weights(),
+            &scoords,
+        )
+        .map_err(|_| SsiError::UnsupportedCertificate {
+            what: "the NURBS operand's enclosure data is malformed",
+        })?;
+        let extra = chart_breaks(carrier.knots(), pcurve.knots());
+        let residual =
+            tensor::surface_curve_residual(&sdata, &pdata, &cdata, &extra).map_err(|_| {
+                SsiError::UnsupportedCertificate {
+                    what: "the tensor composite refused the carrier/pcurve pair (mismatched \
+                       channel counts or knot domains — the shared-parameter identity is the entry \
+                       requirement)",
+                }
+            })?;
+        Ok(Hull {
+            sup: residual.sup_bound(),
+            breaks: residual.breaks().to_vec(),
+            spans: residual.span_bounds().to_vec(),
+        })
+    };
     // ---- limb 1: the fixed schedule, through certified foot points --
     let (t0, t1) = carrier.domain();
     let mut worst = T::zero();
@@ -500,7 +590,14 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 last_distance: e.last_distance,
             })?;
         worst = worst.max(proj.distance);
-        match decide("ssi_on_locus_foot", Margin::of(proj.distance), band) {
+        let decided = decide("ssi_on_locus_foot", Margin::of(proj.distance), band);
+        if locatable(&decided) {
+            at.push(RefusedSpan { lo: t, hi: t });
+            if let Ok(hull) = hull() {
+                hull.uncleared(band, at);
+            }
+        }
+        match decided {
             Ok(Sign::Zero) => {}
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(SsiError::CertificateLimb {
@@ -543,57 +640,18 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     }
 
     // ---- limb 2: |S(P(t)) − C(t)| as ONE composite (M5 PR 7b) ----
-    // The tensor-product Bernstein composition encloses the difference
-    // at the coefficient level, so the cancellation that IS the content
-    // of S(P(t)) = C(t) survives into the bound (PR 7's first-order
-    // enclosure added the two variation radii instead and scaled with
-    // the span width — ~1e-2 m where the truth is ~1e-10 m). Data in,
-    // bounds out: nothing here samples anything (C2.2).
-    //
-    // The OQ4-aligned fit (carrier and pcurve on one knot vector) stays
-    // the cache contract, and the composite serves the unaligned case
-    // over the same bound: both curves are decomposed onto the MERGED
-    // break list by exact knot insertion, so alignment is recovered
-    // structurally rather than approximated by a whole-domain radius.
-    // The `SSI_CERT_SPANS` uniform breaks are injected for hull
-    // tightness — the same structure choice `refined` makes for the box
-    // chain (C6's f64 lane), expressed as breaks instead of a refit.
-    let coords = carrier.certified_coords();
-    let cdata = CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
-        SsiError::UnsupportedCertificate {
-            what: "the fitted carrier's enclosure data is malformed",
-        }
-    })?;
-    let pcoords = pcurve.certified_coords();
-    let pdata = CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
-        SsiError::UnsupportedCertificate {
-            what: "the traced pcurve's enclosure data is malformed",
-        }
-    })?;
-    let scoords = surface.certified_coords();
-    let sdata = tensor::SurfaceCertData::new(
-        surface.knots_u(),
-        surface.knots_v(),
-        surface.weights(),
-        &scoords,
-    )
-    .map_err(|_| SsiError::UnsupportedCertificate {
-        what: "the NURBS operand's enclosure data is malformed",
-    })?;
-    let extra = chart_breaks(carrier.knots(), pcurve.knots());
-    let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &extra)
-        .map_err(|_| SsiError::UnsupportedCertificate {
-            what: "the tensor composite refused the carrier/pcurve pair (mismatched \
-                   channel counts or knot domains — the shared-parameter identity is the entry \
-                   requirement)",
-        })?
-        .sup_bound();
+    let hull = hull()?;
+    let sup = hull.sup;
     // Unlike the analytic arm, the NURBS arm needs NO exactness gate:
     // every coefficient of every operand entered interval arithmetic through its
     // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
-    match decide("ssi_hull_sup_chart", Margin::of(sup), band) {
+    let decided = decide("ssi_hull_sup_chart", Margin::of(sup), band);
+    if locatable(&decided) {
+        hull.uncleared(band, at);
+    }
+    match decided {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
@@ -603,6 +661,45 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             limb: SsiLimb::HullSup,
             cause,
         }),
+    }
+}
+
+/// Whether a limb's verdict is a refusal refinement can locate: a
+/// definite one, or one undecided on a margin that is a number. A
+/// margin that is no number is no residual a denser carrier answers, so
+/// that refusal stands at once.
+fn locatable(decided: &Result<Sign, geom_core::Indeterminate>) -> bool {
+    match decided {
+        Ok(Sign::Zero) => false,
+        Ok(Sign::Positive | Sign::Negative) => true,
+        Err(cause) => !cause.margin.is_invalid(),
+    }
+}
+
+/// Limb 2's composite, span by span: a certified upper bound in metres
+/// on the carrier's residual over each span, span `j` covering
+/// `[breaks[j], breaks[j+1]]`.
+struct Hull {
+    /// The bound over the whole carrier, the composite's own.
+    sup: f64,
+    breaks: Vec<f64>,
+    spans: Vec<f64>,
+}
+
+impl Hull {
+    /// Pushes onto `at` every span whose bound does not clear the band's
+    /// zero. A selection of where to look (C6's f64 lane), never a
+    /// decision: the refusal it locates is decided by the limb, and a
+    /// refused (`NaN`) span is selected.
+    fn uncleared(&self, band: Band, at: &mut Vec<RefusedSpan>) {
+        for (w, bound) in self.breaks.windows(2).zip(&self.spans) {
+            if !matches!(
+                bound.partial_cmp(&band.zero()),
+                Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+            ) {
+                at.push(RefusedSpan { lo: w[0], hi: w[1] });
+            }
+        }
     }
 }
 
@@ -685,8 +782,24 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     out
 }
 
+/// One rung of either arm's probe: the tube it records, the chain's
+/// smallest zero-free margin (dimensionless, the `sin θ` scale), its box
+/// count, and, where the margin is zero-free, what the one-arc proof
+/// found. `one_arc` is `None` where the chain is no graph, so the proof
+/// had no hypothesis; it never reads as proved where nothing was.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Rung {
+    pub(crate) tube: SsiTube<f64>,
+    pub(crate) margin: f64,
+    pub(crate) boxes: u32,
+    pub(crate) one_arc: Option<Result<(), Shortfall>>,
+}
+
 /// Limb 3's **enclosure probe** for an analytic pair: the graph
-/// criterion in ℝ³ over a box chain of the given radius.
+/// criterion in ℝ³ over a box chain of the given radius, and, where the
+/// margin is zero-free, the one-arc proof over the chain cut to `slab`
+/// where a search clips to one ([`one_arc_r3`]), spanning the carrier
+/// between its `ends`.
 ///
 /// Pure enclosure arithmetic — **no trilean here**. Choosing the tube's
 /// radius is cache *structure* (C6's f64 selection lane), and mixing
@@ -694,20 +807,21 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 /// telemetry and blur the one decision that matters. The single named
 /// decision runs once, upstairs, on the chosen radius.
 ///
-/// Returns the chain's smallest zero-free margin (dimensionless, the
-/// `sin θ` scale) and the box count; `None` when the chain is broken or
-/// an enclosure refused, which is a definite structural refusal.
+/// `None` when the chain is broken or an enclosure refused, which is a
+/// definite structural refusal.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
     s2: &Surface<T>,
     radius: f64,
-) -> Option<(f64, u32)> {
+    (slab, ends, eps): (Option<Box3>, [Box3; 2], f64),
+) -> Option<Rung> {
     if chain.is_empty() {
         return None;
     }
     let mut worst = f64::INFINITY;
     let mut prev: Option<Box3> = None;
+    let mut padded = Vec::with_capacity(chain.len());
     for (raw, e) in chain.iter() {
         // The chain is built once (an O(n²) knot refinement) and padded
         // per ladder rung, which is a pure interval widening.
@@ -720,12 +834,32 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
             return None;
         }
         prev = Some(bx);
+        padded.push(bx);
         let m = zero_free_lower_bound(graph_margin(s1, s2, bx, *e));
         if m < worst {
             worst = m;
         }
     }
-    Some((worst, chain.len() as u32))
+    let axis = |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| 0.5 * (c.lo() + c.hi())));
+    let (Some((_, e0)), Some((_, e1))) = (chain.first(), chain.last()) else {
+        return None;
+    };
+    let one_arc = (worst > 0.0).then(|| {
+        one_arc_r3(
+            s1,
+            s2,
+            (&padded, slab),
+            [(ends[0], axis(e0)), (ends[1], axis(e1))],
+            eps,
+        )
+    });
+    #[allow(clippy::cast_possible_truncation)]
+    Some(Rung {
+        tube: SsiTube::Spatial { radius },
+        margin: worst,
+        boxes: chain.len() as u32,
+        one_arc,
+    })
 }
 
 /// One span of a pcurve's chart tube: the span's hull padded per axis,
@@ -737,6 +871,8 @@ pub(crate) struct ChartWindow {
     pub(crate) rect: UvRect,
     /// The span's parameter midpoint.
     pub(crate) mid: f64,
+    /// The span's parameter ends.
+    pub(crate) ends: (f64, f64),
 }
 
 /// The chart tube's windows: **one padded rectangle per nonempty span**
@@ -785,6 +921,7 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
                 v: (hv.lo() - pad.1, hv.hi() + pad.1),
             },
             mid: 0.5 * (a + b),
+            ends: (a, b),
         });
     }
     Some(out)
@@ -792,10 +929,15 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
 
 /// Limb 3's enclosure probe for the **plane × NURBS** arm: the same
 /// criterion in the NURBS chart, where the locus is
-/// `φ(u,v) = n·(S(u,v) − p₀) = 0` and `∇φ = (n·S_u, n·S_v)`. A
-/// zero-free enclosure of the component of `∇φ` transverse to the
-/// pcurve's own tangent proves the same thing the ℝ³ form proves: a
-/// graph, hence one arc. The region is [`chart_tube_windows`] at `pad`.
+/// `φ(u,v) = n·(S(u,v) − p₀) = 0` and `∇φ = (n·S_u, n·S_v)`.
+///
+/// - A zero-free enclosure of the component of `∇φ` transverse to the
+///   pcurve's own tangent makes the zero set a graph over each window.
+/// - Where it does, [`one_arc`] decides whether the chain holds one arc
+///   spanning the carrier between its `ends`, and nothing else.
+///
+/// The region is [`chart_tube_windows`] at `pad`, the ladder's `rung`
+/// over each axis's chart speed.
 ///
 /// `Ok(None)` when no window can be probed at this pad; a smaller rung
 /// may still answer.
@@ -808,31 +950,28 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
 fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
-    normal: Vec3<T>,
-    pad: (f64, f64),
-) -> Result<Option<(f64, u32)>, SsiError> {
+    (origin, normal): (Point3<T>, Vec3<T>),
+    (rung, pad): (f64, (f64, f64)),
+    (ends, band): ([Box3; 2], Band),
+) -> Result<Option<Rung>, SsiError> {
     let boxes = NurbsBoxes::new(surface);
     let Some(windows) = chart_tube_windows(pcurve, pad) else {
         return Ok(None);
     };
     // The plane equation is what the whole limb certifies, so the
-    // normal crosses through the CERTIFIED door: a component whose
+    // plane crosses through the CERTIFIED door: a component whose
     // computation left its domain is refused and the transversality
     // margin collapses to zero, rather than a zero-free enclosure of
     // an equation nobody evaluated.
-    let n = [
-        Interval::from_certified(normal.x),
-        Interval::from_certified(normal.y),
-        Interval::from_certified(normal.z),
-    ];
+    let n = [normal.x, normal.y, normal.z].map(Interval::from_certified);
     let mut worst = f64::INFINITY;
-    let mut count = 0u32;
-    for ChartWindow { rect, mid } in windows {
-        let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
+    let mut probed = Vec::with_capacity(windows.len());
+    for w in windows {
+        let ((u0, u1), (v0, v1)) = (w.rect.u, w.rect.v);
         // The transverse chart direction is a DIRECTION — structure —
         // so it is selected through the bracket, exactly as the tube
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
-        let t = pcurve.deriv(T::from_f64(mid));
+        let t = pcurve.deriv(T::from_f64(w.mid));
         let tn = (t.x.powi(2) + t.y.powi(2)).sqrt().hi();
         let (tx, ty) = (t.x.hi(), t.y.hi());
         // A positive finite norm and a nonzero direction: a lane whose
@@ -853,9 +992,30 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         if margin < worst {
             worst = margin;
         }
-        count += 1;
+        probed.push((w, (-ty / tn, tx / tn)));
     }
-    Ok((count > 0).then_some((worst, count)))
+    if probed.is_empty() {
+        return Ok(None);
+    }
+    let one = (worst > 0.0).then(|| {
+        let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
+        let domain = UvRect {
+            u: surface.knots_u().domain(),
+            v: surface.knots_v().domain(),
+        };
+        one_arc(&boxes, (n, p0), (domain, band), pcurve, &probed, ends)
+    });
+    #[allow(clippy::cast_possible_truncation)]
+    Ok(Some(Rung {
+        tube: SsiTube::Chart {
+            rung,
+            pad_u: pad.0,
+            pad_v: pad.1,
+        },
+        margin: worst,
+        boxes: probed.len() as u32,
+        one_arc: one,
+    }))
 }
 
 /// [`certify_branch`]'s routing boundary for a NURBS operand with no
@@ -883,15 +1043,292 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
         .collect()
 }
 
-/// Certify a fitted rung-3 carrier against its operand pair — all three
-/// limbs, in order, refusing typed at the first failure.
+/// Why limb 3 did not prove a tube's chain one arc, read at the
+/// narrowest rung whose chain was a graph but not proved one arc.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OneArcRefusal {
+    /// A box of the chain, cut to the wall's domain (and to a search's
+    /// slab where it clips to one), holds this many simple solutions on
+    /// its boundary, certified, where one arc through it gives two. None:
+    /// no arc runs through it. More: another arc of the locus lies in it,
+    /// or the locus leaves the box's region and comes back inside it.
+    Count {
+        /// The certified count.
+        solutions: u32,
+    },
+    /// Two consecutive boxes each hold one piece of the locus, and the
+    /// reading that would show the pieces meet certifies no shared
+    /// solution there.
+    Unlinked,
+    /// The chain's pieces stop short of an end of the carrier, certified:
+    /// an arc's box holds no solution on the slice through that end and
+    /// none within ε of it, or a side's stretch does not reach the end,
+    /// or the boundary pass reads the side clear there. Read also where a
+    /// box resolved no piece, when the end is certified unreached by its
+    /// own box: no chain reaches it.
+    Short,
+    /// A walk of a box's boundary resolved no count, or a linking
+    /// reading no sign. A solution on the boundary may be tangential to
+    /// it, sit on a corner, or lie below the walk's resolution. The
+    /// cause carries the escalation as the funnel recorded it.
+    Undecided(Indeterminate),
+}
+
+impl core::fmt::Display for OneArcRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Count { solutions: 0 } => {
+                "a box of the chain holds no boundary solution: no arc of the locus runs \
+                 through it"
+            }
+            Self::Count { solutions } => {
+                return write!(
+                    f,
+                    "a box of the chain holds {solutions} boundary solutions, not two: a \
+                     second arc, or the locus leaving and re-entering the box's region"
+                );
+            }
+            Self::Unlinked => {
+                "two consecutive boxes each hold one piece, and no shared solution joins them"
+            }
+            Self::Short => {
+                "the pieces stop short of an end of the carrier: no solution lies on the \
+                 slice through that end or within the tolerance of it"
+            }
+            Self::Undecided(_) => {
+                "a box's boundary walk resolved no count: a solution tangent to it, on a \
+                 corner, or below the walk's resolution"
+            }
+        })
+    }
+}
+
+/// Limb 3's ladder: probe each rung, widest first, and take the first
+/// whose chain is a graph (zero-free margin) and, where one arc was
+/// asked, proved one arc. That rung's margin is decided once
+/// ([`tube_transversality`]).
+///
+/// With no rung taken, the refusal is the narrowest rung's:
+/// - a rung that straddled refuses as the band decides its margin;
+/// - a rung that was a graph but not one arc refuses
+///   [`SsiError::TubeNotOneArc`] with what that rung found.
+///
+/// A narrower rung is the more specific reading of the same carrier, so
+/// it speaks over every wider one.
+fn limb_three<T: Decide>(
+    extent: f64,
+    arm: T,
+    band: Band,
+    mut probe: impl FnMut(f64) -> Result<Option<Rung>, SsiError>,
+) -> Result<(Rung, T), SsiError> {
+    // The ladder is materialised so its EMPTINESS is a distinguishable
+    // outcome. An empty ladder means every rung fell below the floor —
+    // a structural fact about extent against ε, decided before any box
+    // is probed — and it must refuse as itself rather than fall through
+    // to the no-rung-answered path below with a manufactured margin.
+    let ladder: Vec<f64> = tube_ladder(extent, band).collect();
+    if ladder.is_empty() {
+        return Err(SsiError::TubeLadderEmpty {
+            extent,
+            floor: SSI_TUBE_RADIUS * band.zero(),
+        });
+    }
+    let mut not_one_arc = 0u32;
+    let mut narrowest: Option<Rung> = None;
+    for radius in ladder.iter().copied() {
+        let Some(rung) = probe(radius)? else {
+            continue;
+        };
+        match (rung.margin > 0.0, rung.one_arc) {
+            (true, Some(Ok(()))) => {
+                let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
+                return Ok((rung, t));
+            }
+            // A graph whose proof did not run never reads as proved.
+            (true, _) => not_one_arc += 1,
+            (false, _) => {}
+        }
+        narrowest = Some(rung);
+    }
+    let Some(rung) = narrowest else {
+        // Rungs were offered and none answered. Structural, and it
+        // carries no margin: nothing was ever measured, so there is no
+        // honest number to report.
+        #[allow(clippy::cast_possible_truncation)]
+        return Err(SsiError::TubeProbeSilent {
+            rungs: ladder.len() as u32,
+        });
+    };
+    let shortfall = match (rung.margin > 0.0, rung.one_arc) {
+        (true, Some(Err(shortfall))) => shortfall,
+        (true, _) => Shortfall::Undecided,
+        (false, _) => {
+            let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
+            return Ok((rung, t));
+        }
+    };
+    let cause = match shortfall {
+        Shortfall::Count(solutions) => OneArcRefusal::Count { solutions },
+        Shortfall::Unlinked => OneArcRefusal::Unlinked,
+        Shortfall::Short => OneArcRefusal::Short,
+        // The walk read no margin it could classify, and the funnel
+        // records that as it records any unreadable one; an unreadable
+        // margin never classifies positive.
+        Shortfall::Undecided => {
+            match decide_positive("ssi_tube_one_arc", Margin::of(T::from_f64(f64::NAN)), band) {
+                Err(cause) => OneArcRefusal::Undecided(cause),
+                Ok(()) => {
+                    return Err(SsiError::TubeProbeSilent { rungs: not_one_arc });
+                }
+            }
+        }
+    };
+    Err(SsiError::TubeNotOneArc {
+        rungs: not_one_arc,
+        cause,
+    })
+}
+
+/// The certificate the three limbs proved.
+fn certificate<T: Real>(
+    (on_locus, hull_sup): (T, T),
+    (rung, transversality): (Rung, T),
+) -> SsiCertificate<T> {
+    SsiCertificate {
+        samples: CERT_SAMPLES,
+        on_locus_max: on_locus,
+        hull_sup,
+        tube: rung.tube.map(T::from_f64),
+        tube_transversality: transversality,
+        tube_boxes: rung.boxes,
+    }
+}
+
+/// Which limbs a certificate asks: all three in order, or limb 3 alone,
+/// which refinement asks once of a carrier whose refused margin stopped
+/// falling ([`super::refine::refine_by_certificate`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Limbs {
+    /// Limbs 1, 2 and 3, refusing at the first that refuses.
+    All,
+    /// Limb 3 alone: whether the carrier's tube holds one arc.
+    Tube,
+}
+
+/// What a carrier is certified against. Each arm carries its own
+/// lane's inputs, so no lane reads another's; limb 3 proves the same
+/// theorem on each, over the region it is cut to.
+pub(crate) enum Lane<'a, T: Real> {
+    /// At rest, any operand pair: an ℝ³ chain is cut to nothing, a chart
+    /// chain to the wall's knot rectangle.
+    AtRest {
+        /// The first operand.
+        a: &'a SsiOperand<'a, T>,
+        /// The second operand.
+        b: &'a SsiOperand<'a, T>,
+        /// The second operand's pcurve, where it is a NURBS wall.
+        pcurve_b: Option<&'a NurbsCurve2<T>>,
+    },
+    /// A plane × NURBS search's branch, its chain cut to the wall's knot
+    /// rectangle, which the search banks.
+    Chart {
+        /// The plane.
+        plane: &'a Surface<T>,
+        /// The wall, its chart speeds minted.
+        wall: super::ChartedNurbs<'a, T>,
+        /// The wall's pcurve.
+        pcurve: &'a NurbsCurve2<T>,
+    },
+    /// An ℝ³ search's branch, its chain cut to the box the search is
+    /// confined to and banks the tube over.
+    Spatial {
+        /// The two analytic surfaces.
+        pair: (&'a Surface<T>, &'a Surface<T>),
+        /// The search's box.
+        slab: Box3,
+    },
+}
+
+/// Where limb 1 or 2 refused a carrier: the parameter interval `[lo,
+/// hi]`, a point for a limb-1 sample.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RefusedSpan {
+    /// The interval's start.
+    pub(crate) lo: f64,
+    /// The interval's end.
+    pub(crate) hi: f64,
+}
+
+/// A certificate's refusal, with where on the carrier limbs 1 and 2
+/// refused it.
+#[derive(Debug)]
+pub(crate) struct Located {
+    /// The refusal, as [`certify_branch`] reports it.
+    pub(crate) error: SsiError,
+    /// Where it lies and what its limb read, for a refusal of limb 1 or
+    /// 2 on a margin that is a number; `None` for every other refusal,
+    /// which no density of samples answers.
+    pub(crate) at: Option<Box<Spans>>,
+}
+
+/// A located refusal: its limb, what the limb read, and the parameter
+/// intervals whose residual did not clear the band's zero, a limb-1
+/// sample as a point interval.
+#[derive(Debug)]
+pub(crate) struct Spans {
+    /// The limb that refused.
+    pub(crate) limb: SsiLimb,
+    /// What it read.
+    pub(crate) margin: super::RoundMargin,
+    /// The carrier's parameter intervals the refusal lies in.
+    pub(crate) spans: Vec<RefusedSpan>,
+}
+
+/// A refusal the certificate does not locate.
+impl From<SsiError> for Located {
+    fn from(error: SsiError) -> Self {
+        Self { error, at: None }
+    }
+}
+
+/// [`certify_branch`] at `f64`, locating a limb-1 or limb-2 refusal on
+/// the carrier. A limb-3 refusal is not located: no density of samples
+/// answers it.
+///
+/// # Errors
+///
+/// As [`certify_branch`], with the refused intervals.
+pub(crate) fn certify_located(
+    carrier: &NurbsCurve3<f64>,
+    lane: Lane<'_, f64>,
+    scale: TubeScale<f64>,
+    band: Band,
+    limbs: Limbs,
+) -> Result<SsiCertificate<f64>, Located> {
+    let mut spans = Vec::new();
+    certify_branch(carrier, lane, scale, band, limbs, &mut spans).map_err(|error| {
+        let at = match super::refine::limb_reading(&error) {
+            Some((limb, margin)) if !spans.is_empty() => Some(Box::new(Spans {
+                limb,
+                margin,
+                spans,
+            })),
+            _ => None,
+        };
+        Located { error, at }
+    })
+}
+
+/// Certify a fitted rung-3 carrier on its [`Lane`] — all three limbs, in
+/// order, refusing typed at the first failure.
 ///
 /// # Errors
 ///
 /// [`SsiError::CertificateLimb`] naming the limb,
 /// [`SsiError::TubeStraddles`] for the sliver case,
-/// [`SsiError::ChartSpeed`] when the chart is constant across the locus
-/// over a tube window,
+/// [`SsiError::TubeNotOneArc`] where a search's tube was a graph but not
+/// proved one arc, [`SsiError::ChartSpeed`] when the chart is constant
+/// across the locus over a tube window,
 /// [`SsiError::FootPointInconclusive`] when a NURBS foot will not
 /// converge, [`SsiError::CertificateEscalated`] naming the limb whose trilean
 /// escalated.
@@ -906,119 +1343,127 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 /// applies — the three limbs' trileans and the tube ladder's floor —
 /// reads it from there, so there is no second number a caller could
 /// certify at.
+///
+/// A limb-1 or limb-2 refusal is located on the carrier in `at`
+/// ([`RefusedSpan`]), for [`super::refine::refine_by_certificate`].
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
-    pcurve_b: Option<&NurbsCurve2<T>>,
-    a: &SsiOperand<'_, T>,
-    b: &SsiOperand<'_, T>,
+    lane: Lane<'_, T>,
     scale: TubeScale<T>,
     band: Band,
+    limbs: Limbs,
+    at: &mut Vec<RefusedSpan>,
 ) -> Result<SsiCertificate<T>, SsiError> {
-    let TubeScale { arm, extent } = scale;
+    // The pair the first two limbs read, the pcurve beside the second.
+    let (first, second);
+    let (a, b, pcurve_b) = match lane {
+        Lane::AtRest { a, b, pcurve_b } => (a, b, pcurve_b),
+        Lane::Chart {
+            plane,
+            wall,
+            pcurve,
+        } => {
+            (first, second) = (SsiOperand::Analytic(plane), SsiOperand::Nurbs(wall));
+            (&first, &second, Some(pcurve))
+        }
+        Lane::Spatial { pair, .. } => {
+            (first, second) = (SsiOperand::Analytic(pair.0), SsiOperand::Analytic(pair.1));
+            (&first, &second, None)
+        }
+    };
     let mut on_locus = T::zero();
     let mut hull_sup = T::zero();
-    for (op, pc) in [(a, None), (b, pcurve_b)] {
+    let asked: &[_] = match limbs {
+        Limbs::All => &[(a, None), (b, pcurve_b)],
+        Limbs::Tube => &[],
+    };
+    for &(op, pc) in asked {
         let (l1, l2) = match op {
-            SsiOperand::Analytic(s) => analytic_limbs(carrier, s, band)?,
+            SsiOperand::Analytic(s) => analytic_limbs(carrier, s, band, at)?,
             SsiOperand::Nurbs(s) => {
                 let Some(p) = pc else {
                     return Err(SsiError::UnsupportedCertificate {
                         what: NURBS_LIMBS_NEED_PCURVE,
                     });
                 };
-                nurbs_limbs(carrier, p, s.surface(), band)?
+                nurbs_limbs(carrier, p, s.surface(), band, at)?
             }
         };
         on_locus = on_locus.max(l1);
         hull_sup = hull_sup.max(l2);
     }
-    // ---- limb 3: pick the widest certifiable tube, then decide ONCE.
-    let mut chosen: Option<(SsiTube<f64>, f64, u32)> = None; // (tube, margin, boxes)
-    let chain = box_chain(carrier);
-    // The ladder is materialised so its EMPTINESS is a distinguishable
-    // outcome. An empty ladder means every rung fell below the floor —
-    // a structural fact about extent against ε, decided before any box
-    // is probed — and it must refuse as itself rather than fall through
-    // to the no-rung-answered path below with a manufactured margin.
-    let ladder: Vec<f64> = tube_ladder(extent, band).collect();
-    if ladder.is_empty() {
-        return Err(SsiError::TubeLadderEmpty {
-            extent,
-            floor: SSI_TUBE_RADIUS * band.zero(),
-        });
-    }
-    for radius in ladder.iter().copied() {
-        let probe = match (a, b) {
-            (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
-                probe_tube_analytic(&chain, s1, s2, radius)
-                    .map(|(m, n)| (SsiTube::Spatial { radius }, m, n))
-            }
-            (SsiOperand::Analytic(plane), SsiOperand::Nurbs(n))
-            | (SsiOperand::Nurbs(n), SsiOperand::Analytic(plane)) => {
-                let Surface::Plane { normal, .. } = **plane else {
-                    return Err(SsiError::UnsupportedCertificate {
-                        what: CHART_TUBE_NEEDS_PLANE,
-                    });
-                };
-                let Some(p) = pcurve_b else {
-                    return Err(SsiError::UnsupportedCertificate {
-                        what: "the chart uniqueness tube needs the traced pcurve",
-                    });
-                };
+    // ---- limb 3: one theorem at every door, over the region the
+    // search is cut to (an ℝ³ search's slab; the wall's knot rectangle,
+    // which every chart enclosure is clipped to).
+    let slab = match lane {
+        Lane::Spatial { slab, .. } => Some(slab),
+        Lane::AtRest { .. } | Lane::Chart { .. } => None,
+    };
+    // The carrier's two ends, as the carrier's scalar evaluates them: on
+    // the f64 lane a point, not an enclosure of the exact end, which the
+    // end checks then read within ε of
+    // (`work/ssi/limb3-carrier-ends-read-at-f64-points.md`).
+    let (t0, t1) = carrier.domain();
+    let ends = [t0, t1].map(|t| {
+        let p = carrier.eval(T::from_f64(t));
+        Box3 {
+            x: Interval::from_certified(p.x),
+            y: Interval::from_certified(p.y),
+            z: Interval::from_certified(p.z),
+        }
+    });
+    let TubeScale { arm, extent } = scale;
+    let three = match (a, b) {
+        (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
+            let chain = box_chain(carrier);
+            limb_three(extent, arm, band, |radius| {
+                Ok(probe_tube_analytic(
+                    &chain,
+                    s1,
+                    s2,
+                    radius,
+                    (slab, ends, band.zero()),
+                ))
+            })?
+        }
+        (SsiOperand::Analytic(plane), SsiOperand::Nurbs(n))
+        | (SsiOperand::Nurbs(n), SsiOperand::Analytic(plane)) => {
+            let Surface::Plane { origin, normal, .. } = **plane else {
+                return Err(SsiError::UnsupportedCertificate {
+                    what: CHART_TUBE_NEEDS_PLANE,
+                });
+            };
+            let Some(p) = pcurve_b else {
+                return Err(SsiError::UnsupportedCertificate {
+                    what: "the chart uniqueness tube needs the traced pcurve",
+                });
+            };
+            limb_three(extent, arm, band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
                 // speed along that axis. The padded windows are the
                 // proved region and the certificate records them; the
                 // rung is the ladder's label, not a metre bound on that
-                // region (a window's corner can sit farther than the
-                // rung from the carrier).
-                let (pad_u, pad_v) = n.speeds().pad(radius);
-                probe_tube_chart(p, n.surface(), normal, (pad_u, pad_v))?.map(|(m, k)| {
-                    let tube = SsiTube::Chart {
-                        rung: radius,
-                        pad_u,
-                        pad_v,
-                    };
-                    (tube, m, k)
-                })
-            }
-            (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: "NURBS × NURBS routes to the general rung but its uniqueness \
-                           tube is not implemented in this build (arms retire one at \
-                           a time, each with its proof)",
-                });
-            }
-        };
-        let Some((tube, margin, boxes)) = probe else {
-            continue;
-        };
-        // Structure selection (C6's f64 lane): the widest rung whose
-        // enclosure is zero-free wins; the LAST rung is kept even when
-        // it fails, so the refusal below carries a real number rather
-        // than a vacuum.
-        chosen = Some((tube, margin, boxes));
-        if margin > 0.0 {
-            break;
+                // region (a window's corner can sit farther than the rung
+                // from the carrier).
+                let pad = n.speeds().pad(radius);
+                probe_tube_chart(
+                    p,
+                    n.surface(),
+                    (origin, normal),
+                    (radius, pad),
+                    (ends, band),
+                )
+            })?
         }
-    }
-    let Some((tube, margin, boxes)) = chosen else {
-        // Rungs were offered and none answered. Structural, and it
-        // carries no margin: nothing was ever measured, so there is no
-        // honest number to report.
-        #[allow(clippy::cast_possible_truncation)]
-        return Err(SsiError::TubeProbeSilent {
-            rungs: ladder.len() as u32,
-        });
+        (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
+            return Err(SsiError::UnsupportedCertificate {
+                what: "NURBS × NURBS routes to the general rung but its uniqueness \
+                       tube is not implemented in this build (arms retire one at \
+                       a time, each with its proof)",
+            });
+        }
     };
-    let transversality = tube_transversality(margin, arm, boxes, band)?;
-    Ok(SsiCertificate {
-        samples: CERT_SAMPLES,
-        on_locus_max: on_locus,
-        hull_sup,
-        tube: tube.map(T::from_f64),
-        tube_transversality: transversality,
-        tube_boxes: boxes,
-    })
+    Ok(certificate((on_locus, hull_sup), three))
 }
 
 /// Limb 3's verdict on the chosen rung. `clearance` is interval
@@ -1035,16 +1480,13 @@ fn tube_transversality<T: Decide>(
     band: Band,
 ) -> Result<T, SsiError> {
     let transversality = Margin::levered(T::from_f64(clearance), arm);
-    let decided =
-        decide_reported("ssi_tube_transversality", transversality, band).map_err(|cause| {
-            SsiError::CertificateEscalated {
-                limb: SsiLimb::Tube,
-                cause,
-            }
-        })?;
-    match Refused::of(decided, band) {
-        Some(verdict) => Err(SsiError::TubeStraddles { verdict, boxes }),
+    match band_verdict("ssi_tube_transversality", transversality, band) {
         None => Ok(transversality.value()),
+        Some(BandVerdict::Refused(verdict)) => Err(SsiError::TubeStraddles { verdict, boxes }),
+        Some(BandVerdict::Undecided(cause)) => Err(SsiError::CertificateEscalated {
+            limb: SsiLimb::Tube,
+            cause,
+        }),
     }
 }
 
@@ -1186,10 +1628,30 @@ mod tests {
         use geom_core::{Interval, Point2, Point3, Real, Vec3};
 
         use super::super::probe_tube_chart;
+        use crate::ssi::enclose::Box3;
         use crate::ssi::{SsiError, TubeDegeneracy};
 
         fn iv(x: f64) -> Interval {
             Interval::from_f64(x)
+        }
+
+        /// [`u_line`]'s carrier ends on [`unit_patch`], and a band.
+        fn at_ends() -> ([Box3; 2], geom_core::Band) {
+            let at = |u: f64| Box3 {
+                x: Interval::from_bounds(u, u),
+                y: Interval::from_bounds(0.5, 0.5),
+                z: Interval::from_bounds(0.0, 0.0),
+            };
+            (
+                [at(0.1), at(0.9)],
+                geom_core::Band::new(1e-9, 1e-8).expect("a valid band"),
+            )
+        }
+
+        /// A point of the plane through [`u_line`]'s image on the unit
+        /// patch, so a normal along `y` cuts the patch in that line.
+        fn on_line() -> Point3<Interval> {
+            Point3::new(iv(0.0), iv(0.5), iv(0.0))
         }
 
         /// A domain violation whose bracket is finite AND strictly positive,
@@ -1237,11 +1699,26 @@ mod tests {
         #[test]
         fn a_certified_normal_produces_its_margin() {
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let (margin, boxes) = probe_tube_chart(&u_line(), &unit_patch(), normal, (0.01, 0.01))
-                .expect("the unit patch's chart is not degenerate")
-                .expect("the probe must reach a verdict");
-            assert!(margin > 0.0, "certified normal gave margin {margin}");
-            assert!(boxes > 0, "no span was probed: the row is vacuous");
+            let probe = probe_tube_chart(
+                &u_line(),
+                &unit_patch(),
+                (on_line(), normal),
+                (0.0, (0.01, 0.01)),
+                at_ends(),
+            )
+            .expect("the unit patch's chart is not degenerate")
+            .expect("the probe must reach a verdict");
+            assert!(
+                probe.margin > 0.0,
+                "certified normal gave margin {}",
+                probe.margin
+            );
+            assert!(probe.boxes > 0, "no span was probed: the row is vacuous");
+            assert_eq!(
+                probe.one_arc,
+                Some(Ok(())),
+                "the window holds the line and nothing else"
+            );
         }
 
         /// The row S41 is about: the same geometry with the *same endpoints*
@@ -1259,9 +1736,15 @@ mod tests {
                 "fixture drifted: it certifies"
             );
             let normal = Vec3::new(iv(0.0), n, iv(0.0));
-            let verdict = probe_tube_chart(&u_line(), &unit_patch(), normal, (0.01, 0.01))
-                .expect("the unit patch's chart is not degenerate");
-            let margin = verdict.map_or(0.0, |(m, _)| m);
+            let verdict = probe_tube_chart(
+                &u_line(),
+                &unit_patch(),
+                (on_line(), normal),
+                (0.0, (0.01, 0.01)),
+                at_ends(),
+            )
+            .expect("the unit patch's chart is not degenerate");
+            let margin = verdict.map_or(0.0, |c| c.margin);
             assert_eq!(
                 margin, 0.0,
                 "a domain-violated plane normal produced transversality \
@@ -1293,7 +1776,13 @@ mod tests {
             )
             .expect("valid pcurve");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let verdict = probe_tube_chart(&pcurve, &unit_patch(), normal, (0.01, 0.01));
+            let verdict = probe_tube_chart(
+                &pcurve,
+                &unit_patch(),
+                (on_line(), normal),
+                (0.0, (0.01, 0.01)),
+                at_ends(),
+            );
             assert!(
                 matches!(verdict, Ok(None)),
                 "a pcurve whose control coordinate left its domain produced the \
@@ -1314,7 +1803,13 @@ mod tests {
             let point_patch = NurbsSurface::new(linear_kv(), linear_kv(), vec![p; 4], vec![1.0; 4])
                 .expect("a patch a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let verdict = probe_tube_chart(&u_line(), &point_patch, normal, (0.01, 0.01));
+            let verdict = probe_tube_chart(
+                &u_line(),
+                &point_patch,
+                (on_line(), normal),
+                (0.0, (0.01, 0.01)),
+                at_ends(),
+            );
             assert!(
                 matches!(
                     verdict,
@@ -1342,7 +1837,13 @@ mod tests {
             let ridge = NurbsSurface::new(linear_kv(), linear_kv(), vec![a, a, b, b], vec![1.0; 4])
                 .expect("a patch a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let verdict = probe_tube_chart(&u_line(), &ridge, normal, (0.01, 0.01));
+            let verdict = probe_tube_chart(
+                &u_line(),
+                &ridge,
+                (on_line(), normal),
+                (0.0, (0.01, 0.01)),
+                at_ends(),
+            );
             assert!(
                 matches!(
                     verdict,
@@ -1367,7 +1868,13 @@ mod tests {
             )
             .expect("a pcurve a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let verdict = probe_tube_chart(&still, &unit_patch(), normal, (0.01, 0.01));
+            let verdict = probe_tube_chart(
+                &still,
+                &unit_patch(),
+                (on_line(), normal),
+                (0.0, (0.01, 0.01)),
+                at_ends(),
+            );
             assert!(
                 matches!(
                     verdict,
@@ -1497,7 +2004,7 @@ mod tests {
         use geom_core::spline::KnotVector;
         use geom_core::{Band, Margin, Point3, Vec3};
 
-        use super::{SsiTube, chart_tube_windows, probe_tube_chart};
+        use super::{Box3, Interval, SsiTube, chart_tube_windows, probe_tube_chart};
         use crate::ssi::{ChartedNurbs, SsiDomain, branch_chart_tubes, plane_nurbs_ssi};
 
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
@@ -1515,8 +2022,9 @@ mod tests {
         let n = n / n.norm();
         let u = Vec3::new(1.0, 0.0, 0.0);
         let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
+        let origin = Point3::new(0.0, 0.0, 0.4);
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.4),
+            origin,
             normal: n,
             u_ref: u,
         };
@@ -1560,9 +2068,29 @@ mod tests {
                 want.1
             );
             // ... and it is the pad the probe proved over.
-            let (margin, boxes) = probe_tube_chart(pc, &wall, n, (pad_u, pad_v))
+            let geom::Curve3::Nurbs(carrier) = &b.carrier else {
+                panic!("branch {i}: a fitted carrier is a NURBS curve");
+            };
+            let (t0, t1) = carrier.domain();
+            let ends = [t0, t1].map(|t| {
+                let p = carrier.eval(t);
+                let i = |c: f64| Interval::from_bounds(c, c);
+                Box3 {
+                    x: i(p.x),
+                    y: i(p.y),
+                    z: i(p.z),
+                }
+            });
+            let ends = (ends, band);
+            let probe = probe_tube_chart(pc, &wall, (origin, n), (rung, (pad_u, pad_v)), ends)
                 .unwrap()
                 .expect("the recorded pad probes");
+            assert_eq!(
+                probe.one_arc,
+                Some(Ok(())),
+                "branch {i}: the recorded pad's chain is not one arc"
+            );
+            let (margin, boxes) = (probe.margin, probe.boxes);
             let levered = Margin::levered(margin, domain.extent).value();
             assert_eq!(
                 (levered.to_bits(), boxes),
@@ -1573,9 +2101,10 @@ mod tests {
                 "branch {i}: the probe at the recorded pad is not the certificate's"
             );
             let folded = rung / su.max(sv);
-            let at_fold = probe_tube_chart(pc, &wall, n, (folded, folded)).unwrap();
+            let at_fold =
+                probe_tube_chart(pc, &wall, (origin, n), (rung, (folded, folded)), ends).unwrap();
             assert!(
-                at_fold.is_none_or(|(m, _)| m.to_bits() != margin.to_bits()),
+                at_fold.is_none_or(|c| c.margin.to_bits() != margin.to_bits()),
                 "FIXTURE: branch {i}'s margin does not depend on the pad, so the \
                  agreement above says nothing about which pad was probed"
             );
@@ -1609,5 +2138,182 @@ mod tests {
                 "branch {i}: accounting banked other windows than limb 3 proved over"
             );
         }
+    }
+
+    /// A ladder over `extent` 1 at ε = 1e-9 whose first (widest) rung
+    /// reads `first` and every narrower one `rest`.
+    #[allow(clippy::unwrap_used)]
+    fn ladder_of(
+        first: (f64, Option<Result<(), super::Shortfall>>),
+        rest: (f64, Option<Result<(), super::Shortfall>>),
+    ) -> Result<(super::Rung, f64), crate::ssi::SsiError> {
+        use super::{Rung, SsiTube, limb_three};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let mut widest = true;
+        limb_three(1.0, 1.0, band, |radius| {
+            let (margin, one_arc) = if widest { first } else { rest };
+            widest = false;
+            Ok(Some(Rung {
+                tube: SsiTube::Spatial { radius },
+                margin,
+                boxes: 4,
+                one_arc,
+            }))
+        })
+    }
+
+    /// **A graph whose one-arc proof did not run is not proved.** Every
+    /// rung zero-free with no proof recorded refuses as undecided, never
+    /// certifies. Red under the ladder taking a zero-free rung with no
+    /// proof as proved.
+    #[test]
+    fn a_graph_with_no_proof_is_not_proved_one_arc() {
+        let got = ladder_of((0.5, None), (0.5, None));
+        assert!(
+            matches!(
+                got,
+                Err(crate::ssi::SsiError::TubeNotOneArc {
+                    cause: crate::ssi::OneArcRefusal::Undecided(_),
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// **The narrowest rung speaks.** A wide rung that is a graph but
+    /// not one arc, and narrower rungs that all straddle: the straddle is
+    /// the more specific reading of the same carrier, and its band
+    /// verdict is the refusal.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_narrower_straddle_speaks_over_a_wider_rung_not_one_arc() {
+        use super::Shortfall;
+        let got = ladder_of((0.5, Some(Err(Shortfall::Count(4)))), (0.0, None));
+        assert!(
+            matches!(got, Err(crate::ssi::SsiError::TubeStraddles { .. })),
+            "{got:?}"
+        );
+    }
+
+    /// The mirror: a wide rung that straddles, and narrower ones that are
+    /// graphs but not one arc. The refusal is `TubeNotOneArc`, counting
+    /// those rungs, with the narrowest's cause.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_narrower_rung_not_one_arc_speaks_over_a_wider_straddle() {
+        use super::{OneArcRefusal, Shortfall, tube_ladder};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let rungs = tube_ladder(1.0, band).count() as u32;
+        let got = ladder_of((0.0, None), (0.5, Some(Err(Shortfall::Unlinked))));
+        assert!(
+            matches!(
+                got,
+                Err(crate::ssi::SsiError::TubeNotOneArc {
+                    rungs: r,
+                    cause: OneArcRefusal::Unlinked,
+                }) if r == rungs - 1
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// A walk that resolved nothing escalates through the funnel, with
+    /// the unreadable margin it read.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn an_undecided_walk_escalates_through_the_funnel() {
+        use super::{OneArcRefusal, Shortfall};
+        let got = ladder_of(
+            (0.5, Some(Err(Shortfall::Undecided))),
+            (0.5, Some(Err(Shortfall::Undecided))),
+        );
+        let Err(crate::ssi::SsiError::TubeNotOneArc {
+            cause: OneArcRefusal::Undecided(cause),
+            ..
+        }) = got
+        else {
+            panic!("{got:?}");
+        };
+        assert!(cause.margin.is_invalid(), "{cause:?}");
+    }
+
+    /// **A limb-3 refusal is not located, so refinement leaves it
+    /// unwrapped.** The fold at slope `c = 800ε`, gap height β = ½ε:
+    /// the straight carrier across its gap passes limbs 1 and 2, and on
+    /// the chart search's lane its tube is a graph but not one arc. The
+    /// refusal is `TubeNotOneArc` with no located interval, which
+    /// [`super::super::refine::refine_by_certificate`] returns as it is
+    /// rather than as `RefinementExhausted`.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn a_limb_three_refusal_on_the_chart_lane_is_not_located() {
+        use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point2, Point3, Vec3};
+
+        use super::{Lane, certify_located};
+        use crate::ssi::{ChartedNurbs, SsiError, TubeScale};
+
+        let beta = 0.5e-9;
+        let c = 1600.0 * beta;
+        let a = 0.28 * c * c / beta;
+        let w = beta / c;
+        let l = 1.2 * w;
+        let (x0, x1) = (-1.5 * w, 1.8 * w);
+        let g = |x: f64| c * x + a * x * x;
+        let gb = [g(x0), g(x0) + 0.5 * (x1 - x0) * (c + 2.0 * a * x0), g(x1)];
+        let k2 = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (xs, ys) = ([x0, 0.5 * (x0 + x1), x1], [0.0, 0.5 * l, l]);
+        let control = (0..9)
+            .map(|i| {
+                Point3::new(
+                    xs[i / 3],
+                    ys[i % 3],
+                    gb[i / 3] + [0.0, 2.0 * beta, 0.0][i % 3],
+                )
+            })
+            .collect();
+        let wall = NurbsSurface::new(k2(), k2(), control, vec![1.0; 9]).unwrap();
+        let k1 = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let carrier = NurbsCurve3::new(
+            k1(),
+            vec![Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, l, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let u0 = -x0 / (x1 - x0);
+        let pcurve = NurbsCurve2::new(
+            k1(),
+            vec![Point2::new(u0, 0.0), Point2::new(u0, 1.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let lane = Lane::Chart {
+            plane: &plane,
+            wall: ChartedNurbs::mint(&wall).unwrap(),
+            pcurve: &pcurve,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let Err(refused) = certify_located(
+            &carrier,
+            lane,
+            TubeScale::uniform(1.0),
+            band,
+            super::Limbs::All,
+        ) else {
+            panic!("the carrier across the gap certified on the search's lane");
+        };
+        assert!(
+            matches!(refused.error, SsiError::TubeNotOneArc { .. }),
+            "{:?}",
+            refused.error
+        );
+        assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
     }
 }

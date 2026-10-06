@@ -33,6 +33,7 @@ use crate::common::charts::{charts_of, moves_by};
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{tube, vessel};
 use crate::shell8_common::{beside, cap, deep_dump, faces_of, solid_of, tol, volume, wearers};
+use sweep::test_support::finished;
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
 /// NOT `common::pcurve_rows::rows`: scoped to one solid's faces, which
@@ -44,7 +45,14 @@ fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
             let lp = body.get_half_edge(*he).unwrap().parent_loop;
             mine.contains(&body.get_loop(lp).unwrap().face)
         })
-        .map(|(he, c)| format!("he {he:?} params {:?} pcurve {:?}", c.params(), c.pcurve()))
+        .map(|(he, c)| {
+            format!(
+                "he {he:?} params {:?} pcurve {:?} joint {:?}",
+                c.params(),
+                c.pcurve(),
+                body.joint(he)
+            )
+        })
         .collect()
 }
 
@@ -143,7 +151,8 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     let ves_shell = pair.shells_of_solid(ves).unwrap()[0];
     let top = cap(&pair, ves_shell, Vec3::new(0.0, 1.0, 0.0), 2.0);
 
-    let hollow = topo::shell(&pair, t, tol()).expect("hollow both");
+    let hollow =
+        topo::shell(&finished("the operand", pair.clone(), tol()), t, tol()).expect("hollow both");
     let want1 =
         (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9)) + (cyl(1.0, 2.0) - cyl(0.95, 1.9));
     println!(
@@ -161,8 +170,13 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
         .expect("the vessel top's void twin");
     let chart = chart_of(&hollow.body, ceiling);
     let started = Instant::now();
-    let opened = topo::shell_open(&hollow.body, t2, &chart, tol())
-        .expect("open the vessel's void ceiling while the box stays sealed");
+    let opened = topo::shell_open(
+        &finished("the operand", hollow.body.clone(), tol()),
+        t2,
+        &chart,
+        tol(),
+    )
+    .expect("open the vessel's void ceiling while the box stays sealed");
     let took = started.elapsed();
     let want_box = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
         + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9));
@@ -203,7 +217,8 @@ fn r2_e2e_four_solids_hollowed_once_then_one_opened() {
     assert_eq!(four.solids().count(), 4);
 
     let started = Instant::now();
-    let hollow = topo::shell(&four, t, tol()).expect("four solids hollow in one call");
+    let hollow = topo::shell(&finished("the operand", four.clone(), tol()), t, tol())
+        .expect("four solids hollow in one call");
     let took_hollow = started.elapsed();
     let want1 = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (cyl(1.0, 2.0) - cyl(0.95, 1.9))
@@ -223,8 +238,13 @@ fn r2_e2e_four_solids_hollowed_once_then_one_opened() {
     // The second box's outer lid: the only plane at z = 2 in the body.
     let lid = z_chart(&hollow.body, 2.0);
     let started = Instant::now();
-    let opened = topo::shell_open(&hollow.body, t2, &lid, tol())
-        .expect("one lid opens while the other three solids shell sealed");
+    let opened = topo::shell_open(
+        &finished("the operand", hollow.body.clone(), tol()),
+        t2,
+        &lid,
+        tol(),
+    )
+    .expect("one lid opens while the other three solids shell sealed");
     let took_open = started.elapsed();
     let want2 = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
         + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
@@ -265,7 +285,7 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
     let victim = faces_of(&pair, bx)[0];
     let mut body = pair.clone();
     // Lifts RechartStrandsDescriptions: a cylinder the box face does not lie on is the unmintable neighbour.
-    body.set_face_surface_stranding_for_tests(
+    body.set_face_surface_unvouched_for_tests(
         victim,
         topo::FaceSurface::New {
             surface: geom::Surface::Cylinder {
@@ -410,9 +430,14 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
     let ves = vessel(1.0, 2.0);
     let shell = ves.shells().next().unwrap().0;
     let top = cap(&ves, shell, Vec3::new(0.0, 1.0, 0.0), 2.0);
-    let opened = topo::shell_open(&ves, 0.2, &top, tol())
-        .expect("opens")
-        .body;
+    let opened = topo::shell_open(
+        &finished("the operand", ves.clone(), tol()),
+        0.2,
+        &top,
+        tol(),
+    )
+    .expect("opens")
+    .body;
     println!(
         "[r2-10] shell_open result: rows={} dead={}",
         opened.pcurves().count(),

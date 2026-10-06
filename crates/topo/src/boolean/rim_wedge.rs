@@ -502,6 +502,7 @@ fn contains<T: Decide>(
     };
     let lift = |e: super::contain::ContainError| match e {
         super::contain::ContainError::Escalated(diag) => diag,
+        super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
     let f = body.get_face(face).ok_or(unread)?;
@@ -854,6 +855,15 @@ fn rides<T: Decide>(
 
 /// Each boundary half-edge of `face` with a certified curve: whether it
 /// is its edge's `he_plus` (so runs the curve forward), and the curve.
+/// Empty for a face key that no longer resolves.
+///
+/// # Panics
+///
+/// Where a record past `face` does not resolve or a loop walk does not
+/// close (D2 row 4): its loops, a lone vertex's point, their members,
+/// each member's edge and curve. A torn curve is not null scaffolding.
+/// The links hold at rest and, mid-operation, by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn face_boundary_arcs<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -862,27 +872,12 @@ pub(crate) fn face_boundary_arcs<T: Real>(
     let Some(f) = body.get_face(face) else {
         return out;
     };
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let Some(l) = body.get_loop(lk) else { continue };
-        let crate::entity::LoopBoundary::Cycle { first } = l.boundary else {
+    for member in body.face_boundary_linked(face, f) {
+        let crate::live::BoundaryMember::Edge { he, ek, edge, .. } = member else {
             continue;
         };
-        let Some(cycle) = body.loop_cycle(first) else {
-            continue;
-        };
-        for he in cycle {
-            let Some(h) = body.get_half_edge(he) else {
-                continue;
-            };
-            let Some(e) = body.get_edge(h.edge) else {
-                continue;
-            };
-            if let Some(c) = body
-                .get_curve_geom(e.curve)
-                .and_then(crate::CurveGeom::certified)
-            {
-                out.push((e.he_plus == he, c));
-            }
+        if let Some(c) = body.edge_curve_linked(ek, edge).certified() {
+            out.push((edge.he_plus == he, c));
         }
     }
     out

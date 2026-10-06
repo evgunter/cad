@@ -95,6 +95,8 @@ pub enum NodeErrorClass {
     EmptyOperand,
     /// [`NodeErrorKind::ProductOperand`].
     ProductOperand,
+    /// [`NodeErrorKind::UnfinishedOperand`].
+    UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
     /// [`NodeErrorKind::InstanceOutOfRange`].
@@ -268,6 +270,8 @@ pub enum NodeErrorClass {
     PlacementRefused,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
     MateFaceUnresolved,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FrameUnevaluated`].
+    MateFrameUnevaluated,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefResolve`].
@@ -326,6 +330,7 @@ impl NodeErrorKind {
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::ProductOperand { .. } => C::ProductOperand,
+            Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
@@ -461,6 +466,7 @@ impl NodeErrorClass {
             MateFault::OffsetDisagrees { .. } => Self::MateOffsetDisagrees,
             MateFault::OffsetUnchecked { .. } => Self::MateOffsetUnchecked,
             MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
+            MateFault::FrameUnevaluated { .. } => Self::MateFrameUnevaluated,
         }
     }
 
@@ -548,6 +554,7 @@ mod tests {
         WrongOperand,
         EmptyOperand,
         ProductOperand,
+        UnfinishedOperand,
         EmptyHalf,
         InstanceOutOfRange,
         DegenerateDirection,
@@ -627,6 +634,7 @@ mod tests {
         Unplaced,
         PlacementRefused,
         MateFaceUnresolved,
+        MateFrameUnevaluated,
         CrossingUnverified,
         MeasureRefResolve,
         MeasureRefUnreadable,
@@ -723,7 +731,7 @@ mod tests {
     /// run time rather than passing as a census row.
     #[allow(clippy::too_many_lines)]
     fn witness(class: C) -> K {
-        use crate::{EvalError, ParamName, SlotId};
+        use crate::{EvalError, SlotId};
         let n = RecipeNodeId;
         match class {
             C::Expr => K::Expr {
@@ -780,17 +788,17 @@ mod tests {
             },
             C::ParamBox => K::ParamBox {
                 source: crate::ParamBoxError::UnknownParam {
-                    param: ParamName::from_static("width"),
+                    param: crate::SpokenVar::new(crate::VarId(1), None),
                 },
             },
             C::Seed => K::Seed {
-                source: crate::SeedError::UnknownParam {
-                    param: ParamName::from_static("width"),
+                source: crate::SeedError::UnknownVar {
+                    var: crate::SpokenVar::new(crate::VarId(1), None),
                 },
             },
             C::SeedPinnedSection => K::SeedPinnedSection {
                 section: n(3),
-                param: ParamName::from_static("width"),
+                param: crate::VarId(1),
             },
             C::WrongOperand => K::WrongOperand {
                 input: n(3),
@@ -801,6 +809,12 @@ mod tests {
             C::ProductOperand => K::ProductOperand {
                 input: n(3),
                 parts: 2,
+            },
+            C::UnfinishedOperand => K::UnfinishedOperand {
+                input: n(3),
+                errors: vec![topo::ValidationError::ScaffoldAtRest {
+                    edge: topo::EdgeKey::default(),
+                }],
             },
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),
@@ -840,14 +854,20 @@ mod tests {
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::NegativeSpacing => K::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
+                reversed: [-1.0, 0.0, 0.0]
+                    .map(|v| crate::Formula::literal(v, crate::expr::Dimension::Scalar).ok()),
             },
             C::DegenerateSpacing => K::DegenerateSpacing,
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
-                step: "400 deg".to_owned(),
+                step: crate::expr::Expr::try_from(
+                    crate::Formula::angle_in(400.0, quantity::DEG).expect("a literal angle"),
+                )
+                .expect("a literal holds no name"),
                 evaluated: None,
-                turns: crate::StepTurns::Within("40 deg".to_owned()),
+                turns: crate::StepTurns::Within(
+                    crate::Formula::angle_in(40.0, quantity::DEG).expect("a literal angle"),
+                ),
             },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {
@@ -990,18 +1010,22 @@ mod tests {
                 })
             }
             C::PartRootFailed => part(crate::PartFault::PartRootFailed {
+                held: Default::default(),
                 node: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
             C::PartRootPoisoned => part(crate::PartFault::PartRootPoisoned {
+                held: Default::default(),
                 root: n(8),
                 through: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
-            C::PartRootFailureUnrecorded => {
-                part(crate::PartFault::RootFailureUnrecorded { node: n(7) })
-            }
+            C::PartRootFailureUnrecorded => part(crate::PartFault::RootFailureUnrecorded {
+                node: n(7),
+                held: Default::default(),
+            }),
             C::PartProduct => part(crate::PartFault::PartProduct {
+                held: Default::default(),
                 refusal: crate::ProductError::NoBodyRoots.into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {
@@ -1116,6 +1140,16 @@ mod tests {
                     face: crate::FaceName::new(name()).expect("a face name"),
                     refusal: crate::FacePoseRefusal::NoSuchName,
                 }),
+            }),
+            C::MateFrameUnevaluated => mate(crate::MateFault::FrameUnevaluated {
+                mate: n(9),
+                side: crate::MateSide::B,
+                refusal: Box::new(
+                    K::DegenerateDirection {
+                        role: crate::eval::TRANSFORM_AXIS_ROLE,
+                    }
+                    .into(),
+                ),
             }),
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),

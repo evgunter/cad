@@ -143,6 +143,8 @@ pub enum ProductError {
     PlacedUnderTwoRoots {
         /// The node whose body both roots place.
         placed: RecipeNodeId,
+        /// What that node is, which is what the recourse depends on.
+        twice: PlacedTwice,
         /// Which body of `placed` both roots read: `None` when either
         /// takes it whole, else the one selection they share.
         select: Option<crate::node::PartSelect>,
@@ -402,6 +404,7 @@ impl ProductError {
             Self::Root(standing) => write!(f, "{}", Said(&standing.of_root(), by)),
             Self::PlacedUnderTwoRoots {
                 placed,
+                twice,
                 select,
                 first,
                 second,
@@ -416,15 +419,23 @@ impl ProductError {
                         format!("the below half of {placed}")
                     }
                     Some(crate::node::PartSelect::Instance(i)) => {
-                        format!("instance `{}` of {placed}", crate::expr::unparse(i))
+                        format!("instance `{}` of {placed}", by.formula(i))
+                    }
+                };
+                let recourse = match twice {
+                    PlacedTwice::Body => {
+                        "union the two to fuse them, or pattern it to keep the copies apart"
+                    }
+                    PlacedTwice::Instance => {
+                        "instantiate it again or pattern it to place it twice; \
+                         union the two to fuse them"
                     }
                 };
                 write!(
                     f,
                     "{what} is placed under two roots, {} and {} — \
                      a transform or part selection mints no name, so both \
-                     would carry its names. Recourse: place it under one \
-                     root, or union the two",
+                     would carry its names. Recourse: {recourse}",
                     by.node(*first),
                     by.node(*second)
                 )
@@ -442,8 +453,9 @@ impl ProductError {
                     let sep = if i == 0 { "" } else { ";" };
                     write!(
                         f,
-                        "{sep} the group rooted at {}, because {cause}",
-                        by.node(*group)
+                        "{sep} the group rooted at {}, because {}",
+                        by.node(*group),
+                        crate::spoken::Said(cause, by)
                     )?;
                 }
                 write!(
@@ -1003,7 +1015,7 @@ pub fn product_named<P, T: Decide + AtRestPolicy>(
 ///
 /// A source body's records move onto the aggregate through the GRAFT's
 /// own descendant map, exactly as its name rows do — the lineage rule
-/// the boolean pipeline's `remap_contacts` states: a record's new key
+/// the boolean pipeline's substitution door (`carry`) states: a record's new key
 /// is the key the graft says its old entity BECAME, never a key
 /// re-derived by looking at the gathered geometry. Re-derivation is
 /// the scan-to-bless move F1 bans; there is no second opinion here
@@ -1260,9 +1272,11 @@ fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
                 .get(&next)
                 .and_then(|rows| rows.iter().find(|(_, s)| overlaps(*s, narrowed)))
             {
+                let select = earlier.and(narrowed);
                 return Some(ProductError::PlacedUnderTwoRoots {
                     placed: next,
-                    select: earlier.and(narrowed).cloned(),
+                    twice: placed_twice(doc, next, select),
+                    select: select.cloned(),
                     first,
                     second: root,
                 });
@@ -1273,6 +1287,40 @@ fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
         }
     }
     None
+}
+
+/// **What one recipe node placed under two roots is**, which decides
+/// the recourse [`ProductError::PlacedUnderTwoRoots`] names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacedTwice {
+    /// A body the recipe builds: two placements of it are two copies,
+    /// which a pattern keeps apart and a union fuses.
+    Body,
+    /// A part instance, taken whole, through transforms alone: a
+    /// second instance or a pattern places it twice, and a union
+    /// fuses the two.
+    Instance,
+}
+
+/// What `placed` is, read down its whole edges: an instance taken
+/// whole is [`PlacedTwice::Instance`], and anything else — a body, a
+/// selection out of a pattern or a split — is [`PlacedTwice::Body`].
+fn placed_twice<P>(
+    doc: &Doc<P>,
+    placed: RecipeNodeId,
+    select: Option<&crate::node::PartSelect>,
+) -> PlacedTwice {
+    if select.is_some() {
+        return PlacedTwice::Body;
+    }
+    let mut at = placed;
+    loop {
+        match doc.node(at) {
+            Some(crate::node::Node::Transform { input, .. }) => at = *input,
+            Some(crate::node::Node::InstantiatePart { .. }) => return PlacedTwice::Instance,
+            _ => return PlacedTwice::Body,
+        }
+    }
 }
 
 /// One body the gather will graft: which root contributed it, which
@@ -1361,41 +1409,36 @@ fn carry_contacts(
     from: &ContactRecords,
     keys: &topo::GraftKeys,
 ) -> Result<(), &'static str> {
-    let vertex = |v| keys.vertex(v).ok_or("vertex");
-    let face = |f| keys.face(f).ok_or("face");
-    let edge = |e| keys.edge(e).ok_or("edge");
-    for c in &from.vv {
-        into.vv.push(topo::VvContact {
-            a: vertex(c.a)?,
-            b: vertex(c.b)?,
-        });
-    }
-    for (src, dst) in [(&from.a_on_b, 0u8), (&from.b_on_a, 1)] {
-        for c in src {
-            let moved = topo::VfContact {
-                vertex: vertex(c.vertex)?,
-                face: face(c.face)?,
-            };
-            if dst == 0 {
-                into.a_on_b.push(moved);
-            } else {
-                into.b_on_a.push(moved);
-            }
-        }
-    }
-    for c in &from.curves {
-        into.curves.push(topo::CurveContact {
-            face_a: face(c.face_a)?,
-            face_b: face(c.face_b)?,
-            witness: edge(c.witness)?,
-        });
-    }
-    for c in &from.patches {
-        into.patches.push(topo::PatchContact {
-            face_a: face(c.face_a)?,
-            face_b: face(c.face_b)?,
-        });
-    }
+    use topo::Cell;
+    let moved = from
+        .rekeyed(|cell| match cell {
+            Cell::Vertex(v) => keys.vertex(v).map(Cell::Vertex),
+            Cell::Edge(e) => keys.edge(e).map(Cell::Edge),
+            Cell::Face(f) => keys.face(f).map(Cell::Face),
+        })
+        .map_err(|cell| match cell {
+            Cell::Vertex(_) => "vertex",
+            Cell::Edge(_) => "edge",
+            Cell::Face(_) => "face",
+        })?;
+    // Every field, by name: a new record kind fails to compile here
+    // until it is carried.
+    let ContactRecords {
+        vv,
+        a_on_b,
+        b_on_a,
+        ve,
+        ee,
+        curves,
+        patches,
+    } = moved;
+    into.vv.extend(vv);
+    into.a_on_b.extend(a_on_b);
+    into.b_on_a.extend(b_on_a);
+    into.ve.extend(ve);
+    into.ee.extend(ee);
+    into.curves.extend(curves);
+    into.patches.extend(patches);
     Ok(())
 }
 
@@ -1478,6 +1521,7 @@ mod tests {
             ProductError::Root(NodeStanding::Poisoned { node, through }),
             ProductError::PlacedUnderTwoRoots {
                 placed: RecipeNodeId(test_utils::refusal::tagged(1)),
+                twice: super::PlacedTwice::Instance,
                 select: None,
                 first: node,
                 second: RecipeNodeId(test_utils::refusal::tagged(4)),

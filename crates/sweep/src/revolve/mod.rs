@@ -101,10 +101,12 @@
 //! conventional description at rest is a chart image, which owes the
 //! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface verdicts are decided for
 //! the whole loop — including the wrap pair — before any wall is minted
-//! (the PR 4 SHOULD-1 lesson): a run of collinear segments is ONE wall
-//! (crate README, "Walls: one per run"; a full revolve collapses the run
-//! to one segment before it builds, a partial one keeps each station on
-//! its wedge caps), and same-carrier tangent arcs share one surface key.
+//! (the PR 4 SHOULD-1 lesson): a run of segments on one carrier is ONE
+//! wall (crate README, "Walls: one per run"; a full revolve collapses
+//! the run to one segment before it builds, a partial one keeps each
+//! station on its wedge caps). A partial revolve keeps each arc of a
+//! cocircular run its own wall (`swept::CurvedRuns::Split`), and those
+//! walls share one surface key, as a circle's cut walls do.
 //!
 //! # K-telemetry
 //!
@@ -157,8 +159,8 @@ pub enum Revolution<T: Real> {
     /// The full revolution: sweeps exactly +2π (no wedge caps). A
     /// closed off-axis profile closes its seam through same-shell
     /// `kfmrh` plus the loopglue zip; an axis-touching profile sweeps
-    /// as a two-band wire whose plane walls are made whole (see
-    /// [`RevolvedKind::Full`]).
+    /// as a two-band wire. Either way its plane walls are made whole
+    /// (see [`RevolvedKind::Full`]).
     Full,
     /// A partial revolution by the **signed** angle θ (radians,
     /// right-hand rule about the placed axis direction);
@@ -298,13 +300,11 @@ pub enum RevolvedKind {
     /// holes are strictly off-axis by validated containment) sweeps
     /// two π-bands so poles/apexes keep valence 2 (tier 2's strut
     /// ban): `walls`/`rims` are the angle-0…π band, the `pi_*` fields
-    /// the π…2π band. In the wire case a PLANE wall is one face with no
-    /// meridian — an annulus whose inner circle is a ring, or a disc
-    /// whose centre is no vertex — so its `meridians` and `pi_*`
-    /// entries are `None`. A LAMINA's plane annulus keeps its slit: it
-    /// is one face whose `meridians` entry is that slit, a doubly
-    /// traversed seam (`work/band/lamina-plane-annulus-keeps-its-slit.md`).
-    /// Hole loops are always lamina-shaped: their
+    /// the π…2π band. In either case a PLANE wall is one face with no
+    /// meridian — an annulus whose inner circle is a ring, or (wire
+    /// case only) a disc whose centre is no vertex — so its `meridians`
+    /// and `pi_*` entries are `None`. Hole loops are always
+    /// lamina-shaped: their
     /// `meridians` entries are their cavity seam chains, and the
     /// `pi_*` fields (outer-loop shaped) never name hole entities.
     Full {
@@ -312,8 +312,8 @@ pub enum RevolvedKind {
         wire: bool,
         /// Angle-0 meridian edges (the `u = 0` seam chain), per
         /// canonical loop, per canonical segment (`None`: omitted
-        /// on-axis segment of the outer loop, or a wire-case plane
-        /// wall; a run's segments read its one meridian).
+        /// on-axis segment of the outer loop, or a plane wall; a run's
+        /// segments read its one meridian).
         meridians: Vec<Vec<Option<EdgeKey>>>,
         /// Wire case: the π…2π band's wall faces, per canonical
         /// segment of the OUTER loop.
@@ -539,10 +539,11 @@ pub enum RevolveError {
         loop_index: usize,
     },
     /// The void-insertion door refused a hole cavity's insertion
-    /// ([`topo::insert_void`]). The evidence arms are unreachable from
-    /// this construction (every hole shell is certified from the
-    /// profile's own validation before the call); the revert/graft
-    /// arms surface kernel-level corruption typed.
+    /// ([`topo::insert_void`]). The evidence and destination arms are
+    /// unreachable from this construction (every hole shell is
+    /// certified from the profile's own validation before the call, into
+    /// the solid the build minted); the revert arm surfaces a torn
+    /// cavity typed.
     VoidInsertion {
         /// Canonical index of the hole loop whose insertion refused.
         loop_index: usize,
@@ -795,7 +796,9 @@ impl std::error::Error for RevolveError {}
 
 impl From<EulerOpError> for RevolveError {
     fn from(source: EulerOpError) -> Self {
-        Self::Op { source }
+        Self::Op {
+            source: source.from_driver(),
+        }
     }
 }
 

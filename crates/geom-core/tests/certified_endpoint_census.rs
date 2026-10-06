@@ -310,21 +310,24 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        11,
+        12,
         2,
         "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
          refuses either window hull by name before padding it — a refused hull is NaI, \
-         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
+         and its NaN ends name no window). The other 10 are `T: Bounds` reads on the \
          evaluation scalar and not certification endpoints at all — blind spot 1: two \
          of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
          a direction (structure, not a bound) and whose norm the probe refuses unless \
-         positive finite",
+         positive finite, and one is `probe_tube_analytic`'s midpoint of the box \
+         chain's axis at each end, which selects the axis the end's slice is cut \
+         across (structure)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        16,
-        14,
-        "`Box3`'s disjointness, containment, centre, split and reach meet all refuse by name, and \
+        17,
+        15,
+        "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all refuse \
+         by name, and \
          so does the mignitude (`zero_free_lower_bound`, 4). `weight_floor` refuses the weight \
          hull by name before reading its lower end, `s_offsets` asks it of each weight step it \
          reads, and `transverse_readings` of the `φ` range whose ends it reads. The 2 that do \
@@ -332,6 +335,21 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    (
+        "crates/geom-brep/src/ssi/one_arc.rs",
+        18,
+        12,
+        "the 12 that ask: the Krawczyk test's 4 centre, image and containment reads, which \
+         refuse a piece unless every enclosure is certified; `farthest`'s 2 and `nearest`'s 2, \
+         which refuse a box with any uncertified side by name before reading it; and \
+         `r3_reaches_end`'s 4, which refuse an uncertified end or box side before reading \
+         either. The other 6 do not ask: \
+         `one_arc`'s 1 is a `T: Bounds` read of the pcurve's evaluation scalar, the midpoint \
+         of a chart point that selects where a line is drawn (blind spot 1); `face_roots`' and `face_walk`'s 5 \
+         read the sides of a box its one caller, `one_arc_r3`, met with the slab through \
+         `Box3::intersection`, which refuses an uncertified side by name, and of the pieces \
+         cut from those finite ends",
+    ),
     ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",

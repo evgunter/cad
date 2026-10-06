@@ -49,6 +49,7 @@
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, subtract};
 
@@ -108,12 +109,16 @@ pub fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
 /// "the cut succeeds" cannot say which subtraction broke. The callers
 /// pass the tool's name ("vent", "cavity", "pocket").
 pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
-    subtract(base, tool, Tol::witness())
+    let tol = Tol::witness();
+    let base = finished(&format!("the {what} cut's base"), base.clone(), tol);
+    let tool = finished(&format!("the {what} cut's tool"), tool.clone(), tol);
+    subtract(&base, &tool, tol)
         .unwrap_or_else(|e| panic!("the {what} cut succeeds: {e:?}"))
         .body()
         .unwrap_or_else(|| panic!("the {what} cut leaves material"))
         .body
         .clone()
+        .into_body()
 }
 
 /// **A block with a rectangular cavity, vented.**
@@ -121,8 +126,8 @@ pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
 /// The block is `[0,4]³`; the cavity is `[1,3]³`; and a round chimney
 /// of radius `0.5` on the axis `x = y = 2`, from `z = 2.5` clear of the
 /// top, is cut first — so the cavity is a VENT rather than a void, i.e.
-/// one shell, which is what the surgery's body door admits, with the
-/// vent's mouth strictly inside the cavity's ceiling. The vent is round
+/// one shell, with the vent's mouth strictly inside the cavity's
+/// ceiling. The vent is round
 /// because the ring the mouth leaves in that ceiling rides through the
 /// carve, and the exact ring-clearance check covers circle rings.
 ///
@@ -142,8 +147,9 @@ pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
 /// refuse at the G1 door, because the trivalent-ends clause only
 /// speaks once a chain has ends at all. A concave component that
 /// reaches the surface always ends at mixed corners, so it must
-/// enclose; an enclosed void is two shells, which the body door
-/// refuses; hence a vented cavity.
+/// enclose: a sealed void (a second shell, carved in `blend_per_shell`)
+/// or, as here, a cavity vented through a face its edges do not touch,
+/// which keeps the block one shell.
 ///
 /// **That argument does not make this the smallest such body.** A
 /// triangular prism cavity carves the same way with nine edges and six

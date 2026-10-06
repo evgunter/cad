@@ -584,7 +584,7 @@ Six ways a name escapes the old pattern, all live today:
    and the witness live in `geom-core` now, so a crate below `topo`
    (`geom`, `geom-brep`, `sweep`, `profile`) can mint a name this way
    as readily as one above it; it used to be `topo`'s dependents only.
-5. **A struct field or a local table.** `ray_parity::ParityRows` (the
+5. **A struct field or a local table.** `ray_walk::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
@@ -817,7 +817,7 @@ inside it.
 
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
-`ray_parity::ParityRows` value, the carrier this document already
+`ray_walk::ParityRows` value, the carrier this document already
 lists, and `ParityRows`' own type docs say a new value is a roster
 change and belongs here. `topo/src/chart_bound.rs` decides:
 
@@ -840,7 +840,7 @@ names from the caller.
 **Roster addition (ATREST-9): the arc-aware planar loop walk.** Eleven
 names from `topo/src/splitting/containment.rs`'s `point_in_loop`,
 the in-face test `point_in_solid`'s planar arm reads a loop with circle
-or ellipse arcs through. Four are a new `ray_parity::ParityRows` value
+or ellipse arcs through. Four are a new `ray_walk::ParityRows` value
 (`ARC_LOOP_ROWS`), the rest bare literals at their `decide` sites:
 
 | name | carrier |
@@ -891,7 +891,7 @@ population.
 **Roster addition (CONTACT-4): an edge's boundary decided as distances.**
 `topo/src/splitting/containment.rs`'s `LoopEdge::contact` is the one
 boundary reading of a planar loop's edge. A straight edge is read as
-its distance to the closed segment (`ray_parity::on_segment`). A conic
+its distance to the closed segment (`ray_walk::on_segment`). A conic
 is read as its distance from the conic, then its distance to either end
 and a chordal-defect sum, neither compressed near an end. A circle is
 exact through one lever. An ellipse is bounded on both sides:
@@ -957,6 +957,36 @@ ball from the oval's speed bound. The boundary reading's are
 | `point_in_arc_loop_spiric_turn` | a `const` in `spiric_arc`: `|s(v_b) − s(v_a)| − 2·A·h²`, the piece's monotonicity across the ray line |
 | `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
 | `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
+
+**Roster addition (CLEAVE): a trimmed sphere face's region.** Fifteen
+names from `topo/src/boolean/sphere_region.rs`. Nine are its rays',
+which entered without an entry here: bare literals at their `decide`
+sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
+first-harmonic root door. Five are its boundary pre-pass's, a
+`ConicRows` value (`BOUNDARY`) it reads each arc through on the arc's
+own circle:
+
+| name | carrier |
+|---|---|
+| `bool_sphere_region_arm` | a bare literal: a ray direction's share of the tangent plane, at the sphere's radius |
+| `bool_sphere_region_span` | a bare literal: a root's parameter against its arc's span ends, at the arc's radius |
+| `bool_sphere_region_at` | a bare literal: a crossing's place along the ray, at the sphere's radius |
+| `bool_sphere_region_order` | a bare literal: two crossings' places along the ray |
+| `bool_sphere_region_cross` | a bare literal: the ray's heading against the face side at the closest crossing |
+| `bool_sphere_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_sphere_region_roots_coaxial` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_sphere_region_roots_extreme` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_sphere_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_sphere_region_arc_span` | `ConicRows` field (`BOUNDARY`): the arc's gap to a whole turn |
+| `bool_sphere_region_arc_on` | `ConicRows` field (`BOUNDARY`): the point's distance from the arc's circle; in its band, the arc's own distance decides (its foot against the ends) |
+| `bool_sphere_region_arc_end` | `ConicRows` field (`BOUNDARY`): the distance to either end of the arc |
+| `bool_sphere_region_arc_trim` | `ConicRows` field (`BOUNDARY`): which side of the ends the point, or its foot, lies |
+| `bool_sphere_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
+| `bool_sphere_region_roots_count` | a bare literal at an invalid-margin site: two computations of one root count disagree; a refusal of the query, never decided, and it never reaches the funnel |
+
+They pool with nothing: the region is read by the point-in-solid door
+at points on a sphere, a population apart from the planar walk's and
+the boolean's boundary pre-pass's.
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
@@ -1029,6 +1059,8 @@ the value). The names that reach the funnel through them today:
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
 | `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
 | `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
+| `mate_residual_quote` | `crates/editor-core/src/mate/solve.rs`'s `quoted_residual`, the solve's own: an UNDER refusal's residual quoted at `f64` on an analysis lane, each direction re-minted | no — the mate solve is not in the sweep's roster, and the `f64` lane names its residual without re-minting it |
+| `mate_frame_offset_axis` | `crates/editor-core/src/mate/solve.rs`'s `compose_offset`: a mate side's axis re-minted from the frame its base and offset compose, once per side whose offset is not the identity — every authored side, which is the part base with one literal step | no — the mate solve is not in the sweep's roster |
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
 | `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |

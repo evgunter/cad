@@ -25,8 +25,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use common::asm;
 use pncad::document::NodeStanding;
 use pncad::document::{
-    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Expr, Frame, Node,
-    ParamName, ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Formula, Frame, Node,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, VarName,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
@@ -893,7 +893,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         &doc,
         Node::Extrude {
             profile: broken_profile,
-            distance: Expr::div(common::len(0.008), common::scl(0.0))
+            distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },
@@ -3064,7 +3064,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     }
     assert_eq!(
         frame::creation_offer(refusal.as_ref()),
-        Some(ParamName::from_static("margin")),
+        Some(VarName::from_static("margin")),
         "the offer is the undeclared name"
     );
     assert_eq!(

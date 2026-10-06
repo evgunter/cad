@@ -67,6 +67,8 @@
 //! re-labelled — and the declaration still does its job: it is what
 //! suppresses the F1 `UndeclaredContact` refusal.
 
+use std::sync::Arc;
+
 use geom_core::Decide;
 use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError};
 
@@ -78,6 +80,7 @@ use crate::mate::{
 use crate::names::{Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId, SitedFace};
 use crate::product::{Product, ProductError, product_recorded};
+use crate::spoken::HeldNodes;
 use geom_core::Tol;
 
 /// One mate's minted declaration: the mate that authored it, both of
@@ -101,6 +104,23 @@ pub struct MintedDeclaration {
     pub faces: (FaceKey, FaceKey),
 }
 
+// The declaration as a finding names it: its mate and its class. A
+// carried row keeps the nodes this sentence names ([`PartRow::own`]).
+impl crate::spoken::Say for MintedDeclaration {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        write!(
+            f,
+            "{}'s declared {} contact",
+            by.node_as(self.mate, "mate"),
+            self.class.name()
+        )
+    }
+}
+
 /// How a row of another document's reached THIS document: the
 /// instantiating node here, the document the row is of, and the
 /// instantiating nodes in between.
@@ -110,6 +130,15 @@ pub struct MintedDeclaration {
 /// [`AssemblyError::CarriedMintRefusal`] — so a reader who has learned
 /// to read a route once reads every one of them, and a route can only
 /// be built one way.
+///
+/// **A node below this document is said as its own document holds
+/// it**: each hop here, and the nodes each carrier's `held` keeps of
+/// `of`, recorded where that document was in hand, the version its
+/// instantiator's pin fixes (DESIGN.md Band 1, "Node labels"). Only
+/// `through` is this document's, and the frame that holds this
+/// document says it. Equality compares those labels too, deliberately:
+/// two rows with equal ids from parts labelled apart (two pins, since
+/// a label is in the pin) are unequal, here and in every carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Route {
     /// The instantiating node OF THIS DOCUMENT the row came through.
@@ -119,39 +148,111 @@ pub struct Route {
     /// to act on it.
     pub of: crate::ident::DocumentId,
     /// The further instantiating nodes between `through` and `of`,
-    /// nearest first, each in its own document's id space. Empty when
-    /// `through` instantiates `of` directly; one entry per intervening
-    /// sub-assembly, so a row three documents down names its whole
-    /// route.
-    pub via: Vec<RecipeNodeId>,
+    /// nearest first, each in its own document's id space and as that
+    /// document says it: the version its instantiator's pin fixes, so
+    /// the label is one the row cannot outlive (DESIGN.md Band 1, "Node
+    /// labels"). Empty when `through` instantiates `of` directly; one
+    /// entry per intervening sub-assembly, so a row three documents
+    /// down names its whole route.
+    pub via: Vec<crate::spoken::SpokenNode>,
 }
 
-impl Route {
-    /// This route with `node` prepended — the route as seen from the
-    /// document that instantiates the one holding it. The row's `of`
-    /// does not move: which document authored it is not a function of
-    /// who is looking.
-    #[must_use]
-    pub fn through_instance(&self, node: RecipeNodeId) -> Self {
+// The route as an author reads it: the instance in this document, said
+// by the speaker, then each instance below it, as its own document
+// holds it.
+impl crate::spoken::Say for Route {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        write!(
+            f,
+            "document {} through {}",
+            self.of,
+            by.node_as(self.through, "instance")
+        )?;
+        for hop in &self.via {
+            write!(f, " → {}", hop.as_noun("instance"))?;
+        }
+        Ok(())
+    }
+}
+
+/// The route where no document is at hand: its first instance by its
+/// tag.
+impl core::fmt::Display for Route {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+/// **One row a part hands to the document instantiating it**: the
+/// part's own rows, and those it carried up from its parts, each with
+/// the part's nodes it names said as the part holds them. Built where
+/// the part's document is in hand (`eval::parts`), so the instance
+/// that takes it needs only its own id to route it
+/// ([`PartRow::through`]).
+#[derive(Debug, Clone)]
+pub(crate) struct PartRow<B> {
+    /// The document the row is of ([`Route::of`]).
+    of: crate::ident::DocumentId,
+    /// The instances between the part and `of`, nearest first, each as
+    /// its document holds it ([`Route::via`]): empty for the part's own
+    /// row.
+    via: Vec<crate::spoken::SpokenNode>,
+    /// The row itself, in `of`'s ids.
+    body: B,
+    /// `body`'s nodes, as `of` holds them.
+    held: Arc<HeldNodes>,
+}
+
+impl<B: crate::spoken::Say> PartRow<B> {
+    /// `doc`'s own row, reached through no instance of `doc`'s, its
+    /// nodes as `doc` holds them: the ones the body's own sentence
+    /// names, the sentence every carrier says it by.
+    pub(crate) fn own<P>(doc: &Doc<P>, of: crate::ident::DocumentId, body: B) -> Self {
+        let held = Arc::new(crate::spoken::held_by(&body, doc));
         Self {
-            through: node,
-            of: self.of,
-            via: core::iter::once(self.through)
-                .chain(self.via.iter().copied())
-                .collect(),
+            of,
+            via: Vec::new(),
+            body,
+            held,
         }
     }
 }
 
-// The route as an author reads it: the instance in this document, then
-// each instance below it.
-impl core::fmt::Display for Route {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "document {} through instance {}", self.of, self.through)?;
-        for node in &self.via {
-            write!(f, " → instance {}", node)?;
+impl<B> PartRow<B> {
+    /// A row `doc` carried up from its parts by `route`: its first
+    /// instance is `doc`'s, said as `doc` holds it, and is the next
+    /// hop of the document instantiating `doc`.
+    pub(crate) fn below<P>(doc: &Doc<P>, route: Route, body: B, held: Arc<HeldNodes>) -> Self {
+        Self {
+            of: route.of,
+            via: core::iter::once(doc.spoken(route.through))
+                .chain(route.via)
+                .collect(),
+            body,
+            held,
         }
-        Ok(())
+    }
+}
+
+impl<B: Clone> PartRow<B> {
+    /// The row as the document holding the instance `through` of the
+    /// part reads it: its route, its body, and the body's nodes. The
+    /// row's `of` does not move: which document authored it is not a
+    /// function of who is looking.
+    pub(crate) fn through(&self, through: RecipeNodeId) -> (Route, B, Arc<HeldNodes>) {
+        (
+            Route {
+                through,
+                of: self.of,
+                via: self.via.clone(),
+            },
+            self.body.clone(),
+            Arc::clone(&self.held),
+        )
     }
 }
 
@@ -170,6 +271,8 @@ pub struct CarriedDeclaration {
     pub route: Route,
     /// The declaration itself, its `mate` in `route.of`'s id space.
     pub declaration: MintedDeclaration,
+    /// The declaration's mate, as `route.of` holds it.
+    pub held: Arc<HeldNodes>,
 }
 
 /// One mint refusal from a document BELOW this one, arriving across
@@ -185,6 +288,8 @@ pub struct CarriedRefusal {
     /// The inner document's own refusal, its ids in `route.of`'s id
     /// space.
     pub refusal: MintRefusal,
+    /// The refusal's nodes, as `route.of` holds them.
+    pub held: Arc<HeldNodes>,
 }
 
 // One carried row as an author reads it: which document, and what it
@@ -196,13 +301,29 @@ pub struct CarriedRefusal {
 // answers `""`: the repair is the same sentence for every row of the
 // list — open those documents — so it belongs once, in the header the
 // arm writes, and not once per mate.
-impl core::fmt::Display for CarriedRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+//
+// The speaker says the route's first instance, which is this document's;
+// the refusal is spelled in `route.of`'s ids, so `route.of` says it.
+impl crate::spoken::Say for CarriedRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
             "{} did not mint one of its own mates: {}",
-            self.route, self.refusal
+            crate::spoken::Said(&self.route, by),
+            crate::spoken::Said(&self.refusal, crate::spoken::Speaker::held(&self.held))
         )
+    }
+}
+
+/// The row where no document is at hand: its route's first instance
+/// by its tag.
+impl core::fmt::Display for CarriedRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -236,19 +357,66 @@ pub struct CarriedUnplaced {
     pub group: RecipeNodeId,
     /// Why nothing places it.
     pub cause: crate::mate::Unplaced,
+    /// The group's and the cause's nodes, as `route.of` holds them.
+    pub held: Arc<HeldNodes>,
 }
 
 // A carried group as an author reads it: which document holds it, and
 // why it is unplaced. No recourse, for [`CarriedRefusal`]'s reason: the
 // repair is the same for every row, so the header that lists them
-// states it once.
-impl core::fmt::Display for CarriedUnplaced {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// states it once. The speaker says the route's first instance; the group
+// is spelled in `route.of`'s ids, so `route.of` says it.
+impl crate::spoken::Say for CarriedUnplaced {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
-            "{}: the group rooted at node {} is unplaced, because {}",
-            self.route, self.group, self.cause
+            "{}: {}",
+            crate::spoken::Said(&self.route, by),
+            crate::spoken::Said(
+                &UnplacedGroup {
+                    group: self.group,
+                    cause: self.cause,
+                },
+                crate::spoken::Speaker::held(&self.held)
+            )
         )
+    }
+}
+
+/// A group below and its cause, in its document's ids: what a
+/// [`CarriedUnplaced`] says of `route.of`, and what its `held` keeps.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct UnplacedGroup {
+    /// The group, by its root.
+    pub(crate) group: RecipeNodeId,
+    /// Why nothing places it.
+    pub(crate) cause: crate::mate::Unplaced,
+}
+
+impl crate::spoken::Say for UnplacedGroup {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        write!(
+            f,
+            "the group rooted at {} is unplaced, because {}",
+            by.node(self.group),
+            crate::spoken::Said(&self.cause, by)
+        )
+    }
+}
+
+/// The row where no document is at hand: its route's first instance
+/// by its tag.
+impl core::fmt::Display for CarriedUnplaced {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -305,49 +473,60 @@ pub struct Assembly<T: Decide> {
 
 /// Why a mate reference did not resolve to a product face.
 ///
-/// The gate asks two tables in order, and each arm answers one
-/// question. The PRODUCT's table first — the rows of every root,
-/// carried verbatim by the gather: a tie there is `Ambiguous`. When
-/// the product is silent, the OPERAND's own table — the `name_table`
-/// of the node the reference is read at: silent there too is
-/// `Vanished`, and an entry at a node the product does not list is
-/// `ReadBelowARoot`. No consumer is walked; the two tables and the
-/// root list decide.
+/// The gate reads the name where the mate reads it — in the table of
+/// the OPERAND, the node the reference is read at — and carries it up
+/// the operand's consumers to the product's roots, each consumer
+/// spelling it as it carries it (`names::lift`). Each arm is one way
+/// that carry fails to end on exactly one product face.
 ///
 /// `Vanished` and `Ambiguous` are the silence and the tie every name
 /// lookup refuses with (`ResolveError` spells them for a boolean's
-/// declared names). The subject here is the assembly's product table
-/// and the operand's, not a boolean operand's.
+/// declared names). The subject here is the operand's table and the
+/// tables above it, not a boolean operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
-    /// No entity answers to the name — not in the product's table,
-    /// and not in the table of the operand the mate reads it at: the
-    /// name names nothing where the mate reads it.
+    /// No single face carries the name to the product.
     ///
-    /// It is also the release answer where a table answered with a
-    /// row whose KEY is not a face under a face name. That is
-    /// `NameTable::insert`'s own rule broken rather than a document
-    /// this gate may refuse, so it is asserted in debug at the site
-    /// and answered here with the silence rather than given a
-    /// vocabulary of its own — the same shape `operand_answer`'s
-    /// third rung takes for a root row the product should have
-    /// carried.
-    Vanished,
-    /// The operand's own table answers to the name with a face, but
-    /// the operand is not a root of the product, and a reference
-    /// resolves against a root's own rows: the product may spell that
-    /// face some other way — under a pattern, as the `Instance(i)` row
-    /// at the pattern node — or not at all. The mate is read at a node
-    /// the product does not list.
-    ReadBelowARoot {
-        /// The operand the mate reads at — a live node whose table
-        /// answers to the name, and which is not a product root.
-        at: RecipeNodeId,
+    /// `by: None` is a name nothing answers to where the mate reads it:
+    /// the operand's own table is silent. `by: Some(node)` is a name
+    /// the operand spells and `node` consumes on its way up: it merges
+    /// or cuts the face, so its table holds no row under the name — or,
+    /// only where no consumer does that, it reads the body in a seat
+    /// that holds no face of it (a datum, a measure, an axis, a split's
+    /// tool).
+    ///
+    /// It is also the release answer where the product's table holds a
+    /// row whose KEY is not a face under a face name, or holds no row
+    /// for a root's own face. Each is the product's own rule broken
+    /// rather than a document this gate may refuse, so it is asserted
+    /// in debug at the site and answered here with the silence rather
+    /// than given a vocabulary of its own.
+    Vanished {
+        /// The node that consumed the face on its way to the product,
+        /// when the operand spells it.
+        by: Option<RecipeNodeId>,
     },
-    /// Several entities answer to it — a mate declaration must name
-    /// ONE face, and a tie is never broken by picking.
+    /// The operand spells the face, but a node above it PLACES it again
+    /// — a transform, a pattern, a placed union — before the product
+    /// holds it, and no other route carries it to the product
+    /// unmoved. The face the mate speaks about is where `at` holds it;
+    /// the product holds it where `by` put it, so the face is picked
+    /// again on `by`.
+    MovedAbove {
+        /// The operand the mate reads at.
+        at: RecipeNodeId,
+        /// The nearest node above `at` that places the face again.
+        by: RecipeNodeId,
+        /// Whether `by` places COPIES — a pattern or a placed union —
+        /// so a face picked on it names which copy.
+        copies: bool,
+    },
+    /// Several product faces answer to it — a tie in the product's
+    /// table, or two routes from the operand to two faces. A mate
+    /// declaration must name ONE face, and a tie is never broken by
+    /// picking.
     Ambiguous {
-        /// How many entities the tie holds.
+        /// How many faces answer.
         width: usize,
     },
 }
@@ -385,6 +564,8 @@ pub enum Attribution {
         declaration: MintedDeclaration,
         /// Refuted, or merely declined.
         relation: Relation,
+        /// The declaration's mate, as `route.of` holds it.
+        held: Arc<HeldNodes>,
     },
     /// The finding names no declaration this document holds a row for
     /// — its own, or one a part carried up. An UNDECLARED contact is
@@ -462,35 +643,39 @@ impl crate::spoken::Say for Attribution {
                        m: &MintedDeclaration,
                        relation: Relation,
                        by: crate::spoken::Speaker<'_>| {
-            write!(
-                f,
-                "{}'s declared {} contact, {}",
-                by.node_as(m.mate, "mate"),
-                m.class.name(),
-                relation.name()
-            )
+            write!(f, "{}, {}", crate::spoken::Said(m, by), relation.name())
         };
         match self {
             Self::Refuted(m) => subject(f, m, Relation::Refuted, by),
             Self::Declined(m) => subject(f, m, Relation::Declined, by),
             // The mate an author can act on is a mate of ANOTHER file
             // here, so the route rides with it: which file, and how
-            // this document reached it. Its id is that file's, so it
-            // is said by its tag.
+            // this document reached it. Its id is that file's, so that
+            // file says it; the route's first instance is this
+            // document's, so the speaker says it.
             Self::Carried {
                 route,
                 declaration,
                 relation,
+                held,
             } => {
-                subject(f, declaration, *relation, crate::spoken::Speaker::TAG)?;
-                write!(f, " (carried from {route})")
+                subject(
+                    f,
+                    declaration,
+                    *relation,
+                    crate::spoken::Speaker::held(held),
+                )?;
+                write!(f, " (carried from {})", crate::spoken::Said(route, by))
             }
             Self::Unattributed => f.write_str("no mate declared this"),
         }
     }
 }
 
-/// The sentence where no document is at hand: each node by its tag.
+/// The sentence where no document is at hand: this document's mate by
+/// its tag, a carried declaration's mate and its route's deeper hops as
+/// their own documents hold them, its route's first instance by its
+/// tag.
 impl core::fmt::Display for Attribution {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
@@ -531,7 +716,8 @@ impl crate::spoken::Say for AtRestFinding {
     }
 }
 
-/// The finding where no document is at hand: its mate by tag.
+/// The finding where no document is at hand: its attribution's
+/// ([`Attribution`]'s `Display`).
 impl core::fmt::Display for AtRestFinding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
@@ -541,7 +727,9 @@ impl core::fmt::Display for AtRestFinding {
 impl AtRestFinding {
     /// **The finding as the frame holding the assembled document says
     /// it**: this document's mate as `doc` holds it now; a carried
-    /// declaration's mate is a part's id, so it keeps its tag.
+    /// declaration's mate is a part's id, so it is said as the part
+    /// holds it, and the first instance of its route is this
+    /// document's.
     #[must_use]
     pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
@@ -794,14 +982,27 @@ impl crate::spoken::Say for RefusedRef {
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         match self {
-            Self::Vanished => f.write_str(
-                "no entity answers to it, in the product or at the node the mate reads it at",
-            ),
-            Self::ReadBelowARoot { at } => write!(
+            Self::Vanished { by: None } => {
+                f.write_str("no entity answers to it at the node the mate reads it at")
+            }
+            Self::Vanished { by: Some(node) } => write!(
                 f,
-                "it is read at {}, which is not a root of the product, and a reference \
-                 resolves against a root's own rows",
-                by.node(*at)
+                "{} consumes it before the product holds it — it merges or cuts the face, \
+                 or holds no face of it — so no one face carries it to the product",
+                by.node(*node)
+            ),
+            Self::MovedAbove {
+                at,
+                by: placer,
+                copies,
+            } => write!(
+                f,
+                "it is read at {}, but {} places it again before the product holds it; \
+                 re-pick the face on {}{}",
+                by.node(*at),
+                by.node(*placer),
+                by.node(*placer),
+                if *copies { ", naming the copy" } else { "" }
             ),
             Self::Ambiguous { width } => write!(
                 f,
@@ -833,9 +1034,10 @@ impl crate::spoken::Say for AssemblyError {
                 refusal,
             } => write!(
                 f,
-                "the own space of the group rooted at {}, unplaced because {cause}, does not \
+                "the own space of the group rooted at {}, unplaced because {}, does not \
                  gather: {}",
                 by.node(*group),
+                crate::spoken::Said(cause, by),
                 crate::spoken::Said(&**refusal, by)
             ),
             Self::Mint { refusals } => {
@@ -847,7 +1049,8 @@ impl crate::spoken::Say for AssemblyError {
                 crate::finding::render_lines(f, refusals.iter().map(|r| crate::spoken::Said(r, by)))
             }
             // Each row is spelled in the ids of the document below
-            // that refused it, so it is said by its tags.
+            // that refused it, so that document says it, but for its
+            // route's first instance, which is this document's.
             Self::CarriedMintRefusal { refusals } => {
                 write!(
                     f,
@@ -856,7 +1059,7 @@ impl crate::spoken::Say for AssemblyError {
                      those documents and repair the mates there",
                     refusals.len()
                 )?;
-                crate::finding::render_lines(f, refusals)
+                crate::finding::render_lines(f, refusals.iter().map(|r| crate::spoken::Said(r, by)))
             }
             Self::AtRest { findings } => {
                 write!(f, "{} finding(s) against this assembly:", findings.len())?;
@@ -881,7 +1084,9 @@ impl crate::spoken::Say for AssemblyError {
     }
 }
 
-/// The sentence where no document is at hand: each node by its tag.
+/// The sentence where no document is at hand: this document's nodes
+/// by their tags, and each carried row's as its own `Display` says them
+/// ([`CarriedRefusal`], [`Attribution`]).
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
@@ -892,7 +1097,9 @@ impl AssemblyError {
     /// **The refusal as the frame holding the assembled document says it**:
     /// this document's nodes as `doc` holds them now
     /// ([`crate::Doc::spoken`]). A row carried up from a document below is
-    /// spelled in that document's ids, so it keeps its tags.
+    /// spelled in that document's ids, so it is said as that document
+    /// holds it, but for the first instance of its route, which is this
+    /// document's.
     #[must_use]
     pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
@@ -1230,14 +1437,41 @@ pub(crate) fn mint<P, T: Decide>(
 /// One mate reference → the product face it names, or the typed
 /// refusal. A tie is never broken by picking a side.
 ///
-/// The product's table is asked first; only when it is silent is the
-/// operand's own table asked, through [`operand_answer`], so a name
-/// the product does answer to is never re-described by the operand.
+/// **The name is read where the mate reads it.** The operand's own
+/// table must spell it, or it refuses [`RefusedRef::Vanished`]. From
+/// there the face is carried up the operand's consumers, each spelling
+/// it as it carries it ([`crate::names::lift`]), to the product's
+/// roots, where the product's table — every root's rows, carried by
+/// the gather — answers with the face. The lift reads the recipe and
+/// each consumer's evaluated table; it evaluates nothing.
 ///
-/// **There is no kind question here, at either table.** A head is a
-/// [`SitedFace`], so the name this resolves denotes a face before the
-/// lookup runs, and the only multiplicity left to decide is a tie
-/// among faces ([`RefusedRef::Ambiguous`]).
+/// - **Exactly one product face** reached: that face.
+/// - Two or more ([`RefusedRef::Ambiguous`]): a tie in the product's
+///   table, or two routes to two faces.
+/// - None, with a PLACER on a route ([`RefusedRef::MovedAbove`]): the
+///   product holds the face where that node moved it, which is not
+///   where the mate reads it — so a route through a placer never
+///   succeeds.
+/// - None, with a consumer that merged or cut it
+///   ([`RefusedRef::Vanished`] naming it) — and only when no consumer
+///   lost it that way, one that reads it in a seat holding no face of
+///   it (a datum, a measure, an axis, a split's tool).
+///
+/// Where the operand is a root, or reaches one through `Part`
+/// selections and split targets alone, the lift is the identity and
+/// the product answers to the name as the mate spells it.
+///
+/// **There is no kind question here.** A head is a [`SitedFace`], so
+/// the name this resolves denotes a face before the lookup runs, and
+/// the only multiplicity left to decide is a tie among faces.
+///
+/// An operand that is not a live value has no table to answer with,
+/// and the gate never asks it: every live node sits under some root
+/// (A10 coverage), so an operand that failed or was poisoned has a
+/// failed or poisoned root above it, and the gather's first pass
+/// refuses the document (`ProductError::Root`, with the root's
+/// standing) before any mate is read. Such an operand, and a consumer
+/// with no value, answer as silence here rather than unwrapped.
 fn resolve_face<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -1246,90 +1480,90 @@ fn resolve_face<P, T: Decide>(
     side: MateSide,
     reference: &SitedFace,
 ) -> Result<FaceKey, MintRefusal> {
-    let name = &reference.name;
     let refuse = |why| MintRefusal::Reference {
         mate,
         side,
-        name: Box::new((**name).clone()),
+        name: Box::new((*reference.name).clone()),
         why,
     };
-    let Some(entry) = names.lookup(name) else {
-        return Err(refuse(operand_answer(doc, evaluation, reference)));
+    let spells = |at: RecipeNodeId, name: &StableName| {
+        evaluation
+            .value(at)
+            .is_some_and(|value| value.name_table.lookup(name).is_some())
     };
-    // THE KIND IS THE TYPE'S. A head is a `FaceName`, so "is this a
-    // face" is not a question this gate can ask at all — there is no
-    // non-face head to ask it of.
-    match entry {
-        Entry::Unique(ent) => {
-            // A face by the head's type and the table's own rule that
-            // a row's kind is its name's — every `NameTable` door that
-            // seats a row refuses a key whose kind disagrees with the
-            // name's. A key that is not a face here is that rule
-            // broken, which is this crate's bug and not a document:
-            // asserted, and answered with the silence in release.
-            debug_assert!(
-                matches!(ent.key, crate::names::EntityKey::Face(_)),
-                "the product's table holds a non-face under a face name: \
-                 `NameTable::insert` admits a row only at its name's kind"
-            );
-            ent.key.face().ok_or_else(|| refuse(RefusedRef::Vanished))
-        }
-        Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous { width: ents.len() })),
-    }
-}
-
-/// **The operand's answer**, asked only once the product's table is
-/// silent on a reference: does the OPERAND the mate reads at spell
-/// the name? Its own table is the `name_table` of `at`'s live value,
-/// read through the one door every node read takes
-/// ([`Evaluation::usable`]). One match, three answers, in this order:
-///
-/// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
-///    nothing where the mate reads it.
-/// 2. An entry — unique or tied — at a node the product does not
-///    list as a root → [`RefusedRef::ReadBelowARoot`]. A tie among
-///    faces below a root is still read below a root; the product
-///    decides ties for its own rows.
-/// 3. An entry at a ROOT with the product silent: `carry_names`
-///    carries every face row of every root at the source's index, so
-///    a hit here is its bug, not a vanished name. `Vanished` in
-///    release, asserted in debug.
-///
-/// **There is no kind rung**, and that is the type's doing rather
-/// than an omission: a head is a [`crate::SitedFace`], so the name
-/// this asks about denotes a face and the question "is it one" has no
-/// answer to give. See `product::carry_names` for why the product is
-/// silent on a root's body row at all.
-///
-/// An operand that is not a live value has no table to answer with,
-/// and the gate never asks it: every live node sits under some root
-/// (A10 coverage), so an operand that failed or was poisoned has a
-/// failed or poisoned root above it, and the gather's first pass
-/// refuses the document (`ProductError::Root`, with the root's
-/// standing) before any mate is read — the mate itself may
-/// well be live and `Determining`. The ladder's other rungs are
-/// answered `Vanished` here rather than unwrapped.
-fn operand_answer<P, T: Decide>(
-    doc: &Doc<P>,
-    evaluation: &Evaluation<T>,
-    reference: &SitedFace,
-) -> RefusedRef {
     let at = reference.at;
-    let rooted = doc.roots().contains(&at);
-    let entry = evaluation
-        .value(at)
-        .and_then(|value| value.name_table.lookup(&reference.name));
-    match entry {
-        None => RefusedRef::Vanished,
-        Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },
-        Some(Entry::Unique(_) | Entry::Tied(_)) => {
+    if !spells(at, &reference.name) {
+        return Err(refuse(RefusedRef::Vanished { by: None }));
+    }
+    let mut faces: Vec<FaceKey> = Vec::new();
+    let mut moved: Vec<RecipeNodeId> = Vec::new();
+    let mut lost: Vec<RecipeNodeId> = Vec::new();
+    let mut dropped: Vec<RecipeNodeId> = Vec::new();
+    let mut seen: Vec<(RecipeNodeId, StableName)> = Vec::new();
+    let mut frontier = std::collections::VecDeque::from([(at, (*reference.name).clone())]);
+    while let Some((node, name)) = frontier.pop_front() {
+        if seen.contains(&(node, name.clone())) {
+            continue;
+        }
+        seen.push((node, name.clone()));
+        if doc.roots().contains(&node) {
+            let row = names.lookup(&name);
             debug_assert!(
-                !rooted,
+                row.is_some(),
                 "a root's face row is absent from the product's table: \
                  `product::carry_names` carries every face row of every root"
             );
-            RefusedRef::Vanished
+            match row {
+                Some(Entry::Unique(ent)) => {
+                    // A face by the head's type and the table's own
+                    // rule that a row's kind is its name's: a key that
+                    // is not a face here is that rule broken, which is
+                    // this crate's bug and not a document.
+                    debug_assert!(
+                        matches!(ent.key, crate::names::EntityKey::Face(_)),
+                        "the product's table holds a non-face under a face name: \
+                         `NameTable::insert` admits a row only at its name's kind"
+                    );
+                    faces.extend(ent.key.face());
+                }
+                Some(Entry::Tied(ents)) => faces.extend(ents.iter().filter_map(|e| e.key.face())),
+                None => {}
+            }
+            continue;
         }
+        for &consumer in doc.order() {
+            let Some(consumer_node) = doc.node(consumer) else {
+                continue;
+            };
+            for step in crate::names::lift(consumer, consumer_node, node, &name) {
+                match step {
+                    crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
+                        frontier.push_back((consumer, carried));
+                    }
+                    crate::names::Lift::Spelled(_) => lost.push(consumer),
+                    crate::names::Lift::Dropped => dropped.push(consumer),
+                    crate::names::Lift::Moved => moved.push(consumer),
+                }
+            }
+        }
+    }
+    faces.sort_unstable();
+    faces.dedup();
+    let consumed = lost.first().or(dropped.first());
+    match (faces.as_slice(), moved.first(), consumed) {
+        ([face], _, _) => Ok(*face),
+        ([], Some(&by), _) => Err(refuse(RefusedRef::MovedAbove {
+            at,
+            by,
+            copies: matches!(
+                doc.node(by),
+                Some(Node::Pattern { .. } | Node::PlacedUnion { .. })
+            ),
+        })),
+        ([], None, by) => Err(refuse(RefusedRef::Vanished { by: by.copied() })),
+        (several, _, _) => Err(refuse(RefusedRef::Ambiguous {
+            width: several.len(),
+        })),
     }
 }
 
@@ -1419,6 +1653,7 @@ fn attribute(
             route: c.route.clone(),
             declaration: c.declaration.clone(),
             relation,
+            held: Arc::clone(&c.held),
         },
     };
     match error {
@@ -1491,8 +1726,8 @@ fn attribute(
         // `UndeclaredContact` is the definition of unattributed: no
         // mate authored it, which is what makes it F1's hard error.
         //
-        // The VERTEX-granular staleness arms name a v-v or v-on-f
-        // record, and [`mint`] makes `PatchContact` and nothing else
+        // The VERTEX- and EDGE-granular staleness arms name a v-v,
+        // v-on-f, v-on-e or e-e record, and [`mint`] makes `PatchContact` and nothing else
         // — so no declaration of this document is the subject, and a
         // stale record a PART carries is a finding against the
         // document that a mate cannot answer for. Sharing a face with
@@ -1531,7 +1766,9 @@ fn attribute(
         | ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::VertexVertex { .. }
-                | topo::StaleDeclaration::VertexOnFace { .. },
+                | topo::StaleDeclaration::VertexOnFace { .. }
+                | topo::StaleDeclaration::VertexOnEdge { .. }
+                | topo::StaleDeclaration::EdgeEdge { .. },
         }
         | ValidationError::CensusEscalated { .. }
         | ValidationError::CensusLaneUnsupported { .. }
@@ -1586,6 +1823,7 @@ fn attribute(
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }
         | ValidationError::VolumeUncomputable { .. }
+        | ValidationError::VolumeSignUnresolved { .. }
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
         | ValidationError::RingContactEscalated { .. }
@@ -1593,6 +1831,7 @@ fn attribute(
         | ValidationError::RingNestingUndecided { .. }
         | ValidationError::ShellWinding { .. }
         | ValidationError::SolidOuterShells { .. }
+        | ValidationError::ShellRoleUndecided { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }
@@ -1823,7 +2062,12 @@ mod attribution {
                     },
                 )),
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::RayExhausted),
-                topo::CensusUnsupportedCause::Containment(topo::ContainError::Corrupt),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::EmptyLoop(
+                    Default::default(),
+                )),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::LoopUnreadable(
+                    Default::default(),
+                )),
             ]
         };
         // Site 1 — the pair arm. `a`/`b` is `fixture`'s own minted

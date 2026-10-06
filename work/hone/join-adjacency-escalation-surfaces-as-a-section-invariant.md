@@ -15,7 +15,7 @@ priority: P3
 row named below are deleted: the boolean lanes' skip reads the segment's
 locus and never asks this function. What remains is the split lane's
 `split_conic_inplane_mid` arm, whose in-band verdict still drops its
-`Indeterminate` and surfaces through `skip_adjacent_chord` as
+`Indeterminate` and surfaces through `SegmentEdge::is` as
 `SectionInvariant`; the fix below applies to it alone. A witness row
 must now be built on the split lane (a conic between edge whose
 midpoint sits in band off the section plane).
@@ -26,7 +26,7 @@ midpoint sits in band off the section plane).
 in-band verdict on every arm (`bool_between_line_on_wall`,
 `split_conic_inplane_mid`, `bool_between_arc_window`), and drops the
 `Indeterminate` it was given (`Err(_) => Ok(None)`). Its one caller,
-`skip_adjacent_chord` (~1606), maps that `None` to
+`SegmentEdge::is`, maps that `None` to
 `SplitJoinError::SectionInvariant { what: "section classification of the
 join-adjacent edge escalated" }`, whose Display reads "curved-section
 invariant at face …": an invariant-break refusal with no margin, no lever

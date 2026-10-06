@@ -20,7 +20,7 @@ use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_brep::ssi::{self, SsiDomain, SsiError};
+use geom_brep::ssi::{self, SsiDomain};
 use geom_brep::{Pcurve, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
@@ -28,11 +28,8 @@ use mesh::TessellateError;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::loft_prism;
 use sweep::{Extrusion, extrude};
-use test_utils::vacuity;
 use topo::splitting::{SplitPart, split};
 use topo::{Body, HalfEdgeKey};
-
-use crate::common;
 
 // ---- The certified fitted cache (topo/tests/fixture/mod.rs, f64 +
 // cache-only) --------------------------------------------------------
@@ -92,14 +89,14 @@ fn sub_arc2(c: &NurbsCurve2<f64>, frac: (f64, f64)) -> Option<NurbsCurve2<f64>> 
     }
 }
 
-/// A genuinely certified `Pcurve::Fitted` cache (the first quarter of
-/// the traced loop), or `None` on the SSI fit-budget stand-down.
+/// A genuinely certified `Pcurve::Fitted` cache: the first quarter of
+/// the traced loop.
 ///
 /// **No memo, deliberately.** There is exactly one caller (the single
 /// test below), and under nextest's process-per-test isolation a
 /// `OnceLock` would share nothing across tests anyway — it would be
 /// dead weight that reads as if it worked.
-fn build_fitted_cache() -> Option<PcurveCache<f64>> {
+fn build_fitted_cache() -> PcurveCache<f64> {
     let slab = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 1.5,
@@ -113,16 +110,16 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
         Band::linear(Tol::witness()).unwrap(),
     ) {
         Ok(out) => out.branches.into_iter().next().expect("two loops"),
-        Err(SsiError::FitSampleBudget { .. }) => return None,
         Err(e) => panic!("the planted fixture: {e}"),
     };
     let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
         panic!("a rung-3 carrier is a NURBS curve")
     };
     let (d0, d1) = loop_carrier.domain();
-    if d0 != 0.0 || d1 != 1.0 {
-        return None;
-    }
+    assert!(
+        d0 == 0.0 && d1 == 1.0,
+        "a fitted carrier's domain is [0, 1]: [{d0}, {d1}]"
+    );
     #[allow(clippy::cast_precision_loss)]
     let params: Vec<f64> = (0..SAMPLES)
         .map(|i| i as f64 / (SAMPLES - 1) as f64)
@@ -140,25 +137,24 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
         }
         chart[i].x = u;
     }
-    let image = NurbsCurve2::<f64>::interpolate_with_params(&chart, DEGREE, &params).ok()?;
-    let carrier = Arc::new(sub_arc3(loop_carrier, (0.0, 0.25))?);
-    let image = Arc::new(sub_arc2(&image, (0.0, 0.25))?);
+    let image = NurbsCurve2::<f64>::interpolate_with_params(&chart, DEGREE, &params)
+        .expect("the chart image interpolates");
+    let carrier = Arc::new(sub_arc3(loop_carrier, (0.0, 0.25)).expect("the carrier's quarter"));
+    let image = Arc::new(sub_arc2(&image, (0.0, 0.25)).expect("the image's quarter"));
     let (t0, t1) = image.domain();
     let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
-    Some(
-        PcurveCache::<f64>::certify_fitted(
-            image,
-            t0,
-            t1,
-            &Curve3::Nurbs(carrier),
-            &cylinder(),
-            Some(&sphere()),
-            window,
-            Band::linear(Tol::witness()).unwrap(),
-            geom_brep::FittedLane::certified(),
-        )
-        .expect("the fitted cache certifies through the M6-2 door"),
+    PcurveCache::<f64>::certify_fitted(
+        image,
+        t0,
+        t1,
+        &Curve3::Nurbs(carrier),
+        &cylinder(),
+        Some(&sphere()),
+        window,
+        Band::linear(Tol::witness()).unwrap(),
+        geom_brep::FittedLane::certified(),
     )
+    .expect("the fitted cache certifies through the M6-2 door")
 }
 
 // ---- Host bodies ---------------------------------------------------
@@ -183,6 +179,7 @@ fn split_cylinder_half() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.0),
         Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
@@ -236,21 +233,7 @@ fn cached_half_edge_on(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -
 /// `TRIM-WALK` — and the message alone says which door broke.
 #[test]
 fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
-    let Some(cache) = build_fitted_cache() else {
-        // The SSI fit-budget stand-down (fixture docs), said out loud:
-        // a bare `return` here reports coverage this run does not have.
-        vacuity::stood_down(
-            &format!(
-                "fitted-cache refusals, both arms, eps = {:e}",
-                common::eps()
-            ),
-            "the cylinder×sphere fixture stood down on the SSI door's typed \
-             FitSampleBudget refusal at this ε — THIS RUN EXECUTES NEITHER FITTED \
-             REFUSAL ARM (no chord-pass row, no trim-walk row); both are confirmed by \
-             reading only",
-        );
-        return;
-    };
+    let cache = build_fitted_cache();
 
     // ---- Arm 1: the CHORD pass, on a NURBS face --------------------
     //

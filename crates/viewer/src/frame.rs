@@ -229,9 +229,9 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName,
+    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding,
     ParseError, PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId,
-    ResolveFault, Said, SlotId, Speaker,
+    ResolveFault, Said, SlotId, Speaker, VarName,
 };
 use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
@@ -763,7 +763,9 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
@@ -869,7 +871,9 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
@@ -1487,8 +1491,8 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// draws. It still rides [`OpOutcome::maintenance`], where a reader of
 /// the API sees it.
 ///
-/// **Each worded arm answers [`Retold`] for itself**, and both
-/// answer [`Retold::Never`]: neither can show a retelling.
+/// **Each worded arm answers [`Retold`] for itself**, and each
+/// answers [`Retold::Never`]: none can show a retelling.
 ///
 /// - A stranded appearance key's `AppearanceLoss` is evaluation's
 ///   report to the API, and nothing in this viewer draws it.
@@ -1505,6 +1509,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // A fold's dropped label is said nowhere else: the gauge is
         // gone, and nothing evaluates a label.
         Maintenance::LabelDropped { .. } => Retold::Never,
+        // An anonymous variable's removal is said nowhere else: its
+        // panel row goes with it, and nothing reads it any more.
+        Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
         // The mate door's offset clear is what inserting the mate
         // means — the joined group stands on the one it joined — and
         // the mate the person just placed is its notice.
@@ -2895,14 +2902,14 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 /// expression's context does not determine the new parameter's
 /// DIMENSION, so that stays the user's explicit pick there). `None`
 /// for every other refusal and for a clean batch.
-pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
+pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
     match refusal.and_then(Refusal::parse_error)? {
         // The parse error carries the identifier as text (it is a
         // fact about the SOURCE); the offer mints the name the create
         // door would declare. The text is a token the lexer read, so
         // the constructor admits it; its answer is folded rather than
         // trusted.
-        ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
+        ParseError::UnknownParam { name, .. } => VarName::new(name.as_str()).ok(),
         ParseError::UnexpectedChar { .. }
         | ParseError::UnexpectedEnd { .. }
         | ParseError::UnexpectedToken { .. }
@@ -2933,8 +2940,7 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
         Refusal::DrivenByExpression { .. }
         | Refusal::NoSuchSlot { .. }
         | Refusal::NoSuchParam(_)
-        | Refusal::ParamNotANumber { .. }
-        | Refusal::ParamExists { .. }
+        | Refusal::ConstantRefused { .. }
         | Refusal::EmptyName
         | Refusal::WrongNodeKind { .. }
         | Refusal::Duplicate(_)
@@ -3911,18 +3917,22 @@ mod tests {
             unresolved(ResolveFault::EpsilonSeam),
             unresolved(ResolveFault::Unresolved),
             PartFault::PartRootFailed {
+                held: Default::default(),
                 node: RecipeNodeId(test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
             PartFault::PartRootPoisoned {
+                held: Default::default(),
                 root: RecipeNodeId(test_utils::refusal::tagged(8)),
                 through: RecipeNodeId(test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
             PartFault::RootFailureUnrecorded {
+                held: Default::default(),
                 node: RecipeNodeId(test_utils::refusal::tagged(7)),
             },
             PartFault::PartProduct {
+                held: Default::default(),
                 refusal: ProductError::NoBodyRoots.into(),
             },
             PartFault::ReferenceCycle {

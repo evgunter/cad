@@ -13,22 +13,21 @@ keep_out: [OPENED 2026-09-13 at M10's exit sweep (docs/DOC-LEDGER.md sweep 13) o
 priority: P1
 ---
 
-**The E12 symbolic identity tier's live defects, after the 2026-09-20
-cut**: where the tier PANICS, refuses or freezes on ordinary input.
+**The E12 symbolic identity tier's live defects**: where the tier
+refuses or freezes on ordinary input, and the chain demo Ev asked for.
 
-`Sym<f64>`/`Sym<Probe>` at a far placement trips `Decide`'s
-theorem-vs-numeric assert — a crash, not a refusal. A profile placed on
-a derived frame whose axes carry a widened parameter freezes on the
-symbolic lane. A boss on a `FaceFrame` taken from a revolved body's cap
-refuses on pcurve loop continuity. And two rows say the tier's own
-guarantees do not hold as stated: widening the coefficient ring can
-LOSE discharges, so reach is not monotone; and a leaf receipt's frozen
-column is schedule-dependent under the drive-scoped memo, so the same
-document can freeze differently depending on evaluation order.
+A profile placed on a derived frame whose axes carry a widened
+parameter freezes on the symbolic lane. A boss on a `FaceFrame` taken
+from a revolved body's cap refuses on pcurve loop continuity. On the
+chain (SYM-14), a widened rotation angle refuses on the plain interval
+lane, three or more joints straddle `dihedral_arm`, and nothing detects
+the links' self-intersection.
 
 SYM was cut on 2026-09-20 (Ev, in chat) from 78.5 budget points into
 three tracks: DECIDE (the decision door and its ruled units), TIER (the
-frontier, the cost and the prose) and this remainder. SYM keeps its
-band 5800-5899.
+frontier, the cost and the prose) and this remainder. It was cut again
+on 2026-10-06 (Ev, in chat) at 45 points: its P2, P3 and unbanded rows
+went to RULES (the tier's rules and receipts). SYM keeps its band
+5800-5899.
 
 Charter and lanes: `work/sym/plan.md`; narrative in `work/sym/log.md`.

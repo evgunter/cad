@@ -24,13 +24,18 @@ use crate::fixture::digest::digest;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId,
+    Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, VarName,
 };
 use geom_core::Tol;
 
-fn p() -> ParamName {
-    ParamName::from_static("p")
+fn p() -> VarName {
+    VarName::from_static("p")
+}
+
+/// The probe's one variable in `doc`.
+fn var(doc: &ProfileDoc) -> editor_core::VarId {
+    doc.var_named("p").expect("the probe declares p")
 }
 
 /// `p` a Length parameter at `nominal`; a circle of radius `p` on the
@@ -40,9 +45,9 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("eval10_section_reads_the_nominal", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p(),
-                value: DocParam::continuous(Dimension::Length, nominal),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, nominal)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -56,7 +61,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
             plane: lower_frame,
             loops: vec![LoopProgram::Circle {
                 centre: [fixture::len(0.0), fixture::len(0.0)],
-                radius: Expr::param(p(), Dimension::Length),
+                radius: Formula::named(p(), Dimension::Length),
             }],
             ids: Vec::new(),
         }),
@@ -80,16 +85,16 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Loft {
             profiles: vec![lower, upper],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     )
 }
 
 /// The one-axis degenerate box `p ∈ nominal + [offset, offset]`.
-fn boxed_at(offset: f64) -> EvalOptions {
+fn boxed_at(doc: &ProfileDoc, offset: f64) -> EvalOptions {
     let mut axes = BTreeMap::new();
     axes.insert(
-        p(),
+        var(doc),
         BoxAxis::Varying {
             lo: offset,
             hi: offset,
@@ -109,7 +114,7 @@ fn a_section_under_a_degenerate_offset_box_resolves_at_the_nominal() {
     const OFFSET: f64 = 0.25;
     let (doc, loft) = loft_doc(NOMINAL);
     let unboxed = fixture::run(&doc, &EvalOptions::default());
-    let boxed = fixture::run(&doc, &boxed_at(OFFSET));
+    let boxed = fixture::run(&doc, &boxed_at(&doc, OFFSET));
     let (shifted_doc, shifted_loft) = loft_doc(NOMINAL + OFFSET);
     let shifted = fixture::run(&shifted_doc, &EvalOptions::default());
     assert_eq!(shifted_loft, loft, "the same insertion order");

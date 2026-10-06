@@ -30,9 +30,10 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     let vp = validated(vec![washer_profile()]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    // V4 E8 F4 R0: component E–P v − e + f − r = 0 = 2(1 − g) ⇒ g = 1
-    // (the kfmrh genus supplier).
-    assert_eq!(counts(&t.body), (4, 8, 4, 0));
+    // V4 E6 F4 R2: component E–P v − e + f − r = 0 = 2(1 − g) ⇒ g = 1
+    // (the kfmrh genus supplier); each plane annulus is one face, its
+    // inner circle a ring.
+    assert_eq!(counts(&t.body), (4, 6, 4, 2));
     // One shell, one solid.
     assert_eq!(t.body.solids().count(), 1);
     assert_eq!(t.body.shells().count(), 1);
@@ -61,18 +62,9 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
             EdgeDescription::Intersection { .. }
         ));
     }
-    // Meridians: the cylinder walls' carry their chart's own seam,
-    // the plane walls' do not (module-doc exception — a plane chart is
-    // not periodic) and stay images the profile segment declared.
-    //
-    // **Re-expressed at PCURVE P-1b.** The (2, 2) split is unchanged
-    // and so is every fact it states; what changed is that the two
-    // classes it counted were collapsed into one conventional form, so
-    // a variant census would read (4, 0) and discriminate nothing. The
-    // distinction that survived is the one this row was always about:
-    // the seam obligation, and — the other half, now checked too —
-    // whether a profile entity DECLARED the locus (U2 Q3's authority
-    // record) or the kernel derived it.
+    // Meridians: the cylinder walls' carry their chart's own seam and
+    // are derived; the plane walls have none (a plane annulus is one
+    // face with no slit).
     let RevolvedKind::Full {
         meridians,
         pi_walls,
@@ -89,19 +81,27 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     assert!(pi_meridians.iter().all(Option::is_none));
     assert!(pi_rims.iter().all(Option::is_none));
     let mut seams = 0;
-    let mut declared = 0;
-    for m in meridians {
-        let e = m.expect("no omitted segments");
-        let c = chart_image(&t.body, e);
-        match (c.seam, authority(&t.body, e).is_declared()) {
-            (true, false) => seams += 1,
-            (false, true) => declared += 1,
-            (seam, decl) => {
-                panic!("a meridian that is neither: seam = {seam}, declared = {decl}")
+    let mut planes_unslit = 0;
+    for (m, w) in meridians.iter().zip(&t.walls()[0]) {
+        let wall = t.body.get_face(w.expect("no on-axis segments")).unwrap();
+        let plane = matches!(
+            t.body.get_surface(wall.surface),
+            Some(Surface::Plane { .. })
+        );
+        match (m, plane) {
+            (Some(e), false) => {
+                let c = chart_image(&t.body, *e);
+                assert!(
+                    c.seam && !authority(&t.body, *e).is_declared(),
+                    "a cylinder's meridian is its chart's derived seam"
+                );
+                seams += 1;
             }
+            (None, true) => planes_unslit += 1,
+            (m, plane) => panic!("meridian {m:?} on a wall that is plane = {plane}"),
         }
     }
-    assert_eq!((seams, declared), (2, 2));
+    assert_eq!((seams, planes_unslit), (2, 2));
     // Orientation oracle: positive material volume (exact value
     // 2π·R̄·A = 2π·1.5·1 ≈ 9.42; chordal sampling only bounds it
     // loosely — the SIGN is the oracle).
@@ -265,7 +265,7 @@ fn m10_9_the_revolve_carriers_state_their_rim_identity() {
             let lit = |v: f64| S::from_f64(v);
             let eps = Tol::witness().eps();
             let r0: S = Sym::param(
-                ParamSymbol::of("r0"),
+                ParamSymbol::new(test_utils::symbol_id("r0")),
                 Interval::from_bounds(1.0 - eps / 64.0, 1.0 + eps / 64.0),
             );
             let (zero, one, two) = (lit(0.0), lit(1.0), lit(2.0));

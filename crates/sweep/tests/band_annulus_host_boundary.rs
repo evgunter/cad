@@ -1,8 +1,9 @@
 //! **An annulus rim's host OUTER boundary is metered in closed form.**
 //!
 //! The carve excises the host strip between a closed rim and its host
-//! trim, so every other edge of the host's outer cycle must lie wholly
-//! beyond the trim. Predicate 2's screen reads each boundary pair at
+//! trim, so every other edge of the host's boundary — its outer cycle,
+//! and a ring that is not one circle (a notch cut into the bore) — must
+//! lie wholly beyond the trim. Predicate 2's screen reads each boundary pair at
 //! its sample stations only, and on these bodies the closest approach
 //! falls between them: the screen passes, and before the host-boundary
 //! meter each of the four refusing rows below carved a tier-3-valid
@@ -27,28 +28,16 @@ use profile::SketchPlane;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{prism_on, revolved_about_y, rim_arcs_at};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, validate_geometric};
+use sweep::test_support::{prism_on, realized, revolved_about_y, rim_arcs_at};
+use topo::boolean::BooleanOp;
+use topo::{Body, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {
@@ -62,8 +51,9 @@ const HALF: f64 = 0.3;
 const NOTCH_AZ: f64 = 22.5;
 
 /// A washer `r ∈ [1, 2]`, `y ∈ [0, 1]` about the `y` axis — every wall a
-/// one-edge revolution wall, the bottom annulus carrying both bottom
-/// rims and its seam in one cycle — with a box notch spanning radii
+/// one-edge revolution wall, the bottom annulus one face with the outer
+/// rim its outer cycle and the bore rim its ring — with a box notch
+/// spanning radii
 /// `[from, to]` and `±HALF` tangentially at azimuth [`NOTCH_AZ`], cut
 /// through the whole height.
 fn notched_washer(from: f64, to: f64) -> Body<f64> {

@@ -27,10 +27,10 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
-    LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
-    evaluate, load, save,
+    Attr, CancelToken, Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar,
+    LoopProgram, MetaValue, Node, NodeResult, PersistError, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, VarName, WitnessDatum,
+    apply, evaluate, load, save,
 };
 use fixture::{ang, desc, len, len2, scl};
 use geom_core::Tol;
@@ -67,9 +67,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // populated `distribution` key rather than only its absence.
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("depth"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -78,16 +78,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     lo: -0.005,
                     hi: 0.004,
                 }),
-            },
+            }),
         },
     );
     // A second parameter with NO distribution, so the same bytes also
     // pin the degenerate carry: an unannotated param writes no key.
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("clearance"),
-            value: DocParam::continuous(Dimension::Length, 0.001),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("clearance"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
     );
     // Every sketch in this fixture is drawn on the world xy plane, so
@@ -127,7 +127,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: arc_profile,
-                distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
+                distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -211,13 +211,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // profile carries an ARC, so its barrel is a cylinder; the
     // chamfer's v1 door is plane-plane, and every closed edge chain on
     // that body runs into the curved lateral and refuses
-    // `ChamferArmUnsupported`. A single edge does not work either — the
-    // assembly admits only a FULLY-REQUESTED chain set, so one lateral
-    // edge terminating at a trivalent corner refuses
-    // `UnsupportedRunOut`. A four-sided prism with all twelve edges
-    // requested is the smallest thing the door actually accepts, and a
-    // golden that froze a refusing node would be the sick-bytes failure
-    // #117/#120 named.
+    // `ChamferArmUnsupported`. A four-sided prism with all twelve edges
+    // requested is accepted by the door, and a golden that froze a
+    // refusing node would be the sick-bytes failure #117/#120 named.
     let square = desc(
         plane,
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
@@ -273,7 +269,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         },
     );
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".into(), MetaValue::Int(1));
+    m.insert("v".into(), MetaValue::Int(1.into()));
     m.insert("neg_zero".into(), MetaValue::Float(-0.0));
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad]));
     m.insert(
@@ -303,8 +299,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(
                 Node::measure(
                     editor_core::MeasureExpr::sub(
-                        editor_core::MeasureExpr::value(Expr::param(
-                            ParamName::from_static("depth"),
+                        editor_core::MeasureExpr::value(Formula::named(
+                            VarName::from_static("depth"),
                             Dimension::Length,
                         )),
                         editor_core::MeasureExpr::value(len(0.25)),
@@ -436,7 +432,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let edits = vec![DocEdit::SetParam {
         node: bulged,
         slot: editor_core::SlotId::Distance,
-        expr: editor_core::parse_expr("500 mm", &std::collections::BTreeMap::new())
+        expr: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
             .expect("golden unit literal"),
     }];
     (doc, edits)

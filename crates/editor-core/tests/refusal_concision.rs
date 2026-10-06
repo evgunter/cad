@@ -254,9 +254,24 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "CrossingCarrierUnsupported",
+            BooleanError::CrossingCarrierUnsupported {
+                operand: Operand::A,
+                edge,
+                face,
+            },
+        ),
+        (
             "PointSplitCarrierUnsupported",
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
+                edge,
+            },
+        ),
+        (
+            "GermEdgeCarrierUnsupported",
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
                 edge,
             },
         ),
@@ -272,11 +287,52 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "PointInFaceRefused(EmptyLoop)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::EmptyLoop(LoopKey::default()),
+            },
+        ),
+        (
+            "PointInFaceRefused(LoopUnreadable)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::LoopUnreadable(LoopKey::default()),
+            },
+        ),
+        (
+            "PointInFaceRefused(RayExhausted)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::RayExhausted,
+            },
+        ),
+        (
+            "PointInFaceRefused(Curved(CorruptFace))",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::A,
+                face,
+                refusal: topo::ContainError::Curved(PointInSolidError::CorruptFace { face }),
+            },
+        ),
+        (
             "ScaffoldingOperand",
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
                 errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
                     vertex: topo::VertexKey::default(),
+                }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            BooleanError::InsideOutOperand {
+                operand: Operand::B,
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
                 }],
             },
         ),
@@ -585,6 +641,20 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+            },
+        ),
+        (
+            "PierceRunsUnordered",
+            BooleanError::PierceRunsUnordered {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                runs: 3,
+            },
+        ),
+        (
+            "PinchUncrossed",
+            BooleanError::PinchUncrossed {
+                vertex: VertexKey::default(),
             },
         ),
         (

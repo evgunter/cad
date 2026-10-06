@@ -263,7 +263,12 @@ impl From<FitError> for SkinError {
 ///   (Book §7.5 / A7.1), split into `⌈|θ| / (π/2)⌉` equal sub-arcs so
 ///   every tangent-intersection control point stays finite and the
 ///   interior weights `cos(Δ/2)` stay ≥ `cos(π/4)`. Exact in ℝ: the
-///   locus IS the carrier circle, not a fit of it.
+///   locus IS the carrier circle, not a fit of it. The circle is the
+///   one [`SketchSegment::eval`] describes — `a` turned about the
+///   centre through the sweep — so the control points are `a − centre`
+///   rotated about the centre, and the stored radius is not read: the
+///   curve and the evaluation certification meters cannot describe two
+///   different circles.
 ///
 /// The 2-D control points are mapped through `place` — an affine map,
 /// under which a NURBS is exactly a NURBS with the same weights and
@@ -272,9 +277,9 @@ impl From<FitError> for SkinError {
 /// # Errors
 ///
 /// [`SkinError::DegenerateSection`] for a zero-length chord, a zero
-/// or non-finite sweep, or an arc whose radius is not finite and
-/// positive; [`SkinError::Structure`] if validated construction
-/// refuses.
+/// or non-finite sweep, or an arc whose start is not a finite, positive
+/// distance from its centre; [`SkinError::Structure`] if validated
+/// construction refuses.
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note): a poisoned coordinate must take
 // the refusal arm, not slip through a negated comparison.
@@ -298,54 +303,52 @@ pub fn segment_curve(
                 vec![1.0, 1.0],
             )?)
         }
-        SketchSegment::Arc {
-            a,
-            b,
-            arc:
-                Arc2 {
-                    centre,
-                    radius,
-                    sweep: theta,
-                },
-        } => {
+        SketchSegment::Arc { a, b, arc } => {
+            let Arc2 {
+                centre,
+                sweep: theta,
+                ..
+            } = arc;
             if !(a.distance(b) > 0.0) {
                 return Err(degenerate("zero-length chord"));
             }
             if !theta.is_finite() || theta == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }
-            if !(radius > 0.0) || !radius.is_finite() {
-                return Err(degenerate("arc radius is not finite and positive"));
+            let spoke = a - centre;
+            let rim = spoke.norm();
+            if !(rim > 0.0) || !rim.is_finite() {
+                return Err(degenerate(
+                    "arc start is not a finite, positive distance from its centre",
+                ));
             }
-            // The segment's own carrier and signed sweep; the start
-            // angle is read off the stored start vertex.
-            let start = (a.y - centre.y).atan2(a.x - centre.x);
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let m = ((theta.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
             #[allow(clippy::cast_precision_loss)]
             let steps = m as f64;
             let delta = theta / steps;
             let half_w = (delta / 2.0).cos();
-            let on = |ang: f64| {
-                let (s, c) = ang.sin_cos();
-                world(Point2::new(
-                    radius.mul_add(c, centre.x),
-                    radius.mul_add(s, centre.y),
-                ))
-            };
+            // The on-arc control points are the evaluation's own points
+            // ([`Arc2::point_from`], `a` itself at the start); the
+            // tangent-intersection points are the spoke `a − centre`
+            // turned to mid-span about the centre and pushed out by
+            // 1/cos(Δ/2).
             let tangent_point = |ang: f64| {
                 let (s, c) = ang.sin_cos();
-                let r = radius / half_w;
-                world(Point2::new(r.mul_add(c, centre.x), r.mul_add(s, centre.y)))
+                let (x, y) = (spoke.x / half_w, spoke.y / half_w);
+                world(Point2::new(
+                    centre.x + (x * c - y * s),
+                    centre.y + (x * s + y * c),
+                ))
             };
-            let mut control = vec![on(start)];
+            let mut control = vec![world(a)];
             let mut weights = vec![1.0f64];
             for k in 0..m {
                 #[allow(clippy::cast_precision_loss)]
-                let base = delta.mul_add(k as f64, start);
+                let (base, next) = (delta * k as f64, (k + 1) as f64 / steps);
                 control.push(tangent_point(base + delta / 2.0));
                 weights.push(half_w);
-                control.push(on(base + delta));
+                control.push(world(arc.point_from(a, next)));
                 weights.push(1.0);
             }
             let mut knots = vec![0.0, 0.0, 0.0];
@@ -551,9 +554,10 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// a tolerance.
 ///
 /// The Cartesian lane is bitwise conservative for the cases that
-/// already worked. `solve_square` factors the matrix once from `a`
-/// alone and substitutes each right-hand-side column independently, so
-/// dropping the weight column cannot move the `x`/`y`/`z` columns; the
+/// already worked. The collocation solve factors the matrix once from
+/// the parameters alone and substitutes each right-hand-side column
+/// independently, so dropping the weight column cannot move the
+/// `x`/`y`/`z` columns; the
 /// row entries themselves are unchanged because `p.x * 1.0` is `p.x`
 /// bit-for-bit; and the final divide it removes was a division by
 /// exactly `1.0` in precisely the cases whose weights came out exact.
@@ -561,29 +565,15 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// (pinned by
 /// `m7_skin_integral::the_uniform_loft_is_bitwise_unchanged`).
 ///
-/// # Numbered note 5 (spec §2): the solve is DENSE, and where that lands
+/// # Numbered note 5 (spec §2): the solve is banded
 ///
 /// The collocation system is `k × k` in the SECTION count `k` — not in
-/// the control count — solved by fixed-order LU with `4·n` (integral
-/// input: `3·n`) simultaneous right-hand sides (`n` = control points
-/// per section). Cost is
-/// `O(k³)` for the factorization plus `O(k²·n)` for the substitutions;
-/// memory is `O(k² + k·n)`.
-///
-/// Spec §2 permits a banded solver only if PR 4's stack already
-/// provides one. It does not — `geom_core::linalg::lsq` offers
-/// `solve_square` and `solve_normal`, both dense — so this is the
-/// dense small-system lane, and the size limit is worth stating rather
-/// than discovering. Realistic lofts put `k` in the single digits to
-/// low tens (the Book's §10.3 examples; a twenty-section loft is
-/// already an unusual part), where `k³ ≤ 8·10³` is unmeasurable next
-/// to the knot-algebra work that precedes it. A banded solver starts
-/// to matter around `k` in the high hundreds, where `k³` reaches
-/// `10⁸` — scattered-data fitting territory (M7), not feature
-/// modelling. The matrix IS banded (half-bandwidth `q` for v-degree
-/// `q`, since only `q + 1` basis functions are nonzero per row), so
-/// the upgrade is a solver swap behind this same entry when a use case
-/// asks for it; nothing about the structure selection would change.
+/// the control count — with `4·n` (integral input: `3·n`) simultaneous
+/// right-hand sides (`n` = control points per section).
+/// `interpolate_columns` factors it by the fit's fixed-order banded LU
+/// (`geom::Collocation`): `O(k·q²)` for the
+/// factorization at v-degree `q`, plus `O(k·q·n)` for the
+/// substitutions, in `O(k·q + k·n)` memory.
 ///
 /// The u-direction structure is the sections' shared one, untouched.
 /// The result therefore passes through every section exactly (in ℝ) at

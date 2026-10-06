@@ -57,9 +57,9 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, StepArg, evaluate, persist,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeVar,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, SlotId, StepArg, VarName, evaluate, persist,
 };
 use fixture::digest::digest;
 use fixture::{ang, axis_in_plane, frame, insert, len, scl, square, step, tol, xy_frame};
@@ -79,8 +79,8 @@ const H: f64 = 1.2;
 /// own angle (`sweep`'s `verbs_germarms2`).
 const PHI: f64 = PI / 4.0;
 
-fn param(name: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(name), Dimension::Length)
+fn param(name: &'static str) -> Formula {
+    Formula::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A document declaring `r`.
@@ -88,9 +88,9 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(name), tol());
     step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, R),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     )
     .0
@@ -101,7 +101,7 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
 fn circle_on_frame(
     doc: ProfileDoc,
     z: f64,
-    radius: Expr,
+    radius: Formula,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, profile) = insert(
@@ -120,7 +120,7 @@ fn circle_on_frame(
 
 /// A cylinder about `z` of radius `radius`, `z ∈ [−H, H]` — the
 /// document spelling of the germ fixture's `cyl`.
-fn cylinder(doc: ProfileDoc, radius: Expr) -> (ProfileDoc, RecipeNodeId) {
+fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     let (doc, _, profile) = circle_on_frame(doc, -H, radius);
     insert(
         doc,
@@ -289,14 +289,32 @@ fn both_sweeps_evaluate_in_one_document() {
 /// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
 /// realized-vs-idealized bit equality) were green across the change
 /// untouched.
+///
+/// RE-BLESSED, `die` and `kitchen_sink` only, when declaring a variable
+/// began minting its id on the document's chain: every node minted
+/// after a declare was renumbered, and this digest feeds ids. The
+/// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
+///
+/// RE-BLESSED (`boss_union` alone) when `circle_split` began storing
+/// its authored carrier (centre and `|r|`) instead of re-deriving each
+/// arc's carrier from its chord: the boss's split rims moved in the
+/// last bits. `cut_cylinder`'s `circle` did not move — its chord
+/// lowering returned the authored centre and radius bit for bit.
+///
+/// Re-blessed when contact records gained the `(vertex, edge)` and
+/// edge-edge kinds: the digest feeds the records' `Debug`, which now
+/// prints empty `ve` and `ee` lists; with those fields stripped every
+/// constant here held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xb23f_de75_dcfd_65e9),
-        ("corner_table", 0x246c_30e8_519e_c23f),
-        ("cut_cylinder", 0x1676_4144_da9e_6975),
-        ("boss_union", 0x9149_8127_2c43_ed66),
-        ("kitchen_sink", 0x0973_ecf8_520a_08a7),
+        ("die", 0xfa04_f1a7_d1c4_847d),
+        ("corner_table", 0x5831_a08f_3fa5_04e4),
+        ("cut_cylinder", 0xcea6_3bbf_f0ce_47ad),
+        ("boss_union", 0xeb25_210f_2b67_d89b),
+        ("kitchen_sink", 0xadb2_1e39_d9af_1747),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -400,7 +418,7 @@ fn one_shared_radius_declares_across_two_extruded_circles() {
 fn two_radii_spelled_differently_do_not_declare() {
     let doc = doc_with_r("seat7-two-radii");
     let (doc, a) = cylinder(doc, param("r"));
-    let (doc, b) = cylinder(doc, Expr::div(param("r"), scl(2.0)).unwrap());
+    let (doc, b) = cylinder(doc, Formula::div(param("r"), scl(2.0)).unwrap());
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "two-radii document:\n{}", bad.join("\n"));
@@ -681,7 +699,7 @@ fn the_extent_slots_reach_no_field() {
 fn extruded(
     doc: ProfileDoc,
     z: f64,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, profile) = insert(
@@ -704,7 +722,7 @@ fn extruded(
 }
 
 /// A circle at the origin of the given radius expression.
-fn circle_loop(radius: Expr) -> LoopProgram {
+fn circle_loop(radius: Formula) -> LoopProgram<Formula> {
     LoopProgram::Circle {
         centre: [len(0.0), len(0.0)],
         radius,
@@ -757,9 +775,9 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
     let doc = doc_with_r("seat7-hole-first");
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("q"),
-            value: DocParam::continuous(Dimension::Length, Q),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("q"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     // Hole first, deliberately.
@@ -920,9 +938,9 @@ fn the_memo_never_serves_a_stale_sweep_token() {
     // the old one under a token that claims `r`.
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, 2.0 * R),
+        DocEdit::DefineVar {
+            var: VarName::from_static("r").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -959,7 +977,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
 /// Neither of those two steps emits a segment; the arc emits exactly
 /// one, which is what makes it the step a per-edge radius is
 /// addressable at.
-fn tangent_arc(r: Expr, side: profile::ArcSide) -> [ProgramStep; 2] {
+fn tangent_arc(r: Formula, side: profile::ArcSide) -> [ProgramStep<Formula>; 2] {
     [
         ProgramStep::Tangent,
         ProgramStep::ArcTo(ProgramArcData::Sweep {
@@ -977,7 +995,7 @@ fn tangent_arc(r: Expr, side: profile::ArcSide) -> [ProgramStep; 2] {
 /// segment 1 is a cylinder at `r` and the other two are planes, so a
 /// row can ask for the cylinder by its stored radius and know which
 /// edge it came from.
-fn one_arc_chain(r: Expr) -> LoopProgram {
+fn one_arc_chain(r: Formula) -> LoopProgram<Formula> {
     let mut steps = vec![
         ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::Toward {
@@ -1007,7 +1025,7 @@ const ARC_STEP: u32 = 4;
 /// canonicalization leaves the segment numbering alone, `Right` authors
 /// the mirror image and canonicalization REVERSES it, so canonical
 /// segment `k` is a different edge from program segment `k`.
-fn two_arc_chain(r1: Expr, r2: Expr, side: profile::ArcSide) -> LoopProgram {
+fn two_arc_chain(r1: Formula, r2: Formula, side: profile::ArcSide) -> LoopProgram<Formula> {
     let mut steps = vec![
         ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::Toward {
@@ -1149,9 +1167,9 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
     let doc = doc_with_r(id);
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("q"),
-            value: DocParam::continuous(Dimension::Length, Q),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("q"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     let (doc, profile_node, chain) =
@@ -1358,6 +1376,8 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
         Vec3::new(0.0, 1.0, 0.0),
         PHI,
     );
+    let raw_a = topo::test_support::finished("the raw spun cylinder A", raw_a, tol());
+    let raw_b = topo::test_support::finished("the raw spun cylinder B", raw_b, tol());
     let raw = topo::union(&raw_a, &raw_b, tol()).expect_err("this family has no join arm");
     assert_eq!(
         pinch_evidence(&raw),

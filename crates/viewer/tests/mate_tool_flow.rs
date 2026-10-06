@@ -478,6 +478,52 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     );
 }
 
+/// **A pick on a UNION of placed instances is admitted** at the member
+/// the ray met. A union carries each member's face under the member's
+/// name (`FromMember`), and the member walk descends it at the member
+/// that name says — so the pick reads at the union, stands on the
+/// instance below, and proposes a valid mate.
+#[test]
+fn a_pick_on_a_union_of_instances_stands_on_the_member() {
+    let tol = Tol::witness();
+    let bench = asm::bench("mateunion", tol);
+    let session = asm::open_bench(&bench, tol);
+    let mut doc = session.committed_doc().clone();
+    let union = common::insert_into(
+        &mut doc,
+        pncad::document::Node::Union {
+            members: vec![bench.post_a, bench.post_b],
+            declare: Vec::new(),
+        },
+        tol,
+    );
+    let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
+    ws.resave(&doc, tol).expect("the assembly stores");
+    let mut session = asm::open_bench(&bench, tol);
+    session.pump();
+    let post_top = asm::pick_face(&session, &asm::over_post_b());
+    assert_eq!(post_top.node, union, "the ray met the union's body");
+    assert!(
+        matches!(
+            post_top.name.path.first(),
+            Some(RoleSeg::FromMember { member, .. }) if *member == bench.post_b
+        ),
+        "the union names post_b's face as its member's: {:?}",
+        post_top.name
+    );
+    let shelf_bottom = asm::shelf_underside(&session);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), post_top);
+    tool.pick(session.doc(), shelf_bottom);
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, asm::seat_choice())
+        .expect("a pick on a union of instances proposes");
+    assert_eq!(proposal.a.at, union, "the reference is read at the union");
+    let member = pncad::document::member_of(doc, &proposal.a).expect("a member");
+    assert_eq!(member.instance, bench.post_b, "it stands on post_b");
+}
+
 /// **A9 — a pick on a TRANSFORMED instance is admitted, and the mate
 /// it authors SEATS.** The reference the tool writes is read at the
 /// node the ray met — the transform — not at the instance, which is
@@ -704,7 +750,7 @@ const NEST_STEP: f64 = 0.04;
 /// part, outer, loose part)`.
 fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [RecipeNodeId; 6]) {
     use pncad::document::{
-        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram,
+        Doc, DocEdit, DocumentId, Formula, Node, PartSelect, PatternKind, ProfileProgram,
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
     let shelf_i = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
@@ -729,7 +775,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
         &mut doc,
         Node::Pattern {
             input: post_i,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: rule([1.0, 0.0, 0.0]),
         },
         tol,
@@ -738,7 +784,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
         &mut doc,
         Node::Part {
             of: inner,
-            select: PartSelect::Instance(Expr::count(1)),
+            select: PartSelect::Instance(Formula::count(1)),
         },
         tol,
     );
@@ -746,7 +792,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
         &mut doc,
         Node::Pattern {
             input: part,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
         tol,
@@ -755,7 +801,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
         &mut doc,
         Node::Part {
             of: inner,
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
         tol,
     );

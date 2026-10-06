@@ -6,7 +6,7 @@
 //! rule is stated once — `Node::assertion_bound_fault`,
 //! `Node::has_non_finite_alignment`, `doc::placement_fault`,
 //! `doc::witness_site_fault`, `doc::epsilon_admissible`,
-//! `DocParam::is_continuous_count`, `DocParam::first_non_finite` — and
+//! `FreeVar::is_continuous_count`, `FreeVar::first_non_finite` — and
 //! the edit door and the persistence door each render the one answer
 //! in their own vocabulary.
 //!
@@ -40,17 +40,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocRef, DocumentId,
-    EditError, EntityKind, Expr, FaceName, Frame, InterfaceCrossing, InterfaceRecord, MateFrame,
-    MatePrimitive, MeasureExpr, Node, ParamName, PersistError, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load, save,
+    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
+    EntityKind, FaceName, Formula, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
+    MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
+    SnapshotError, StableName, VarName, apply, load, save,
 };
-use editor_core::{ParamNameReason, parse_expr};
+use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
@@ -83,7 +84,7 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
     (r.doc, measure)
 }
 
-fn assertion(measure: RecipeNodeId, bound: Expr) -> Node<ProfileProgram> {
+fn assertion(measure: RecipeNodeId, bound: Formula) -> AuthoredNode {
     Node::Assertion {
         measure,
         bound,
@@ -172,7 +173,7 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
 fn saved_assertion(
     doc: &editor_core::ProfileDoc,
     measure: RecipeNodeId,
-    bound: Expr,
+    bound: Formula,
 ) -> (String, RecipeNodeId) {
     let applied = apply(
         doc,
@@ -209,7 +210,7 @@ fn repoint_measure(
 
 /// Retypes the assertion's BOUND literal from a length to an angle,
 /// unit and all — both halves, so the literal is still one the load
-/// door's `Expr::literal_with_unit` rebuild accepts and the refusal
+/// door's `Formula::literal_with_unit` rebuild accepts and the refusal
 /// read is the DIMENSION rule's.
 fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
     doctored(text, |wire| {
@@ -296,19 +297,26 @@ fn part_face(body: RecipeNodeId) -> StableName {
     }
 }
 
-fn mate(
-    body: RecipeNodeId,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-    origin: [f64; 3],
-) -> Node<ProfileProgram> {
+fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                origin,
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
@@ -317,7 +325,7 @@ fn mate(
 }
 
 /// **A mate the edit door cannot decide on is refused there.** The
-/// alignment is authored numbers; a coordinate that is not a number
+/// rider is an authored number; a number that is not one
 /// leaves every downstream predicate — the coset solve, the rest
 /// classification — with nothing to read.
 ///
@@ -331,10 +339,14 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
     // Finite, the same mate is accepted — so the refusal below is the
     // coordinate's and not the fixture's.
     let (doc, _) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let mut non_finite = mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]);
+    if let Node::Mate { alignment, .. } = &mut non_finite {
+        alignment.clocking = Some(f64::NAN);
+    }
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(mate(body, ids[0], ids[1], [f64::NAN, 0.0, 0.0])),
+            node: Box::new(non_finite),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -987,9 +999,9 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
 /// **A continuous parameter carrying a float that is not a number —
 /// both doors, naming WHICH float.**
 ///
-/// `DocParam::first_non_finite` is the one rule and both doors ask it:
+/// `FreeVar::first_non_finite` is the one rule and both doors ask it:
 /// the nominal first, then the annotation's offsets. The edit door
-/// names its answer `EditError::NonFiniteDocParam` and the load door
+/// names its answer `EditError::NonFiniteVar` and the load door
 /// `NonFiniteSite::DocParam`, and each carries the field the predicate
 /// identified — a door that dropped it would be answering a coarser
 /// question than the one that was asked.
@@ -1003,17 +1015,17 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
     use editor_core::{Distribution, DistributionField, DocParamField, persist::NonFiniteSite};
 
     let (doc, _) = with_measure();
-    let name = ParamName::from_static("wall");
+    let name = VarName::from_static("wall");
     let annotated = |sigma: f64| {
-        let mut value = DocParam::continuous(Dimension::Length, 1.0);
-        if let DocParam::Continuous { distribution, .. } = &mut value {
+        let mut value = FreeVar::continuous(Dimension::Length, 1.0);
+        if let FreeVar::Continuous { distribution, .. } = &mut value {
             *distribution = Some(Distribution::Normal { sigma });
         }
         value
     };
     let cases = [
         (
-            DocParam::continuous(Dimension::Length, f64::NAN),
+            FreeVar::continuous(Dimension::Length, f64::NAN),
             DocParamField::Nominal,
         ),
         (
@@ -1024,30 +1036,30 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
     for (value, expected) in cases {
         match apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: name.clone(),
-                value: value.clone(),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
-            Err(EditError::NonFiniteDocParam { name: n, field }) => {
-                assert_eq!(n, name);
+            Err(EditError::NonFiniteVar { var: n, field }) => {
+                assert_eq!(n.name(), Some(&name));
                 assert_eq!(field, expected, "the edit door names the offending float");
             }
             other => panic!("a non-finite parameter must refuse typed, got {other:?}"),
         }
 
-        let edit = DocEdit::SetDocParam {
+        let edit = DocEdit::DeclareVar {
             name: name.clone(),
-            value,
+            def: editor_core::VarDecl::Free(value),
         };
         match save(&doc, &[edit], Tol::witness()) {
             Err(PersistError::NonFinite {
                 site: NonFiniteSite::Edit { index: 0, inner },
             }) => match *inner {
-                NonFiniteSite::DocParam { name: ref n, field } => {
-                    assert_eq!(*n, name);
+                NonFiniteSite::DocParam { var: ref n, field } => {
+                    assert_eq!(*n, editor_core::VarRef::Name(name.clone()));
                     assert_eq!(field, expected, "the load door names the same float");
                 }
                 ref other => panic!("expected a doc-param site, got {other:?}"),
@@ -1062,9 +1074,9 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 /// **A continuous parameter declared with the count dimension — the
 /// edit door, and what the load door actually answers.**
 ///
-/// `DocParam::is_continuous_count` is the one rule and both doors ask
+/// `FreeVar::is_continuous_count` is the one rule and both doors ask
 /// it; this row pins the edit door's answer
-/// (`ContinuousParamCannotBeCount`).
+/// (`ContinuousVarCannotBeCount`).
 ///
 /// At the load door the same document refuses by another name, and
 /// that is what this row asserts: no unit in the table measures a
@@ -1078,17 +1090,19 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 #[test]
 fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words() {
     let (doc, _) = with_measure();
-    let name = ParamName::from_static("n");
+    let name = VarName::from_static("n");
     match apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Count, 3.0),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Count, 3.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::ContinuousParamCannotBeCount { name: n }) => assert_eq!(n, name),
+        Err(EditError::ContinuousVarCannotBeCount { var: n }) => {
+            assert_eq!(n.name(), Some(&name));
+        }
         other => panic!("a count-dimensioned continuous param must refuse typed, got {other:?}"),
     }
 
@@ -1096,15 +1110,20 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
     // a count on the wire.
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Length, 3.0),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 3.0)),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        let dim = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"]["dim"];
+        let id = doc
+            .var_named(name.as_str())
+            .expect("declared")
+            .0
+            .to_string();
+        let dim = &mut wire["snapshot"]["vars"][id.as_str()]["def"]["Free"]["Continuous"]["dim"];
         assert_eq!(
             *dim,
             serde_json::json!("Length"),
@@ -1115,9 +1134,9 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::DisplayUnit {
             declared: Dimension::Count,
-            name: n,
+            var: n,
             ..
-        }) => assert_eq!(n, name),
+        }) => assert_eq!(n.name(), Some(&name)),
         other => panic!("a count-dimensioned continuous param must refuse at load, got {other:?}"),
     }
 }
@@ -1126,7 +1145,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
 //
 // The rule one rung up again: a parameter name is admissible exactly
 // when the expression parser reads it back as a reference to that
-// parameter, and `ParamName` holds that by construction. The edit door
+// parameter, and `VarName` holds that by construction. The edit door
 // therefore has no name check to drift — an inadmissible name cannot
 // be spelled into a `DocEdit` — and the load door refuses at the
 // token, through the same constructor. The rows pair the constructor's
@@ -1134,54 +1153,51 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
 // pin the constructor's rule to the parser's own reading.
 
 /// The texts the lexer does not read as one identifier, each with the
-/// finding `ParamName::new` answers for it: blank, whitespace, a
+/// finding `VarName::new` answers for it: blank, whitespace, a
 /// leading digit, an embedded operator, a call's bracket, a character
 /// outside the alphabet, and padding.
-fn inadmissible_names() -> Vec<(&'static str, ParamNameReason)> {
+fn inadmissible_names() -> Vec<(&'static str, VarNameReason)> {
     let s = str::to_string;
     vec![
-        ("", ParamNameReason::Blank),
-        ("   ", ParamNameReason::Blank),
+        ("", VarNameReason::Blank),
+        ("   ", VarNameReason::Blank),
         (
             "1 2",
-            ParamNameReason::NotAnIdentifier {
+            VarNameReason::NotAnIdentifier {
                 pos: 0,
                 found: s("1"),
             },
         ),
         (
             "2width",
-            ParamNameReason::NotAnIdentifier {
+            VarNameReason::NotAnIdentifier {
                 pos: 0,
                 found: s("2"),
             },
         ),
         (
             "a+b",
-            ParamNameReason::NotOneToken {
+            VarNameReason::NotOneToken {
                 pos: 1,
                 found: s("+"),
             },
         ),
         (
             "hole r",
-            ParamNameReason::NotOneToken {
+            VarNameReason::NotOneToken {
                 pos: 5,
                 found: s("r"),
             },
         ),
         (
             "sin(",
-            ParamNameReason::NotOneToken {
+            VarNameReason::NotOneToken {
                 pos: 3,
                 found: s("("),
             },
         ),
-        (
-            "width#",
-            ParamNameReason::OutsideAlphabet { pos: 5, ch: '#' },
-        ),
-        (" width ", ParamNameReason::Padded),
+        ("width#", VarNameReason::OutsideAlphabet { pos: 5, ch: '#' }),
+        (" width ", VarNameReason::Padded),
     ]
 }
 
@@ -1192,9 +1208,9 @@ fn saved_with_width() -> (ProfileDoc, String) {
     let doc = ProfileDoc::empty(DocumentId::derive("param-name-door"), Tol::witness());
     let applied = apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("width"),
-            value: DocParam::continuous(Dimension::Length, 1.0),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("width"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1208,18 +1224,15 @@ fn saved_with_width() -> (ProfileDoc, String) {
 /// Re-keys the snapshot's `width` declaration under `spelling`.
 fn rekey_width(text: &str, spelling: &str) -> String {
     doctored(text, |wire| {
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the param table is an object");
-        let decl = params.remove("width").expect("the fixture declares width");
-        params.insert(spelling.to_string(), decl);
+        let id = crate::wire::wire_var_key(wire, "width");
+        wire["snapshot"]["var_names"][id.as_str()] = serde_json::json!(spelling);
     })
 }
 
 #[test]
 fn a_name_the_parser_cannot_read_back_is_refused_at_the_constructor() {
     for (text, reason) in inadmissible_names() {
-        let fault = ParamName::new(text).expect_err(text);
+        let fault = VarName::new(text).expect_err(text);
         assert_eq!(fault.offered, text, "the fault carries the text verbatim");
         assert_eq!(fault.reason, reason, "{text:?}");
         let shown = fault.to_string();
@@ -1234,7 +1247,7 @@ fn a_name_the_parser_cannot_read_back_is_refused_at_the_constructor() {
 fn a_name_the_parser_cannot_read_back_is_refused_at_the_load_door() {
     let (_, text) = saved_with_width();
     for (spelling, reason) in inadmissible_names() {
-        let fault = ParamName::new(spelling).expect_err(spelling);
+        let fault = VarName::new(spelling).expect_err(spelling);
         assert_eq!(fault.reason, reason);
         let corrupt = rekey_width(&text, spelling);
         match load(&corrupt, Tol::witness()) {
@@ -1256,15 +1269,15 @@ fn a_name_the_parser_cannot_read_back_is_refused_at_the_load_door() {
 #[test]
 fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
     let (doc, _) = saved_with_width();
-    let log = vec![DocEdit::SetDocParam {
-        name: ParamName::from_static("depth"),
-        value: DocParam::continuous(Dimension::Length, 2.0),
+    let log = vec![DocEdit::DeclareVar {
+        name: VarName::from_static("depth"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0)),
     }];
     let text = save(&doc, &log, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
-    let fault = ParamName::new("1 2").expect_err("a spaced number is not a name");
+    let fault = VarName::new("1 2").expect_err("a spaced number is not a name");
     let corrupt = doctored(&text, |wire| {
-        let name = &mut wire["edits"][0]["SetDocParam"]["name"];
+        let name = &mut wire["edits"][0]["DeclareVar"]["name"];
         assert_eq!(
             *name,
             serde_json::json!("depth"),
@@ -1295,15 +1308,15 @@ fn agrees(text: &str, replay: &str) {
         format!("{text:?}")
     };
     let read_back = matches!(
-        parse_expr(text, &BTreeMap::new()),
+        parse_formula(text, &BTreeMap::new()),
         Err(editor_core::ParseError::UnknownParam { ref name, .. }) if name == text
     );
-    match ParamName::new(text) {
+    match VarName::new(text) {
         Ok(name) => {
             assert!(read_back, "{shown} is admitted but not read back{replay}");
             let table = BTreeMap::from([(name.clone(), Dimension::Scalar)]);
             assert!(
-                parse_expr(text, &table) == Ok(Expr::param(name, Dimension::Scalar)),
+                parse_formula(text, &table) == Ok(Formula::named(name, Dimension::Scalar)),
                 "{shown} is admitted, but declared it does not read back as itself{replay}"
             );
         }
@@ -1327,7 +1340,7 @@ fn agrees(text: &str, replay: &str) {
 #[test]
 fn a_name_is_admissible_exactly_when_the_parser_reads_it_back() {
     for text in ["width", "hole_r", "_", "x1", "sin", "mm", "pi", "δ"] {
-        assert!(ParamName::new(text).is_ok(), "{text:?} is admitted");
+        assert!(VarName::new(text).is_ok(), "{text:?} is admitted");
     }
     let long = "a".repeat(100_000);
     let long_bad = format!("{}-", "a".repeat(10_000));
@@ -1465,5 +1478,5 @@ fn a_name_is_admissible_exactly_when_the_parser_reads_it_back_over_any_scalar() 
 #[test]
 #[should_panic(expected = "parameter name \"1 2\" opens with \"1\" at byte 0")]
 fn an_inadmissible_static_name_panics_with_the_faults_sentence() {
-    let _ = ParamName::from_static("1 2");
+    let _ = VarName::from_static("1 2");
 }

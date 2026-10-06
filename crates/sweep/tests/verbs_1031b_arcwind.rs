@@ -14,6 +14,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, Surface};
 
@@ -76,9 +77,14 @@ fn teapot_cup(tol: Tol) -> Body<f64> {
     let body = teapot_pot(tol);
     let chart = plane_chart_at(&body, TOP);
     assert_eq!(chart.len(), 1, "a full revolve builds its cap whole");
-    topo::shell_open(&body, 1.0 / 128.0, &chart, tol)
-        .expect("the cup opens")
-        .body
+    topo::shell_open(
+        &finished("the operand", body.clone(), tol),
+        1.0 / 128.0,
+        &chart,
+        tol,
+    )
+    .expect("the cup opens")
+    .body
 }
 
 /// A cutter box: `x in [0.02, 0.2]`, `y in [-0.01, 0.1]`, `z in [0, 0.3]`.
@@ -225,7 +231,10 @@ fn the_re_posed_cup_is_the_same_cup() {
 #[test]
 fn the_boolean_on_the_cup_builds_and_balances() {
     let tol = Tol::witness();
-    let (cup, cut) = (teapot_cup(tol), cutter(tol));
+    let (cup, cut) = (
+        finished("the cup", teapot_cup(tol), tol),
+        finished("the cutter", cutter(tol), tol),
+    );
     let measure = |what: &str, out: Result<topo::BooleanResult<f64>, topo::BooleanError>| {
         let out = out.unwrap_or_else(|e| panic!("cup {what}: refused {e:?}"));
         let topo::BooleanResult::Body(out) = out else {

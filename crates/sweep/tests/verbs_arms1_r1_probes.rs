@@ -149,17 +149,20 @@ fn washer(big_r: f64, bore: f64, y_lo: f64, y_hi: f64) -> f64 {
 }
 
 /// **The bored dome's equator fillets at three radii** and matches the
-/// independently derived closed form; every wall of the source is
-/// ring-free (the dumped-body claim deviation 1 rests on, re-verified
-/// on a fixture the PR never built).
+/// independently derived closed form; every CURVED wall of the source
+/// is ring-free (the dumped-body claim deviation 1 rests on, re-verified
+/// on a fixture the PR never built), and each plane annulus carries its
+/// inner circle as its one ring.
 #[test]
 fn the_bored_dome_equator_fillets_at_three_radii() {
     for r in [0.05, 0.1, 0.2] {
         let body = bored_dome();
-        for (k, _) in body.faces() {
-            assert!(
-                body.get_face(k).unwrap().rings.is_empty(),
-                "a full revolve's walls carry no rings"
+        for (_, f) in body.faces() {
+            let plane = matches!(body.get_surface(f.surface), Some(Surface::Plane { .. }));
+            assert_eq!(
+                f.rings.len(),
+                usize::from(plane),
+                "a full revolve's curved walls carry no rings, its plane annuli one"
             );
         }
         let rim = bored_dome_equator(&body);
@@ -193,8 +196,8 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
             body.edges().count(),
             body.faces().count()
         ),
-        (4, 8, 4),
-        "the zone is four revolution walls"
+        (4, 6, 4),
+        "the zone is four revolution walls, its two plane annuli unslit"
     );
     let first = fillet_edges(&body, &[zone_rim(&body, -0.5)], r, tol())
         .unwrap_or_else(|e| panic!("the bottom rim fillets, got {e:?}"));
@@ -207,7 +210,7 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
             second.body.edges().count(),
             second.body.faces().count()
         ),
-        (6, 12, 6),
+        (6, 10, 6),
         "each annulus band adds one vertex, two edges, one face"
     );
     let props = mass_properties(&second.body, tol()).expect("mass properties");
@@ -416,7 +419,7 @@ fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     };
     // Lifts RechartStrandsDescriptions: the in-band torus is what tier 3 must escalate.
     out.body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             band_face,
             FaceSurface::New {
                 surface: Surface::Torus {

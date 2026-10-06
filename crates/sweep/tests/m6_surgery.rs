@@ -15,11 +15,11 @@ use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{ball_poled, cube};
+use sweep::test_support::{ball_poled, cube, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::readback::euler_counts;
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{AtRestBody, Body, BooleanDeclarations, EdgeKey};
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -100,14 +100,17 @@ fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
     out
 }
 
-fn pip_tool() -> Body<f64> {
+fn pip_tool() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let pip =
+        |c: Vec3<f64>, n: Vec3<f64>| finished("a pip ball", ball_poled(PIP_R, c, n, tol), tol);
     let places = pip_placements();
-    let mut tool = ball_poled(PIP_R, places[0].0, places[0].1, Tol::witness());
+    let mut tool = pip(places[0].0, places[0].1);
     for (c, n) in &places[1..] {
         tool = boolean_op_with(
             BooleanOp::Union,
             &tool,
-            &ball_poled(PIP_R, *c, *n, Tol::witness()),
+            &pip(*c, *n),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),
@@ -121,7 +124,7 @@ fn pip_tool() -> Body<f64> {
     tool
 }
 
-fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
     let out = boolean_op_with(
         BooleanOp::Subtract,
         a,
@@ -131,12 +134,12 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("pip subtraction: {e}"));
-    out.body().expect("a body").body.clone()
+    out.body().expect("a body").body.clone().into_body()
 }
 
 /// The pipped cube and its twelve surviving box edges.
 fn pipped_and_box_edges() -> (Body<f64>, Vec<EdgeKey>) {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let box_edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pipped = subtract(&cube0, &pip_tool());
     let surviving: Vec<_> = box_edges
@@ -424,21 +427,26 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     );
 }
 
-/// **The surgery front door refuses typed** at its named gaps: a
-/// partially-requested corner (run-outs), and an open plane–sphere
-/// chain (a rim arc alone is not a closed rim, and the seam vertex it
-/// stops at says to request the rim whole).
+/// **The surgery front door refuses typed** at its named gaps: an end
+/// the cut-off does not build (a curved end face, a run-out), and an
+/// open plane–sphere chain (a rim arc alone is not a closed rim, and
+/// the seam vertex it stops at says to request the rim whole). One box
+/// edge of the pipped die, which used to be the run-out witness, is cut
+/// off at its end faces and carves.
 #[test]
 fn the_surgery_front_door_refuses_its_named_gaps() {
     let (pipped, box_edges) = pipped_and_box_edges();
-    // (a) One box edge: its corners' other edges are not requested.
-    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, Tol::witness())
-        .expect_err("a partially-requested corner is a run-out, not implemented");
+    // (a) An edge ending at a curved end face.
+    let (round, edge) = crate::common::operands::half_round_end();
+    let err = fillet_edges(&round, &[edge], DIE_R, Tol::witness())
+        .expect_err("a curved end face is a run-out, not built");
     let text = format!("{err}");
     assert!(
-        text.contains("not implemented") && text.contains("corner"),
+        text.contains("not built") && text.contains("curved end face"),
         "the refusal names the run-out gap: {text}"
     );
+    fillet_edges(&pipped, &box_edges[..1], DIE_R, Tol::witness())
+        .expect("one box edge of the pipped die is cut off at its end faces");
     // (b) One rim arc: an OPEN plane–sphere chain terminates at rim
     // vertices whose third edge is the cap's seam MERIDIAN — the
     // sphere's own chart cut, the plane carrying both arcs — so the

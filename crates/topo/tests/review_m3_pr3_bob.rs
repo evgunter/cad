@@ -72,9 +72,9 @@ fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
 
 /// Bitwise vertex lookup.
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
-    body.vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .filter(|(_, p)| {
+            let p = *p;
             p.x == x && p.y == y && p.z == z
         })
         .count()
@@ -92,7 +92,8 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
 #[test]
 fn mirrored_fixture_flipped_plane_succeeds() {
     let fx = prism::<f64>(MIRRORED, 1.0, Tol::witness());
-    let result = split(&fx.body, &plane(1.0, -1.0), Tol::witness()).unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let result = split(&operand, &plane(1.0, -1.0), Tol::witness()).unwrap();
     // "above" w.r.t. −n = the y < 1 material: the three floor pieces.
     let (pieces, slab) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(pieces), Ok(()));
@@ -129,9 +130,10 @@ fn mirrored_fixture_flipped_plane_succeeds() {
 fn notched_fixture_orientation_table() {
     for (profile, pinched_above_under_plus) in [(NOTCHED, true), (MIRRORED, false)] {
         let fx = prism::<f64>(profile, 1.0, Tol::witness());
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
         for ny in [1.0, -1.0] {
-            let r = split(&fx.body, &plane(1.0, ny), Tol::witness()).unwrap();
+            let r = split(&operand, &plane(1.0, ny), Tol::witness()).unwrap();
             let (a, b) = (body_of(&r.above), body_of(&r.below));
             assert_eq!(validate_closed(a), Ok(()));
             assert_eq!(validate_closed(b), Ok(()));

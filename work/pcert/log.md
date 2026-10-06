@@ -512,3 +512,87 @@ Signed (PCERT orchestrator).
 - Both designers came back with the same answer: the question is already ratified (D1, PR 3453), and the fix is PATHS 5b's fillet arm. So no `[ev]` PR goes out, and no fork-log row is written (protocol rule 1: only forks that go to Ev are rows).
 - The row is corrected and parked on `store-constructed-carriers`. I left a seam note in `work/paths/log.md` asking PATHS to rank 5b.
 - My call: don't take 5b into PCERT. It is PATHS' unit, already specced, and its fillet arm is the fix.
+
+## 2026-10-03 — Ev ruled on 3919; implementer dispatched
+
+- Ev approved PR 3919 ("sounds good! nice catch on 2"). Merged as c8ab2e37d. The fork-log row was renumbered 47 → 54 at the main merge, and Ev's decision and the A/B mapping were filled in.
+- The implementer is dispatched on `pcert/chart-angle-integers` from c8ab2e37d (session_016i8tmtwuCgNvRV9PXr5GHq). The brief is the C4 sentence plus 3919's two reports, and it lists the measurements owed in the PR body. The unit is cost H, so the dual-review pair runs on a frozen head once CI is green.
+
+## 2026-10-03 — PR 3945 dual review adjudicated
+
+- Frozen head 78e55c70. Both reviews are delivered: R1 (comment 5968113330) and R2 (comment 5968109956). Both verdicts are APPROVE-WITH-FIXES, and both report that lane isolation held.
+- **Correspondence pre-note (rule 7), written before the blinded coding returns:**
+  - **Bilateral MAJOR:** the sphere twin is decided with zero margin, so at K below about 4 the wrong sheet certifies or is stored shifted by τ. Both reproduced it, by different probes.
+  - **Bilateral MINOR:**
+    - surviving mutants on the near-pole path, the undecided skip, the winding bound, `identity()` ignoring the twin, and the `joint_arm` lever;
+    - stale `trim_containment` / continuity-margin prose;
+    - torax's either-or pin.
+  - **Unilateral, R2 only:**
+    - `kv` dropped (a surviving mutant);
+    - one predicate name for two questions;
+    - the `pin_branch` wrapper;
+    - the audit row's escape wording;
+    - mesh12 has no upper bound;
+    - the `lift_joint` doc matrix;
+    - the on-axis, off-surface lever (a note).
+  - **Unilateral, R1 only:**
+    - `chart_boundary` cites the 4ε bound for uncertified images;
+    - the gate test bypasses `singular_at`;
+    - two lever functions;
+    - the `loop_closes` combinations.
+  - **Tally candidates:** none, since the only MAJOR is bilateral. Expected tally contribution: 0.
+- **Fix list (the union) sent to the implementer:**
+  - the blocking fix for the twin, following B's design: nearest orbit point, with margin half the separation;
+  - the README re-word that follows from it;
+  - killing rows for every surviving mutant;
+  - the prose sweep;
+  - the minors.
+- Blinded coding dispatched (session_01JZy2Fs1EhBc7PrvXSvX4AE). The byte and mapping are recorded privately until merge.
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — 3945: re-port onto R
+
+- The usage cap stalled 3945 after its confirming review (APPROVE-WITH-FIXES, 0/2). Both MINORs are fixed locally at ae364e91.
+- Main meanwhile landed TOPO's R build (Ev's ruling on PR 4024: a stored per-half-edge joint element, `loop_lift`). That re-architected the code 3945 changes: 45 conflict hunks in `pcurves.rs`.
+- TOPO filed the coordination row on my slate. My call: 3945 lands second and re-ports onto R, with one decider and R's storage, not identity-at-every-joint.
+- The re-ported head gets a fresh dual pair. Most of the code under review will be new against 78e55c70, so a delta review would not cover it.

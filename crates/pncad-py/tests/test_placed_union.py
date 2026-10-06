@@ -22,17 +22,17 @@ from pncad import (
     Bulge,
     Doc,
     DocEdit,
-    DocParam,
+    FreeVar,
     EditError,
     EntityKind,
     EvaluationError,
-    Expr,
+    Formula,
     Frame,
     FrameError,
     NamePat,
     Node,
     Open,
-    ParamName,
+    VarName,
     PatternKind,
     SegPat,
     SegTag,
@@ -51,15 +51,15 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(x[0], m), Expr.length_in(y[0], m)),
-                (Expr.length_in(x[1], m), Expr.length_in(y[0], m)),
-                (Expr.length_in(x[1], m), Expr.length_in(y[1], m)),
-                (Expr.length_in(x[0], m), Expr.length_in(y[1], m)),
+                (Formula.length_in(x[0], m), Formula.length_in(y[0], m)),
+                (Formula.length_in(x[1], m), Formula.length_in(y[0], m)),
+                (Formula.length_in(x[1], m), Formula.length_in(y[1], m)),
+                (Formula.length_in(x[0], m), Formula.length_in(y[1], m)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.length_in(z[0], m)),
+            plane=doc.sketch_frame(elevation=Formula.length_in(z[0], m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.length_in(z[1] - z[0], m)))
+    return doc.insert(Node.extrude(profile, Formula.length_in(z[1] - z[0], m)))
 
 
 def mass_of(doc, node):
@@ -94,11 +94,11 @@ class TestTheFinGroup(unittest.TestCase):
         fin = fin_only(doc)
         before = len(doc)
         group = doc.insert(
-            Node.placed_union(fin, Expr.count(5), PatternKind.linear((
-                Expr.literal(1.0),
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-            ), Expr.length_in(PITCH, m)))
+            Node.placed_union(fin, Formula.count(5), PatternKind.linear((
+                Formula.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+            ), Formula.length_in(PITCH, m)))
         )
         self.assertEqual(len(doc) - before, 1)
 
@@ -120,14 +120,14 @@ class TestTheFinGroup(unittest.TestCase):
         for i in range(5):
             placed = chain_doc.insert(
                 Node.transform(fin, (
-                    Expr.length_in(i * PITCH, m),
-                    Expr.length_in(0, m),
-                    Expr.length_in(0, m),
+                    Formula.length_in(i * PITCH, m),
+                    Formula.length_in(0, m),
+                    Formula.length_in(0, m),
                 ), (
-                    Expr.literal(0.0),
-                    Expr.literal(0.0),
-                    Expr.literal(1.0),
-                ), Expr.angle_in(0, rad))
+                    Formula.literal(0.0),
+                    Formula.literal(0.0),
+                    Formula.literal(1.0),
+                ), Formula.angle_in(0, rad))
             )
             acc = (
                 placed
@@ -138,11 +138,11 @@ class TestTheFinGroup(unittest.TestCase):
         group_doc = Doc()
         group = group_doc.insert(
             Node.placed_union(
-                fin_only(group_doc), Expr.count(5), PatternKind.linear((
-                    Expr.literal(1.0),
-                    Expr.literal(0.0),
-                    Expr.literal(0.0),
-                ), Expr.length_in(PITCH, m))
+                fin_only(group_doc), Formula.count(5), PatternKind.linear((
+                    Formula.literal(1.0),
+                    Formula.literal(0.0),
+                    Formula.literal(0.0),
+                ), Formula.length_in(PITCH, m))
             )
         )
 
@@ -168,11 +168,11 @@ class TestTheFinGroup(unittest.TestCase):
         doc = Doc()
         group = doc.insert(
             Node.placed_union(
-                fin_only(doc), Expr.count(5), PatternKind.linear((
-                    Expr.literal(1.0),
-                    Expr.literal(0.0),
-                    Expr.literal(0.0),
-                ), Expr.length_in(PITCH, m))
+                fin_only(doc), Formula.count(5), PatternKind.linear((
+                    Formula.literal(1.0),
+                    Formula.literal(0.0),
+                    Formula.literal(0.0),
+                ), Formula.length_in(PITCH, m))
             )
         )
         ev = evaluate(doc)
@@ -251,15 +251,15 @@ def die_tool_document():
     square = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.length_in(DIE_L, m), Expr.length_in(0, m)),
-                (Expr.length_in(DIE_L, m), Expr.length_in(DIE_L, m)),
-                (Expr.length_in(0, m), Expr.length_in(DIE_L, m)),
+                (Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.length_in(DIE_L, m), Formula.length_in(0, m)),
+                (Formula.length_in(DIE_L, m), Formula.length_in(DIE_L, m)),
+                (Formula.length_in(0, m), Formula.length_in(DIE_L, m)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.length_in(0, m)),
+            plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
-    cube = doc.insert(Node.extrude(square, Expr.length_in(DIE_L, m)))
+    cube = doc.insert(Node.extrude(square, Formula.length_in(DIE_L, m)))
 
     # ---- the master ball, poled along +Z ----
     # `die_pips::half_disc_program` verbatim: ONE bulge-1 semicircle
@@ -277,11 +277,11 @@ def die_tool_document():
     # (0, 1) through the origin. Being in the plane is no longer a
     # tolerance question — it is what the four numbers mean.
     axis = doc.insert(Node.datum_axis_in_plane(plane, (
-        Expr.length_in(0, m),
-        Expr.length_in(0, m),
+        Formula.length_in(0, m),
+        Formula.length_in(0, m),
     ), (
-        Expr.literal(0.0),
-        Expr.literal(1.0),
+        Formula.literal(0.0),
+        Formula.literal(1.0),
     )))
     half_disc = (
         Open.at((0 * m, -PIP_R * m))
@@ -289,7 +289,7 @@ def die_tool_document():
         .line_to(Start)
     )
     ball_p = doc.insert(Node.profile(half_disc, plane=plane))
-    ball = doc.insert(Node.revolve(ball_p, axis, Expr.angle_in(2.0 * math.pi, rad)))
+    ball = doc.insert(Node.revolve(ball_p, axis, Formula.angle_in(2.0 * math.pi, rad)))
 
     # ---- the whole cutting tool, in ONE node ----
     tool = doc.insert(Node.placed_union_at(ball, pip_placements()))
@@ -442,9 +442,25 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
         fin = fin_only(doc)
         rule = PatternKind.explicit([Frame.translation((0 * m, 0 * m, 0 * m))])
         with self.assertRaises(EditError) as caught:
-            Node.placed_union(fin, Expr.count(1), rule)
+            Node.placed_union(fin, Formula.count(1), rule)
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
         self.assertEqual(caught.exception.inner_variant, "listed_with_count")
+
+    def test_a_listed_pattern_whose_count_is_an_unheld_name_refuses_typed(self):
+        """The count beside a listed rule is held by no slot, and when it
+        is a name the document does not hold the edit door still
+        refuses the RULE, typed, rather than crashing on the name it
+        cannot address (INTENT-LITERALS PR B's review, p1)."""
+        named = Doc()
+        named.apply(DocEdit.declare_var(VarName("n"), FreeVar.count(2)))
+        count = named.parse_formula("n")
+        doc = Doc()
+        fin = fin_only(doc)
+        rule = PatternKind.explicit([Frame.translation((0 * m, 0 * m, 0 * m))])
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.pattern(fin, count, rule))
+        self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
+        self.assertEqual(caught.exception.inner_variant, "listed_on_pattern")
 
     def test_an_empty_placement_list_refuses(self):
         doc = Doc()
@@ -558,14 +574,14 @@ class TestTheFrameValue(unittest.TestCase):
         )
         moved = doc.insert(
             Node.transform(box, (
-                Expr.length_in(5, m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(5, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(2.0),
-            ), Expr.angle_in(30, deg))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(2.0),
+            ), Formula.angle_in(30, deg))
         )
         self.assertEqual(mass_of(doc, placed).volume, mass_of(doc, moved).volume)
 
@@ -695,16 +711,16 @@ class TestTheCircularRule(unittest.TestCase):
         doc = Doc()
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
         axis = doc.insert(Node.datum_axis((
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
         )))
         group = doc.insert(
-            Node.placed_union(box, Expr.count(4), PatternKind.circular(axis, Expr.angle_in(90, deg)))
+            Node.placed_union(box, Formula.count(4), PatternKind.circular(axis, Formula.angle_in(90, deg)))
         )
         self.assertEqual(mass_of(doc, group).volume, 4.0)
 
@@ -716,13 +732,13 @@ class TestTheStepsReadBack(unittest.TestCase):
 
     def axis(self, doc):
         return doc.insert(Node.datum_axis((
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
         )))
 
     def refusal(self, kind, count=3, union=False):
@@ -730,9 +746,9 @@ class TestTheStepsReadBack(unittest.TestCase):
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
         rule = kind(self.axis(doc))
         node = doc.insert(
-            Node.placed_union(box, Expr.count(count), rule)
+            Node.placed_union(box, Formula.count(count), rule)
             if union
-            else Node.pattern(box, Expr.count(count), rule)
+            else Node.pattern(box, Formula.count(count), rule)
         )
         ev = evaluate(doc)
         if ev.succeeded(node):
@@ -743,11 +759,11 @@ class TestTheStepsReadBack(unittest.TestCase):
 
     def linear(self, spacing, direction=(1.0, 0.0, 0.0)):
         return lambda _axis: PatternKind.linear(
-            tuple(Expr.literal(c) for c in direction), Expr.length_in(spacing, m)
+            tuple(Formula.literal(c) for c in direction), Formula.length_in(spacing, m)
         )
 
     def circular(self, degrees):
-        return lambda axis: PatternKind.circular(axis, Expr.angle_in(degrees, deg))
+        return lambda axis: PatternKind.circular(axis, Formula.angle_in(degrees, deg))
 
     def test_a_spacing_is_a_positive_length(self):
         for union in (False, True):
@@ -770,10 +786,10 @@ class TestTheStepsReadBack(unittest.TestCase):
         against the document (`th`, in degrees, declared first)."""
         doc = Doc()
         if th is not None:
-            doc.apply(DocEdit.set_doc_param(ParamName("th"), DocParam.angle(th * deg)))
+            doc.apply(DocEdit.declare_var(VarName("th"), FreeVar.angle(th * deg)))
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
-        rule = PatternKind.circular(self.axis(doc), doc.parse_expr(step))
-        return doc, doc.insert(Node.pattern(box, Expr.count(5), rule))
+        rule = PatternKind.circular(self.axis(doc), doc.parse_formula(step))
+        return doc, doc.insert(Node.pattern(box, Formula.count(5), rule))
 
     def refused(self, built):
         doc, node = built
@@ -835,56 +851,56 @@ class TestTheStepsReadBack(unittest.TestCase):
 class TestTheCountParamBinding(unittest.TestCase):
     """`bind_count_param` — the narrowed structural-slot edit. The
     count stops being a literal and becomes a named number one
-    `set_doc_param` away from any other value."""
+    `define_var` away from any other value."""
 
     def build(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(VarName("fins"), FreeVar.count(2)))
         group = doc.insert(
             Node.placed_union(
-                fin_only(doc), Expr.count(2), PatternKind.linear((
-                    Expr.literal(1.0),
-                    Expr.literal(0.0),
-                    Expr.literal(0.0),
-                ), Expr.length_in(PITCH, m))
+                fin_only(doc), Formula.count(2), PatternKind.linear((
+                    Formula.literal(1.0),
+                    Formula.literal(0.0),
+                    Formula.literal(0.0),
+                ), Formula.length_in(PITCH, m))
             )
         )
         return doc, group
 
     def test_the_bound_count_follows_the_document_parameter(self):
         doc, group = self.build()
-        doc.apply(DocEdit.bind_count_param(group, ParamName("fins")))
+        doc.apply(DocEdit.bind_count_param(group, VarName("fins")))
         self.assertEqual(mass_of(doc, group).volume, 2 * FIN_VOLUME)
-        doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(4)))
+        doc.apply(DocEdit.define_var(VarName("fins"), FreeVar.count(4)))
         self.assertEqual(mass_of(doc, group).volume, 4 * FIN_VOLUME)
 
     def test_binding_an_unknown_parameter_refuses(self):
         doc, group = self.build()
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.bind_count_param(group, ParamName("nope")))
-        self.assertEqual(caught.exception.variant, "slot_unknown_doc_param")
+            doc.apply(DocEdit.bind_count_param(group, VarName("nope")))
+        self.assertEqual(caught.exception.variant, "slot_unknown_var_name")
 
     def test_binding_a_parameter_of_the_wrong_dimension_refuses(self):
         """The slot is a Count, and a Length parameter is not one —
         the edit's own dimension check, arriving unchanged."""
         doc, group = self.build()
-        doc.apply(DocEdit.set_doc_param(ParamName("width"), DocParam.length(1 * m)))
+        doc.apply(DocEdit.declare_var(VarName("width"), FreeVar.length(1 * m)))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.bind_count_param(group, ParamName("width")))
-        self.assertEqual(caught.exception.variant, "slot_doc_param_dimension")
+            doc.apply(DocEdit.bind_count_param(group, VarName("width")))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
     def test_an_explicit_group_has_no_count_slot_to_bind(self):
         """The list IS the count, so there is nothing for a parameter
         to drive — the two-sources-of-truth state, refused."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(VarName("fins"), FreeVar.count(2)))
         group = doc.insert(
             Node.placed_union_at(
                 fin_only(doc), [Frame.translation((0 * m, 0 * m, 0 * m))]
             )
         )
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.bind_count_param(group, ParamName("fins")))
+            doc.apply(DocEdit.bind_count_param(group, VarName("fins")))
         self.assertEqual(caught.exception.variant, "unknown_slot")
 
 

@@ -12,7 +12,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use std::collections::BTreeSet;
 
@@ -76,13 +78,19 @@ fn local_cap(body: RecipeNodeId) -> StableName {
     }
 }
 
-fn z_up() -> MateFrame {
-    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn z_up() -> MateFrame<Formula> {
+    MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A frame-coincidence rest mate between two references, each read
 /// at its own mint.
-fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
+fn mate(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -261,7 +269,12 @@ fn placed_pair(
         },
     );
     assert_eq!(groups(&doc), vec![vec![a, b]], "one group, two members");
-    (doc, std::sync::Arc::new(store), [a, b, joint], offset)
+    (
+        doc,
+        std::sync::Arc::new(store),
+        [a, b, joint],
+        editor_core::test_support::stored_placement(&offset),
+    )
 }
 
 /// An instance's offset.

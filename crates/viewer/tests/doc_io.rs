@@ -40,7 +40,7 @@ fn a_document_round_trips_through_save_and_open() {
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     session.perform(SessionOp::SetParam {
-        name: common::thickness_param(),
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.020),
     });
     assert_eq!(
@@ -123,7 +123,7 @@ fn opening_a_document_drops_what_the_previous_one_answered() {
     }))));
     let probed = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: common::thickness_param(),
+            var: common::thickness_var(session.committed_doc()),
         },
     });
     assert!(probed.refusal.is_none(), "{:?}", probed.refusal);
@@ -287,7 +287,7 @@ fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     session.perform(SessionOp::SetParam {
-        name: common::thickness_param(),
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.020),
     });
     let dir = common::tempdir("gui3-stable-save");
@@ -375,7 +375,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
 #[test]
 fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
     let tol = Tol::witness();
-    let name = pncad::document::ParamName::from_static("base_r");
+    let name = pncad::document::VarName::from_static("base_r");
     let mut session = DocSession::inline(
         pncad::document::Doc::<pncad::document::ProfileProgram>::empty_derived(
             "auth2-round-trip",
@@ -383,7 +383,7 @@ fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
         ),
         tol,
     );
-    let outcome = session.perform(SessionOp::CreateParam {
+    let outcome = session.perform(SessionOp::DeclareVar {
         name: name.clone(),
         value: viewer::props::doc_param(
             pncad::document::Dimension::Length,
@@ -404,7 +404,7 @@ fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
     let reopened = docio::open(&file, tol).expect("the saved document opens");
     let row = viewer::props::param_rows(reopened.doc())
         .into_iter()
-        .find(|row| row.name == name)
+        .find(|row| row.label.name() == Some(&name))
         .expect("the parameter survived the round trip");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
     assert_eq!(row.value, SlotValue::Continuous(0.05));

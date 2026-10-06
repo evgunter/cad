@@ -149,10 +149,6 @@ fn seeds() -> Vec<BlendError> {
             edge: EdgeKey::default(),
         },
         BlendError::NonpositiveSize { size: 0.0 },
-        BlendError::UnsupportedBody {
-            solids: 2,
-            shells: 2,
-        },
         BlendError::UnsupportedChain {
             edge: EdgeKey::default(),
             detail: "a chain shape that is not built",
@@ -177,13 +173,13 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Certify {
             site: "blend face pcurves",
-            source: topo::PcurveMintError::Corrupt,
+            source: topo::PcurveMintError::LoopNotClosed {
+                face: FaceKey::default(),
+            },
         },
         BlendError::Op {
             site: "strut mev",
-            source: topo::EulerOpError::StaleKey {
-                key: EntityId::Edge(EdgeKey::default()),
-            },
+            source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
         },
     ]
 }

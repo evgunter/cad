@@ -2,10 +2,11 @@
 id: a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms
 kind: issue
 title: A boolean result ships contact records its geometry no longer confirms, so the tier-3′ pass refuses it StaleContactDeclaration
-status: open
+status: parked
 opened: 2026-10-02
 priority: P2
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -47,3 +48,29 @@ Drop or refuse a record at remap time when the result no longer
 carries its touching, and pin it on one row above. Gating tier 3′ at
 the door (REACH's `boolean-door-tier-3-waits-on-the-description-gap`,
 `[ev]` PR 3870) refuses all 40 until this lands.
+
+## More evidence (2026-10-04, PR 4026's review r2, N1)
+
+A single-run convex corner meets a cube's face in
+`join_pierce_r2_probes.rs` `r2_shapes_battery` (branch
+`join/pierce-two-out-runs-review-r2`), shape `Lcvx`, undeclared. Ten
+results ship a `StaleContactDeclaration { VertexOnFace }`, identical on
+main `45dc18f9` and on PR 4026's head:
+`g16.1 pc I`, `g16.2 pc I`, `g16.3 pc I`/`cp I`, `g17.0 pc I`,
+`g17.1 pc I`, `g17.2 pc I`/`cp I`, `g17.3 pc I`/`cp I`. These are
+vertex-on-face records, not the flush pairs above. The undeclared
+vertex-on-face findings of the same shape are
+`a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`.
+
+## The drum rows were the census, not the record (2026-10-06, TANG)
+
+The 8 `reach_wall_chord_rows` results above were not stale records. The
+census confirmed a vertex-on-face record against planar faces only, and
+the drum's wall is a cylinder, so the record read stale whatever the
+geometry. On `tang/lying-on-arc-splits-at-a-ruling`,
+`census::confirm_vertex_on_face` confirms one on a curved face through
+the curved containment door. The drum ∖ the inner cube (a void whose
+corner touches the wall) then passes tier 3′. The drum ∪ the outer cube
+is left with only the undecidable cross-solid curved pair. The row now
+pins both. The other 32 results were not re-measured. The change can
+move one of them only where its record names a curved face.

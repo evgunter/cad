@@ -12,7 +12,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use super::expr::Expr;
+use super::expr::Formula;
 use super::quantity::{Angle, Length};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -451,7 +451,7 @@ impl Frame {
 /// takes no count at all.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PatternKind(pub(crate) d::PatternKind);
+pub(crate) struct PatternKind(pub(crate) d::PatternKind<d::Formula>);
 
 #[pymethods]
 impl PatternKind {
@@ -464,7 +464,11 @@ impl PatternKind {
     /// naming the direction negated) and a zero one too
     /// (`degenerate_spacing`), wherever a second copy reads it.
     #[staticmethod]
-    fn linear(py: Python<'_>, direction: (Expr, Expr, Expr), spacing: &Expr) -> PyResult<Self> {
+    fn linear(
+        py: Python<'_>,
+        direction: (Formula, Formula, Formula),
+        spacing: &Formula,
+    ) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
             direction: super::doc::direction_expr(py, d::VectorSlot::Direction, &direction)?,
             spacing: super::doc::slot_expr(py, d::SlotId::Spacing, spacing)?,
@@ -479,7 +483,7 @@ impl PatternKind {
     /// (`degenerate_step`), and so does one at or past a full turn
     /// (`full_range_step`), wherever a second copy reads it.
     #[staticmethod]
-    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Expr) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Formula) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.0,
             step: super::doc::slot_expr(py, d::SlotId::Step, step)?,
@@ -515,7 +519,7 @@ impl PatternKind {
 /// placement frame is (finite, proper and rigid) at the edit door.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct Placement(pub(crate) d::Placement);
+pub(crate) struct Placement(pub(crate) d::Placement<d::Formula>);
 
 #[pymethods]
 impl Placement {
@@ -531,9 +535,9 @@ impl Placement {
     #[staticmethod]
     #[pyo3(signature = (*, translation, axis, angle))]
     pub(crate) fn rigid(
-        translation: (Expr, Expr, Expr),
-        axis: (Expr, Expr, Expr),
-        angle: &Expr,
+        translation: (Formula, Formula, Formula),
+        axis: (Formula, Formula, Formula),
+        angle: &Formula,
     ) -> Self {
         Self(
             d::Step::Rigid {
@@ -599,7 +603,7 @@ impl Placement {
         self.0.bit_eq(&other.0)
     }
 
-    fn __repr__(&self) -> String {
+    pub(crate) fn __repr__(&self) -> String {
         let steps: Vec<&str> = self
             .0
             .steps

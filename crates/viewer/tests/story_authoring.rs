@@ -190,8 +190,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
 
     // The blend's selection comes off the landed evaluation through
-    // the shipped all-edges door — the whole-body set, because the
-    // freeze semantics admit only fully-requested chain sets.
+    // the shipped all-edges door — the whole-body set.
     let edges = {
         let eval = session.evaluation().expect("the pad landed");
         let edges = pncad::select::all_edges(eval, plinth);

@@ -22,15 +22,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
 use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
-    EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass,
-    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
-    StableName,
+    EvalOptions, Formula, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass,
+    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
@@ -59,9 +59,11 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// The seat every row's mate declares.
-fn seat(a: StableName, b: StableName) -> Node<ProfileProgram> {
-    let frame =
-        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
+fn seat(a: StableName, b: StableName) -> AuthoredNode {
+    let frame = |origin: [f64; 3], axis: [f64; 3]| {
+        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
+    };
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -144,13 +146,13 @@ impl Scene {
 /// A scene whose placer is a PATTERN of `kind` at `count`, mated onto
 /// copy `i` — the name carries the `Instance(i)` qualifier the walk
 /// consumes.
-fn patterned(label: &str, kind: PatternKind, count: i64, i: u32) -> Scene {
+fn patterned(label: &str, kind: PatternKind<Formula>, count: i64, i: u32) -> Scene {
     build(label, |doc, legs, leg_body| {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(count),
+                count: Formula::count(count),
                 kind,
             },
         );
@@ -163,8 +165,8 @@ fn patterned(label: &str, kind: PatternKind, count: i64, i: u32) -> Scene {
 /// A slot the edit door admits and the evaluator refuses: a count
 /// promoted out of the exactly-representable range. (An unbound
 /// parameter cannot be used — `InsertNode` refuses it.)
-fn unevaluable() -> Expr {
-    Expr::count_to_scalar(Expr::count(1 << 40)).expect("a count promotes to a scalar")
+fn unevaluable() -> Formula {
+    Formula::count_to_scalar(Formula::count(1 << 40)).expect("a count promotes to a scalar")
 }
 
 /// The scene builder both shapes share: two part documents, the
@@ -319,7 +321,7 @@ fn a1_a_slot_that_does_not_evaluate_names_the_slot() {
         "msolve3-slot",
         PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: Expr::mul(len(1e200), scl(1e200)).expect("length times scalar is a length"),
+            spacing: Formula::mul(len(1e200), scl(1e200)).expect("length times scalar is a length"),
         },
         4,
         1,
@@ -380,7 +382,7 @@ fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
             editor_core::Step::Rigid {
                 translation: [len(0.0), len(0.0), len(0.0)],
                 axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: Expr::mul(ang(1e200), scl(1e200)).expect("an angle times a scalar"),
+                angle: Formula::mul(ang(1e200), scl(1e200)).expect("an angle times a scalar"),
             },
             NodeErrorClass::Expr,
         ),
@@ -426,7 +428,7 @@ fn a1_two_faults_on_one_placer_pick_the_same_winner() {
     let (scene, _) = build("msolve3-two-faults", |doc, legs, leg_body| {
         let mut t = xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.5);
         if let Some(angle) = t.expr_mut(SlotId::RotationAngle) {
-            *angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
+            *angle = Formula::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
         }
         let (doc, moved) = insert(doc, t);
         (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
@@ -460,7 +462,7 @@ fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis: plane,
                     step: ang(0.5),
@@ -496,7 +498,7 @@ fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis: body,
                     step: ang(0.5),
@@ -530,7 +532,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
                 doc,
                 Node::Pattern {
                     input: legs,
-                    count: Expr::count(2),
+                    count: Formula::count(2),
                     kind: PatternKind::Linear {
                         direction: [scl(1.0), scl(0.0), scl(0.0)],
                         spacing: len(2.0),
@@ -542,7 +544,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
                 doc,
                 Node::Pattern {
                     input: legs,
-                    count: Expr::count(4),
+                    count: Formula::count(4),
                     kind: PatternKind::Circular {
                         axis: moved,
                         step: ang(0.5),
@@ -574,7 +576,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_oper
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis: again,
                     step: ang(0.5),
@@ -614,7 +616,7 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis,
                     step: ang(0.5),
@@ -676,7 +678,7 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis,
                     step: ang(0.5),
@@ -764,7 +766,7 @@ fn a1_a_spacing_or_step_the_evaluation_refuses_the_solve_refuses() {
 /// step about a z-axis datum the scene inserts.
 #[derive(Clone)]
 enum Rule {
-    Plain(PatternKind),
+    Plain(PatternKind<Formula>),
     Turning(f64),
 }
 
@@ -786,7 +788,7 @@ impl Rule {
                         doc,
                         Node::Pattern {
                             input: legs,
-                            count: Expr::count(4),
+                            count: Formula::count(4),
                             kind: PatternKind::Circular {
                                 axis,
                                 step: ang(*step),
@@ -820,7 +822,7 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Pattern {
                 input: legs,
-                count: Expr::count(2),
+                count: Formula::count(2),
                 kind: PatternKind::Explicit(vec![
                     Frame::IDENTITY,
                     Frame::translation([2.0, 0.0, 0.0]),
@@ -861,7 +863,7 @@ fn an_index_at_the_count_is_still_a_dangling_head() {
         DocEdit::SetStructuralParam {
             node: scene.placer,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     scene.doc = doc;

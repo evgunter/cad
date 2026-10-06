@@ -24,7 +24,7 @@ use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use sweep::test_support::{revolved_about_y, stacked_at};
 use topo::pcurves::{SiteRowRefusal, validate_pcurves};
-use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, MevSite};
+use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, MevSite, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -223,7 +223,13 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
             topo::NewVertexSide::Above,
         )
         .unwrap();
-    let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
+    let rows = |b: &Body<f64>| {
+        format!(
+            "{:?} {:?}",
+            b.pcurves().collect::<Vec<_>>(),
+            b.joints().collect::<Vec<_>>()
+        )
+    };
     let before = rows(&body);
     body.set_edge_curve(null.edge, EdgeCurveSpec::self_loop_circle_at(p), tol())
         .unwrap();
@@ -257,7 +263,8 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
 /// refuses `SplineChart` on the complete wall is taken once a null
 /// strut hangs on the same loop: the wall is incomplete already, and a
 /// refusal would strand the pipeline mid-surgery with its null edge.
-/// No row moves, and the wall misses the null strut's two rows and the
+/// No image moves, nor any element but the joint the strut re-links,
+/// and the wall misses the null strut's two rows and the
 /// new strut's two.
 #[test]
 fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
@@ -269,8 +276,17 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
             topo::NewVertexSide::Above,
         )
         .unwrap();
-    let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
-    let before = rows(&body);
+    // The strut is spliced before `he`, so the joint into `he` is
+    // re-linked and keeps no element; every other image and element
+    // stands.
+    let images = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
+    let elements = |b: &Body<f64>| {
+        format!(
+            "{:?}",
+            b.joints().filter(|(h, _)| *h != he).collect::<Vec<_>>()
+        )
+    };
+    let before = (images(&body), elements(&body));
     let strut = body
         .mev_line(
             MevSite::Fan { he1: he, he2: he },
@@ -278,7 +294,12 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
             tol(),
         )
         .expect("the held-open wall takes the strut");
-    assert_eq!(rows(&body), before, "no row moves");
+    assert_eq!(
+        (images(&body), elements(&body)),
+        before,
+        "no image moves, and no element but the re-linked joint's"
+    );
+    assert_eq!(body.joint(he), None, "the re-linked joint keeps no element");
     let mut missing: Vec<HalfEdgeKey> = validate_pcurves(&body, band())
         .into_iter()
         .map(|f| match f {
@@ -290,4 +311,89 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     let mut want = vec![null.he_plus, null.he_minus, strut.he_plus, strut.he_minus];
     want.sort();
     assert_eq!(missing, want);
+}
+
+/// **A kill that re-describes a certified member leaves its spline
+/// wall as found.** On the lofted prism, every edge with a half on a
+/// minted wall — each rim and each vertical seam — is split at its
+/// mid-parameter, and the first piece is killed toward the split,
+/// listing the second, certified, with the line between its merged
+/// ends. The kill re-mints a listed member's faces, but the site mint
+/// derives a spline chart's rows only through the fitted lane it does
+/// not carry, so the wall is left for tier 3: the kill returns `Ok`
+/// rather than refusing `SplineChart`, every finding tier 3 reads is on
+/// a spline wall, a rim's planar cap included in none, and no image a
+/// surviving half on a spline wall stores moves.
+#[test]
+fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
+    let base = lofted_prism();
+    let face_of = |b: &Body<f64>, h: HalfEdgeKey| {
+        let lk = b.get_half_edge(h).unwrap().parent_loop;
+        b.get_loop(lk).unwrap().face
+    };
+    let on_spline = |b: &Body<f64>, h: HalfEdgeKey| {
+        let f = b.get_face(face_of(b, h)).unwrap();
+        b.get_surface(f.surface).unwrap().spline_chart().is_some()
+    };
+    let wall_images = |b: &Body<f64>, killed: &[HalfEdgeKey]| {
+        format!(
+            "{:?}",
+            b.pcurves()
+                .filter(|(h, _)| !killed.contains(h) && on_spline(b, *h))
+                .collect::<Vec<_>>()
+        )
+    };
+    let (mut rims, mut seams) = (0, 0);
+    for (edge, e) in base.edges() {
+        match [e.he_plus, e.he_minus].map(|h| on_spline(&base, h)) {
+            [true, true] => seams += 1,
+            [true, false] | [false, true] => rims += 1,
+            [false, false] => continue,
+        }
+        let mut body = base.clone();
+        let (t0, t1) = body
+            .get_curve_geom(e.curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap()
+            .params();
+        body.split_edge(edge, 0.5 * (t0 + t1), tol()).unwrap();
+        let kill = body.get_edge(edge).unwrap().he_plus;
+        let listed: Vec<_> = body
+            .kev_merged_members(kill)
+            .unwrap()
+            .into_iter()
+            .map(|m| (m.edge, EdgeCurveSpec::line_between(m.start, m.end)))
+            .collect();
+        let [(member, _)] = listed.as_slice() else {
+            panic!("{edge:?}: the split vertex's fan is the second piece alone: {listed:?}")
+        };
+        assert!(
+            body.get_curve_geom(body.get_edge(*member).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .is_some(),
+            "{edge:?}: the listed member is certified"
+        );
+        let killed = [kill, body.mate(kill).unwrap()];
+        let before = wall_images(&body, &killed);
+        body.kev_describing(kill, &listed, tol())
+            .unwrap_or_else(|e| panic!("{edge:?}: the kill refused {e:?}"));
+        assert_eq!(
+            wall_images(&body, &killed),
+            before,
+            "{edge:?}: no image a spline wall stores moves"
+        );
+        let findings = validate_pcurves(&body, band());
+        assert!(
+            findings.iter().all(|f| match *f {
+                PcurveMintError::MissingCache { half_edge }
+                | PcurveMintError::RowInterval { half_edge, .. }
+                | PcurveMintError::LoopDiscontinuity { half_edge, .. } => {
+                    on_spline(&body, half_edge)
+                }
+                _ => false,
+            }),
+            "{edge:?}: tier 3 reads only the spline walls: {findings:?}"
+        );
+    }
+    assert_eq!((rims, seams), (8, 4), "every rim and every seam is a case");
 }

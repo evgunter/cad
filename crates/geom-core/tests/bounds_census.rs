@@ -304,16 +304,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/battery.rs",
-        subject: "short_arm",
-        why: Payload(
-            "the chain-arm refusal's constructor: the arm `fillet3_chain_arm` already \
-             decided non-positive goes through `measured` into the `Indeterminate` \
-             payload and stops. It reads no bracket itself and nothing downstream \
-             branches on it",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/battery.rs",
         subject: "measured",
         why: Payload(
             "the one bracket read behind every blend refusal payload: both ends into a \
@@ -336,10 +326,10 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/sweep/src/blend/open/ruled.rs",
+        path: "crates/sweep/src/blend/open/end_face.rs",
         subject: "impl<T: Bounds> CapSliver<T>",
         why: Selection(
-            "the ruled cut-off's cap meter `clearance`. It reads no bracket itself — its \
+            "the cut-off's end-face sliver meter `clearance`. It reads no bracket itself — its \
              reads are `CircleFrame::misses`' and the on-axis guards', reached through \
              `piece_distance` and `piece_along` in `surgery.rs` — and its result is the \
              margin `ring_clearance` decides, so it inherits that door's DL5(b) \
@@ -363,6 +353,17 @@ const ROSTER: &[Site] = &[
              lies. The on-axis `lo() <= 0` guards select the whole-circle pair, which \
              bounds the arc's wherever `c` is and equals the ends' pair where a point \
              scalar takes it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "worse",
+        why: Selection(
+            "the worse of two margins of one ring cycle: the margin is `min`, value \
+             arithmetic, and the one bracket read (the `lo()` comparison) only SELECTS \
+             which input's `bounded` flag rides with it. Both go to `ring_clearance`, \
+             which decides the margin, so it inherits that door's DL5(b) disposition \
+             and no other",
         ),
     },
     Site {
@@ -423,6 +424,14 @@ const ROSTER: &[Site] = &[
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracketed",
         why: Payload("as `bracket_vector`, over a decided unit direction (`UnitSpanBox`)"),
+    },
+    Site {
+        path: "crates/topo/src/boolean/ops.rs",
+        subject: "centred_box",
+        why: Payload(
+            "the extent scan's ball box: a centre's and a radius's brackets into an f64 \
+             `bvh::Aabb`, padded, and stop",
+        ),
     },
     Site {
         path: "crates/topo/src/chart_region.rs",

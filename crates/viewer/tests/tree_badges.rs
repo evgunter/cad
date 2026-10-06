@@ -1028,7 +1028,9 @@ fn child_band_refusal_rows() {
             path: Vec::new(),
         })
     };
-    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    // The part base with no step: no band forms to author vectors
+    // through.
+    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
     // DOOR 2a — a mate cannot be INSERTED where no band exists: the
     // edit door refuses it with the solve's own `Band`. A snapshot
     // loaded under this tolerance can still hold one, and the solve
@@ -1238,14 +1240,14 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     use std::collections::BTreeMap;
 
     use pncad::analysis::{BoxAxis, ParamBox};
-    use pncad::document::{Datum, Dimension, DocParam, Expr, Node, NodeErrorKind, ParamName};
+    use pncad::document::{Datum, Dimension, Formula, FreeVar, Node, NodeErrorKind, VarName};
 
     let tol = Tol::witness();
-    let span = ParamName::from_static("span");
+    let span = VarName::from_static("span");
     let doc = common::declared(
         "tree-frame-direction",
         &span,
-        DocParam::continuous(Dimension::Scalar, 0.0),
+        FreeVar::continuous(Dimension::Scalar, 0.0),
         tol,
     );
     let (doc, frame) = common::inserted(
@@ -1253,7 +1255,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         Node::Datum(Datum::Frame {
             origin: common::len3([0.0; 3]),
             u: [
-                Expr::param(span.clone(), Dimension::Scalar),
+                Formula::named(span.clone(), Dimension::Scalar),
                 common::scl(0.0),
                 common::scl(0.0),
             ],
@@ -1263,7 +1265,10 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     );
     let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
     let mut axes = BTreeMap::new();
-    axes.insert(span, BoxAxis::Varying { lo: 1.0, hi: 1.0 });
+    axes.insert(
+        doc.var_named(span.as_str()).expect("declared"),
+        BoxAxis::Varying { lo: 1.0, hi: 1.0 },
+    );
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -1464,7 +1469,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Pattern {
             input: far,
-            count: pncad::document::Expr::count(3),
+            count: pncad::document::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -1476,7 +1481,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(pncad::document::Expr::count(3)),
+            select: PartSelect::Instance(pncad::document::Formula::count(3)),
         },
         tol,
     );
@@ -1646,12 +1651,13 @@ fn a_mate_row_reads_whether_it_placed_its_child() {
     let mut session = common::asm::open_bench(&bench, tol);
     let middle = common::asm::middle_seat_alignment;
     let quarter = || common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, None);
-    let seat = |session: &mut DocSession, post, shelf, alignment: Alignment| {
-        common::commit_mate(
-            session,
-            common::asm::seat_op_under(&bench, post, shelf, ContactClass::Rest, alignment),
-        )
-    };
+    let seat =
+        |session: &mut DocSession, post, shelf, alignment: Alignment<pncad::document::Formula>| {
+            common::commit_mate(
+                session,
+                common::asm::seat_op_under(&bench, post, shelf, ContactClass::Rest, alignment),
+            )
+        };
     let a_under_shelf = seat(&mut session, bench.post_a, bench.shelf_i, middle());
     let b_under_shelf = seat(&mut session, bench.post_b, bench.shelf_i, quarter());
     // The second shelf is the mate's FIRST operand, so the door clears
@@ -1729,12 +1735,12 @@ const SNAPSHOT_END: &str = "BAND-SNAPSHOT-END";
 /// What the loading child prints once its last assertion has run.
 const SNAPSHOT_LOAD_DONE: &str = "BAND-SNAPSHOT-LOAD-COMPLETE";
 
-/// The mate both instances carry: frame coincidence on authored frames
-/// whose vectors clear the author's band by two orders.
+/// The mate both instances carry: frame coincidence on the two parts'
+/// own frames.
 fn snapshot_mate(
     a: pncad::document::RecipeNodeId,
     b: pncad::document::RecipeNodeId,
-) -> pncad::document::Node<pncad::document::ProfileProgram> {
+) -> pncad::document::AuthoredNode {
     use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node};
     use pncad::prelude::StableName;
     use pncad::select::EntityKind;
@@ -1745,7 +1751,10 @@ fn snapshot_mate(
             path: Vec::new(),
         })
     };
-    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1e4], [1e4, 0.0, 0.0]);
+    // The part base with no step: its frame is the part's own, which
+    // asks no direction of the band (an authored frame's literal is
+    // unit-length, and its re-minted axis does not clear a band of 16).
+    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
     Node::Mate {
         a: face_of(a),
         b: face_of(b),

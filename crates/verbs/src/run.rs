@@ -10,9 +10,9 @@ use sweep::blend::naming::BlendNaming;
 use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
-    Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, ShellDoor,
-    ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy,
-    boolean_op_with, split,
+    AtRestBody, Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind,
+    ContactRecords, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart,
+    SplitResult, SweepStrategy, boolean_op_with, split,
 };
 
 use crate::verb::{Arity, Verb, VerbKind};
@@ -34,9 +34,10 @@ use crate::verb::{Arity, Verb, VerbKind};
 /// directly; the lowering reads the body and the record, so those are
 /// what a verb result carries.
 #[derive(Debug)]
-pub struct VerbOut<T: Real> {
-    /// The operation's output body.
-    pub body: Body<T>,
+pub struct VerbOut<T: Real, B = Body<T>> {
+    /// The operation's output body: a finished one ([`AtRestBody`])
+    /// where the door gates what it returns, as the boolean's does.
+    pub body: B,
     /// The operation's own record of the result, per family.
     pub record: VerbRecord<T>,
 }
@@ -145,8 +146,8 @@ pub struct SplitOut<T: Real> {
 pub enum PairOut<T: Real> {
     /// The regularized result is empty.
     Empty,
-    /// A real result body and its record.
-    Out(VerbOut<T>),
+    /// A real result body, finished, and its record.
+    Out(VerbOut<T, AtRestBody<T>>),
 }
 
 /// **Why a verb refused**, carrying the op door's own typed refusal
@@ -277,7 +278,9 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
 
     /// **Run this two-operand verb against its operands.**
     ///
-    /// Both bodies come in borrowed, in operand order. `sweep` is the
+    /// Both bodies come in borrowed, in operand order, finished
+    /// ([`AtRestBody`]: the door's operands are bodies that passed the
+    /// at-rest gate, and the result it hands back passed it too). `sweep` is the
     /// candidate-generation strategy — a property of the RUN, not of
     /// the operation (both strategies produce bit-identical results;
     /// the kernel's differential suite pins it), which is why it rides
@@ -291,8 +294,8 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// operand is one body or a profile.
     pub fn run_pair(
         &self,
-        a: &Body<T>,
-        b: &Body<T>,
+        a: &AtRestBody<T>,
+        b: &AtRestBody<T>,
         sweep: SweepStrategy,
         tol: Tol,
     ) -> Result<PairOut<T>, VerbError<T>> {
@@ -383,10 +386,11 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
 
     /// **Run this parting verb against its operand body.**
     ///
-    /// The operand comes in borrowed, never in the payload, exactly as
-    /// at [`Verb::run`]; what differs is what comes back. A split hands
-    /// back TWO sides, each a body or the typed empty, and the one-body
-    /// out-type cannot carry them — so this is the split's own door
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]), as at [`Verb::run_pair`]; what differs is what
+    /// comes back. A split hands back TWO sides, each a body or the typed
+    /// empty, and the one-body out-type cannot carry them — so this is
+    /// the split's own door
     /// with its own out-type ([`SplitOut`]), and the D7 pinch lane
     /// inside the kernel door (`topo::split` reruns a one-sided pinch
     /// mirrored and swaps the sides back) is the door's, reached here
@@ -399,7 +403,11 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// verbatim (`topo::split` enumerates the cases — every stage's
     /// typed refusal passed through whole); [`VerbError::Arity`] if
     /// this verb answers another door.
-    pub fn run_split(&self, operand: &Body<T>, tol: Tol) -> Result<SplitOut<T>, VerbError<T>> {
+    pub fn run_split(
+        &self,
+        operand: &AtRestBody<T>,
+        tol: Tol,
+    ) -> Result<SplitOut<T>, VerbError<T>> {
         match self {
             Self::Split { plane } => {
                 // Exhaustive destructure, deliberately: a field grown
@@ -449,9 +457,12 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// handed to [`Verb::run`], [`Verb::run_pair`],
     /// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
     ///
-    /// The operand comes in borrowed, never in the payload, exactly as
-    /// at [`Verb::run`]; an EMPTY `open` is the sealed hollow, which is
-    /// the kernel door's own contract and not a case decided here.
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]). Unlike [`Verb::run_split`]'s door, the shell's
+    /// reads no verdict of its own: only a dual carries an operand with
+    /// none, and no dual holds the door. An EMPTY `open` is the sealed
+    /// hollow, which is the kernel door's own contract and not a case
+    /// decided here.
     /// Every check, every refusal and every minted entity is the
     /// door's — this dispatches and re-wraps, and adds no decision of
     /// its own; the tolerance witness travels down unaltered and no
@@ -467,7 +478,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// door.
     pub fn run_shell(
         &self,
-        operand: &Body<T>,
+        operand: &AtRestBody<T>,
         tol: Tol,
         door: ShellDoor<T>,
     ) -> Result<VerbOut<T>, VerbError<T>> {

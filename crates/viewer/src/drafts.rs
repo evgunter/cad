@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
-    Node, ParamName, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
+    BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
+    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
@@ -73,7 +73,7 @@ pub(crate) struct Drafts {
     /// The name an unknown-parameter refusal offered to create
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
-    pub(crate) new_param_offer: Option<ParamName>,
+    pub(crate) new_param_offer: Option<VarName>,
     /// The mate tool's class/alignment choice, as widget state: an
     /// index into [`crate::matetool::admitted_classes`], an index into
     /// [`crate::forms::MATE_PRIMITIVES`], and the sense toggle. Draft chrome state
@@ -156,6 +156,12 @@ pub(crate) struct Drafts {
     /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
     /// carries them.
     pub(crate) datum_face: Option<FaceSelection>,
+    /// The nodes [`Self::datum_face`] names, as the last document that
+    /// held them spoke them: the selection's when the face was copied
+    /// from it (`DocSession::selection_said`), spoken again from each
+    /// later document ([`Self::respeak`]). The form holds its face
+    /// after the selection moves on, so it keeps its own.
+    datum_face_said: HeldNodes,
     /// The frame-on-face form's spin, radians — sketch +x's rotation
     /// about the face's outward normal. Opens at zero, the
     /// carrier's own u-reference.
@@ -375,7 +381,7 @@ pub(crate) struct ProfileEdit {
 #[derive(Debug)]
 struct HeldReport {
     at: HistoryId,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: Vec<Vec<Option<StepId>>>,
     rows: Vec<Maintenance>,
 }
@@ -475,7 +481,7 @@ impl ProfileEdit {
     pub(crate) fn report(
         &mut self,
         at: HistoryId,
-        door: impl FnOnce(Vec<LoopProgram>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
+        door: impl FnOnce(Vec<LoopProgram<Formula>>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
     ) -> &[Maintenance] {
         let Ok(loops) = self.programs(Notation::CANONICAL) else {
             return &[];
@@ -511,7 +517,7 @@ impl ProfileEdit {
     pub(crate) fn programs(
         &self,
         notation: Notation,
-    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
         sketch::loop_programs(&self.shapes(), notation)
     }
 
@@ -631,6 +637,7 @@ impl Default for Drafts {
             datum_in_frame_origin: Point2::origin(),
             datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
+            datum_face_said: HeldNodes::default(),
             datum_spin: 0.0,
             profile_shape: None,
             profile_path: vec![
@@ -920,7 +927,7 @@ impl Drafts {
     pub(crate) fn profile_programs(
         &self,
         notation: Notation,
-    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
         sketch::loop_programs(&self.profile_loops(), notation)
     }
 
@@ -928,6 +935,28 @@ impl Drafts {
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
         self.datum_face = None;
+        self.datum_face_said = HeldNodes::default();
+    }
+
+    /// **The face-frame form takes the selection's face**, with its
+    /// nodes as the session has them spoken (`DocSession::selection_said`).
+    pub(crate) fn hold_datum_face(&mut self, face: FaceSelection, said: &HeldNodes) {
+        self.datum_face = Some(face);
+        self.datum_face_said = said.clone();
+    }
+
+    /// The held face's nodes as the last document that held them spoke
+    /// them; empty with no face held.
+    pub(crate) fn datum_face_said(&self) -> &HeldNodes {
+        &self.datum_face_said
+    }
+
+    /// **The held picks' nodes, spoken again from `doc`**, the session's
+    /// shown document after an operation (`SpokenNode::respoken`'s
+    /// rule): a node `doc` holds takes its label now, and one it no
+    /// longer holds keeps the last it had.
+    pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.datum_face_said = self.datum_face_said.respoken(doc);
     }
 
     /// **The face this form holds**: [`Self::datum_face`] while the
@@ -1016,16 +1045,16 @@ impl Drafts {
 /// Three dimensionless literals — a normal, a direction, a rotation
 /// axis. Not a [`Drafts`] method, because there is no notation to
 /// carry from the form: a dimensionless number has one spelling, and
-/// `Expr::literal` stores that row itself.
+/// `Formula::literal` stores that row itself.
 ///
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
-        Expr::literal(v[2], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[2], Dimension::Scalar)?,
     ])
 }
 
@@ -1035,10 +1064,10 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
     ])
 }
 
@@ -1085,7 +1114,8 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        CancelToken, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram, RecipeNodeId, evaluate,
+        CancelToken, Doc, DocEdit, EvalOptions, Formula, Node, ProfileProgram, RecipeNodeId,
+        evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{ArcData, Step, Target};
@@ -1379,7 +1409,9 @@ mod tests {
                 | NodeKindWanted::Frame => {}
             }
             assert!(
-                authorable.iter().any(|node| admits(Some(node), wanted)),
+                authorable
+                    .iter()
+                    .any(|node| admits(Some(&editor_core::test_support::stored(node)), wanted)),
                 "the {} seat wants {} and no add-datum choice authors one",
                 seat.name(),
                 wanted.name(),
@@ -1550,7 +1582,7 @@ mod tests {
         assert_ne!(at, held.node, "and not the node the form is displaying");
         assert_ne!(at, held.feature(), "nor the feature that minted the name");
         assert_eq!(name, seat.1);
-        let want = Expr::written_angle(pncad::quantity::WrittenAngle::canonical_in(
+        let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,
             pncad::quantity::DEG,
         ))

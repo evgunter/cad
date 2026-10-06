@@ -8,12 +8,16 @@
 //!
 //! Four spellings, one home each:
 //!
-//! - [`SpokenNode`] — the node as a person reads it. It is built from
-//!   the document that holds the node, by the frame that owns that
-//!   document, when the sentence is made ([`crate::Doc::spoken`]); it
-//!   is never stored in a value the evaluation memo reuses, so the
-//!   label it says is the document's at the moment of speaking, never
-//!   one a later rename left stale.
+//! - [`SpokenNode`] — the node as a person reads it, read off the
+//!   document that holds it ([`crate::Doc::spoken`]). No label a
+//!   sentence says is one its value can outlive: a value the evaluation
+//!   memo reuses holds a label only when its memo key fixes that label.
+//!   A document's own labels are outside its key, so what it memoizes
+//!   keeps bare ids, and the frame that owns the document says them
+//!   when the sentence is made. A part's labels are in its pin, which is
+//!   in the instance's key, so a fault from inside a part, and a row a
+//!   part carries up, hold the part's nodes as the pinned part says
+//!   them ([`crate::PartFault::held`], [`crate::CarriedRefusal::held`]).
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a stored reference). The edit, load and save doors all
@@ -23,7 +27,7 @@
 //!   one a door raised from an evaluation alone): its `Display` says
 //!   each node by tag ([`Speaker::TAG`]), and its `spoken(doc)` says
 //!   each as the document of the frame handing it out holds it
-//!   ([`Speaker::of`]). A door that holds the document and carries
+//!   ([`Speaker::of`]). A site that holds the document and carries
 //!   such a value whole keeps the nodes its words name as
 //!   [`HeldNodes`] ([`held_by`]), and says them back with no document
 //!   at hand ([`Speaker::held`]). Inside a line that already names a
@@ -102,6 +106,78 @@ impl StepId {
     }
 }
 
+/// `#` and every bit, `#3fa9c1d2a0b1c3d4`: the one spelling of a
+/// variable with no name, the text [`crate::unparse`] writes for its
+/// reader.
+impl fmt::Display for crate::var::VarId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "#{}", self.full())
+    }
+}
+
+impl crate::var::VarId {
+    /// The id with every bit shown ([`FullId`]).
+    #[must_use]
+    pub fn full(self) -> FullId {
+        FullId(self.0)
+    }
+}
+
+/// **A variable as a person reads it** (VARIABLES-DESIGN VR2): its
+/// name (`w`), or `#3fa9c1d2a0b1c3d4` when it has none (the
+/// [`crate::var::VarId`] spelling, which a formula's reader shares). Built by
+/// [`Doc::spoken_var`] from the document that holds the variable;
+/// refusals carry it the way they carry a [`SpokenNode`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpokenVar {
+    id: crate::var::VarId,
+    name: Option<crate::doc::VarName>,
+}
+
+impl SpokenVar {
+    /// `id`, under `name` when it has one.
+    #[must_use]
+    pub fn new(id: crate::var::VarId, name: Option<crate::doc::VarName>) -> Self {
+        Self { id, name }
+    }
+
+    /// The variable this sentence names.
+    #[must_use]
+    pub fn id(&self) -> crate::var::VarId {
+        self.id
+    }
+
+    /// Its name, when the document held one.
+    #[must_use]
+    pub fn name(&self) -> Option<&crate::doc::VarName> {
+        self.name.as_ref()
+    }
+
+    /// This variable spoken again from `doc`, a later version of the
+    /// document it was spoken from: under the name `doc` holds for it
+    /// now (none, after a clear), or as it was said when `doc` does not
+    /// hold it — a deleted variable, or one a refused declare would
+    /// have minted. An id names one variable within a document's
+    /// history, as [`SpokenNode::respoken`] says of a node.
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        if doc.var(self.id).is_some() {
+            doc.spoken_var(self.id)
+        } else {
+            self.clone()
+        }
+    }
+}
+
+impl fmt::Display for SpokenVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.name {
+            Some(name) => write!(f, "{name}"),
+            None => write!(f, "{}", self.id),
+        }
+    }
+}
+
 /// **A recipe node as a person reads it**: its kind noun, its label
 /// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`, with a `"` or
 /// `\` in the label escaped by a `\`), its kind and
@@ -160,7 +236,7 @@ impl SpokenNode {
 
     /// The node an insert is minting, before the document holds it:
     /// its kind and tag. An insert carries no label, so it has none.
-    pub(crate) fn entering<P>(id: RecipeNodeId, node: &Node<P>) -> Self {
+    pub(crate) fn entering<P, S: crate::Slot>(id: RecipeNodeId, node: &Node<P, S>) -> Self {
         Self {
             id,
             kind: Some(node_kind_noun(node)),
@@ -186,6 +262,14 @@ impl SpokenNode {
     #[must_use]
     pub fn label(&self) -> Option<&Label> {
         self.label.as_deref()
+    }
+
+    /// This node where the sentence knows what it is: as it was
+    /// spoken, or `<noun> <tag>` when its document did not hold it
+    /// ([`Speaker::node_as`]'s spelling).
+    #[must_use]
+    pub fn as_noun(&self, noun: &'static str) -> impl fmt::Display + use<> {
+        NodeAs(noun, Some(self.clone()))
     }
 
     /// **This node spoken again from `doc`, a later version of the
@@ -330,11 +414,15 @@ impl<P> Doc<P> {
 /// holds the document the ids are spelled in says each as that
 /// document holds it now ([`Speaker::of`]). A value the evaluation
 /// memo reuses, or one a door raised from an evaluation alone, keeps
-/// its bare ids and is said this way by the frame that hands it out.
+/// its bare ids and is said this way by the frame that hands it out,
+/// unless its memo key fixes the labels too ([`Speaker::held`]).
 #[derive(Clone, Copy)]
 pub struct Speaker<'a> {
     /// The document each node is read off, `None` for the tag.
     doc: Option<&'a dyn HoldsNodes>,
+    /// The nodes a node `doc` does not hold is said as
+    /// ([`Speaker::or_held`]).
+    kept: Option<&'a HeldNodes>,
     /// The node the enclosing sentence is about ([`Speaker::about`]).
     subject: Option<RecipeNodeId>,
 }
@@ -342,37 +430,78 @@ pub struct Speaker<'a> {
 /// A document a [`Speaker`] reads nodes off, whatever its program.
 trait HoldsNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode;
+    /// The name the document holds for the variable `id`, if any.
+    fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
 }
 
 impl<P> HoldsNodes for Doc<P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.spoken(id)
     }
+
+    fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
+        self.var_name(id).cloned()
+    }
 }
 
-/// **The nodes a refusal names, as a door's document held them when the
-/// door refused** ([`held_by`]): kept beside a refusal value the door
-/// carries whole, so the door's refusal speaks them ([`Speaker::held`])
-/// with no document at hand. Empty, every node is said by its tag.
+/// **The nodes a refusal names, as the document its ids are numbered in
+/// held them** ([`held_by`]): kept beside a refusal value carried whole,
+/// so it speaks them ([`Speaker::held`]) with no document at hand.
+/// Empty, every node is said by its tag.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HeldNodes(Box<[SpokenNode]>);
+pub struct HeldNodes {
+    nodes: Box<[SpokenNode]>,
+    vars: Box<[SpokenVar]>,
+}
+
+impl FromIterator<SpokenNode> for HeldNodes {
+    /// The nodes, each as it was spoken; of two for one id, the first.
+    fn from_iter<I: IntoIterator<Item = SpokenNode>>(nodes: I) -> Self {
+        let mut held: Vec<SpokenNode> = Vec::new();
+        for node in nodes {
+            if held.iter().all(|kept| kept.id() != node.id()) {
+                held.push(node);
+            }
+        }
+        Self {
+            nodes: held.into_boxed_slice(),
+            vars: Box::default(),
+        }
+    }
+}
 
 impl HeldNodes {
+    /// The node `id` as it was kept, `node <tag>` when it was not.
+    #[must_use]
+    pub fn spoken(&self, id: RecipeNodeId) -> SpokenNode {
+        self.speak(id)
+    }
+
     /// These nodes spoken again from `doc`, a later version of the
     /// document they were held from ([`SpokenNode::respoken`]).
     #[must_use]
     pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
-        Self(self.0.iter().map(|node| node.respoken(doc)).collect())
+        Self {
+            nodes: self.nodes.iter().map(|node| node.respoken(doc)).collect(),
+            vars: self.vars.iter().map(|var| var.respoken(doc)).collect(),
+        }
     }
 }
 
 impl HoldsNodes for HeldNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
-        self.0
+        self.nodes
             .iter()
             .find(|node| node.id() == id)
             .cloned()
             .unwrap_or_else(|| SpokenNode::absent(id))
+    }
+
+    fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
+        self.vars
+            .iter()
+            .find(|var| var.id() == id)
+            .and_then(|var| var.name().cloned())
     }
 }
 
@@ -380,6 +509,7 @@ impl HoldsNodes for HeldNodes {
 struct Recording<'d, P> {
     doc: &'d Doc<P>,
     said: core::cell::RefCell<Vec<SpokenNode>>,
+    vars: core::cell::RefCell<Vec<SpokenVar>>,
 }
 
 impl<P> HoldsNodes for Recording<'_, P> {
@@ -391,31 +521,48 @@ impl<P> HoldsNodes for Recording<'_, P> {
         }
         node
     }
+
+    fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
+        let var = self.doc.spoken_var(id);
+        let mut said = self.vars.borrow_mut();
+        if said.iter().all(|held| held.id() != id) {
+            said.push(var.clone());
+        }
+        var.name().cloned()
+    }
 }
 
 /// **Every node `value`'s sentence names, as `doc` holds it now**
-/// ([`HeldNodes`]). The door's refusal is never memoized, so what it
-/// keeps is as of the moment it refused.
+/// ([`HeldNodes`]). The snapshot is as of now, so the value that keeps
+/// it is one no later label of `doc` reaches: a door's refusal, which
+/// is never memoized, or a part's fault or carried row, whose pin
+/// fixes the part.
 #[must_use]
 pub fn held_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> HeldNodes {
     let recording = Recording {
         doc,
         said: core::cell::RefCell::new(Vec::new()),
+        vars: core::cell::RefCell::new(Vec::new()),
     };
     let speaker = Speaker {
         doc: Some(&recording),
+        kept: None,
         subject: None,
     };
     // The sentence is written only to be heard: the nodes it names are
     // what is kept.
     let _ = Said(value, speaker).to_string();
-    HeldNodes(recording.said.into_inner().into_boxed_slice())
+    HeldNodes {
+        nodes: recording.said.into_inner().into_boxed_slice(),
+        vars: recording.vars.into_inner().into_boxed_slice(),
+    }
 }
 
 impl<'a> Speaker<'a> {
     /// Each node by its tag: `node <tag>`.
     pub const TAG: Speaker<'static> = Speaker {
         doc: None,
+        kept: None,
         subject: None,
     };
 
@@ -424,17 +571,32 @@ impl<'a> Speaker<'a> {
     pub fn of<P>(doc: &'a Doc<P>) -> Self {
         Self {
             doc: Some(doc),
+            kept: None,
             subject: None,
         }
     }
 
-    /// Each node as a door's document held it when the door refused
-    /// ([`held_by`]); a node it did not keep, by its tag.
+    /// Each node as `nodes` keeps it ([`held_by`]); a node it did not
+    /// keep, by its tag.
     #[must_use]
     pub fn held(nodes: &'a HeldNodes) -> Self {
         Self {
             doc: Some(nodes),
+            kept: None,
             subject: None,
+        }
+    }
+
+    /// **This speaker, saying a node its document does not hold as
+    /// `kept` says it** — the nodes a value was spoken with when it was
+    /// made, from an earlier version of the speaker's document
+    /// ([`SpokenNode::respoken`]'s rule, and its soundness paragraph).
+    /// A node neither holds is said by its tag.
+    #[must_use]
+    pub fn or_held(self, kept: &'a HeldNodes) -> Self {
+        Self {
+            kept: Some(kept),
+            ..self
         }
     }
 
@@ -460,10 +622,39 @@ impl<'a> Speaker<'a> {
     /// The node `id` as this speaker's document holds it, its subject
     /// or not.
     fn spoken(self, id: RecipeNodeId) -> SpokenNode {
-        match self.doc {
+        let said = match self.doc {
             None => SpokenNode::absent(id),
             Some(doc) => doc.speak(id),
+        };
+        match self.kept {
+            Some(kept) if said.kind().is_none() => kept.speak(id),
+            Some(_) | None => said,
         }
+    }
+
+    /// **A formula, its readers said**: `expr` unparsed with each
+    /// reader written by the name this speaker's document holds for it,
+    /// and `#<16 hex>` where it holds none (or the speaker has no
+    /// document). A refusal kept by an evaluation memo holds the
+    /// formula as an [`crate::Expr`], so a rename — which recomputes
+    /// nothing — still reads in the sentence.
+    #[must_use]
+    pub fn formula<L: crate::expr::LeafSet>(self, expr: &crate::expr::ExprTree<L>) -> String {
+        let mut reads = Vec::new();
+        expr.var_reads(&mut reads);
+        let names: Vec<(crate::var::VarId, crate::doc::VarName)> = match self.doc {
+            None => Vec::new(),
+            Some(doc) => reads
+                .into_iter()
+                .filter_map(|(id, _)| doc.speak_var(id).map(|name| (id, name)))
+                .collect(),
+        };
+        crate::expr::unparse(expr, &|id| {
+            names
+                .iter()
+                .find(|(held, _)| *held == id)
+                .map(|(_, name)| name)
+        })
     }
 
     /// The name `name`, its minting node said: `face name minted by
@@ -551,31 +742,6 @@ pub(crate) fn assert_taken_of<P>(what: &str, taken_of: crate::DocumentId, doc: &
     );
 }
 
-/// **A part's ids are spoken only from the version its reference
-/// pins**: the document `doc_ref` names, by its id and its content pin.
-/// Another version of the part may hold the same id as another node,
-/// or under another label.
-///
-/// # Panics
-///
-/// When `part` is not that document at that version, or its pin does
-/// not compute.
-pub(crate) fn assert_pinned(
-    what: &str,
-    doc_ref: &crate::ident::DocRef,
-    part: &crate::program::ProfileDoc,
-    tol: geom_core::Tol,
-) {
-    assert_taken_of(what, doc_ref.id, part);
-    let pin = crate::persist::content_pin(part, tol).ok();
-    assert!(
-        pin == Some(doc_ref.pin),
-        "{what} is in part {:032x} at the version its reference pins, and is rendered from \
-         another version of it ({pin:?}); its node ids would name another document's nodes",
-        doc_ref.id.0
-    );
-}
-
 /// **The kind noun of a recipe node** — the word a sentence, a feature
 /// tree row, a delete confirmation and a kind census all say.
 ///
@@ -584,7 +750,7 @@ pub(crate) fn assert_pinned(
 /// in whether the spin about the normal is pinned, so a sentence that
 /// called both "Datum" would ask a reader to tell them apart by
 /// looking.
-pub fn node_kind_noun<P>(node: &Node<P>) -> &'static str {
+pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
     match node {
         Node::Profile(_) => "Profile",
         Node::Extrude { .. } => "Extrude",
@@ -622,9 +788,10 @@ pub fn node_kind_noun<P>(node: &Node<P>) -> &'static str {
 mod tests {
     use geom_core::Tol;
 
-    use super::{FullId, node_kind_noun};
+    use super::{FullId, HeldNodes, Speaker, SpokenNode, node_kind_noun};
     use crate::doc::Doc;
     use crate::edit::DocEdit;
+    use crate::label::Label;
     use crate::node::{RecipeNodeId, StepId};
     use crate::program::ProfileProgram;
     use crate::{RefusingReach, test_support};
@@ -675,6 +842,55 @@ mod tests {
         assert_eq!(
             gone.to_string(),
             format!("node {}", test_utils::refusal::tag(id.0))
+        );
+    }
+
+    /// A speaker that keeps nodes says a node its document holds as the
+    /// document does, and one it does not hold as kept; one neither
+    /// holds, by its tag.
+    #[test]
+    fn a_kept_node_is_said_only_where_the_document_does_not_hold_it() {
+        let tol = Tol::witness();
+        let empty: Doc<ProfileProgram> = Doc::empty_derived("spoken-kept", tol);
+        let doc = empty
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Box::new(test_support::xy_frame()),
+                },
+                tol,
+                &RefusingReach,
+            )
+            .expect("the frame inserts")
+            .doc;
+        let id = *doc.order().last().expect("the inserted frame");
+        let stranger = RecipeNodeId(test_utils::refusal::tagged(7));
+        let forged = SpokenNode::forged(
+            id,
+            Some("Datum frame"),
+            Some(Label::new("floor").expect("a label")),
+        );
+        let kept: HeldNodes = [forged.clone()].into_iter().collect();
+        let t = test_utils::refusal::tag(id.0);
+        let said = |by: Speaker<'_>, id| by.node(id).to_string();
+        assert_eq!(
+            said(Speaker::of(&doc).or_held(&kept), id),
+            format!("Datum frame {t}"),
+            "the document holds it, so the document says it"
+        );
+        assert_eq!(
+            said(Speaker::of(&empty).or_held(&kept), id),
+            format!("Datum frame \"floor\" ({t})"),
+            "the document does not hold it, so it is said as kept"
+        );
+        assert_eq!(
+            said(Speaker::TAG.or_held(&kept), id),
+            forged.to_string(),
+            "with no document, as kept"
+        );
+        assert_eq!(
+            said(Speaker::of(&empty).or_held(&kept), stranger),
+            format!("node {}", test_utils::refusal::tag(stranger.0)),
+            "neither holds it: its tag"
         );
     }
 }

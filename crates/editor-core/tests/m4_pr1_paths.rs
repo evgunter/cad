@@ -6,7 +6,7 @@
 use crate::fixture::{len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Datum, Dimension, Doc, DocEdit, EditError, Expr, ExprPath, Node, RecipeNodeId, SlotId,
+    Datum, Dimension, Doc, DocEdit, EditError, ExprPath, Formula, Node, RecipeNodeId, SlotId,
 };
 use geom_core::Tol;
 
@@ -16,10 +16,22 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
+impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored(&self) -> Self {
+        self.clone()
+    }
     fn drawn_pieces(
         &self,
-        _env: &editor_core::ParamEnv<f64>,
+        _env: &editor_core::VarEnv<f64>,
         _tol: geom_core::Tol,
     ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
     {
@@ -44,7 +56,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         )
         .unwrap();
     let profile = a.record.minted.unwrap();
-    let distance = Expr::add(len(0.010), len(0.005)).unwrap();
+    let distance = Formula::add(len(0.010), len(0.005)).unwrap();
     let b = a
         .doc
         .apply(

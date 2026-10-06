@@ -10,18 +10,19 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use crate::fixture::len;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Expr, LoopProgram, Node, NodeResult,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
+    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Formula, LoopProgram, Node,
+    NodeResult, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use geom_core::Tol;
 
 /// A square profile `[0,s]²` on `plane`, as a loop program.
-fn square(plane: RecipeNodeId, s: f64) -> Node<ProfileProgram> {
+fn square(plane: RecipeNodeId, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
@@ -174,7 +175,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         "node 000000000007 is not live. Recourse: aim the edit at a node the document holds"
     );
 
-    let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
+    let literal = Formula::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));
     assert_eq!(literal.to_string(), "a literal value must be finite");
 
@@ -504,7 +505,7 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
 #[test]
 fn the_document_layers_own_payloads_render_their_own_stories() {
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError, ParamName,
+        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError,
         PlacementRuleFault, RecipeEditRef, ResolveError, RoleSeg, StableName, WitnessAge,
         WitnessBifurcation,
     };
@@ -516,11 +517,14 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
     };
     let cases: Vec<(String, &[&str])> = vec![
         (
-            EvalError::UnknownParam(ParamName::from_static("width")).to_string(),
+            EvalError::UnresolvedVar {
+                var: editor_core::VarId(tagged(7)),
+            }
+            .to_string(),
             &[
-                "parameter width",
+                "variable #0000000000070000",
                 "has no binding",
-                "declare the document parameter",
+                "point the reader at a live variable",
             ],
         ),
         (

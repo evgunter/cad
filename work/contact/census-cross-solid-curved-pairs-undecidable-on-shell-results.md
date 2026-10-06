@@ -53,3 +53,58 @@ solid. Measured on PR 3891's branch with a box declared `Tangent` to a
 plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone);
 main has since refused that union (`TangentSlitArmUnbuilt`), so no row
 pins it today.
+
+## 2026-10-03 — 38 boolean results on main (REACH, `boolean-door-adopts-the-finished-body-type`)
+
+A census run over every result `boolean_op_with` returns (`python3
+scripts/door-tier3-meter.py`, `origin/main` 82b9ceb2, ε 1e-9) finds 38
+`sweep` union results that pass tier 3 and fail the empty-contact 3′
+with `CensusUndecidable` alone ("a curved face of one is within reach
+of the other"): `snowman` ×9, `run_walls_built` ×4, `shell8_r2_probes`
+×4, `m5_s13_pips` ×3, `germ_sphere_no_crossings` ×2 (a ball in a
+torus's hole), and single rows of `germ_torus_doors`,
+`germ_interior_oval`, `m5_s10_face_sense`, `m5_s11_concave_sense_interval`,
+`offer_rows`, `verbs_cylcyl_*` and `verbs_pierce*`. So the boolean door
+cannot run the census over its result until this lane lands
+(`work/reach/boolean-door-runs-the-census-over-its-result.md`).
+
+## 2026-10-03 — a row reaches it on main (JOIN-2, PR 3880)
+
+`sweep` `join2_r1_probes::join2_r1_grid` (ignored, release) prints 804
+`BAD` union lines on main `82b9ceb2b` and on PR 3880's head alike, with the
+same set on both trees: every one is `t2=true t3p=false cert=true
+operand=true` with the volume right. They are unions of an axis-aligned box
+beside or diagonally off a rounded plate (e.g. `grid r=0.5 x=[-1,0]
+y=[-1,0]`, the box clear of the fillet). The result has two solids, and 3′
+gives `CensusUndecidable` "a curved face of one is within reach of the
+other" between the plate's fillet and the box's faces. At main `66bbdaa6b`
+the same battery printed 0 `BAD`, which fits the one-solid-per-piece sort
+landing in between. So the grid's assertion (`bad == 0`) stays red until
+this lane decides curved × planar pairs across solids.
+
+## 2026-10-06 — a plug cut out of a plate (ZIP)
+
+A round tube cut right through a plate leaves a holed plate and a
+loose plug, and 3′ refuses the pair. The plate is `[0,3] × [0,2] × [0,1]`.
+The tube is `circle_split((1.5, 1), 0.6, ..)` with its bore
+`circle_split((1.5, 1), 0.4, ..)`, extruded 2.5 from `z = −0.5`.
+`topo::subtract(plate, tube)` returns two solids at the closed-form
+volume. They pass tier 2 and the at-rest certificate, and 3′ gives
+`CensusUndecidable` between the plug's wall and the hole's wall, which
+are 0.2 apart. The 16-gon twin passes 3′. In ZIP's sweep this held for
+all 144 rim and bore splits and phases tried
+(`a-round-tube-standing-on-a-plate-refuses-seam-orientation`,
+`## Closed`).
+
+## 2026-10-06 — two stubs of a tilted prism through a slab (TANG)
+
+`sweep::planar_ring_arc_closure::a_prism_with_arc_walls_through_a_slab_builds_every_op`:
+a prism with an arc wall tilted through the slab `[−4, 4]² × [−0.5,
+0.5]`, `prism ∖ slab`. The result is the two stubs either side of the
+slab, two solids a unit apart along the slab's normal, whose tilted
+walls overhang each other. Tier 3 passes and the volume matches its
+closed form; empty tier 3′ answers 2 to 9 `CensusUndecidable` pairs
+on 11 of the row's 18 tilted shape-poses: all nine shapes tilted
+about two axes, and the 1.4π D and the lens tilted about one. The row
+accepts that refusal, and only it, on those results; the upright ones
+must pass.

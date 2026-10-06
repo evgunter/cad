@@ -36,9 +36,9 @@ use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
-use crate::fixture::{ends, face_vertices, insert, point};
+use crate::fixture::{ends, face_vertices, insert, len, on_frame, point};
 use editor_core::{
-    BooleanOp, BooleanValue, Evaluation, Node, ProfileDoc, RecipeNodeId, ValuePayload,
+    BooleanOp, BooleanValue, Evaluation, ExtrudeSide, Node, ProfileDoc, RecipeNodeId, ValuePayload,
 };
 use geom_core::Tol;
 use topo::{Body, ContactRecords};
@@ -76,6 +76,66 @@ fn side_pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, p1) = block(doc, (2.5, 4.0), (0.5, 1.0), 0.2, 0.3);
     let (doc, p2) = block(doc, (2.47, 3.9), (1.0, 1.5), 0.5, 0.3);
     (doc, vec![plate, p1, p2])
+}
+
+/// A prism over the counterclockwise `corners` from `z0`, `dz` high.
+fn prism(doc: ProfileDoc, corners: &[(f64, f64)], z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![corners.to_vec()],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(dz),
+            side: ExtrudeSide::Along,
+        },
+    )
+}
+
+/// The plate and two blocks whose footprints on its top are holes
+/// meeting at the corner (1.5, 1): the blocks of [`pinch`], cut short of
+/// the plate's sides.
+fn corner_holes(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, p1) = block(doc, (1.0, 1.5), (0.5, 1.0), 0.5, 1.5);
+    let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 1.5), 0.47, 1.23);
+    (doc, vec![plate, p1, p2])
+}
+
+/// [`corner_holes`] with `p1` through the plate's y = 0 side: a notch
+/// and a hole meeting at the corner.
+fn notch_and_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
+    let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 1.5), 0.47, 1.23);
+    (doc, vec![plate, p1, p2])
+}
+
+/// The triangle of [`reflex_hole`]'s first block, every edge leaving the
+/// pinch inside the L's missing quadrant.
+const WEDGE: [(f64, f64); 3] = [(1.5, 1.0), (1.0, 0.6), (1.2, 0.5)];
+
+/// The plate, a wedge-footprint block and an L-footprint block, holes
+/// in its top meeting at (1.5, 1): the L's reflex corner, an interior
+/// angle of 3π/2, with the wedge inside the quadrant the L leaves.
+fn reflex_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, wedge) = prism(doc, &WEDGE, 0.5, 1.5);
+    let ell = [
+        (1.0, 1.0),
+        (1.5, 1.0),
+        (1.5, 0.5),
+        (2.0, 0.5),
+        (2.0, 1.5),
+        (1.0, 1.5),
+    ];
+    let (doc, l) = prism(doc, &ell, 0.47, 1.23);
+    (doc, vec![plate, wedge, l])
 }
 
 /// The plate's volume plus each block's part above or beside it; the
@@ -462,6 +522,44 @@ fn two_pinches_build_one_body_in_every_member_order() {
                 ),
             ),
         ],
+    );
+}
+
+/// **Holes touching at a corner of the top build one body in every
+/// member order**, and so do a notch and a hole, and a wedge in an L's
+/// reflex corner. When the blocks fold first, each of their two edges at
+/// the pinch pierces the top there, and the second pierce's ring is a
+/// strut with every point on the first polygon's outline; it is placed
+/// with its own polygon.
+#[test]
+fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
+    let touches: &[([usize; 2], &[Contact])] = &[([1, 2], &p1_p2())];
+    every_order(
+        "corner holes",
+        corner_holes,
+        [16, 37, 24],
+        6.0 + 0.25 * (2.0 - 1.0) + 0.25 * (1.7 - 1.0),
+        &[TOP],
+        touches,
+    );
+    every_order(
+        "notch and hole",
+        notch_and_hole,
+        [17, 43, 28],
+        6.0 + 0.5 * 2.0 * (2.0 - 1.0) + 0.5 * 1.0 * (1.0 - 0.5) + 0.25 * (1.7 - 1.0),
+        &[TOP],
+        touches,
+    );
+    let wedge = 0.5
+        * ((WEDGE[1].0 - WEDGE[0].0) * (WEDGE[2].1 - WEDGE[0].1)
+            - (WEDGE[1].1 - WEDGE[0].1) * (WEDGE[2].0 - WEDGE[0].0));
+    every_order(
+        "wedge in an L",
+        reflex_hole,
+        [17, 40, 26],
+        6.0 + wedge * (2.0 - 1.0) + 0.75 * (1.7 - 1.0),
+        &[TOP],
+        touches,
     );
 }
 

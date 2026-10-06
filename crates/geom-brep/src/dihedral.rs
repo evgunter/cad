@@ -264,11 +264,8 @@ pub(crate) fn wedge_decided<T: Decide>(
     let sin_theta = n1.cross(n2).norm() / magnitudes;
     let arm = folded_lever_arm(s1, s2, p, extent);
     // The collapsed-arm gate (module docs): the wedge margin is only
-    // meaningful through a definitely-positive arm. A Zero arm escalates
-    // with its decided margin, a (for a true magnitude, unreachable)
-    // Negative one as Invalid, and an in-band or poisoned arm as the
-    // funnel's own escalation.
-    crate::enters::decide_arm("dihedral_arm", Margin::of(arm), band).map_err(|diag| {
+    // meaningful through a definitely-positive arm.
+    decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|diag| {
         WedgeEscalation::Lever(LeverEscalation::arm(at_wedge(diag, arm, sin_theta, band)))
     })?;
     let margin = Margin::levered(sin_theta, arm);
@@ -312,22 +309,20 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// from there down to its own, so the arm binds and keeps its own margin:
 /// an exactly zero wedge, and one that is only rounding on a tangent
 /// seam, whose own value would offer a tolerance many decades below the
-/// one that already decides the seam. A poisoned arm keeps its own too.
+/// one that already decides the seam. An arm no smaller tolerance
+/// decides positive — poisoned, decided negative, or a zero on the
+/// negative side — keeps its own too: there is no tolerance to quote.
 fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, sin_theta: T, band: Band) -> Indeterminate {
     let wedge = sin_theta * arm;
     // `arm / wedge` is finite unless the wedge is exactly zero, or poison
     // (a gradient the arm's decided zero leaves unread, at a cone's apex).
-    if gate.margin.is_invalid()
+    if !gate.offers_tolerance()
         || !geom_core::is_finite_length(arm / wedge)
         || wedge_reads_zero_at_the_arm(sin_theta, band)
     {
         return gate;
     }
-    match geom_core::k_stats::decide_positive_reported(
-        "dihedral_arm_wedge",
-        Margin::of(wedge.abs()),
-        band,
-    ) {
+    match decide_positive("dihedral_arm_wedge", Margin::of(wedge.abs()), band) {
         Err(diag) => diag,
         // Unreachable: the wedge is no longer than an arm that did not
         // read positive.
@@ -365,22 +360,17 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// material pairing ([`classify_material_pairing`]) and the
 /// second-order jet margin the tier-3 validator decides.
 ///
-/// "One home" is **aspiration, not fact**, and the gap is filed as
-/// issue 1439. Two hand-rolled siblings of this fold remain across
-/// the workspace — `topo::boolean::contact_verify` (the fold's own
-/// stated origin) and `topo::boolean::ops` — down from the six that
-/// issue counted: `crate::certify` reaches the fold through
-/// [`tangent_second_order`], `sweep::extrude` and
-/// `sweep::revolve::upgrade` through [`must_carry_over_edge`], which
-/// composes it, and `crate::ssi` through `pair_lever_arm`. The two
-/// hand-rolled siblings of the second-order MARGIN are a different
-/// pair and are counted on [`tangent_second_order`].
-/// `contact_tangent_opposed` is also [`classify_material_pairing`]'s
-/// own twin — the same C1 lemma between bodies rather than within one.
-/// Consolidating the rest is that issue's work, deliberately NOT
-/// absorbed here; until it lands, a new site levering against its own
-/// fold is a silent non-comparability, so route new callers through
-/// this function.
+/// `crate::certify` reaches it through [`tangent_second_order`], the
+/// smooth-join constructors through [`must_carry_over_edge`], which
+/// composes it, and `topo::boolean::contact_verify` directly. One
+/// copy is still spelled in place: `crate::ssi::march`'s transversality
+/// gate folds the extent onto its system's arm
+/// (`Real::min(sys.lever_arm(x), extent)`, the arm itself
+/// `pair_lever_arm`'s). `contact_verify`'s `contact_tangent_opposed` is
+/// also [`classify_material_pairing`]'s own twin — the same C1 lemma
+/// between bodies rather than within one. Both are issue 1439's work.
+/// A new site levering against its own fold is a silent
+/// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
     pair_lever_arm(s1, s2, p).min(extent)
 }
@@ -420,14 +410,17 @@ pub(crate) fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point
 /// the SAME predicate name, or the demanded set and the stored set are
 /// two sets and every disagreement is a spurious
 /// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs,
-/// and the boolean rebuild's smooth seams, route here through
-/// [`must_carry_over_edge`], which is where the gate, the stations and
-/// the verdict policy live; `Intersection`-tangency certification and
-/// the boolean rim wedge fold this reading into walks of their own. The
-/// one remaining hand-rolled sibling is the tier-3
-/// validator's (`topo::validate`), which folds this margin into a
-/// per-sample walk it already runs — issue 1439's work. A new site
-/// spelling its own is a silent non-comparability.
+/// the boolean rebuild's smooth seams and the split's section boundary
+/// route here through [`must_carry_over_edge`], which is where the
+/// gate, the stations and the verdict policy live;
+/// `Intersection`-tangency certification and the boolean rim wedge fold
+/// this reading into walks of their own. Two hand-rolled siblings
+/// remain, both issue 1439's work: the tier-3 validator's
+/// (`topo::validate`), which folds this margin into a per-sample walk
+/// it already runs, and `topo::boolean::contact_verify`'s, which meters
+/// `Margin::sagitta(|κ_rel| − drift, arm)` under its own predicate
+/// (`"contact_tangent_second_order"`). A new site spelling its own is a
+/// silent non-comparability.
 ///
 /// The [`SecondOrder`] return carries the jet and the arm beside the
 /// verdict, because the two callers that fold this into a longer walk
@@ -570,12 +563,11 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// for the pairs ONE caller mints, while this walk must hold for every
 /// pair it is handed, so none licenses reading one station.
 ///
-/// **The one home** [`folded_lever_arm`]'s doc calls aspirational, one
-/// level up: the fold has a single spelling and so does the metered
-/// margin, but the EDGE-level rule — gate, stations, verdict policy
-/// — was spelled once per caller, and the spellings disagreed on the
-/// in-band case. A new constructor spelling its own is that
-/// disagreement again.
+/// **The one home of the EDGE-level rule** — gate, stations, verdict
+/// policy — as [`folded_lever_arm`] is of the fold and
+/// [`tangent_second_order`] of the metered margin. A constructor
+/// spelling its own is a second verdict policy, and the in-band case
+/// is where such spellings have disagreed.
 pub fn must_carry_over_edge<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -704,7 +696,11 @@ pub enum MustCarryVerdict {
     /// smooth, so the second-order question was never posed there and
     /// the rule has no description to choose. The edge is a corner at
     /// that station, and a caller whose premise was a smooth join has
-    /// had that premise refuted.
+    /// had that premise refuted: [`MustCarryVerdict::description`]
+    /// refuses it ([`MustCarryRefusal::Refuted`]). The one caller that
+    /// keeps such an edge conventional is the boolean rebuild's seams
+    /// (`topo::boolean::ops`), which read the verdict rather than its
+    /// description, because tier 3 holds a mixed edge to neither.
     Transverse,
 }
 
@@ -825,12 +821,12 @@ pub enum MaterialPairing {
 /// # Errors
 ///
 /// [`Indeterminate`]: predicate `"material_wedge_side"` — the margin
-/// landed in the band or was poisoned, or (as
-/// [`geom_core::MarginKind::Invalid`]) classified `Zero`, which on a
-/// definitely-smooth sample means the two encodings contradict each
-/// other: unit normals whose tangent planes coincide cannot be
-/// perpendicular, so the pairing question is not validly posed at this
-/// site — the collapsed-arm gate's posture, one order over.
+/// landed in the band or was poisoned, or classified `Zero`: normals
+/// that name no side. That rejection carries the decided margin, as
+/// every gate's does. On a definitely-smooth sample a zero contradicts
+/// the smooth verdict — unit normals whose tangent planes coincide
+/// cannot be perpendicular — so a caller that established smoothness
+/// reads it as a defect, not as a tolerance question.
 pub fn classify_material_pairing<T: Decide>(
     s_plus: &Surface<T>,
     sense_plus: bool,
@@ -1214,11 +1210,17 @@ mod tests {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
         assert_eq!(
-            (err.rung, err.diag.predicate, err.diag.margin),
+            (
+                err.rung,
+                err.diag.predicate,
+                err.diag.margin.diagnostic_f64_for_error_text(),
+                err.diag.margin.rejected_sign()
+            ),
             (
                 crate::LeverRung::Arm,
                 Some("dihedral_arm"),
-                geom_core::MarginDiag::value(0.0)
+                geom_core::ErrorTextReading::Value(0.0),
+                Some(Sign::Zero)
             )
         );
     }

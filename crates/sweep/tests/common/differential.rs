@@ -6,14 +6,19 @@
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //! [`super::oracles`]' closed forms, which are swept-solid volumes with
-//! nothing polygonal to share; and the per-battery operands of
-//! `join1_r1_probes.rs` (prisms, rods, revolves), each one battery's.
+//! nothing polygonal to share; the per-battery operands of
+//! `join1_r1_probes.rs` (prisms, rods, revolves), each one battery's;
+//! and `join_reflex_wedge_probes.rs`' fan-wedge `Pose`, whose operands
+//! are both parametrized by wedge angle and whose six runs each carry
+//! the flush declarations of their own operand order, which
+//! [`ReflexPose`]'s one fixed corner and single `d` do not.
 
 use geom_core::{Point3, Tol};
+use sweep::test_support::finished;
 use topo::test_support::{
     FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
 };
-use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult};
 
 /// The signed area of a simple polygon (positive counter-clockwise).
 pub fn area(p: &[(f64, f64)]) -> f64 {
@@ -84,6 +89,70 @@ pub fn clip_convex(poly: &[(f64, f64)], clipper: &[(f64, f64)]) -> Vec<(f64, f64
     out
 }
 
+/// The signed area between the chord `a → b` and the origin.
+fn chord_triangle(a: (f64, f64), b: (f64, f64)) -> f64 {
+    (a.0 * b.1 - a.1 * b.0) / 2.0
+}
+
+/// The signed area of the circular sector of radius `r` from `a`'s
+/// direction to `b`'s, the turn read in `(−π, π]`.
+fn sector(r: f64, a: (f64, f64), b: (f64, f64)) -> f64 {
+    let cross = a.0 * b.1 - a.1 * b.0;
+    let dot = a.0 * b.0 + a.1 * b.1;
+    r * r * cross.atan2(dot) / 2.0
+}
+
+/// **The area of the disc of radius `r` about the origin against the
+/// polygon `poly`**, closed form: each edge contributes the area its
+/// own chord or arc sweeps about the origin — a chord triangle where the
+/// edge is inside the disc, a sector where it is outside, and the split
+/// of the two at the edge's crossings, which are the roots of a
+/// quadratic. The sum over a closed polygon is the enclosed area,
+/// signed by the winding.
+pub fn disc_clip_area(r: f64, poly: &[(f64, f64)]) -> f64 {
+    let n = poly.len();
+    let mut total = 0.0;
+    for i in 0..n {
+        let (a, b) = (poly[i], poly[(i + 1) % n]);
+        let d = (b.0 - a.0, b.1 - a.1);
+        let ra = a.0.hypot(a.1);
+        let (qa, qb, qc) = (
+            d.0 * d.0 + d.1 * d.1,
+            2.0 * (a.0 * d.0 + a.1 * d.1),
+            a.0 * a.0 + a.1 * a.1 - r * r,
+        );
+        let disc = qb * qb - 4.0 * qa * qc;
+        // The crossing parameters inside the edge, in order.
+        let hits: Vec<f64> = if qa <= 0.0 || disc <= 0.0 {
+            Vec::new()
+        } else {
+            let root = disc.sqrt();
+            [(-qb - root) / (2.0 * qa), (-qb + root) / (2.0 * qa)]
+                .into_iter()
+                .filter(|t| *t > 0.0 && *t < 1.0)
+                .collect()
+        };
+        let at = |t: f64| (a.0 + t * d.0, a.1 + t * d.1);
+        let piece = |p: (f64, f64), q: (f64, f64), inside: bool| {
+            if inside {
+                chord_triangle(p, q)
+            } else {
+                sector(r, p, q)
+            }
+        };
+        let mut from = a;
+        let mut inside = ra <= r;
+        for t in hits {
+            let p = at(t);
+            total += piece(from, p, inside);
+            from = p;
+            inside = !inside;
+        }
+        total += piece(from, b, inside);
+    }
+    total
+}
+
 /// **One pose's line**: the refusal, or the body's tiers 2 and 3′, the
 /// at-rest certificate, whether it is a legal operand (it unites with a
 /// far brick, `sweep::test_support::assert_legal_operand`'s question)
@@ -103,7 +172,11 @@ pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol)
                 let t2 = topo::validate_closed(&bb.body).is_ok();
                 let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
-                let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol);
+                let far = finished(
+                    "the far brick",
+                    sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+                    tol,
+                );
                 let operand = topo::union(&bb.body, &far, tol).is_ok();
                 match topo::mass_properties(&bb.body, tol).map(|m| m.volume) {
                     Ok(v) => {
@@ -174,8 +247,8 @@ pub const REFLEX_OPS: [&str; 4] = ["I", "U", "S_ab", "S_ba"];
 /// corner `(0, 0, 1)`; their flush declarations (for the `(a, b)`
 /// order); and the closed-form volumes of [`REFLEX_OPS`].
 pub struct ReflexPose {
-    pub a: Body<f64>,
-    pub b: Body<f64>,
+    pub a: AtRestBody<f64>,
+    pub b: AtRestBody<f64>,
     pub d: BooleanDeclarations,
     pub want: [f64; 4],
 }
@@ -232,8 +305,8 @@ pub fn reflex_pose(profile: &str, rot: f64, sx: f64, sy: f64, tol: Tol) -> Refle
     let (va, vb) = (area(&a_prof), area(&prof) * 2.0);
     let d = flush_declarations(&a, &b, tol);
     ReflexPose {
-        a,
-        b,
+        a: finished("the reflex corner", a, tol),
+        b: finished("the sheared strut", b, tol),
         d,
         want: [vi, va + vb - vi, va - vi, vb - vi],
     }

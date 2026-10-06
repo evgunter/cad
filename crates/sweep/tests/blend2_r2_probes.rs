@@ -16,7 +16,7 @@
 use geom_core::{Point2, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::build::{Filleted, fillet_edges};
-use sweep::test_support::{one_edge_rim_at, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{finished, one_edge_rim_at, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -129,12 +129,9 @@ fn r2_p2_lantern_triple_equality_off_the_fixture_radius() {
 }
 
 /// **P3 — two annulus rims sharing a PLANE CAP compose in one call.**
-/// The unit's fixtures all share revolution walls (sphere, cone); a
-/// full-revolution CAP has a radial seam meridian too, and the zone's
-/// top cap is shared by the top sphere rim and the bore's top rim. The
-/// refresh code is support-kind-agnostic, and MEASURED here it does
-/// serve the cap-sharing pair — this row is the measurement the unit
-/// did not take. The composition lands bit-equal on the bore-first
+/// The unit's fixtures all share revolution walls (sphere, cone); the
+/// zone's top cap, a plane annulus, is shared by the top sphere rim (its
+/// outer cycle) and the bore's top rim (its ring). The composition lands bit-equal on the bore-first
 /// sequential order and one summation ulp off the sphere-first order
 /// (1.59657466438555087e1 vs …051e1), the same integrator mechanism as
 /// P1's off-radius point.
@@ -248,7 +245,7 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
 
 /// **P3b/P4b — the naming records stay a partition on the cap-sharing
 /// pair and the four-rim cycle**, where the retire/re-cover path runs
-/// on a plane cap's RADIAL seam and on up to three earlier bands.
+/// on a plane cap shared by two rims and on up to three earlier bands.
 #[test]
 fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
     let body = zone();
@@ -279,7 +276,7 @@ fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
 #[test]
 fn r2_p5_the_pip_on_a_revolve_cap_builds() {
     use topo::boolean::subtract;
-    let zone_body = zone();
+    let zone_body = finished("the zone", zone(), tol());
     // A pole-touching ball of radius 0.12, revolved at the origin then
     // translated onto the cap: center (1.15, 1.07, 0), so it dips
     // 0.05 below the cap plane y = 1 — a die pip's shape.
@@ -291,6 +288,7 @@ fn r2_p5_the_pip_on_a_revolve_cap_builds() {
     );
     let map = geom_core::Affine3::translation(Vec3::new(1.15, 1.0 + rb - dip, 0.0));
     let placed = topo::transform_rigid(&ball, &map, tol()).expect("a rigid translate");
+    let placed = finished("the placed ball", placed, tol());
     let out = subtract(&zone_body, &placed, tol())
         .unwrap_or_else(|e| panic!("the pip-on-a-revolve-cap subtract builds, got {e:?}"));
     let body = &out.body().expect("material remains").body;

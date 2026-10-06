@@ -67,7 +67,7 @@ use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
 use crate::eval::{DatumValue, Evaluation, NodeStanding, ValuePayload};
-use crate::expr::{Dimension, Expr, ParamEnv};
+use crate::expr::{Dimension, Expr, VarEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
 use crate::names::table::EntityKey;
@@ -426,9 +426,10 @@ impl crate::spoken::Say for SelectRefusal {
             Self::AcrossSpaces { group, cause } => write!(
                 f,
                 "select: the two nodes live in different spaces — one is in the own space of the \
-                 group rooted at {}, unplaced because {cause}, and nothing outside an \
+                 group rooted at {}, unplaced because {}, and nothing outside an \
                  unplaced group is compared with it. {}",
                 by.node(*group),
+                crate::spoken::Said(cause, by),
                 crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
         }
@@ -506,7 +507,7 @@ pub(crate) enum Prepared<'a, T: Decide> {
 pub(crate) fn prepare<'a, T: Decide>(
     ev: &'a Evaluation<T>,
     geom: &[GeomPred],
-    params: &ParamEnv<T>,
+    params: &VarEnv<T>,
 ) -> Result<Vec<Prepared<'a, T>>, SelectRefusal> {
     geom.iter()
         .map(|atom| match atom {

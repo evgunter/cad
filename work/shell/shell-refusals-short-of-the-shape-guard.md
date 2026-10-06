@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-29
 priority: P2
 cost: M
+rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)
@@ -24,7 +25,7 @@ These rows, raised through `ShellError` (`crates/topo/src/shell.rs`) and the rep
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  12 feature-tree rows.
+  7 feature-tree rows.
 
 Families: `Shell`.
 

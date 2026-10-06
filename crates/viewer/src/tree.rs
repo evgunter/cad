@@ -929,8 +929,9 @@ pub fn part_file(node: &Node<ProfileProgram>, files: &PartFiles) -> Option<Strin
 /// the last is the failing node's own refusal.
 ///
 /// Each line is that node's refusal exactly as its own tree draws it,
-/// a node of `doc` spoken from it ([`pncad::document::CarriedLevel::line_in`]); the
-/// document it is in is its label ([`CarriedLine::document`]).
+/// a node of `doc` spoken from it and a part's node as the pinned part
+/// holds it ([`pncad::document::CarriedLevel::line_in`]); the document
+/// it is in is its label ([`CarriedLine::document`]).
 pub fn carried_lines(
     doc: &Doc<ProfileProgram>,
     kind: &NodeErrorKind,
@@ -940,7 +941,7 @@ pub fn carried_lines(
         .map(|level| CarriedLine {
             document: match level.document {
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
-                CarriedIn::Part(doc_ref) => files.name(doc_ref.id).to_owned(),
+                CarriedIn::Part { doc_ref, .. } => files.name(doc_ref.id).to_owned(),
             },
             line: level.line_in(doc),
         })
@@ -1171,6 +1172,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
+        // The input's door shipped a body its gate should have refused:
+        // a kernel defect, and no author's slot refused.
+        NodeErrorKind::UnfinishedOperand { .. } => None,
         // The lane cannot carry what the named nodes hold; neither
         // node is wrong, and the f64 lane builds them.
         NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
@@ -1282,6 +1286,7 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::SelfMate { .. }
         | MateFault::Unleverable { .. }
         | MateFault::FaceUnresolved { .. }
+        | MateFault::FrameUnevaluated { .. }
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
@@ -1337,7 +1342,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. }
-        | MateFault::FaceUnresolved { mate, .. } => vec![*mate],
+        | MateFault::FaceUnresolved { mate, .. }
+        | MateFault::FrameUnevaluated { mate, .. } => vec![*mate],
         // Names no mate and reaches EVERY row of the document — the
         // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),

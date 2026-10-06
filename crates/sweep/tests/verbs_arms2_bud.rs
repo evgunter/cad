@@ -140,8 +140,8 @@ fn the_bud_mouth_rim_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
     let source = bud();
     assert_eq!(
         census(&source),
-        (5, 10, 5),
-        "the bud is five walls, five latitude rims and five seams"
+        (5, 8, 5),
+        "the bud is five walls, five latitude rims and its three curved walls' seams"
     );
     let mouth = one_edge_rim_at(&source, 0.8, 0.6);
     let out = fillet_edges(&source, &[mouth], R, tol())
@@ -152,7 +152,7 @@ fn the_bud_mouth_rim_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
     // vertex retired; two seam children and two trim circles minted, the
     // rim and the host seam's rim-side piece retired; two strips minted,
     // one merged away.
-    assert_eq!(census(&out.body), (6, 12, 6));
+    assert_eq!(census(&out.body), (6, 10, 6));
     assert_eq!(out.band_faces.len(), 1);
 
     let (major, minor) = band_torus(&out.body, out.band_faces[0]);
@@ -348,7 +348,7 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
     let tilt = 0.05f64;
     // Lifts RechartStrandsDescriptions: the planted off-axis pair is the row; no door mints one.
     source
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             cone_face,
             FaceSurface::New {
                 surface: Surface::Cone {

@@ -58,7 +58,7 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, ParamName, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, ProfileProgram, RecipeNodeId, VarId};
 use pncad::geom_core::Point3;
 use pncad::prelude::{NameOrigin, StableName, attribute};
 
@@ -725,11 +725,11 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
         // Every node the parameter drives. A parameter is the one
         // selection with no geometry of its own, and the useful
         // question about it is exactly "what does this number move".
-        Selection::Param(name) => doc
+        Selection::Param(var) => doc
             .order()
             .iter()
             .copied()
-            .filter(|&id| drives(doc, id, name))
+            .filter(|&id| drives(doc, id, *var))
             .collect(),
     };
     if nodes.is_empty() {
@@ -790,21 +790,19 @@ fn marked_for(
         .collect()
 }
 
-/// Whether any of `node`'s slot expressions reads the parameter
-/// `name` — through `Expr::param_refs`, the public read side, so a
-/// reference nested inside arithmetic counts exactly as a bare one
-/// does.
-fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bool {
+/// Whether any of `node`'s slot expressions reads the variable `var`
+/// — through `Expr::reads`, the public read side, so a reader nested
+/// inside arithmetic counts exactly as a bare one does. Slots only: a
+/// payload expression (a measured value, an assertion's bound) moves
+/// no geometry.
+fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, var: VarId) -> bool {
     let Some(recipe_node) = doc.node(node) else {
         return false;
     };
-    recipe_node.slots().into_iter().any(|slot| {
-        recipe_node.expr(slot).is_some_and(|expr| {
-            let mut refs = Vec::new();
-            expr.param_refs(&mut refs);
-            refs.iter().any(|(referenced, _)| referenced == name)
-        })
-    })
+    recipe_node
+        .slots()
+        .into_iter()
+        .any(|slot| recipe_node.expr(slot).is_some_and(|expr| expr.reads(var)))
 }
 
 /// **What the display seam does to a drawn mark**, through the doors a

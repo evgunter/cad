@@ -1,6 +1,7 @@
 //! **BLEND-6 (ring clearance) R2 review probes** — what the unit's own
-//! rows leave unmeasured about the two CONTAINMENT relations of
-//! `CircleMargins`. Every fixture the unit rows is COAXIAL: the ring or
+//! rows leave unmeasured about the two CONTAINMENT relations of the
+//! ring carry-through meter (`support_boundary_clearance`'s `si − far`
+//! and `near − si`). Every fixture the unit rows is COAXIAL: the ring or
 //! the boundary shares the trim circle's centre, so `‖cj − ci‖` is zero
 //! at every reading and two coaxial circles never cross. The fixture
 //! here is a cylinder with an off-axis spherical PIP, which puts a
@@ -37,9 +38,9 @@ use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{revolved_about_y, rim_arcs_at};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, FaceKey, validate_geometric};
+use sweep::test_support::{realized, revolved_about_y, rim_arcs_at};
+use topo::boolean::BooleanOp;
+use topo::{Body, FaceKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -79,19 +80,7 @@ fn pipped(dc: f64, pr: f64) -> Body<f64> {
     );
     let ball = topo::transform_rigid(&ball, &Affine3::translation(Vec3::new(dc, 1.0, 0.0)), tol())
         .expect("the pip's rigid motion");
-    boolean_op_with(
-        BooleanOp::Subtract,
-        &cylinder(),
-        &ball,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the pip subtracts")
-    .body()
-    .expect("a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, &cylinder(), &ball, tol())
 }
 
 /// The top face of the pipped cylinder: the plane host whose outer

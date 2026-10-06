@@ -410,6 +410,7 @@ fn steep_cut(tilt: f64) -> Body<f64> {
     let h = 2.0 * tilt.tan() + 20.0;
     let tall =
         sweep::test_support::prism(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 1.0)], h, tol());
+    let tall = sweep::test_support::finished("the tall", tall, tol());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, h / 2.0),
         Vec3::new(tilt.sin(), 0.0, tilt.cos()),
@@ -441,9 +442,9 @@ fn along_from_end(curve: &geom::Curve3<f64>, te: f64, into: f64, s: f64) -> Poin
 /// **A steep ellipse's end is the band's own width in metres.** At the
 /// minor vertex the edge's speed is `a`, so an end zone measured as a
 /// unit chord levered by `b` reached `(a/b)·ε` along the edge, past the
-/// vertex pass's own `10ε`: a legal body read `Corrupt`. Points `11ε`
+/// vertex pass's own `10ε`: a legal body refused as unwalkable. Points `11ε`
 /// to `18ε` inside each end, at `a/b` 14.1 and 19.7, read on the edge
-/// (or, in the band, escalate) and never `Corrupt`.
+/// (or, in the band, escalate) and never refuse otherwise.
 #[test]
 fn a_steep_ellipses_end_zone_is_the_bands_own_width() {
     for tilt in [1.5f64, 1.52] {
@@ -553,17 +554,19 @@ fn the_census_reads_a_corner_near_a_steep_ellipses_end() {
         errors.iter().all(|e| !matches!(
             e,
             ValidationError::CensusUnsupported {
-                cause: topo::CensusUnsupportedCause::Containment(topo::ContainError::Corrupt),
+                cause: topo::CensusUnsupportedCause::Containment(
+                    topo::ContainError::EmptyLoop(_) | topo::ContainError::LoopUnreadable(_)
+                ),
                 ..
             }
         )),
-        "a legal body reads Corrupt: {errors:?}"
+        "a legal body reads its boundary as unwalkable: {errors:?}"
     );
 }
 
 /// **The band sweep on the steep face** (`a/b` 19.7): rings of points
 /// around every vertex, and both normals of every edge, from `10.5ε` to
-/// `10⁴ε`. Nothing reads `Corrupt`; nothing off an edge's interior by
+/// `10⁴ε`. Nothing reads its boundary unwalkable; nothing off an edge's interior by
 /// more than the escalation band reads on the boundary, and none of the
 /// ring points reads `OnVertex`.
 #[test]
@@ -606,7 +609,7 @@ fn the_steep_face_sweeps_clean_from_the_band_out() {
                 asked += 1;
                 if matches!(
                     got,
-                    Ok(FaceContainment::OnVertex(_)) | Err(topo::ContainError::Corrupt)
+                    Ok(FaceContainment::OnVertex(_)) | Err(topo::ContainError::LoopUnreadable(_))
                 ) {
                     bad.push(format!("ring {k}ε: {got:?}"));
                 }
@@ -626,7 +629,7 @@ fn the_steep_face_sweeps_clean_from_the_band_out() {
                     if matches!(
                         got,
                         Ok(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
-                            | Err(topo::ContainError::Corrupt)
+                            | Err(topo::ContainError::LoopUnreadable(_))
                     ) {
                         bad.push(format!("normal {s}·{k}ε at {fr:.3}: {got:?}"));
                     }

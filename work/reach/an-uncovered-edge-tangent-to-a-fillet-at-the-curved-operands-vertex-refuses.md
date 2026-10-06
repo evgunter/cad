@@ -2,10 +2,11 @@
 id: an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses
 kind: issue
 title: An edge tangent to a curved face at a point touch no declaration can cover refuses in both operand orders
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found while building `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`,

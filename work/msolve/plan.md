@@ -230,9 +230,8 @@ and CHROME; triaged 2026-10-01:**
     Weighed 2026-10-01: both designers chose one solve, generic over the
     run's scalar, with the structure read at the nominal. Asked on
     `[ev]` PR 3679 (fork-log row 58). Ruled by Ev on 2026-10-01:
-    approved, with A11 (5) stated in place. The build is an MSOLVE unit
-    after MSOLVE-12: the solve goes generic over the scalar, and
-    `Unpinned` loses its producer.
+    approved, with A11 (5) stated in place. The build is `MSOLVE-14`
+    (dual review), dispatched 2026-10-03 after MSOLVE-13 merged.
 20. **`MSOLVE-11` gains three riders**, all refusal and reporting
     words the solve owns: AUTH's `materole-has-no-display` (P1, E — a
     kernel word for whether a mate placed its child; AUTH's viewer row
@@ -274,8 +273,12 @@ and CHROME; triaged 2026-10-01:**
     already meets that. On 2026-10-03 PLACE's row 53 gave every mate
     frame a general offset (`MateFrame { base, offset: Placement }`),
     which can already turn a side about its axis. So the turn and two
-    offsets now spell one roll three ways. #3681 is held while the
-    same designers weigh the roll with row 53 in hand (round 3). If approved, the unit also owes an edit
+    offsets now spell one roll three ways. Round 3 converged, and Ev
+    approved the revision on 2026-10-03: the offsets carry the roll,
+    there is no turn field, the primitive is `Coaxial { roll: Free |
+    Pinned }`, and the standoff retires. The build is an MSOLVE unit
+    that also builds row 53's `MateFrame { base, offset }` (a note on
+    PLACE's row says so), after MSOLVE-13 and item 19's build. If approved, the unit also owes an edit
     that rewrites a committed mate's turn (only `InsertNode` writes a
     mate's datum today), and the mate panel's turn control (it
     hard-codes `clocking: None`). The planar zero went to a note under
@@ -317,12 +320,39 @@ and CHROME; triaged 2026-10-01:**
     refuses `MovedAbove`, the walk descends a union, and a member is
     its instance plus the placing nodes passed. The sentences that move
     are agent text, so Ev is told rather than asked. This is
-    `MSOLVE-13` (spec on `msolve/13-read-at-operand`), dispatched
-    2026-10-03 on Opus after MSOLVE-12 merged.
+    `MSOLVE-13`, merged on PR 3969 on 2026-10-03.
 
 EDIT's PR #3676 deleted the cluster maintenance, so item 23's third
 row (the `mate/maintain.rs` move) was overtaken. Main closed that row,
 and MSOLVE-12 merges main without it.
+
+**The intent-refactor hold (Ev, `[ev]` PR #3990, 2026-10-03).**
+Ev opened a redesign of dependency, placement and intent, and asked
+every active orchestrator to start no new unit on that ground while
+finishing units already started (Ev's words: `git show
+5f7a1c71e3:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent.md`,
+messages 4 and 5). Every live MSOLVE row is mate or solve work, so:
+
+- **MSOLVE-14** (item 19, the solve at the run's scalar) merged on PR
+  3986 (DR-70). It closed its two rows. The box-driver row its §6
+  reaches is parked on D10's build and on flux's
+  `the-box-driver-carries-no-part-resolver`.
+- **MSOLVE-15** (item 22's build: the deletions that ride row 53's
+  offset, which PLACE built in PR 3961) is specced on
+  `msolve/15-frame-offset-carries-the-roll` and **not started**. It
+  stays unstarted. Its spec is now stale in its §1, because PLACE built
+  the frame shape, and D10 moves the ground under it. Re-cut it against
+  D10 once the hold lifts.
+- **Every other live row is parked** with
+  `blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Ev ratified D10
+  on #3990, and the hold now waits on its build rather than the ruling;
+  main re-pointed the rows parked on the PR. Item 25, the new
+  PLACE-filed rows and every other row are parked this way.
+
+With MSOLVE-14 merged, the program has nothing it may start. Its
+status is `blocked` and the orchestrator has stopped, as the hold says.
+When D10's build lands, re-cut the parked rows against it, starting
+with MSOLVE-15.
 
 The exit walk waits on 10–12, 14–16 and 17–26: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm

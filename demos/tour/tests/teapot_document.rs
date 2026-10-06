@@ -30,9 +30,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Expr,
+    CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, NodeErrorClass, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, ValuePayload, apply, evaluate, split,
 };
@@ -60,25 +61,25 @@ const ROLL: f64 = 2.0 / 256.0;
 /// The lid's three rolled rims, as the meridian vertex each stands at.
 const ROLLED: [u32; 3] = [1, 2, 4];
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("a finite length")
 }
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("a finite angle")
+fn ang(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Angle).expect("a finite angle")
 }
-fn lpt(x: f64, y: f64) -> [Expr; 2] {
+fn lpt(x: f64, y: f64) -> [Formula; 2] {
     [len(x), len(y)]
 }
-fn line_to(x: f64, y: f64) -> ProgramStep {
+fn line_to(x: f64, y: f64) -> ProgramStep<Formula> {
     ProgramStep::LineTo(ProgramTarget::Point(lpt(x, y)))
 }
 
 /// The lid's meridian, bored to radius `bore` — `0.0` is the scene's
 /// solid lid, [`R_VENT`] its annular twin.
-fn lid_meridian(bore: f64) -> LoopProgram {
+fn lid_meridian(bore: f64) -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(bore, LID_BASE)),
         line_to(R_FLANGE, LID_BASE),
@@ -94,7 +95,7 @@ fn lid_meridian(bore: f64) -> LoopProgram {
     ])
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -206,7 +207,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, tol: Tol) -> ProfileP
         panic!("a revolve's operand is a profile");
     };
     program
-        .pieces(&doc.param_env::<f64>(), tol)
+        .pieces(&doc.var_env::<f64>(), tol)
         .expect("the meridian replays")
 }
 
@@ -271,20 +272,20 @@ fn every_rim_pair_composes_in_one_request() {
     let tol = Tol::witness();
     assert_eq!(
         roll_once(&ROLLED, ROLL, tol),
-        Ok((9, 18, 9)),
+        Ok((9, 16, 9)),
         "the scene's three rims in ONE request: three annulus bands over the sharp \
-         lid's 6/12/6"
+         lid's 6/10/6"
     );
     for pair in [[1u32, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]] {
         assert_eq!(
             roll_once(&pair, ROLL, tol),
-            Ok((8, 16, 8)),
-            "rims {pair:?} in ONE request: two annulus bands over the sharp lid's 6/12/6"
+            Ok((8, 14, 8)),
+            "rims {pair:?} in ONE request: two annulus bands over the sharp lid's 6/10/6"
         );
     }
     assert_eq!(
         roll_once(&[5, 0], ROLL / 4.0, tol),
-        Ok((8, 16, 8)),
+        Ok((8, 14, 8)),
         "the vent's two rims share its seam meridian as the flange's rim and the \
          dome's foot share the flange cone's"
     );
@@ -474,7 +475,7 @@ fn the_rolled_names_are_one_set_at_two_radii() {
     let (a, b) = (names(ROLL), names(ROLL * 0.75));
     assert_eq!(
         a.len(),
-        9 + 18 + 9 + 1,
+        9 + 16 + 9 + 1,
         "one name per entity and the body's"
     );
     assert_eq!(a, b);
@@ -552,16 +553,16 @@ fn every_rim_set_at_a_quarter_roll_is_nameable() {
 
 /// **Two annulus bands on one PLANE cap compose and name their
 /// output**: the underside (segment 0) carries rims 0 and 1, the top
-/// (segment 4) rims 4 and 5, so each pair's bands both carve the
-/// cap's radial seam. At a quarter of the roll, where the vent's
-/// concave rims have headroom.
+/// (segment 4) rims 4 and 5, so each pair's bands both carve one plane
+/// annulus, one at its outer circle and one at its ring. At a quarter
+/// of the roll, where the vent's concave rims have headroom.
 #[test]
 fn two_bands_on_one_plane_cap_compose() {
     let tol = Tol::witness();
     for pair in [[0u32, 1], [4, 5]] {
         assert_eq!(
             roll_once(&pair, ROLL / 4.0, tol),
-            Ok((8, 16, 8)),
+            Ok((8, 14, 8)),
             "rims {pair:?} share a plane cap"
         );
     }

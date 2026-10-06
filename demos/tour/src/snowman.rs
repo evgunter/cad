@@ -17,17 +17,14 @@
 //! poses beside it, under all three ops. A head moved OFF the shared
 //! axis 0.05 along `x`, in the plane both semicircles are sketched in,
 //! tilts the radical plane against the spheres' polar axes. It BUILDS:
-//! the join selects the section's arc by the run's side
-//! (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`),
-//! the sphere faces it leaves are measured by Gauss–Bonnet, and every op
-//! passes tier 3 at the two-ball closed form. Moved 0.05 along `z`
-//! instead, the tilted section misses both seams and passes through the
-//! faces as a ring, so it refuses `SectionArcSide { NoCertifiedRun }`
-//! (`work/tang/a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm.md`).
-//! A head SPUN 0.9 rad about the shared axis, so the two revolves' seams
-//! are no longer coplanar, puts the level section through the head's face
-//! as a ring too; that ring builds, its chords' arcs chosen by the face's
-//! window, and every op meets the coaxial closed form.
+//! the join takes each chord's arc from the germs it pairs, the sphere
+//! faces it leaves are measured by Gauss–Bonnet, and every op passes
+//! tier 3 at the two-ball closed form. Moved 0.05 along `z` instead, the
+//! tilted section misses both seams and passes through the faces as a
+//! ring, and builds the same way. A head SPUN 0.9 rad about the shared
+//! axis, so the two revolves' seams are no longer coplanar, puts the
+//! level section through the head's face as a ring too, and every op
+//! meets the coaxial closed form.
 //!
 //! **The waist is selected by description, and the description is
 //! ambiguous.** `edge_adjacent_matches(Sphere, Sphere)` names the
@@ -56,7 +53,9 @@ use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, fillet_edges, que
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::query::RimError;
-use pncad::topo::{Body, BooleanBody, BooleanError, BooleanResult, EdgeKey};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, EdgeKey};
+
+use crate::booleans::finished;
 
 use crate::{SceneBody, Stop, View};
 
@@ -96,11 +95,12 @@ fn semicircle(r: f64, y: f64, tol: Tol) -> ConstructedLoop<f64> {
         .into()
 }
 
-/// A ball: the semicircle fully revolved about `y`.
-fn ball(r: f64, y: f64, tol: Tol) -> Body<f64> {
+/// A ball: the semicircle fully revolved about `y`, finished as a
+/// boolean operand.
+fn ball(r: f64, y: f64, tol: Tol) -> AtRestBody<f64> {
     let profile = validated(SketchPlane::xy(), vec![semicircle(r, y, tol)], tol)
         .expect("the semicircle validates");
-    revolve(
+    let body = revolve(
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
@@ -110,7 +110,8 @@ fn ball(r: f64, y: f64, tol: Tol) -> Body<f64> {
         tol,
     )
     .expect("the semicircle fully revolves")
-    .body
+    .body;
+    finished("a ball", body, tol)
 }
 
 fn seamed(what: &str, out: Result<BooleanResult<f64>, BooleanError>) -> BooleanBody<f64> {
@@ -378,8 +379,8 @@ mod tests {
     /// **A head moved off the axis IN the balls' seam plane builds.**
     /// Moved 0.05 along `x`, the head tilts the radical plane against
     /// both balls' polar axes, and the section crosses the seams the two
-    /// revolves share. The run-side arc rule and the Gauss–Bonnet sphere
-    /// arm carry it (the tilted sphere pair). Every op passes tier 3 and
+    /// revolves share. The germs' arcs and the Gauss–Bonnet sphere arm
+    /// carry it (the tilted sphere pair). Every op passes tier 3 and
     /// meets the two-ball closed form at the moved centre distance.
     #[test]
     fn a_head_moved_off_the_axis_in_the_seam_plane_builds_to_its_closed_form() {
@@ -388,6 +389,7 @@ mod tests {
         let moved =
             pncad::topo::transform_rigid(&head, &Affine3::translation(v3(0.05, 0.0, 0.0)), tol)
                 .expect("a rigid pose");
+        let moved = finished("the moved head", moved, tol);
         let (va, vb, vl) = (
             ball_volume(R1),
             ball_volume(R2),
@@ -408,9 +410,9 @@ mod tests {
 
     /// **A head spun about the shared axis builds.** Spun 0.9 rad, the
     /// head's seam leaves the bottom ball's plane, and the level section
-    /// passes through the head's face as a ring; its chords take their
-    /// arcs from the face's window. Every op passes tier 3 and meets the
-    /// coaxial closed form, which the spin does not move.
+    /// passes through the head's face as a ring; its chords take the
+    /// arcs their paired germs leave along. Every op passes tier 3 and
+    /// meets the coaxial closed form, which the spin does not move.
     #[test]
     fn a_head_spun_about_the_axis_builds_to_its_closed_form() {
         let tol = Tol::witness();
@@ -421,6 +423,7 @@ mod tests {
             0.9,
         );
         let moved = pncad::topo::transform_rigid(&head, &spin, tol).expect("a rigid pose");
+        let moved = finished("the moved head", moved, tol);
         let (va, vb, vl) = (ball_volume(R1), ball_volume(R2), lens_volume_at(D));
         for (op, out, expected) in [
             ("∪", pncad::topo::union(&bottom, &moved, tol), va + vb - vl),
@@ -435,35 +438,31 @@ mod tests {
         }
     }
 
-    /// **A head moved out of the seam plane stops at its tilted
-    /// section's ring**, under every op. Moved 0.05 along `z`, the tilted
-    /// section passes through the balls' faces without crossing either
-    /// seam, so the join is cross-loop and closes no run for the run-side
-    /// rule to read (`SectionArcSide { NoCertifiedRun }`,
-    /// `work/tang/a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm.md`).
-    /// A pose that starts building, or refuses elsewhere, means the
-    /// narration is stale.
+    /// **A head moved out of the seam plane builds**, under every op.
+    /// Moved 0.05 along `z`, the tilted section passes through the balls'
+    /// faces without crossing either seam, as a ring of each, and the
+    /// chords take the arc the pierce germs name. Each op meets the
+    /// two-ball closed form at the centres' new distance.
     #[test]
-    fn the_head_moved_out_of_the_seam_plane_refuses_at_the_tilted_ring() {
-        use pncad::topo::{ArcSideCase, SplitJoinError};
+    fn the_head_moved_out_of_the_seam_plane_builds_through_its_ring() {
         let tol = Tol::witness();
         let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
         let moved =
             pncad::topo::transform_rigid(&head, &Affine3::translation(v3(0.0, 0.0, 0.05)), tol)
                 .expect("a rigid pose");
-        for (op, out) in [
-            ("∪", pncad::topo::union(&bottom, &moved, tol)),
-            ("∖", pncad::topo::subtract(&bottom, &moved, tol)),
-            ("∩", pncad::topo::intersect(&bottom, &moved, tol)),
+        let moved = finished("the moved head", moved, tol);
+        let d = (D * D + 0.05 * 0.05).sqrt();
+        let (va, vb, vl) = (ball_volume(R1), ball_volume(R2), lens_volume_at(d));
+        for (op, out, expected) in [
+            ("∪", pncad::topo::union(&bottom, &moved, tol), va + vb - vl),
+            ("∖", pncad::topo::subtract(&bottom, &moved, tol), va - vl),
+            ("∩", pncad::topo::intersect(&bottom, &moved, tol), vl),
         ] {
-            match out {
-                Err(BooleanError::Join(SplitJoinError::SectionArcSide {
-                    case: ArcSideCase::NoCertifiedRun,
-                    ..
-                })) => {}
-                Err(e) => panic!("head moved along z, {op}: refused elsewhere, {e:?}"),
-                Ok(_) => panic!("head moved along z, {op}: builds now — retell the narration"),
-            }
+            let label = format!("head moved along z, bottom {op} head");
+            let bb = seamed(&label, out);
+            pncad::topo::validate_geometric(&bb.body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3, {e:?}"));
+            assert_volume(&label, &bb.body, expected, tol);
         }
     }
 }

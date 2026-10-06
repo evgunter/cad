@@ -105,6 +105,7 @@ test_utils::f6_variants! {
         CertificateExceeded,
         Triangulation,
         SelfTouchingTrimLoop,
+        PinchWedge,
         UnsupportedCurvedDomain,
         UnsupportedCurvedShape,
         MeridianFreeCurvedFace,
@@ -215,6 +216,10 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::SelfTouchingTrimLoop { face },
             vec!["trim loop", "T-junction"],
+        ),
+        (
+            TessellateError::PinchWedge { face },
+            vec!["one point", "sector", "single pass", "ring"],
         ),
         (
             TessellateError::UnsupportedCurvedDomain {
@@ -355,7 +360,7 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
         let (fk, face) = body.faces().nth(which).expect("a face at that index");
         let sense = face.sense;
         // Lifts RechartStrandsDescriptions: the poisoned surface is the mesher's input, edges as they were.
-        body.set_face_surface_stranding_for_tests(fk, FaceSurface::New { surface, sense })
+        body.set_face_surface_unvouched_for_tests(fk, FaceSurface::New { surface, sense })
             .expect("the surface swap is accepted");
         fk
     }

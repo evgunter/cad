@@ -30,8 +30,9 @@ and keeps the old mechanism, confined to it by type:
 - `ssi/march.rs`'s `SlabExit` decides `ssi_branch_open_end` on the
   signed distance to the caller's slab and bisects the crossing with
   `push_boundary` (`SSI_SLAB_BISECTIONS`, a fixed 32);
-- `march_both` (ℝ³ only, `LocalSystem<2, 3>`) re-marches a short trace
-  and refuses `SsiError::TraceUnresolved`;
+- `march_both` (ℝ³ only, `LocalSystem<2, 3>`) refuses
+  `SsiError::TraceUnresolved` for a short trace with no length (a
+  short trace with a length is halved to the fit's samples, PR 4034);
 - `BranchEnd::Slab` / `BranchEnd::SlabInBand` label the ends.
 
 The slab is the caller's box, not geometry. A slab face flush with the
@@ -50,3 +51,16 @@ outright and turns the clipped-slab row into a refusal), or the slab
 should be cut to the bounded operand's box so that only a genuinely
 unbounded pair meets it. Either changes what the ℝ³ door answers for a
 clipped slab, which is a decision, not a fix.
+
+## The final chord
+
+`push_boundary` appends the bisected crossing however close it lies to
+the last marched state, and drops only an exact duplicate. On the
+plane × NURBS lane, a final chord far shorter than the step failed
+limb 2 at ε 1e-9 and 1e-12 until `ssi/ends.rs`'s `close_at` let a last
+state nearer the crossing than half its step give way to it
+(`ssi-final-chord-far-shorter-than-the-step-fails-the-certificate`,
+closed with that measurement). A scan of 600 slab shifts on the clipped
+north loop did not reproduce it here: the shortest chord it reached was
+6.8e-7 m. The scan is recorded in that row. A resolution that keeps
+`push_boundary` should give it `close_at`'s rule.

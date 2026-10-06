@@ -390,3 +390,201 @@ in the row's scope. The planar band's end geometry is a design fork in
 the shape of FILLET-H7's (Ev's ruling on PR 1736): two designers first.
 The bracket scene pins it live (walls 1–3). Its sibling
 `a-blend-refuses-a-solid-of-several-shells` landed at P2.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — `swept-cocircular-arc-runs-build-one-wall` closed (PR #3826)
+
+Extrude and the full revolve build one wall per run of adjacent cocircular
+same-turn arcs (`swept::joins` → `Join::{Corner, Run, Cut}`; the full
+revolve's `collapse_runs` sums the arc sweeps); a circle cut into arcs keeps
+its C12.5 cut, one wall per arc on one key (the orchestrator accepted that
+reading: a curved run closing its full period refuses to merge). The partial
+revolve still builds an arc run one wall per arc — the props meridian fold
+groups pieces by split lineage — parked as
+`partial-revolve-arc-runs-wait-on-the-meridian-fold` and stated at the README
+claim site. `offset_axial::reauthor` reads a re-authored arc's sweep nearest
+the old one (an atan2-cut fix a collapsed meridian exposed). Full review
+(APPROVE-WITH-FIXES, no MAJOR): the fix pass made the arc boolean rows answer,
+corrected stale station prose, guarded `wall_runs`' one-corner loop, adopted
+the probes (Vector, hole loop, k = 5, Interval, π-summing runs, the hollow
+sweep across the atan2 cut, f64/Interval names) and folded duplicate helpers.
+Merged up to main over ~3000 commits; main's split-ball row
+(`pi_seam_and_kiss_through_the_boolean`) re-pointed to a hand-cut equator. No
+re-baseline moved. Merged over main's own red at 1e-6
+(`pocket_ring_steep_ellipse`, filed on JOIN).
+## 2026-10-06 — the plane–plane run-out fork goes to Ev (`[ev]` PR #4085)
+
+`a-plane-plane-blend-cannot-end-at-an-unrequested-corner` (P0) put
+through the design-fork protocol: fork-log row 72. Designers A and B
+both diagnosed one missing idea (a band's end as its section by the face
+it runs into) and a face-whole planar carve, recommended the cut-off /
+mitre / patch by request count, and converged after three rounds; the
+only crossover was the mitre's name key, settled once both measured that
+a wider role variant is additive on the wire. PR 4085 asks Ev to rule
+the rule itself, the C8 and H7 text, whether an extruded box's isosceles
+mitre should lint as an unproven coincidence under D10, and the
+vocabulary. The designers flagged three rows to file once Ev rules:
+`CornerConfig::policy` maps `MixedConvexity` to `RunOutFeather`;
+`RuledPlan::plan` refuses a requested cap rim (the ruled band's own
+2-of-3 gap); the inner corner of an L-shaped rim (a torus pivot about L,
+or the end-face rule; the torus is degenerate there).
+## 2026-10-06 — `a-hole-filleted-at-both-rims-in-one-fillet-panics-in-blend-surgery` closed (PR #4088)
+
+A through-bore's two rims filleted in one call panicked at the surgery's
+naming postcondition (in the kernel, not only through the document): both
+are ladder rims sharing the bore wall as mate, the wall's seams run rim to
+rim, and the second carve's `meridian_splits` row named the fragment the
+first carve left rather than the source seam. The row now names
+`frag.source`, as the annulus phase does, the band telling the two splits
+of one seam apart; `shared_support_gate`'s doc no longer says two ladder
+rims never meet. Rows: the extruded bore at N = 2…4 and box ∖ cylinder
+build at the two-tori closed form and equal the two single-rim calls in
+either order (red on main), and one document `Fillet` over both rims mints
+distinct names. Reviewed by the orchestrator's read (one-key fix, the
+convention pinned by the new rows).
+
+`declared-joint-kind-zero-margin-reads-smooth` parked on
+`d10-one-way-to-say-intent-is-unbuilt`: profile declared-joint kinds are
+the hold's ground (D10 makes tangency constructed).
+
+## 2026-10-06 — `support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place` closed (PR #3822)
+
+The ladder case the row named was already exact (arm (a) meters each open
+link's trimline against the widened ring); what carved wrong on main was
+a ruled link beside an annulus rim — a rod on a squared washer's bottom
+face with the bore rim, a tier-3-valid body whose bottom boundary crossed
+itself. `support_boundary_clearance` now reads a co-requested outer-cycle
+edge at its own trim (`co_requested_trim`): an open link as its trimline,
+another rim's arc as that rim's whole trim circle (exact by closed form
+and containment). Full review (APPROVE-WITH-FIXES, no MAJOR; every probe
+refused on its closed-form margin and carved bodies matched it); the fix
+pass took all six points: the arm (c) sibling row closed (predicate 3's
+`s > r` keeps a plane-cap trim disc out of the sliver) with the remaining
+open-link candidate filed as `ruled-cap-meter-reads-a-co-requested-open-link-at-its-stored-place`
+(P3); the rim-arc branch kept with its unreachability argued at the site;
+"this link's trim on this face" given one home (`EdgeBlend::trims`,
+`Link::trim_on`, `open_trimline`); the reviewer's boundary sweep adopted
+as rows.
+
+## 2026-10-06 — the plane–plane run-out ruled (Ev, PR #4085)
+
+Ev approved all four decisions: the request-count rule (cut-off, mitre,
+patch), the C8/H7 text, and the vocabulary; decision 3 (whether a box's
+isosceles mitre lints) went to INTENT at Ev's request (#4094), where Ev
+answered: land it under (b), recorded as a value-decided coincidence and
+proven at INTENT's stage 4 (#4097). Fork-log row 72 completed (byte 26:
+Opus = A, Fable = B; both matched after round 3). The row's build order is
+in its `## Ruled` section; step 1 dispatches next. Filed
+`chamfer-ends-in-a-curved-end-face` (P3) from Ev's curved-end-face
+question.
+
+## 2026-10-06 — `a-blend-refuses-a-solid-of-several-shells` closed (PR #4113)
+
+A blend carves each chain inside the shell it lies in and leaves every other
+shell untouched, byte for byte down to the pcurve rows (the inventory gate
+that refused any body but one solid of one shell is gone). The row's premise
+was wrong: the bracket split's leg-tip half is two solids of one shell each;
+the door covers that and a solid with a void shell. A chain or corner whose
+supports lie in two shells is tier-1-invalid and refuses `BodyNotIntact`
+(the `AcrossShells` variant the lane first minted was folded in). Full
+review (APPROVE-WITH-FIXES, no MAJOR) — its N6 showed a tier-3′ backstop at
+the door would refuse a valid island round and miss one-shell overlap, so
+none was added; the overlap hole the lane found is
+`blend-material-is-never-checked-against-faces-that-are-not-its-supports`
+(P0, in flight). The fix pass also caught that an empty request on an
+empty body had begun to answer `SurgeryInvariant`. Filed JOIN's
+`pinch-tessellate-row-escalates-coincidence-at-eps-1e-6` (main red at 1e-6;
+merged over it). First BAND units run as cloud sessions.
+
+## 2026-10-06 — `fillet-support-ring-must-be-a-circle` closed (PR #4119)
+
+The ring carry-through meter reads a ring piece by piece: a polygonal ring
+(a prism unioned onto a face) is metered edge by edge against the region the
+carve sweeps, exactly, and a ring counts as one circle only when it is one
+closed circle edge. That second change also fixes three configurations
+where main builds a tier-3-INVALID body (a lens ring of two bores in one
+subtraction order, a three-arc ring, a hostless-annulus lens), each now a
+row. A multi-edge ring refuses at its least margin, independent of
+subtraction order. The duplicate whole-circle readings (`CircleMargins`,
+the `effective` widening) are retired: one home for ring reading. The heat
+sink rounds its plate after the union, gated on tier 3. Full review
+(APPROVE-WITH-FIXES, no MAJOR) taken in full. Filed:
+`a-ring-of-ellipse-edges-refuses-the-ring-meter` (P3). The lane's duplicate
+filing of main's 1e-6 pinch red was dropped for JOIN's (PR 4113).
+
+## 2026-10-06 — run-out steps 1–2 landed (PR #4121): the plane–plane band cuts off at its end face
+
+Under Ev's PR 4085 ruling: chain G1 classifies plane–plane junctions (a
+definite turn breaks the chain into two ends; `Turn` refuses until the
+mitre, step 4); predicate 6 reads the request count; the planar band carves
+locally (`blend/open/end_face.rs`, shared with the ruled band), so one edge,
+any subset ending at unrequested corners, and three edges of one corner
+(patch + cut-offs) chamfer and fillet at their closed forms; an oblique
+chamfer builds, an oblique fillet refuses until step 3. The whole-face
+planar path was deleted early (step 5), shown bit-identical by both
+reviewers' and the fix pass's base/head differentials. The bracket's chord
+walls retired. Dual review, class H (DR-89): R1 NOT-MERGEABLE-AS-IS on a
+concave cut-off swallowing end-face features unmetered (tally 1); R2
+APPROVE-WITH-FIXES. The union was taken: the concave end face LOSES the
+sliver too (the README sentence from PR 4085 corrected to say so — the
+decision unchanged, Ev told), arm (d) pinned by a witness, crossing cut-off
+feet refused at plan. Filed `a-requested-ring-edge-refuses-at-the-ring-meter`.
+The row stays open for steps 3–5 (oblique fillet, mitre, overrun).
+## 2026-10-06 — `lamina-plane-annulus-keeps-its-slit` closed (PR #4136)
+
+A lamina full revolve's plane annulus is one face with its bore as a ring:
+no seam slit and no `Meridian(Seam, s)` name, as a solid's planar wall
+already was (fork-log row 36's "construct"). The blend surgery and rim
+routing follow it: a plane annulus's one-link bore routes to the annulus
+carve, `lone_host_trim` carves a lone crossing, and the ruled band's support
+gate admits a plane support with rings, metered by the ring pass. STEP's
+washer exports 6 edges (census goldens re-blessed). Full review
+(APPROVE-WITH-FIXES, no correctness defect — every carve at its closed form)
+taken in full: a sentence-level prose sweep across blend, topo, mesh and the
+README; the check-9 outer-edge witness rebuilt through a public `mekr_chord`;
+ΔV pins; the deepest-gap reading; and 14 probe rows. Reconciled with 4119's
+piece-by-piece ring readers. Filed: TESS
+`mesh-slit-annulus-rows-no-longer-build-a-slit`, CLEAVE
+`revolve-seam-split-volumes-miss-their-closed-form-at-eps-1e-6` (main's red,
+merged over); SHELL `offset-door-declared-transport-has-no-built-witness`.

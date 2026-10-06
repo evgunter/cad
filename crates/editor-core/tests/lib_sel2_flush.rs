@@ -204,9 +204,9 @@ fn detect_declare_boolean_round_trip() {
             // built from what the raise site held (no re-detection on
             // the error path).
             NodeErrorKind::UndeclaredCoincidence { finding, diag, .. } => {
-                // Exactly-on contact: the verifier's decided-zero
-                // encoding, on the verify door's own site.
-                assert!(diag.margin.is_invalid(), "{diag:?}");
+                // Exactly-on contact: the verifier's decided zero, its
+                // decided margin riding, on the verify door's own site.
+                assert_eq!(diag.margin.kind(), geom_core::MarginKind::Value, "{diag:?}");
                 assert_eq!(diag.predicate, Some("bool_plane_offset"));
                 (**finding).clone()
             }

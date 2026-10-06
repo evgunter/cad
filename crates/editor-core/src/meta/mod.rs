@@ -197,8 +197,8 @@ pub enum MetaValue {
     Null,
     /// A boolean.
     Bool(bool),
-    /// An exact integer.
-    Int(i64),
+    /// An exact integer, in the range of `i64` and `u64` together.
+    Int(MetaInt),
     /// A float (D2 semantics: bit-exact, `-0.0` preserved; NaN/inf
     /// refused at the edit and persist doors — see
     /// [`MetaValue::first_non_finite`]).
@@ -343,6 +343,158 @@ impl MetaValue {
     }
 }
 
+/// **An integer a [`MetaValue`] holds**: any value of `i64` or of `u64`,
+/// so every integer a 64-bit field serializes — a minted id included,
+/// half of which sit above `i64::MAX` — becomes metadata exactly. The
+/// range is the union of the two and no wider: it is what a JSON reader
+/// with 64-bit integers holds (`serde_json`'s `u64` or `i64`), so such a
+/// reader of a saved file reads every value exactly. One number has one
+/// value, whichever type it came from, so equality is numeric.
+/// It persists as the bare integer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MetaInt(Spelled);
+
+/// A [`MetaInt`] as the `u64` it is when non-negative, else as the
+/// negative `i64` — the type `serde_json` visits the same number with,
+/// so a reader that takes only one of `u64` or `i64` reads it back from
+/// [`from_value`] as it does from the saved text. Variant order is
+/// numeric order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum Spelled {
+    /// Below zero.
+    Negative(i64),
+    NonNegative(u64),
+}
+
+impl MetaInt {
+    /// The value as an `i64`, `None` above `i64::MAX`.
+    #[must_use]
+    pub fn as_i64(self) -> Option<i64> {
+        match self.0 {
+            Spelled::Negative(v) => Some(v),
+            Spelled::NonNegative(v) => i64::try_from(v).ok(),
+        }
+    }
+
+    /// The value as a `u64`, `None` below zero.
+    #[must_use]
+    pub fn as_u64(self) -> Option<u64> {
+        match self.0 {
+            Spelled::Negative(_) => None,
+            Spelled::NonNegative(v) => Some(v),
+        }
+    }
+
+    /// The value as an `i128`, which holds every value.
+    #[must_use]
+    pub fn as_i128(self) -> i128 {
+        match self.0 {
+            Spelled::Negative(v) => v.into(),
+            Spelled::NonNegative(v) => v.into(),
+        }
+    }
+
+    fn spelled(self) -> Spelled {
+        self.0
+    }
+}
+
+impl From<i64> for MetaInt {
+    fn from(v: i64) -> Self {
+        Self(u64::try_from(v).map_or(Spelled::Negative(v), Spelled::NonNegative))
+    }
+}
+
+impl From<u64> for MetaInt {
+    fn from(v: u64) -> Self {
+        Self(Spelled::NonNegative(v))
+    }
+}
+
+macro_rules! meta_int_from {
+    ($wide:ty: $($t:ty),*) => {$(
+        impl From<$t> for MetaInt {
+            fn from(v: $t) -> Self {
+                Self::from(<$wide>::from(v))
+            }
+        }
+    )*};
+}
+meta_int_from!(i64: i8, i16, i32);
+meta_int_from!(u64: u8, u16, u32);
+
+impl TryFrom<i128> for MetaInt {
+    type Error = MetaError;
+    /// [`MetaError::IntOutOfRange`] outside `i64::MIN..=u64::MAX`.
+    fn try_from(v: i128) -> Result<Self, MetaError> {
+        match (u64::try_from(v), i64::try_from(v)) {
+            (Ok(u), _) => Ok(u.into()),
+            (Err(_), Ok(i)) => Ok(i.into()),
+            (Err(_), Err(_)) => Err(MetaError::IntOutOfRange),
+        }
+    }
+}
+
+impl TryFrom<u128> for MetaInt {
+    type Error = MetaError;
+    /// [`MetaError::IntOutOfRange`] above `u64::MAX`.
+    fn try_from(v: u128) -> Result<Self, MetaError> {
+        u64::try_from(v)
+            .map(Self::from)
+            .map_err(|_| MetaError::IntOutOfRange)
+    }
+}
+
+impl std::fmt::Display for MetaInt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Spelled::Negative(v) => v.fmt(f),
+            Spelled::NonNegative(v) => v.fmt(f),
+        }
+    }
+}
+
+impl serde::Serialize for MetaInt {
+    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        match self.0 {
+            Spelled::Negative(v) => ser.serialize_i64(v),
+            Spelled::NonNegative(v) => ser.serialize_u64(v),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MetaInt {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct Visit;
+        impl serde::de::Visitor<'_> for Visit {
+            type Value = MetaInt;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("an integer in the range of i64 or u64")
+            }
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<MetaInt, E> {
+                Ok(v.into())
+            }
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<MetaInt, E> {
+                Ok(v.into())
+            }
+            /// `serde_json` reads an integer past both ends as a float,
+            /// so an integral float out of range is refused for its
+            /// range; any other float is not an integer. The range is
+            /// open at `i64::MIN` because the integer just below it
+            /// rounds to it as a float.
+            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<MetaInt, E> {
+                let inside = v > -(2f64.powi(63)) && v < 2f64.powi(64);
+                if v.trunc() == v && !inside {
+                    Err(E::custom(MetaError::IntOutOfRange))
+                } else {
+                    Err(E::invalid_type(serde::de::Unexpected::Float(v), &self))
+                }
+            }
+        }
+        de.deserialize_any(Visit)
+    }
+}
+
 /// Typed refusal of the D7 producer convention (`"v"` field).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MetaVersionError {
@@ -371,8 +523,9 @@ impl std::error::Error for MetaVersionError {}
 /// producer boundary ([`to_value`], [`from_value`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetaError {
-    /// The producer value serialized an integer outside `i64`
-    /// (`u64`/`u128`/`i128` overflow) — `Int` is exact `i64`.
+    /// The producer value serialized an integer outside the range of
+    /// `i64` and `u64` together (a wide `i128` or `u128`) — see
+    /// [`MetaInt`].
     IntOutOfRange,
     /// The producer value contained a non-finite float (D2: NaN/inf
     /// refused at the boundary, never stored).
@@ -406,7 +559,10 @@ pub enum MetaError {
 impl std::fmt::Display for MetaError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::IntOutOfRange => write!(f, "integer out of i64 range for MetaValue::Int"),
+            Self::IntOutOfRange => write!(
+                f,
+                "integer outside the range of i64 and u64 refused at the metadata boundary"
+            ),
             Self::NonFinite => write!(f, "non-finite float refused at the metadata boundary"),
             Self::NonStringKey => write!(f, "non-string map key refused at the metadata boundary"),
             Self::DuplicateKey(k) => {
@@ -530,7 +686,7 @@ mod tests {
         let MetaValue::Map(m) = &tree else {
             panic!("struct erases to Map")
         };
-        assert_eq!(m["v"], MetaValue::Int(3));
+        assert_eq!(m["v"], MetaValue::Int(3.into()));
         assert_eq!(m["color"], MetaValue::Null);
         assert_eq!(m["raw"], MetaValue::Bytes(vec![0, 255, 7]));
         let MetaValue::List(off) = &m["offset"] else {
@@ -545,7 +701,8 @@ mod tests {
     #[test]
     fn boundary_refusals_are_typed() {
         assert_eq!(to_value(&f64::NAN), Err(MetaError::NonFinite));
-        assert_eq!(to_value(&u64::MAX), Err(MetaError::IntOutOfRange));
+        assert_eq!(to_value(&u128::MAX), Err(MetaError::IntOutOfRange));
+        assert_eq!(to_value(&i128::MIN), Err(MetaError::IntOutOfRange));
         let int_keys: std::collections::BTreeMap<u32, u32> = [(1, 2)].into();
         assert_eq!(to_value(&int_keys), Err(MetaError::NonStringKey));
         // Duplicate producer map keys refuse (save/load symmetry at
@@ -568,13 +725,72 @@ mod tests {
             to_value(&dup_keys),
             Err(MetaError::DuplicateKey("k".into()))
         );
-        assert!(MetaValue::Int(1).require_versioned().is_err());
+        assert!(MetaValue::Int(1.into()).require_versioned().is_err());
         assert!(
             MetaValue::map([("v".to_owned(), MetaValue::Str("x".into()))].into())
                 .unwrap()
                 .require_versioned()
                 .is_err()
         );
+    }
+
+    /// The integers at each end of `i64` and `u64` and either side of
+    /// where they meet are metadata, through the producer boundary and
+    /// through the persisted text, which spells each as its bare
+    /// number; one past either end is refused at both, on load for its
+    /// range, and a float on load as not an integer.
+    #[test]
+    fn every_i64_and_u64_is_metadata_and_nothing_past_them() {
+        let ends: [(i128, &str); 6] = [
+            (i64::MIN.into(), "-9223372036854775808"),
+            (-1, "-1"),
+            (0, "0"),
+            (i64::MAX.into(), "9223372036854775807"),
+            (i128::from(i64::MAX) + 1, "9223372036854775808"),
+            (u64::MAX.into(), "18446744073709551615"),
+        ];
+        for (n, text) in ends {
+            let int = MetaInt::try_from(n).expect("in range");
+            assert_eq!(int.as_i128(), n, "{n} is held as itself");
+            let tree = to_value(&n).expect("to_value");
+            assert_eq!(tree, MetaValue::Int(int), "{n} erases to Int");
+            assert_eq!(from_value::<i128>(&tree), Ok(n), "{n} comes back");
+            let json = serde_json::to_string(&tree).expect("persists");
+            assert_eq!(json, format!("{{\"Int\":{text}}}"), "{n} persists bare");
+            let back: MetaValue = serde_json::from_str(&json).expect("reads back");
+            assert_eq!(back, tree, "{n} reads back as itself");
+        }
+        assert_eq!(
+            from_value::<u64>(&to_value(&u64::MAX).unwrap()),
+            Ok(u64::MAX),
+            "a u64 above i64::MAX comes back as a u64"
+        );
+        assert!(
+            from_value::<i64>(&to_value(&u64::MAX).unwrap()).is_err(),
+            "and is refused as an i64"
+        );
+        for past in [i128::from(i64::MIN) - 1, i128::from(u64::MAX) + 1] {
+            assert_eq!(MetaInt::try_from(past), Err(MetaError::IntOutOfRange));
+            assert_eq!(to_value(&past), Err(MetaError::IntOutOfRange));
+            let json = format!("{{\"Int\":{past}}}");
+            let refusal = serde_json::from_str::<MetaValue>(&json)
+                .expect_err("one past the range is refused on load")
+                .to_string();
+            assert!(
+                refusal.contains(&MetaError::IntOutOfRange.to_string()),
+                "{past} is refused on load for its range: {refusal}"
+            );
+        }
+        for not_int in ["5.5", "5.0", "-0", "1e3"] {
+            let json = format!("{{\"Int\":{not_int}}}");
+            let refusal = serde_json::from_str::<MetaValue>(&json)
+                .expect_err("a float is not an integer")
+                .to_string();
+            assert!(
+                refusal.starts_with("invalid type: floating point"),
+                "{not_int} is refused as not an integer: {refusal}"
+            );
+        }
     }
 
     #[test]

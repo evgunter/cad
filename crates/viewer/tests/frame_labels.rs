@@ -24,9 +24,10 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::AuthoredNode;
 
 use pncad::document::{
-    Datum, Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, ProfileProgram, RecipeNodeId,
+    Datum, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, RecipeNodeId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName};
@@ -41,20 +42,20 @@ use viewer::tree;
 /// typed here: this suite asserts that the world xy frame is LABELLED
 /// `xy`, so it has to be drawing the frame the tree actually calls
 /// that one.
-fn frame_at(origin: [f64; 3]) -> Node<ProfileProgram> {
+fn frame_at(origin: [f64; 3]) -> AuthoredNode {
     let (_, u, v) = ProfilePlane::xy_numbers();
     common::frame(origin, u, v)
 }
 
 /// The label for one node inserted into `doc`, through the home the
 /// picker and the tree both read, and the id the insert door minted.
-fn label_in(doc: &Doc<ProfileProgram>, node: Node<ProfileProgram>) -> (String, RecipeNodeId) {
+fn label_in(doc: &Doc<ProfileProgram>, node: AuthoredNode) -> (String, RecipeNodeId) {
     let (doc, id) = common::inserted(doc, node, Tol::witness());
     (tree::node_label(&doc, id, &PartFiles::Unscanned), id)
 }
 
 /// [`label_in`] over an empty document.
-fn label(node: Node<ProfileProgram>) -> (String, RecipeNodeId) {
+fn label(node: AuthoredNode) -> (String, RecipeNodeId) {
     label_in(&Doc::empty_derived("frame-labels", Tol::witness()), node)
 }
 
@@ -121,7 +122,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
         origin: [
             common::len(0.0),
             common::len(0.0),
-            Expr::param(ParamName::from_static("height"), Dimension::Length),
+            Formula::named(VarName::from_static("height"), Dimension::Length),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
@@ -129,9 +130,9 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
     let tol = Tol::witness();
     let (doc, _) = common::edited(
         &Doc::empty_derived("frame-labels-driven", tol),
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("height"),
-            value: DocParam::continuous(Dimension::Length, 0.001),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("height"),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
         tol,
     );
@@ -221,9 +222,9 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-labels-other", tol);
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("unused"),
-            value: DocParam::continuous(Dimension::Length, 0.001),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("unused"),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
         tol,
     );

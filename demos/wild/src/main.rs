@@ -170,6 +170,7 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     });
     let StepImport::Solid {
         body,
+        enclosure,
         eps_in,
         normalizations,
         ..
@@ -195,14 +196,18 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         }
     }
 
-    // Exact B-rep mass properties, then the kernel's own tessellation
+    // Exact B-rep mass properties — the import gate's own enclosure,
+    // continued to the number — then the kernel's own tessellation
     // with a chordal tolerance sized off the body's real extent (bbox
     // of the body's stored points — vertex points and control points,
     // whose hull bounds every NURBS patch). The wild has no closed
     // forms; the exact-vs-mesh volume row is the same end-to-end
-    // sanity ribbon the tour prints.
-    let props = pncad::topo::mass_properties(&body, tol)
-        .unwrap_or_else(|e| panic!("{name}: imported but has no volume: {e:?}"));
+    // sanity ribbon the tour prints. A pinned cell measures a NUMBER:
+    // one that comes back a bracket at this ε has drifted as surely as
+    // one that stops importing.
+    let props = enclosure.unwrap_or_else(|unreached| {
+        panic!("{name}: a PINNED montage cell has no volume number at this eps: {unreached}")
+    });
     let (lo, hi) = body.points().fold(
         ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
         |(lo, hi), (_, p)| {

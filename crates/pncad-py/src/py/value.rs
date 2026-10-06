@@ -215,16 +215,12 @@ pub(crate) fn carried_cause(
     };
     let (linked, folded) = levels.split_at(levels.len().min(LINKED_LEVELS).saturating_sub(1));
     let raise = |level: &d::CarriedLevel<'_>, message: String| {
-        let document = match level.document {
-            d::CarriedIn::ThisDocument => None,
-            d::CarriedIn::Part(doc_ref) => Some(doc_ref),
-        };
         refused(
             py,
             NodeId(level.node),
             level.refusal.kind(),
             message,
-            document,
+            level.document.doc_ref(),
         )
     };
     let deepest = folded.last()?;
@@ -697,10 +693,13 @@ impl Body {
 ///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
 ///   matters: an `"edge_face_pierce"` is interpenetration and cannot
 ///   be declared, while an `"edge_edge_overlap"` can be.
-/// * `stale_kind` — which declared record the census could not
-///   confirm (`"vertex_vertex"`, `"vertex_on_face"`, `"curve_locus"`,
-///   `"patch"`). The granularity is which record to withdraw or
-///   re-seat; withdrawing another one leaves the refusal standing.
+/// * `stale_kind` — which contact record the census could not confirm
+///   (`"vertex_vertex"`, `"vertex_on_face"`, `"vertex_on_edge"`,
+///   `"edge_edge"`, `"curve_locus"`, `"patch"`). A record a declaration
+///   made is withdrawn or re-seated at that granularity; withdrawing
+///   another one leaves the refusal standing. `"vertex_on_edge"` and
+///   `"edge_edge"` are records an op wrote, never a declaration: a stale
+///   one is the op's defect, with nothing to withdraw.
 /// * `ring_contact_kind` — how a ring meets its face's own outer loop
 ///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
 ///   `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
@@ -1197,7 +1196,7 @@ pub(crate) struct Evaluation {
     /// HERE because the answer must be as of the same document the
     /// evaluation is of; threading the doc back in per query would
     /// let the two drift.
-    params: d::ParamEnv<f64>,
+    params: d::VarEnv<f64>,
     /// The document the evaluation ran on, captured at `evaluate` for
     /// the same reason [`Self::params`] is — and this is the whole of
     /// what the kernel's `RunCtx` is: a run is a (document,
@@ -2532,7 +2531,7 @@ pub(crate) fn evaluate(
     let inner = py.detach(|| d::evaluate::<f64>(recipe, memo, &token, &opts, tol));
     Evaluation {
         inner,
-        params: doc.inner.param_env::<f64>(),
+        params: doc.inner.var_env::<f64>(),
         doc: Arc::new(doc.inner.clone()),
         product: crate::product_memo::ProductMemo::default(),
     }

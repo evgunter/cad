@@ -177,9 +177,9 @@ fn selecting_a_parameter_marks_the_features_it_drives() {
     session.pump();
     let index = index_of(&session);
 
-    session.perform(SessionOp::Select(Selection::Param(
-        common::thickness_param(),
-    )));
+    session.perform(SessionOp::Select(Selection::Param(common::thickness_var(
+        session.committed_doc(),
+    ))));
     let driven = marks::focus(&index, session.doc(), session.selection());
     let extrude_ids: BTreeSet<u32> = index.ids_of_node(extrude).into_iter().collect();
     assert!(!extrude_ids.is_empty());
@@ -187,7 +187,7 @@ fn selecting_a_parameter_marks_the_features_it_drives() {
 
     // A parameter nothing reads marks nothing — the honest answer, not
     // "everything" and not a panic.
-    let unused = pncad::document::ParamName::from_static("unused");
+    let unused = pncad::document::VarId(0x756e_7573_6564);
     let quiet = marks::focus(&index, session.doc(), &Selection::Param(unused));
     assert!(quiet.is_empty());
 }
@@ -309,13 +309,15 @@ fn die(tol: Tol) -> Die {
             .copied()
             .expect("the die's chain is unbroken")
     };
-    let first = |doc: &DieDoc, want: fn(&Node<pncad::document::ProfileProgram>) -> bool| {
-        doc.order()
-            .iter()
-            .copied()
-            .find(|&id| want(doc.node(id).expect("an ordered node exists")))
-            .expect("the die has this node kind")
-    };
+    let first =
+        |doc: &DieDoc,
+         want: fn(&pncad::document::Node<pncad::document::ProfileProgram>) -> bool| {
+            doc.order()
+                .iter()
+                .copied()
+                .find(|&id| want(doc.node(id).expect("an ordered node exists")))
+                .expect("the die has this node kind")
+        };
     let composed = *doc.order().last().expect("the die has nodes");
     let box_blend = input_of(&doc, composed);
     let cut = input_of(&doc, box_blend);

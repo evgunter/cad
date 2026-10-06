@@ -2,11 +2,12 @@
 id: decided-coincidence-carries-a-synthetic-invalid-margin
 kind: issue
 title: A coincidence decided Zero on every datum is reported with a synthetic MarginDiag::Invalid margin, as if a measurement had failed
-status: open
+status: parked
 opened: 2026-09-25
 priority: P3
 cost: M
 design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What

@@ -19,14 +19,16 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use sweep::Revolution;
-use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp, DATUM_UNIT_NORM, EdgeKey, FaceKey, SweepStrategy, sweep_traces};
+use sweep::test_support::{finished, revolved_about_y};
+use topo::{
+    AtRestBody, Body, BooleanOp, DATUM_UNIT_NORM, EdgeKey, FaceKey, SweepStrategy, sweep_traces,
+};
 
-const DRUM_RADIUS: f64 = 0.5;
-const TILT: f64 = 0.3;
+pub(crate) const DRUM_RADIUS: f64 = 0.5;
+pub(crate) const TILT: f64 = 0.3;
 
 /// The drum's lower part: its rim is the cut face's two `Ellipse` arcs.
-fn drum_lower() -> Body<f64> {
+pub(crate) fn drum_lower() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let r = DRUM_RADIUS;
     let cylinder = sweep::test_support::prism(
@@ -34,6 +36,7 @@ fn drum_lower() -> Body<f64> {
         1.0,
         tol,
     );
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol);
     let plane = topo::splitting::SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: UnitVec3::new(
@@ -52,7 +55,7 @@ fn drum_lower() -> Body<f64> {
         2,
         "the rim is two ellipse arcs"
     );
-    below
+    finished("the drum's lower part", below, tol)
 }
 
 fn drum_volume() -> f64 {
@@ -65,32 +68,37 @@ fn cut_height(x: f64) -> f64 {
 }
 
 /// A ball of radius `r` about `c` (a full revolve about `y`, moved).
-fn ball(r: f64, c: [f64; 3]) -> Body<f64> {
+pub(crate) fn ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let at_origin = revolved_about_y(
         vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
         Revolution::Full,
         Tol::witness(),
     );
     let to = Affine3::translation(Vec3::new(c[0], c[1], c[2]));
-    topo::transform_rigid(&at_origin, &to, Tol::witness()).expect("a translation is rigid")
+    let ball =
+        topo::transform_rigid(&at_origin, &to, Tol::witness()).expect("a translation is rigid");
+    finished("the ball", ball, Tol::witness())
 }
 
 /// [`ball`] with its revolve axis turned onto the cut plane's normal, so
 /// the plane's section of it is a latitude circle of its own chart.
-fn polar_ball(r: f64, c: [f64; 3]) -> Body<f64> {
+fn polar_ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let k = Vec3::new(TILT.cos(), 0.0, -TILT.sin());
     let turn = Affine3::rotation_about_axis(Point3::from_array(c), k, core::f64::consts::FRAC_PI_2);
-    topo::transform_rigid(&ball(r, c), &turn, Tol::witness()).expect("a rotation is rigid")
+    let ball =
+        topo::transform_rigid(&ball(r, c), &turn, Tol::witness()).expect("a rotation is rigid");
+    finished("the polar ball", ball, Tol::witness())
 }
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z0 + h]`.
-fn rod(r: f64, x: f64, y: f64, z0: f64, h: f64) -> Body<f64> {
-    sweep::test_support::prism_at(
+fn rod(r: f64, x: f64, y: f64, z0: f64, h: f64) -> AtRestBody<f64> {
+    let rod = sweep::test_support::prism_at(
         vec![(Point2::new(x - r, y), 1.0), (Point2::new(x + r, y), 1.0)],
         z0,
         h,
         Tol::witness(),
-    )
+    );
+    finished("the rod", rod, Tol::witness())
 }
 
 fn ellipse_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -135,8 +143,8 @@ fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
 
 fn run(
     op: BooleanOp,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
 ) -> Result<topo::BooleanResult<f64>, topo::BooleanError> {
     match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
@@ -181,7 +189,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 
 /// A solid `b` of volume `vb` held strictly inside the drum, under ∪,
 /// ∩ and both differences, each against its closed form.
-fn assert_held_inside(label: &str, a: &Body<f64>, b: &Body<f64>, vb: f64) {
+fn assert_held_inside(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, vb: f64) {
     let va = drum_volume();
     for (op_label, op, x, y, expected) in [
         ("A ∪ B", BooleanOp::Union, a, b, Some(va)),
@@ -268,7 +276,7 @@ fn a_rod_held_inside_the_drum_clears_the_rim() {
 }
 
 /// The boolean's refusal under every op; a body fails with the op named.
-fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
+fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError> {
     [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract]
         .into_iter()
         .map(|op| {
@@ -280,16 +288,17 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
 }
 
 /// **The rim CROSSES**: balls straddling it, and rods standing across
-/// it. The rim's pairs are accepted (its certified roots split it), the
-/// crossing layer and the sector side pass, and every op stops at the
-/// join, at the door that pose's germ pairs reach: a ball's wall ×
-/// sphere pair has no section frame
-/// (`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), and
-/// a rod's parallel wall pair no join arm
-/// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`) — the
-/// narrow rods too, since their pierce ring in the drum's wall joins
-/// (TANG, PR 3851; before it they stopped at the ring,
-/// `SectionArcWindow { NoChartedRun }`). On the base the balls
+/// it. The rim's pairs are accepted (its certified roots split it), and
+/// the crossing layer and the sector side pass. A ball's every op stops
+/// at the join: its wall × sphere pair has its section frame and no
+/// chord lane for its quartic section
+/// (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`;
+/// `cylinder_sphere_frame` holds the same balls to their volumes). A
+/// rod's parallel walls join along their rulings, the narrow rods'
+/// pierce ring in the drum's wall joins, and every rod builds in every
+/// op (`parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`
+/// holds them to their volumes). On the base
+/// the balls
 /// refused `CurvedPierceUnsupported` on the rim, and the rods on their
 /// own rim circle, whose root on the drum wall the wall's chart trim
 /// (bounded by the rim's arcs) could not place.
@@ -297,91 +306,75 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
 fn a_rim_crossing_reaches_the_join() {
     use topo::BooleanError as E;
     let a = drum_lower();
-    let no_frame = |e: &E| matches!(e, E::GermFrameUnsupported { .. });
-    let no_arm = |e: &E| {
+    let no_lane = |e: &E| {
         matches!(
             e,
             E::CurvedBooleanUnsupported {
-                kind: geom::SurfaceKind::Cylinder,
+                kind: geom::SurfaceKind::Cylinder | geom::SurfaceKind::Sphere,
                 ..
             }
         )
     };
-    type Door<'a> = &'a dyn Fn(&E) -> bool;
-    let poses: [(&str, Body<f64>, Door); 5] = [
-        (
-            "ball r 0.2 at (0.5, 0, 0.35)",
-            ball(0.2, [0.5, 0.0, 0.35]),
-            &no_frame,
-        ),
-        (
-            "ball r 0.1 at (0.45, 0, 0.3)",
-            ball(0.1, [0.45, 0.0, 0.3]),
-            &no_frame,
-        ),
-        (
-            "rod r 0.2 at (0.5, 0)",
-            rod(0.2, 0.5, 0.0, 0.2, 0.25),
-            &no_arm,
-        ),
-        (
-            "rod r 0.1 at (-0.45, 0)",
-            rod(0.1, -0.45, 0.0, 0.5, 0.3),
-            &no_arm,
-        ),
-        (
-            "rod r 0.1 at (0, 0.48)",
-            rod(0.1, 0.0, 0.48, 0.3, 0.4),
-            &no_arm,
-        ),
-    ];
-    for (label, b, at_the_door) in poses {
+    for (label, b) in [
+        ("ball r 0.2 at (0.5, 0, 0.35)", ball(0.2, [0.5, 0.0, 0.35])),
+        ("ball r 0.1 at (0.45, 0, 0.3)", ball(0.1, [0.45, 0.0, 0.3])),
+    ] {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
         for e in refusals(&a, &b) {
-            assert!(at_the_door(&e), "{label}: got {e:?}");
+            assert!(no_lane(&e), "{label}: got {e:?}");
+        }
+    }
+    for (label, b) in [
+        ("rod r 0.2 at (0.5, 0)", rod(0.2, 0.5, 0.0, 0.2, 0.25)),
+        ("rod r 0.1 at (-0.45, 0)", rod(0.1, -0.45, 0.0, 0.5, 0.3)),
+        ("rod r 0.1 at (0, 0.48)", rod(0.1, 0.0, 0.48, 0.3, 0.4)),
+    ] {
+        let (_, accepted) = rim_pairs(label, &a, &b);
+        assert!(accepted > 0, "{label}: the rim's crossings are accepted");
+        for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+            let out = run(op, &a, &b).unwrap_or_else(|e| panic!("{label}, {op:?}: {e:?}"));
+            assert!(out.body().is_some(), "{label}, {op:?}: a body");
         }
     }
 }
 
 /// **A ball poking through the cut face, clear of the rim** — the row
-/// whose ball never comes within 0.2 of the rim. The rim clears, and the
-/// next door depends on the ball's chart: charted about `y`, the cut
-/// plane's section of it is not a latitude circle, and the join refuses
-/// `SectionNotPolar`
-/// (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`);
-/// charted about the cut's normal, the join passes and the
-/// classification's at-infinity probe cannot measure the cut wall in
-/// closed form
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+/// whose ball never comes within 0.2 of the rim. The rim clears, the join
+/// passes whatever the ball's chart — charted about `y`, where the cut
+/// plane's section of it is not a latitude circle, as charted about the
+/// cut's normal — and every op builds its closed form: the ball is
+/// centred on the cut plane, clear of the wall and the floor, so the
+/// drum holds exactly its lower half. The classification's at-infinity
+/// probe cannot measure the cut wall in closed form
+/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`), so
+/// a probe ray that meets nothing is set aside and one that meets the
+/// boundary answers.
 #[test]
-fn a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream() {
+fn a_ball_through_the_cut_face_clears_the_rim_and_builds() {
     let a = drum_lower();
-    let c = [0.0, 0.0, 0.5];
-    for (label, b, polar) in [
-        ("ball charted about y", ball(0.3, c), false),
-        (
-            "ball charted about the cut normal",
-            polar_ball(0.3, c),
-            true,
-        ),
+    let (r, c) = (0.3_f64, [0.0, 0.0, 0.5]);
+    let (va, vb) = (drum_volume(), 4.0 / 3.0 * PI * r.powi(3));
+    let shared = vb / 2.0;
+    for (label, b) in [
+        ("ball charted about y", ball(r, c)),
+        ("ball charted about the cut normal", polar_ball(r, c)),
     ] {
         let (examined, accepted) = rim_pairs(label, &a, &b);
         assert!(examined > 0, "{label}: the rim is examined");
         assert_eq!(accepted, 0, "{label}: and cleared");
-        for e in refusals(&a, &b) {
-            let at_the_door = if polar {
-                matches!(
-                    e,
-                    topo::BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)
-                )
-            } else {
-                matches!(
-                    e,
-                    topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
-                )
-            };
-            assert!(at_the_door, "{label}: got {e:?}");
+        for (op_label, op, x, y, expected) in [
+            ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - shared),
+            ("A ∩ B", BooleanOp::Intersect, &a, &b, shared),
+            ("A ∖ B", BooleanOp::Subtract, &a, &b, va - shared),
+            ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - shared),
+        ] {
+            let label = format!("{label}, {op_label}");
+            let out = run(op, x, y).unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+            let body = out
+                .body()
+                .unwrap_or_else(|| panic!("{label}: no body where one is owed"));
+            assert_body(&label, &body.body, expected);
         }
     }
 }

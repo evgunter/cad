@@ -117,7 +117,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     )?;
     let end_face = seed.face;
     let start_face = start.face;
-    let start_surface = face_surface_key(&body, start_face)?;
+    let start_surface = face_surface_key(&body, start_face);
     let mut bases = Vec::with_capacity(loops.len());
     bases.push(start.hes);
     let mut verts = Vec::with_capacity(loops.len());
@@ -253,7 +253,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
             if classes[li].verts[j].pinned {
                 pc[s.canonical_vertex] = Some(verts[li][j]);
             }
-            let bottom = he_edge(&body, bases[li][j])?;
+            let bottom = he_edge(&body, bases[li][j]);
             sm[s.canonical_segment] = Some(bottom);
             em[s.canonical_segment] = Some(tops_all[li][j].unwrap_or(bottom));
         }
@@ -283,17 +283,21 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     })
 }
 
-/// An half-edge's edge key (total).
-pub(super) fn he_edge<T: Decide>(
-    body: &Body<T>,
-    he: topo::HalfEdgeKey,
-) -> Result<EdgeKey, RevolveError> {
-    Ok(body
-        .get_half_edge(he)
-        .ok_or(topo::EulerOpError::StaleKey {
-            key: topo::EntityId::HalfEdge(he),
-        })?
-        .edge)
+/// The edge of `he`, a chain half-edge the calling driver minted.
+///
+/// # Panics
+///
+/// If `he` is not live: every caller passes a half-edge its own driver
+/// minted and reads it before any step that kills it.
+#[track_caller]
+pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> EdgeKey {
+    body.get_half_edge(he)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "half-edge {he:?} was minted by this driver and is read before any kill of it"
+            )
+        })
+        .edge
 }
 
 /// The rim-upgrade pass (phase 5): per walled segment the start-chain
@@ -323,10 +327,10 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                 segment_index,
                 source,
             };
-            let bottom = he_edge(body, bases[li][j])?;
+            let bottom = he_edge(body, bases[li][j]);
             match walls_all[li][j] {
                 Some(wall_face) => {
-                    let wall = face_surface_key(body, wall_face)?;
+                    let wall = face_surface_key(body, wall_face);
                     upgrade_intersection(body, bottom, start_surface, wall, band, sliver, tol)?;
                     if let Some(top) = tops_all[li][j] {
                         upgrade_intersection(body, top, end_surface, wall, band, sliver, tol)?;
@@ -381,14 +385,18 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<LoopSwept, RevolveError> {
     let n = segs.len();
-    let walled = |j: usize| cls.walls[j].kind().is_some();
 
     // Cosurface run structure, decided up front for the whole loop —
     // including the wrap pair — before any wall is minted (the PR 4
     // SHOULD-1 lesson). Pairs across a pinned (on-axis) segment are
     // structurally false: the run is broken by the axis contact.
     let pair = loop_pairs(segs, cls, loop_index, band)?;
-    let runs = crate::swept::wall_runs(segs, &pair, walled);
+    // A partial revolve builds cocircular arcs one wall each: a run's
+    // sphere or torus wall would carry each wedge cap's meridian in
+    // pieces, which the props meridian fold (by split lineage) does not
+    // take (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
+    let joins = crate::swept::joins(segs, &pair, crate::swept::CurvedRuns::Split);
+    let runs = crate::swept::wall_runs(&joins);
     let lead = crate::swept::run_leads(&runs, n);
 
     // Struts: one latitude arc per off-axis vertex that leads a run, in
@@ -449,16 +457,16 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             let WallClass::Wall { kind, sense } = cls.walls[j] else {
                 return Ok(None);
             };
-            // Sharing shape (PR 4 SHOULD-1's precompute), for cocircular
-            // arcs (`swept::shared_wall`). A wall whose material lies
+            // Cocircular arcs share one key across their walls
+            // (`swept::shared_wall`). A wall whose material lies
             // against its revolution surface's chart normal (bore
             // cylinder, inward cone, under-side plane annulus, concave
             // sphere/torus band) states `sense: false`, classified from
             // the profile's stored winding structure
             // (`WallClass::Wall::sense`).
-            let surface = match crate::swept::shared_wall(&pair, faces, j, origin) {
+            let surface = match crate::swept::shared_wall(&joins, faces, j, origin) {
                 Some(f) => FaceSurface::Shared {
-                    key: face_surface_key(body, f)?,
+                    key: face_surface_key(body, f),
                     sense,
                 },
                 None => FaceSurface::New {
@@ -492,8 +500,8 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let (Some(fp), Some(fnx)) = (f_prev, f_next) else {
             continue; // unreachable by the pinned-adjacency argument
         };
-        let k_prev = face_surface_key(body, fp)?;
-        let k_next = face_surface_key(body, fnx)?;
+        let k_prev = face_surface_key(body, fp);
+        let k_next = face_surface_key(body, fnx);
         if k_prev == k_next {
             body.describe_at_rest(strut.edge, k_prev, tol)?;
             continue;

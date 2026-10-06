@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -15,10 +16,11 @@ use std::sync::Arc;
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, MateFault, MateFrame, MatePrimitive,
-    MateRole, Node, ParamBox, ParamName, PatternKind, Placement, ProfileDoc, RecipeNodeId,
-    SitedFace, SlotId, StableName, Step, ValuePayload, evaluate, regauge_then_mate, root_of,
+    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame,
+    MatePrimitive, MateRole, Node, ParamBox, PatternKind, Placement, ProfileDoc, RecipeNodeId,
+    SitedFace, SlotId, StableName, Step, ValuePayload, VarName, evaluate, regauge_then_mate,
+    root_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -92,11 +94,12 @@ impl Parts {
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -111,23 +114,27 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
-fn lift() -> ParamName {
-    ParamName::from_static("lift")
+fn lift() -> VarName {
+    VarName::from_static("lift")
 }
 
 fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -> ProfileDoc {
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement<Formula>>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
-fn literal(m: &M) -> Placement {
+fn literal<S: Clone>(m: &M) -> Placement<S> {
     Placement::literal(&m.frame())
 }
 
@@ -277,23 +284,23 @@ fn check_body_interval(
     }
 }
 
-fn declare(doc: ProfileDoc, name: ParamName, v: f64, dim: Dimension) -> ProfileDoc {
+fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name,
-            value: DocParam::continuous(dim, v),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(dim, v)),
         },
     )
     .0
 }
 
-fn set_value(doc: ProfileDoc, name: ParamName, v: f64) -> ProfileDoc {
+fn set_value(doc: ProfileDoc, name: VarName, v: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name,
-            value: DocParamValue::Continuous(v),
+        DocEdit::SetVarValue {
+            var: name.into(),
+            value: FreeValue::Continuous(v),
         },
     )
     .0
@@ -307,8 +314,8 @@ struct Chain {
     g1: RecipeNodeId,
 }
 
-fn turn() -> ParamName {
-    ParamName::from_static("turn")
+fn turn() -> VarName {
+    VarName::from_static("turn")
 }
 
 fn chain(label: &str) -> Chain {
@@ -322,9 +329,13 @@ fn chain(label: &str) -> Chain {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::param(turn(), Dimension::Angle),
+                angle: Formula::named(turn(), Dimension::Angle),
             },
         ),
     );
@@ -459,7 +470,7 @@ fn a_pattern_placer_poses_as_composed() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
                 spacing: len(4.0),
@@ -645,7 +656,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
                 spacing: len(4.0),
@@ -674,7 +685,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
     )
     .0;
@@ -794,7 +805,10 @@ fn the_gate_checks_own_spaces_whatever_the_world_holds() {
 /// outer product holds the base's material alone and the outer gate
 /// certifies it; the outer evaluation names the top, routed through
 /// the instance it arrived by (`Evaluation::unplaced_below`), on the
-/// instance and on a transform consuming it.
+/// instance and on a transform consuming it. The outer document's first
+/// node is the deleted gauge's twin, labelled, so it holds the cause's
+/// id as a live gauge: the row says the cause as the sub-assembly
+/// holds it, which is not at all.
 #[test]
 fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
     let p = parts("r2-seam");
@@ -816,12 +830,47 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
     let mut store = p.store.clone();
     let sub_ref = store.insert(sub.clone(), Tol::witness());
     let outer = ProfileDoc::empty(DocumentId::derive("r2-seam-outer"), Tol::witness());
+    let (outer, twin) = insert(
+        outer,
+        Node::gauge(
+            None,
+            Placement::literal(&Frame::translation([0.0, 0.0, 50.0])),
+        ),
+    );
+    assert_eq!(twin, g, "both documents mint from the zero chain");
+    let (outer, _) = step(
+        outer,
+        DocEdit::SetLabel {
+            node: twin,
+            label: Some(editor_core::Label::new("outer gauge").expect("a valid label")),
+        },
+    );
     let (outer, inst) = insert(outer, Node::instantiate_part(sub_ref));
     let (outer, moved) = insert(
         outer,
         fixture::xform(inst, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
     );
     let ev = run(&outer, &with_resolver(store));
+    let below = ev.all_unplaced_below();
+    let [row] = below.as_slice() else {
+        panic!("one group below: {below:?}");
+    };
+    assert_eq!(
+        (row.held.spoken(top), row.held.spoken(g)),
+        (sub.spoken(top), sub.spoken(g)),
+        "the row holds its group and its cause's gauge as the sub-assembly does"
+    );
+    let cause = format!(
+        "its gauge chain names node {}, which was deleted",
+        test_utils::refusal::tag(g.0)
+    );
+    for said in [editor_core::spoken_by(row, &outer), row.to_string()] {
+        assert!(
+            said.contains(&cause) && !said.contains("outer gauge"),
+            "the cause names the sub-assembly's deleted gauge, never the outer document's \
+             node of its id: {said}"
+        );
+    }
     let expected = editor_core::CarriedUnplaced {
         route: editor_core::Route {
             through: inst,
@@ -830,6 +879,7 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
         },
         group: top,
         cause: editor_core::Unplaced::DeadGauge { gauge: g },
+        held: std::sync::Arc::clone(&row.held),
     };
     assert_eq!(ev.unplaced_below.get(&inst), Some(&vec![expected.clone()]));
     assert_eq!(ev.unplaced_below.get(&moved), Some(&vec![expected.clone()]));

@@ -516,6 +516,38 @@ fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
     );
 }
 
+/// **The first side's kind is its verb's, not its storage's.** A zero
+/// bulge stores a straight segment, but `arc_to` authored the side, so
+/// `.to(Start)` refuses its retrim exactly as on an arc, at both signs of
+/// zero.
+#[test]
+fn a_seam_fillet_onto_a_zero_bulge_first_side_refuses_as_on_an_arc() {
+    for b in [0.0, -0.0] {
+        let tip = Open
+            .at(Point2::new(0.0, 0.0))
+            .arc_to(
+                Bulge {
+                    p: Point2::new(4.0, 0.0),
+                    b,
+                },
+                Tol::witness(),
+            )
+            .unwrap()
+            .angle(2.0, Tol::witness())
+            .unwrap()
+            .line(2.0, Tol::witness())
+            .unwrap()
+            .angle(3.5, Tol::witness())
+            .unwrap();
+        let arrival = tip.fillet(0.3, Tol::witness()).unwrap();
+        let got = arrival.to(Start, Tol::witness());
+        assert!(
+            matches!(got, Err(PathError::SeamRetrimsArcFirstSide)),
+            "b = {b:?}: {got:?}"
+        );
+    }
+}
+
 #[test]
 fn the_seam_tangent_close_refuses_always() {
     // The seam junction of a straight closer within the tangent band:

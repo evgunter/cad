@@ -121,6 +121,8 @@ mod graft_disjoint;
 mod h14_census_deferrals;
 #[path = "hollow_island.rs"]
 mod hollow_island;
+#[path = "inside_out_operand.rs"]
+mod inside_out_operand;
 #[path = "interval_body.rs"]
 mod interval_body;
 #[path = "issue86_double_subtract.rs"]
@@ -189,8 +191,12 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "neighbours_across_a_closed_edge.rs"]
+mod neighbours_across_a_closed_edge;
 #[path = "on_verdict.rs"]
 mod on_verdict;
+#[path = "pcurve_door_refusals.rs"]
+mod pcurve_door_refusals;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]
@@ -209,6 +215,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "result_gate_sites.rs"]
+mod result_gate_sites;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
@@ -275,12 +283,16 @@ mod rim_dim_boolean_twins;
 mod rim_dim_review_probes;
 #[path = "seat3_flush_detector.rs"]
 mod seat3_flush_detector;
+#[path = "shell_operand_gate.rs"]
+mod shell_operand_gate;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]
 mod shell_tolerance_chain;
 #[path = "shell_winding.rs"]
 mod shell_winding;
+#[path = "site_mint_scaling.rs"]
+mod site_mint_scaling;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "sphere_twin_rows_interval.rs"]
@@ -289,12 +301,16 @@ mod sphere_twin_rows_interval;
 mod split_edge_pcurve_rows;
 #[path = "split_gate_per_face.rs"]
 mod split_gate_per_face;
+#[path = "split_operand_gate.rs"]
+mod split_operand_gate;
 #[path = "stated_general_image_mint.rs"]
 mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
+#[path = "vertex_on_edge_records.rs"]
+mod vertex_on_edge_records;
 #[path = "void_door.rs"]
 mod void_door;
 
@@ -338,7 +354,11 @@ mod certified_enclosure_impl_census;
 mod cleave_mint_doors;
 #[path = "door_backstop_settled_residue.rs"]
 mod door_backstop_settled_residue;
+#[path = "pierce_strut_at_a_pinch.rs"]
+mod pierce_strut_at_a_pinch;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "spline_reanchor_rows.rs"]
+mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;

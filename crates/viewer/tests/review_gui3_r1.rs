@@ -24,10 +24,11 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::AuthoredNode;
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, LoopProgram, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId,
+    Dimension, Doc, DocEdit, EvalOutcome, Formula, FreeVar, LoopProgram, Node, ProfileProgram,
+    RecipeNodeId, SlotId, VarName,
 };
 use pncad::geom_core::Tol;
 
@@ -42,13 +43,13 @@ use viewer::{docio, props, tree};
 /// R1's own parameter name, so this suite's document reads apart from
 /// the unit suites' in the aggregated binary. No row asserts on the
 /// name.
-fn depth_param() -> ParamName {
-    ParamName::from_static("r1_depth")
+fn depth_param() -> VarName {
+    VarName::from_static("r1_depth")
 }
 
 /// A triangle, for the same reason as `depth_param` — it reads apart
 /// from the unit suites' square. No row asserts on the shape.
-fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+fn triangle(plane: RecipeNodeId, side: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -64,9 +65,9 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-wedge", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: depth_param(),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );
@@ -76,7 +77,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::mul(Expr::param(depth_param(), Dimension::Length), scl(3.0))
+            distance: Formula::mul(Formula::named(depth_param(), Dimension::Length), scl(3.0))
                 .expect("length * scalar is a length"),
             side: ExtrudeSide::Along,
         },
@@ -87,7 +88,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 
 fn set_depth(session: &mut DocSession, metres: f64) {
     let outcome = session.perform(SessionOp::SetParam {
-        name: depth_param(),
+        var: crate::common::var_of(session.committed_doc(), depth_param().as_str()),
         value: SlotValue::Continuous(metres),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -96,7 +97,7 @@ fn set_depth(session: &mut DocSession, metres: f64) {
 fn depth_of(doc: &Doc<ProfileProgram>) -> f64 {
     match props::param_rows(doc)
         .into_iter()
-        .find(|row| row.name == depth_param())
+        .find(|row| row.label.name() == Some(&depth_param()))
         .expect("the fixture declares r1_depth")
         .value
     {
@@ -307,9 +308,9 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-literal-first", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: depth_param(),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );
@@ -448,7 +449,7 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
         Node::Extrude {
             profile,
             // Well-dimensioned at the door, non-finite at evaluation.
-            distance: Expr::div(len(0.005), scl(0.0)).expect("length / scalar"),
+            distance: Formula::div(len(0.005), scl(0.0)).expect("length / scalar"),
             side: ExtrudeSide::Along,
         },
         tol,
