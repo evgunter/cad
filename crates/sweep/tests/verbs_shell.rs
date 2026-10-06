@@ -18,7 +18,7 @@ use crate::common::census::{genus_of, rings_of};
 use crate::common::charts::{charts, moves_by};
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{
-    hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
+    capped_vessel, hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
 };
 use crate::common::torus_walls::{klein_elbow, props_door};
 use geom_core::k_stats::Bracket;
@@ -2623,6 +2623,13 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
     for rim in &record.rims {
         named.push(rim.rim);
         named.extend(rim.holes.iter().map(|h| h.face));
+        // A seamed band keeps every face of its chart as a rim face.
+        named.extend(
+            rim.sources
+                .iter()
+                .copied()
+                .filter(|&f| f != rim.rim && body.get_face(f).is_some()),
+        );
     }
     let (named, dups) = sorted_dedup(&named);
     assert!(!dups, "{what}: a live face is named by two channels");
@@ -2713,6 +2720,39 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             );
         }
         let data = body.get_face(rim.rim).expect("the rim resolves");
+        if record.dead.loops.contains(&rim.ring) {
+            // A seamed band: the ring was absorbed into the band's outer
+            // loops, so its edge rows each bound one of the band's faces.
+            let band: Vec<topo::EdgeKey> = rim
+                .sources
+                .iter()
+                .filter_map(|&f| body.get_face(f))
+                .flat_map(|f| loop_edges(body, f.outer))
+                .collect();
+            assert!(
+                rim.sources
+                    .iter()
+                    .filter_map(|&f| body.get_face(f))
+                    .all(|f| f.rings.is_empty()),
+                "{what}: a seamed band carries no ring"
+            );
+            let bounding = boundary_edges(source, &rim.sources);
+            for pair in &rim.ring_edges {
+                assert!(
+                    band.contains(&pair.0),
+                    "{what}: {pair:?} bounds no band face"
+                );
+                assert!(
+                    record.inner_edges.contains(pair),
+                    "{what}: {pair:?} is no twin row"
+                );
+                assert!(
+                    bounding.contains(&pair.1),
+                    "{what}: {pair:?} names no chart boundary"
+                );
+            }
+            continue;
+        }
         assert!(
             data.rings.contains(&rim.ring),
             "{what}: the row's ring is not a ring of the rim"
@@ -2853,6 +2893,17 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
                 Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
         })
         .collect();
+    let (capped, _, _) = capped_vessel(0.5, 0.6, 60.0);
+    let capped_chart: Vec<FaceKey> = capped
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                capped.get_surface(f.surface),
+                Some(geom::Surface::Sphere { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
     vec![
         (
             "the sealed box",
@@ -2876,6 +2927,7 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         ),
         ("the annular cup", tube_body, tube_chart, 0.05),
         ("the holed square cup", slab, slab_chart, 0.05),
+        ("the capped cup", capped, capped_chart, 0.05),
     ]
 }
 

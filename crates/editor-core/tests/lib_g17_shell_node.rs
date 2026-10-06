@@ -443,11 +443,9 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
          positive. Recourse: supply a positive thickness"
     );
 
-    // (d) a CURVED designated face: the belly is a sphere zone, and a
-    // rim on it would be a curved face carrying a ring — the kernel's
-    // `OpenFaceRingUnsupported`, carried with the surface kind. (A
-    // half-chart designation, the kernel's `OpenFaceChartPartial`, has
-    // no document fixture: every door builds a plane chart as one face.)
+    // (d) half a chart: the belly is a sphere zone the revolve builds
+    // as two bands on one surface, and its piece names one of them, so
+    // the kernel's `OpenFaceChartPartial` names the band left behind.
     let v = vessel::document_with_open(|doc, pot| {
         vec![
             editor_core::band(pot, vessel::mouth(doc, pot)),
@@ -457,10 +455,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let e = refusal(&v.doc, v.result.unwrap());
     match &e {
         NodeErrorKind::Shell(inner) => match **inner {
-            ShellError::OpenFaceRingUnsupported { kind, .. } => {
-                assert_eq!(kind, geom::SurfaceKind::Sphere);
-            }
-            ref other => panic!("expected the ring gate on the belly, got {other:?}"),
+            ShellError::OpenFaceChartPartial { .. } => {}
+            ref other => panic!("expected the half-chart gate on the belly, got {other:?}"),
         },
         other => panic!("expected the shell op's refusal, got {other:?}"),
     }

@@ -1786,7 +1786,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OpenFaceRepeated { .. } => "open_face_repeated",
         ShellError::OpenFacesExhaustShell { .. } => "open_faces_exhaust_shell",
         ShellError::OpenFacesDisconnect { .. } => "open_faces_disconnect",
-        ShellError::OpenFaceRingUnsupported { .. } => "open_face_ring_unsupported",
         ShellError::OpenFaceChartPartial { .. } => "open_face_chart_partial",
         ShellError::Lift { .. } => "lift",
         ShellError::Insert { .. } => "insert",

@@ -1,210 +1,240 @@
 //! **`shell_open` through a curved designated face.**
+//!
+//! A designated face on a periodic chart opens in its chart's own form:
+//! a chart that wraps its period through a pole becomes a seamed band
+//! (each of its faces kept, its seams cut short at the cavity's
+//! corners), and a window that does not wrap becomes a ring, as on a
+//! plane. What the readers cannot yet read about a ringed curved window
+//! refuses where they read it — the mesh, or tier 3's check 7 — and not
+//! in the shell op. Each built row is checked against its closed form.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol, Vec2};
-use profile::test_support::bulge_loop;
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::test_support::{finished, revolved_about_y};
-use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, FaceKey, LoopBoundary};
+use crate::common::census::{genus_of, rings_of};
+use crate::common::shell_operands::{
+    capped_vessel, cone_tipped_vessel, d_section, dome_sector, domed_vessel, vessel,
+};
+use core::f64::consts::PI;
+use geom_core::Tol;
+use sweep::test_support::finished;
+use topo::{Body, FaceKey, ShellError};
 
-/// `lp` revolved a full turn about the `y` axis.
-fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
-    let tol = Tol::witness();
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol)
-        .expect("the meridian validates");
-    let axis = RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&profile, axis, Revolution::Full, tol)
-        .expect("the meridian revolves")
-        .body
-}
-
-/// A vessel of revolution: a cylinder of radius `r` and height `h`
-/// capped by a hemisphere of the same radius.
-fn dome_vessel(r: f64, h: f64) -> Body<f64> {
-    let bulge = (core::f64::consts::FRAC_PI_8).tan();
-    revolved(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r, 0.0), 0.0),
-            (Point2::new(r, h), bulge),
-            (Point2::new(0.0, h + r), 0.0),
-        ])
-        .with_tangent_joints(vec![2]),
-    )
-}
-
-/// A cylinder of radius `r`, height `h`, capped by a spherical cap
-/// spanning `deg` degrees of arc (not tangent to the wall).
-fn cap_vessel(r: f64, h: f64, deg: f64) -> Body<f64> {
-    let half = (deg / 2.0).to_radians();
-    let rho = r / (2.0 * half).sin();
-    let rise = rho * (1.0 - (2.0 * half).cos());
-    revolved(bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(r, 0.0), 0.0),
-        (Point2::new(r, h), (half / 2.0).tan()),
-        (Point2::new(0.0, h + rise), 0.0),
-    ]))
-}
-
-/// A cylinder of radius `r`, height `h`, then a sphere zone up `deg`
-/// degrees of arc from a non-tangent junction, then a flat top.
-fn zone_vessel(r: f64, h: f64, deg: f64) -> Body<f64> {
-    // A sphere centred on the axis at height h - r/2, through (r, h).
-    let c = h - 0.5 * r;
-    let rho = (r * r + 0.25 * r * r).sqrt();
-    let a0 = (0.5 * r / rho).asin();
-    let a1 = a0 + deg.to_radians();
-    let top = (rho * a1.cos(), c + rho * a1.sin());
-    revolved(bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(r, 0.0), 0.0),
-        (Point2::new(r, h), (deg.to_radians() / 4.0).tan()),
-        (Point2::new(top.0, top.1), 0.0),
-        (Point2::new(0.0, top.1), 0.0),
-    ]))
-}
-
-/// A frustum-capped cylinder: a cone zone from `(r, h)` to `(r2, h + k)`.
-fn frustum_vessel(r: f64, h: f64, r2: f64, k: f64) -> Body<f64> {
-    revolved_about_y(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r, 0.0), 0.0),
-            (Point2::new(r, h), 0.0),
-            (Point2::new(r2, h + k), 0.0),
-            (Point2::new(0.0, h + k), 0.0),
-        ],
-        Revolution::Full,
-        Tol::witness(),
-    )
-}
-
-/// A vessel of revolution: a cylinder of radius `r` and height `h`
-/// capped by a cone of height `k`.
-fn cone_vessel(r: f64, h: f64, k: f64) -> Body<f64> {
-    revolved_about_y(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r, 0.0), 0.0),
-            (Point2::new(r, h), 0.0),
-            (Point2::new(0.0, h + k), 0.0),
-        ],
-        Revolution::Full,
-        Tol::witness(),
-    )
-}
-
-fn chart_of(body: &Body<f64>, kind: geom::SurfaceKind) -> Vec<FaceKey> {
+/// Every face of `body` on a surface of `kind`.
+fn faces_on(body: &Body<f64>, kind: geom::SurfaceKind) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| body.get_surface(f.surface).map(|s| s.kind()) == Some(kind))
+        .filter(|(_, f)| body.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect()
 }
 
-fn dump(body: &Body<f64>, faces: &[FaceKey]) {
-    let pts: std::collections::HashMap<_, _> = body.vertex_points().collect();
-    for &f in faces {
-        let data = body.get_face(f).unwrap();
-        eprintln!(
-            "face {f:?} {:?} sense {} rings {}",
-            body.get_surface(data.surface).map(|s| s.kind()),
-            data.sense,
-            data.rings.len()
-        );
-        for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-            let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
-                eprintln!("  loop {lk:?} lone");
-                continue;
-            };
-            eprintln!("  loop {lk:?}");
-            for he in body.loop_cycle(first).unwrap() {
-                let h = body.get_half_edge(he).unwrap();
-                let p = pts[&h.start];
-                eprintln!(
-                    "    he {he:?} edge {:?} from {:?} ({:.4},{:.4},{:.4})",
-                    h.edge, h.start, p.x, p.y, p.z
-                );
-            }
-        }
-    }
-}
-
-fn probe(what: &str, body: Body<f64>, kind: geom::SurfaceKind, t: f64) {
+fn open(
+    body: &Body<f64>,
+    faces: &[FaceKey],
+    t: f64,
+) -> Result<topo::Shelled<f64>, ShellError<f64>> {
     let tol = Tol::witness();
-    let chart = chart_of(&body, kind);
-    eprintln!("==== {what}: designated {kind:?} chart");
-    dump(&body, &chart);
-    match topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol) {
-        Ok(s) => {
-            eprintln!("built: shells {}", s.body.shells().count());
-            let faces: Vec<FaceKey> = s.body.faces().map(|(k, _)| k).collect();
-            dump(&s.body, &faces);
-        }
-        Err(e) => eprintln!("refused: {e}\n  {e:?}"),
-    }
+    topo::shell_open(&finished("the operand", body.clone(), tol), t, faces, tol)
 }
 
-fn cap(rho: f64, h: f64) -> f64 {
-    core::f64::consts::PI * h * h * (3.0 * rho - h) / 3.0
+/// The volume of a spherical cap of height `h` on a sphere of radius `rho`.
+fn cap_volume(rho: f64, h: f64) -> f64 {
+    PI * h * h * (3.0 * rho - h) / 3.0
 }
 
+/// **A spherical cap opens to a seamed band.** The revolve wears the cap
+/// on two half-faces meeting along two seams at the pole; the cavity's
+/// counterpart, lifted back onto the sphere, is a smaller cap over the
+/// same pole. The rim is the band between the wall's junction and the
+/// cavity's, and it keeps the operand's own faces and seams: both
+/// half-faces survive ring-free, each seam cut short at the cavity's
+/// corner, and the pole is gone. The body is tier-3 valid, meshes, and
+/// its volume is the vessel minus a cavity that runs up to the sphere.
 #[test]
-fn probe_cap_volume() {
+fn a_spherical_cap_opens_to_a_seamed_band() {
     let tol = Tol::witness();
-    let (r, h, deg, t) = (0.5, 0.6, 60.0_f64, 0.05);
-    let body = cap_vessel(r, h, deg);
-    let chart = chart_of(&body, geom::SurfaceKind::Sphere);
-    let s = topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol).unwrap();
-    let half = (deg / 2.0).to_radians();
-    let rho = r / (2.0 * half).sin();
-    let rise = rho * (1.0 - (2.0 * half).cos());
-    let cy = h + rise - rho;
+    let (r, h, t) = (0.5, 0.6, 0.05);
+    let (body, rho, centre) = capped_vessel(r, h, 60.0);
+    let cap = faces_on(&body, geom::SurfaceKind::Sphere);
+    assert_eq!(cap.len(), 2, "the revolve wears the cap on two half-faces");
+    let shelled = open(&body, &cap, t).expect("the cap opens");
+    let cup = &shelled.body;
+
+    assert_eq!(topo::validate_geometric(cup, tol), Ok(()), "tier 3");
+    assert_eq!(cup.shells().count(), 1, "the rim fuses the cavity in");
+    assert_eq!(
+        (rings_of(cup), genus_of(cup)),
+        (0, 0),
+        "a seamed band carries no ring, and a cup is genus 0"
+    );
+    let band = faces_on(cup, geom::SurfaceKind::Sphere);
+    assert_eq!(
+        band, cap,
+        "both half-faces survive as the band, under their keys"
+    );
+    let rim = &shelled.naming.rims[0];
+    assert_eq!(
+        rim.rim, cap[0],
+        "the record's rim face is the first designated"
+    );
+    assert!(
+        shelled.naming.dead.loops.contains(&rim.ring),
+        "the glue's ring is absorbed into the band's outer loop"
+    );
+    // The pole is the one vertex both seams reached in the operand.
+    let pole = body
+        .vertex_points()
+        .find(|(_, p)| p.x.abs() < 1e-12 && p.z.abs() < 1e-12 && p.y > h)
+        .map(|(k, _)| k)
+        .expect("the operand's pole");
+    assert!(cup.get_vertex(pole).is_none(), "the pole dies");
+    assert!(shelled.naming.dead.vertices.contains(&pole));
+
     let a = r - t;
-    let ya = cy + (rho * rho - a * a).sqrt();
-    let outer = core::f64::consts::PI * r * r * h + cap(rho, rise);
-    let cavity =
-        core::f64::consts::PI * a * a * (ya - t) + cap(rho, rho - (rho * rho - a * a).sqrt());
-    let props = topo::mass_properties(&s.body, tol).unwrap();
-    eprintln!(
-        "volume {} pad {} want {}",
+    let outer = PI * r * r * h + cap_volume(rho, rho - (rho * rho - r * r).sqrt());
+    let reach = (rho * rho - a * a).sqrt();
+    let cavity = PI * a * a * (centre + reach - t) + cap_volume(rho, rho - reach);
+    let props = topo::mass_properties(cup, tol).expect("the band's props");
+    assert!(
+        (props.volume - (outer - cavity)).abs() <= 1e-12 + props.volume_pad,
+        "cup volume: got {} (pad {}), want {}",
         props.volume,
         props.volume_pad,
         outer - cavity
     );
-    for d in [1e-2, 1e-3] {
-        match mesh::tessellate(&s.body, d, tol) {
-            Ok(_) => eprintln!("mesh {d}: ok"),
-            Err(e) => eprintln!("mesh {d}: {e:?}"),
-        }
+    for delta in [1e-2, 1e-3] {
+        mesh::tessellate(cup, delta, tol)
+            .unwrap_or_else(|e| panic!("the band must triangulate at delta = {delta}, got {e:?}"));
     }
-    eprintln!("rims {:?}", s.naming.rims);
 }
 
+/// **A cap that bulges past its equator does not open**: the cavity's
+/// narrower wall meets the sphere BELOW the junction with the vessel's
+/// own wall, so the region between the two is not a band of the
+/// designated face at all. Refused naming the shape, before any write.
 #[test]
-fn probe_curved_mouths() {
-    probe(
-        "cap60",
-        cap_vessel(0.5, 0.6, 60.0),
-        geom::SurfaceKind::Sphere,
-        0.05,
+fn a_bulging_cap_whose_cavity_meets_the_sphere_below_the_wall_refuses_typed() {
+    let (body, _, _) = capped_vessel(0.5, 0.6, 120.0);
+    let cap = faces_on(&body, geom::SurfaceKind::Sphere);
+    match open(&body, &cap, 0.05) {
+        Err(ShellError::OpenFaceRimNotExpressible { face, .. }) => assert_eq!(face, cap[0]),
+        other => panic!("expected the rim's shape refusal, got {other:?}"),
+    }
+}
+
+/// **A window on a half-cylinder is a ring, and the mesh is what cannot
+/// read it.** The D-section's curved face does not wrap, so the cavity's
+/// counterpart is glued on as a ring, exactly as on a plane. Tier 3
+/// passes — props reads a cylinder wall bounded by rims and rulings —
+/// and the volume is the closed form; the tessellator refuses the
+/// ringed wall (TESS's `a-notched-or-ringed-cylinder-wall-does-not-tessellate`).
+#[test]
+fn a_d_section_window_opens_to_a_ring_and_the_mesh_refuses_it() {
+    let tol = Tol::witness();
+    let (r, h, t) = (0.5, 0.8, 0.05);
+    let body = d_section(r, h);
+    let wall = faces_on(&body, geom::SurfaceKind::Cylinder);
+    assert_eq!(wall.len(), 1, "the half-cylinder is one face");
+    let shelled = open(&body, &wall, t).expect("the window opens");
+    let cut = &shelled.body;
+    assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "tier 3");
+    assert_eq!(cut.shells().count(), 1, "the rim fuses the cavity in");
+    let rim = cut.get_face(wall[0]).expect("the designated face survives");
+    assert_eq!(rim.rings, vec![shelled.naming.rims[0].ring], "one ring");
+
+    let segment = r * r * (t / r).acos() - t * (r * r - t * t).sqrt();
+    let want = PI * r * r / 2.0 * h - segment * (h - 2.0 * t);
+    let props = topo::mass_properties(cut, tol).expect("a ringed cylinder wall's props");
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "volume: got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
     );
-    probe(
-        "zone",
-        zone_vessel(0.5, 0.6, 30.0),
-        geom::SurfaceKind::Sphere,
-        0.05,
+    assert!(
+        mesh::tessellate(cut, 1e-2, tol).is_err(),
+        "the tessellator reads no ringed cylinder wall yet"
     );
-    probe(
-        "frustum",
-        frustum_vessel(0.5, 0.6, 0.3, 0.3),
-        geom::SurfaceKind::Cone,
-        0.05,
-    );
+}
+
+/// **A window on a sphere refuses at tier 3's check 7**, which has no
+/// volume reading for a ringed sphere face. The shell op builds it and
+/// discards it at its own closing validation, as the boolean does.
+#[test]
+fn a_sphere_window_refuses_at_check_7() {
+    let body = dome_sector(1.0, 120.0);
+    let zone = faces_on(&body, geom::SurfaceKind::Sphere);
+    assert_eq!(zone.len(), 1, "the sector's sphere face is one window");
+    match open(&body, &zone, 0.05) {
+        Err(ShellError::NotValid { errors }) => assert!(
+            matches!(
+                errors[..],
+                [topo::ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::RingOnCurvedFace { face },
+                    ..
+                }] if face == zone[0]
+            ),
+            "got {errors:?}"
+        ),
+        other => panic!("expected check 7's refusal, got {other:?}"),
+    }
+}
+
+/// **A cone tip and a tangent dome refuse before the rim stage**: the
+/// sealed hollow of each refuses at the cavity's own offset door — a
+/// cone face that reaches its apex has no nappe to turn a distance by,
+/// and a hemisphere tangent to its wall meets the cavity's wall at a
+/// double corner — and opening either refuses identically, so neither
+/// refusal is the mouth's.
+#[test]
+fn a_cone_tip_and_a_tangent_dome_refuse_in_the_sealed_arm() {
+    let tol = Tol::witness();
+    for (what, body, kind) in [
+        (
+            "the cone tip",
+            cone_tipped_vessel(0.5, 0.6, 0.4),
+            geom::SurfaceKind::Cone,
+        ),
+        (
+            "the tangent dome",
+            domed_vessel(0.5, 0.6),
+            geom::SurfaceKind::Sphere,
+        ),
+    ] {
+        let sealed = topo::shell(&finished("the operand", body.clone(), tol), 0.05, tol)
+            .expect_err("the sealed hollow refuses");
+        let opened = open(&body, &faces_on(&body, kind), 0.05).expect_err("so does the open one");
+        let door = |e: &ShellError<f64>| match e {
+            ShellError::Face { error, .. } => format!("{error:?}"),
+            other => panic!("{what}: expected the cavity door's refusal, got {other:?}"),
+        };
+        assert_eq!(
+            door(&sealed),
+            door(&opened),
+            "{what}: one refusal, sealed or open"
+        );
+        assert!(
+            matches!(
+                (&sealed, what),
+                (ShellError::Face { error, .. }, "the cone tip")
+                    if matches!(**error, topo::ReplaceFaceError::NappeStraddles { .. })
+            ) || matches!(
+                (&sealed, what),
+                (ShellError::Face { error, .. }, "the tangent dome")
+                    if matches!(**error, topo::ReplaceFaceError::TogetherAxialCorner { .. })
+            ),
+            "{what}: got {sealed:?}"
+        );
+    }
+}
+
+/// **A curved designation meets the same connectivity gates as a
+/// plane**: the vessel's whole side wall leaves its two caps apart.
+#[test]
+fn a_whole_side_wall_disconnects_the_caps() {
+    let body = vessel(1.0, 2.0);
+    let wall = faces_on(&body, geom::SurfaceKind::Cylinder);
+    match open(&body, &wall, 0.2) {
+        Err(ShellError::OpenFacesDisconnect { components: 2, .. }) => {}
+        other => panic!("expected the disconnect gate, got {other:?}"),
+    }
 }

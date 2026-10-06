@@ -1,8 +1,9 @@
 //! **The `shell` verb's operands** and the two role readers a shell row
 //! runs over them: the vessel and the tube (a rectangular and an
 //! annular meridian, each revolved a full turn), the hollow box, the
-//! two-void box, and the readers that name a body's shells by the role
-//! the classifier decides.
+//! two-void box, the curved-mouth operands (a vessel under a spherical
+//! cap, a hemisphere or a cone; the D-section; a dome sector), and the
+//! readers that name a body's shells by the role the classifier decides.
 //!
 //! A shell row and its review twin are about THE SAME BODY only while
 //! both build it here ([`super::cavity`]'s rule): a fixture that moves
@@ -28,9 +29,11 @@
 //!   derived without the kernel and so is
 //!   [`super::oracles::box_volume`].
 
-use geom_core::Tol;
-use sweep::Revolution;
+use geom_core::{Point2, Tol, Vec2};
+use profile::test_support::bulge_loop;
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::{block, brick, corners, revolved_about_y};
+use sweep::{ExtrudeSide, Extrusion, Revolution, RevolveAxis};
 use topo::{Body, ShellKey, ShellRole, SolidKey};
 
 use super::cavity::cut;
@@ -53,6 +56,98 @@ pub fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     revolved_about_y(
         corners(&[(ri, 0.0), (ro, 0.0), (ro, h), (ri, h)]),
         Revolution::Full,
+        Tol::witness(),
+    )
+}
+
+/// `lp` revolved a full turn about the `y` axis.
+fn revolved_full(lp: ProfileLoop<f64>) -> Body<f64> {
+    let tol = Tol::witness();
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .expect("the meridian validates");
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    sweep::revolve(&profile, axis, Revolution::Full, tol)
+        .expect("the meridian revolves")
+        .body
+}
+
+/// **The capped vessel**: a cylinder of radius `r` and height `h`
+/// under a spherical cap whose meridian arc runs `deg` degrees from
+/// the wall to the pole, so the sphere has radius `r / sin(deg)` and
+/// meets the wall at an angle (a cap of `deg < 90` sits above its
+/// equator; one of `deg > 90` bulges past it). Returns the body and
+/// the sphere's radius and centre height.
+pub fn capped_vessel(r: f64, h: f64, deg: f64) -> (Body<f64>, f64, f64) {
+    let polar = deg.to_radians();
+    let rho = r / polar.sin();
+    let rise = rho * (1.0 - polar.cos());
+    let body = revolved_full(bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), (polar / 4.0).tan()),
+        (Point2::new(0.0, h + rise), 0.0),
+    ]));
+    (body, rho, h + rise - rho)
+}
+
+/// **The domed vessel**: a cylinder of radius `r` and height `h` under
+/// a hemisphere of the same radius, tangent to the wall at the equator.
+pub fn domed_vessel(r: f64, h: f64) -> Body<f64> {
+    revolved_full(
+        bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(r, h), core::f64::consts::FRAC_PI_8.tan()),
+            (Point2::new(0.0, h + r), 0.0),
+        ])
+        .with_tangent_joints(vec![2]),
+    )
+}
+
+/// **The cone-tipped vessel**: a cylinder of radius `r` and height `h`
+/// under a cone of height `k` whose apex is on the axis.
+pub fn cone_tipped_vessel(r: f64, h: f64, k: f64) -> Body<f64> {
+    revolved_about_y(
+        corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h + k)]),
+        Revolution::Full,
+        Tol::witness(),
+    )
+}
+
+/// **The D-section**: the half disc of radius `r` on `x ≥ 0` extruded
+/// `h` along `z` — one half-cylinder face, its flat, and two ends.
+pub fn d_section(r: f64, h: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let d = bulge_loop(vec![
+        (Point2::new(0.0, -r), 0.0),
+        (Point2::new(0.0, r), 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![d])
+        .validate(tol)
+        .expect("the half disc validates");
+    sweep::extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the half disc extrudes")
+    .body
+}
+
+/// **The dome sector**: [`sweep::test_support::dome`]'s bored zone
+/// revolved `deg` degrees, so its sphere face is a window bounded by
+/// two latitudes and two meridians, and touches no pole.
+pub fn dome_sector(r: f64, deg: f64) -> Body<f64> {
+    revolved_about_y(
+        sweep::test_support::dome_profile(r),
+        Revolution::Partial(deg.to_radians()),
         Tol::witness(),
     )
 }

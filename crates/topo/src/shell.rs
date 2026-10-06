@@ -2159,32 +2159,59 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     };
     let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
     let (p_pole, p_ga, p_gb) = (point(body, pole), point(body, ga), point(body, gb));
+    // Each corner the seams will end on lies on its seam strictly
+    // between the boundary and the pole: the band between the boundary
+    // and the ring is then the designated face's own, and not a stretch
+    // of its surface past the boundary (a junction the cavity's wall
+    // meets below the designated face's own).
+    for (seam, boundary, corner) in [(ea, ba, p_ga), (eb, bb, p_gb)] {
+        let reach = along(body, seam, point(body, boundary), p_pole, host_surface, band, designated)?;
+        let (s0, s1) = (reach.param_start, reach.param_end);
+        let scale = (p_pole - point(body, boundary)).norm() / (s1 - s0);
+        let inside = reach
+            .carrier
+            .param_near(corner, (s0 + s1) / T::from_f64(2.0))
+            .is_some_and(|s| {
+                [s - s0, s1 - s].into_iter().all(|gap| {
+                    matches!(
+                        decide("shell_seam_corner_inside", Margin::of(gap * scale), band),
+                        Ok(Sign::Positive)
+                    )
+                })
+            });
+        if !inside {
+            return Err(not_expressible(
+                "the cavity counterpart's corner does not lie on the designated chart's seam \
+                 between its boundary and the pole, so the rim is not a band of the \
+                 designated face",
+            ));
+        }
+    }
 
-    // Two seams: the second is cut at a station between the pole and
-    // its ring vertex, so the piece that reaches the pole can die with it.
+    // Two seams: the second leaves the pole for a copy of it (a null
+    // edge), so the pole can be collapsed onto one ring vertex and the
+    // copy onto the other.
     let second = if seams.len() == 2 {
-        let reach = along(body, eb, p_pole, p_gb, host_surface, band, designated)?;
-        let station = (reach.param_start + reach.param_end) / T::from_f64(2.0);
-        let data = proven(&body.edges, eb, EntityId::Edge);
-        let Some(curve) = body.edge_curve_linked(eb, data).certified() else {
-            unreachable!("{eb:?} is a seam of a finished wall, which has no null edge")
-        };
-        let Some(t) = curve
-            .carrier()
-            .param_near(reach.carrier.eval(station), curve.params().0)
-        else {
-            unreachable!("{eb:?}'s carrier answered the stretch it is cut inside")
-        };
-        let cut = body.split_edge(eb, t, tol).map_err(rim_error)?;
-        Some(cut.vertex)
+        let made = body
+            .mev_null(
+                crate::euler::MevSite::Fan {
+                    he1: out_of,
+                    he2: {
+                        let data = proven(&body.edges, ea, EntityId::Edge);
+                        if data.he_plus == into {
+                            data.he_minus
+                        } else {
+                            data.he_plus
+                        }
+                    },
+                },
+                crate::null::NewVertexSide::Above,
+            )
+            .map_err(rim_error)?;
+        Some((made.vertex, made.he_plus))
     } else {
         None
     };
-    // The host face's half-edge leaving the pole, as the cut left it.
-    let off_pole = cycle_of(body, proven(&body.faces, host, EntityId::Face).outer)
-        .into_iter()
-        .find(|&he| at(body, he) == pole && edge_of(body, he) != ea)
-        .unwrap_or(out_of);
 
     // The glue: the guest's boundary becomes a ring of the host face.
     let fused = body.kfmrh(host, guest).map_err(rim_error)?;
@@ -2234,17 +2261,14 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             dead.loops.push(made.killed_ring);
             collapse(body, made.he_plus, made.he_minus, pole)
         }
-        Some(station) => {
-            let p_station = point(body, station);
-            let leaving_station = proven(&body.half_edges, off_pole, EntityId::HalfEdge).next;
-            let lower = edge_of(body, leaving_station);
+        Some((station, off_pole)) => {
             let joined = body
                 .mekr(
                     crate::euler_ring::MekrSite::Cycles {
-                        target: leaving_station,
+                        target: out_of,
                         ring: rb,
                     },
-                    along(body, lower, p_station, p_gb, host_surface, band, designated)?,
+                    along(body, eb, p_pole, p_gb, host_surface, band, designated)?,
                     tol,
                 )
                 .map_err(rim_error)?;
@@ -2265,8 +2289,8 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             body.kef(off_pole).map_err(rim_error)?;
             let to_station = collapse(body, joined.he_plus, joined.he_minus, station);
             let to_pole = collapse(body, split.he_plus, split.he_minus, pole);
-            let moved = re_anchored(body, lower, station, p_gb, designated)?;
-            body.kev_describing(to_station, &[(lower, moved)], tol)
+            let moved = re_anchored(body, eb, station, p_gb, designated)?;
+            body.kev_describing(to_station, &[(eb, moved)], tol)
                 .map_err(rim_error)?;
             to_pole
         }
