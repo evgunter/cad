@@ -104,6 +104,14 @@ pub(crate) struct Study {
 /// pad +4 at every row; annulus and bracket unmoved. `registered` and
 /// the verdicts are unmoved.
 ///
+/// **`Body::set_edge_curve` measures whether a description moves the
+/// edge's carrier or interval** (`description_moves_carrier`, five
+/// distance readings per certified edge it re-describes), and none
+/// fell. `symbolic_zero`: plate 1103 → 1223, annulus 588 → 648, link
+/// 824 → 906, bracket 1401 → 1560, pad 1340 → 1481, at every row.
+/// `registered`: link 52 → 60, bracket 49 → 53, pad 54 → 62. The
+/// verdicts are unmoved.
+///
 /// The scales are M10-9's brackets (the link's lowered to its new
 /// ceiling), and all five certify whole at them. The bracket and the pad
 /// refused at the extrude's `pcurve_envelope` until the constructions
@@ -127,7 +135,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
             // constants A0 now decides exactly. `registered` unmoved.
-            symbolic_zero: [1103, 1103, 1103],
+            symbolic_zero: [1223, 1223, 1223],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -143,7 +151,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // rests on that factor alone): eight decisions the read
             // answered as `sign_gated` are theorems, `registered` and
             // `numeric` unmoved.
-            symbolic_zero: [588, 588, 588],
+            symbolic_zero: [648, 648, 648],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -176,8 +184,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // not hold, so the rim identity the arc registers sits
             // inside a frozen compound and the mapped-source residual is
             // read numerically; it leaves the band first at 3.030e2·ε.
-            registered: 52,
-            symbolic_zero: [824, 824, 824],
+            registered: 60,
+            symbolic_zero: [906, 906, 906],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -202,7 +210,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // fillet's tangency is the registration
             // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
             // centre's algebra.
-            registered: 49,
+            registered: 53,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
@@ -229,7 +237,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 1283/156 here (and 156/162 there): the move is the order
             // alone. How much the tier reaches depends on symbol order;
             // the orchestrator files that.
-            symbolic_zero: [1401, 1401, 1401],
+            symbolic_zero: [1560, 1560, 1560],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -316,14 +324,14 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // certifies whole here, its ceiling 2.7783e3·ε (bounded by
             // `line_span`), and reads 54 registered / 1340 theorems /
             // 2 gated / 1272 numeric at every ε.
-            registered: 54,
+            registered: 62,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them. Every row
             // is up 36: 32 since DECIDE-9, the `dihedral_wedge` margins
             // the note on `registered` names, and 4 since check 5
             // decides only an escape's positive part (the note above).
-            symbolic_zero: [1340, 1340, 1340],
+            symbolic_zero: [1481, 1481, 1481],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
