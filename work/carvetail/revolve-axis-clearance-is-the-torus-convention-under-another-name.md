@@ -4,6 +4,8 @@ kind: issue
 title: carve: revolve's axis_arc_clearance decides the ring-torus convention R - r under its own name, ending 'not supported' when definite and the declare menu in band
 status: open
 opened: 2026-09-30
+priority: P1
+cost: M
 ---
 
 
