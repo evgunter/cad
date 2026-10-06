@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [swept-cocircular-arc-runs-build-one-wall, sweeps-build-one-rim-edge-per-segment-not-per-run, sphere-wedge-arm-does-not-fold-split-meridians-by-lineage]
 closed: 2026-10-06
+pr: 4200
 ---
 
 

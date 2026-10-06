@@ -4,6 +4,7 @@ kind: issue
 title: Sweeps build one rim edge per profile segment, not per collinear or cocircular run: extrude mints a station vertex on both cap rims, a partial revolve one wall per arc
 status: review
 branch: fuse/sweep-runs
+pr: 4200
 opened: 2026-10-06
 priority: P1
 cost: M
