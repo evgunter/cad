@@ -3004,3 +3004,91 @@ mod creation_nouns {
         assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
     }
 }
+
+/// **The face-frame form's held face across a selection that moved
+/// on** ([`ViewerBehavior::datum_face_frame_rows`]'s pick, and
+/// `Drafts::respeak` after each op).
+#[cfg(test)]
+mod datum_face_said {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use pncad::document::{Label, Speaker};
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+
+    use crate::drafts::Drafts;
+    use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
+
+    /// **The face-frame form keeps its face's nodes past the
+    /// selection**: once the selection moves on, the form still says
+    /// its face's minting node by the last label it had, after a rename
+    /// and a delete, where the selection's snapshot no longer names it.
+    #[test]
+    fn a_held_datum_face_says_its_deleted_node_by_its_last_label() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, boss) = crate::test_support::boss_on_block("datum-face-said", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let face = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: block,
+            body: 0,
+        };
+        let mut session = DocSession::inline(doc, tol);
+        let mut drafts = Drafts::default();
+        let perform = |session: &mut DocSession, drafts: &mut Drafts, op| {
+            let outcome = session.perform(op);
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            drafts.respeak(session.doc());
+        };
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("base").expect("a label")),
+            },
+        );
+        session.pump();
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::Select(Selection::Face(face.clone())),
+        );
+        drafts.hold_datum_face(face, session.selection_said());
+        perform(
+            &mut session,
+            &mut drafts,
+            SessionOp::Select(Selection::Node(boss)),
+        );
+        for op in [
+            SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("plinth").expect("a label")),
+            },
+            SessionOp::DeleteNode { node: block },
+        ] {
+            perform(&mut session, &mut drafts, op);
+        }
+        session.pump();
+        let (landed, _) = session.landed_pair().expect("the delete landed");
+        assert!(
+            landed.node(block).is_none(),
+            "the landed run lost the block"
+        );
+        let said = |kept| Speaker::of(landed).or_held(kept).node(block).to_string();
+        assert_eq!(
+            said(drafts.datum_face_said()),
+            format!("Extrude \"plinth\" ({t})"),
+            "the form says the held face's node by its last label"
+        );
+        assert_eq!(
+            said(session.selection_said()),
+            format!("node {t}"),
+            "the selection moved on, so its snapshot does not name the block"
+        );
+    }
+}
