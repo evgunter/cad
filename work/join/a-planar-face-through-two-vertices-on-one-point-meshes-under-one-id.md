@@ -110,3 +110,24 @@ Pinned by:
 With the wedge read disabled (every triangle keeps the handle's first
 id), all 15 sweep rows panic at the census and both unit rows go red.
 With only the trimmed lane's read disabled, the cylinder row panics.
+
+**Review fix pass** (single FULL review, APPROVE-WITH-FIXES, MAJOR 0;
+probes on `join/planar-pinch-mesh-review`):
+- **Corners are keyed per pass**, with ordered `(out, arrive)` sides
+  (`planar::Walk`, `planar::Pinches`). A face holding two corners of
+  one vertex beside a third vertex's corner (ids 2, 2, 8) meshes; keyed
+  by id, it used to refuse.
+- **The orientation follows the chart's `flip`.**
+- **`PinchWedge` says what it detects:** a sector at the point whose two
+  sides belong to no single pass. That is a crossing, or a ring touching
+  its face's outer loop there, which refuses typed (check 9 is the
+  at-rest refusal of two loops meeting).
+- **The curved lane refuses typed** where a CDT handle receives a second
+  distinct id. That reaches
+  `work/tess/two-coincident-edges-open-two-columns-that-are-one.md`'s
+  body, which now refuses rather than panic.
+- **The sweep rows also assert** that the mesh's volume equals the
+  body's on the 14 planar bodies.
+
+The reviewer's chart probes are committed as rows in
+`mesh/src/planar_pinch_rows.rs`.

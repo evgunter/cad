@@ -211,7 +211,8 @@ pub enum TessellateError {
     /// belong to two different passes, as where the boundary crosses
     /// itself at the point or a ring touches its face's outer loop
     /// there. The curved lane meshes only a walk that is its own UV box,
-    /// and refuses a point any two vertices reach.
+    /// and refuses any point two mesh ids reach (two vertices, or the
+    /// chord points of two coincident edges).
     PinchWedge {
         /// The face whose boundary meets the point.
         face: FaceKey,

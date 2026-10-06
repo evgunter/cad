@@ -307,8 +307,8 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             0.05,
         ),
         // On a cylinder's wall: the trimmed lane. It meshes at δ = 1,
-        // 0.5 and 0.2, and refuses `CertificateExceeded` at δ ≤ 0.3, as
-        // the same walls without a pinch do.
+        // 0.5 and 0.2, and refuses `CertificateExceeded` at 0.3, 0.1 and
+        // 0.05, as the same walls without a pinch do.
         (
             "Lbot cyl fib4 psi=0.9 seam cp S",
             LBOT,
