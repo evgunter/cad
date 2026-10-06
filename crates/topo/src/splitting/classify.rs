@@ -425,7 +425,8 @@ impl ConicRootFault {
 /// 1. `split_conic_belly_graze` — margin `R − |D|` (meters): Negative
 ///    ⇒ the carrier never meets the split plane — no crossing;
 ///    Positive ⇒ two distinct roots `φ ± acos(−D/R)`; Zero ⇒ the
-///    plane grazes the carrier's extremum — ONE (double) root, whose
+///    plane grazes the carrier's extremum — ONE (double) root, `φ` or
+///    `φ + π` as `split_conic_graze_side` decides D's sign, whose
 ///    insertion (if in-span) leaves a same-side ON contact for the
 ///    sector classification (the established graze net); in-band ⇒
 ///    typed escalation (F6).
@@ -535,12 +536,34 @@ fn conic_plane_meet<T: Decide>(
         Ok(Sign::Negative) => (T::zero() - b).atan2(T::zero() - a) + T::pi(),
         Ok(Sign::Positive | Sign::Zero) | Err(_) => b.atan2(a),
     };
-    // Clamped acos (rounding can push the ratio a hair outside ±1 at
-    // the graze boundary; min/max are Real lattice ops).
-    let arg = ((T::zero() - d0) / r)
-        .min(T::one())
-        .max(T::zero() - T::one());
-    let delta = arg.acos();
+    // A graze's one root is the sinusoid's extremum nearest the plane:
+    // φ with the centre below the plane (D < 0), φ + π with it above. The
+    // residue's own roots lie up to √(2ε/R) radians either side, far
+    // outside ε.
+    let candidates: [Option<T>; 2] = if both_roots {
+        // The roots solve cos(θ − φ) = −D/R. Clamped acos (rounding can
+        // push the ratio a hair outside ±1; min/max are Real lattice ops).
+        let delta = ((T::zero() - d0) / r)
+            .min(T::one())
+            .max(T::zero() - T::one())
+            .acos();
+        [Some(phi + delta), Some(phi - delta)]
+    } else {
+        let graze_side = |diag| ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)));
+        match decide("split_conic_graze_side", Margin::of(d0), band) {
+            Ok(Sign::Negative) => [Some(phi), None],
+            Ok(Sign::Positive) => [Some(phi + T::pi()), None],
+            // |D| is within ε of R ≥ Kε, so it reads Zero only when
+            // K ≤ 2 and the conic's reach is itself inside the band.
+            Ok(Sign::Zero) => {
+                return graze_side(crate::invalid_margin::invalid(
+                    band,
+                    "split_conic_graze_side",
+                ));
+            }
+            Err(diag) => return graze_side(diag),
+        }
+    };
     let tau = T::tau();
     // The conservative meter (radians → meters): the smaller semi-axis
     // MAGNITUDE (the stored semi-axes carry no order, `geom_brep::Conic`;
@@ -550,11 +573,6 @@ fn conic_plane_meet<T: Decide>(
     // clear of it in metres.
     let meter = geom_core::InfSpeed::new(s_u.abs().min(s_v.abs()));
     let mut roots: Vec<T> = Vec::with_capacity(2);
-    let candidates: [Option<T>; 2] = if both_roots {
-        [Some(phi + delta), Some(phi - delta)]
-    } else {
-        [Some(phi + delta), None]
-    };
     let half = T::from_f64(0.5);
     let mid = (t0 + t1) * half;
     // Per-candidate interiority under TWO reduction anchors (M5 S13).
@@ -661,9 +679,10 @@ fn conic_plane_meet<T: Decide>(
 ///
 /// Both crossing lanes are certified by `split_edge` itself (the
 /// `split_edge_param_interior` trilean + full child re-certification —
-/// the honest lane the raw book formula lacks). New vertices are ON
-/// **by construction** (declared coincidence): their verdicts are
-/// cached without re-measuring.
+/// the honest lane the raw book formula lacks). New vertices are ON by
+/// the decision that placed them: a crossing root lies on the plane, and
+/// a graze root within ε of it by `split_conic_belly_graze`'s Zero.
+/// Their verdicts are cached without re-measuring.
 pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     plane: &SplitPlane<T>,
@@ -866,10 +885,11 @@ mod tests {
     }
 
     /// `split_conic_belly_graze`, all three arms: definitely-secant
-    /// (two roots), definitely-missing (no roots), exactly-tangent
+    /// (two roots), definitely-missing (no roots), tangent within ε
     /// (one graze root), and in-band (typed escalation).
     #[test]
     fn belly_graze_trio() {
+        use core::f64::consts::FRAC_PI_2;
         let c = circle();
         // Secant (margin R − |D| = 1, definite): the two roots of
         // sin θ = 0.5 land in the span, ascending.
@@ -882,14 +902,56 @@ mod tests {
             on_split_plane(&c, 0.1, 6.0, &plane_y(2.0), band()),
             PlaneCrossingLane::Conic(ConicPlaneMeet::Miss)
         ));
-        // Exactly tangent (margin 0): ONE graze root at π/2.
-        let roots = roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(1.0), band())).unwrap();
-        assert_eq!(roots.len(), 1);
-        assert!((roots[0] - core::f64::consts::FRAC_PI_2).abs() < 1e-4);
+        // Tangent within ε, either side (margin 0, ±ε/2), above the
+        // centre and below it: ONE graze root, at the extremum. Inside,
+        // the residue's own roots lie √(2·5e-10) ≈ 3.2e-5 either side.
+        for (c0, want) in [(1.0, FRAC_PI_2), (-1.0, 3.0 * FRAC_PI_2)] {
+            for y in [c0, c0 - 5e-10, c0 + 5e-10] {
+                let roots = roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(y), band())).unwrap();
+                assert_eq!(roots.len(), 1, "y = {y}: one graze root");
+                assert!(
+                    (roots[0] - want).abs() < 1e-12,
+                    "y = {y}: the graze root {} sits at the extremum {want}",
+                    roots[0]
+                );
+            }
+        }
         // In-band (margin −3ε): typed escalation, named.
         let diag =
             roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(1.0 + 3e-9), band())).unwrap_err();
         assert_eq!(diag.predicate, Some("split_conic_belly_graze"));
+    }
+
+    /// Under `Interval` the graze root is the extremum to the phase's
+    /// own width, with no acos of a ratio at ±1 widening it.
+    #[test]
+    fn an_interval_graze_root_is_as_tight_as_its_phase() {
+        use geom_core::{Bounds, Interval, Real};
+        let ex = Interval::from_f64;
+        let c = Curve3::Circle {
+            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            radius: ex(1.0),
+            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        };
+        for y in [1.0, 1.0 - 5e-10] {
+            let plane = crate::test_support::split_plane(
+                Point3::new(ex(0.0), ex(y), ex(0.0)),
+                Vec3::new(ex(0.0), ex(1.0), ex(0.0)),
+                geom_core::Tol::witness(),
+            );
+            let roots = roots_of(on_split_plane(&c, ex(0.1), ex(6.0), &plane, band())).unwrap();
+            assert_eq!(roots.len(), 1, "y = {y}: one graze root");
+            let r = roots[0];
+            assert!(
+                r.lo() <= core::f64::consts::FRAC_PI_2
+                    && core::f64::consts::FRAC_PI_2 <= r.hi()
+                    && r.hi() - r.lo() <= 1e-14,
+                "y = {y}: the graze root [{}, {}] encloses π/2 tightly",
+                r.lo(),
+                r.hi()
+            );
+        }
     }
 
     /// `split_conic_crossing_root`, all three arms: definitely

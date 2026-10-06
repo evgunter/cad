@@ -2,12 +2,13 @@
 id: a-dip-inside-a-rest-contact-is-refused-by-the-result-gate
 kind: issue
 title: An edge-in-face contact beside a declared Rest contact has no section segment, so the REST zip admits it (a dip inside the contact reaches the result gate; a line kiss beside it ships failing tier 3′)
-status: open
+status: parked
 opened: 2026-10-06
 priority: P3
 cost: M
 design: true
 refs: [a-flush-declared-reflex-union-ships-the-wrong-volume]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -114,3 +115,7 @@ added only declines more than main did.
 Which is right depends on whether the zip should read the
 classification at all; its module doc says it consumes the reduction's
 records and pairs no germs itself.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.

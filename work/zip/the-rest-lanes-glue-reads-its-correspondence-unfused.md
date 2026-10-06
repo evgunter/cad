@@ -2,10 +2,11 @@
 id: the-rest-lanes-glue-reads-its-correspondence-unfused
 kind: issue
 title: The REST lane's glue loop reads its vertex correspondence without the earlier glues' fusions
-status: open
+status: parked
 opened: 2026-10-05
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -42,3 +43,7 @@ two cycles already share, where `zip_folded` names one
 Re-read `vmap` through each glue's fusions, and give `zip_seam` the
 shared-vertex case (or a typed frontier for it), with a two-patch row
 that shares one vertex between its pairs.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.

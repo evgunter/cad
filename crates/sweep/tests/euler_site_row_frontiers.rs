@@ -397,3 +397,61 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
     }
     assert_eq!((rims, seams), (8, 4), "every rim and every seam is a case");
 }
+
+/// **A re-parameterization of a certified edge leaves its spline wall
+/// as found.** On the lofted prism, every edge with a half on a minted
+/// wall — each rim and each vertical seam — is re-described by the line
+/// between its ends, its parameter shifted by one: the same points,
+/// another interval. `set_edge_curve` re-mints the faces of a certified
+/// edge it describes, but the site mint derives a spline chart's
+/// rows only through the fitted lane it does not carry, so the wall is
+/// left for tier 3: the door returns `Ok` rather than refusing
+/// `SplineChart`, and no image a spline wall stores moves.
+#[test]
+fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
+    let base = lofted_prism();
+    let on_spline = |b: &Body<f64>, h: HalfEdgeKey| {
+        let lk = b.get_half_edge(h).unwrap().parent_loop;
+        let f = b.get_face(b.get_loop(lk).unwrap().face).unwrap();
+        b.get_surface(f.surface).unwrap().spline_chart().is_some()
+    };
+    let wall_images = |b: &Body<f64>| {
+        format!(
+            "{:?}",
+            b.pcurves()
+                .filter(|(h, _)| on_spline(b, *h))
+                .collect::<Vec<_>>()
+        )
+    };
+    let mut cases = 0;
+    for (edge, e) in base.edges() {
+        if !(on_spline(&base, e.he_plus) || on_spline(&base, e.he_minus)) {
+            continue;
+        }
+        cases += 1;
+        let mut body = base.clone();
+        let (p0, p1) = (
+            start_point(&body, e.he_plus),
+            start_point(&body, e.he_minus),
+        );
+        let mut spec = EdgeCurveSpec::line_between(p0, p1);
+        let Curve3::Line { origin, dir } = spec.carrier else {
+            unreachable!("line_between builds a line")
+        };
+        spec.carrier = Curve3::Line {
+            origin: origin - dir,
+            dir,
+        };
+        spec.param_start += 1.0;
+        spec.param_end += 1.0;
+        let before = wall_images(&body);
+        body.set_edge_curve(edge, spec, tol())
+            .unwrap_or_else(|e| panic!("{edge:?}: the description refused {e:?}"));
+        assert_eq!(
+            wall_images(&body),
+            before,
+            "{edge:?}: no image a spline wall stores moves"
+        );
+    }
+    assert_eq!(cases, 12, "every rim and every seam is a case");
+}

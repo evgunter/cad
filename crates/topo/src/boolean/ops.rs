@@ -138,7 +138,7 @@ use super::shell_witness::{
 };
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
-use super::zip::{SeamCorrespondence, survivor, survivor_checked, zip_seam};
+use super::zip::{Fusions, SeamCorrespondence, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell,
     ContactRecords, CurveContact, EeContact, FacePairDeclaration, Operand, PatchContact, SelfCheck,
@@ -252,12 +252,12 @@ pub struct BooleanNaming {
     /// Vertex fusions `(dead, kept)` in mint order, result keys: the
     /// A-side pinch welds' first, then the zips', then the pierce
     /// welds' (`weld_pierce_copies`).
-    pub vertex_merges: Vec<(VertexKey, VertexKey)>,
+    pub vertex_merges: Fusions,
     /// The B-side pinch welds' vertex fusions `(dead, kept)` in mint
     /// order, in B-CLONE keys: they ran before the graft, so a dead key
     /// has no result key (translate the kept column through
     /// `graft_vertices`).
-    pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
+    pub weld_merges_b: Fusions,
     /// Face absorption groups `(kept, absorbed…)`, result keys: the
     /// pinch crossings' (`zip::cross_pinches`), then
     /// `merge_coplanar_faces`'.
@@ -322,9 +322,9 @@ impl BooleanNaming {
     #[must_use]
     pub fn fused_into(&self) -> BTreeMap<VertexKey, VertexKey> {
         self.vertex_merges
+            .rows()
             .iter()
-            .filter(|(dead, kept)| dead != kept)
-            .map(|&(dead, _)| (dead, survivor(&self.vertex_merges, dead)))
+            .map(|&(dead, _)| (dead, self.vertex_merges.survivor(dead)))
             .collect()
     }
 
@@ -663,7 +663,6 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
-    let mut vertex_merges = fin.weld_merges_a.clone();
     let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b)
         .with_copies(copies)
         .with_along(along);
@@ -674,15 +673,18 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     desc.absorb_faces(&crossed);
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
-        desc.absorb_zip(&rep);
-        vertex_merges.extend(rep.vertex_merges.iter().copied());
+        desc.absorb_zip(&rep)?;
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
-    let welds =
-        super::finish::weld_pierce_copies(&mut body, &fin.pierce_copies, &vertex_merges, tol)?;
-    desc.absorb_fusions(&welds);
-    vertex_merges.extend(welds);
+    let welds = super::finish::weld_pierce_copies(
+        &mut body,
+        &fin.pierce_copies,
+        &desc.vertex_merges()?,
+        tol,
+    )?;
+    desc.absorb_fusions(&welds)?;
+    let vertex_merges = desc.vertex_merges()?;
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
@@ -742,15 +744,12 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// `map` with each vertex on either side read as the vertex a zip's
 /// fusions `(dead, kept)` left in its place.
-fn fused_through(
-    map: &SeamCorrespondence,
-    merges: &[(VertexKey, VertexKey)],
-) -> SeamCorrespondence {
+fn fused_through(map: &SeamCorrespondence, merges: &Fusions) -> SeamCorrespondence {
     let mut out = SeamCorrespondence::new();
     for (&a, bs) in map {
-        out.entry(survivor(merges, a))
+        out.entry(merges.survivor(a))
             .or_default()
-            .extend(bs.iter().map(|&b| survivor(merges, b)));
+            .extend(bs.iter().map(|&b| merges.survivor(b)));
     }
     out
 }
@@ -2543,19 +2542,20 @@ impl KeyView<'_> {
 pub(super) struct Descendants {
     /// Each operand's pinch-weld fusions, in its clone keys: read
     /// before its key view. A weld fuses ring vertices minted after the
-    /// contacts were recorded, so no record cites a weld's keys: no rest
-    /// is consumed by a weld (`fused` holds only the zips'), and these
-    /// rows chase only a record a producer mints in clone keys.
-    a_welds: Vec<(VertexKey, VertexKey)>,
-    b_welds: Vec<(VertexKey, VertexKey)>,
-    /// The zips' fusions in mint order, result keys.
-    vertices: Vec<(VertexKey, VertexKey)>,
+    /// contacts were recorded, so no record cites a weld's keys, and
+    /// these rows chase only a record a producer mints in clone keys. A
+    /// later zip may still fuse a weld's kept vertex.
+    a_welds: Fusions,
+    b_welds: Fusions,
+    /// The fusions after the pinch welds, in mint order, result keys:
+    /// the zips', then the pierce welds' ([`Self::absorb_fusions`]).
+    vertices: Fusions,
     /// Merge absorption, absorbed face → the group's kept face: an
     /// acyclic relation, since a kept face is never absorbed. A cycle
     /// is a corrupt record, and [`Self::live`] refuses it typed.
     faces: std::collections::BTreeMap<FaceKey, FaceKey>,
-    /// Every vertex that participated in a zip fusion (dead OR kept):
-    /// its point rests were consumed into seam structure.
+    /// Every vertex a row of `vertices` names (dead OR kept): its point
+    /// rests were consumed into seam structure.
     fused: std::collections::BTreeSet<VertexKey>,
     /// Each operand's null-edge copies, in its clone keys: the vertices
     /// one null edge joins, on one point by construction.
@@ -2575,10 +2575,10 @@ pub(super) struct Descendants {
 
 impl Descendants {
     /// The map that starts from each operand's pinch welds.
-    pub(super) fn welded(a: &[(VertexKey, VertexKey)], b: &[(VertexKey, VertexKey)]) -> Self {
+    pub(super) fn welded(a: &Fusions, b: &Fusions) -> Self {
         Self {
-            a_welds: a.to_vec(),
-            b_welds: b.to_vec(),
+            a_welds: a.clone(),
+            b_welds: b.clone(),
             ..Self::default()
         }
     }
@@ -2630,22 +2630,48 @@ impl Descendants {
         out
     }
 
-    pub(super) fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
-        self.absorb_fusions(&rep.vertex_merges);
+    /// Every vertex fusion in result keys, in mint order: the A-side
+    /// pinch welds' (A is `Direct`, so its clone keys are result keys),
+    /// then `vertices`.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] where a row of `vertices` names a key
+    /// a pinch weld killed ([`Fusions::extend`]).
+    pub(super) fn vertex_merges(&self) -> Result<Fusions, BooleanError> {
+        let mut out = self.a_welds.clone();
+        out.extend(&self.vertices)?;
+        Ok(out)
+    }
+
+    /// A zip's fusions ([`Self::absorb_fusions`]) and edge merges.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::absorb_fusions`].
+    pub(super) fn absorb_zip(&mut self, rep: &super::zip::ZipReport) -> Result<(), BooleanError> {
+        self.absorb_fusions(&rep.vertex_merges)?;
         for &(dead, kept) in &rep.edge_merges {
             if dead != kept {
                 self.substitute(Cell::Edge(dead), Cell::Edge(kept));
             }
         }
+        Ok(())
     }
 
     /// Vertex fusions after the zips, result keys, read as a zip's.
-    pub(super) fn absorb_fusions(&mut self, merges: &[(VertexKey, VertexKey)]) {
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] where `merges` names a key the
+    /// fusions before it killed ([`Fusions::extend`]).
+    pub(super) fn absorb_fusions(&mut self, merges: &Fusions) -> Result<(), BooleanError> {
+        self.vertices.extend(merges)?;
         for &(dead, kept) in merges {
-            self.vertices.push((dead, kept));
             self.fused.insert(dead);
             self.fused.insert(kept);
         }
+        Ok(())
     }
 
     /// Face absorptions `(absorbed, kept)` outside the coplanar merge.
@@ -2683,10 +2709,9 @@ impl Descendants {
     ///
     /// # Errors
     ///
-    /// [`BooleanError::JoinDesync`] on a corrupt fusion list
-    /// ([`survivor_checked`]), or rows that cycle: a walk that outlasts
-    /// the row count has revisited a cell, a corrupt record, and
-    /// reading it as gone would drop a recorded contact. So too where
+    /// [`BooleanError::JoinDesync`] on rows that cycle: a walk that
+    /// outlasts the row count has revisited a cell, a corrupt record,
+    /// and reading it as gone would drop a recorded contact. So too where
     /// two chords along one edge both reach a live cell, and they are
     /// not one: two edges cannot both hold one edge's interior.
     pub(super) fn live<T: Real>(
@@ -2734,10 +2759,9 @@ impl Descendants {
             Operand::B => &self.b_welds,
         };
         let start = match cell {
-            Cell::Vertex(v) => match view.vertex(survivor_checked(welds, v)?) {
-                Some(k) => Some(Cell::Vertex(survivor_checked(&self.vertices, k)?)),
-                None => None,
-            },
+            Cell::Vertex(v) => view
+                .vertex(welds.survivor(v))
+                .map(|k| Cell::Vertex(self.vertices.survivor(k))),
             Cell::Edge(e) => view.edge(e).map(Cell::Edge),
             Cell::Face(f) => view.face(f).map(Cell::Face),
         };
@@ -4764,6 +4788,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band, tol)?;
             let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+            crate::pcurves::mint_pcurves(&mut body, tol)
+                .map_err(|source| BooleanError::Pcurves { source })?;
             let carried = split_lineage(red, decls, band)?;
             let contacts = carry(
                 &body,
@@ -4825,6 +4851,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;
     let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    crate::pcurves::mint_pcurves(&mut body, tol)
+        .map_err(|source| BooleanError::Pcurves { source })?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
@@ -5567,20 +5595,19 @@ mod tests {
             ..ContactRecords::default()
         };
         let mut desc = Descendants::default();
-        desc.vertices.push((dead_vertex, live_vertex));
+        desc.vertices.push((dead_vertex, live_vertex)).unwrap();
         let out = found(&body, &contacts, [&KeyView::Direct; 2], &desc).unwrap();
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
     }
 
-    /// **A fusion list whose row keeps a key an earlier row killed
-    /// refuses; one that chases to a dead key drops the record.** Rows
-    /// `(a, b), (c, a)` fold `c` onto the dead `a`, so the chase would
-    /// read a corrupt list as "consumed". The refusal must hold in every
-    /// build: in one where `survivor`'s `debug_assert!` were the only
-    /// guard, this panics there instead of answering `Err`, and drops
-    /// the record silently where it compiles out.
+    /// **A fusion chase that ends on a key dead in the body drops the
+    /// record, and a fusion the map refuses fails its absorb.** The row
+    /// `(c, a)` is sound as a list, but `a` is gone from the body: both
+    /// remaps drop the record. Red if a dead end refuses or keeps it, or
+    /// if [`Descendants::absorb_fusions`] swallows its list's refusal of
+    /// a row keeping the killed `a`.
     #[test]
-    fn a_corrupt_fusion_list_refuses_where_a_dead_end_drops() {
+    fn a_dead_end_drops_and_a_refused_fusion_fails_its_absorb() {
         use super::{Descendants, KeyView};
         use crate::boolean::{
             BooleanDeclarations, CarriedContacts, CarriedVv, ContactClass, ContactRecords,
@@ -5609,34 +5636,80 @@ mod tests {
             },
             ..BooleanDeclarations::default()
         };
-        let remap = |desc: &Descendants| found(&body, &contacts, [&KeyView::Direct; 2], desc);
-        let carry = |desc: &Descendants| carried_in(&body, &decls, [&KeyView::Direct; 2], desc);
-        let joined = |r: Result<ContactRecords, BooleanError>| match r {
-            Err(BooleanError::JoinDesync { what }) => what,
-            other => panic!("a corrupt fusion list must refuse JoinDesync, got {other:?}"),
-        };
 
-        // A well-ordered list that ends on a dead key: consumed, dropped.
         let mut dead_end = Descendants::default();
-        dead_end.vertices.push((c, a));
-        let dropped = remap(&dead_end).expect("a well-ordered list is not corrupt");
+        dead_end.vertices.push((c, a)).unwrap();
+        let dropped = found(&body, &contacts, [&KeyView::Direct; 2], &dead_end)
+            .expect("a well-ordered list remaps");
         assert!(dropped.vv.is_empty(), "dead end: {:?}", dropped.vv);
-        let carried = carry(&dead_end).expect("a well-ordered list is not corrupt");
+        let carried = carried_in(&body, &decls, [&KeyView::Direct; 2], &dead_end)
+            .expect("a well-ordered list remaps");
         assert!(carried.vv.is_empty(), "carried dead end: {:?}", carried.vv);
 
         let mut corrupt = Descendants::default();
-        corrupt.vertices.push((a, b));
-        corrupt.vertices.push((c, a));
-        let what = "a fusion row names a key an earlier row killed";
+        corrupt.vertices.push((a, b)).unwrap();
+        let mut later = super::Fusions::default();
+        later.push((c, a)).unwrap();
+        assert!(
+            matches!(
+                corrupt.absorb_fusions(&later),
+                Err(BooleanError::JoinDesync {
+                    what: "a fusion row names a key an earlier row killed"
+                })
+            ),
+            "absorbing a row that keeps the killed a refuses"
+        );
+    }
+
+    /// **The fusion list a boolean names is the A side's pinch welds,
+    /// then the rows after them, checked as one list.** A weld `(a, b)`
+    /// then a zip `(b, c)` fold `a` onto `c`; a zip row keeping the
+    /// weld's dead `a` is sound against the zips alone, so only the
+    /// derived list can refuse it. Red if [`Descendants::vertex_merges`]
+    /// drops the welds, puts them after the zips, or does not check the
+    /// two together: no other test in the topo or editor-core suites
+    /// goes red when the A welds leave `BooleanNaming::vertex_merges`.
+    #[test]
+    fn the_derived_vertex_merges_lead_with_the_a_welds_and_check_across_them() {
+        use super::Descendants;
+        use crate::entity::VertexKey;
+
+        let mut arena: slotmap::SlotMap<VertexKey, ()> = slotmap::SlotMap::with_key();
+        let [a, b, c, d] = [(); 4].map(|()| arena.insert(()));
+        let one = |row| {
+            let mut f = super::Fusions::default();
+            f.push(row).unwrap();
+            f
+        };
+        let none = super::Fusions::default();
+
+        let mut desc = Descendants::welded(&one((a, b)), &none);
+        desc.absorb_fusions(&one((b, c))).unwrap();
+        desc.absorb_fusions(&one((d, c))).unwrap();
+        let merges = desc.vertex_merges().unwrap();
         assert_eq!(
-            joined(remap(&corrupt)),
-            what,
-            "discovered records on a corrupt list"
+            merges.rows(),
+            [(a, b), (b, c), (d, c)],
+            "the A weld first, then the later rows in mint order"
         );
         assert_eq!(
-            joined(carry(&corrupt)),
-            what,
-            "carried records on a corrupt list"
+            merges.survivor(a),
+            c,
+            "the weld's dead key folds through the zip"
+        );
+
+        let mut corrupt = Descendants::welded(&one((a, b)), &none);
+        corrupt
+            .absorb_fusions(&one((c, a)))
+            .expect("the zips' own list cannot see the weld's kill");
+        assert!(
+            matches!(
+                corrupt.vertex_merges(),
+                Err(BooleanError::JoinDesync {
+                    what: "a fusion row names a key an earlier row killed"
+                })
+            ),
+            "a zip row keeping the weld's dead a refuses where the list is derived"
         );
     }
 
@@ -5765,7 +5838,12 @@ mod tests {
             remap(&Descendants::default()).is_empty(),
             "without the weld rows neither record resolves"
         );
-        let welded = Descendants::welded(&[(a_dead, a_kept)], &[(b_dead, b_kept)]);
+        let weld = |row| {
+            let mut w = super::Fusions::default();
+            w.push(row).unwrap();
+            w
+        };
+        let welded = Descendants::welded(&weld((a_dead, a_kept)), &weld((b_dead, b_kept)));
         assert_eq!(
             remap(&welded),
             vec![
@@ -5947,7 +6025,7 @@ mod tests {
                 "{edge:?}: the record lands on the kept face"
             );
         }
-        desc.vertices.push((fused_in, bend));
+        desc.vertices.push((fused_in, bend)).unwrap();
         desc.fused.insert(bend);
         let lands = |v| desc.live(&body, Operand::A, &KeyView::Direct, Cell::Vertex(v));
         assert_eq!(

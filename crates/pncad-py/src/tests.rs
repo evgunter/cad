@@ -5240,7 +5240,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "label_fault_tag",
-        values: &["label_blank", "label_control_character", "label_line_break"],
+        values: &[
+            "label_blank",
+            "label_control_character",
+            "label_direction_control",
+            "label_line_break",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5255,6 +5260,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "degenerate_stacking",
             "euler",
+            "one_segment_loop",
             "pcurve",
             "reversed_stacking",
             "seam_structure",
@@ -5678,6 +5684,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "arc_below_scene_resolution",
             "band",
             "degenerate_segment",
+            "empty_loop",
             "empty_profile",
             "escalated",
             "inconsistent_arc",
@@ -5689,9 +5696,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "sliver_loop",
             "structure",
             "tangency_contradicted",
+            "tangent_joint_on_full_turn",
             "tangent_joint_out_of_range",
             "tangential_contact",
-            "too_few_vertices",
             "undeclared_tangency",
         ],
         delegates: &[],
@@ -5796,6 +5803,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "multiple_axis_runs",
             "non_finite_axis",
             "non_manifold_axis_contact",
+            "one_segment_loop",
             "op",
             "pcurve",
             "pinned_run_station",
@@ -6428,6 +6436,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge", 2),
     ("empty", 2),
     ("empty_boolean", 2),
+    // Coincidence, not one fact: a profile loop authored with no vertex,
+    // refused at validation, and a body face's empty (scaffolding) loop,
+    // refused by the tessellator.
+    ("empty_loop", 2),
     ("empty_placement_list", 2),
     ("escalated", 11),
     ("euler", 2),
@@ -6464,6 +6476,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_a_gauge", 2),
     ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
+    // One fact: revolve and loft refuse a one-segment loop for the same
+    // missing seam on the period their one wall wraps.
+    ("one_segment_loop", 2),
     ("op", 3),
     ("part_unresolved", 3),
     // ONE concept, and pinned as one: the variable-read convention
