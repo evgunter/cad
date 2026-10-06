@@ -31,6 +31,10 @@ in the recourse its decision earns", which closed
    becomes `Unsupported { what: "…outside this lane's vocabulary" }`, and
    the SSI arm's own ending is lost. The wildcard also lets a new
    `SsiError` arm in without anyone choosing where it goes.
+   `TubeNotOneArc` reached it unnamed once limb 3 ran its one-arc proof
+   at rest; PR 4012 gave it a typed arm (`PlaneNurbsRefusal::TubeNotOneArc`,
+   ending by the SSI door's own decision). The wildcard stays for the
+   arms above.
 
 ## Repair shape
 

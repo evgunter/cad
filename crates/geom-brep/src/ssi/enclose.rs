@@ -556,6 +556,11 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self { surface }
     }
 
+    /// The surface boxed.
+    pub(crate) fn surface(&self) -> &'a NurbsSurface<T> {
+        self.surface
+    }
+
     /// The wall's `{u, v}` chart speeds over its whole domain, each
     /// [`NurbsBoxes::speed_sup`]: a function of the geometry, which a
     /// rigid map moves by its rounding width.

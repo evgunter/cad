@@ -659,6 +659,9 @@ impl CertifyError {
     /// appends this, or renders both through [`CertifyError::render`].
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
+        if let Self::PlaneNurbs(refusal) = self {
+            return refusal.ending(reading);
+        }
         self.decision()
             .map(|(check, arm)| recourse(check, arm, reading))
     }
