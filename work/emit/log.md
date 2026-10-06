@@ -1782,3 +1782,29 @@ declarations) never pass `product_fault`.
 Only the pin moved: no genuine crossing is refused and there are no wide
 winners. #4081's CI passed on a head that predates #4088/#4086, and
 main runs no test job on push. Re-pinned here.
+
+## 2026-10-06 — PR 4093: the open tool's held nodes follow every later document
+
+`Tools::respeak` re-speaks the open tool's held `SpokenNode`s (seats, the
+blend target, the mate's two picks) under the `respoken` keep rule.
+`ViewerApp::respeak_held` is now the single per-op call, beside
+`Drafts::respeak`. So a lost pick or target says the last label its node
+had.
+
+The mate's commit refusals (`NotAnInstancePick`, `SamePick`) prefer the
+kept label over the landed spelling. This covers the window where a
+rename and delete have not landed.
+
+On `Open`/`NewDocument`, `Tools::document_replaced` re-opens the tool
+empty, as drafts drop their held face. Without that, picks would be
+re-spoken from another document's id space; a reopened saved copy keeps
+identical ids, so the pick survived reconcile.
+
+Review folds:
+- C1 (kept-first, over a gated `app` row);
+- C2 (`Driven` rows through `perform_batch` for both respeakers);
+- C4 (replacement);
+- one helper and one shared loop;
+- a stale `app`-gated comment.
+
+All mutation-checked.
