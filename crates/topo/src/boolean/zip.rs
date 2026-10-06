@@ -56,47 +56,76 @@ use geom_core::Tol;
 /// once per pierce it fused.
 pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 
-/// The vertex `v` survives as through the fusions `(dead, kept)`, in
-/// the order they were made: the one reading of a fusion list. Every
-/// writer appends a row as its kev runs, so a key is dead from its row
-/// on and no later row names it.
-pub(super) fn survivor(merges: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
-    debug_assert!(
-        fusions_well_ordered(merges),
-        "a fusion row names a key an earlier row killed: {merges:?}"
-    );
-    merges
-        .iter()
-        .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
-}
-
-/// [`survivor`], refusing a corrupt fusion list in every build: a row
-/// that keeps a key an earlier row killed, kills one twice, or fuses a
-/// key into itself would fold `v` onto a dead key.
-///
-/// # Errors
-///
-/// [`BooleanError::JoinDesync`] on such a list.
-pub(super) fn survivor_checked(
-    merges: &[(VertexKey, VertexKey)],
-    v: VertexKey,
-) -> Result<VertexKey, BooleanError> {
-    if !fusions_well_ordered(merges) {
-        return Err(BooleanError::JoinDesync {
-            what: "a fusion row names a key an earlier row killed",
-        });
-    }
-    Ok(survivor(merges, v))
-}
-
-/// Whether every fusion row's keys are live when it is made: no row
+/// **A vertex fusion list**: the fusions `(dead, kept)` in the order
+/// their `kev`s ran. Every row's keys are live when it is made: no row
 /// keeps or kills a key an earlier row killed, and none fuses a key
-/// into itself.
-fn fusions_well_ordered(merges: &[(VertexKey, VertexKey)]) -> bool {
-    let mut dead_so_far = BTreeSet::new();
-    merges.iter().all(|&(dead, kept)| {
-        !dead_so_far.contains(&kept) && dead_so_far.insert(dead) && dead != kept
-    })
+/// into itself. [`Self::push`] refuses a row that breaks this, so every
+/// list that exists folds each key onto the vertex it survives as.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Fusions {
+    rows: Vec<(VertexKey, VertexKey)>,
+    dead: BTreeSet<VertexKey>,
+}
+
+impl Fusions {
+    /// Appends the fusion `(dead, kept)`.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] on a row that fuses a key into
+    /// itself, or names a key an earlier row killed; the list is left
+    /// as it was.
+    pub(crate) fn push(
+        &mut self,
+        (dead, kept): (VertexKey, VertexKey),
+    ) -> Result<(), BooleanError> {
+        let what = if dead == kept {
+            "a fusion row fuses a key into itself"
+        } else if self.dead.contains(&dead) || self.dead.contains(&kept) {
+            "a fusion row names a key an earlier row killed"
+        } else {
+            self.dead.insert(dead);
+            self.rows.push((dead, kept));
+            return Ok(());
+        };
+        Err(BooleanError::JoinDesync { what })
+    }
+
+    /// Appends `later`'s rows, which ran after these, in order.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::push`], at the first row that refuses; the list is
+    /// left as it was.
+    pub(crate) fn extend(&mut self, later: &Self) -> Result<(), BooleanError> {
+        let mut out = self.clone();
+        later.rows.iter().try_for_each(|&row| out.push(row))?;
+        *self = out;
+        Ok(())
+    }
+
+    /// The vertex `v` survives as, through every fusion.
+    #[must_use]
+    pub(crate) fn survivor(&self, v: VertexKey) -> VertexKey {
+        self.rows
+            .iter()
+            .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
+    }
+
+    /// The rows `(dead, kept)`, in the order they were made.
+    #[must_use]
+    pub fn rows(&self) -> &[(VertexKey, VertexKey)] {
+        &self.rows
+    }
+}
+
+impl<'a> IntoIterator for &'a Fusions {
+    type Item = &'a (VertexKey, VertexKey);
+    type IntoIter = core::slice::Iter<'a, (VertexKey, VertexKey)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.iter()
+    }
 }
 
 /// Where a zero-length joint runs between two vertices of one face.
@@ -178,7 +207,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
 #[derive(Debug, Default)]
 pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
-    pub vertex_merges: Vec<(VertexKey, VertexKey)>,
+    pub vertex_merges: Fusions,
     /// The seam edges surviving the zip (the outer cycle's edges), in
     /// cycle order.
     pub seam_edges: Vec<crate::entity::EdgeKey>,
@@ -522,7 +551,7 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
             }
         };
         let (merge, _) = fuse_by_joint(body, joint, pj, corr, tol)?;
-        report.vertex_merges.push(merge);
+        report.vertex_merges.push(merge)?;
         if j != 0 {
             body.kef_minting(rs[(j + 1) % n], tol)?;
         }
@@ -669,5 +698,63 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| split_across(b, v, keep, &moving, &none, tol).map(|s| s.is_some()),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::panic)]
+
+    use super::{BooleanError, Fusions};
+    use crate::entity::VertexKey;
+    use slotmap::SlotMap;
+
+    /// **A fusion list refuses every row that would fold a key onto a
+    /// dead one, and folds a well-ordered chain through every hop.** A
+    /// row that keeps a key an earlier row killed, kills one twice, or
+    /// fuses a key into itself refuses `JoinDesync` as it is pushed or
+    /// extended, in every build, and leaves the list as it was. Red if
+    /// the check moves to a reader or behind a `debug_assert!`: the
+    /// corrupt rows would push, and `survivor` would answer the dead
+    /// `a` for `c`.
+    #[test]
+    fn a_fusion_list_refuses_a_row_naming_a_killed_key() {
+        let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
+        let [a, b, c, d] = [(); 4].map(|()| arena.insert(()));
+        let refusal = |r: Result<(), BooleanError>| match r {
+            Err(BooleanError::JoinDesync { what }) => what,
+            other => panic!("a corrupt row must refuse JoinDesync, got {other:?}"),
+        };
+        let killed = "a fusion row names a key an earlier row killed";
+
+        let mut chain = Fusions::default();
+        chain.push((a, b)).unwrap();
+        chain.push((b, c)).unwrap();
+        assert_eq!(
+            [a, b, c, d].map(|v| chain.survivor(v)),
+            [c, c, c, d],
+            "a chain folds through every hop, and an unfused key is its own"
+        );
+
+        let mut fusions = Fusions::default();
+        fusions.push((a, b)).unwrap();
+        for (row, what, case) in [
+            ((c, a), killed, "keeps a killed key"),
+            ((a, c), killed, "kills a key twice"),
+            (
+                (d, d),
+                "a fusion row fuses a key into itself",
+                "fuses a key into itself",
+            ),
+        ] {
+            assert_eq!(refusal(fusions.push(row)), what, "pushed: {case}");
+            let mut later = Fusions::default();
+            if row.0 != row.1 {
+                later.push(row).unwrap();
+                assert_eq!(refusal(fusions.extend(&later)), what, "extended: {case}");
+            }
+            assert_eq!(fusions.rows(), [(a, b)], "{case}: the list is as it was");
+            assert_eq!(fusions.survivor(c), c, "{case}: c folds onto no dead key");
+        }
     }
 }
