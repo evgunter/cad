@@ -586,6 +586,9 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-06 — seam note from SHELL: demos red on main
+
+SHELL filed `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0, E) on this slate. `demo-tour`'s klein findings pin 10 says it retired, and the certified-cells header moved. #3774 is the likely cause. Every PR that runs the demos job inherits the red.
 ## 2026-10-06 — the sketch plane waits on D10 too
 
 `the-sketch-plane-is-its-frame` now also waits on `d10-one-way-to-say-intent-is-unbuilt`, because a sketch plane is a placement and so falls under the D10 hold. It stays parked on `store-constructed-carriers` as well.
