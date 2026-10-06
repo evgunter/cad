@@ -1202,6 +1202,13 @@ fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> bvh::Aabb {
 /// **Whether a boundary edge of `face` may meet `region`**: some edge of
 /// one of its loops has a certified box, padded by `pad`, overlapping it.
 /// `face` is one the caller read out of `body`.
+///
+/// # Panics
+///
+/// Where a boundary hop past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 #[track_caller]
 fn face_boundary_meets<T: Decide + Bounds>(
     body: &Body<T>,
@@ -1505,6 +1512,13 @@ fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey
 }
 
 /// Every face each vertex bounds, from the faces' own loops.
+///
+/// # Panics
+///
+/// Where a face's boundary hop (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn faces_by_vertex<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<FaceKey>> {
     let mut out: BTreeMap<VertexKey, Vec<FaceKey>> = BTreeMap::new();
     for (face, fd) in body.faces() {

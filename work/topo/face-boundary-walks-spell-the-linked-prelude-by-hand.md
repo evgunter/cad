@@ -87,6 +87,10 @@ loop hop (onto `face_loops_linked`; its walk stays, see below).
 **Remaining** (the row stays open for them):
 
 - `pcurves.rs` `face_loop_walks`: another lane is editing the file.
+  Its doc calls it "the one walk of a face's cycles", which stops being
+  true when it moves. Its walk is `site_cycle_from`, which checks
+  claimants (`CYCLES_ARE_CLAIMANTS`), not `loop_walk(..).closed`, so
+  converting it is a semantic change, not a pure refactor.
 - `offset_together.rs` the solids walk: PR 4080 rewrites the file.
 
 **The sweep's other hits, by disposition.** Typed or absent reads, the
@@ -107,7 +111,8 @@ lists with no walk: `euler.rs` `:4229` (rewires a site's loops),
 `review_m1_pr4.rs` (three), `boolean/contain.rs` `:1065`. Not
 topology: `chart_region.rs` UV polygons (three). HOLD (D10, PR 3990):
 `boolean/rest.rs` `patch_faces`, whose own logic reads the declared
-REST surfaces. Single-loop walks, which the iterator's shape does not
+REST surfaces. It is the last face walk that spells its loop field
+`"loops"`; respell it (`outer`/`rings`) when the hold lifts. Single-loop walks, which the iterator's shape does not
 take: `splitting/containment.rs` `cycle_steps`, `splitting/classify.rs`,
 `shell.rs` (four), `boolean/contain.rs` `:981`, `chord_join.rs`,
 `euler.rs` `:2837`, `boolean/rest.rs` (six outer-only walks behind its

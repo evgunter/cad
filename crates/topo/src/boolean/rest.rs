@@ -647,7 +647,7 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 /// face. `None` where `face`, the caller's key, does not resolve.
 ///
 /// Every hop past the face is a link (its loops, their walks, each
-/// member's start vertex and its point; a null strut's half-edges walk
+/// member's edge, start vertex and its point, a lone vertex's point; a null strut's half-edges walk
 /// like any other), and a miss panics (on an at-rest body by tier 1,
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
@@ -1394,6 +1394,13 @@ fn incident_faces<T: Decide>(
 }
 
 /// The face-boundary halves of `face` starting at `u` (outer + rings).
+///
+/// # Panics
+///
+/// Where a boundary hop past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn halves_at<T: Decide>(
     body: &Body<T>,
     face: FaceKey,

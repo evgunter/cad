@@ -1989,8 +1989,9 @@ fn pair_rings<T: Decide>(
 /// A loop of `face` that walks one edge in BOTH directions, with the
 /// two halves in cycle order — the seam remnant a chart merge leaves,
 /// and the slit a full revolve of a closed profile is born with.
-/// `face` is one this call resolved; its loops and their walks are
-/// links, so a miss panics naming the record.
+/// `face` is one this call resolved; its loops, their walks, each
+/// member's edge and a lone vertex's point are links, so a miss panics
+/// naming the record.
 #[track_caller]
 fn duplicate_in_loop<T: Real>(
     body: &Body<T>,

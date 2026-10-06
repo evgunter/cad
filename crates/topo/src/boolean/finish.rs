@@ -792,8 +792,8 @@ fn one_kept(kept: &[(VertexKey, VertexKey)]) -> Option<VertexKey> {
 ///
 /// # Panics
 ///
-/// Where a record past `face` does not resolve or a loop walk does not
-/// close (D2 row 4). `body` is an operand mid-operation, whose links
+/// Where a record past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve or a loop walk does not close (D2 row 4). `body` is an operand mid-operation, whose links
 /// hold by [`crate::live::OPERATORS_KEEP_LINKS`].
 fn section_boundary<T: Decide>(
     body: &Body<T>,

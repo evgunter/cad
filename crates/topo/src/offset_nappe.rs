@@ -164,6 +164,13 @@ pub fn group_nappe<T: Decide>(
 /// The comparison picks WHICH station is metered and decides nothing:
 /// the extremes bound every corner, so their two verdicts carry the
 /// whole set's.
+///
+/// # Panics
+///
+/// Where a boundary hop past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 #[track_caller]
 fn corner_stations<T: Decide>(
     body: &Body<T>,

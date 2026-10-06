@@ -2020,8 +2020,9 @@ impl<T: Decide> Body<T> {
     ///
     /// # Panics
     ///
-    /// Where a member's loops or ring walk reach a record that does not
-    /// resolve, a ring walk does not close, or it meets a half-edge its
+    /// Where a member's rings, a ring walk, a ring member's edge or a
+    /// lone ring vertex's point reach a record that does not resolve, a
+    /// ring walk does not close, or it meets a half-edge its
     /// edge does not claim: the staged body is tier-1-valid, since every operator
     /// the earlier groups ran keeps it so.
     fn outermost_survivor(&self, seed: FaceKey, members: Vec<FaceKey>) -> (FaceKey, Vec<FaceKey>) {
@@ -2029,8 +2030,8 @@ impl<T: Decide> Body<T> {
         let mut nested: std::collections::BTreeSet<FaceKey> = std::collections::BTreeSet::new();
         for f in core::iter::once(seed).chain(members.iter().copied()) {
             let face = proven(&self.faces, f, EntityId::Face);
-            // The rings: every loop past the outer one.
-            for (lk, ring) in self.face_loops_linked(f, face).skip(1) {
+            for &lk in &face.rings {
+                let ring = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(f), "rings");
                 for member in self.loop_members_linked(lk, ring) {
                     // A lone-vertex ring borders no face.
                     let BoundaryMember::Edge {
@@ -2387,8 +2388,9 @@ impl<T: Decide> Body<T> {
     ///
     /// # Panics
     ///
-    /// Where a boundary record does not resolve or a cycle does not
-    /// close: on a tier-1-valid body every one does.
+    /// Where a boundary record (a loop, a member's edge, a lone vertex
+    /// or its point) does not resolve or a cycle does not close: on a
+    /// tier-1-valid body every one does.
     #[track_caller]
     fn boundary_points(&self, face: FaceKey) -> Vec<geom_core::Point3<T>> {
         let f = proven(&self.faces, face, EntityId::Face);

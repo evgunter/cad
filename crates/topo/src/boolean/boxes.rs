@@ -1110,9 +1110,10 @@ pub(crate) fn harmonic_travel<T: Real>(
     Some((exit.0 - entry.0, exit.1 - entry.1))
 }
 
-/// **The face's loops, as [`WindowStep`]s** — the one ARENA walk, so
-/// the boolean lane, the census lane and the construction rows read
-/// one traversal rather than three that can drift.
+/// **The face's loops, as [`WindowStep`]s**, read a loop at a time
+/// through [`crate::body::Body::face_boundary_by_loop`]: the window
+/// steps the boolean lane, the census lane and the construction rows
+/// all read.
 ///
 /// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
 /// abandons the window on: it carries no chart image.
