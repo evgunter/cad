@@ -49,7 +49,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
         graft_recertify_failures(&cavity).is_empty(),
         "the cavity re-certifies edge for edge"
     );
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let failures = graft_recertify_failures(&reverted);
     assert!(
         failures.is_empty(),
@@ -96,7 +96,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     let t = 0.05;
     let body = two_arc_sphere();
     let cavity = door_cavity(&body, t);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
         Err(vec![topo::ValidationError::NegativeVolume {
@@ -132,7 +132,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
 fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
     let body = collinear_cap_drum();
     let cavity = door_cavity(&body, 0.05);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let band = geom_core::Band::linear(tol()).expect("band");
     let mut circles = 0;
     for (ek, e) in reverted.edges() {

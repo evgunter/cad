@@ -1414,7 +1414,7 @@ pub enum RoleSeg {
 /// revolve at `node` (in a full revolve's wire case, a curved wall's
 /// `[0, π)` half) — [`RoleSeg::Band`] over the one-piece run.
 ///
-/// This and its three siblings are the MINTING direction of the
+/// This and its four siblings are the MINTING direction of the
 /// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
 /// selection that is ANSWERED — [`select`](fn@crate::select),
 /// [`all_faces`](fn@super::all_faces) — needs an evaluation to answer
@@ -1454,6 +1454,20 @@ pub fn band_rim(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::BandRim(vertex)],
+    }
+}
+
+/// **The `[π, 2π)` latitude rim at the profile vertex `vertex`** —
+/// [`band_rim`]'s twin on a full revolve whose profile touches the
+/// axis, where each rim is two half-arcs between the seam vertices
+/// ([`RoleSeg::BandRimPi`]); an annular profile's rim is one.
+/// An [`EntityKind::Edge`], as [`band_rim`] is.
+#[must_use]
+pub fn band_rim_pi(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
+    StableName {
+        kind: EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::BandRimPi(vertex)],
     }
 }
 
@@ -2486,7 +2500,7 @@ pub(crate) use never_in_a_boolean_table;
 mod tests {
     use super::{
         EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle,
-        StableName, band, band_pi, band_rim, carried, meridian_vertex,
+        StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
     };
     use crate::node::{RecipeNodeId, StepId};
 
@@ -2509,7 +2523,7 @@ mod tests {
     }
 
     /// A builder mints EXACTLY the name a caller would spell by hand.
-    /// Four pins, one per builder, each written the long way — the
+    /// One pin per builder, each written the long way — the
     /// spelling they replace at their consumers — at both locator
     /// forms, so a builder cannot drift from the vocabulary without
     /// this file disagreeing with itself.
@@ -2550,6 +2564,20 @@ mod tests {
                     kind: EntityKind::Edge,
                     node: N,
                     path: vec![RoleSeg::BandRim(e.start())],
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn band_rim_pi_mints_the_hand_spelled_edge() {
+        for e in edges() {
+            assert_eq!(
+                band_rim_pi(N, e.start()),
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: N,
+                    path: vec![RoleSeg::BandRimPi(e.start())],
                 }
             );
         }

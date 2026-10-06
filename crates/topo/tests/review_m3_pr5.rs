@@ -497,7 +497,7 @@ fn point_in_solid_complement_and_void() {
         SolidContainment::Out
     );
     // Complement (reverted cube): material is everything OUTSIDE.
-    let comp = cube.revert().unwrap();
+    let comp = cube.revert();
     assert_eq!(
         point_in_solid(&comp, inside, band, Tol::witness()).unwrap(),
         SolidContainment::Out,

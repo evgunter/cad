@@ -140,7 +140,6 @@ use crate::contact::{BooleanCoincidence, ContactClass};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
-use crate::revert::RevertError;
 use crate::validate::ValidationError;
 
 pub use carrier_eq::{
@@ -2214,10 +2213,11 @@ pub enum BooleanError {
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
     /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: two dangling null
-    /// edges with one segment, or a null edge both of whose ways round
-    /// hold one (`insert::reconcile_shared`). A dangling null edge whose
-    /// segment holds another's whole builds: the inner hangs at its tip.
+    /// orbit that holds none of another pair's cuts: a null edge both
+    /// of whose ways round hold one (`insert::reconcile_shared`). A
+    /// dangling null edge whose segment holds another's whole builds:
+    /// the inner hangs at its tip, and of two with one segment the Out
+    /// one holds (`insert::holds_whole`).
     /// It also refuses where the shared vertex is B's and B's walk order
     /// nests one of its pairs' runs inside another's: the reconcile turns
     /// runs to clear the other pairs' cuts, and a nested run turned would
@@ -2634,8 +2634,6 @@ pub enum BooleanError {
     /// an operand refused; the door's refusal, carried whole, says what
     /// stopped it.
     Containment(PointInSolidError),
-    /// `revert` refused on the ∖ B side.
-    Revert(RevertError),
     /// The two seam cycles of a polygon pair are not antiparallel —
     /// the orientation chain broke (kernel bug, loudly).
     SeamOrientation {
@@ -2869,8 +2867,6 @@ pub enum BooleanErrorKind {
     CoincidentShell,
     /// [`BooleanError::Containment`].
     Containment,
-    /// [`BooleanError::Revert`].
-    Revert,
     /// [`BooleanError::SeamOrientation`].
     SeamOrientation,
     /// [`BooleanError::ZipCorrespondence`].
@@ -3058,7 +3054,6 @@ impl BooleanError {
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
             Self::Containment(_) => BooleanErrorKind::Containment,
-            Self::Revert(_) => BooleanErrorKind::Revert,
             Self::SeamOrientation { .. } => BooleanErrorKind::SeamOrientation,
             Self::ZipCorrespondence { .. } => BooleanErrorKind::ZipCorrespondence,
             Self::Merge(_) => BooleanErrorKind::Merge,
@@ -3623,7 +3618,6 @@ impl core::fmt::Display for BooleanError {
             // nor which question asked: the uncut-component probe asks it
             // of solids that do not cross, the reduction of ones that do.
             Self::Containment(e) => write!(f, "the Boolean {e}"),
-            Self::Revert(e) => write!(f, "revert of the ∖ B side refused: {e}"),
             Self::SeamOrientation { a_face, b_face } => write!(
                 f,
                 "seam cycles of faces {a_face:?}/{b_face:?} are not antiparallel \
@@ -4270,10 +4264,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let orbits: Vec<_> = classified
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unused_mut))]
+    let mut orbits: Vec<_> = classified
         .iter()
         .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
         .collect();
+    #[cfg(any(test, feature = "test-support"))]
+    insert::reverse_when_asked(&mut plans, &mut orbits);
     insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges);
@@ -5858,7 +5855,7 @@ mod tests {
     /// enums and `&'static str` — everything the projection can be
     /// checked on without reaching into another crate's error type.
     /// Arms nesting a foreign refusal (`Euler`, `Join`, `Merge`,
-    /// `Revert`, `GraftRecertify`, `CrossingInsertion`, `Pieces`) are absent by
+    /// `GraftRecertify`, `CrossingInsertion`, `Pieces`) are absent by
     /// the same rule.
     fn sample_errors() -> Vec<BooleanError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -6197,7 +6194,6 @@ mod tests {
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::CoincidentShell => "CoincidentShell",
                 BooleanErrorKind::Containment => "Containment",
-                BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::SeamOrientation => "SeamOrientation",
                 BooleanErrorKind::ZipCorrespondence => "ZipCorrespondence",
                 BooleanErrorKind::Merge => "Merge",
