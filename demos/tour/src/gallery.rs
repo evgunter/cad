@@ -215,8 +215,9 @@ mod tests {
                 roots: 1,
                 report: Report::Separation(0),
                 product: None,
-                why: "one extrude, one root: the split and the chamfer live in the scene's wall \
-                      probe, not in the document",
+                why: "one root: the extrude, split, its corner piece kept and that piece's \
+                      chords chamfered; the offcuts live in the scene's wall probe, not in the \
+                      document",
             },
             Shape {
                 name: "checks",

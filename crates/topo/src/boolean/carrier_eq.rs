@@ -1135,8 +1135,9 @@ fn data_rungs<T: Decide>(
         CarrierRelation::SameOpposite
     };
     let mut first_zero: Option<CoincidenceMeasure> = None;
-    let mut first_unread: Option<CoincidenceMeasure> = None;
-    let mut first_in_band: Option<CoincidenceMeasure> = None;
+    // An unreadable datum is a limit no tolerance moves, ranked before an
+    // in-band one by the walk's one ranking.
+    let mut kept = crate::ray_walk::Evidence::default();
     for &(name, _, margin) in margins {
         match CoincidenceMeasure::decide(name, margin, band) {
             Ok(Decided {
@@ -1154,10 +1155,8 @@ fn data_rungs<T: Decide>(
                     decided: Classified { margin, band },
                 }));
             }
-            Err(unread @ CoincidenceMeasure::Unreadable(_)) => {
-                first_unread = first_unread.or(Some(unread));
-            }
-            Err(in_band) => first_in_band = first_in_band.or(Some(in_band)),
+            Err(unread @ CoincidenceMeasure::Unreadable(_)) => kept.blocked(unread),
+            Err(in_band) => kept.in_band(in_band),
         }
     }
     // Rung 4: coincident-or-near with no identity rung — near
@@ -1165,12 +1164,15 @@ fn data_rungs<T: Decide>(
     // without a shared source stays unglued. A datum that cannot be
     // read is reported first, then the first one in band; when every
     // datum decided zero, the first one's decided margin rides.
-    let coincidence = match first_unread.or(first_in_band).or(first_zero) {
-        Some(coincidence) => coincidence,
-        None => unreachable!(
-            "every curved kind reads at least two data, and each datum decides zero, decides \
-             nonzero (returned above) or does not decide"
-        ),
+    let coincidence = match kept.ranked() {
+        crate::ray_walk::Ranked::Blocked(m) | crate::ray_walk::Ranked::InBand(m) => m,
+        crate::ray_walk::Ranked::Neither => match first_zero {
+            Some(zero) => zero,
+            None => unreachable!(
+                "every curved kind reads at least two data, and each datum decides zero, \
+                 decides nonzero (returned above) or does not decide"
+            ),
+        },
     };
     Err(CarrierEqError::Undeclared {
         coincidence,

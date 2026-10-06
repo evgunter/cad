@@ -446,11 +446,15 @@ fn the_one_edge_annulus_fingerprint_is_stable() {
         println!("FINGERPRINT {name}: {fp}");
         lines.push(format!("{name}: {fp}"));
     }
-    // Pinned from the merge base run. See the probe branch's log.
+    // Pinned from the merge base run, then re-pinned where the twin's
+    // two plane walls stopped carrying a slit: two edges fewer and two
+    // rings more on every line, and on the neck and the lip — the rims
+    // a plane supports — no plane seam to leave a remnant or retire a
+    // piece. The volume bits did not move.
     let want = [
-        "neck: f=6 e=12 v=6 l=6 bands=1 vol=0x400129725c9a0b3f pad=0 trims=2 feet=1 msplit=1 mrem=2 slits=1 dead_e=2 dead_v=1",
-        "shoulder: f=6 e=12 v=6 l=6 bands=1 vol=0x400130d71d2ca44c pad=0 trims=2 feet=1 msplit=1 mrem=2 slits=1 dead_e=1 dead_v=1",
-        "lip: f=6 e=12 v=6 l=6 bands=1 vol=0x400130b4b9b69dac pad=0 trims=2 feet=1 msplit=1 mrem=2 slits=1 dead_e=1 dead_v=1",
+        "neck: f=6 e=10 v=6 l=8 bands=1 vol=0x400129725c9a0b3f pad=0 trims=2 feet=1 msplit=1 mrem=1 slits=1 dead_e=1 dead_v=1",
+        "shoulder: f=6 e=10 v=6 l=8 bands=1 vol=0x400130d71d2ca44c pad=0 trims=2 feet=1 msplit=1 mrem=2 slits=1 dead_e=1 dead_v=1",
+        "lip: f=6 e=10 v=6 l=8 bands=1 vol=0x400130b4b9b69dac pad=0 trims=2 feet=1 msplit=1 mrem=1 slits=1 dead_e=1 dead_v=1",
     ];
     for (got, want) in lines.iter().zip(want.iter()) {
         assert_eq!(got, want, "the one-edge sequence moved");
