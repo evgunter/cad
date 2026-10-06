@@ -1499,3 +1499,17 @@ row on the per-PR fast set (0.86 s). The review found the stop rule
 did not apply. The first implementer was lost to a container restart
 after opening the PR; a second ran the fix pass. Spec deleted
 (`docs/doc-ledger/sym-16-spec.md`).
+
+## 2026-10-06 — SYM-17 spec'd: the widened rotation angle on the plain lane; single FULL review
+
+First in the remaining 2026-10-02 order after SYM-15 and SYM-16. On
+the chain, the plain `Interval` lane refuses at the first transform
+(`transform_rigid_col0_unit`) while the symbolic tier certifies; the
+item's mechanism is a reading of the refusal, not a measurement.
+
+**Review tier: single FULL review.** Phase 1 is a readout and a priced
+choice between three answers; two of them land in PROPS' or SHELL's
+checks or state a scope of the plain lane, and those stop after
+Phase 1 for the owner or Ev.
+
+Spec `docs/SYM-17-SPEC.md`. Branch `sym/17-rotation-readout` from `main`.
