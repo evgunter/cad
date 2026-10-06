@@ -204,7 +204,7 @@ area `api`; prefix `emit/`; tag `(EMIT orchestrator)`; ab_band `8300-8399`.
 | P2 | `name-order-was-insertion-order-under-the-counter` | issue | M +design | open | Where a name's canonical form picks the least name, the counter made that the earliest-inserted node and the mint makes it an arbitrary one |  |  |
 | P3 | `a-carried-rows-route-says-its-first-instance-by-tag` | unit | E | open | A carried row's route says this document's instance by tag where the assembly frame holds the document |  |  |
 | P3 | `a-cluster-act-speaks-its-gauges-by-tag` | issue | M | open | A cluster act's sentence (ClusterMaintenance) names its gauges by bare tag |  |  |
-| P3 | `a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` | unit | M +design | open | No frame holds a resolved part, so a part's carried level and fault keep their tags (line_in_part and PartFault::spoken have no caller) |  |  |
+| P3 | `a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` | unit | M | open | No frame holds a resolved part, so a part's carried level and fault keep their tags (line_in_part and PartFault::spoken have no caller) |  |  |
 | P3 | `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere` | issue | M | open | A kept face's edge that lies wholly inside a dropped covered face, both ends at vertex-on-face contacts, is held by no discard row |  |  |
 | P3 | `a-label-may-be-only-invisible-or-direction-override-characters` | issue | E | open | Label::new admits a label of only zero-width characters, and bidi overrides |  |  |
 | P3 | `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label` | unit | M | open | A selection whose node is deleted says it by tag, where the seats, mate and blend tools say the label it had when picked |  |  |
