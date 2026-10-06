@@ -1355,7 +1355,8 @@ impl Doc {
     /// `label=` labels the new node in the same call: the insert and a
     /// `DocEdit.set_label`, both applied or neither. A text that is not
     /// a label refuses before anything is applied (`label_blank`,
-    /// `label_line_break`, `label_control_character`).
+    /// `label_line_break`, `label_control_character`,
+    /// `label_direction_control`).
     #[pyo3(signature = (node, *, label=None, resolver=None))]
     fn insert(
         &mut self,
@@ -3914,10 +3915,10 @@ impl DocEdit {
     /// pin, as a recolour does.
     ///
     /// Refuses at this call a text that is not a label (`EditError`:
-    /// `label_blank`, `label_line_break`, `label_control_character`),
-    /// and at `apply` a node the document does not hold
-    /// (`unknown_node`) or an edit that would leave the label as it is
-    /// (`label_unchanged`).
+    /// `label_blank`, `label_line_break`, `label_control_character`,
+    /// `label_direction_control`), and at `apply` a node the document
+    /// does not hold (`unknown_node`) or an edit that would leave the
+    /// label as it is (`label_unchanged`).
     #[staticmethod]
     #[pyo3(signature = (node, label))]
     fn set_label(py: Python<'_>, node: &NodeId, label: Option<&str>) -> PyResult<Self> {
