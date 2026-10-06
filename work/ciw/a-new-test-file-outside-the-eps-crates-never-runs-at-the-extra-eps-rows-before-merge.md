@@ -41,3 +41,16 @@ Run the rows of the test files the diff adds or modifies at 1e-6 and
 1e-12, as a `test(...)`/binary filter rather than a whole package. The
 cost is those files' own rows, not the crate's suite. This widens the
 gate's cost policy, so it is ciw's call and not a drive-by.
+
+## Another instance (2026-10-06, SHELL PR 4111)
+
+PR 4074 added `crates/sweep/tests/pinch_faces_tessellate.rs`. It
+touched sweep, but no path in it matched `(probe|golden)`, so the file
+never ran at 1e-6 before merge. Its `notch307 fib117` row escalates the
+boolean at 1e-6 on main (`work/join/pinch-tessellate-row-escalates-at-eps-1e-6`).
+The first gate run to see it was PR 4111's (run 37421965598). That PR
+reached sweep's ε rows only because it edits two `*_probes.rs` files.
+The gap therefore covers most of sweep's rows and every
+non-probe/golden row of any crate outside the hard-coded four: they
+first meet 1e-6 and 1e-12 at the nightly, and a PR that later touches
+a probe file inherits the red.
