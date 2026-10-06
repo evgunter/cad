@@ -434,6 +434,13 @@ fn a_denominator_the_form_does_not_sign_is_not_split() {
 // 4. The reads: what they answer and how they are counted
 // ------------------------------------------------------------------
 
+/// `Z = sqrt(x)² − x`: the zero form under rule A in the early walk, and
+/// not in the plain one (which keeps the root as an atom), so a decision
+/// over it is the early rung's to settle.
+fn z(x: Sym<Interval>) -> Sym<Interval> {
+    x.sqrt().powi(2) - x
+}
+
 /// A certified decision is `sign_gated`, never a theorem; a decision
 /// the FORM settles stays a theorem; with the dial shut neither is
 /// reached.
@@ -616,9 +623,6 @@ fn a_comparison_of_two_constants_is_a_theorem() {
 /// product and through a `copysign` too.
 #[test]
 fn a_zero_factor_times_a_read_factor() {
-    fn z(x: Sym<Interval>) -> Sym<Interval> {
-        x.sqrt().powi(2) - x
-    }
     /// `(shape, its build, shipped, read shut)`.
     type Shape = (
         &'static str,
@@ -703,31 +707,224 @@ fn the_drive_memo_key_carries_both_new_dials() {
     assert!(!m.accepts(budget(), SymRules::without_canonical_root()));
 }
 
-/// **The pin of a filed defect**
-/// (`work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`):
-/// the read answers a `max` at its own node, ahead of a cancellation its
-/// parent would make. `x + Z` and `x` are two nodes whose early forms are
-/// equal (`Z = sqrt(x)² − x` is zero under rule A), so with the read shut
-/// their `max` atoms are one indeterminate and the difference is a
-/// theorem; with it on each `max` is read first and the zero is
-/// `sign_gated`. This row holds today's behaviour; the unit that fixes
-/// the defect flips its first label to `theorem`.
+/// **A cancellation above the read is a THEOREM.** `x + Z` and `x` are
+/// two nodes with one early form, so with the read shut a `min`, `max`
+/// or `Select` over each is ONE atom and their difference cancels. With
+/// the read on, each node is read at itself, and the same zero arrives
+/// through the two arms; the decision path asks the walk with the read
+/// shut behind every gated form, and that walk's zero is the label.
+/// One shape per placement of the cancellation: at the node's parent,
+/// through a `Select`, one level up, under an atom, nested, and
+/// through a product.
 #[test]
-fn the_read_relabels_a_cancellation_above_its_node_filed_defect() {
+fn a_cancellation_above_the_read_is_a_theorem() {
+    type Shape = (&'static str, fn() -> Sym<Interval>);
+    let shapes: [Shape; 9] = [
+        ("max(x + Z, 3) - max(x, 3)", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)) - x.max(lit(3.0))
+        }),
+        ("min(x + Z, 3) - min(x, 3)", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).min(lit(3.0)) - x.min(lit(3.0))
+        }),
+        ("max(x + Z, y) - max(x, y)", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            (x + z(x)).max(y) - x.max(y)
+        }),
+        (
+            "select(x - 3 + Z, y, y + 1) - select(x - 3, y, y + 1)",
+            || {
+                let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+                (x - lit(3.0) + z(x)).select_le_zero(y, y + lit(1.0))
+                    - (x - lit(3.0)).select_le_zero(y, y + lit(1.0))
+            },
+        ),
+        ("(max(x + Z, 3) + 1) - (max(x, 3) + 1)", || {
+            let x = over("x", 1.0, 2.0);
+            ((x + z(x)).max(lit(3.0)) + lit(1.0)) - (x.max(lit(3.0)) + lit(1.0))
+        }),
+        ("atan(max(x + Z, 3)) - atan(max(x, 3))", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)).atan() - x.max(lit(3.0)).atan()
+        }),
+        ("max(max(x + Z, 3), y) - max(max(x, 3), y)", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            (x + z(x)).max(lit(3.0)).max(y) - x.max(lit(3.0)).max(y)
+        }),
+        (
+            "atan(select(x - 3 + Z, y, y + 1)) - atan(select(x - 3, y, y + 1))",
+            || {
+                let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+                (x - lit(3.0) + z(x)).select_le_zero(y, y + lit(1.0)).atan()
+                    - (x - lit(3.0)).select_le_zero(y, y + lit(1.0)).atan()
+            },
+        ),
+        ("(max(x + Z, 3) - max(x, 3)) · y", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            ((x + z(x)).max(lit(3.0)) - x.max(lit(3.0))) * y
+        }),
+    ];
+    for (what, build) in shapes {
+        let on = row(what, how(SymRules::shipped(), build));
+        let off = row(what, how(SymRules::without_the_reads(), build));
+        assert!(
+            on == "theorem" && off == "theorem",
+            "{what}: a form with the read shut settles it, so it is a theorem with the read \
+             on too: shipped {on}, read shut {off}"
+        );
+    }
+}
+
+/// **A form the read leaves NON-zero is asked too.** The read-on form of
+/// `max(x + Z, 3) − max(x, 3) + x` is `x` carrying the read's gate, and
+/// an atom is keyed by its argument's form, gate and all, so `atan` of
+/// it is another indeterminate than `atan(x)` and the difference is not
+/// the zero form. With the read shut the two `max` nodes are one atom,
+/// the argument is `x` with no gate, and the difference is the zero
+/// form. Asked only where the read-on form is zero, this decision fell
+/// to the numeric channel, which refuses it.
+#[test]
+fn a_cancellation_the_read_leaves_non_zero_is_a_theorem() {
     let build = || {
         let x = over("x", 1.0, 2.0);
-        let z = x.sqrt().powi(2) - x;
-        (x + z).max(lit(3.0)) - x.max(lit(3.0))
+        ((x + z(x)).max(lit(3.0)) - x.max(lit(3.0)) + x).atan() - x.atan()
     };
-    let on = row("max(x + Z, 3) - max(x, 3)", how(SymRules::shipped(), build));
-    let off = row(
-        "[read shut] max(x + Z, 3) - max(x, 3)",
-        how(SymRules::without_the_reads(), build),
-    );
+    let what = "atan(max(x + Z, 3) - max(x, 3) + x) - atan(x)";
+    let on = row(what, how(SymRules::shipped(), build));
+    let off = row(what, how(SymRules::without_the_reads(), build));
     assert!(
-        on == "sign_gated" && off == "theorem",
-        "the filed defect's shape: shipped {on} (pinned sign_gated), read shut {off} (theorem)"
+        on == "theorem" && off == "theorem",
+        "{what}: shipped {on}, read shut {off}"
     );
+}
+
+/// **A freeze drops the gate, and the read-free walk is still asked.**
+/// At a four-term budget the read's arm `P = x + y + w` makes `P · Q`
+/// six terms, so both products freeze, each to its own node's
+/// indeterminate, and a frozen form carries no gate: the read-on form
+/// of the difference is ungated and not zero. With the read shut both
+/// products are `M · Q` over one atom `M` and cancel. A leaf in which a
+/// node froze over a gated kid asks the read-free walk on every
+/// decision, so this one is a theorem; asked only behind a gated form,
+/// it was refused.
+#[test]
+fn a_cancellation_above_a_frozen_read_is_a_theorem() {
+    let tiny = SymBudget {
+        max_terms: 4,
+        max_degree: 128,
+    };
+    for (dial, rules) in [
+        ("shipped", SymRules::shipped()),
+        ("read shut", SymRules::without_the_reads()),
+    ] {
+        let ((out, value), counts) = with_session_rules(tiny, rules, || {
+            let x = over("x", 1.0, 2.0);
+            let p = x + over("y", 3.0, 4.0) + over("w", 3.0, 4.0);
+            let q = over("u", 1.0, 2.0) + over("v", 1.0, 2.0);
+            let m = (x + z(x)).max(p) * q - x.max(p) * q;
+            (
+                geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
+                m.value,
+            )
+        });
+        let what = format!("[4 terms, {dial}] max(x + Z, P)·Q - max(x, P)·Q");
+        let l = row(&what, (label(out, counts), value.enclosure_probe()));
+        assert_eq!(l, "theorem", "{what}: {counts:?}");
+    }
+}
+
+/// **The door's instance, and the ladder's order kept.** `x·x`
+/// registered equal to `x` over `[0.9, 1.1]`:
+/// - `(max(x·x, 3) − max(x, 3)) + (x·x − x)`: the early form is not
+///   zero (`x·x − x` is not, outside the door), and the read-on door
+///   form is a GATED zero, which does not discharge (`rungs`). The door
+///   form with the read shut is an ungated zero, so the decision is
+///   `registered`, as it is with the read shut.
+/// - `max(x·x, 3) − max(x, 3)`: the read settles it at the EARLY rung
+///   (`3 − 3` over the box), which the ladder asks before the door, so
+///   it stays `sign_gated` with the read on and is `registered` with it
+///   shut. A `sign_gated` and a `registered` zero rest on different
+///   claims and neither re-labels the other: this is SYM-9's ladder
+///   order, not the class.
+#[test]
+fn a_registered_cancellation_above_the_read_is_registered() {
+    type Build = fn(Sym<Interval>, Sym<Interval>) -> Sym<Interval>;
+    let cases: [(&str, Build, &str, &str); 2] = [
+        (
+            "(max(x·x, 3) - max(x, 3)) + (x·x - x)",
+            |sq, x| (sq.max(lit(3.0)) - x.max(lit(3.0))) + (sq - x),
+            "registered",
+            "registered",
+        ),
+        (
+            "max(x·x, 3) - max(x, 3)",
+            |sq, x| sq.max(lit(3.0)) - x.max(lit(3.0)),
+            "sign_gated",
+            "registered",
+        ),
+    ];
+    for (what, build, shipped, shut) in cases {
+        for (dial, rules, want) in [
+            ("shipped", SymRules::shipped(), shipped),
+            ("read shut", SymRules::without_the_reads(), shut),
+        ] {
+            let ((out, value), counts) = with_session_rules(budget(), rules, || {
+                let x = over("x", 0.9, 1.1);
+                let sq = x * x;
+                let reg = sq.register_equal(x, Tol::witness());
+                assert!(
+                    matches!(reg, geom_core::sym::SymRegistration::Recorded),
+                    "the registration is recorded: {reg:?}"
+                );
+                let m = build(sq, x);
+                (
+                    geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
+                    m.value,
+                )
+            });
+            let what = format!("[x·x = x, {dial}] {what}");
+            let l = row(&what, (label(out, counts), value.enclosure_probe()));
+            assert_eq!(l, want, "{what}: {counts:?}");
+        }
+    }
+}
+
+/// **The read still answers what no form settles.** Each of these
+/// differs from a cancellation above the read by the one term that
+/// makes the read-free form non-zero, so the walk with the read shut is
+/// asked and does not settle, and the decision is the read's:
+/// `sign_gated`, and with the read shut the numeric channel's.
+#[test]
+fn the_read_still_answers_what_no_form_settles() {
+    type Shape = (&'static str, fn() -> Sym<Interval>);
+    let shapes: [Shape; 4] = [
+        ("max(x + Z, 3) - 3", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)) - lit(3.0)
+        }),
+        ("max(x + Z, 3) - max(x, 3) + max(x, 3) - 3", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)) - x.max(lit(3.0)) + x.max(lit(3.0)) - lit(3.0)
+        }),
+        ("max(select(x - 3, y, y + 1), 5) - 5", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            (x - lit(3.0)).select_le_zero(y, y + lit(1.0)).max(lit(5.0)) - lit(5.0)
+        }),
+        ("max(x, 3)·y - 3·y", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            x.max(lit(3.0)) * y - lit(3.0) * y
+        }),
+    ];
+    for (what, build) in shapes {
+        let on = row(what, how(SymRules::shipped(), build));
+        let off = row(what, how(SymRules::without_the_reads(), build));
+        assert!(
+            on == "sign_gated" && (off.starts_with("numeric") || off.starts_with("refused")),
+            "{what}: no read-free form settles it, so it is the read's: shipped {on}, read \
+             shut {off}"
+        );
+    }
 }
 
 /// **A registered zero times a read factor discharges through the

@@ -51,7 +51,11 @@
 //! the plain form — so a plain theorem is never re-labelled as gated,
 //! and the fold reaches atoms nested inside other atoms' arguments,
 //! which is where the arc family's `sqrt` of a perfect square sits
-//! (`‖q − c‖ = r` has `(a + 2r)²` under its root on the plate).
+//! (`‖q − c‖ = r` has `(a + 2r)²` under its root on the plate). A read
+//! answers its node at the node, so above it the decision path asks
+//! the same rung again with every read shut wherever a read may have
+//! moved its form (`super::rungs`): an early theorem is never
+//! re-labelled either.
 
 use crate::real::Bounds;
 use core::f64::consts::PI;

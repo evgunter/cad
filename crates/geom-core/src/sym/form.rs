@@ -603,10 +603,15 @@ pub(super) struct Form {
     /// the leaf's box rather than identically in the parameters, so a zero
     /// reached through it is `sign_gated`, not `symbolic_zero`. Every
     /// combinator here carries it into its result. The walk drops it
-    /// only where the result does not depend on the gated operand: a
-    /// product or `copysign` whose zero factors are all ungated
-    /// (`zero_factors_gate`, in the early walk's zero arm), and the arm
-    /// A0's `Select` does not take.
+    /// in four places, and the decision path's shut walk rests on the
+    /// list (`rungs`):
+    /// - a product or `copysign` whose zero factors are all ungated
+    ///   (`zero_factors_gate`, in the early walk's zero arm), and the arm
+    ///   A0's `Select` does not take — the result does not depend on the
+    ///   gated operand;
+    /// - a freeze, whose indeterminate is the node's own value;
+    /// - a poison (a reciprocal of a gated zero), which has no value and
+    ///   is never zero.
     pub(super) gated: bool,
 }
 
