@@ -64,7 +64,7 @@ use crate::body::Body;
 use crate::chord_join::{
     ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinLane, Leave, SectionCase,
     SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he,
-    corrupt_loop, vertex_point, wall_section,
+    corrupt_loop, he_face, lone_site_placeholder, vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
@@ -204,15 +204,6 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
 /// The edge of a half-edge.
 fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, SplitJoinError> {
     Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge)
-}
-
-/// The face owning a half-edge's loop.
-fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJoinError> {
-    let l = body
-        .get_half_edge(he)
-        .ok_or_else(|| corrupt_he(he))?
-        .parent_loop;
-    Ok(body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face)
 }
 
 /// The fixed partners of the null-edge halves on faces with more than
@@ -776,6 +767,7 @@ impl<T: Decide> Sweep<T> {
         };
         let hes = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
         let mut straight = Vec::with_capacity(hes.len());
+        let mut placeholders = 0;
         for &he in &hes {
             let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
             let edge = body
@@ -789,6 +781,13 @@ impl<T: Decide> Sweep<T> {
             let CurveGeom::Certified(curve) = entry else {
                 continue;
             };
+            let end = body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?;
+            // A placeholder bounds nothing, whatever plane its circle
+            // lies in; a loop of placeholders alone is a point.
+            if lone_site_placeholder(he_data.start, end, curve) {
+                placeholders += 1;
+                continue;
+            }
             let Some(crate::loop_winding::ConicFrame {
                 center: c_e,
                 axis: axis_e,
@@ -803,7 +802,7 @@ impl<T: Decide> Sweep<T> {
             let span = t1 - t0;
             let forward = edge.he_plus == he;
             let a_pt = vertex_point(body, he_data.start);
-            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?);
+            let b_pt = vertex_point(body, end);
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
@@ -824,6 +823,9 @@ impl<T: Decide> Sweep<T> {
         // predicate. `chart_region_area` asks the same question two
         // dimensions down through the same door; the accumulators
         // stay separate, for the reasons written at that site.
+        if placeholders == hes.len() {
+            return Err(SplitJoinError::DegenerateSection { face });
+        }
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             // A positive NET area can still carry a zero-area spur.
@@ -1127,5 +1129,58 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| certify(b),
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod placeholder_rows {
+    use super::*;
+    use geom_core::Vec3;
+
+    /// **A loop of lone-site placeholders bounds nothing in any plane.**
+    /// `mef`'s lone site certifies its edge as the unit circle about
+    /// `p + x̂` in the plane `z = 0`, so a section plane of normal `±ẑ`
+    /// would read it as `π` of area. The area check refuses the loop as
+    /// the point it is.
+    #[test]
+    fn a_loop_of_placeholders_is_a_degenerate_section_in_every_plane() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+        let lone = body
+            .mef_chord(
+                crate::euler::MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        for normal in [Vec3::unit_z(), -Vec3::unit_z(), Vec3::unit_y()] {
+            let plane =
+                crate::test_support_fixtures::split_plane(Point3::new(0.0, 0.0, 0.0), normal, tol);
+            let sweep = Sweep {
+                ends: Vec::new(),
+                partner: SecondaryMap::new(),
+                joiner: ChordJoiner::new(band),
+                completed: Vec::new(),
+                above_set: SecondaryMap::new(),
+                plane,
+                band,
+                section: SectionCtx {
+                    origin: plane.origin,
+                    normal: plane.normal,
+                    plane_key: None,
+                },
+            };
+            for (face, lp) in [(seed.face, seed.r#loop), (lone.face, lone.r#loop)] {
+                let got = sweep.certify_section_area(&body, face, lp);
+                assert!(
+                    matches!(got, Err(SplitJoinError::DegenerateSection { face: f }) if f == face),
+                    "normal {normal:?}, loop {lp:?}: {got:?}"
+                );
+            }
+        }
     }
 }

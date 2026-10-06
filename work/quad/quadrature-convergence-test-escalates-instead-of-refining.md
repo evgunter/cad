@@ -100,3 +100,14 @@ refusal by type at exactly 1e-6 (`QUAD_ESCALATES_AT`;
 `PropsError::Escalated { check: PropsCheck::Converged }`). At that ε it
 asserts nothing past "the lower piece is non-empty". The pin goes red
 when this lands, and the row's assertions then come back at 1e-6.
+
+## 2026-10-06 — a counterbored tube's split half (CLEAVE)
+
+Found by `cleave/tube-across-axis`'s sweep. The counterbored tube
+revolved a full turn about `y` (profile `(0.3, 0)–(1, 0)–(1, 1)–(0.6, 1)–(0.6, 0.6)–(0.3, 0.6)`)
+splits through `(0, 0.8, 0)` with its normal leaning 0.25 rad off `y`
+toward azimuth 4 of `y`'s `orthonormal_basis` (`s = +1`). Both halves
+pass tiers 1, 3 and 3′. `mass_properties` of the lower half refuses
+`Face { face 11v1, Escalated { margin −2.936e-9, band (1e-9, 1e-8),
+predicate "props_quad_converged" } }`. The other 59 poses of that sweep
+measure.
