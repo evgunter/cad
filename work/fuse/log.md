@@ -484,3 +484,24 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   `work/join/a-pinch-face-tessellation-witness-refuses-bool-join-nearest-at-eps-1e-6.md`.
   PR 3953 is held on it rather than merged on red. PR 3955 landed
   first.
+
+- 2026-10-06 — PR 4140 (step 2a of the 3881 build) is open on
+  `fuse/join-every-stage`. The join runs at every boolean output stage,
+  and `ee` records carry into a later op. The kernel is green. 33
+  editor-core naming rows are red: a joined flush rim is one edge
+  across two members' rims, which only step 4's set names can name.
+  The orchestrator's ruling: step 4 is built now, by a new lane on
+  `fuse/set-names` branched from 4140, with its PR based on
+  `fuse/join-every-stage`. Steps 2 and 4 then land on main together
+  in 4140, so main never carries the red rows. Ev's "each step its own
+  unit" holds as rows, and only the landing is shared. Step 4 is on
+  EMIT's ground, so a seam note is posted on EMIT's log.
+- The parts of step 2 that are not built yet, (b) sweeps building one
+  rim per run and (c) curved joinable vertices, are being filed as P1
+  rows ahead of step 3. Step 3's check stays planar-only until (c)
+  lands.
+- The 4140 dual review is dispatched: lane 1 covers design
+  conformance and carriage, including the new `held_by_ends` door
+  fallback; lane 2 covers correctness, readers, mutants and timing.
+- PR 3953 and PR 4108 are still held on JOIN's eps-1e-6 red on main
+  (`work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md`, open P0).
