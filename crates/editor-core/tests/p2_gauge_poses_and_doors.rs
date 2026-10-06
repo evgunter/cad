@@ -833,6 +833,15 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
         fixture::xform(inst, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
     );
     let ev = run(&outer, &with_resolver(store));
+    let below = ev.all_unplaced_below();
+    let [row] = below.as_slice() else {
+        panic!("one group below: {below:?}");
+    };
+    assert_eq!(
+        (row.held.spoken(top), row.held.spoken(g)),
+        (sub.spoken(top), sub.spoken(g)),
+        "the row holds its group and its cause's gauge as the sub-assembly does"
+    );
     let expected = editor_core::CarriedUnplaced {
         route: editor_core::Route {
             through: inst,
@@ -841,6 +850,7 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
         },
         group: top,
         cause: editor_core::Unplaced::DeadGauge { gauge: g },
+        held: std::sync::Arc::clone(&row.held),
     };
     assert_eq!(ev.unplaced_below.get(&inst), Some(&vec![expected.clone()]));
     assert_eq!(ev.unplaced_below.get(&moved), Some(&vec![expected.clone()]));

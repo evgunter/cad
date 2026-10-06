@@ -121,8 +121,8 @@ impl Say for ExportError {
                 )
             }
             // A group below is spelled in its part's ids, so its row
-            // keeps its tags, but for its route's first instance, which
-            // is this document's.
+            // says them as the part holds them, but for its route's
+            // first instance, which is this document's.
             ExportError::UnplacedBelow { groups } => {
                 write!(
                     f,
@@ -155,7 +155,9 @@ impl core::fmt::Display for ExportError {
 impl ExportError {
     /// **The refusal as the frame holding the evaluated document says
     /// it**: each of its nodes as `doc` holds it now. The door reads an
-    /// evaluation alone, so the refusal holds ids, never a label.
+    /// evaluation alone, so the refusal holds this document's ids,
+    /// never their labels; a group below is said as its part holds it
+    /// ([`CarriedUnplaced::held`]).
     #[must_use]
     pub fn spoken(&self, doc: &ProfileDoc) -> String {
         editor_core::spoken_by(self, doc)
