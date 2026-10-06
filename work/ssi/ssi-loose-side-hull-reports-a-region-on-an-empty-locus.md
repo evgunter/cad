@@ -59,7 +59,9 @@ positive, so `φ` shares `h`'s sign) and halves (`sub_piece`) every
 piece whose hull straddles zero. It gives a sign where every piece reads
 certified one-signed, all of one sign, and reads the side in band (no
 sign, not clear) at a refused hull, two pieces of opposite sign (the
-pieces as given are all read first, so order does not matter), or a
+pieces as given are all read first, so their order cannot hide an
+opposite sign; whether the budget runs out before a later piece's
+verdict can still depend on order, latent at 200k halvings), or a
 straddling piece whose halves' hull is no narrower than its own: the
 arithmetic's floor at that piece, with no tuned constant. Only halvings
 spend the budget, `SIDE_SIGN_HALVINGS` per side read: the whole side at
