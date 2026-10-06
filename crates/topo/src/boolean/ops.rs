@@ -809,14 +809,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             Some((sa, sb)) => {
                 red.a = sa;
                 red.b = sb;
-                super::rest::rest_trace(&format!("enter after {err:?}"));
-                let tried = super::rest::try_rest_union(red, a, b, decls, band, tol);
-                match &tried {
-                    Ok(Some(_)) => super::rest::rest_trace("built"),
-                    Ok(None) => super::rest::rest_trace("declined"),
-                    Err(e) => super::rest::rest_trace(&format!("refused {e:?}")),
-                }
-                return match tried? {
+                return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
                     Some(result) => {
                         interior_loops?;
                         Ok(Joined::Answered(Box::new(result)))

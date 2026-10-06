@@ -158,12 +158,6 @@ struct Segment {
     b_cell: Locus,
 }
 
-pub(super) fn rest_trace(s: &str) {
-    if std::env::var_os("CAD_REST_TRACE").is_some() {
-        eprintln!("REST-TRACE {s}");
-    }
-}
-
 /// The declared-REST union lane (module docs). `red` is the finished
 /// reduction whose normal join REFUSED; its bodies must be the
 /// pre-join annotated clones. Returns `Ok(None)` when the
@@ -190,27 +184,18 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<Option<BooleanResult<T>>, BooleanError> {
     debug_assert_eq!(red.op, BooleanOp::Union);
     if decls.coincident_faces.is_empty() || red.null_pairs.is_empty() {
-        {
-            rest_trace("decline no-decl-or-pairs");
-            return Ok(None);
-        }
+        return Ok(None);
     }
 
     // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
     let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
     if a_rest.is_empty() || b_rest.is_empty() {
-        {
-            rest_trace("decline no-rest-surface");
-            return Ok(None);
-        } // no opposite-oriented contact declared
+        return Ok(None); // no opposite-oriented contact declared
     }
 
     // ---- 2. Segments: the join's matching of the germ records. ----
     let Some(segments) = read_segments(&mut red, band, tol)? else {
-        {
-            rest_trace("decline segments-loose");
-            return Ok(None);
-        }
+        return Ok(None);
     };
 
     // Vertex correspondence across the mate, operand keys — record
@@ -275,10 +260,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?;
     let Some(a_seam) = a_seam else {
-        {
-            rest_trace("decline a-seam-fragment");
-            return Ok(None);
-        }
+        return Ok(None);
     };
     let b_seam = realize_seam(
         &mut red.b,
@@ -298,25 +280,16 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?;
     let Some(b_seam) = b_seam else {
-        {
-            rest_trace("decline b-seam-fragment");
-            return Ok(None);
-        }
+        return Ok(None);
     };
 
     // ---- 5. Patch discovery, the interior curve networks made
     // congruent, cross-mate pairing. ----
     let Some(a_patch) = patch_faces(&red.a, &a_seam, &a_rest)? else {
-        {
-            rest_trace("decline a-no-patch");
-            return Ok(None);
-        }
+        return Ok(None);
     };
     let Some(b_patch) = patch_faces(&red.b, &b_seam, &b_rest)? else {
-        {
-            rest_trace("decline b-no-patch");
-            return Ok(None);
-        }
+        return Ok(None);
     };
     let a_interior = interior_edges(&red.a, &a_patch, &a_seam)?;
     let b_interior = interior_edges(&red.b, &b_patch, &b_seam)?;
@@ -331,10 +304,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?
     else {
-        {
-            rest_trace("decline a-mirror");
-            return Ok(None);
-        }
+        return Ok(None);
     };
     let Some(b_patch) = mirror_edges(
         &mut red.b,
@@ -347,49 +317,12 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?
     else {
-        {
-            rest_trace("decline b-mirror");
-            return Ok(None);
-        }
+        return Ok(None);
     };
     if a_patch.len() != b_patch.len() {
-        {
-            rest_trace("decline patch-count");
-            return Ok(None);
-        }
+        return Ok(None);
     }
     let pairs = pair_patches(&red.a, &red.b, &a_patch, &b_patch, &vcorr)?;
-    if std::env::var_os("CAD_REST_TRACE").is_some() {
-        let bounds = |body: &Body<T>, patch: &[FaceKey], e: EdgeKey| -> usize {
-            body.get_edge(e).map_or(9, |ed| {
-                usize::from(patch.contains(&body.face_of_linked(ed.he_plus)))
-                    + usize::from(patch.contains(&body.face_of_linked(ed.he_minus)))
-            })
-        };
-        let mut bare = 0;
-        for (i, sgm) in segments.iter().enumerate() {
-            let ka = a_seam
-                .per_segment
-                .get(i)
-                .map_or(9, |&e| bounds(&red.a, &a_patch, e));
-            let kb = b_seam
-                .per_segment
-                .get(i)
-                .map_or(9, |&e| bounds(&red.b, &b_patch, e));
-            if ka == 0 || kb == 0 {
-                bare += 1;
-            }
-            eprintln!(
-                "REST-TRACE seg {i} a_cell={:?} b_cell={:?} a_patch_sides={ka} b_patch_sides={kb}",
-                sgm.a_cell, sgm.b_cell
-            );
-        }
-        eprintln!(
-            "REST-TRACE identified segs={} patches={} segs_bounding_no_patch={bare}",
-            segments.len(),
-            a_patch.len()
-        );
-    }
 
     // The frontier is positively identified from here on: failures are
     // the lane's own typed refusals, never silently swapped back.
