@@ -10,9 +10,10 @@
 //!
 //! The above body's section face carries **m = −n_SP**, the below
 //! body's **m = +n_SP** (derived at [`section_loops`]). Both faces
-//! carry the SAME split plane (same origin, same in-plane `u_ref`, the
-//! below loop's first chord) with opposite normals; the mirror test
-//! pins both signs bitwise.
+//! carry the SAME split plane (same origin, same in-plane `u_ref`: the
+//! below loop's first chord, or for a loop of one corner — a whole
+//! section conic — the first axis of the run plane's normal basis) with
+//! opposite normals; the mirror test pins both signs bitwise.
 //!
 //! That is each face's CHART normal. Its sense is its loop's winding
 //! about it, the reading tier 3's check 6 makes: a section's outer
@@ -900,8 +901,9 @@ fn whole_body_side<T: Decide>(
 }
 
 /// The section's in-plane u axis ([`section_loops::chord_u_ref`] of
-/// the below loop; two adjacent section corners are distinct certified
-/// endpoints, so the chord is nonzero).
+/// the below loop, on the plane of this run: under the split's
+/// mirrored rerun, `normal` is the mirrored one). Two adjacent corners
+/// of a loop are distinct certified endpoints, so a chord is nonzero.
 fn below_chord_u_ref<T: Decide>(
     body: &Body<T>,
     section: &CompletedSection,
@@ -911,7 +913,12 @@ fn below_chord_u_ref<T: Decide>(
         SplitJoinError::Euler(err) => SplitFinishError::Euler(err),
         _ => SplitFinishError::Corrupt,
     })?;
-    Ok(section_loops::chord_u_ref(&points, normal))
+    Ok(section_loops::chord_u_ref(
+        body,
+        section.below_loop,
+        &points,
+        normal,
+    ))
 }
 
 /// The sense of the section face `face`'s loop `l` will bound, on a

@@ -87,6 +87,14 @@
 //! What reaches it is bounded upstream, not here: the boolean's planar
 //! side wires a cylinder or a sphere partner, and the split's reduce
 //! refuses a sphere.
+//!
+//! A **self-loop chord** (both ends one vertex) is the split's on a
+//! curved face whose one crossing is the face's seam vertex — a full
+//! revolve's wall, cut across its one seam: there the chord is the
+//! whole section conic, from the vertex round to itself. Everywhere
+//! else — a planar face, a boolean lane, a ruling or tangent section —
+//! a self-loop is a lone site, and rides `mef`'s placeholder circle
+//! (`EdgeCurveSpec::self_loop_circle_at`), which bounds nothing.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
@@ -918,30 +926,64 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
     })
 }
 
-/// The candidate arc of `conic` from `th1` to `th2` (exact conic
-/// parameters of the chord's ends) running forward `p1 → p2`: the ccw
-/// arc as it stands, the cw arc on the axis-flipped carrier. `th2 =
-/// None` is a self-loop chord's: the whole conic from `th1`.
+/// Whether an edge from `start` to `end` on `curve` is a lone site's
+/// placeholder: a self-loop on a scaffold carrier, which `mef` certifies
+/// at a lone site as `EdgeCurveSpec::self_loop_circle_at` and
+/// [`chord_spec`] leaves on every self-loop chord but a curved split
+/// face's whole conic. Its circle is arbitrary, so it bounds nothing.
+///
+/// Nothing in the edge marks a placeholder apart from an honest
+/// whole-turn scaffold, so this reading holds only in a body whose
+/// self-loop scaffolds are all the operation's own lone sites: the
+/// split's scratch body, made from an operand at rest, where tier 3
+/// has refused every scaffold.
+pub(crate) fn lone_site_placeholder<T: Real>(
+    start: VertexKey,
+    end: VertexKey,
+    curve: &geom_brep::EdgeCurve<T>,
+) -> bool {
+    start == end && curve.description().is_scaffold()
+}
+
+/// Where a chord's arc ends on its section conic.
+#[derive(Clone, Copy, Debug)]
+enum ArcEnd<T> {
+    /// At the conic parameter of a second, distinct vertex.
+    At(T),
+    /// Back at its start, a whole turn on: a self-loop chord's.
+    WholeTurn,
+}
+
+/// The candidate arc of `conic` from `th1` (the exact conic parameter
+/// of the chord's start) to `to`, running forward from the start: the
+/// ccw arc as it stands, the cw arc on the axis-flipped carrier.
 fn oriented_arc<T: Real>(
     conic: &SectionConic<T>,
     face: FaceKey,
     th1: T,
-    th2: Option<T>,
+    to: ArcEnd<T>,
     ccw: bool,
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
     let tau = T::tau();
-    // The ccw span forward from `th1`, in `[0, τ)` between distinct
-    // ends: a chord may span more than half the conic. Its window jumps
-    // at a span of zero, two distinct ends sharing a conic parameter —
-    // a zero-length or a whole-conic arc. Nothing here gates that: the
-    // boolean joins only distinct sites (`bool_join_chord`); that the
-    // split's pairing does is not established here.
-    let ccw_span = th2.map(|th2| (th2 - th1).reduce_periodic(tau));
+    // The span forward from `th1` to a distinct end, in `[0, τ)`: a
+    // chord may span more than half the conic. Its window jumps at a
+    // span of zero, two distinct ends sharing a conic parameter, which
+    // is either a zero-length arc or a whole turn. Nothing here gates
+    // that: the boolean joins only distinct sites (`bool_join_chord`),
+    // and the split pairs a vertex with itself only as a self-loop,
+    // which says so (`ArcEnd::WholeTurn`).
+    let ccw_span = match to {
+        ArcEnd::At(th2) => (th2 - th1).reduce_periodic(tau),
+        ArcEnd::WholeTurn => tau,
+    };
     if ccw {
-        Ok((conic.carrier.clone(), th1, th1 + ccw_span.unwrap_or(tau)))
+        Ok((conic.carrier.clone(), th1, th1 + ccw_span))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
-        let span = ccw_span.map_or(tau, |s| tau - s);
+        let span = match to {
+            ArcEnd::At(_) => tau - ccw_span,
+            ArcEnd::WholeTurn => tau,
+        };
         let flipped = conic
             .carrier
             .reversed()
@@ -1073,7 +1115,10 @@ fn arc_leaving<T: Decide>(
 ///    leaving `u1` along `leave`, the section's direction of departure
 ///    there as the lane that paired the chord's ends decided it
 ///    ([`Leave`], [`arc_leaving`]). Which arc lies in the face is the
-///    pairing's answer; the chord does not ask the face again.
+///    pairing's answer; the chord does not ask the face again. A
+///    self-loop (`u1 == u2`) is the whole conic, run the same way; on
+///    a ruling or tangent section, and outside the split's curved lane,
+///    a self-loop stays a lone site (`None`, the placeholder circle).
 /// 3. Describe as `Intersection { wall, aux plane, witness }` with the
 ///    witness minted at the carrier's mid-parameter (the witness
 ///    contract) — certification then pins endpoints, residuals, and
@@ -1088,9 +1133,8 @@ fn chord_spec<T: Decide>(
     u2: VertexKey,
     leave: Departure<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    // A self-loop chord is a lone site, on the scaffolding circle,
-    // everywhere but a curved face the split divides, where a conic
-    // section is the whole conic.
+    // A self-loop chord is a lone site (module docs) outside the
+    // split's curved lane.
     if u1 == u2 && !matches!(lane, JoinLane::Split(_)) {
         return Ok(None);
     }
@@ -1212,7 +1256,11 @@ fn chord_spec<T: Decide>(
     let p1 = vertex_point(body, u1);
     let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
-    let to = (u1 != u2).then(|| conic.param(p2));
+    let to = if u1 == u2 {
+        ArcEnd::WholeTurn
+    } else {
+        ArcEnd::At(conic.param(p2))
+    };
     let (carrier, t_start, t_end) = oriented_arc(&conic, face, conic.param(p1), to, ccw)?;
     // The aux plane surface (honest u_ref: the section's major
     // direction, ⊥ normal by construction), minted once per split.
@@ -1424,8 +1472,13 @@ fn bool_planar_chord_spec<T: Decide>(
     let p1 = vertex_point(body, u1);
     let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
-    let (carrier, t_start, t_end) =
-        oriented_arc(&conic, face, conic.param(p1), Some(conic.param(p2)), ccw)?;
+    let (carrier, t_start, t_end) = oriented_arc(
+        &conic,
+        face,
+        conic.param(p1),
+        ArcEnd::At(conic.param(p2)),
+        ccw,
+    )?;
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {

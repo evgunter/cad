@@ -37,14 +37,59 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
     }
 }
 
-/// The in-plane `u` axis a section loop on the plane of normal `n` is
+/// The in-plane `u` axis a section loop `l` on a plane of normal `n` is
 /// charted with: its first chord, normalized, or for a loop of one
-/// corner (a whole section conic on a self-loop chord) the first axis
-/// of `n`'s own basis — deterministic data, no comparisons.
-pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>], n: UnitVec3<T>) -> Vec3<T> {
-    match points {
-        [a, b, ..] => (*b - *a).normalize(),
-        _ => n.orthonormal_basis().0,
+/// corner the first axis of `n`'s own basis (`orthonormal_basis`, a
+/// fixed function of `n`'s bits). Deterministic data; which `n` it
+/// reads is the caller's to state.
+///
+/// # Panics
+///
+/// On a loop of one corner whose edge is not a whole section conic,
+/// which is a kernel bug. That edge is a self-loop chord, and
+/// [`crate::chord_join`] mints one only as the whole conic or as a lone
+/// site's placeholder; the join refuses a loop of placeholders alone
+/// (`DegenerateSection`) before any frame is read.
+pub(super) fn chord_u_ref<T: Real>(
+    body: &Body<T>,
+    l: LoopKey,
+    points: &[Point3<T>],
+    n: UnitVec3<T>,
+) -> Vec3<T> {
+    if let [a, b, ..] = points {
+        return (*b - *a).normalize();
+    }
+    assert!(
+        one_whole_conic(body, l),
+        "section loop {l:?} has one corner and no whole section conic: the join refuses a loop of \
+         lone-site placeholders before it is charted"
+    );
+    n.orthonormal_basis().0
+}
+
+/// Whether `l` is one edge on a section conic that is no placeholder
+/// ([`crate::chord_join::lone_site_placeholder`]).
+fn one_whole_conic<T: Real>(body: &Body<T>, l: LoopKey) -> bool {
+    let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|lp| lp.boundary) else {
+        return false;
+    };
+    let Some(he) = body.get_half_edge(first) else {
+        return false;
+    };
+    let curve = body
+        .get_edge(he.edge)
+        .and_then(|e| body.get_curve_geom(e.curve))
+        .and_then(crate::null::CurveGeom::certified);
+    match (curve, body.half_edge_end(first)) {
+        (Some(curve), Some(end)) => {
+            he.next == first
+                && !crate::chord_join::lone_site_placeholder(he.start, end, curve)
+                && matches!(
+                    curve.carrier(),
+                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+                )
+        }
+        _ => false,
     }
 }
 

@@ -66,7 +66,7 @@ use crate::body::Body;
 use crate::chord_join::{
     ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinLane, Leave, SectionCase,
     SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he,
-    corrupt_loop, vertex_point, wall_section,
+    corrupt_loop, lone_site_placeholder, vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
@@ -791,10 +791,9 @@ impl<T: Decide> Sweep<T> {
                 continue;
             };
             let end = body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?;
-            // A scaffold self-loop is a lone site's placeholder circle
-            // (`EdgeCurveSpec::self_loop_circle_at`), not a section arc:
-            // it bounds nothing, whatever plane its circle lies in.
-            if end == he_data.start && curve.description().is_scaffold() {
+            // A placeholder bounds nothing, whatever plane its circle
+            // lies in; a loop of placeholders alone is a point.
+            if lone_site_placeholder(he_data.start, end, curve) {
                 placeholders += 1;
                 continue;
             }
@@ -833,8 +832,6 @@ impl<T: Decide> Sweep<T> {
         // predicate. `chart_region_area` asks the same question two
         // dimensions down through the same door; the accumulators
         // stay separate, for the reasons written at that site.
-        // A loop of placeholders alone is a point, with no perimeter
-        // to lever its area over.
         if placeholders == hes.len() {
             return Err(SplitJoinError::DegenerateSection { face });
         }
@@ -1143,5 +1140,58 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| certify(b),
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod placeholder_rows {
+    use super::*;
+    use geom_core::Vec3;
+
+    /// **A loop of lone-site placeholders bounds nothing in any plane.**
+    /// `mef`'s lone site certifies its edge as the unit circle about
+    /// `p + x̂` in the plane `z = 0`, so a section plane of normal `±ẑ`
+    /// would read it as `π` of area. The area check refuses the loop as
+    /// the point it is.
+    #[test]
+    fn a_loop_of_placeholders_is_a_degenerate_section_in_every_plane() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+        let lone = body
+            .mef_chord(
+                crate::euler::MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        for normal in [Vec3::unit_z(), -Vec3::unit_z(), Vec3::unit_y()] {
+            let plane =
+                crate::test_support_fixtures::split_plane(Point3::new(0.0, 0.0, 0.0), normal, tol);
+            let sweep = Sweep {
+                ends: Vec::new(),
+                partner: SecondaryMap::new(),
+                joiner: ChordJoiner::new(band),
+                completed: Vec::new(),
+                above_set: SecondaryMap::new(),
+                plane,
+                band,
+                section: SectionCtx {
+                    origin: plane.origin,
+                    normal: plane.normal,
+                    plane_key: None,
+                },
+            };
+            for (face, lp) in [(seed.face, seed.r#loop), (lone.face, lone.r#loop)] {
+                let got = sweep.certify_section_area(&body, face, lp);
+                assert!(
+                    matches!(got, Err(SplitJoinError::DegenerateSection { face: f }) if f == face),
+                    "normal {normal:?}, loop {lp:?}: {got:?}"
+                );
+            }
+        }
     }
 }

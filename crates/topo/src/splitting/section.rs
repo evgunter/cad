@@ -283,7 +283,12 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     for section in &completed {
         let halves = section_walk(&red.body, section.below_loop)?;
         let points: Vec<_> = halves.iter().map(|h| h.corner).collect();
-        let u = *u_ref.get_or_insert_with(|| section_loops::chord_u_ref(&points, plane.normal));
+        // The caller's plane, which the frame is reported on; this
+        // run is never the split's mirrored rerun, so it is also the
+        // run's.
+        let u = *u_ref.get_or_insert_with(|| {
+            section_loops::chord_u_ref(&red.body, section.below_loop, &points, plane.normal)
+        });
         let v = *v_ref.get_or_insert_with(|| normal.cross(u));
         let corner = points[0];
         let outline = match section_loops::loop_sense(&red.body, section.below_loop, normal, band) {
