@@ -56,3 +56,7 @@ carrier today. That is the reason it was not done inside PR 4120.
 ## Found by
 
 The review of PR 4120 (CLEAVE, `cleave/tube-across-axis`).
+
+## Triage (TOPO, 2026-10-06)
+
+TOPO owns this row; the readers in `splitting/` and `chord_join` are CLEAVE ground. It gives the placeholder a kind of its own, which is a representation change, so two designers weigh it before anything is built. Ev weakly prefers to hold that round until the D10/intent refactor settles, since that refactor is changing the ground this sits on.

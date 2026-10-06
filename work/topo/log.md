@@ -7531,3 +7531,16 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
 
 - **PR 3970 merged** at `edc12bbd`, head `faa32028`. It had a doc-only conflict: main took fork-log row 75, so ours is now **row 76**. Unsubscribed.
 - **Ev's standing rule:** when a conflict is doc-only and CI already went green on an earlier head, merge after resolving it without waiting for CI again. That includes renumbering a fork-log row or taking main's side of a `status:` line.
+
+## 18:05 (2026-10-06): close-out plan (agreed with Ev)
+
+1. Land PR 4165 (fix lane in flight).
+2. Then dispatch PR 3970's choices 1 and 2 as **one unit**: field privacy plus `vouch_move` ownership, `kef`/`kfmrh` keys-only refusals with describing twins, and the tier-1 naming check. Full review, fix lane if needed. It waits for 4165 because both touch `attach.rs`.
+3. The placeholder row's designers are held until D10 settles (Ev, weakly).
+4. Hand back:
+   - the handoff entry in this log;
+   - sync `work/`;
+   - `program.md` → `status: ready`;
+   - delete the check-in trigger;
+   - unsubscribe, archive, clean worktrees.
+   The P3s, P4s and design rows stay on the board for the next orchestrator.
