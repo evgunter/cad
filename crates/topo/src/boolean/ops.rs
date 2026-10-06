@@ -3212,7 +3212,7 @@ fn carry_rows<T: Real>(
     }
     for (i, &(g, x)) in live.iter().enumerate() {
         for &(_, y) in live[i + 1..].iter().filter(|(h, _)| *h == g) {
-            record(body, &mut out, x, y);
+            record(body, &mut out, x, y)?;
         }
     }
     // Vertex-on-face records: the vertex's own key, the face chased.
@@ -3241,7 +3241,7 @@ fn carry_rows<T: Real>(
             desc.live(body, vs, view(vs), Cell::Vertex(v))?,
             desc.live(body, fs, view(fs), Cell::Face(f))?,
         ) {
-            record(body, &mut out, (vs, x), (fs, y));
+            record(body, &mut out, (vs, x), (fs, y))?;
         }
     }
     // Edge-edge records: the joins' (no reduction mints one), then
@@ -3255,7 +3255,7 @@ fn carry_rows<T: Real>(
     for (side, c) in ee_rows {
         let edge = |e| desc.live(body, side, view(side), Cell::Edge(e));
         if let (Some(x), Some(y)) = (edge(c.a)?, edge(c.b)?) {
-            record(body, &mut out, (side, x), (side, y));
+            record(body, &mut out, (side, x), (side, y))?;
         }
     }
     // The face-granularity records: the faces chase, and so does the
@@ -3290,8 +3290,18 @@ fn carry_rows<T: Real>(
 /// Records the cell pair `x`, `y` (result keys) under its kind, once:
 /// two cells that are one, or one of which bounds the other, are
 /// structure and record nothing, and so does a pair with no stored kind
-/// (module docs of [`carry`]).
-fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End) {
+/// whose arm says why it is structure (module docs of [`carry`]).
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where an edge rests on a curved face's
+/// interior: the planar argument that consumes the pair does not hold.
+fn record<T: Real>(
+    body: &Body<T>,
+    out: &mut ContactRecords,
+    x: End,
+    y: End,
+) -> Result<(), BooleanError> {
     let ((xs, xc), (ys, yc)) = (x, y);
     match (xc, yc) {
         (Cell::Vertex(a), Cell::Vertex(b)) if a != b => {
@@ -3360,15 +3370,29 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End) {
         }
         // One cell (the arms above take two distinct ones): structure.
         (Cell::Vertex(_), Cell::Vertex(_)) | (Cell::Edge(_), Cell::Edge(_)) => {}
-        // A point record whose vertex was joined away (PR 3881's
-        // ruling): a vertex-on-face record's vertex had valence 2
-        // between two planar faces, so both its edges lay in the face it
-        // rested on (else it was a pierce the boolean had already cut),
-        // and the joined edge's rest in that face is backed at its own
-        // bounds. Consumed into structure, with no stored kind: a wrong
-        // drop is the census's `EdgeFaceOverlap` unbacked, or its
-        // `EdgeFacePierce`, both loud.
-        (Cell::Edge(_), Cell::Face(_)) | (Cell::Face(_), Cell::Edge(_)) => {}
+        // An edge resting on a face: a vertex-on-face record whose vertex
+        // was joined away (PR 3881's ruling), or a vertex-on-edge or
+        // edge-edge record one of whose cells the merge swallowed into a
+        // face. On a plane it is structure: a line meeting a plane
+        // either lies in it or pierces it, and a pierce is a crossing
+        // the boolean already cut, so the edge lies in the face (the
+        // joined vertex's two edges did), and its rest there is backed
+        // at its own bounds. Consumed, with no stored kind: a wrong drop
+        // is the census's `EdgeFaceOverlap` unbacked, or its
+        // `EdgeFacePierce`, both loud. The argument is the plane's
+        // alone, so a curved face refuses typed.
+        (Cell::Edge(_), Cell::Face(face)) | (Cell::Face(face), Cell::Edge(_)) => {
+            let f = proven(&body.faces, face, EntityId::Face);
+            if !matches!(
+                body.face_surface_linked(face, f),
+                geom::Surface::Plane { .. }
+            ) {
+                return Err(BooleanError::JoinDesync {
+                    what: "a record's edge rests on a curved face's interior, which no record \
+                           kind stores and no structure carries",
+                });
+            }
+        }
         // A point record both of whose cells a merge absorbed: one face
         // (structure), or a point on both faces' interiors, a face-face
         // rest (two shells touching across coincident faces) that the
@@ -3376,6 +3400,7 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End) {
         // declared pair. Consumed; no point record has that kind.
         (Cell::Face(_), Cell::Face(_)) => {}
     }
+    Ok(())
 }
 
 /// Whether `vertex` is on one of `face`'s loops. `face` is live
@@ -5788,6 +5813,46 @@ mod tests {
     /// the other vertex resting on the kept face. Red when the merge's
     /// pruned vertices are left out of the substitution rows (the
     /// record drops) or mapped to a vertex.
+    /// **Two live chords for one edge refuse.** The join's chords along
+    /// an edge each hold its interior where the op drops it
+    /// ([`Descendants::live`]); two live ones that are not one edge
+    /// would mean two edges hold one interior. Red when the read takes
+    /// the first live chord, or panics.
+    #[test]
+    fn two_live_chords_along_one_dropped_edge_refuse_typed() {
+        use super::{Cell, Descendants, KeyView, Operand};
+        use crate::entity::EdgeKey;
+
+        let tol = Tol::witness();
+        let body = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        )
+        .body;
+        let mut edges = body.edges().map(|(k, _)| k);
+        let (c1, c2) = (edges.next().unwrap(), edges.next().unwrap());
+        // A key no live edge has: the dropped edge.
+        let gone = EdgeKey::default();
+        assert!(body.get_edge(gone).is_none());
+        let one = Descendants::default().with_along([vec![(gone, c1)], Vec::new()]);
+        assert_eq!(
+            one.live(&body, Operand::A, &KeyView::Direct, Cell::Edge(gone))
+                .unwrap(),
+            Some(Cell::Edge(c1)),
+            "one live chord holds the dropped edge"
+        );
+        let two = Descendants::default().with_along([vec![(gone, c1), (gone, c2)], Vec::new()]);
+        assert!(
+            matches!(
+                two.live(&body, Operand::A, &KeyView::Direct, Cell::Edge(gone)),
+                Err(BooleanError::JoinDesync { .. })
+            ),
+            "two live chords refuse typed"
+        );
+    }
+
     #[test]
     fn a_record_citing_a_pruned_free_end_lands_on_the_face_that_swallowed_it() {
         use super::{Cell, Descendants, KeyView, Operand};
