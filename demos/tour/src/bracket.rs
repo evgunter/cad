@@ -33,11 +33,14 @@
 //! asserts and renders; the offcuts' chords chamfer the same way, each
 //! inside its own solid. The fillet builds too, each band cut off in an
 //! arc of the side wall's elliptic section of its cylinder, at
-//! `4·(1 − π/4)·r²·√2` on either half. One wall pins the cell the
-//! cut-off does not build at this plane and setback: both section
-//! faces' whole rims chamfered (the turn, two of each corner's three
-//! edges requested — `CornerConfig::Turn`)
-//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`).
+//! `4·(1 − π/4)·r²·√2` on either half. One wall pins the cell no band
+//! builds at this plane: both section faces' whole rims chamfered. Each
+//! corner of a section face is a turn, two of its three edges
+//! requested, whose dihedrals differ — a right angle at the cap chord,
+//! 45° or 135° at the section edge on the side wall — so one band
+//! reaches past the mitre, the overrun
+//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`,
+//! step 5).
 //!
 //! The outline's decimal-via ancestor lives on as the large-K lint's
 //! litmus fixture (`tools/k-lint/tests/litmus.rs`).
@@ -51,7 +54,7 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{NodeErrorKind, PartSelect, RefusingReach};
 use pncad::geom_core::Tol;
 use pncad::prelude::{
-    BlendError, CancelToken, CornerConfig, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
+    BlendError, CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
     Evaluation, Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat,
     SegTag, Selector, SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
 };
@@ -357,8 +360,8 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
         pinned: |e| {
             matches!(
                 e,
-                BlendError::UnsupportedCorner {
-                    corner: CornerConfig::Turn,
+                BlendError::UnsupportedRunOut {
+                    detail: pncad::sweep::blend::battery::TURN_OVERRUN,
                     ..
                 }
             )
@@ -394,7 +397,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
          (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}; filleted at r = \
          {SETBACK}, each band cut off in an elliptic arc, they reach V = {filleted:.6} and \
          {off_filleted:.6} (less 4·(1 − π/4)·r²·√2), and breaking the section faces' whole \
-         rims refuses (wall 3)"
+         rims refuses as the overrun past an asymmetric mitre (wall 3)"
     )
 }
 

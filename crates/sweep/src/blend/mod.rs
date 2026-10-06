@@ -106,7 +106,11 @@
 //! vertices of one convexity between planes, where the request decides
 //! the end by how many of the vertex's three edges it names — all three,
 //! the corner patch (a sphere octant resting inside the material or in
-//! the void with its ball, or the chamfer's flat patch); one, the
+//! the void with its ball, or the chamfer's flat patch); two, the MITRE
+//! where the trihedron is isosceles about the third edge
+//! ([`CornerConfig::Turn`], [`RunOutPolicy::Mitre`]): the bands meet
+//! along their intersection, a line for a chamfer and a planar ellipse
+//! for a fillet, down to the third edge; one, the
 //! CUT-OFF in the end face's plane section of the band
 //! ([`CornerConfig::EndFace`], [`RunOutPolicy::CutOffAtEndFace`]): a
 //! chord at any angle for a chamfer, and for a fillet a circle at a
@@ -118,15 +122,15 @@
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
 //! carrying a [`CornerConfig`] — the battery's classifier and the
-//! assembly's valence and convexity doors both, the mitre where two of
-//! three edges are requested ([`CornerConfig::Turn`]) among them), and
+//! assembly's valence and convexity doors both), and
 //! every link whose support pair is outside the analytic-arm table
 //! ([`BlendError::SpineUnsupported`] — the canal-surface
 //! approximating-blend lane, banked as its own reviewed unit). An end
 //! whose configuration is the supported one but whose shape the cut-off
 //! does not build — a curved end face, a foot off its rim's span
 //! (landing inside a support), two cut-offs' feet crossing on the one
-//! rim they share — is a **run-out**, and refuses as
+//! rim they share, a turn whose trihedron is not isosceles (the overrun
+//! past the mitre) — is a **run-out**, and refuses as
 //! [`BlendError::UnsupportedRunOut`] before any mutation.
 
 mod admit;
@@ -1484,7 +1488,8 @@ pub enum BlendError {
     /// configuration a band builds, but in a shape its end does not —
     /// a run-out: a curved end face, a foot off its rim's span (inside a
     /// face rather than on the end face's rim), two cut-offs' feet that
-    /// cross on one shared rim.
+    /// cross on one shared rim, a turn whose trihedron is not isosceles
+    /// (one band overrunning the mitre).
     ///
     /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
     /// which is the OQ6 vocabulary for what a vertex's own

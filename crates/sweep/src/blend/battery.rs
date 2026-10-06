@@ -2008,7 +2008,7 @@ pub enum DecidedCoincidence<T: Real> {
 /// [`BlendError::Escalated`] in band; [`BlendError::BodyNotIntact`]
 /// when the two links share no support or a normal does not read;
 /// [`BlendError::UnsupportedGeometry`] when a trimline is not a line.
-fn turn_at<T: Decide + Bounds>(
+fn turn_at<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     links: [&Link<T>; 2],

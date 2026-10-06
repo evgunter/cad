@@ -1,21 +1,25 @@
 //! **The planar open band** — the blank phase: a plane–plane link
 //! carved LOCALLY on its two support faces, each of its two ends a
 //! trivalent vertex of one convexity whose edges the request names
-//! either all — the corner patch, the fillet's sphere octant or the
+//! all — the corner patch, the fillet's sphere octant or the
 //! chamfer's flat patch through the three trimline feet
-//! ([`corner_plan`]) — or one: the cut-off in the plane end face
+//! ([`corner_plan`]) — two: the mitre where the two bands meet
+//! ([`turn_plan`]) — or one: the cut-off in the plane end face
 //! ([`cut_off_plan`], [`super::end_face`]).
 //!
 //! The carve: per cut-off, its first step — both rims split at their
-//! feet and the end curve `mef`'d across the end face. Per support face,
-//! one strut `mev` at each corner or joint station of its requested
+//! feet and the end curve `mef`'d across the end face; per turn, the
+//! third edge split at its foot. Per support face,
+//! one strut `mev` at each corner, joint or turn station of its requested
 //! edges, and one trimline `mef` per requested edge between the feet at
 //! its two stations, carving the face into the SHRUNK face — every edge
 //! the request does not name kept where it was — plus one strip per
 //! requested edge. Per edge one `kef` merges the two strips across the
 //! dying sharp edge; per corner three arc `mef`s, two `kef`s and one
 //! `kev` fuse the corner triangles into the patch and retire the struts
-//! and the sharp vertex; per cut-off its last step folds the sliver into
+//! and the sharp vertex; per turn the mitre `mef`'d across one band, a
+//! `kef` and a `kev` retiring the strut, the third edge's piece and the
+//! vertex ([`turn_fusion`]); per cut-off its last step folds the sliver into
 //! the band and retires the old vertex; per joint (two links of one
 //! chain on the same two supports, [`Joint`]) one `kef` and one `kev`
 //! fuse the two links' strips into one band face and retire the joint
@@ -39,7 +43,7 @@ use topo::{
     VertexKey,
 };
 
-use super::end_face::{CutRims, EndCut, cut_off, fold_sliver, foot_param};
+use super::end_face::{CutRims, EndCut, cut_off, fold_sliver};
 use crate::blend::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary,
 };
@@ -363,6 +367,9 @@ pub(in crate::blend) struct TurnPlan<'a, T: Real> {
     pub(in crate::blend) crossing: Point3<T>,
     /// Where the third edge ends, the battery's turn foot.
     pub(in crate::blend) foot: Point3<T>,
+    /// The foot's parameter on the third edge's stored carrier, which
+    /// every piece a split leaves of it shares.
+    at: T,
     /// The mitre's carrier: the chord where two plane bands cross, or
     /// the ellipse where two cylinder bands do.
     mitre: ContactCarrier<T>,
@@ -384,11 +391,12 @@ const MITRE_NOT_AN_ELLIPSE: &str = "a turn's two cylinder bands do not meet in a
 /// the bisector planes of the axes, crossing where both cylinders touch
 /// the shared face — the trimlines' crossing. The mitre is the one in
 /// the plane of symmetry of the isosceles trihedron, whose normal is
-/// the difference of the two edges' unit directions out of the vertex;
-/// the section door's `a₁ − a₂` ellipse is that one exactly when the
-/// stored axes point the same way relative to those directions, a sign
-/// read off two parallel vectors. Its arc from the crossing to the foot
-/// runs forward the short way, as a cut-off's does.
+/// the difference of the two edges' unit directions out of the vertex,
+/// so the section door is handed each band's cylinder with its axis
+/// along its edge's direction out of the vertex — the same cylinder —
+/// and its `a₁ − a₂` ellipse is the mitre. The description pass runs
+/// the ellipse whichever way the edge does. `at` is the foot's
+/// parameter on the third edge, read by the caller.
 ///
 /// # Errors
 ///
@@ -396,10 +404,11 @@ const MITRE_NOT_AN_ELLIPSE: &str = "a turn's two cylinder bands do not meet in a
 /// a vertex does not read; [`BlendError::UnsupportedGeometry`] when a
 /// trimline is not a line, a band is not the verb's surface, or the
 /// section door refuses the pair.
-pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
+pub(in crate::blend) fn turn_plan<'a, T: Decide>(
     body: &Body<T>,
     turn: &Turn<T>,
     links: [AdmittedOpen<'a, T>; 2],
+    at: T,
     kind: BlendKind,
     band: Band,
 ) -> Result<TurnPlan<'a, T>, BlendError> {
@@ -426,42 +435,41 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
             let unbuilt = || unbuilt_geometry(EntityId::Vertex(vertex), MITRE_NOT_AN_ELLIPSE);
             let p = point_of(body, vertex)
                 .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a turn's vertex"))?;
-            // Each edge's unit direction out of the turn.
+            // Each band's cylinder, its axis along its edge's unit
+            // direction out of the turn.
             let out = |l: &Link<T>| {
                 let far = if l.start == vertex { l.end } else { l.start };
-                point_of(body, far)
-                    .map(|q| (q - p).normalize())
-                    .ok_or_else(|| not_intact(EntityId::Vertex(far), "a turning edge's far end"))
+                let q = point_of(body, far)
+                    .ok_or_else(|| not_intact(EntityId::Vertex(far), "a turning edge's far end"))?;
+                match l.blend.surface {
+                    Surface::Cylinder {
+                        origin,
+                        radius,
+                        u_ref,
+                        ..
+                    } => Ok(Surface::Cylinder {
+                        origin,
+                        axis: (q - p).normalize(),
+                        radius,
+                        u_ref,
+                    }),
+                    _ => Err(unbuilt()),
+                }
             };
-            let (Surface::Cylinder { axis: a1, .. }, Surface::Cylinder { axis: a2, .. }) =
-                (&l1.blend.surface, &l2.blend.surface)
-            else {
-                return Err(unbuilt());
-            };
-            let aligned = (a1.dot(out(l1)?) * a2.dot(out(l2)?)).hi() > 0.0;
             // The two radii are the one request's radius: equal by
             // construction, so the evidence is structural.
             let section = cylinder_cylinder_section(
-                &l1.blend.surface,
-                &l2.blend.surface,
+                &out(l1)?,
+                &out(l2)?,
                 RadiusEvidence::Declared,
                 l1.arm_len.max(l2.arm_len),
                 band,
             )
             .map_err(|_| unbuilt())?;
-            let EqualCylinderSection::TwoEllipses { e1, e2 } = section else {
+            let EqualCylinderSection::TwoEllipses { e1, .. } = section else {
                 return Err(unbuilt());
             };
-            let ellipse = if aligned { e1 } else { e2 };
-            let Curve3::Ellipse { center, axis, .. } = ellipse else {
-                return Err(unbuilt());
-            };
-            let turn_sense = (crossing - center).cross(foot - center).dot(axis);
-            ContactCarrier::Transverse(if turn_sense.hi() < 0.0 {
-                ellipse.reversed().ok_or_else(unbuilt)?
-            } else {
-                ellipse
-            })
+            ContactCarrier::Transverse(e1)
         }
     };
     Ok(TurnPlan {
@@ -472,6 +480,7 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
         others,
         crossing,
         foot,
+        at,
         mitre,
     })
 }
@@ -955,16 +964,20 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     Ok((blend_faces, corner_faces, described))
 }
 
-/// **A turn's first carve step**: split the third edge — live, since a
-/// cut-off at its far end may have split it already — at the foot, and
-/// record the foot. The piece at the vertex dies in [`turn_fusion`].
+/// **A turn's first carve step**: split the third edge — the live piece
+/// at the vertex, since a cut-off at its far end may have split it
+/// already, which the plan's [`shared_rims_clear`] meters the foot
+/// beyond — at the foot, and record the foot. The piece at the vertex
+/// dies in [`turn_fusion`].
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] for a foot off the edge's live
-/// span; [`BlendError::BodyNotIntact`] when the vertex's third edge does
-/// not read; [`BlendError::Op`] when the split refuses.
-fn turn_split<T: Decide + Bounds + topo::AtRestPolicy>(
+/// [`BlendError::BodyNotIntact`] when the vertex's third edge does not
+/// read or is not a piece of the edge the verdict named;
+/// [`BlendError::Op`] when the split refuses.
+///
+/// [`shared_rims_clear`]: super::end_face::shared_rims_clear
+fn turn_split<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     t: &TurnPlan<'_, T>,
     rec: &mut BlendNaming,
@@ -982,8 +995,7 @@ fn turn_split<T: Decide + Bounds + topo::AtRestPolicy>(
                 "a turn's vertex does not carry its two links and one third edge",
             )
         })?;
-    let at = foot_param(body, third, t.vertex, t.foot)?;
-    let frag = split_fragment(body, third, t.vertex, at, None, rec, "turn foot split", tol)?;
+    let frag = split_fragment(body, third, t.vertex, t.at, None, rec, "turn foot split", tol)?;
     if frag.source != t.third {
         return Err(not_intact(
             EntityId::Edge(third),

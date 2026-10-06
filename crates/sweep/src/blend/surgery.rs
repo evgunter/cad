@@ -619,7 +619,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 "a turn the verdict admitted does not end exactly two admitted planar links",
             ));
         };
-        turns.push(turn_plan(source, turn, [a, b], kind, band)?);
+        let at = foot_param(source, turn.edge, turn.vertex, turn.foot)?;
+        turns.push(turn_plan(source, turn, [a, b], at, kind, band)?);
     }
     turns.sort_by_key(|t| t.vertex);
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
@@ -720,10 +721,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 
     // ---- Two splits on one rim — two cut-offs', or a cut-off's and a
     // turn's on its third edge — the second must land on the piece the
-    // first leaves; a turn's foot alone must land inside its edge. ----
-    for t in &turns {
-        foot_param(source, t.third, t.vertex, t.foot)?;
-    }
+    // first leaves. ----
     shared_rims_clear(
         source,
         ruled_plans
