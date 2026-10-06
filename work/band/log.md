@@ -433,6 +433,22 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-06 — the plane–plane run-out fork goes to Ev (`[ev]` PR #4085)
+
+`a-plane-plane-blend-cannot-end-at-an-unrequested-corner` (P0) put
+through the design-fork protocol: fork-log row 72. Designers A and B
+both diagnosed one missing idea (a band's end as its section by the face
+it runs into) and a face-whole planar carve, recommended the cut-off /
+mitre / patch by request count, and converged after three rounds; the
+only crossover was the mitre's name key, settled once both measured that
+a wider role variant is additive on the wire. PR 4085 asks Ev to rule
+the rule itself, the C8 and H7 text, whether an extruded box's isosceles
+mitre should lint as an unproven coincidence under D10, and the
+vocabulary. The designers flagged three rows to file once Ev rules:
+`CornerConfig::policy` maps `MixedConvexity` to `RunOutFeather`;
+`RuledPlan::plan` refuses a requested cap rim (the ruled band's own
+2-of-3 gap); the inner corner of an L-shaped rim (a torus pivot about L,
+or the end-face rule; the torus is degenerate there).
 ## 2026-10-06 — `a-hole-filleted-at-both-rims-in-one-fillet-panics-in-blend-surgery` closed (PR #4088)
 
 A through-bore's two rims filleted in one call panicked at the surgery's
@@ -451,3 +467,34 @@ convention pinned by the new rows).
 `declared-joint-kind-zero-margin-reads-smooth` parked on
 `d10-one-way-to-say-intent-is-unbuilt`: profile declared-joint kinds are
 the hold's ground (D10 makes tangency constructed).
+
+## 2026-10-06 — `support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place` closed (PR #3822)
+
+The ladder case the row named was already exact (arm (a) meters each open
+link's trimline against the widened ring); what carved wrong on main was
+a ruled link beside an annulus rim — a rod on a squared washer's bottom
+face with the bore rim, a tier-3-valid body whose bottom boundary crossed
+itself. `support_boundary_clearance` now reads a co-requested outer-cycle
+edge at its own trim (`co_requested_trim`): an open link as its trimline,
+another rim's arc as that rim's whole trim circle (exact by closed form
+and containment). Full review (APPROVE-WITH-FIXES, no MAJOR; every probe
+refused on its closed-form margin and carved bodies matched it); the fix
+pass took all six points: the arm (c) sibling row closed (predicate 3's
+`s > r` keeps a plane-cap trim disc out of the sliver) with the remaining
+open-link candidate filed as `ruled-cap-meter-reads-a-co-requested-open-link-at-its-stored-place`
+(P3); the rim-arc branch kept with its unreachability argued at the site;
+"this link's trim on this face" given one home (`EdgeBlend::trims`,
+`Link::trim_on`, `open_trimline`); the reviewer's boundary sweep adopted
+as rows.
+
+## 2026-10-06 — the plane–plane run-out ruled (Ev, PR #4085)
+
+Ev approved all four decisions: the request-count rule (cut-off, mitre,
+patch), the C8/H7 text, and the vocabulary; decision 3 (whether a box's
+isosceles mitre lints) went to INTENT at Ev's request (#4094), where Ev
+answered: land it under (b), recorded as a value-decided coincidence and
+proven at INTENT's stage 4 (#4097). Fork-log row 72 completed (byte 26:
+Opus = A, Fable = B; both matched after round 3). The row's build order is
+in its `## Ruled` section; step 1 dispatches next. Filed
+`chamfer-ends-in-a-curved-end-face` (P3) from Ev's curved-end-face
+question.

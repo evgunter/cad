@@ -3896,18 +3896,22 @@ mod tests {
             unresolved(ResolveFault::EpsilonSeam),
             unresolved(ResolveFault::Unresolved),
             PartFault::PartRootFailed {
+                held: Default::default(),
                 node: RecipeNodeId(test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
             PartFault::PartRootPoisoned {
+                held: Default::default(),
                 root: RecipeNodeId(test_utils::refusal::tagged(8)),
                 through: RecipeNodeId(test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
             PartFault::RootFailureUnrecorded {
+                held: Default::default(),
                 node: RecipeNodeId(test_utils::refusal::tagged(7)),
             },
             PartFault::PartProduct {
+                held: Default::default(),
                 refusal: ProductError::NoBodyRoots.into(),
             },
             PartFault::ReferenceCycle {

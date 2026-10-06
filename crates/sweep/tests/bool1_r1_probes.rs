@@ -141,6 +141,7 @@ fn non_adjacent_citations(body: &Body<f64>) -> Vec<EdgeKey> {
 #[test]
 fn coplanar_below_citations_are_all_adjacent() {
     let body = extruded(vec![notched(0.0)], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     for (name, part) in [("above", &result.above), ("below", &result.below)] {
         let b = part.body().expect("side has material");
@@ -196,6 +197,7 @@ fn near_coplanar_notch_floor_outcome_table() {
         -5e-7, -1e-6, -2e-6, -5e-6, -1e-5,
     ] {
         let body = extruded(vec![notched(dy)], 1.0);
+        let body = sweep::test_support::finished("the body", body, Tol::witness());
         let outcome = match topo::split(&body, &plane_y1(), Tol::witness()) {
             Err(e) => format!("split refused: {e:?}"),
             Ok(r) => {
@@ -226,6 +228,7 @@ fn near_coplanar_notch_floor_outcome_table() {
 #[test]
 fn coplanar_split_e2e_volume_and_watertight() {
     let body = extruded(vec![notched(0.0)], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let v0 = topo::mass_properties(&body, Tol::witness())
         .expect("operand mass properties")
         .volume;
@@ -270,6 +273,7 @@ fn coplanar_split_e2e_volume_and_watertight() {
 #[test]
 fn declared_authority_across_the_coplanar_restatement() {
     let body = extruded(vec![notched(0.0)], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let before: usize = body
         .edges()
         .filter_map(|(_, e)| body.get_curve_geom(e.curve)?.certified())
@@ -302,6 +306,7 @@ fn cylindrical_wall_tangent_to_the_section_plane() {
         (Point2::new(5.0, 2.0), 1.0),
     ]);
     let body = extruded(vec![disc], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let outcome = match topo::split(&body, &plane_y1(), Tol::witness()) {
         Err(e) => format!("refused: {e:?}"),
         Ok(r) => {
@@ -328,6 +333,7 @@ fn cylindrical_wall_tangent_to_the_section_plane() {
         (Point2::new(5.0, 1.5), 1.0),
     ]);
     let body2 = extruded(vec![disc2], 1.0);
+    let body2 = sweep::test_support::finished("the body2", body2, Tol::witness());
     println!(
         "control (transverse cylinder): {:?}",
         topo::split(&body2, &plane_y1(), Tol::witness())

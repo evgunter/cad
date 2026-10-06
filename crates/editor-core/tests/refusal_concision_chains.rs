@@ -43,10 +43,10 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
 const KERNEL_KEYED: &[&str] = &[
     "Revolve/VoidInsertion",
     "Revolve/Pcurve",
-    "Split/Reduce/ScaffoldingOperand",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
     "Split/Reduce/CrossingInsertion",
@@ -354,9 +354,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    "Split/Reduce/ScaffoldingOperand",
     // work/carve/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
@@ -783,6 +783,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
         doc_ref: doc_ref(),
         fault: PartFault::PartRootFailed {
+            held: Default::default(),
             node: RecipeNodeId(tagged(node)),
             refusal: refusal.into(),
         },
@@ -852,20 +853,14 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     let in_part = part(7, placer(editor_core::PlacerRow::Silent));
     let documents: Vec<_> = in_part
         .carried_chain()
-        .map(|level| (level.document, level.node))
+        .map(|level| (level.document.doc_ref(), level.node))
         .collect();
     let part_ref = doc_ref();
     assert_eq!(
         documents,
         vec![
-            (
-                editor_core::CarriedIn::Part(&part_ref),
-                RecipeNodeId(tagged(7))
-            ),
-            (
-                editor_core::CarriedIn::Part(&part_ref),
-                RecipeNodeId(tagged(4))
-            ),
+            (Some(&part_ref), RecipeNodeId(tagged(7))),
+            (Some(&part_ref), RecipeNodeId(tagged(4))),
         ],
         "the placer's level is in the part the mate is in"
     );
@@ -1452,7 +1447,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "TangencyUnsupported",
             R::TangencyUnsupported { face, vertex },
         ),
-        ("ScaffoldingOperand", R::ScaffoldingOperand { edge }),
+        (
+            "ScaffoldingOperand",
+            R::ScaffoldingOperand {
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            R::InsideOutOperand {
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
         (
             "SliverVertex",
             R::SliverVertex {
@@ -1479,6 +1487,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
         ("LoneVertex", R::LoneVertex { vertex }),
+        (
+            "NullEdgeAtVertex",
+            R::NullEdgeAtVertex {
+                vertex,
+                edge: topo::EdgeKey::default(),
+            },
+        ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
         ("UnboundedFace", R::UnboundedFace { face, vertex }),
         (
@@ -3408,6 +3423,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootFailed",
             PartFault::PartRootFailed {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
@@ -3415,6 +3431,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootFailed(part)",
             PartFault::PartRootFailed {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Part {
                     doc_ref: doc_ref(),
@@ -3426,6 +3443,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootPoisoned",
             PartFault::PartRootPoisoned {
+                held: Default::default(),
                 root: RecipeNodeId(tagged(8)),
                 through: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
@@ -3434,6 +3452,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "RootFailureUnrecorded",
             PartFault::RootFailureUnrecorded {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
             },
         ),
@@ -3565,7 +3584,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 Some(NodeResult::Failed(error)) => match &error.kind {
                     NodeErrorKind::Part {
                         doc_ref,
-                        fault: fault @ PartFault::PartProduct { refusal },
+                        fault: fault @ PartFault::PartProduct { refusal, .. },
                     } if refusal.kind() == class => row(
                         name,
                         NodeErrorKind::Part {
@@ -3626,6 +3645,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Part {
                 doc_ref: doc_ref(),
                 fault: PartFault::PartProduct {
+                    held: Default::default(),
                     refusal: error.into(),
                 },
             },

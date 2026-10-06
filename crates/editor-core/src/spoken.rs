@@ -8,12 +8,16 @@
 //!
 //! Four spellings, one home each:
 //!
-//! - [`SpokenNode`] — the node as a person reads it. It is built from
-//!   the document that holds the node, by the frame that owns that
-//!   document, when the sentence is made ([`crate::Doc::spoken`]); it
-//!   is never stored in a value the evaluation memo reuses, so the
-//!   label it says is the document's at the moment of speaking, never
-//!   one a later rename left stale.
+//! - [`SpokenNode`] — the node as a person reads it, read off the
+//!   document that holds it ([`crate::Doc::spoken`]). No label a
+//!   sentence says is one its value can outlive: a value the evaluation
+//!   memo reuses holds a label only when its memo key fixes that label.
+//!   A document's own labels are outside its key, so what it memoizes
+//!   keeps bare ids, and the frame that owns the document says them
+//!   when the sentence is made. A part's labels are in its pin, which is
+//!   in the instance's key, so a fault from inside a part holds the
+//!   part's nodes as the pinned part says them
+//!   ([`crate::PartFault::held`]).
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a stored reference). The edit, load and save doors all
@@ -23,7 +27,7 @@
 //!   one a door raised from an evaluation alone): its `Display` says
 //!   each node by tag ([`Speaker::TAG`]), and its `spoken(doc)` says
 //!   each as the document of the frame handing it out holds it
-//!   ([`Speaker::of`]). A door that holds the document and carries
+//!   ([`Speaker::of`]). A site that holds the document and carries
 //!   such a value whole keeps the nodes its words name as
 //!   [`HeldNodes`] ([`held_by`]), and says them back with no document
 //!   at hand ([`Speaker::held`]). Inside a line that already names a
@@ -501,7 +505,8 @@ impl<P> Doc<P> {
 /// holds the document the ids are spelled in says each as that
 /// document holds it now ([`Speaker::of`]). A value the evaluation
 /// memo reuses, or one a door raised from an evaluation alone, keeps
-/// its bare ids and is said this way by the frame that hands it out.
+/// its bare ids and is said this way by the frame that hands it out,
+/// unless its memo key fixes the labels too ([`Speaker::held`]).
 #[derive(Clone, Copy)]
 pub struct Speaker<'a> {
     /// The document each node is read off, `None` for the tag.
@@ -639,10 +644,10 @@ impl fmt::Display for StepAt {
     }
 }
 
-/// **The nodes a refusal names, as a door's document held them when the
-/// door refused** ([`held_by`]): kept beside a refusal value the door
-/// carries whole, so the door's refusal speaks them ([`Speaker::held`])
-/// with no document at hand. Empty, every node is said by its tag.
+/// **The nodes a refusal names, as the document its ids are numbered in
+/// held them** ([`held_by`]): kept beside a refusal value carried whole,
+/// so it speaks them ([`Speaker::held`]) with no document at hand.
+/// Empty, every node is said by its tag.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeldNodes {
     nodes: Box<[SpokenNode]>,
@@ -838,8 +843,9 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
 }
 
 /// **Every node `value`'s sentence names, as `doc` holds it now**
-/// ([`HeldNodes`]). The door's refusal is never memoized, so what it
-/// keeps is as of the moment it refused.
+/// ([`HeldNodes`]). The snapshot is as of now, so the value that keeps
+/// it is one no later label of `doc` reaches: a door's refusal, which
+/// is never memoized, or a part's fault, whose pin fixes the part.
 #[must_use]
 pub fn held_by<T: Say + ?Sized, P: ProfilePayload>(value: &T, doc: &Doc<P>) -> HeldNodes {
     let recording = Recording {
@@ -878,8 +884,8 @@ impl<'a> Speaker<'a> {
         }
     }
 
-    /// Each node as a door's document held it when the door refused
-    /// ([`held_by`]); a node it did not keep, by its tag.
+    /// Each node as `nodes` keeps it ([`held_by`]); a node it did not
+    /// keep, by its tag.
     #[must_use]
     pub fn held(nodes: &'a HeldNodes) -> Self {
         Self {
@@ -1126,31 +1132,6 @@ pub(crate) fn assert_taken_of<P>(what: &str, taken_of: crate::DocumentId, doc: &
          node ids would name another document's nodes",
         taken_of.0,
         doc.id().0
-    );
-}
-
-/// **A part's ids are spoken only from the version its reference
-/// pins**: the document `doc_ref` names, by its id and its content pin.
-/// Another version of the part may hold the same id as another node,
-/// or under another label.
-///
-/// # Panics
-///
-/// When `part` is not that document at that version, or its pin does
-/// not compute.
-pub(crate) fn assert_pinned(
-    what: &str,
-    doc_ref: &crate::ident::DocRef,
-    part: &crate::program::ProfileDoc,
-    tol: geom_core::Tol,
-) {
-    assert_taken_of(what, doc_ref.id, part);
-    let pin = crate::persist::content_pin(part, tol).ok();
-    assert!(
-        pin == Some(doc_ref.pin),
-        "{what} is in part {:032x} at the version its reference pins, and is rendered from \
-         another version of it ({pin:?}); its node ids would name another document's nodes",
-        doc_ref.id.0
     );
 }
 
