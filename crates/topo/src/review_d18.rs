@@ -3813,8 +3813,8 @@ fn loop_reads_whole(body: &Body<f64>, lk: crate::entity::LoopKey) -> bool {
 /// Whether every link [`Body::revert`] follows on `body` resolves and
 /// meets its partner: each half-edge's `next`, its mate, and its mate's
 /// start at its end; each anchored vertex's `emanating`, its mate, and
-/// that mate's end at the vertex; and the face of each pcurve row whose
-/// half-edge resolves.
+/// that mate's end at the vertex; each face's surface and each chart
+/// image's; and the face of each pcurve row whose half-edge resolves.
 #[cfg(not(debug_assertions))]
 fn revert_reads_whole(body: &Body<f64>) -> bool {
     let start_of = |he| body.get_half_edge(he).map(|h| h.start);
@@ -3835,7 +3835,19 @@ fn revert_reads_whole(body: &Body<f64>) -> bool {
                 .and_then(|f| body.get_face(f))
                 .is_some()
     });
-    halves && anchors && rows
+    let charts = body
+        .faces()
+        .all(|(_, f)| body.get_surface(f.surface).is_some())
+        && body.curves.values().all(|geom| {
+            let crate::null::CurveGeom::Certified(curve) = geom else {
+                return true;
+            };
+            curve
+                .description()
+                .chart()
+                .is_none_or(|chart| body.get_surface(chart.surface).is_some())
+        });
+    halves && anchors && rows && charts
 }
 
 /// The arenas a read-sweep removal tear drops one live record of,
