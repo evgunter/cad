@@ -138,8 +138,8 @@ pub struct Section<T: Real> {
     /// The sectioning plane, as given.
     pub plane: SplitPlane<T>,
     /// The in-plane u axis (unit; derived from the first polygon's
-    /// first chord — deterministic data; zero polygons ⇒ a default
-    /// axis is impossible, so `u_ref`/`v_ref` are `None`).
+    /// below loop by `section_loops::chord_u_ref` — deterministic data;
+    /// zero polygons ⇒ `u_ref`/`v_ref` are `None`).
     pub u_ref: Option<Vec3<T>>,
     /// The in-plane v axis (`normal × u_ref`).
     pub v_ref: Option<Vec3<T>>,
@@ -262,8 +262,9 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// # Frame semantics
 ///
 /// `u_ref` is the normalized first chord of the first polygon's
-/// below loop (deterministic data, not an arbitrary axis);
-/// `v_ref = normal × u_ref`. Both are `None` iff `regions` is empty
+/// below loop, or, when that loop has one corner (a whole section
+/// conic), the first axis of the plane normal's own basis
+/// (deterministic data either way); `v_ref = normal × u_ref`. Both are `None` iff `regions` is empty
 /// (the plane misses the body — a typed success). `uv` coordinates
 /// are `((p − origin)·u_ref, (p − origin)·v_ref)`.
 ///
@@ -297,20 +298,13 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     for section in &completed {
         let halves = section_walk(&red.body, section.below_loop)?;
         let points: Vec<_> = halves.iter().map(|h| h.corner).collect();
-        if u_ref.is_none() {
-            u_ref = section_loops::chord_u_ref(&points);
-            v_ref = u_ref.map(|u| normal.cross(u));
-        }
-        let (Some(u), Some(v)) = (u_ref, v_ref) else {
-            return Err(
-                SplitError::Join(crate::chord_join::SplitJoinError::SectionInvariant {
-                    face: section.face,
-                    what: "the section polygon has fewer than two points, so the in-plane \
-                           frame it is reported in was never established",
-                })
-                .into(),
-            );
-        };
+        // The caller's plane, which the frame is reported on; this
+        // run is never the split's mirrored rerun, so it is also the
+        // run's.
+        let u = *u_ref.get_or_insert_with(|| {
+            section_loops::chord_u_ref(&red.body, section.below_loop, &points, plane.normal)
+        });
+        let v = *v_ref.get_or_insert_with(|| normal.cross(u));
         let corner = points[0];
         let outline = match section_loops::loop_sense(&red.body, section.below_loop, normal, band) {
             Ok(outline) => outline,
