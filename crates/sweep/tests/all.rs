@@ -738,6 +738,8 @@ mod fillet_h5_r2_probes;
 #[path = "review_fillet_h5_r1_probes.rs"]
 mod review_fillet_h5_r1_probes;
 
+#[path = "blend_per_shell.rs"]
+mod blend_per_shell;
 #[path = "blend_recourse_followability.rs"]
 mod blend_recourse_followability;
 #[path = "review_blend3_r3_probes.rs"]

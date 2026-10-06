@@ -62,7 +62,7 @@
 use geom::Surface;
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Bounds, Decide, Real, Vec3};
-use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{BlendRequest, Link, run_battery};
@@ -71,16 +71,17 @@ use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
 
 /// A blended body — the one result type both verbs return: the
-/// carved solid plus the keys of the faces the blend introduced.
+/// carved body plus the keys of the faces the blend introduced.
 /// [`Filleted`] and [`Chamfered`] alias it for call-site readability.
 #[derive(Clone, Debug)]
 pub struct Blended<T: Real> {
-    /// The blended solid.
+    /// The blended body: every solid and shell of the source, with the
+    /// requested chains carved into the shells they lie in.
     pub body: Body<T>,
-    /// Its (only) solid.
-    pub solid: SolidKey,
-    /// Its (only) shell.
-    pub shell: ShellKey,
+    /// The shells the blend carved, ascending, each one a shell of the
+    /// source under its own key. Every other shell is the source's,
+    /// entity for entity.
+    pub shells: Vec<ShellKey>,
     /// The blend faces — the fillet's quarter-cylinder patches or
     /// the chamfer's flat strips, one per open chain (one per original
     /// edge, save where a chain joins several links on one support
@@ -126,13 +127,13 @@ pub struct Blended<T: Real> {
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
 /// positive; any refusal the battery produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
-/// twice; [`BlendError::UnsupportedBody`],
-/// [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
+/// twice; [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
 /// [`BlendError::UnsupportedGeometry`] or
 /// [`BlendError::UnsupportedCorner`] when the request is outside
 /// the assembly's front door ([`super::surgery`] names each case);
 /// [`BlendError::BodyNotIntact`] when the body does not hold together
-/// where the plan reads it;
+/// where the plan reads it, or [`BlendError::AcrossShells`] when a
+/// requested chain or corner is bounded by faces of two shells;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
 /// clear a trimline, or a cap cycle does not clear the sliver a ruled
 /// cut-off removes; [`BlendError::Op`], carrying the operator's own
@@ -394,12 +395,14 @@ pub type Chamfered<T> = Blended<T>;
 /// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
 /// edge's supports are not both planes; any predicate refusal the
 /// battery raises, or [`BlendError::Escalated`] carrying the margin;
-/// [`BlendError::UnsupportedBody`], [`BlendError::UnsupportedChain`],
+/// [`BlendError::UnsupportedChain`],
 /// [`BlendError::UnsupportedRunOut`],
 /// [`BlendError::UnsupportedGeometry`] or
 /// [`BlendError::UnsupportedCorner`] when the request is outside
 /// the assembly's front door; [`BlendError::BodyNotIntact`] when the
-/// body does not hold together where the plan reads it;
+/// body does not hold together where the plan reads it, or
+/// [`BlendError::AcrossShells`] when a requested chain or corner is
+/// bounded by faces of two shells;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
 /// clear a trimline; [`BlendError::Op`] / [`BlendError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.

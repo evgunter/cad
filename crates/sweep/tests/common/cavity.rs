@@ -126,8 +126,8 @@ pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
 /// The block is `[0,4]³`; the cavity is `[1,3]³`; and a round chimney
 /// of radius `0.5` on the axis `x = y = 2`, from `z = 2.5` clear of the
 /// top, is cut first — so the cavity is a VENT rather than a void, i.e.
-/// one shell, which is what the surgery's body door admits, with the
-/// vent's mouth strictly inside the cavity's ceiling. The vent is round
+/// one shell, with the vent's mouth strictly inside the cavity's
+/// ceiling. The vent is round
 /// because the ring the mouth leaves in that ceiling rides through the
 /// carve, and the exact ring-clearance check covers circle rings.
 ///

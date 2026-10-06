@@ -4712,6 +4712,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "blend_error_tag",
         values: &[
+            "across_shells",
             "band",
             "body_not_intact",
             "certify",
@@ -4730,7 +4731,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
-            "unsupported_body",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",

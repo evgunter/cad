@@ -35,3 +35,13 @@ The fix is the owner's: a cross-solid overlap check in tier 3 (check
 10 widened over a body's solids, or the census's interference arm
 lifted into tier 3), or a ruling that tier 3 certifies per solid and
 tier 3′ owns the whole body.
+
+**A blend now builds one** (2026-10-06): with the blend carving each
+chain inside its own shell, filleting a sealed cavity's edges past an
+island solid inside it builds two overlapping solids that tier 3 admits.
+`validate_pseudomanifold` refuses it with `InstanceInterference`. The
+witness is in
+`work/band/blend-material-is-never-checked-against-faces-that-are-not-its-supports.md`.
+The same row's one-shell witness, a fillet grown into an island of its
+own shell, passes tier 3′ too.
+

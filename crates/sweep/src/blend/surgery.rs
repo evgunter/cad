@@ -147,8 +147,7 @@
 //! refuses through the frontier vocabulary
 //! ([`BlendError::UnsupportedChain`],
 //! [`BlendError::UnsupportedRunOut`],
-//! [`BlendError::UnsupportedGeometry`],
-//! [`BlendError::UnsupportedBody`], and
+//! [`BlendError::UnsupportedGeometry`], and
 //! [`BlendError::UnsupportedCorner`] for a corner's own
 //! configuration), naming itself and carrying the offending entity. The refusals are the honest boundary of the unit,
 //! not gates hiding reachable geometry.
@@ -190,7 +189,7 @@ use geom_brep::{
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
-    ShellKey, SolidKey, SurfaceKey, VertexKey,
+    ShellKey, SurfaceKey, VertexKey,
 };
 
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary};
@@ -525,21 +524,16 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<Blended<T>, BlendError> {
-    // **The gate and the reads are one step.** The check that says
-    // "exactly one solid, exactly one shell" BINDS what it counted, so
-    // the mutation phase below adopts the keys the door already saw
-    // instead of re-deriving them ninety lines later and finding a
-    // state the door had ruled out. There is no "the entry check
-    // passed and the read came back empty" left to spell.
-    let solids: Vec<SolidKey> = source.solids().map(|(k, _)| k).collect();
-    let shells: Vec<ShellKey> = source.shells().map(|(k, _)| k).collect();
-    let ([solid], [shell]) = (&solids[..], &shells[..]) else {
-        return Err(BlendError::UnsupportedBody {
-            solids: solids.len(),
-            shells: shells.len(),
-        });
-    };
-    let (solid, shell) = (*solid, *shell);
+    // Every chain is carved inside the one shell its links lie in; the
+    // body's other shells and solids are carried through untouched.
+    let mut link_shells: Vec<(EdgeKey, ShellKey)> = Vec::new();
+    for chain in &verdict.chains {
+        let shell = chain_shell(source, chain)?;
+        link_shells.extend(chain.links().map(|l| (l.edge, shell)));
+    }
+    let mut shells: Vec<ShellKey> = link_shells.iter().map(|(_, s)| *s).collect();
+    shells.sort_unstable();
+    shells.dedup();
     let radius = verdict.size;
     let kind = verdict.kind;
 
@@ -629,6 +623,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             .chain(others.iter().map(AdmittedOpen::edge))
             .collect();
         here.dedup();
+        corner_shell(v, &here, &link_shells)?;
         // Two different refusals, and they are not the same class: the
         // valence is the corner's own configuration (the OQ6
         // vocabulary the battery's classifier already speaks), while
@@ -959,8 +954,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     rec.dead.vertices.dedup();
     Ok(Blended {
         body,
-        solid,
-        shell,
+        shells,
         blend_faces,
         corner_faces,
         band_faces,
@@ -971,6 +965,62 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 // ------------------------------------------------------------------
 // Plan helpers (read-only).
 // ------------------------------------------------------------------
+
+/// The shell a face lies in, read off its back-pointer.
+fn shell_of<T: Real>(source: &Body<T>, face: FaceKey) -> Result<ShellKey, BlendError> {
+    source.get_face(face).map(|f| f.shell).ok_or_else(|| {
+        not_intact(
+            EntityId::Face(face),
+            "a link's support face does not resolve",
+        )
+    })
+}
+
+/// **The one shell a chain lies in**: the shell of its first link's
+/// `face_a`, which every support of every link must share.
+fn chain_shell<T: Real>(source: &Body<T>, chain: &Chain<T>) -> Result<ShellKey, BlendError> {
+    let shell = shell_of(source, chain.first().face_a)?;
+    for l in chain.links() {
+        for f in [l.face_a, l.face_b] {
+            let there = shell_of(source, f)?;
+            if there != shell {
+                return Err(BlendError::AcrossShells {
+                    at: EntityId::Edge(l.edge),
+                    shells: [shell, there],
+                });
+            }
+        }
+    }
+    Ok(shell)
+}
+
+/// **A corner lies in one shell**: the chains that meet at `vertex`
+/// (its requested edges `here`, each resolved in `link_shells`) were
+/// each found in one shell, and they must all have been found in the
+/// same one.
+fn corner_shell(
+    vertex: VertexKey,
+    here: &[EdgeKey],
+    link_shells: &[(EdgeKey, ShellKey)],
+) -> Result<(), BlendError> {
+    let shell_of_link = |e: EdgeKey| -> ShellKey {
+        let Some(&(_, s)) = link_shells.iter().find(|(k, _)| *k == e) else {
+            unreachable!("a corner's requested edges are links of the verdict's chains")
+        };
+        s
+    };
+    let mut shells = here.iter().map(|e| shell_of_link(*e));
+    let Some(first) = shells.next() else {
+        unreachable!("a corner is seeded by the link that discovered it")
+    };
+    match shells.find(|s| *s != first) {
+        Some(other) => Err(BlendError::AcrossShells {
+            at: EntityId::Vertex(vertex),
+            shells: [first, other],
+        }),
+        None => Ok(()),
+    }
+}
 
 /// Resolve one closed chain onto its two supports, with every
 /// structural precondition of the band replacement checked.
@@ -4911,43 +4961,71 @@ mod tests {
     use topo::EdgeKey;
 
     use super::super::battery::Convexity;
-    use super::super::build::fillet_edges;
     use super::{BlendError, rim_trim_circles};
     use crate::blend::arms::plane_sphere_blend;
-    use crate::test_support::{L, R, cube};
+    use crate::test_support::{L, cube};
 
-    /// **The door's own one-solid, one-shell clause.**
-    /// `blend_surgery` binds the solid and the shell out of the same
-    /// step that counts them, so there is no second read to prove — but
-    /// the refusal is still the only thing standing between a
-    /// multi-solid body and a surgery that would carve it as if its
-    /// first solid were the only one. Delete the clause and this row
-    /// reds.
-    ///
-    /// **Its reach, stated:** one grafted body trips both halves of
-    /// the gate at once, so this row does not separate them. Splitting
-    /// them needs a one-solid, two-shell body — a closed void — and
-    /// nothing in the tree builds one today.
+    /// **A chain whose supports lie in two shells refuses, naming
+    /// both.** No valid body has such a link (tier 1 puts an edge's two
+    /// faces in one shell), so the row hands `chain_shell` a link of one
+    /// grafted cube whose second support is re-pointed at a face of the
+    /// other; `corner_shell` is handed two chains found in different
+    /// shells meeting at one vertex.
     #[test]
-    fn a_body_that_is_not_one_solid_and_one_shell_is_refused_at_the_door() {
-        let mut dst = cube(L, Tol::witness());
-        topo::instance::graft_disjoint_all(&mut dst, &cube(L * 0.5, Tol::witness()))
+    fn a_chain_or_corner_across_two_shells_refuses_naming_both() {
+        let mut body = cube(L, Tol::witness());
+        let first: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+        topo::instance::graft_disjoint_all(&mut body, &cube(L * 0.5, Tol::witness()))
             .expect("the public transplant door accepts a disjoint cube");
-        assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
-        assert_eq!(dst.shells().count(), 2, "and a second shell");
-        let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();
-        let err = fillet_edges(&dst, &edges, R, Tol::witness())
-            .expect_err("a two-solid body is outside the in-place surgery's door");
+        let shell = |f: topo::FaceKey| body.get_face(f).expect("live").shell;
+        let mut link = crate::test_support::all_links(&body, Tol::witness())
+            .into_iter()
+            .find(|l| first.contains(&l.face_a))
+            .expect("the first cube has links");
+        let foreign = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|f| !first.contains(f))
+            .expect("the graft added faces");
+        let (here, there) = (shell(link.face_a), shell(foreign));
+        assert_ne!(here, there, "the graft is a second shell");
+        let edge = link.edge;
+        assert_eq!(
+            super::chain_shell(&body, &open_chain(link.clone())).ok(),
+            Some(here),
+            "an intact link lies in its first support's shell"
+        );
+        link.face_b = foreign;
         assert!(
             matches!(
-                err.error,
-                BlendError::UnsupportedBody {
-                    solids: 2,
-                    shells: 2
-                }
+                super::chain_shell(&body, &open_chain(link)),
+                Err(BlendError::AcrossShells { at: topo::EntityId::Edge(e), shells })
+                    if e == edge && shells == [here, there]
             ),
-            "the gate must refuse before anything reads `solids().next()`: {err}"
+            "the link across shells refuses at its edge, naming both shells"
         );
+
+        let (a, b) = (EdgeKey::default(), edge);
+        let v = topo::VertexKey::default();
+        assert!(super::corner_shell(v, &[a, b], &[(a, here), (b, here)]).is_ok());
+        assert!(
+            matches!(
+                super::corner_shell(v, &[a, b], &[(a, here), (b, there)]),
+                Err(BlendError::AcrossShells { at: topo::EntityId::Vertex(at), shells })
+                    if at == v && shells == [here, there]
+            ),
+            "a corner met by chains of two shells refuses at its vertex, naming both"
+        );
+    }
+
+    fn open_chain(link: super::Link<f64>) -> super::Chain<f64> {
+        let (head, tail) = (link.start, link.end);
+        super::Chain::new(
+            link,
+            Vec::new(),
+            Vec::new(),
+            super::ChainClosure::Open { head, tail },
+        )
     }
 
     /// The F1 pin: trim selection is by SUPPORT KIND, never by slot.

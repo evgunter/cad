@@ -25,7 +25,7 @@ use sweep::blend::{
     BlendError, BlendKind, BlendRefusal, BlendSite, ClassifiedMargin, Convexity, CornerConfig,
 };
 use sweep::test_support::cube;
-use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 
 /// One value of every `BlendError` variant, in declaration order —
 /// the same shape as `recourse_tests::seeds()` (which is `#[cfg(test)]`
@@ -149,10 +149,6 @@ fn seeds() -> Vec<BlendError> {
             edge: EdgeKey::default(),
         },
         BlendError::NonpositiveSize { size: 0.0 },
-        BlendError::UnsupportedBody {
-            solids: 2,
-            shells: 2,
-        },
         BlendError::UnsupportedChain {
             edge: EdgeKey::default(),
             detail: "a chain shape that is not built",
@@ -168,6 +164,10 @@ fn seeds() -> Vec<BlendError> {
         BlendError::BodyNotIntact {
             at: EntityId::HalfEdge(HalfEdgeKey::default()),
             detail: "a reference the plan followed",
+        },
+        BlendError::AcrossShells {
+            at: EntityId::Edge(EdgeKey::default()),
+            shells: [ShellKey::default(), ShellKey::default()],
         },
         BlendError::RingClearance {
             face: FaceKey::default(),
