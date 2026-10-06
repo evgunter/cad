@@ -32,14 +32,26 @@ stays plain.
 
 ## Evidence: near-tangent sliver sides (branch `cleave/frustum-apex`)
 
-A flared frustum (radii ½ → 1 over height 1, revolved about y, apex at y = −1) cut through its
-wall ruling at azimuth a, the normal turned t off the outward normal, at ε 1e-12. These poses
-refused `Join(DegenerateSection)` on main; with the ruling pairing they answer, and one side
-fails tier 3 or 3′ by escalation:
+Measured: two frusta revolved about y, radii 1 → ½ and the flared ½ → 1 (apex at y = 2 and
+y = −1), each cut through its wall ruling at azimuth a ∈ {0, 0.3, 1, 2, 3, 4, 5.5}, the normal
+turned t ∈ {1e-3, 1e-4, 1e-5} off the outward normal, both normals: 84 poses per ε. With the
+ruling pairing, 0 answer at ε 1e-6, 28 at 1e-9 (all clean at tiers 1–3′) and 56 at 1e-12. At
+1e-12 every side passes tiers 1 and 2 and every volume `mass_properties` certifies is the closed
+form. Ten poses have a side that tier 3 or 3′ escalates on. On main all ten refused
+`Join(DegenerateSection)`.
 
-- a ∈ {0.3, 2, 3}, t = 1e-4, both normals: tier 3 `VolumeUncomputable`, an `Escalated` on
-  `props_du_consistent`, margin 1.986e-12 (band 1e-12 / 1e-11), on the sliver side;
-- a = 4, t = 1e-5, s = −1: tier 3′ `CensusEscalated` on `pm_census_ee_gap`, margin 1.836e-12.
+- Tier 3 `VolumeUncomputable` (an `Escalated` on `props_du_consistent`, margin 1.986e-12, band
+  1e-12 / 1e-11) on the sliver side, where `mass_properties` refuses typed:
+  - frustum 1 → ½: a = 5.5, t = 1e-4, s = ±1;
+  - flared ½ → 1: a ∈ {0.3, 2, 3}, t = 1e-4, s = ±1.
+- Tier 3′ `CensusEscalated` on `pm_census_ee_gap`, on both sides, whose volumes certify right:
+  - flared: a = 1, t = 1e-5, s = +1, margin 1.145e-12;
+  - flared: a = 4, t = 1e-5, s = −1, margin 1.836e-12.
 
-The frustum with radii 1 → ½, at a ∈ {0.3, 3, 4} and t = 1e-4, refuses `Pcurves(Escalated)`
-inside the split on the same margin, 1.98596694644948e-12. The escalating side passes tiers 1 and 2.
+Inside the split, the 1 → ½ frustum at a ∈ {0.3, 1, 3, 4}, t = 1e-4 refuses
+`Pcurves(Escalated)` instead, at the tier 3 rows' margin (1.986e-12 where read). Which of these
+poses answers moves with rounding in the pose's construction. The gate
+`a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly`
+(`crates/sweep/tests/split_through_a_ruling.rs`) takes every one of these poses and asserts
+what the split promises: tiers 1 and 2, and no wrong certified volume. Gating the sides at
+tier 3 would turn these ten into refusals.

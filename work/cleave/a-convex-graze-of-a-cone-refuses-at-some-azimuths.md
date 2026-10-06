@@ -88,6 +88,9 @@ the reduction. That is before any pairing, so it is not the frustum's top↔top 
 reduction passes, a null-edge half at the apex lies on both rulings, so `ruling_pairs`
 (`splitting/join.rs`) will refuse it undecided on `split_join_ruling_side` wherever the wall
 face holds more than two halves. That is unmeasured, because nothing reaches it yet.
+At the apex itself the margin is exactly 0, so no in-band recourse (a finer ε, a sized
+rereading) can settle which ruling an apex half lies on; it has to be read off the half's
+direction of departure, not its position.
 
 ## Found by
 
