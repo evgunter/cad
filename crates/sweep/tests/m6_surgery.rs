@@ -427,21 +427,26 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     );
 }
 
-/// **The surgery front door refuses typed** at its named gaps: a
-/// partially-requested corner (run-outs), and an open plane–sphere
-/// chain (a rim arc alone is not a closed rim, and the seam vertex it
-/// stops at says to request the rim whole).
+/// **The surgery front door refuses typed** at its named gaps: an end
+/// the cut-off does not build (a curved end face, a run-out), and an
+/// open plane–sphere chain (a rim arc alone is not a closed rim, and
+/// the seam vertex it stops at says to request the rim whole). One box
+/// edge of the pipped die, which used to be the run-out witness, is cut
+/// off at its end faces and carves.
 #[test]
 fn the_surgery_front_door_refuses_its_named_gaps() {
     let (pipped, box_edges) = pipped_and_box_edges();
-    // (a) One box edge: its corners' other edges are not requested.
-    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, Tol::witness())
-        .expect_err("a partially-requested corner is a run-out, not implemented");
+    // (a) An edge ending at a curved end face.
+    let (round, edge) = crate::common::operands::half_round_end();
+    let err = fillet_edges(&round, &[edge], DIE_R, Tol::witness())
+        .expect_err("a curved end face is a run-out, not built");
     let text = format!("{err}");
     assert!(
-        text.contains("not implemented") && text.contains("corner"),
+        text.contains("not built") && text.contains("curved end face"),
         "the refusal names the run-out gap: {text}"
     );
+    fillet_edges(&pipped, &box_edges[..1], DIE_R, Tol::witness())
+        .expect("one box edge of the pipped die is cut off at its end faces");
     // (b) One rim arc: an OPEN plane–sphere chain terminates at rim
     // vertices whose third edge is the cap's seam MERIDIAN — the
     // sphere's own chart cut, the plane carrying both arcs — so the
