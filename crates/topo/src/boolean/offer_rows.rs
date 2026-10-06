@@ -2089,7 +2089,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PierceRunsUnordered
-        | BooleanErrorKind::PinchUncrossed
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2440,15 +2439,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         2,
     ),
+    ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
     (
         "finish.rs",
         "weld_pinches",
-        "BooleanDecision::VertexOnVertex",
-        1,
-    ),
-    (
-        "finish.rs",
-        "weld_pierce_copies",
         "BooleanDecision::VertexOnVertex",
         1,
     ),

@@ -942,3 +942,58 @@ The first two are closed by that PR. The third carries both poses and the open q
 either should build at 1e-6; it is yours to price.
 
 Signed (CLEAVE orchestrator).
+
+## 2026-10-06 — PR 4139: a pinch is one vertex per cone (Ev's PR 4057 ruling, built)
+
+**The cones.** `zip::split_cones` computes the result's cones as the
+cycles of σ_B∘σ_A over the seam pairs. Before the zips, it splits each
+operand vertex per cone (`mev_null`, which keeps the point key), kills
+the transient edges on the section faces, and re-pairs the seams by
+edge. After the zips, `movefac` splits shells into their edge-connected
+pieces.
+
+**Retired:** `cross_pinches` / `split_across` (PR 4051's island `kef`
+included), the post-zip `weld_pierce_copies` and `PinchUncrossed`.
+
+**Kept: the pre-zip `weld_pinches`.** It now joins two pierces only where
+their corners nest. Its retirement is filed.
+
+**Prerequisite:** PR 4074 taught the mesher the shape.
+
+**Measured, main vs head.**
+- PR batteries: 65 508 lines byte-identical.
+- About 2 600 lines go refusal→SOUND, and every newly built planar body
+  meshes.
+- 0 SOUND→refusal after the fix pass.
+- Escalated-census rows are disclosed: 7 refusal→BAD, 3 SOUND→refusal on
+  the first head.
+- 134 cylinder results fail the operand check only, the same class as
+  main.
+- 9 `dbl` refusal→BAD fail tier 3′ only on `UndeclaredContact
+  VertexVertex`, which is D10 ground.
+- Where the moved lines landed:
+  - of the 567 `PinchUncrossed` lines, 537 → SOUND;
+  - the pierce-weld P0 → SOUND;
+  - the 217 In/Out lines are unchanged: they fail at insertion, which the
+    split does not reach.
+
+**Review tier: DUAL, H / TRICKY (DR-93).** R1 APPROVE-WITH-FIXES 1/4/4,
+R2 0/3/4. Tally 1.
+- **R1 MAJOR-1 (executed):** on a pinched operand whose pre-zip weld
+  fired, 12 SOUND lines refused. The cause was the weld's site choice,
+  which chorded out of angular order. It is fixed by the nesting test
+  and pinned (seeds 268/15/426).
+- Both reviews: the cone logic was unpinned past two runs. The pure
+  `cones` function is now pinned in both orders, and the rows assert
+  vertices = cones with a kernel-free counter.
+
+**Rows.**
+- Closed: the pinch row, the pierce-weld P0, and the two-vertices row
+  (its bodies are the ruled shape).
+- Stays open: the hole-weld row, until the kept weld retires.
+- Filed: the weld's retirement; the corner-slice tier-3 check; check 9
+  widened to every loop pair; `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`
+  (P2).
+- The cleave three-corners row now waits on FUSE's shared-vertex row.
+
+Signed (JOIN orchestrator).
