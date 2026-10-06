@@ -328,39 +328,3 @@ fn intersect_and_differences_answer_the_closed_form() {
         }
     }
 }
-
-/// **A shaft through the bore off its seam unions through the
-/// declared-REST door**, in both operand orders. The chord join meets a
-/// peg ruling's pierce strut on the bore's chart, where the ray from
-/// its point runs through a run vertex and decides nothing: the strut
-/// is not known to lie on the run, so the join refuses rather than
-/// deferring it, and the REST door zips the mate.
-#[test]
-fn a_shaft_through_the_bore_off_its_seam_takes_the_rest_door() {
-    let tol = Tol::witness();
-    let identity = Affine3::identity();
-    let (c, p) = (
-        placed(&collar(), &identity),
-        placed(&shaft(60.0, 0.5, 2.0), &identity),
-    );
-    let _ = topo::test_support::take_join_routes();
-    for (order, a, b) in [("collar ∪ shaft", &c, &p), ("shaft ∪ collar", &p, &c)] {
-        let bb = match topo::union_with(a, b, &wall_decls(a, b), tol) {
-            Ok(BooleanResult::Body(bb)) => bb,
-            other => panic!("{order}: the mate does not union: {:?}", other.err()),
-        };
-        assert_eq!(
-            topo::test_support::take_join_routes(),
-            [topo::test_support::JoinRoute::RestDoor],
-            "{order}: the route"
-        );
-        let counts = [
-            bb.body.faces().count(),
-            bb.body.edges().count(),
-            bb.body.vertices().count(),
-        ];
-        assert_eq!(counts, [11, 25, 16], "{order}: faces, edges, vertices");
-        let (got, want) = (volume(&bb.body), collar_volume() + shaft_volume(2.0));
-        assert!(agrees(got, want), "{order}: union volume {got} vs {want}");
-    }
-}

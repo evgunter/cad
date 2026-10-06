@@ -338,21 +338,6 @@ pub mod test_support {
     }
     pub use crate::test_support_samples::validation_error_samples;
 
-    /// Which lane answered a join ([`take_join_routes`]).
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub enum JoinRoute {
-        /// The chord join connected every section polygon.
-        Connected,
-        /// The chord join refused and the declared-REST door answered.
-        RestDoor,
-    }
-
-    /// The route of every join this thread ran since the last call, in
-    /// call order, draining the record.
-    pub fn take_join_routes() -> Vec<JoinRoute> {
-        crate::boolean::take_join_routes()
-    }
-
     /// The boolean's volume backstop over `a`, `b` and a `result`, as the
     /// pipeline gates a finished body
     /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a

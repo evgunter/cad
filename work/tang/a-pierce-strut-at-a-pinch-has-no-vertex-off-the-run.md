@@ -122,8 +122,9 @@ is read, so a reflex corner at the pinch needs no arm.
 On a wall's chart nothing is deferred. There a strut's point is a run
 vertex, so its azimuth ray is degenerate and decides nothing
 (`RingSide::Undecided`). That refuses as on cf867b38. The declared
-curved unions it reaches go back to the REST door
-(`a_shaft_through_the_bore_off_its_seam_takes_the_rest_door`).
+curved unions it reaches go back to the REST door. Main's
+`full_turn_bore_mate::a_shaft_off_the_bores_seam_is_built_by_the_zip`
+pins that route, and it goes red when the chart defers.
 
 Four cases still refuse `RingHomingAmbiguous`:
 
