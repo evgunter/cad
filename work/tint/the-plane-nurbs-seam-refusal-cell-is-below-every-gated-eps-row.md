@@ -86,7 +86,7 @@ a visiting lane owes.
 ## The mixed arc prism row has no refusal cell left (#3774)
 
 Since PATHS 5b put the arc wall's columns on the stored vertices
-(`work/carve/loft-arc-columns-end-on-the-carrier-not-the-vertex.md`),
+(`work/carvetail/loft-arc-columns-end-on-the-carrier-not-the-vertex.md`),
 both of that body's seams take the bitwise `IsoCurve` rung. It now imports
 first-class at 1e-14 too. Its `Err(Adoption)` arm was removed, so it is no
 longer one of the vacuous rows. The other three rows in the table are

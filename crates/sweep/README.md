@@ -45,7 +45,9 @@ same-turn arcs — however the author wrote them (a declared straight
 continuation, a station kept on a side, a raw collinear polygon). Extrude
 and revolve build ONE wall per run on every carrier kind, so no sweep mints
 a same-key adjacency for a merge to undo. The one exception is a run that
-is the whole closed loop (a circle): it keeps its canonical cut (C12.5).
+is the whole closed loop of k ≥ 2 pieces (a circle split at authored
+stations): it keeps its authored cuts (C12.5). A one-piece closed loop is
+one wall whose strut is its wrap edge (D1).
 A partial revolve builds a run of cocircular arcs one wall per arc, on
 the run's one surface key: one wall would carry each wedge cap's meridian
 in pieces, and the mass-properties meridian fold groups pieces by split

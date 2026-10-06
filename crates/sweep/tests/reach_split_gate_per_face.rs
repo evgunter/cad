@@ -551,7 +551,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
         ),
         "the wedge lies below the cut"
     );
-    let mut reverted = wedge.revert().expect("the wedge reverts");
+    let mut reverted = wedge.revert();
     let (zone, surface, sense) = reverted
         .faces()
         .find_map(|(k, f)| {

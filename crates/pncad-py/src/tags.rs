@@ -1188,7 +1188,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         NodeErrorKind::ParamSourceAttach(inner) => Some(param_attach_error_tag(inner)),
-        NodeErrorKind::DeclareResolve { error } => Some(resolve_error_tag(error)),
+        NodeErrorKind::DeclareResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         NodeErrorKind::DeclareUnsupportedPair { .. } => None,
         // The candidate declaration crosses whole, as the `finding`
@@ -1201,7 +1201,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::BlendSelectionKind { .. } => None,
         NodeErrorKind::BlendSelectionEmpty { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
-        NodeErrorKind::ShellOpenResolve { error } => Some(resolve_error_tag(error)),
+        NodeErrorKind::ShellOpenResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::ShellOpenKind { .. } => None,
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
         NodeErrorKind::FaceFrameResolve { error } => Some(resolve_error_tag(error)),
@@ -1218,7 +1218,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // The placement's own refusal is a whole `NodeErrorKind`: its
         // word is the arm, as for `PlacementAxis`.
         NodeErrorKind::PlacementRefused { error, .. } => Some(node_error_tag(error.kind().class())),
-        NodeErrorKind::MeasureRefResolve { error } => Some(resolve_error_tag(error)),
+        NodeErrorKind::MeasureRefResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Some(interrogate_error_tag(error)),
         NodeErrorKind::MeasureNonFinite { source } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureNotParallel { .. } => None,
@@ -1642,7 +1642,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::CoincidentShell => "coincident_shell",
         BooleanErrorKind::Containment => "containment",
-        BooleanErrorKind::Revert => "revert",
         BooleanErrorKind::SeamOrientation => "seam_orientation",
         BooleanErrorKind::ZipCorrespondence => "zip_correspondence",
         BooleanErrorKind::Merge => "merge",

@@ -190,7 +190,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::NoSolid => E::NoSolid,
         E::Roles { error } => E::Roles { error },
         E::Pieces { error } => E::Pieces { error },
-        E::OperandOuterShells { solid, outer } => E::OperandOuterShells { solid, outer },
+        E::OperandOuterShells { solid } => E::OperandOuterShells { solid },
         E::Partition { shell, error } => E::Partition { shell, error },
         // The pessimistic pair, which is the reading under which the two
         // offsets cross: the material as thin as the bracket admits,
@@ -323,6 +323,15 @@ fn fold_replace_face_error<T: Real>(
             edge,
             gap: end(gap, Supremum),
         },
+        // The move at its longest, either sign: the reading under which
+        // it reaches the edge's far end.
+        R::ReanchorCollapse { edge, offset } => {
+            let (lo, hi) = (end(offset, Infimum), end(offset, Supremum));
+            R::ReanchorCollapse {
+                edge,
+                offset: if hi.abs() > lo.abs() { hi } else { lo },
+            }
+        }
         R::ReanchorInconclusive { edge, error } => R::ReanchorInconclusive { edge, error },
         R::NurbsLaneUnsupported { edge, scalar } => R::NurbsLaneUnsupported { edge, scalar },
         R::TogetherNonPlanar { face, kind } => R::TogetherNonPlanar { face, kind },

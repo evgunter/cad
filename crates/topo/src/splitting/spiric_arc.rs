@@ -261,7 +261,7 @@ impl<T: Decide> SpiricArc<T> {
     /// counted in the loop's plane (`side` the in-plane unit normal to
     /// `d`). `None` where a piece meeting the ray settles neither its
     /// crossing nor its miss by the depth — a graze, or a crossing at a
-    /// piece's end — which abandons the ray (why that is sound: the ray
+    /// piece's end — which grazes the ray (why that is sound: the ray
     /// loop in [`super::containment`]'s walk). The walk calls it only
     /// for a point [`Self::contact`] read `Off`.
     ///
