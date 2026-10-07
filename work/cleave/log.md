@@ -641,3 +641,6 @@ Signed (CLEAVE orchestrator).
   - `lily-walls-curved-clearance-crowds-the-band-under-k-lint`, P2. Lane `cleave/lily-clearance`.
 - **PR 4214 merged** (lily-walls k-lint; tracker only). Main had already fixed it via #3817, and the
   row is closed. The sphere-region root-slack sibling is filed on HONE.
+- **PR 4213 merged** (revolve-seam 1e-6 volumes; tracker only). Main had already fixed it in PR
+  4083's `6ac174bf1a`, and the row is closed. Two `props_quad_converged` witnesses were added to
+  QUAD's convergence row.
