@@ -15,7 +15,11 @@ is `crates/geom-brep/src/pcurve_cache.rs` (PCERT's and PCTAIL's per
 D36 split `UnsupportedCarrier` (uncovered: the carrier can lie on the
 chart, no lane covers it — the only refusal `topo::pcurves::mint_faces`
 excuses) from `CarrierOffChart` (a body defect, propagated). Where an
-incidence test exists the split is decided by it: the sphere's general
+incidence test exists the split is decided by it — one-sidedly, on the
+sphere, cone and torus (`pcurve_cache::chart_incidence`): the largest
+exact distance from the chart at 64 carrier samples is a lower bound,
+so `CarrierOffChart` is certified, and a carrier not shown off goes on
+to its image's certificate or refuses as grazing the chart: the sphere's general
 circles (`sphere_circle_incidence`, `pcurve_sphere_chart_incident`;
 no longer excused at all — the mint images them through the fitted
 route),
@@ -23,11 +27,9 @@ the cone's non-rim conics (`cone_conic_incidence`,
 `pcurve_cone_chart_incident`; a circle on the cone that is no rim now
 refuses as grazing it, `CarrierGrazesChart`, since a cone holds no
 other circle), the torus's oblique circles (`torus_oblique_circle`,
-`pcurve_torus_chart_incident`: `F = (|q|² + R² − r²)² − 4R²ρ²` along a
-circle is a trigonometric polynomial of degree TWO, five coefficients,
-whose sum bounds the distance over the `r·(R² − r²)` lever; a circle on
-the torus is a Villarceau circle and mints its focal-section image, or
-grazes it), and the spiric's foreign tori (the
+`pcurve_torus_chart_incident`; a circle not shown off the torus is a
+Villarceau circle and mints its focal-section image, or grazes it),
+and the spiric's foreign tori (the
 mirror-torus coefficient match). The classes below have NO such test
 and are `UnsupportedCarrier` wholesale, so a carrier in them that does
 NOT lie on the chart is still excused by the mint, leaves its face

@@ -480,3 +480,179 @@ fn a_whole_turn_advances_each_channel_by_one_period() {
         }
     }
 }
+
+/// **An in-band move is never read off the torus** (the reviewers'
+/// one-sided-incidence probe, PR 4227). A Villarceau circle moved along
+/// the torus's axis by under the band's zero half is within the band of
+/// the torus everywhere: the incidence test, which decides `Off` only
+/// from a sampled lower bound on the distance, does not refuse it, the
+/// image derives, and its certificate covers the move. The same circle
+/// moved `3·K·ε` is off the torus.
+#[test]
+fn an_in_band_move_is_never_read_off_the_torus() {
+    let k = Tol::witness().k();
+    for ratio in [0.1, 0.35, 0.6, 0.9] {
+        let (major, minor) = (2.0, 2.0 * ratio);
+        let surface = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: Vec3::unit_x(),
+        };
+        let tilt = (minor / major).asin();
+        let lean = Vec3::unit_y() * tilt.cos() + Vec3::unit_z() * tilt.sin();
+        let moved = |by: f64| Curve3::Circle {
+            center: Point3::new(minor, 0.0, by),
+            axis: Vec3::unit_x().cross(lean),
+            radius: major,
+            u_ref: Vec3::unit_x(),
+        };
+        for fraction in [0.2, 0.5, 0.9] {
+            let what = format!("r/R {ratio}, moved {fraction}·ε along the axis");
+            let carrier = moved(fraction * eps());
+            let image = chart_pcurve(&carrier, &surface, band())
+                .unwrap_or_else(|e| panic!("{what}: refused: {e}"));
+            let cache = PcurveCache::certify(image.clone(), 0.0, TAU, &carrier, &surface, band())
+                .unwrap_or_else(|e| panic!("{what}: the image does not certify: {e}"));
+            let mut sup = 0.0_f64;
+            for i in 0..=4096 {
+                let t = TAU * f64::from(i) / 4096.0;
+                let uv = image.eval(t);
+                sup = sup.max(surface.eval(uv.x, uv.y).distance(carrier.eval(t)));
+            }
+            let noise = 64.0 * f64::EPSILON * (major + minor);
+            assert!(
+                cache.certificate().envelope >= sup - noise,
+                "{what}: envelope {:e} under the residual {sup:e}",
+                cache.certificate().envelope
+            );
+        }
+        let got = chart_pcurve(&moved(3.0 * k * eps()), &surface, band());
+        assert!(
+            matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            "r/R {ratio}, moved 3·K·ε: off the torus: {got:?}"
+        );
+    }
+}
+
+/// **Each Villarceau gate alone refuses typed.** A Villarceau circle
+/// moved by `3·K·ε` in one gate's quantity and in no other's — its centre
+/// along the centre's radial (offset), along its plane's own direction
+/// `n × d̂` (equator, to first order), along the equator's tangent (the
+/// plane through the torus centre), its plane turned about `d̂` (tilt), or
+/// its radius — is never imaged: each departure is, to first order, that
+/// far off the torus, so the incidence test refuses it before the gates
+/// read it (a grazer that passes the incidence test fails four gates at
+/// once, `a_grazing_circle_refuses_…`).
+#[test]
+fn each_villarceau_gate_alone_refuses_typed() {
+    let surface = torus();
+    let Surface::Torus {
+        center: tc, axis, ..
+    } = surface
+    else {
+        unreachable!()
+    };
+    let Curve3::Circle {
+        center,
+        axis: n,
+        radius,
+        u_ref,
+    } = villarceau(0.4, 1.0, 1.0, 0.0)
+    else {
+        unreachable!()
+    };
+    let delta = 3.0 * Tol::witness().k() * eps();
+    let d = {
+        let w = center - tc;
+        (w - axis * w.dot(axis)).normalize()
+    };
+    let sin_tilt = MINOR / MAJOR;
+    let turned = |by: f64| {
+        let n2 = (n * by.cos() + d.cross(n) * by.sin()).normalize();
+        (n2, (u_ref - n2 * u_ref.dot(n2)).normalize())
+    };
+    let (n_tilt, u_tilt) = turned(delta / (MAJOR * (1.0 - sin_tilt * sin_tilt).sqrt()));
+    let rows = [
+        ("offset", center + d * delta, n, radius, u_ref),
+        (
+            "equator",
+            center + n.cross(d) * (delta / sin_tilt),
+            n,
+            radius,
+            u_ref,
+        ),
+        (
+            "plane",
+            center + axis.cross(d) * (delta / sin_tilt),
+            n,
+            radius,
+            u_ref,
+        ),
+        ("tilt", center, n_tilt, radius, u_tilt),
+        ("radius", center, n, radius + delta, u_ref),
+    ];
+    for (gate, center, axis, radius, u_ref) in rows {
+        let carrier = Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        let got = chart_pcurve(&carrier, &surface, band());
+        assert!(
+            matches!(
+                got,
+                Err(PcurveCertifyError::CarrierOffChart { .. }
+                    | PcurveCertifyError::CarrierGrazesChart { .. })
+            ),
+            "the {gate} gate failed alone by 3·K·ε: {got:?}"
+        );
+    }
+}
+
+/// **The certificate's two tube gates refuse typed.** A stored image
+/// whose tube rate is off `±1` by `3·K·ε/r` refuses at check 1
+/// (`pcurve_focal_section_tube_rate`), and one whose tube angle sweeps
+/// more than a period over a span its azimuth does not refuses at
+/// check 2 (`pcurve_tube_period`).
+#[test]
+fn the_tube_rate_and_tube_period_gates_refuse_typed() {
+    let surface = torus();
+    let carrier = villarceau(0.4, 1.0, 1.0, 0.0);
+    let Ok(Pcurve::FocalSection(image)) = chart_pcurve(&carrier, &surface, band()) else {
+        panic!("a Villarceau circle images")
+    };
+    let rate = FocalImage {
+        vl: image.vl * (1.0 + 3.0 * Tol::witness().k() * eps() / MINOR),
+        ..image
+    };
+    let got = PcurveCache::certify(
+        Pcurve::FocalSection(rate),
+        0.3,
+        2.0,
+        &carrier,
+        &surface,
+        band(),
+    );
+    assert!(
+        matches!(got, Err(PcurveCertifyError::ImageMismatch { why, .. }) if why.contains("tube rate")),
+        "a tube rate off ±1: {:?}",
+        got.err()
+    );
+    let swept = FocalImage { va: 0.5, ..image };
+    let got = PcurveCache::certify(
+        Pcurve::FocalSection(swept),
+        0.0,
+        TAU - 0.1,
+        &carrier,
+        &surface,
+        band(),
+    );
+    assert!(
+        matches!(got, Err(PcurveCertifyError::TubePeriodExceeded)),
+        "a tube angle over a period: {:?}",
+        got.err()
+    );
+}

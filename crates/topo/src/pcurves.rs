@@ -7067,3 +7067,94 @@ mod room_fence_tests {
         assert!(room(&sphere, at(8.0 * EPS)), "8ε from the axis: room");
     }
 }
+
+/// A closed Villarceau edge's joint with itself, at the unit level. No
+/// producer offers a torus face holding a whole Villarceau circle: the
+/// circle crosses both equators, and every face of a revolved torus is cut
+/// along its profile's parallels, so a closed Villarceau loop has no face
+/// to bound end to end, and these rows decide its joint directly.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod villarceau_joint_tests {
+    use super::*;
+    use core::f64::consts::TAU;
+    use geom_core::{Point3, Tol, Vec3};
+
+    /// **A whole turn of a Villarceau row is one period on each channel**
+    /// (the reviewers' probe, PR 4227): on either family and traversal,
+    /// from four centres and two starts, and with its image moved by
+    /// `k` azimuth periods and `−k` tube periods, the joint carrying the
+    /// row's exit onto its own entry decides
+    /// `Shift(Deck { u: sense, v: vl, twin: false })` — the `(±1, ±1)`
+    /// winding the loop invariant admits.
+    #[test]
+    fn a_whole_turn_decides_one_period_on_each_channel() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (big, r) = (2.0_f64, 0.7_f64);
+        let axis = Vec3::new(0.1, 0.2, 1.0).normalize();
+        let u_ref = (Vec3::unit_x() - axis * axis.x).normalize();
+        let center = Point3::new(0.3, -0.2, 0.5);
+        let surface = Surface::Torus {
+            center,
+            axis,
+            major_radius: big,
+            minor_radius: r,
+            u_ref,
+        };
+        let chart = DescribedChart::of(&surface).unwrap();
+        let tilt = (r / big).asin();
+        let mut cases = 0;
+        for phi in [0.0_f64, 1.0, 2.5, -2.0] {
+            let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
+            for family in [1.0_f64, -1.0] {
+                let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
+                for traversal in [1.0_f64, -1.0] {
+                    for psi in [0.0_f64, 2.0] {
+                        let carrier = geom::Curve3::Circle {
+                            center: center + d * r,
+                            axis: d.cross(lean) * traversal,
+                            radius: big,
+                            u_ref: d * psi.cos() + lean * psi.sin(),
+                        };
+                        for k in [-1.0_f64, 0.0, 2.0] {
+                            let image = geom_brep::chart_pcurve(&carrier, &surface, band)
+                                .unwrap()
+                                .shift_branch(k, TAU);
+                            let image = shift_polar_branch(&image, -k, TAU);
+                            let (t0, t1) = (0.3, 0.3 + TAU);
+                            let row = geom_brep::PcurveCache::certify(
+                                image, t0, t1, &carrier, &surface, band,
+                            )
+                            .unwrap();
+                            let Pcurve::FocalSection(focal) = *row.pcurve() else {
+                                panic!("a Villarceau row is a focal section")
+                            };
+                            let joint = decide_joint(
+                                chart,
+                                row.pcurve(),
+                                t0,
+                                row.pcurve().eval(t1),
+                                carrier.eval(t0),
+                                Some(TAU),
+                                band,
+                            );
+                            let periods = (focal.sense, focal.vl);
+                            assert!(
+                                matches!(
+                                    joint,
+                                    Ok(JointElement::Shift(Deck { u, v, twin: false }))
+                                        if (f64::from(u), f64::from(v)) == periods
+                                ),
+                                "phi {phi}, family {family}, traversal {traversal}, psi {psi}, \
+                                 k {k}: {:?}, not a shift by {periods:?} periods",
+                                joint.as_ref().ok()
+                            );
+                            cases += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(cases, 96);
+    }
+}

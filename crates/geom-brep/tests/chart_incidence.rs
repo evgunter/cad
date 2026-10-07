@@ -261,3 +261,51 @@ fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
         );
     }
 }
+
+/// **An in-band move is never read off the cone or the sphere** (the
+/// one-sided incidence test). A cone section moved along the cone's
+/// axis by half the band's zero half derives its image; a sphere's
+/// general circle moved by as much is the general circle the fitted
+/// route images, never a carrier off the chart.
+#[test]
+fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
+    let alpha = 0.5;
+    let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
+    let moved = Curve3::Ellipse {
+        center: centre + Vec3::unit_z() * (0.5 * eps()),
+        axis,
+        major,
+        minor,
+        u_ref,
+    };
+    let got = chart_pcurve(&moved, &cone(alpha), band());
+    assert!(
+        matches!(got, Ok(Pcurve::FocalSection(_))),
+        "a cone section moved ε/2: {got:?}"
+    );
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let n = Vec3::new(0.3, 0.0, 1.0).normalize();
+    let (h, rho) = (0.6_f64, 0.8_f64);
+    let circle = Curve3::Circle {
+        center: Point3::origin() + n * (h + 0.5 * eps()),
+        axis: n,
+        radius: rho,
+        u_ref: Vec3::unit_y(),
+    };
+    let got = chart_pcurve(&circle, &sphere, band());
+    assert!(
+        matches!(
+            got,
+            Err(PcurveCertifyError::UnsupportedCarrier {
+                class: UncoveredClass::SphereGeneralCircle,
+                ..
+            })
+        ),
+        "a general circle moved ε/2 off the sphere: {got:?}"
+    );
+}

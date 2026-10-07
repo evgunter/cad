@@ -4830,7 +4830,13 @@ fn run_focal_section_checks<T: Decide>(
 ///   off its cut), and `d1` below by the same factor of its
 ///   coefficient; both are levered by the azimuth arm `L`
 ///   (`sin α·max(v_sup, |v0|)` on a cone, `R + r` on a torus):
-///   `L·||sense| − 1|·(E_max + π + 1)`.
+///   `L·||sense| − 1|·(E_max + π + 1)`. Two parts of it are required by
+///   the split and covered by slack elsewhere, so no row isolates them:
+///   the `+ 1` is `d1`'s share, and `|ν − E| + q·|sin E| ≤ 3.06 < π` over
+///   every `β` and `E` (sampled densely), so the azimuth term's `π`
+///   already holds it; and the cone's `|v0|` arm bounds only that share
+///   (`d1`'s coefficient is `sin α·v0·q`), while the point itself moves
+///   by `sin α·|v(t)| ≤ sin α·v_sup` per radian.
 /// - **The focal decomposition.** With `d0 = ρ̂(u0)` and
 ///   `d1 = sense·(n̂ × d0)`, `ρ̂(u0 + σν) = cos ν·d0 + sin ν·d1`, and
 ///   Kepler's identities `cos ν = (cos E − e)/(1 − e·cos E)`,
