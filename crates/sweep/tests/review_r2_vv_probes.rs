@@ -356,9 +356,25 @@ type Op = fn(
 const EDGE: V3 = [0.0, -2.0, 0.0];
 const CORNER: V3 = [0.0, 0.0, 0.0];
 
+/// The cube's low corner, in its own frame, for a placement name. The
+/// `rv-*` placements (review of PR 4272) slide the valley corner along
+/// the cube's edge or push it generically off it.
+fn place_lo(place: &str) -> V3 {
+    match place {
+        "edge" => EDGE,
+        "corner" => CORNER,
+        "rv-e1" => [0.0, -1.0, 0.0],
+        "rv-e3" => [0.0, -3.5, 0.0],
+        "rv-in" => [0.3, -2.0, 0.3],
+        "rv-out" => [-0.3, -2.0, -0.3],
+        "rv-mix" => [0.3, -2.0, -0.3],
+        _ => panic!("unknown placement {place}"),
+    }
+}
+
 /// One pose's six runs: `(tag, line)`.
 fn pose_lines(s: &Shape, place: &str, f: [V3; 3], what: &str) -> Vec<String> {
-    let lo = if place == "edge" { EDGE } else { CORNER };
+    let lo = place_lo(place);
     let cube = finished("the cube", cube_body(s.v, f, lo));
     let va = s.volume_with(&[]);
     let vb = SIDE * SIDE * SIDE;
@@ -470,6 +486,22 @@ fn poses(sweep: &str, shape_center: Option<V3>) -> Vec<(&'static str, [V3; 3], S
                 for k in 0..120 {
                     let psi = f64::from(k) * std::f64::consts::TAU / 120.0;
                     out.push((place, frame(m, psi), format!("i={i} j={j} psik={k}")));
+                }
+            }
+        }
+        "rv" => {
+            // Review of PR 4272: the grid's directions near the
+            // valley4 witness, at placements off the plain edge.
+            for place in ["rv-e1", "rv-e3", "rv-in", "rv-out", "rv-mix"] {
+                for i in 0..12u32 {
+                    for j in 0..3u32 {
+                        let theta = std::f64::consts::TAU * (f64::from(i) + 0.11) / 12.0;
+                        let phi = (f64::from(j) - 3.0) * 0.43 + 0.02;
+                        let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
+                        for psi in [0.3, 1.3, 3.7] {
+                            out.push((place, frame(m, psi), format!("i={i} j={j} psi={psi}")));
+                        }
+                    }
                 }
             }
         }
