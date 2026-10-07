@@ -742,3 +742,13 @@ size. Closes `chord-join-face-reach-misses-a-curved-edges-bulge` and
 `germ-cylinder-pair-span-misses-a-curved-edges-bulge`,
 `spiric-and-spline-axial-levers-read-past-the-span` and
 `whole-turn-conic-reach-over-states-a-rim-faces-lever`.
+
+2026-10-07 — PR 4246's third fix pass (third review, interim
+REQUEST-CHANGES, 1 MAJOR). A root at a smooth vertex under a graze is
+decided by its in-span readings, and those were levered by arc length,
+so a carrier moved by rounding could slide the root past the vertex.
+Each in-span reading is now levered by the slope the piece crosses the
+other's plane at, so its margin is the displacement that moves the
+root past the span's end. The sphere's reader on main had the same
+lever. The cone's segment and ruling arms never graze, because their
+slopes are bounded below, so the lever there is for shape.
