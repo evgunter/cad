@@ -34,8 +34,55 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
 | In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
+| Predicate 2's reach: every band against every face of the body that is not a support of its chain, in any shell, before any mutation | `crates/sweep/src/blend/reach.rs` |
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
+
+## The band's reach (predicate 2)
+
+A band changes the material between its supports and its blend surface:
+a convex band removes it, a concave one adds it. Predicate 2 meters that
+region — the band's REACH — against every face of the body that is not
+a support of the chain, in any shell: a face there would be cut through
+or buried, and the surgery has no step for either. The supports' own
+boundary features are judged first, by the battery's screen and the
+surgery's exact ring and boundary meters; the reach runs after them,
+before any mutation, and refuses `BlendError::FaceClearance` — a
+measurement (`bounded: false`) when a point of the face's own boundary
+lies inside a region that is the band's material exactly (plane
+supports, or a whole rim over a plane and a cylinder), and a bound
+(`bounded: true`) whenever the face could not be certified clear.
+
+Each reach is an intersection of 1-Lipschitz bounds: per link, the
+cross-section between the supports, the sector the ball's arc subtends
+and the ball (the chamfer's triangle), run along a straight spine over
+the edge's window and closed by the face each end runs into, or revolved
+over the whole turn of a circular one; per corner patch, the three
+supports, the three band-end planes and the ball. The faces are pruned
+by their certified boxes (`topo::FaceBoxes`); a face on a surface of
+revolution about a circular band's axis is metered in the band's
+meridian sheet over its own extent along its trace (read off its
+boundary: the azimuth it winds, and on a sphere the sign of
+`∮ (z − z_c) dθ`, say which singular points it covers), every other face
+on cells of its box in space, and a face's margin is the least lower
+bound over its cells. It skips the
+chain's own supports, every face at a chain vertex (the faces the band
+runs into, which predicate 6 and the surgery judge), and any face on a
+support's own stored surface (which can touch the reach only on its
+boundary). Two bands of one request are read together: a support of
+the other chain is metered by what survives that chain's band, the other
+band's new surface is metered as a face (but a concave band's surface
+against a convex band's reach, whose removed material the concave region
+overlapped), and two chains that meet at a vertex are left to the corner
+predicate.
+
+Consumers: an island standing in a filleted cavity, on one shell and as
+a second solid, and a thin revolved wall whose convex inner fillet
+leaves through the far wall, all refused; the teapot lid's dome, a
+sphere zone beside the flange's band, clear
+(`crates/sweep/tests/blend_band_reach.rs`); an island filleted in the
+same request as its cavity, its convex round receding from the void's
+concave one, clear (`blend_per_shell_carry`).
 
 ## Walls: one per run
 
@@ -50,13 +97,9 @@ stations): it keeps its authored cuts (C12.5). A one-piece closed loop is
 one wall whose strut is its wrap edge (D1). Extrude builds it; revolve
 and loft refuse it (`OneSegmentLoop`) until the torus and spline charts
 read a wrap edge (`work/paths/one-segment-loop-revolves-and-lofts-to-one-wall.md`).
-A partial revolve builds a run of cocircular arcs one wall per arc, on
-the run's one surface key: one wall would carry each wedge cap's meridian
-in pieces, and the mass-properties meridian fold groups pieces by split
-lineage, which a station's pieces do not have
-(`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
 A station inside a run has no entity in the body: a cap carries the run as
-one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges). It
+one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges),
+and a partial revolve's run of on-axis segments is one axis edge. It
 stays in the profile, where `ProfileVertexRef` names it.
 Loft builds one wall per corresponding segment pair: across sections
 nothing declares two walls one surface, and the station pins the ruling.

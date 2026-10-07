@@ -40,15 +40,17 @@ keeps the exact coordinate frame; any other plane takes the first
 OBLIQUE schedule member. All 24 tilted poses of the new row answer at
 `Interval`, enclosing the closed form.
 
-**What that exposed.** The new order reddened five `f64` rows (seam-ruling
-splits, `axis_parallel_cuts_left_to_the_book_rule_still_answer`, the
-near-tangent hole-wall row): a curved face whose section is straight
-(rulings) was paired by the book's rule, which follows each ruling only
-where the rulings run along the order's `v`. That was already a live
-`f64` defect on main: a cylinder along x cut parallel to its axis
-refused `DegenerateSection` in 6 of 12 poses where y and z answer.
-`join::ruling_pairs` now pairs a straight section's crossings along each
-line (`split_join_ruling`), so no face's pairing reads the sweep order.
+**What that exposed.** The new order reddened five `f64` rows
+(seam-ruling splits, `axis_parallel_cuts_left_to_the_book_rule_still_answer`,
+the near-tangent hole-wall row): a curved face whose section is two
+rulings was paired by the book's rule, which follows each ruling only
+where the rulings run along the order's `v` — a live `f64` defect on
+`dfcd7f3504` too (a cylinder along x cut parallel to its axis refused
+`DegenerateSection` in 6 of 12 poses where y and z answer). The branch
+first paired those faces along each ruling itself; main landed the same
+fix meanwhile (`join::ruling_pairs`, `df239fc8a1`), and the merge takes
+main's. With it no face's pairing reads the sweep order, which is what
+lets the frame change.
 
 Tests: `a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval`,
 `an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling`,
@@ -56,7 +58,5 @@ Tests: `a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval`,
 axis-plane residual, filed as
 `interval-axis-plane-cut-along-a-cylinder-refuses-its-rims-tie`), and
 two `splitting::order` unit rows. The steep row and the oblique unit
-row go red on the old frame; the axis-parallel row goes red on main and
-with `ruling_pairs` disabled (as do three seam-ruling and wrong-arc
-rows). Locally: `topo`, `sweep`, `editor-core` under the `ci` profile,
-7492 passed.
+row go red on the old frame; the axis-parallel row goes red on `dfcd7f3504`
+and with ruling pairing disabled.

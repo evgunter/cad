@@ -127,7 +127,7 @@ fn crossing(
 ) -> StableName {
     let rim_of_a = ename(
         a,
-        RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2)),
+        RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2).into()),
     );
     let a_body = body_of(ev, a);
     let editor_core::Entry::Unique(r) = table(ev, a).lookup(&rim_of_a).expect("a's rim") else {

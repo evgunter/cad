@@ -2256,6 +2256,24 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "FaceClearance",
+            E::FaceClearance {
+                at: topo::EntityId::Face(face),
+                chain: sweep::blend::Convexity::Concave,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: false,
+            },
+        ),
+        (
+            "FaceClearance(bounded, another band)",
+            E::FaceClearance {
+                at: topo::EntityId::Edge(edge),
+                chain: sweep::blend::Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: true,
+            },
+        ),
+        (
             "TangentialEdge",
             E::TangentialEdge {
                 edge,

@@ -3435,6 +3435,15 @@ pub(crate) mod tests {
     ///   first read in the body's own frame instead of through a
     ///   placement's affine image, which drops the image step and
     ///   changes nothing about what looseness costs.
+    /// - `face_boxes.rs` — [`crate::FaceBoxes`], every face's box and
+    ///   a C10 tree over them, which the blend's reach meter
+    ///   (`sweep::blend::reach`) reads twice: to prune the faces a band
+    ///   can reach, and to bound the cells it meters a survivor on.
+    ///   **Prunes, then can refuse**: a loose box only adds candidates
+    ///   and cells, which is slower work until the meter's per-face
+    ///   cell budget runs out, and then a refusal as uncertified. A
+    ///   box TIGHTER than its face would be the unsound direction: a
+    ///   pruned face is never metered.
     /// - `census.rs` — `reach_box` and `edge_reach_in`, this module's
     ///   extents entered at the census's own scalar. **Refuses**:
     ///   arm 2 clears for free only on a definitely negative margin
@@ -3498,13 +3507,14 @@ pub(crate) mod tests {
         // sort's screen calls. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
-        const PINNED: [(&str, usize); 8] = [
+        const PINNED: [(&str, usize); 9] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/mod.rs", 2),
             ("boolean/ops.rs", 3),
             ("boolean/reduce.rs", 8),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
+            ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
         ];

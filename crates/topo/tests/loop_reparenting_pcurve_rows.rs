@@ -37,7 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCertifyError};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::pcurves::validate_pcurves;
 use topo::{Body, FaceKey, FaceSurface, LoopKey, MefSite, MevSite, PcurveMintError};
@@ -1417,12 +1417,13 @@ fn mef_onto_a_second_key_holding_one_surface_mints_the_new_face_in_its_chart() {
 /// **A chord off the chart leaves both pieces unminted, and the pass
 /// refuses the result.** A straight chord from `a` to `c` cuts through
 /// the cylinder rather than lying on it, so neither piece of the lower
-/// panel has a closed-form row set that certifies: the chord's image
-/// meets its loop on no branch of the chart. The operator does not
+/// panel has a closed-form row set that certifies: the chord's own
+/// chart image does not represent it. The operator does not
 /// refuse — it is called mid-surgery on states a later door finishes
 /// describing — and it does not return a panel half-minted either: both
-/// pieces store nothing. At rest, tier 3 re-derives each and names its
-/// discontinuity, and the pass, run over the result, refuses the first.
+/// pieces store nothing. At rest, tier 3 re-derives each and names the
+/// chord row's refusal, and the pass, run over the result, refuses the
+/// first.
 #[test]
 fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
     let mut s = sheet();
@@ -1448,10 +1449,14 @@ fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
         "tier 3 re-derives both rowless pieces and names each one's refusal: {findings:?}"
     );
     assert!(
-        findings
-            .iter()
-            .all(|f| matches!(f, PcurveMintError::LoopDiscontinuity { .. })),
-        "the chord's image meets its loop on no branch: {findings:?}"
+        findings.iter().all(|f| matches!(
+            f,
+            PcurveMintError::Certify {
+                error: PcurveCertifyError::ResidualExceeded { .. },
+                ..
+            }
+        )),
+        "the chord's own row does not represent it: {findings:?}"
     );
     let refused = topo::mint_pcurves(&mut s.body, tol())
         .expect_err("the pass refuses a panel whose chord leaves its chart");
@@ -1974,7 +1979,8 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
 /// swaps a rim ARC for the straight line between its own endpoints,
 /// which leaves the cylinder: the closed-form lane has no row set for
 /// either face, so each stores nothing, and tier 3 reads on each the
-/// refusal the mint would raise.
+/// refusal the mint would raise: the line's own row does not represent
+/// it.
 #[test]
 fn an_edge_carrier_swap_off_the_chart_leaves_its_faces_rowless() {
     let mut s = sheet();
@@ -1999,9 +2005,13 @@ fn an_edge_carrier_swap_off_the_chart_leaves_its_faces_rowless() {
     let refused = topo::mint_pcurves(&mut s.body, tol()).unwrap_err();
     assert!(
         findings.len() == 2
-            && findings
-                .iter()
-                .all(|f| matches!(f, PcurveMintError::LoopDiscontinuity { .. }))
+            && findings.iter().all(|f| matches!(
+                f,
+                PcurveMintError::Certify {
+                    error: PcurveCertifyError::ResidualExceeded { .. },
+                    ..
+                }
+            ))
             && findings.contains(&refused),
         "tier 3 reads the mint's refusal on each face the line bounds: {findings:?}"
     );
@@ -2023,7 +2033,8 @@ fn outer_cycle(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
 /// chart. The half-minted face keeps the swapped edge's row, and
 /// `validate_pcurves`, which re-certifies every row a face stores
 /// whether or not the set is complete, refuses it for its interval and
-/// its certification, beside the face's gap.
+/// its certification, beside the face's gap. The mate's face, left
+/// rowless, re-derives and refuses the line's row.
 #[test]
 fn a_carrier_swap_on_a_half_minted_face_leaves_its_staled_row_refused() {
     let mut s = sheet();
@@ -2073,10 +2084,15 @@ fn a_carrier_swap_on_a_half_minted_face_leaves_its_staled_row_refused() {
         _ => None,
     });
     assert_eq!(absent, vec![victim], "{findings:?}");
+    // The first is the half-minted face's re-derivation: its walk lifts
+    // every joint, and the chord's own row refuses certification. The
+    // last is the mate's face, which the swap left rowless: tier 3
+    // re-derives it and the line's row refuses there too.
     assert_eq!(
         refused,
-        vec![he],
-        "the kept row re-certifies, and refuses: {findings:?}"
+        vec![he, he, mate],
+        "the re-derivation refuses the chord's row, the kept row re-certifies and refuses, \
+         and the mate's rowless face re-derives and refuses its own: {findings:?}"
     );
     assert_eq!(
         interval,
