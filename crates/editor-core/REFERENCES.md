@@ -117,31 +117,18 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 
 *Built: DOCM-1 (PR 1829).*
 
-## DM3 — A part of a multi-body value is selected by a projection node
+## DM3 — One body of a `Bodies` is picked by index; a split's halves are ports
 
-`Node::Part { of: RecipeNodeId, select: PartSelect }`, with
-`PartSelect::{ SplitHalf(SplitHalf), Instance(Expr) }`, evaluates to one
-body: the named half of a `Split` value or the `i`-th body of an `Instances`
-value. `Instance`'s index is a structural slot (a count, like
-`Pattern::count`), and an index at or beyond the pattern's count refuses
-typed at evaluation. Names pass through unchanged, as `Transform`'s do
-(`role.rs`): the body keeps the split's `SplitBody(half)` name or the
-pattern's `Instance { i, of }` names, so every downstream selector spells
-what it already spells.
-
-- **Why a node and not an operand struct.** An operand struct would put a
-  projection inside every body-consuming payload (`Boolean`, `Split`,
-  `Transform`, `Fillet`, `Chamfer`, `Pattern`, …) and fork each consumer's
-  admission on it. The node is the `PlacedUnion` ruling's shape: one
-  meaning, one node. Every consumer stays as it is, `eval::wire::body_operand`
-  is unchanged, and the viewer's `denotes_body` (`combine.rs`) carries one
-  more `true` arm, which `the_body_seat_tracks_the_evaluators_operand_door`
-  pins. The selection is a visible, editable tree row.
-- The cost is that row. A bare split or pattern is still refused at a body
-  seat (`several_bodies_are_not_one_body_at_a_seat`); the `Part` node is how
-  a user says which body they meant.
-
-*Built: DOCM-2 (PR 1860).*
+A `Split` defines two `Body` outputs, `above` and `below` (the port index is
+`SplitHalf::output_body`'s), read like any other output; DM3's split-half
+projection retires. One body of a `Bodies` value (a pattern's copies) is
+picked by an operation that reads the `Bodies` and a `Count` index and
+defines one `Body`; an index at or beyond the count refuses typed at
+evaluation. Names pass through unchanged, as `Transform`'s do (`role.rs`):
+the picked body keeps the pattern's `Instance { i, of }` names, and a split
+half keeps its `SplitBody(half)` names, so every downstream selector spells
+what it already spells. A body seat reading a `Bodies`, a profile or a
+split as a whole refuses by kind at the door (`SlotVarKind`).
 
 ## DM4 — Flat operators before splice: an n-ary union
 

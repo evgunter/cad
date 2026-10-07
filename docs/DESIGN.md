@@ -1211,11 +1211,14 @@ intent.
 **Variables.** Every slot that admits more than one value holds a
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
-sense), the geometric values (`Point`, `Direction`, `Axis`, `Plane`,
-`Frame`) and the references (`Face`, `Edge`, `Body`). A variable is
+sense) and the geometric values (`Point`, `Direction`, `Axis`, `Plane`,
+`Frame`), which may be free or defined; the products (`Body`, `Bodies`,
+an ordered list of bodies whose length is a `Count`, and `Profile`),
+which only an operation defines; and the selections of a product
+(`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
-— or **defined**, by an `Expr` over other variables or as an output of
-an operation. A dimensioned literal stands nowhere, neither in a slot
+— or **defined**, by an `Expr` over other variables, by a selection of a
+`Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
 nor inside a formula: the only constants are dimensionless rationals and
 rational fractions of a turn, which are the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
@@ -1223,11 +1226,17 @@ offers an existing variable of equal value; declining the offer is what
 makes the two distinct.
 
 **Operations.** A node is an operation: it reads variables and defines
-one or more. Reading is the only dependency; nothing consumes anything,
+the variables its signature states, a fixed list of named, typed ports
+set by its variant (a split defines two bodies; an instance of a part
+defines one variable per entry of the part's product), possibly none:
+an assertion or a mate defines none. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
 product is an explicit list of `Body` variables. A `Face` or `Edge`
-variable is a selection of a `Body` variable by `StableName`, and the
-N5 resolution ladder lives there; deleting a variable leaves its
+variable, or a set of them, is a selection of a `Body` variable by
+`StableName`: a definition, not a node, stating its body once, and the
+N5 resolution ladder lives there. A selection authored at two sites is
+two variables (the GUI offers the existing one), and a repair is
+addressed by body and name; deleting a variable leaves its
 readers unresolved, typed, never silently re-pointed.
 
 **Spaces and placement.** A part has no location. A **space** is a set
