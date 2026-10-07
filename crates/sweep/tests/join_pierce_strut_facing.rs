@@ -48,7 +48,7 @@ use topo::{
 
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
-    Op as Cones, Pieces, cone_finding, cones_at, point_key_finding, vertices_at,
+    Op as Cones, Pieces, cone_finding, cones_at, shared_point_finding, vertices_at,
 };
 
 const PROFILE: [(f64, f64); 6] = [
@@ -245,7 +245,7 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
                 (got - want).abs() < 1e-9,
                 "{what}: volume {got}, want {want}"
             );
-            let finding = point_key_finding(&bb.body, V)
+            let finding = shared_point_finding(&bb.body, V)
                 .or_else(|| cone_finding(&bb.body, V, (px, py, cones)));
             assert_eq!(finding, None, "{what}");
             let meshed =

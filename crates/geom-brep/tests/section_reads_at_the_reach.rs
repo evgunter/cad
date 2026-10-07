@@ -4,15 +4,16 @@
 //! consumed extent's centre and lever the tilt from there, so a verdict
 //! does not move with where a cylinder's origin is stored or with which
 //! operand comes first, and the tangent-locus witness reads the same
-//! rows the same way.
+//! rows the same way. The cone × cylinder arm reads its pose at the
+//! apex, against the cylinder's own axis.
 
 #![allow(clippy::panic)]
 
 use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::intersect::{
-    EqualCylinderSection, PlaneCylinderSection, RadiusEvidence, cylinder_cylinder_section,
-    plane_cylinder_section,
+    ConeCylinderSection, EqualCylinderSection, PlaneCylinderSection, RadiusEvidence,
+    cone_cylinder_section, cylinder_cylinder_section, plane_cylinder_section,
 };
 use geom_brep::{ExtentBall, Reach, TangentLocus, tangent_locus};
 use geom_core::{Point3, Vec3};
@@ -211,6 +212,51 @@ fn a_measured_lever_reaches_the_pivots_distance() {
                 "({label}): the section escalates on the axis row"
             ),
             other => panic!("({label}): the tilt levered at the pivot is in band: {other:?}"),
+        }
+    }
+}
+
+/// **Cone × cylinder is read at the apex, wherever the cylinder's origin
+/// is stored.** A half-angle-0.5 cone along `x` with its apex at the
+/// origin, and a radius-¼ cylinder whose axis passes through the apex
+/// tilted half the zero band toward `y`, read over a unit extent from
+/// the apex: the tilt reads `0.5·zero`, the apex stands on the
+/// cylinder's axis, and the arm mints its two coaxial circles at
+/// `±R·cot α` at every stored origin. Read at a stored origin 1000 m
+/// along, the axes stood `500·zero` apart and the arm refused the pose
+/// as parallel and off the axis.
+#[test]
+fn cone_cylinder_reads_one_verdict_at_every_stored_origin() {
+    let alpha: f64 = 0.5;
+    let cone = Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_x(),
+        half_angle: alpha,
+        u_ref: Vec3::unit_y(),
+    };
+    let axis = tilted(Vec3::unit_y());
+    let big_r = 0.25;
+    let station = big_r / alpha.tan();
+    for along in STORED {
+        let cyl = Surface::Cylinder {
+            origin: Point3::origin() + axis * along,
+            axis,
+            radius: big_r,
+            u_ref: Vec3::unit_z(),
+        };
+        match cone_cylinder_section(&cone, &cyl, 1.0, band()) {
+            Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
+                for (c, want) in [(c1, station), (c2, -station)] {
+                    let geom::Curve3::Circle { center, .. } = c else {
+                        panic!("stored {along} m along: a circle");
+                    };
+                    assert!(
+                        (center - Point3::new(want, 0.0, 0.0)).norm() < 1e-12,
+                        "stored {along} m along: a circle at the station {want}: {center:?}"
+                    );
+                }
+            }
+            other => panic!("stored {along} m along: the coaxial circles: {other:?}"),
         }
     }
 }

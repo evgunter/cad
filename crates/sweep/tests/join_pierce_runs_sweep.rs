@@ -21,7 +21,7 @@ use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, m
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
     Op as Cones, Pieces, Plane, cone_finding, faces_through_two_vertices_at, point_key_finding,
-    vertices_at,
+    shared_point_finding, shared_point_spread_finding, vertices_at,
 };
 
 const PROFILE: [(f64, f64); 6] = [
@@ -392,7 +392,11 @@ fn pierce_point_finding(
     at: [f64; 3],
     cones: (&[Vec<Plane>], &[Vec<Plane>], Cones),
 ) -> Option<String> {
-    if let Some(finding) = point_key_finding(body, at).or_else(|| cone_finding(body, at, cones)) {
+    if let Some(finding) = shared_point_spread_finding()
+        .1
+        .or_else(|| shared_point_finding(body, at))
+        .or_else(|| cone_finding(body, at, cones))
+    {
         return Some(finding);
     }
     match mesh::tessellate(body, 0.05, tol()).map(|m| mesh::validate::check_mesh(&m)) {
@@ -1610,6 +1614,19 @@ fn corner_pairs_battery() {
     }
 }
 
+/// The L-prism ([`PROFILE`]) as a corner at `V`, tiled by [`BOXES`]'
+/// footprints.
+fn ltop() -> Corner {
+    Corner {
+        profile: PROFILE.to_vec(),
+        pieces: BOXES
+            .iter()
+            .map(|&(l, h)| vec![(l[0], l[1]), (h[0], l[1]), (h[0], h[1]), (l[0], h[1])])
+            .collect(),
+        v: V,
+    }
+}
+
 /// The asymmetric reflex corner: `(1, 1, 1)`, a 0° edge and a 34° one
 /// round a 326° notch (PR 4139's review r1, `asym`).
 fn asym() -> Corner {
@@ -1649,9 +1666,9 @@ fn fibonacci(i: u32, n: u32) -> [f64; 3] {
     [r * t.cos(), r * t.sin(), z]
 }
 
-/// PR 4139's review r1's `dbl` pose `seed`, `fib`: two [`asym`] corners
-/// touching only at their corner `v` (their union, two vertices at `v`),
-/// the second turned by a seeded rotation, and the cube whose near face
+/// PR 4139's review r1's `dbl` pose `seed`, `fib`: corner `a` at rest
+/// and corner `b` turned by a seeded rotation about it, touching only at
+/// their corner `v` (their union, two vertices at `v`), and the cube whose near face
 /// holds `v`, along Fibonacci direction `fib` of 600 and turned 0.4
 /// about it; with the operand's pieces and volume, the cube's planes,
 /// and the volume they share.
@@ -1664,15 +1681,14 @@ struct Dbl {
     common: f64,
 }
 
-fn dbl(seed: u64, fib: u32) -> Dbl {
+fn dbl((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
     let pose = format!("seed={seed} fib{fib}");
-    let corner = asym();
-    let v = corner.v;
+    let v = a.v;
     let x1 = finished(
         "a corner",
-        fixtures::prism::<f64>(&corner.profile, 1.0, tol()).body,
+        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
     );
-    let (x2, posed_pieces) = posed(&corner, seeded_rotation(seed * 31 + 5), v);
+    let (x2, posed_pieces) = posed(b, seeded_rotation(seed * 31 + 5), v);
     let pinched = topo::union_with(&x1, &x2, &BooleanDeclarations::default(), tol())
         .unwrap_or_else(|e| panic!("{pose}: the corners' union: {e:?}"));
     let pinched = pinched.body().expect("the union is not empty").body.clone();
@@ -1681,7 +1697,7 @@ fn dbl(seed: u64, fib: u32) -> Dbl {
         2,
         "{pose}: the operand's pinch"
     );
-    let mut pieces: Pieces = corner.pieces.iter().map(|p| polygon_prism(p)).collect();
+    let mut pieces: Pieces = a.pieces.iter().map(|p| polygon_prism(p)).collect();
     pieces.extend(posed_pieces);
     let f = frame(fibonacci(fib, 600), 0.4);
     let lo = [-2.0, -2.0, 0.0];
@@ -1718,7 +1734,7 @@ fn dbl(seed: u64, fib: u32) -> Dbl {
 #[test]
 fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
     let v = asym().v;
-    let d = dbl(268, 11);
+    let d = dbl((&asym(), &asym()), 268, 11);
     let want = d.volume + SIDE.powi(3) - d.common;
     let r = topo::union_with(&d.pinched, &d.cube, &BooleanDeclarations::default(), tol());
     let body = r
@@ -1746,7 +1762,15 @@ fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
         "a cone at v is a straight edge through it: {:?}",
         at_v.iter().map(|&w| valence(w)).collect::<Vec<_>>()
     );
-    assert_eq!(topo::joinable_vertices(&body), vec![], "maximal edges");
+    assert_eq!(
+        topo::joinable_vertices(
+            &body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![],
+        "maximal edges"
+    );
 }
 
 /// **A pinched operand's pierces weld only where their corners nest.**
@@ -1778,7 +1802,7 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
             planes,
             volume,
             common,
-        } = dbl(seed, fib);
+        } = dbl((&asym(), &asym()), seed, fib);
         let runs = every_op(
             ["xy", "yx"],
             (&pinched, volume),
@@ -1810,4 +1834,62 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
             assert_eq!(finding, Some(None), "{pose} {tag}");
         }
     }
+}
+
+/// **A pinch's cones sit on one point key** (`zip::share_points`). Six
+/// of [`dbl`]'s poses whose union with the cube pinches at `v` in two
+/// cones. Both cones' vertices are the pinched operand's own, which the
+/// corners' union left on two keys; the cube's copies of `v` sit on a
+/// third, which the zips fuse away. The seam correspondence pairs each
+/// operand vertex with a cube copy, so it ties all three keys, and after
+/// the zips the two cones' vertices move onto one key.
+/// Both unions build `SOUND` at the clipped volume, with one vertex per
+/// cone at `v`, on one key, and mesh. Red without the move: tier 3′
+/// refuses `UndeclaredContact { VertexVertex }` at `v`, and the output
+/// stage's join, which reads the pinch from its keys, kills a cone's
+/// vertex (one vertex for two cones; the mesher refuses or panics).
+/// The unions rebind at least one class (a union whose zips already
+/// leave its cones on one key rebinds none), and every class rebound
+/// held one point, bit for bit (`topo::take_shared_points`): the
+/// rebind reads no position, so this is its premise's pin.
+#[test]
+fn a_pinchs_cones_share_one_point_key() {
+    let mut rebound = 0;
+    for (names, (a, b), seed, fib) in [
+        ("Ltop asym", (ltop(), asym()), 2296, 21),
+        ("Ltop asym", (ltop(), asym()), 2296, 3),
+        ("Ltop asym", (ltop(), asym()), 2296, 8),
+        ("Ltop asym", (ltop(), asym()), 2959, 3),
+        ("asym asym", (asym(), asym()), 15, 6),
+        ("asym asym", (asym(), asym()), 225, 6),
+    ] {
+        let pose = format!("{names} seed={seed} fib{fib}");
+        let v = a.v;
+        let d = dbl((&a, &b), seed, fib);
+        let want = d.volume + SIDE.powi(3) - d.common;
+        let cube_pieces = vec![d.planes.clone()];
+        for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+            shared_point_spread_finding();
+            let r = topo::union_with(x, y, &BooleanDeclarations::default(), tol());
+            let (classes, spread) = shared_point_spread_finding();
+            rebound += classes;
+            assert_eq!(spread, None, "{pose} {order} U");
+            let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                point_key_finding(&bb.body, v)
+                    .or_else(|| cone_finding(&bb.body, v, (&d.pieces, &cube_pieces, Cones::Union)))
+                    .or_else(|| {
+                        match mesh::tessellate(&bb.body, 0.05, tol())
+                            .map(|m| mesh::validate::check_mesh(&m))
+                        {
+                            Ok(Ok(())) => None,
+                            other => Some(format!("the body does not mesh: {other:?}")),
+                        }
+                    })
+            });
+            let line = outcome(r, want, tol());
+            assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
+            assert_eq!(finding, Some(None), "{pose} {order} U");
+        }
+    }
+    assert!(rebound > 0, "no union rebound a class");
 }

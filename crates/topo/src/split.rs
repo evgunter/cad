@@ -178,10 +178,12 @@ impl<T: Decide> Body<T> {
     /// what is there, and minting what is missing is the producer's
     /// closing mint.
     ///
-    /// Two frontiers, both stated at `split_cache`. A
-    /// `Fitted`/`General` row is left exactly as found, because its
-    /// certification doors take the fitted door
-    /// ([`crate::AtRestPolicy::fitted_lane`]). And on a
+    /// A sphere's general circle's `Fitted` row certifies over its own
+    /// knot domain only, so each child's is derived afresh through the
+    /// fitted door ([`crate::AtRestPolicy::fitted_lane`]) and pinned onto
+    /// the parent's branch. Two frontiers, both stated at `split_cache`.
+    /// Any other `Fitted` row, and a `General` one, is left exactly as
+    /// found. And on a
     /// SPLINE chart the carry is exact — a described-NURBS wall's
     /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
     /// reads `Ok` — but the recovery step the caveat below names,
@@ -309,22 +311,23 @@ impl<T: Decide> Body<T> {
         // sub-intervals and re-certified. Read-only, so a refusal
         // leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
-            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
-                |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {
-                    crate::pcurves::SplitRefusal::Certify(error) => EulerOpError::PcurveSplit {
-                        edge,
-                        half_edge,
-                        error,
-                    },
-                    crate::pcurves::SplitRefusal::Joint(diag) => {
-                        EulerOpError::SplitJointUndecided {
+            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band, T::fitted_lane())
+                .map_err(
+                    |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {
+                        crate::pcurves::SplitRefusal::Certify(error) => EulerOpError::PcurveSplit {
                             edge,
                             half_edge,
-                            diag,
+                            error,
+                        },
+                        crate::pcurves::SplitRefusal::Joint(diag) => {
+                            EulerOpError::SplitJointUndecided {
+                                edge,
+                                half_edge,
+                                diag,
+                            }
                         }
-                    }
-                },
-            )?;
+                    },
+                )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
