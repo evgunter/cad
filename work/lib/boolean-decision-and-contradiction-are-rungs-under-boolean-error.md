@@ -100,6 +100,10 @@ schedule and curved chart refusal, which the boolean answered as
 type, so the sweep's narrowing does not count it a payload rung, and
 this row gains no name.
 
-TANG's `9dea3c25` adds `SectorRead`, the two reads `BooleanError::VertexReadTwice`
-names (a pierce of a face, a pairing with a vertex). It is a payload rung of
-`BooleanError` itself, like `NeighbourOffset`, and its disposition is this row.
+## One more rung (TANG, PR 4234)
+
+PR 4234 adds `SectorRead` (a vertex-on-face pierce or a vertex-vertex
+pair), carried twice by `BooleanError::VertexReadTwice { reads, .. }`
+(`crates/topo/src/boolean/mod.rs`). The sweep went red on main when it
+merged; its disposition is this row.
+
