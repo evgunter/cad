@@ -2,8 +2,7 @@
 id: a-second-crossing-by-one-face-renames-the-first-and-its-pieces
 kind: issue
 title: The crossing ordinal is not local: a second crossing of an edge by a face that already crosses it renames the first crossing and every piece whose Ends cite it
-status: parked
-blocked_on: [a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially]
+status: open
 opened: 2026-10-01
 priority: P1
 cost: M
@@ -72,3 +71,31 @@ the flush paragraph, and N5's group-size bullet; fork-log row 73).
   - Add a row for a same-sense group.
 - **Goldens.** They move broadly: every crossing vertex, every `Ends` that
   cites one, and every lone edge piece. Re-baseline them and say what moved.
+
+## `Ends` on every piece landed (2026-10-07)
+
+`Ends` on every piece of a divided edge, a lone one included, landed
+with the line (`a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially`,
+branch `emit/cite-the-line`): a crossing and a piece's base cite the
+edge's line, so a piece's name no longer grows with the cuts above it
+(`name_size_against_cut_depth`). The pinned row
+(`emit_edge_piece_locality::a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_names`)
+holds the crossing at P and the lone Below piece ending at it, both
+crossed once and crossed twice.
+
+The line does not change what this row ruled: a second crossing of the
+same sense by a face that already crosses the line still ranks the
+same-sense group, and renames the first crossing and the pieces ending
+at it (N5's group-size bullet). Several pieces of one line crossed by
+one face with one sense now share one group, ranked along the line by
+the carrier of the least-named piece (`emit_topo::OnLine`, and `Along`
+in `name_boolean_vertices`).
+
+**What remains** is two of the ruled test rows, which nothing in the
+suite holds yet:
+- a row for the in-face union vertices in `wire_legal_union_refusals`
+  (an end-touch: the sense read at minting);
+- a row for a same-sense group. One face crossing one line twice with
+  one sense needs a curved edge or face (a plane crosses a straight
+  line once, and a circle twice with opposite senses), so the fixture
+  is the cost of this row.

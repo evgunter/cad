@@ -36,7 +36,7 @@ const DEEPEST: usize = 14;
 /// that x: trims alternate ends, the high end first.
 fn cut(i: usize) -> (f64, bool) {
     let bite = BITE * (i / 2 + 1) as f64;
-    if i % 2 == 0 {
+    if i.is_multiple_of(2) {
         (LENGTH - bite, true)
     } else {
         (bite, false)
