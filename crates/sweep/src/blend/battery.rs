@@ -2285,9 +2285,10 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 /// Predicate 6 at one termination vertex, beside the link that reaches
 /// it and against the `requested` edges, returning the CARVED
 /// configuration it classified: `Some` section for a
-/// [`CornerConfig::EndFace`] and `Some` turn for a
-/// [`CornerConfig::Turn`], which the verdict carries for the open
-/// bands' plans to read. A RULED link's end must be a plane cap, its
+/// [`CornerConfig::EndFace`], which the verdict carries for the open
+/// bands' plans to read, and for a [`CornerConfig::Turn`] its two
+/// requested links, which the caller hands [`turn_at`] once per
+/// vertex. A RULED link's end must be a plane cap, its
 /// section picked by [`cap_transverse`] — and where that is the
 /// ellipse, the cap's three face normals independent
 /// ([`corner_independence`]). Any other link's end is classified as a

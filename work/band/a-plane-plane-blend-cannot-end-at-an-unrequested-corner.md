@@ -185,9 +185,11 @@ Build order (each step widens admission; this row closes with step 4):
   trihedra too — for a chamfer wherever `sin φ₁ = sin φ₂` — where a
   fillet's foot need not lie on the section's symmetric ellipse.) Zero
   builds the mitre, definite refuses
-  `UnsupportedRunOut` (`TURN_OVERRUN`, step 5), in band escalates. The
+  `UnsupportedRunOut` (`TURN_NOT_ISOSCELES`, step 5), in band escalates.
+  The margin also reads the two feet's gap on L: at acute face angles
+  the cosines alone admit feet further apart than the band. The
   Zero verdict is recorded as `DecidedCoincidence::IsoscelesTurn` on
-  `BatteryVerdict::coincidences`; no D10 recording door exists yet, filed
+  each `Turn`, read through `BatteryVerdict::coincidences()`; no D10 recording door exists yet, filed
   as INTENT's `value-decided-coincidences-have-no-recording-door`.
 - The carve is the local carve's, with two new station kinds: on the
   shared face a strut to the trimlines' crossing (named
@@ -220,8 +222,8 @@ Build order (each step widens admission; this row closes with step 4):
 - **The bracket's wall 3 does not retire; it moves to the overrun.**
   Each corner of a section face is a turn whose dihedrals differ: 90° at
   the cap chord, 45° or 135° at the section edge on the side wall. So
-  both section faces' whole rims refuse `TURN_OVERRUN`, which is step
-  5's. Re-pinned in `demos/tour/src/bracket.rs`.
+  both section faces' whole rims refuse `TURN_NOT_ISOSCELES`, which is
+  step 5's. Re-pinned in `demos/tour/src/bracket.rs`.
 - The four-edge turn foot: L blended in a later call ends at a
   valence-4 vertex and refuses `NEdgeVertex { valence: 4 }`, whose
   recourse (`FILLET3_CORNER_RECOURSE`) now ends "in one call"; requested
@@ -230,3 +232,14 @@ Build order (each step widens admission; this row closes with step 4):
 - A teardrop prism's top rim (one turn, a tangent arc) now passes the
   battery as an isosceles turn and refuses at the open-chain door,
   `UnsupportedChain` (its chain mixes arms), instead of `Turn`.
+- **For step 5: the supplementary turn is not an overrun.** Where the
+  two requested edges make supplementary angles with L (`φ` and
+  `π − φ`, two corners of any box sheared along its diagonal,
+  `common::operands::parallelepiped`), a chamfer's two feet on L
+  coincide (`d / sin φ` each) and its two planes share the chord from
+  the crossing down to that point: the mitre lands on L, though the
+  dihedrals differ. A fillet's do not (its setback follows the
+  dihedral). Step 4 refuses both verbs there as not isosceles, worded
+  so as not to claim an overrun
+  (`band_planar_mitre::a_sheared_box_mitres_its_isosceles_corners_and_refuses_its_supplementary_ones`);
+  step 5's design decides whether the chamfer builds it as a mitre.
