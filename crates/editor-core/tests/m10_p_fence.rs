@@ -821,7 +821,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x71a0_ec4a_f2dc_5759, 0x3543_1b6f_a4f8_31ad),
+        (0x9b6a_c0b7_a65e_68ba, 0xe58d_ded8_ccc5_3eae),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -908,10 +908,16 @@ fn run_at<T: editor_core::EvalScalar>(
 /// Re-taken once more for INTENT-LITERALS PR C: every slot holds a
 /// variable's id, so every node is minted from other bytes, and the
 /// id-free rows held.
+///
+/// And again when an id became its mint ordinal and its digest (all
+/// three rows): the digest spells every id it feeds. The same digest
+/// with each id replaced by its document position measured equal on
+/// main and on the branch at all three ε, so no pose, role, fault or
+/// placement moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0x76be_7889_78b2_4a63),
-    (1e-6, 0x0858_f725_cff7_c8ea),
-    (1e-12, 0x2325_5f17_5c76_c71c),
+    (1e-6, 0xce5d_7fa0_04ae_bccb),
+    (1e-12, 0x4f11_e7b4_127c_0d12),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
