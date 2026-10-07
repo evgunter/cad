@@ -14,12 +14,11 @@ input. "Delete and reconnect" is a GUI composite of explicit slot writes
 plus `DeleteNode`, committed as one action. The kernel never guesses which
 input survives. Confidence: **likely** (high end).
 
-Terms. An *operand slot* is a node field that reads a `Body`, `Face` or
-`Edge` variable, such as a boolean's `a`/`b`, an extrude's profile or a
-fillet's selection. *Re-pointing* means making a slot read a different
-existing variable. A *list slot* is `Union.members` or `Loft.profiles`.
-*`upstream(n)`* is the stage-2 dependency relation: the operations defining
-what `n` reads, expanded through definitions.
+Terms. An *operand slot* reads a `Body`, `Face` or `Edge` variable (a
+boolean's `a`/`b`, an extrude's profile); *re-pointing* makes a slot read a
+different existing variable; a *list slot* is `Union.members` or
+`Loft.profiles`; *`upstream(n)`* is the operations defining what `n`
+reads, expanded through definitions.
 
 ### Premise check
 
@@ -48,11 +47,8 @@ what `n` reads, expanded through definitions.
    only dependency, and stage 1's `SetParam` already re-points scalar
    reads. In stage 2, `upstream` expands through definitions, so these
    edits already move one operation's dependencies onto another:
-   - `SetParam` on an assertion's `value` slot, made to read another
-     `Measure`'s output;
-   - redefining a variable that reads a measure.
-
-   No edit vocabulary that keeps scalar slot writes also keeps "no edit
+   `SetParam` on an assertion's `value` slot to read another `Measure`'s
+   output, or redefining a variable that reads a measure. No edit vocabulary that keeps scalar slot writes also keeps "no edit
    rewires a live node's inputs". At most DM6 survives as "except
    reference-kind slots outside a list". (likely; FORK-5 decides how far
    scalars may read outputs, but the assertion case exists whatever it
@@ -75,18 +71,13 @@ yours ruling out an *explicit* re-point.
 ### The answers as final states
 
 **A. Recommended: one slot door, operand writes included.**
-- *Makes true:*
-  - Every slot, scalar, list or single operand, is written by one door
-    under one set of checks: `SlotVarKind`, live, `WouldCycle` over
-    `upstream`, and DM5 over variable ids.
-  - The node keeps its id; content and naming keys move as they already do
-    when an operand changes.
-  - The write is structural because the slot's kind is a reference kind,
-    so the edit stream still separates structural edits from continuous
-    ones (stage 1's split, decided by the slot kind, as `Count` is).
-  - An `UnresolvedRead` gets a repair.
-  - "Use that body instead", the GUI offer for references, becomes the
-    same gesture as accepting a scalar offer.
+- *Makes true:* every slot (scalar, list, single operand) is written by
+  one door under one set of checks (`SlotVarKind`, live, `WouldCycle` over
+  `upstream`, DM5 over variable ids). The node keeps its id; content and
+  naming keys move as they already do when an operand changes. The write
+  is structural because the slot's kind is a reference kind, as `Count`
+  is. An `UnresolvedRead` gets a repair, and "use that body instead" is
+  the same gesture as accepting a scalar offer.
 - *Report, not refusal:* a re-point can change what a downstream frozen
   name denotes. The edit's `Applied.maintenance` lists each select or
   payload name whose resolution path crosses the re-pointed slot, as
@@ -102,13 +93,9 @@ yours ruling out an *explicit* re-point.
     must not be invisible, hence the report.
   Refusing either outcome would forbid a legitimate edit to guard
   against a change the person just asked for.
-- *Leaves possible:* graphs only an edit history could reach, for example
-  a node reading something inserted after it. That is harmless:
-  acyclicity is checked over `upstream`, and evaluation order is the
-  schedule's, not insert order. Check that nothing assumes `order` is
-  topological (see the orchestrator section).
-- *Reversible:* yes. Narrowing to a rule (B) later is a refusal added at
-  one door.
+- *Leaves possible:* a node reading something inserted after it. Harmless:
+  acyclicity is over `upstream`, and evaluation order is the schedule's.
+- *Reversible:* yes; narrowing to B later is a refusal at one door.
 
 **B. Writable under extra rules** (same kind, no cycle, names re-checked
 and refused if any would change). Same kind and no cycle are A's checks
@@ -130,20 +117,14 @@ weighed.
 
 ### Ratified text I would change
 
-- **REFERENCES DM6:** retire it. In its place: "No edit infers a re-point:
-  a delete never splices, and a read changes only by an edit naming its new
-  variable."
-- **DM7:** gains the re-point report alongside removal.
-- **`no-docedit-splices-a-deleted-node`:** it is answered. Splice becomes a
-  GUI composite, offered beside cascade delete, in which the person picks
-  the survivor for each reader. Close the item, or make it a viewer unit.
+- **DM6** retires; in its place: "No edit infers a re-point: a delete
+  never splices, and a read changes only by an edit naming its new
+  variable." **DM7** gains the re-point report.
+- **`no-docedit-splices-a-deleted-node`** is answered: splice is a GUI
+  composite beside cascade delete, the person picking each survivor.
 
-**Confidence:**
-- the recommendation: likely;
-- premises 1, 3, 5: sure;
-- premises 2, 4: likely;
-- the claim that the report is computable from name segments mapped to
-  slots: likely.
+**Confidence:** recommendation likely; premises 1, 3, 5 sure; 2, 4
+likely; the report being computable from name segments: likely.
 
 ## For the orchestrator
 
@@ -170,9 +151,7 @@ weighed.
   viewer tree. A re-point to a later node breaks that assumption, while
   `SetMembers` already admits it (does it? I did not check whether
   `SetMembers` refuses a member inserted after the union).
-- **Unverified mechanism.** I assumed the report's "resolution path crosses
-  the slot" is derivable from name segments (`FromA`→`a`, `FromB`→`b`,
-  `FromMember{m}`→the member slot) plus selects whose body is downstream of
-  the written node. I did not build it.
-- **Unseen record.** The in-chat ratification of DM1–DM6 (2026-09-04) is
-  not visible to me; PR 1789's body is the only record I read.
+- **Unverified:** that "resolution path crosses the slot" is derivable
+  from name segments (`FromA`→`a`, `FromB`→`b`, `FromMember{m}`→member
+  slot); I did not build it. The 2026-09-04 chat is unseen; PR 1789's body
+  is the only record I read.
