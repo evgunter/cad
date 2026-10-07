@@ -65,3 +65,8 @@ Check 5 decided the escape two-sidedly, so a negative clearance in
 Negative) pass. Fixed at the certifier: `trim_containment` decides
 only an escape's positive part, as the iso rows' `pcurve_iso_domain`
 gates do. The row now passes at the default, 1e-9, 1e-6 and 1e-12.
+
+Since then check 5 itself has retired (PCERT's
+`pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`, [ev]
+PR 3919): the pcurve certificate tests no row against a window, so the
+split carry has none to escalate against.

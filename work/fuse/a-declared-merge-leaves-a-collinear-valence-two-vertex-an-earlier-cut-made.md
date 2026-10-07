@@ -218,6 +218,16 @@ landed both on main.
   curved joins land.
 
 
+## Step 2's sweep half (FUSE, PR 4200, 2026-10-06)
+
+`sweeps-build-one-rim-edge-per-segment-not-per-run`: extrude and the
+partial revolve collapse each run before they build, so no sweep
+output holds a station vertex, planar or curved. The partial revolve's
+arc runs needed no curved join (direct construction, one meridian per
+wedge cap). `run_walls_built` asserts `topo::joinable_vertices` empty
+on every swept body. Step 2's rest is the curved join
+(`curved-joinable-vertices-are-left-unjoined`).
+
 ## The refusing orders reach `SeamVertexParentage` (EMIT, 2026-10-06)
 
 The table's `[a, s, b]` and `[s, a, b]` refuse `DeclareResolve` today.
