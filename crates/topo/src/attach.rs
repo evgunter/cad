@@ -3791,8 +3791,10 @@ mod tests {
     /// describing twin takes them as
     /// [`Body::kfmrh_carried_redescriptions`] states them on the cap's
     /// key, reaping the membrane's key, and tier 3 reports none of them
-    /// at rest where the lifted kill strands all four. (The demoted ring
-    /// winds as the outer loop it was, which tier 3 reports either way.)
+    /// naming a chart neither side wears, where the lifted kill strands
+    /// all four. (The demoted ring winds as the outer loop it was, and
+    /// its edges bound the cap on both sides, which tier 3 reports
+    /// either way.)
     #[test]
     fn kfmrh_describing_carries_the_strand_kfmrh_refuses() {
         let (mut body, top, membrane) = inlay_on_own_key();
@@ -3836,7 +3838,19 @@ mod tests {
             validate_geometric(b, tol())
                 .unwrap_err()
                 .into_iter()
-                .filter(|e| matches!(e, ValidationError::DescriptionNotAdjacent { .. }))
+                .filter(|e| match e {
+                    ValidationError::DescriptionNotAdjacent { edge } => {
+                        let (plus, minus) =
+                            crate::readback::edge_sides(b, *edge).unwrap().surfaces();
+                        match restated(b, *edge).description {
+                            EdgeDescriptionSpec::Chart { surface, .. } => {
+                                surface != plus && surface != minus
+                            }
+                            _ => true,
+                        }
+                    }
+                    _ => false,
+                })
                 .count()
         };
         assert_eq!(

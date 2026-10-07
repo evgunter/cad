@@ -7,14 +7,18 @@
 //!
 //! - **extrude**: one vertex per cap, one self-loop rim per cap, one
 //!   periodic wall, one strut with both halves in that wall, described
-//!   as the wall's seam; outer and hole, both directions, `f64` and
-//!   `Interval`;
-//! - **revolve** and **loft** refuse a one-segment loop, typed: the one
-//!   wall each would build wraps a period whose wrap edge no chart here
-//!   reads yet (a torus's tube angle; a spline wall's `u`); a circle
-//!   reaching the axis keeps its own axis refusal;
-//! - **a boolean** on an extruded periodic wall with a seam strut, and
-//!   **a split** through its seam vertices and along its strut, held
+//!   as the wall's wrap edge; outer and hole, both directions, `f64`
+//!   and `Interval`;
+//! - **revolve**: one torus wall whose strut wraps its tube angle `v`,
+//!   and on a full turn one face closed both ways; holes, outers and
+//!   annuli, every vertex phase and winding, `f64` and `Interval`; a
+//!   circle reaching the axis keeps its own axis refusal;
+//! - **loft**: one spline wall whose strut wraps its `u`, its tier-3
+//!   verdict and its volume held to the two-arc wall's;
+//! - **tier 3 both ways**: an edge whose halves bound one face is that
+//!   face's wrap edge, and one without the flag is refused;
+//! - **a boolean** on an extruded periodic wall with a wrap strut, and
+//!   **a split** through its strut's vertices and along it, held
 //!   against the two-arc form.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -95,8 +99,8 @@ fn census<T: Real>(body: &Body<T>) -> (usize, usize, usize) {
     )
 }
 
-/// Whether `edge` is described as its chart's seam.
-fn is_seam<T: Real>(body: &Body<T>, edge: EdgeKey) -> bool {
+/// Whether `edge` is described as its chart's wrap edge.
+fn is_wrap<T: Real>(body: &Body<T>, edge: EdgeKey) -> bool {
     let e = body.get_edge(edge).unwrap();
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     matches!(c.description(), EdgeDescription::Chart(ch) if ch.wrap)
@@ -128,7 +132,7 @@ fn an_extruded_one_segment_circle_is_one_wall_with_a_seam_strut() {
             };
             assert_eq!(wall.segments, vec![0], "{what}");
             assert!(
-                is_seam(&t.body, wall.strut),
+                is_wrap(&t.body, wall.strut),
                 "{what}: the strut is the wall's seam"
             );
             for rim in [&wall.top_rim, &wall.bottom_rim] {
@@ -195,7 +199,7 @@ fn one_segment_circles_extrude_as_holes_and_around_them() {
             close(volume(&t.body), *want, &what);
             for (l, walls) in t.walls.iter().enumerate() {
                 if walls.iter().map(|w| w.segments.len()).sum::<usize>() == 1 {
-                    assert!(is_seam(&t.body, walls[0].strut), "{what}: loop {l}'s strut");
+                    assert!(is_wrap(&t.body, walls[0].strut), "{what}: loop {l}'s strut");
                 }
             }
         }
@@ -238,7 +242,7 @@ fn one_segment_circles_extrude_at_interval() {
                     let walls = t.walls.last().unwrap();
                     assert_eq!(walls.len(), 1, "{what}: the circle's one wall");
                     assert!(
-                        is_seam(&t.body, walls[0].strut),
+                        is_wrap(&t.body, walls[0].strut),
                         "{what}: the strut is the wall's seam"
                     );
                     let v = topo::mass_properties(&t.body, tol()).unwrap().volume;
@@ -392,7 +396,7 @@ fn wrap_edges<T: Real>(body: &Body<T>) -> Vec<(topo::FaceKey, EdgeKey)> {
         let (a, b) = sides.faces();
         assert_eq!(
             a == b,
-            is_seam(body, edge),
+            is_wrap(body, edge),
             "{edge:?}: wrap flag against its faces"
         );
         if a == b {
@@ -576,9 +580,9 @@ fn one_segment_circles_revolve_at_interval() {
 /// with a round hole, each lofted between two stacked copies: one wall
 /// per one-segment loop with its strut the body's one wrap edge, all
 /// three tiers at `f64`, and at `Interval` tiers 1–2 and the two-arc
-/// circle's tier-3 verdict (a rational wall's volume is not measured
-/// at either scalar: `work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`
-/// for the mesh, the quadrature lane for the volume).
+/// circle's tier-3 verdict. A rational wall is not meshed
+/// (`work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`);
+/// its volume is the next row's.
 #[test]
 fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
     let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
@@ -649,6 +653,160 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
             at_i(two_arcs),
             "{what} at Interval: tier 3 reads the one-segment wall as the two-arc walls"
         );
+    }
+}
+
+/// **A lofted one-segment wall measures as the two-arc wall does.**
+/// The rational wall's volume comes from the quadrature lane, whose
+/// enclosure must reach `1024·ε`: where both forms reach it their
+/// enclosures overlap each other and contain the closed form, where
+/// one is known (a cylinder `2π`, a frustum `πh(R² + Rr + r²)/3`); a
+/// section turned by a radian between the stations has none, and the
+/// two forms are held to each other. Where neither reaches it (at
+/// ε = 1e-9 and 1e-12 today) both refuse alike (`QuadratureBudget`),
+/// and a run where only one form measures is a finding.
+#[test]
+fn a_lofted_one_segment_wall_measures_as_the_two_arc_wall() {
+    let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
+    type Case = (
+        &'static str,
+        [ProfileLoop<f64>; 2],
+        [ProfileLoop<f64>; 2],
+        Option<f64>,
+    );
+    let cases: Vec<Case> = vec![
+        (
+            "a straight cylinder",
+            [circle(0.0, 0.0, 1.0, TAU), circle(0.0, 0.0, 1.0, TAU)],
+            [
+                two_arcs_at(0.0, 0.0, 1.0, 0.0, TAU),
+                two_arcs_at(0.0, 0.0, 1.0, 0.0, TAU),
+            ],
+            Some(TAU),
+        ),
+        (
+            "a section turned a radian",
+            [
+                circle(0.0, 0.0, 1.0, TAU),
+                circle_at(0.0, 0.0, 1.0, 1.0, TAU),
+            ],
+            [
+                two_arcs_at(0.0, 0.0, 1.0, 0.0, TAU),
+                two_arcs_at(0.0, 0.0, 1.0, 1.0, TAU),
+            ],
+            None,
+        ),
+        (
+            "a frustum",
+            [circle(0.0, 0.0, 1.0, TAU), circle(0.0, 0.0, 0.5, TAU)],
+            [
+                two_arcs_at(0.0, 0.0, 1.0, 0.0, TAU),
+                two_arcs_at(0.0, 0.0, 0.5, 0.0, TAU),
+            ],
+            Some(PI * 2.0 * (1.0 + 0.5 + 0.25) / 3.0),
+        ),
+    ];
+    let measure = |what: &str, [a, b]: [ProfileLoop<f64>; 2]| {
+        let lofted = sweep::loft_body::<f64>(&[vec![a], vec![b]], &places, 1, tol())
+            .unwrap_or_else(|e| panic!("{what}: the loft builds: {e}"));
+        match topo::mass_properties(&lofted.body, tol()) {
+            Ok(m) => Some((m.volume, m.volume_pad)),
+            Err(topo::MassPropsError::Face {
+                source: geom_brep::PropsError::QuadratureBudget { .. },
+                ..
+            }) => None,
+            Err(e) => panic!("{what}: the volume refused otherwise: {e:?}"),
+        }
+    };
+    for (what, one, two, want) in cases {
+        let got = (
+            measure(&format!("{what}, one segment"), one),
+            measure(&format!("{what}, two arcs"), two),
+        );
+        match got {
+            (Some(one), Some(two)) => {
+                assert!(
+                    (one.0 - two.0).abs() <= one.1 + two.1,
+                    "{what} at ε = {}: one segment {} ± {}, two arcs {} ± {}",
+                    tol().eps(),
+                    one.0,
+                    one.1,
+                    two.0,
+                    two.1
+                );
+                if let Some(want) = want {
+                    close(one, want, &format!("{what}, one segment"));
+                    close(two, want, &format!("{what}, two arcs"));
+                }
+                println!(
+                    "{what} at ε = {}: one segment {one:?}, two arcs {two:?}",
+                    tol().eps()
+                );
+            }
+            (None, None) => println!(
+                "NOT COMPARED: {what} at ε = {}: both forms refuse the quadrature budget",
+                tol().eps()
+            ),
+            (one, two) => panic!(
+                "{what} at ε = {}: one form measured and the other did not: \
+                 one segment {one:?}, two arcs {two:?}",
+                tol().eps()
+            ),
+        }
+    }
+}
+
+/// **Tier 3 holds the wrap flag both ways.** An edge whose two halves
+/// bound one face is that face's wrap edge (D1); with the flag taken
+/// off, the edge is described as an ordinary image though nothing lies
+/// on its far side, and tier 3 refuses it by name
+/// (`DescriptionNotAdjacent`) on the extruded cylinder's strut, the
+/// part-turn torus's strut, and each of the one-face torus's two.
+#[test]
+fn an_edge_bounding_one_face_without_the_wrap_flag_is_refused() {
+    let unflag = |body: &mut Body<f64>, edge: EdgeKey| {
+        let e = body.get_edge(edge).unwrap();
+        let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+        let mut spec = c.restated_spec();
+        let geom_brep::EdgeDescriptionSpec::Chart { ref mut wrap, .. } = spec.description else {
+            panic!("{edge:?}: a wrap edge is a chart image");
+        };
+        assert!(*wrap, "{edge:?}: the edge was a wrap edge");
+        *wrap = false;
+        body.set_edge_curve(edge, spec, tol())
+            .expect("an ordinary image of one adjacent surface attaches");
+    };
+    let extruded = extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body;
+    let part = revolved(
+        vec![circle(3.0, 0.0, 0.5, TAU)],
+        sweep::Revolution::Partial(1.25),
+        "the part turn",
+    )
+    .body;
+    let full = revolved(
+        vec![circle(3.0, 0.0, 0.5, TAU)],
+        sweep::Revolution::Full,
+        "the full turn",
+    )
+    .body;
+    for (what, body, wraps) in [
+        ("the extruded cylinder", extruded, 1),
+        ("the part-turn torus", part, 1),
+        ("the one-face torus", full, 2),
+    ] {
+        let edges = wrap_edges(&body);
+        assert_eq!(edges.len(), wraps, "{what}: its wrap edges");
+        for (_, edge) in edges {
+            let mut forged = body.clone();
+            unflag(&mut forged, edge);
+            assert_eq!(validate(&forged), Ok(()), "{what}: tier 1");
+            assert_eq!(validate_closed(&forged), Ok(()), "{what}: tier 2");
+            assert_eq!(
+                validate_geometric(&forged, tol()),
+                Err(vec![topo::ValidationError::DescriptionNotAdjacent { edge }]),
+                "{what}: {edge:?} without its wrap flag"
+            );
+        }
     }
 }
 

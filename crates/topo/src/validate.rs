@@ -1047,9 +1047,10 @@ pub enum ValidationError {
     },
     /// Tier 3: an edge's description is incoherent with the faces it
     /// bounds (D2 adjacency coherence): an intersection's surface keys
-    /// are not its two faces' surfaces, a chart image names neither, or
-    /// a wrap edge's two halves bound two faces (D1: a wrap edge is
-    /// where ONE face's chart closes on itself).
+    /// are not its two faces' surfaces, a chart image names neither, a
+    /// wrap edge's two halves bound two faces, or an edge that is not a
+    /// wrap edge has both halves on one face (D1: a wrap edge is where
+    /// ONE face's chart closes on itself, and only a wrap edge is).
     DescriptionNotAdjacent {
         /// The edge whose description is incoherent with its faces.
         edge: EdgeKey,
@@ -3347,8 +3348,9 @@ impl fmt::Display for ValidationError {
             Self::DescriptionNotAdjacent { .. } => write!(
                 f,
                 "an edge's description does not fit the faces it bounds: it names surfaces \
-                 other than theirs, or calls the edge the place where one face closes on \
-                 itself while its two sides bound two faces. {DEFECT}"
+                 other than theirs, calls the edge the place where one face closes on \
+                 itself while its two sides bound two faces, or does not while its two \
+                 sides bound one face. {DEFECT}"
             ),
             Self::PlanarFaceResidual { .. } => write!(
                 f,
@@ -4074,8 +4076,8 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    ([`ValidationError::EdgeCertification`]); then the
 ///    **description-adjacency coherence** check: an `Intersection`
 ///    description's surfaces must be exactly the edge's two faces'
-///    surfaces, a chart image must name one of them, and a wrap edge's
-///    two halves must bound one face
+///    surfaces, a chart image must name one of them, and an edge's two
+///    halves bound one face exactly when it is a wrap edge
 ///    ([`ValidationError::DescriptionNotAdjacent`]).
 /// 3. **Planar-face residuals** (faces, arena order; per face the outer
 ///    loop then rings in list order, vertices in cycle order): every
@@ -5822,22 +5824,27 @@ pub(crate) fn tier3_local_checks_marked<
         if curve.description().is_scaffold() {
             errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
         }
+        let (f_plus, f_minus) = sides.faces();
+        let one_face = f_plus == f_minus;
         let adjacent = match curve.description() {
             geom_brep::EdgeDescription::Intersection { s1, s2, .. }
             | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                Body::<T>::cites_pair((*s1, *s2), fs_plus, fs_minus)
+                !one_face && Body::<T>::cites_pair((*s1, *s2), fs_plus, fs_minus)
             }
             // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
             // described chart is ONE of the edge's two adjacent faces'
             // surfaces — a wall–wall seam is the u-boundary iso of
-            // either wall, and the minted convention names one. A wrap
-            // edge owes more (D1): both its halves bound ONE face, the
-            // face whose chart closes across it.
-            geom_brep::EdgeDescription::Chart(c) if c.wrap => {
-                let (f_plus, f_minus) = sides.faces();
-                c.surface == fs_plus && f_plus == f_minus
+            // either wall, and the minted convention names one. The
+            // wrap flag and the face count agree both ways (D1): a wrap
+            // edge's halves bound ONE face, the face whose chart closes
+            // across it, and an edge whose halves bound one face is
+            // that face's wrap edge. Nothing at rest is a slit: a
+            // bridge between a face's loops is construction scaffolding
+            // that `kemr` retires before the op returns.
+            geom_brep::EdgeDescription::Chart(c) if c.wrap => c.surface == fs_plus && one_face,
+            geom_brep::EdgeDescription::Chart(c) => {
+                !one_face && (c.surface == fs_plus || c.surface == fs_minus)
             }
-            geom_brep::EdgeDescription::Chart(c) => c.surface == fs_plus || c.surface == fs_minus,
             // A scaffold names no surface; the fence above is the
             // complaint it earns, and stacking a second one on the
             // same edge would report one fault twice.
