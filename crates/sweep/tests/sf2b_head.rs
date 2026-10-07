@@ -208,7 +208,7 @@ fn edge_pairs(body: &Body<f64>) -> Vec<(String, usize)> {
                     geom_brep::EdgeDescription::Intersection { .. } => "Intersection",
                     geom_brep::EdgeDescription::TangentIntersection { .. } => "TangentIntersection",
                     geom_brep::EdgeDescription::Chart(ch) => {
-                        if ch.seam {
+                        if ch.wrap {
                             "Chart/seam"
                         } else {
                             "Chart"
