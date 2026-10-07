@@ -192,7 +192,7 @@ fn a_partial_revolves_open_rim_refuses_naming_a_wedge_end() {
 /// concave and its base and top are convex.
 #[test]
 fn the_doors_answer_feeds_fillet_edges_and_carves_on_either_side() {
-    let source = waisted(tol());
+    let source = sweep::test_support::finished("source", waisted(tol()), tol());
     let before = volume(&source);
     for (name, r, y, convex) in [
         ("the concave waist", 0.5, 0.5, false),

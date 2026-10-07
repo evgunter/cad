@@ -110,7 +110,7 @@ fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
             2,
             "each lantern rim is its seam's two arcs before its carve"
         );
-        body = fillet_edges(&body, &arcs, r, tol())
+        body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| {
                 panic!("the ({rim_r}, {rim_y}) rim fillets sequentially, got {e:?}")
             })
@@ -136,8 +136,20 @@ fn the_request_order_of_a_shared_wall_pair_is_structurally_inert() {
         one_rim(&body, ZONE_SPHERE_LO),
         one_rim(&body, ZONE_SPHERE_HI),
     );
-    let a = fillet_edges(&body, &[lo, hi], r, tol()).expect("the pair builds");
-    let b = fillet_edges(&body, &[hi, lo], r, tol()).expect("the reversed pair builds");
+    let a = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[lo, hi],
+        r,
+        tol(),
+    )
+    .expect("the pair builds");
+    let b = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[hi, lo],
+        r,
+        tol(),
+    )
+    .expect("the reversed pair builds");
     let keys = |body: &Body<f64>| {
         let mut vs: Vec<_> = body.vertices().map(|(k, _)| k).collect();
         let mut es: Vec<_> = body.edges().map(|(k, _)| k).collect();
@@ -169,7 +181,7 @@ fn a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call() {
     let mut both = rim_arcs_at(&body, LANTERN_RIMS[0].0, LANTERN_RIMS[0].1);
     both.extend(rim_arcs_at(&body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1));
     assert_eq!(both.len(), 4, "two rims, two arcs each");
-    let one = fillet_edges(&body, &both, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &both, r, tol())
         .unwrap_or_else(|e| panic!("neck + shoulder build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -199,7 +211,7 @@ fn three_chained_shared_wall_rims_carve_in_one_call() {
         all.extend(rim_arcs_at(&body, rim_r, rim_y));
     }
     assert_eq!(all.len(), 6, "three rims, two arcs each");
-    let one = fillet_edges(&body, &all, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &all, r, tol())
         .unwrap_or_else(|e| panic!("all three lantern rims build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 3, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -229,7 +241,13 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
         one_rim(&zone_body, ZONE_SPHERE_LO),
         one_rim(&zone_body, ZONE_SPHERE_HI),
     );
-    let zone_out = fillet_edges(&zone_body, &[lo, hi], 0.08, tol()).expect("the zone pair builds");
+    let zone_out = fillet_edges(
+        &sweep::test_support::at_rest(&zone_body, tol()),
+        &[lo, hi],
+        0.08,
+        tol(),
+    )
+    .expect("the zone pair builds");
     partition_check(&zone_body, &zone_out, &[lo, hi]);
 
     let lantern_body = lantern();
@@ -237,8 +255,13 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
     for (rim_r, rim_y) in LANTERN_RIMS {
         all.extend(rim_arcs_at(&lantern_body, rim_r, rim_y));
     }
-    let lantern_out =
-        fillet_edges(&lantern_body, &all, 0.05, tol()).expect("the lantern triple builds");
+    let lantern_out = fillet_edges(
+        &sweep::test_support::at_rest(&lantern_body, tol()),
+        &all,
+        0.05,
+        tol(),
+    )
+    .expect("the lantern triple builds");
     partition_check(&lantern_body, &lantern_out, &all);
 }
 
@@ -278,7 +301,13 @@ fn a_seam_two_bands_split_is_named_after_its_source_by_every_row() {
         one_rim(&zone_body, ZONE_SPHERE_LO),
         one_rim(&zone_body, ZONE_SPHERE_HI),
     ];
-    let zone_out = fillet_edges(&zone_body, &pair, 0.08, tol()).expect("the zone pair builds");
+    let zone_out = fillet_edges(
+        &sweep::test_support::at_rest(&zone_body, tol()),
+        &pair,
+        0.08,
+        tol(),
+    )
+    .expect("the zone pair builds");
     assert_eq!(
         twice_split_seams(&zone_body, &zone_out),
         1,
@@ -290,8 +319,13 @@ fn a_seam_two_bands_split_is_named_after_its_source_by_every_row() {
     for (rim_r, rim_y) in LANTERN_RIMS {
         all.extend(rim_arcs_at(&lantern_body, rim_r, rim_y));
     }
-    let lantern_out =
-        fillet_edges(&lantern_body, &all, 0.05, tol()).expect("the lantern triple builds");
+    let lantern_out = fillet_edges(
+        &sweep::test_support::at_rest(&lantern_body, tol()),
+        &all,
+        0.05,
+        tol(),
+    )
+    .expect("the lantern triple builds");
     assert_eq!(
         twice_split_seams(&lantern_body, &lantern_out),
         2,
@@ -374,7 +408,7 @@ fn twice_split_seams(src: &Body<f64>, out: &Filleted<f64>) -> usize {
 /// fixture's geometry, not of one-call metering.
 #[test]
 fn colliding_bands_on_a_shared_wall_refuse_upfront() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let rims = [
         one_rim(&body, ZONE_SPHERE_LO),
         one_rim(&body, ZONE_SPHERE_HI),
@@ -421,7 +455,7 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
     let first = fillet_edges(&body, &[rims[0]], r, tol())
         .expect("the bottom rim alone builds at r = 0.749");
     fillet_edges(
-        &first.body,
+        &sweep::test_support::at_rest(&first.body, tol()),
         &[one_rim(&first.body, ZONE_SPHERE_HI)],
         r,
         tol(),
@@ -444,10 +478,16 @@ fn every_band_crossing_names_the_seam_its_foot_split() {
         one_rim(&zone_body, ZONE_SPHERE_LO),
         one_rim(&zone_body, ZONE_SPHERE_HI),
     ];
-    let zone_out = fillet_edges(&zone_body, &pair, 0.08, tol()).expect("the zone pair builds");
+    let zone_out = fillet_edges(
+        &sweep::test_support::at_rest(&zone_body, tol()),
+        &pair,
+        0.08,
+        tol(),
+    )
+    .expect("the zone pair builds");
     foot_touches_its_seams_remnant(&zone_out);
 
-    let lantern_body = lantern();
+    let lantern_body = sweep::test_support::finished("lantern_body", lantern(), tol());
     let one = rim_arcs_at(&lantern_body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1);
     let one_out = fillet_edges(&lantern_body, &one, 0.05, tol()).expect("one lantern rim builds");
     foot_touches_its_seams_remnant(&one_out);
