@@ -374,6 +374,11 @@ fn an_island_holding_the_far_pole_winds_by_an_inner_outer_point() {
         ("notch y > 0.5", [(0.4, 3.0), (0.5, 3.0), (-0.3, 0.3)]),
         ("notch y > 0.3", [(0.3, 3.0), (0.3, 3.0), (-0.25, 0.35)]),
         ("notch y < −0.4", [(0.45, 3.0), (-3.0, -0.4), (-0.2, 0.3)]),
+        ("notch on z = 0 above", [(0.4, 3.0), (0.5, 3.0), (0.0, 0.3)]),
+        (
+            "notch on z = 0 below",
+            [(0.4, 3.0), (0.5, 3.0), (-0.3, 0.0)],
+        ),
     ] {
         let tol = Tol::witness();
         let tool = topo::subtract(&boxed(big), &boxed(notch), tol)

@@ -2644,6 +2644,31 @@ fn sphere_path_parity<T: Decide>(
     Ok(Some(odd))
 }
 
+/// The reference points a sphere-face path may run to from `face`'s
+/// outer loop: its vertices, then the midpoints of its edges other than
+/// `skip`. A midpoint lies off a run that shares its edge's vertices
+/// but not the edge, where every vertex reads on the run.
+fn outer_references<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    skip: &[EdgeKey],
+) -> Result<Vec<Point3<T>>, SplitJoinError> {
+    let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
+    let mut points = loop_points(body, outer)?;
+    for he in outer_cycle(body, face)?.unwrap_or_default() {
+        let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
+        if skip.contains(&edge) {
+            continue;
+        }
+        let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+        if let Some(curve) = body.edge_curve_linked(edge, data).certified() {
+            let (t0, t1) = curve.params();
+            points.push(curve.carrier().mid_point(t0, t1));
+        }
+    }
+    Ok(points)
+}
+
 /// The points of a loop's vertices, in cycle order (an empty loop's
 /// lone vertex).
 fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, SplitJoinError> {
@@ -2707,11 +2732,14 @@ fn arc_probes<T: Decide>(
 ///   run with no edge off the plane lies on the section circle with
 ///   the arc, and bounds the cap that normal points into: `σ` is read
 ///   off the arc.
-/// - The island is the region holding no outer-loop point `w`. A `w`
+/// - The island is the region holding none of the outer loop. A point
+///   `w` of it (a vertex, or an edge midpoint: [`outer_references`])
 ///   strictly on the side opposite `σ` is outside the inner region;
 ///   otherwise the great-circle path from `w` to the pole of the other
 ///   cap (outside the inner region) says, by its crossings' parity,
-///   whether `w` is inside it ([`sphere_path_parity`]).
+///   whether `w` is inside it ([`sphere_path_parity`]). A path with a
+///   reading in the zero band (it runs through a run vertex) says
+///   nothing, and the next `w` is asked.
 ///
 /// CCW is `left is inner` exactly when `w` is outside the inner region.
 /// Positive for CCW, as the cylinder arm's chart sign. A run reaching
@@ -2805,7 +2833,7 @@ pub(crate) fn sphere_island_winding<T: Decide>(
         -radius
     };
     let pole = centre - n * toward;
-    for w in loop_points(body, face_data.outer)? {
+    for w in outer_references(body, face, &[])? {
         let w_inside = match side(w) {
             Err(diag) => return Ok(Err(diag)),
             Ok(at) if at != Sign::Zero && at != sigma => false,
@@ -2845,28 +2873,16 @@ fn sphere_ring_side<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let outer = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.outer;
     let cycle = outer_cycle(body, newf)?.ok_or(SplitJoinError::SectionInvariant {
         face: newf,
         what: "ring re-homing on a sphere: the run is not a cycle",
     })?;
     let loop_arcs = sphere_run_arcs(body, newf, &cycle)?;
-    let mut outside = loop_points(body, outer)?;
     let run_edges = cycle
         .iter()
         .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
         .collect::<Result<Vec<_>, SplitJoinError>>()?;
-    for he in outer_cycle(body, oldf)?.unwrap_or_default() {
-        let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
-        if run_edges.contains(&edge) {
-            continue;
-        }
-        let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-        if let Some(curve) = body.edge_curve_linked(edge, data).certified() {
-            let (t0, t1) = curve.params();
-            outside.push(curve.carrier().mid_point(t0, t1));
-        }
-    }
+    let outside = outer_references(body, oldf, &run_edges)?;
     for p in loop_points(body, ring)? {
         for &w in &outside {
             if let Some(odd) = sphere_path_parity(newf, sphere, (p, w), &loop_arcs, band)? {
