@@ -1879,15 +1879,16 @@ pub enum BooleanError {
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
     /// edge cannot be cleared against a curved face, and the curved
-    /// PIERCE door cannot take it. That door takes a LINE or a CIRCLE
-    /// carrier definitely crossing a cylinder wall, a sphere or a torus,
-    /// and an ELLIPSE crossing any of the three, whose
+    /// PIERCE door cannot take it. That door takes a LINE, a CIRCLE or an
+    /// ELLIPSE carrier definitely crossing a cylinder wall, a sphere, a
+    /// torus or a cone (away from its apex: [`Self::CrossingAtConeApex`]),
+    /// whose
     /// crossing parameters come from the certified root lanes (the line
     /// quadratics and quartic, and `boolean::circle_roots`' doors) and
     /// whose landing point the chart trim
     /// places. What this variant reports is the rest: a tangency (not a
-    /// crossing at any order the lanes see), a cone face or a conic
-    /// against one, an undeclared on-carrier
+    /// crossing at any order the lanes see), a line parallel to a cone's
+    /// generator, an undeclared on-carrier
     /// edge or conic, a root the band cannot place, or a
     /// trim the chart door declines to express (the M5 envelope's
     /// frontier; the C5 table routes the SECTIONS, this is the crossing
@@ -1907,6 +1908,23 @@ pub enum BooleanError {
         /// The edge.
         edge: EdgeKey,
         /// The band the clearance margins were classified against.
+        band: Band,
+    },
+    /// An edge of `operand` meets a cone face of the other operand within
+    /// the band of the cone's APEX, where the surface has no tangent
+    /// plane and its quadric form's gradient vanishes: a root there has
+    /// no material side to read and no slope to place it by, so the
+    /// crossing layer refuses rather than answer. The definite half: an
+    /// in-band apex distance refuses the same way, with no tolerance
+    /// named.
+    CrossingAtConeApex {
+        /// The operand whose edge met the cone face.
+        operand: Operand,
+        /// The cone face (in the other operand).
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The band the apex distance was classified against.
         band: Band,
     },
     /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
@@ -2821,6 +2839,8 @@ pub enum BooleanErrorKind {
     CurvedSectorSideUnsupported,
     /// [`BooleanError::CurvedPierceUnsupported`].
     CurvedPierceUnsupported,
+    /// [`BooleanError::CrossingAtConeApex`].
+    CrossingAtConeApex,
     /// [`BooleanError::CurvedEdgeUnsupported`].
     CurvedEdgeUnsupported,
     /// [`BooleanError::CrossingCarrierUnsupported`].
@@ -3045,6 +3065,7 @@ impl BooleanError {
                 BooleanErrorKind::CurvedSectorSideUnsupported
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
+            Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
             Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -3208,6 +3229,13 @@ impl core::fmt::Display for BooleanError {
                  {}",
                 operand_word(*operand),
                 geom_core::COINCIDENCE_RECOURSE,
+            ),
+            Self::CrossingAtConeApex { operand, .. } => write!(
+                f,
+                "an edge of the {} operand meets a cone face of the other operand at \
+                 the cone's tip, where the face has no direction to cross it by. \
+                 Recourse: move the parts so the edge clearly passes the tip",
+                operand_word(*operand),
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
@@ -3894,7 +3922,13 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     validate_declarations(a_operand, b_operand, decls)?;
     let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(
+        a_operand,
+        b_operand,
+        &declared,
+        band,
+        reduce::boolean_arm_exists,
+    )?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -3927,6 +3961,50 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     Ok((ab, ba))
 }
 
+/// **The crossing sweep past the operand gate's cone refusal**: both
+/// sweep directions run with `Cone` on the pair gate's roster, undeclared,
+/// and the split operands they leave with their traces. The boolean does
+/// not admit a cone operand (`work/germ/VERBS-CONE.md`; past the gate its
+/// sector algebra has no cone arm), so this is the one door through which
+/// a finished body reaches the cone's crossing lane — a breakable knob,
+/// `sweep-testing` only, never production surface.
+///
+/// # Errors
+///
+/// [`BooleanError`] as [`sweep_traces`], less the pair gate's refusal of
+/// a cone face.
+#[cfg(feature = "sweep-testing")]
+pub fn sweep_split_admitting_cones(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
+    let band = Band::linear(tol)?;
+    let declared = DeclaredPairs::default();
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, |s| {
+        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
+    })?;
+    reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
+    reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
+    let mut a = a_operand.clone();
+    let mut b = b_operand.clone();
+    let mut acc = reduce::ContactAcc::default();
+    let (mut ab, mut ba) = (SweepTrace::default(), SweepTrace::default());
+    let knobs = reduce::SweepKnobs::default();
+    reduce::sweep_and_settle(
+        &mut a,
+        &mut b,
+        &declared,
+        &mut acc,
+        band,
+        SweepStrategy::Realized,
+        [&knobs, &knobs],
+        [Some(&mut ab), Some(&mut ba)],
+        tol,
+    )?;
+    Ok((a, b, ab, ba))
+}
+
 /// **The sweep's contact records and the split operands' sizes** under
 /// `strategy`: what both sweep directions recorded, and the
 /// `[A vertices, A edges, B vertices, B edges]` they leave. The pruning
@@ -3949,7 +4027,13 @@ pub fn sweep_records(
 ) -> Result<(ContactRecords, [usize; 4]), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(
+        a_operand,
+        b_operand,
+        &declared,
+        band,
+        reduce::boolean_arm_exists,
+    )?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     let mut a = a_operand.clone();
@@ -4103,7 +4187,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         });
     }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(
+        a_operand,
+        b_operand,
+        &declared,
+        band,
+        reduce::boolean_arm_exists,
+    )?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     // The scan is `Decide`-only; its boxes are built here, at the
@@ -6046,6 +6136,12 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::CrossingAtConeApex {
+                operand: Operand::B,
+                face,
+                edge,
+                band,
+            },
             BooleanError::CurvedEdgeUnsupported {
                 operand: Operand::B,
                 edge,
@@ -6298,6 +6394,7 @@ mod tests {
                 BooleanErrorKind::DegenerateTorus => "DegenerateTorus",
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
+                BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",

@@ -130,6 +130,7 @@ fn four_legs(
                 [0.0, 0.0, 1.0],
                 sense,
             )),
+            fresh: Vec::new(),
         },
     );
     (doc, leg, pattern, top, mate.expect("the mate mints"), store)
@@ -251,6 +252,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
                 [0.5, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -327,6 +329,7 @@ fn two_seats(
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m1) = step(
@@ -338,6 +341,7 @@ fn two_seats(
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     (
@@ -459,7 +463,11 @@ fn mates_never_solve_pattern_parameters() {
         panic!("the pattern is live");
     };
     assert!(
-        spacing.bit_eq(&editor_core::test_support::stored_expr(&len(3.0))),
+        doc.written(&editor_core::Expr::var(
+            *spacing,
+            editor_core::Dimension::Length
+        ))
+        .bit_eq(&editor_core::test_support::stored_expr(&len(3.0))),
         "the spacing expression is untouched: {spacing:?}"
     );
 
@@ -472,6 +480,7 @@ fn mates_never_solve_pattern_parameters() {
             node: pattern,
             slot: editor_core::SlotId::Spacing,
             expr: len(1.5),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&repaired, &o);
@@ -522,12 +531,14 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(seat([0.0, 0.0, 1.0])),
+            fresh: Vec::new(),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
             node: Box::new(seat([0.5, 0.0, 1.0])),
+            fresh: Vec::new(),
         },
     );
     let m0 = m0.expect("mate 0 mints");
@@ -586,6 +597,7 @@ fn the_master_name_spelling_refuses_moved_above() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -743,6 +755,7 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let declared = declared.expect("the mate mints");

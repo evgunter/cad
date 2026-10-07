@@ -141,11 +141,9 @@ fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
     )
 }
 
-/// The slot expression `node` holds at `slot`.
-fn slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId) -> &editor_core::Expr {
-    doc.node(node)
-        .and_then(|n| n.expr(slot))
-        .expect("the slot is there")
+/// What `node`'s `slot` reads, as written (`Doc::slot_expansion`).
+fn slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId) -> editor_core::Expr {
+    doc.slot_expansion(node, slot).expect("the slot is there")
 }
 
 /// Runs `f` inside one symbolic session, answering its value and the
@@ -198,10 +196,10 @@ fn a_rename_moves_nothing_that_identifies() {
     assert_eq!(
         renamed
             .doc
-            .unparse(slot(&renamed.doc, blend, SlotId::Radius)),
+            .unparse(&slot(&renamed.doc, blend, SlotId::Radius)),
         "v"
     );
-    assert_eq!(doc.unparse(slot(&doc, blend, SlotId::Radius)), "w");
+    assert_eq!(doc.unparse(&slot(&doc, blend, SlotId::Radius)), "w");
 }
 
 // --------------------------------------------------------------- row 2
@@ -221,7 +219,7 @@ fn a_delete_leaves_its_readers_unresolved() {
     assert!(doc.has_minted_var(old), "the log keeps the id");
     assert_eq!(
         slot(&doc, blend, SlotId::Radius),
-        &Formula::var(old, Dimension::Length),
+        Formula::var(old, Dimension::Length),
         "the reader is untouched"
     );
 
@@ -246,7 +244,7 @@ fn a_delete_leaves_its_readers_unresolved() {
     assert_ne!(new, old, "a re-declare mints a new identity");
     assert_eq!(
         slot(&redeclared, blend, SlotId::Radius),
-        &Formula::var(old, Dimension::Length),
+        Formula::var(old, Dimension::Length),
         "the reader stays on the deleted variable"
     );
 
@@ -255,8 +253,15 @@ fn a_delete_leaves_its_readers_unresolved() {
     assert!(loaded.bit_eq(&doc), "the round trip is exact");
 
     // A reader of an id the document never minted is a file fault.
-    let forged = text.replace(&format!("\"var\": {}", old.0), "\"var\": 1");
-    assert_ne!(forged, text, "the surgery is aimed at the reader");
+    let forged = crate::wire::doctored(&text, |wire| {
+        let radius = &mut wire["snapshot"]["nodes"][blend.0.to_string()]["Fillet"]["radius"];
+        assert_eq!(
+            *radius,
+            serde_json::json!(old.0),
+            "the surgery is aimed at the reader"
+        );
+        *radius = serde_json::json!(1);
+    });
     match load(&forged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
             assert_eq!((node.id(), var), (blend, VarId(1)));
@@ -343,13 +348,22 @@ fn equal_values_are_not_one_variable() {
 
 // --------------------------------------------------------------- row 6
 
-/// Row 6's rename half: the symbol a variable binds to in the symbolic
-/// tier is its id's, so the binding before a rename and the one after
-/// subtract to a theorem.
+/// Row 6's rename half: the symbol a toleranced variable binds to in
+/// the symbolic tier is its id's, so the binding before a rename and the
+/// one after subtract to a theorem. (An untoleranced one binds its
+/// nominal, VR8.)
 #[test]
 fn the_symbol_survives_a_rename() {
     let (doc, _, _) = blended_by_w();
     let w = id(&doc, "w");
+    let doc = step(
+        &doc,
+        DocEdit::SetVarDistribution {
+            var: w.into(),
+            distribution: Some(Distribution::Normal { sigma: 1e-4 }),
+        },
+    )
+    .doc;
     let renamed = step(
         &doc,
         DocEdit::RenameVar {
@@ -413,12 +427,14 @@ fn the_door_lowers_names_before_it_mints() {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(by_name),
+            fresh: Vec::new(),
         },
     );
     let b = step(
         &doc,
         DocEdit::InsertNode {
             node: Box::new(by_id),
+            fresh: Vec::new(),
         },
     );
     let (ia, ib) = (a.record.minted.unwrap(), b.record.minted.unwrap());
@@ -432,6 +448,7 @@ fn the_door_lowers_names_before_it_mints() {
             node: blend,
             slot: SlotId::Radius,
             expr: named("nowhere"),
+            fresh: Vec::new(),
         },
     ) {
         Err(EditError::SlotUnknownVarName { name, node, slot }) => {
@@ -457,6 +474,7 @@ fn the_door_lowers_names_before_it_mints() {
             node: blend,
             slot: SlotId::Radius,
             expr: named("a"),
+            fresh: Vec::new(),
         },
     ) {
         Err(EditError::SlotVarKind {
@@ -492,10 +510,15 @@ fn the_door_lowers_names_before_it_mints() {
     );
     let frame = next.order()[0];
     log.push(DocEdit::InsertNode {
-        node: Box::new(next.node(frame).unwrap().authored()),
+        node: Box::new(editor_core::test_support::as_written(
+            &next,
+            next.node(frame).unwrap(),
+        )),
+        fresh: Vec::new(),
     });
     log.push(DocEdit::InsertNode {
         node: Box::new(Node::Profile(desc(frame, vec![square(0.0, 0.0, 0.5)]))),
+        fresh: Vec::new(),
     });
     let extrude = Node::Extrude {
         profile,
@@ -506,11 +529,13 @@ fn the_door_lowers_names_before_it_mints() {
         &next,
         DocEdit::InsertNode {
             node: Box::new(extrude.clone()),
+            fresh: Vec::new(),
         },
     )
     .doc;
     log.push(DocEdit::InsertNode {
         node: Box::new(extrude),
+        fresh: Vec::new(),
     });
     let replayed = ProfileDoc::replay(recorded.id(), &log, Tol::witness()).expect("replays");
     assert!(
@@ -551,8 +576,9 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
     .doc;
     assert_eq!(anonymous.var_name(w), None);
     assert!(anonymous.var(w).is_some(), "read, so it stays");
+    assert_eq!(anonymous.slot(blend, SlotId::Radius), Some(w));
     assert_eq!(
-        anonymous.unparse(slot(&anonymous, blend, SlotId::Radius)),
+        anonymous.unparse(&editor_core::Expr::var(w, Dimension::Length)),
         format!("#{}", w.full()),
         "an anonymous reader writes its full id"
     );
@@ -567,15 +593,17 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
             node: blend,
             slot: SlotId::Radius,
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(
         replaced.maintenance,
         vec![Maintenance::AnonymousVarRemoved {
             var: anonymous.spoken_var(w),
+            distribution: None,
         }]
     );
-    assert!(replaced.doc.var(w).is_none() && replaced.doc.var_order().is_empty());
+    assert!(replaced.doc.var(w).is_none() && !replaced.doc.var_order().contains(&w));
     assert!(replaced.doc.has_minted_var(w), "the log keeps the id");
 }
 
@@ -583,7 +611,7 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
 
 /// Row 10's reader half: a document holding a named variable, an
 /// anonymous one and an unresolved reader saves and loads bit for bit;
-/// a snapshot holding a name leaf refuses.
+/// a snapshot holding a name in a slot refuses.
 #[test]
 fn readers_round_trip_and_a_stored_name_refuses() {
     let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-wire"), Tol::witness());
@@ -612,27 +640,28 @@ fn readers_round_trip_and_a_stored_name_refuses() {
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(loaded.bit_eq(&doc));
     assert_eq!(loaded.var_names().len(), 1);
-    assert_eq!(loaded.vars().len(), 2);
+    assert_eq!(loaded.vars().len(), doc.vars().len());
 
     let nameless = doc
-        .vars()
-        .keys()
-        .copied()
-        .find(|v| doc.var_name(*v).is_none())
-        .expect("the anonymous variable");
+        .slot(by_nameless, SlotId::Radius)
+        .expect("the blend reads the once-named variable");
     let corrupt = crate::wire::doctored(&text, |wire| {
         let radius = &mut wire["snapshot"]["nodes"][by_nameless.0.to_string()]["Fillet"]["radius"];
         assert_eq!(
-            radius["Var"]["var"],
+            *radius,
             serde_json::json!(nameless.0),
             "the surgery is aimed at the anonymous reader"
         );
         *radius = serde_json::json!({ "Name": { "name": "nameless", "dim": "Length" } });
     });
-    // A stored expression has no name leaf: the wire refuses the variant.
+    // A stored slot holds a variable's id, so a name there is no slot
+    // the wire can read.
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
-            assert!(detail.contains("unknown variant `Name`"), "{detail}");
+            assert!(
+                detail.contains("invalid type: map, expected u64"),
+                "{detail}"
+            );
         }
         other => panic!("a stored name refuses, got {other:?}"),
     }
@@ -706,7 +735,8 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
 
 /// Row 12: a split declares each variable the cut reads in the part and
 /// re-points the carried readers at the part's own ids, and the part
-/// loads; an anonymous variable crossing either cut refuses.
+/// loads; an anonymous variable crosses either cut as the other
+/// document's own anonymous variable.
 #[test]
 fn split_and_inline_carry_readers_by_id() {
     let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-split"), Tol::witness());
@@ -728,7 +758,7 @@ fn split_and_inline_carry_readers_by_id() {
     let extrude = *out.part.order().last().expect("the carried extrude");
     assert_eq!(
         slot(&out.part, extrude, SlotId::Distance),
-        &Formula::var(part_h, Dimension::Length),
+        Formula::var(part_h, Dimension::Length),
         "the carried reader reads the part's id"
     );
     let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
@@ -739,6 +769,8 @@ fn split_and_inline_carry_readers_by_id() {
             .bit_eq(&out.part)
     );
 
+    // An anonymous variable crosses a split as the part's own anonymous
+    // variable, its definition bit for bit, read where it was read.
     let anonymous = step(
         &doc,
         DocEdit::RenameVar {
@@ -747,21 +779,39 @@ fn split_and_inline_carry_readers_by_id() {
         },
     )
     .doc;
-    match split(
+    let out = split(
         &anonymous,
         &BTreeSet::from(cut),
         DocumentId::derive("intent-vars-3-part"),
         Tol::witness(),
         None,
-    ) {
-        Err(SplitError::AnonymousVarCrossesCut { var, node }) => {
-            assert_eq!((var.id(), node.id()), (id(&doc, "h"), cut[2]));
-        }
-        other => panic!("an anonymous variable does not cross a split, got {other:?}"),
-    }
+    )
+    .expect("an anonymous variable crosses a split");
+    let carried = out
+        .part
+        .slot(
+            *out.part.order().last().expect("the carried extrude"),
+            SlotId::Distance,
+        )
+        .expect("the carried extrude's depth");
+    assert!(out.part.var_name(carried).is_none(), "it stays anonymous");
+    assert!(
+        out.part
+            .var(carried)
+            .expect("the part holds it")
+            .bit_eq(anonymous.var(id(&doc, "h")).expect("the source holds it")),
+        "its definition crosses bit for bit"
+    );
+    let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
+    assert!(
+        load(&text, Tol::witness())
+            .expect("and loads")
+            .doc
+            .bit_eq(&out.part)
+    );
 
-    // The inline door: the part's anonymous variable cannot land in the
-    // host.
+    // And an inline: the part's anonymous variable lands in the host as
+    // the host's own, anonymous, bit for bit.
     let part = ProfileDoc::empty(DocumentId::derive("intent-vars-3-ref"), Tol::witness());
     let part = declare(&part, "d", 1.0);
     let (part, _) = block(part, 0.0, named("d"));
@@ -777,27 +827,40 @@ fn split_and_inline_carry_readers_by_id() {
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("intent-vars-3-host"), Tol::witness());
     let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(
+    let inlined = inline(
         &host,
         instance,
         &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
         Tol::witness(),
-    ) {
-        Err(InlineError::AnonymousVarCrossesCut { var }) => {
-            assert_eq!(var.id(), *part.vars().keys().next().expect("one variable"));
-        }
-        other => panic!("an anonymous variable does not cross an inline, got {other:?}"),
-    }
+    )
+    .expect("an anonymous variable crosses an inline");
+    let [source] = extrude_reads(&part).into_iter().collect::<Vec<_>>()[..] else {
+        panic!("one extrude depth in the part")
+    };
+    let landed: Vec<VarId> = extrude_reads(&inlined.doc).into_iter().collect();
+    let [landed] = landed[..] else {
+        panic!("one extrude depth, got {landed:?}")
+    };
+    assert!(inlined.doc.var_name(landed).is_none(), "it stays anonymous");
+    assert!(
+        inlined
+            .doc
+            .var(landed)
+            .expect("the host holds it")
+            .bit_eq(part.var(source).expect("the part")),
+        "its definition crosses bit for bit"
+    );
 }
 
 // ---- The review's rows (PR 3's dual review: each pins a mechanism a
 // mutant of the shipped suite survived, or a refusal the review drove).
 
-/// `names`, in the order `doc` declares them.
+/// The NAMED variables' names, in the order `doc` declares them (the
+/// typed values' anonymous variables have none).
 fn declared_names(doc: &ProfileDoc) -> Vec<String> {
     doc.var_order()
         .iter()
-        .map(|&var| doc.var_name(var).expect("named").as_str().to_owned())
+        .filter_map(|&var| Some(doc.var_name(var)?.as_str().to_owned()))
         .collect()
 }
 
@@ -819,9 +882,7 @@ fn extrude_reads(doc: &ProfileDoc) -> BTreeSet<VarId> {
     let mut seen = BTreeSet::new();
     for &node in doc.order() {
         if let Some(Node::Extrude { distance, .. }) = doc.node(node) {
-            let mut reads = Vec::new();
-            distance.var_reads(&mut reads);
-            seen.extend(reads.into_iter().map(|(var, _)| var));
+            seen.insert(*distance);
         }
     }
     seen
@@ -1027,6 +1088,7 @@ fn recording_insert_lowers_as_apply_does() {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(node.clone()),
+            fresh: Vec::new(),
         },
     );
     let mut recording =
@@ -1036,7 +1098,7 @@ fn recording_insert_lowers_as_apply_does() {
     assert!(recording.doc().bit_eq(&by_apply.doc));
     assert_eq!(
         slot(recording.doc(), minted, SlotId::Distance),
-        &Formula::var(id(&doc, "w"), Dimension::Length)
+        Formula::var(id(&doc, "w"), Dimension::Length)
     );
 }
 
@@ -1060,6 +1122,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
                 node: extrude,
                 slot: SlotId::Distance,
                 expr: Formula::var(var, Dimension::Length),
+                fresh: Vec::new(),
             },
         ) {
             Err(EditError::SlotUnresolvedVar {
@@ -1081,6 +1144,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
                     expr: editor_core::MeasureExpr::value(Formula::var(var, Dimension::Length)),
                     refs: Vec::new(),
                 }),
+                fresh: Vec::new(),
             },
         ) {
             Err(EditError::PayloadUnresolvedVar { var: said, .. }) => assert_eq!(said.id(), var),
@@ -1137,6 +1201,7 @@ fn a_respoken_refusal_says_the_variables_new_name() {
             node: blend,
             slot: SlotId::Radius,
             expr: Formula::var(id(&doc, "ang_old"), Dimension::Length),
+            fresh: Vec::new(),
         },
     )
     .expect_err("a reader at the wrong kind refuses");

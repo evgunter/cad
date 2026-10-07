@@ -33,13 +33,15 @@ fn net_of(
     let mut action = Recording::start(doc, Tol::witness(), &RefusingReach);
     let mut each = Vec::new();
     for edit in edits {
-        each.push(applied(action.doc(), edit.clone()).maintenance);
+        each.push(crate::fixture::without_anonymous(
+            &applied(action.doc(), edit.clone()).maintenance,
+        ));
         action.apply(edit).expect("the edit lands");
     }
     let Recorded {
         doc, maintenance, ..
     } = action.finish().expect("every edit landed");
-    (maintenance, each, doc)
+    (crate::fixture::without_anonymous(&maintenance), each, doc)
 }
 
 /// A derived frame on `at` carrying `face`.
@@ -239,6 +241,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     let delete = DocEdit::DeleteNode { id: b };
     let insert = DocEdit::InsertNode {
         node: Box::new(other),
+        fresh: Vec::new(),
     };
     let clear = DocEdit::SetDeclare {
         node: union,
@@ -257,7 +260,14 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         Recorded {
             doc: third.doc,
             edits: vec![delete, insert, clear],
-            maintenance: Vec::new(),
+            // The delete's retired anonymous variables stand: nothing
+            // later takes them back.
+            maintenance: first
+                .maintenance
+                .iter()
+                .filter(|m| matches!(m, Maintenance::AnonymousVarRemoved { .. }))
+                .cloned()
+                .collect(),
             minted: vec![None, Some(inserted), None],
         },
         "the edits as applied, the strands the cleared declaration held netted out"
@@ -268,7 +278,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
             .iter()
             .any(|row| matches!(row, Maintenance::Strand { .. })),
         "the premise: the delete alone strands the declared names: {:?}",
-        first.maintenance
+        crate::fixture::without_anonymous(&first.maintenance)
     );
 
     let idle = Recording::start(&doc, Tol::witness(), &RefusingReach)
@@ -276,7 +286,11 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         .expect("nothing was refused");
     assert!(idle.doc.bit_eq(&doc), "no edit, the start");
     assert_eq!(
-        (idle.edits, idle.maintenance, idle.minted),
+        (
+            idle.edits,
+            crate::fixture::without_anonymous(&idle.maintenance),
+            idle.minted
+        ),
         (Vec::new(), Vec::new(), Vec::new())
     );
 }
@@ -311,6 +325,7 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
         delete_b.clone(),
         DocEdit::InsertNode {
             node: Box::new(union.clone()),
+            fresh: Vec::new(),
         },
     ] {
         assert!(

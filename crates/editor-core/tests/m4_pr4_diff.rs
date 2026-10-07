@@ -114,6 +114,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(tx),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -202,6 +203,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
             node: pattern,
             slot: SlotId::Count,
             expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -239,6 +241,7 @@ fn failure_transitions_surface_as_status_rows() {
             node: plane,
             slot: SlotId::Normal(editor_core::Axis3::Z),
             expr: scl(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));

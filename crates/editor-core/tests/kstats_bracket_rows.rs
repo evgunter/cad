@@ -119,6 +119,7 @@ fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 0.0, 9.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -128,6 +129,7 @@ fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 9.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     doc

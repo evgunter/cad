@@ -364,6 +364,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
             node: extrude,
             slot: SlotId::Distance,
             expr: common::len(0.02),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,

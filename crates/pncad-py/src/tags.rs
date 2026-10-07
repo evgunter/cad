@@ -590,6 +590,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::UnknownVar { .. } => "unknown_var",
         EditError::VarNameTaken { .. } => "var_name_taken",
         EditError::VarIdCollides { .. } => "var_id_collides",
+        EditError::FreshUnheld { .. } => "fresh_unheld",
+        EditError::FreshKind { .. } => "fresh_kind",
+        EditError::FreshUnread { .. } => "fresh_unread",
         EditError::VarNameUnchanged { .. } => "var_name_unchanged",
         EditError::AnonymousVarUnread { .. } => "anonymous_var_unread",
         EditError::DeleteAnonymousVar { .. } => "delete_anonymous_var",
@@ -1293,6 +1296,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UnknownVar { .. } => None,
         EditError::VarNameTaken { .. } => None,
         EditError::VarIdCollides { .. } => None,
+        EditError::FreshUnheld { .. } => None,
+        EditError::FreshKind { .. } => None,
+        EditError::FreshUnread { .. } => None,
         EditError::SlotUnresolvedVar { .. } => None,
         EditError::PayloadUnresolvedVar { .. } => None,
         EditError::VarNameUnchanged { .. } => None,
@@ -1601,6 +1607,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::DegenerateTorus => "degenerate_torus",
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
+        BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
         BooleanErrorKind::CrossingCarrierUnsupported => "crossing_carrier_unsupported",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
@@ -2003,7 +2010,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
         SnapshotError::VarOrderMismatch => "var_order_mismatch",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
-        SnapshotError::SlotDimension { .. } => "slot_dimension",
         SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
         SnapshotError::PayloadVarKind { .. } => "payload_var_kind",
@@ -2332,6 +2338,16 @@ pub fn name_fault_tag(fault: &pncad::document::NameFault) -> &'static str {
     }
 }
 
+/// The stable tag for a fresh-table read a formula makes outside the
+/// edit whose table it reads: the edit door's own words for it
+/// ([`edit_error_tag`]'s `fresh_unheld` and `fresh_kind`).
+pub fn fresh_fault_tag(fault: &pncad::document::FreshFault) -> &'static str {
+    match fault.held {
+        None => "fresh_unheld",
+        Some(_) => "fresh_kind",
+    }
+}
+
 /// The stable tag for an evaluation refusal (`eval` / `eval_count`).
 ///
 /// Note what is NOT here: division by zero and out-of-domain trig.
@@ -2543,7 +2559,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
-        SplitError::AnonymousVarCrossesCut { .. } => "anonymous_var_crosses_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
@@ -2571,7 +2586,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
-        InlineError::AnonymousVarCrossesCut { .. } => "anonymous_var_crosses_cut",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
         InlineError::MatePlaced { .. } => "mate_placed",

@@ -43,7 +43,7 @@ use crate::edit::DocEdit;
 use crate::expr::Expr;
 use crate::meta::MetaVersionError;
 use crate::node::SlotId;
-use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
+use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
 use crate::placement::{FrameFault, FrameSite};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
@@ -174,7 +174,8 @@ pub(crate) enum Walk {
     /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
     /// [`first_var_fault`] over the variable table (VARIABLES-DESIGN
-    /// VR1–VR3): every variable's stored kind is its definition's,
+    /// VR1–VR3): the mint log it asks is strictly ascending, every
+    /// variable's stored kind is its definition's,
     /// every id is logged in the mint as a variable's, every name sits
     /// on a live variable, and no name is held twice. Snapshot only.
     Vars,
@@ -191,13 +192,6 @@ pub(crate) enum Walk {
     /// After the read walk, so a cycle is a cycle of live variables.
     /// Snapshot only.
     DefinitionCycle,
-    /// [`first_slot_fault`] over every node's slots: every node's SLOT
-    /// expressions carry the dimension their addresses fix (spec D6),
-    /// by the same `Node::slot_dimension_fault` the edit doors ask.
-    /// EVERY node kind — a walk that asked profile programs alone
-    /// admitted a retyped extrude distance the edit door refuses.
-    /// Snapshot only.
-    SlotDimension,
     /// [`first_slot_read_fault`] over every slot expression's readers,
     /// by the same `Doc::var_read_faults` the edit doors ask: a reader
     /// names a minted variable, and a live one at its kind. A reader of
@@ -224,8 +218,7 @@ pub(crate) enum Walk {
     /// produces them). Resolve failures and geometry refusals PASS this
     /// door (V1 class 2: refusing programs may exist at rest — they
     /// surface as typed node errors at evaluation). A step argument's
-    /// dimension is [`Walk::SlotDimension`]'s, not a second spelling
-    /// here.
+    /// kind is [`Walk::SlotRead`]'s, not a second spelling here.
     Program,
     /// [`validate_snapshot`] over the document's structural invariants
     /// — the ones `apply` maintains, re-checked because a parsed
@@ -247,19 +240,18 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 12] = [
+    pub(crate) const ORDER: [Walk; 11] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
         Walk::DefinitionRead,
         Walk::DefinitionCycle,
-        Walk::SlotDimension,
         Walk::SlotRead,
         Walk::PayloadRead,
-        Walk::AnonymousVar,
         Walk::Program,
         Walk::Snapshot,
+        Walk::AnonymousVar,
     ];
 
     /// **This walk over one document**, or `None` when it finds
@@ -297,8 +289,6 @@ impl Walk {
             Walk::DefinitionCycle => {
                 first_definition_cycle(snapshot).map(super::PersistError::Snapshot)
             }
-            Walk::SlotDimension => first_slot_fault(snapshot)
-                .map(|(node, fault)| slot_refusal(snapshot.spoken(node), fault)),
             Walk::SlotRead => first_slot_read_fault(snapshot).map(|(node, slot, fault)| {
                 read_refusal(
                     snapshot,
@@ -344,11 +334,8 @@ impl Walk {
 /// **Which adjacencies are contracts, and which are free.** A walk's
 /// position is load-bearing exactly when some document is broken in
 /// both its subject and its neighbour's, so that moving it re-diagnoses
-/// that document. Three are, each with the row that says so:
+/// that document. These are, each with the row that says so:
 ///
-/// - [`Walk::SlotDimension`] before [`Walk::SlotRead`] — a slot
-///   expression can be retyped AND read a variable at the wrong kind,
-///   and the slot's own address is the more specific answer.
 /// - [`Walk::SlotRead`] before [`Walk::PayloadRead`]
 ///   (`load_door_payload_param_ref::a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal`).
 /// - Both read walks before [`Walk::Snapshot`]
@@ -357,6 +344,13 @@ impl Walk {
 ///   for the slot half): a node can carry a broken param reference AND
 ///   a structurally invalid shape, and the param-table answer names the
 ///   parameter while the structural one does not.
+///
+/// [`Walk::AnonymousVar`] comes last: whether a variable is read is a
+/// question about the readers, so it is asked once every reader is
+/// known to be well-formed — a slot a structurally broken node no
+/// longer addresses leaves its variable unread, and the structural
+/// fault is the answer
+/// (`rv_payloadrefs_probes::rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref`).
 ///
 /// The slot walks before [`Walk::Program`] is a contract of the same
 /// kind with a different reason: the program walk PROBES the replay, so
@@ -381,21 +375,6 @@ pub(crate) fn validate_document(
         }
     }
     Ok(())
-}
-
-/// The slot walk's answer, in the load door's vocabulary.
-fn slot_refusal(node: SpokenNode, fault: SlotDimensionFault) -> super::PersistError {
-    let SlotDimensionFault {
-        slot,
-        expected,
-        found,
-    } = fault;
-    super::PersistError::Snapshot(SnapshotError::SlotDimension {
-        node,
-        slot,
-        expected,
-        found,
-    })
 }
 
 /// **Where a read fault was found** — the ONE thing the two read walks
@@ -513,6 +492,12 @@ fn free_vars(snapshot: &ProfileDoc) -> impl Iterator<Item = (VarId, &FreeVar)> {
 /// twice. The names are walked by id, so the pair a twice-held name
 /// reports is the two lowest ids holding it.
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    // The mint log first, since `has_var` below asks it: strictly
+    // ascending, the only log a mint writes. The structural walk asks
+    // it again for a snapshot checked alone (`validate_snapshot`).
+    if let Some(entry) = snapshot.mint.out_of_order() {
+        return Some(SnapshotError::MintLogOrder { entry });
+    }
     for (&id, var) in &snapshot.vars {
         if !var.kind_holds() {
             return Some(SnapshotError::VarKind {
@@ -609,21 +594,6 @@ fn first_definition_cycle(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     })
 }
 
-/// The first node whose slots break spec D6's rule, by the ONE
-/// predicate the edit doors ask ([`Node::slot_dimension_fault`]) — so
-/// a file can carry no slot expression an edit door would have
-/// refused, whatever the node kind.
-///
-/// EVERY node kind, which is the whole point: a walk that asked only
-/// profile programs admitted a retyped extrude distance, a fillet
-/// radius that counts and a dimensionless datum origin.
-fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensionFault)> {
-    snapshot
-        .nodes
-        .iter()
-        .find_map(|(&id, node)| Some((id, node.slot_dimension_fault()?)))
-}
-
 /// The first slot expression with a reader this door refuses, by the
 /// ONE predicate the edit doors ask ([`crate::Doc::var_read_faults`]).
 ///
@@ -635,9 +605,10 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
 /// the document itself.
 fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId, VarReadFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        node.rows()
-            .into_iter()
-            .find_map(|(slot, expr)| Some((id, slot, refused_read(snapshot, expr)?)))
+        node.rows().into_iter().find_map(|(slot, &var)| {
+            let reader = Expr::var(var, slot.dimension());
+            Some((id, slot, refused_read(snapshot, &reader)?))
+        })
     })
 }
 
@@ -664,10 +635,10 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// is the row that pins that.
 fn first_payload_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, VarReadFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        crate::node::payload_exprs(node)
+        node.payload_reads(snapshot)
             .into_iter()
             .flatten()
-            .find_map(|expr| Some((id, refused_read(snapshot, expr)?)))
+            .find_map(|(var, dim)| Some((id, refused_read(snapshot, &Expr::var(var, dim))?)))
     })
 }
 
@@ -774,6 +745,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         DocEdit::DefineVar {
             var,
             def: crate::var::VarDecl::Free(value),
+            ..
         } => param_site(var.clone(), value),
         // The value door carries no distribution of its own — the
         // declaration it writes into supplies that — but its
@@ -1108,23 +1080,6 @@ pub enum SnapshotError {
         node: SpokenNode,
         /// What is wrong with it.
         fault: crate::node::PlacementRuleFault,
-    },
-    /// A node whose SLOT expression is of another dimension than the
-    /// slot address fixes (spec D6, [`crate::SlotId::dimension`]), for
-    /// any node kind — a profile step's argument, an extrude's
-    /// distance, a datum's coordinate. The edit doors refuse it
-    /// through the same predicate (`Node::slot_dimension_fault`), so a
-    /// file carrying one is data the edit doors could not have
-    /// produced.
-    SlotDimension {
-        /// The offending node.
-        node: SpokenNode,
-        /// The offending slot.
-        slot: SlotId,
-        /// The dimension the address fixes.
-        expected: crate::expr::Dimension,
-        /// The expression's dimension.
-        found: crate::expr::Dimension,
     },
     /// A node reading a variable id this document never minted. A
     /// deleted variable's reader is legal (its id is in the mint log);
@@ -1487,26 +1442,6 @@ impl core::fmt::Display for SnapshotError {
                 "{node}'s alignment datum carries a non-finite coordinate"
             ),
             Self::PlacementRule { node, fault } => write!(f, "{node}: {fault}"),
-            // The rule's own clause (`SlotDimensionFault`), forwarded
-            // into this door's subject. Every slot address alike,
-            // including a program step's: `SlotId::label` is where an
-            // address is put into words, so a reader who sees
-            // "loop 0 step 2 · centre x" from the edit door sees the
-            // same address here.
-            Self::SlotDimension {
-                node,
-                slot,
-                expected,
-                found,
-            } => write!(
-                f,
-                "{node}: {}",
-                crate::node::SlotDimensionFault {
-                    slot: *slot,
-                    expected: *expected,
-                    found: *found
-                }
-            ),
             Self::ReaderOfUnmintedVar { node, var } => write!(
                 f,
                 "{node} reads variable {var}, which this document never minted"
@@ -1886,11 +1821,10 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
 /// bug can also build one; both doors refuse with the same
 /// diagnostics.
 ///
-/// A wrong-dimension ARGUMENT is not here. A program slot is a slot
-/// like any other, so it is decided by the document-wide slot walk
-/// ([`SnapshotError::SlotDimension`], `Node::slot_dimension_fault`)
-/// that the edit doors ask too, rather than by a second spelling that
-/// reached profile nodes alone.
+/// A wrong-kind ARGUMENT is not here. A program slot is a slot like
+/// any other, so it is decided by the document-wide slot read walk
+/// ([`SnapshotError::SlotVarKind`]) that the edit doors ask too, rather
+/// than by a second spelling that reached profile nodes alone.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramFault {
     /// The program is not a legal lattice walk (LIB-SWITCH §4h: the
@@ -2008,7 +1942,6 @@ mod tests {
             Vars,
             DefinitionRead,
             DefinitionCycle,
-            SlotDimension,
             SlotRead,
             PayloadRead,
             AnonymousVar,
@@ -2029,7 +1962,6 @@ mod tests {
             Walk::Vars
             | Walk::DefinitionRead
             | Walk::DefinitionCycle
-            | Walk::SlotDimension
             | Walk::SlotRead
             | Walk::PayloadRead
             | Walk::AnonymousVar
@@ -2060,7 +1992,6 @@ mod tests {
             VarOrderMismatch,
             NameOnMissingVar,
             VarNameTwice,
-            SlotDimension,
             ReaderOfUnmintedVar,
             SlotVarKind,
             PayloadVarKind,
@@ -2094,12 +2025,14 @@ mod tests {
         match err {
             // `validate_document` itself, from the expression walks it
             // maps into this vocabulary.
+            // `MintLogOrder`: both this walk and the structural one
+            // raise it; this one runs first.
             SnapshotError::VarKind { .. }
+            | SnapshotError::MintLogOrder { .. }
             | SnapshotError::VarNotMinted { .. }
             | SnapshotError::VarOrderMismatch
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
-            SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
             // Both read walks raise it; the slot walk runs first.
             SnapshotError::ReaderOfUnmintedVar { .. } | SnapshotError::SlotVarKind { .. } => {
                 Walk::SlotRead
@@ -2115,7 +2048,6 @@ mod tests {
             SnapshotError::OrderMismatch
             | SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
-            | SnapshotError::MintLogOrder { .. }
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DeclaredSiteNotAnOperand { .. }
             | SnapshotError::DeclaredNameNotUpstream { .. }
@@ -2225,12 +2157,6 @@ mod tests {
                 name: VarName::from_static("w"),
                 a: crate::VarId(7),
                 b: crate::VarId(8),
-            },
-            SnapshotError::SlotDimension {
-                node: node(),
-                slot: SlotId::Distance,
-                expected: Dimension::Length,
-                found: Dimension::Angle,
             },
             SnapshotError::ReaderOfUnmintedVar {
                 node: node(),
@@ -2445,6 +2371,7 @@ mod tests {
                 &doc,
                 &crate::edit::DocEdit::InsertNode {
                     node: Box::new(Node::instantiate_part(doc_ref)),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &crate::mate::RefusingReach,
@@ -2493,6 +2420,7 @@ mod tests {
             &doc,
             &crate::edit::DocEdit::InsertNode {
                 node: Box::new(mate),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &crate::mate::RefusingReach,
@@ -2566,7 +2494,10 @@ mod tests {
         let insert = |doc: ProfileDoc, node| {
             let doc = doc
                 .apply(
-                    &crate::DocEdit::InsertNode { node },
+                    &crate::DocEdit::InsertNode {
+                        node,
+                        fresh: Vec::new(),
+                    },
                     tol,
                     &crate::RefusingReach,
                 )
@@ -2747,13 +2678,14 @@ mod tests {
             .clone()
             .logged([0, 1, 2, 3].map(|id| crate::Minted::Node(RecipeNodeId(id))));
         for id in [2u64, 3] {
-            doc.nodes.insert(
-                RecipeNodeId(id),
-                crate::test_support::stored(&Node::Datum(crate::node::Datum::Plane {
+            let plane = crate::test_support::stored(
+                &mut doc,
+                &Node::Datum(crate::node::Datum::Plane {
                     origin: [0.0; 3].map(crate::test_support::len),
                     normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
-                })),
+                }),
             );
+            doc.nodes.insert(RecipeNodeId(id), plane);
         }
         for (id, derived) in [(0u64, 50u64), (1, 60)] {
             let sited = || {

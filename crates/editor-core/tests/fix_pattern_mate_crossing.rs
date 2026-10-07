@@ -158,6 +158,7 @@ fn four_legs(
                 in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
             )),
+            fresh: Vec::new(),
         },
     );
     (doc, leg, pattern, top, mate.unwrap(), leg_body)
@@ -463,6 +464,7 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
