@@ -6,8 +6,7 @@ status: open
 opened: 2026-10-05
 priority: P1
 cost: M
-design: true
-blocked_on: [a-pinch-no-kept-face-can-cross-refuses]
+branch: join/pinch-cones-split-at-insertion
 ---
 
 
@@ -104,3 +103,10 @@ a shared point is the In end of one null edge and the Out end of
 another". Option 2 for this row would split the shared vertex per cone
 at insertion, where the two plans meet. That is not what the unit built,
 so the row stays open on its own question.
+
+## 2026-10-07 — the ruling settles the fork
+
+Ev's ruling on PR 4057 (one vertex per cone) is option 2 of PR 4059's
+question, so the design question is closed: split the shared vertex per
+cone at insertion, where the two plans meet. Flip
+`a_nested_pairing_at_a_shared_vertex_refuses_typed` when the 217 build.

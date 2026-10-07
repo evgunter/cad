@@ -2,10 +2,12 @@
 id: blend-worse-is-a-sole-bracket-door-missing-from-the-bounds-roster
 kind: issue
 title: blend/surgery.rs's worse<T: Bounds> landed without a bounds_census roster line, so every_sole_bracket_bound_door_is_in_the_roster is red on main
-status: open
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: E
+pr: 4153
+closed: 2026-10-07
 ---
 
 
@@ -33,3 +35,12 @@ its DL5(b) disposition, beside `surgery.rs`'s other rows
 Writing that disposition is the blend surgery's own argument, so the
 lane that found it did not guess it. Every PR whose CI runs `geom-core`'s
 census is red on this row until the line lands.
+
+## Closed
+
+The roster line landed in PR 4153 (`6014eda8ab`), and was ported again in
+PR 4128 (`723fbdeb0a`). `crates/geom-core/tests/bounds_census.rs` carries
+`subject: "worse"`, with its `Selection` disposition: the bracket read
+only selects which `bounded` flag rides with the `min`, and both inputs go
+to `ring_clearance`, whose DL5(b) disposition it inherits. Every PR since,
+#4143, #4092 and #4209 included, ran the census green.

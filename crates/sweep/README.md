@@ -56,7 +56,9 @@ supports, or a whole rim over a plane and a cylinder), and a bound
 Each reach is an intersection of 1-Lipschitz bounds: per link, the
 cross-section between the supports, the sector the ball's arc subtends
 and the ball (the chamfer's triangle), run along a straight spine over
-the edge's window and closed by the face each end runs into, or revolved
+the edge's window and closed by the plane of the face each end runs
+into (at a mitre the other band's support, which the band's section
+passes no later than the mitre's plane of symmetry), or revolved
 over the whole turn of a circular one; per corner patch, the three
 supports, the three band-end planes and the ball. The faces are pruned
 by their certified boxes (`topo::FaceBoxes`); a face on a surface of
@@ -74,7 +76,8 @@ the other chain is metered by what survives that chain's band, the other
 band's new surface is metered as a face (but a concave band's surface
 against a convex band's reach, whose removed material the concave region
 overlapped), and two chains that meet at a vertex are left to the corner
-predicate.
+predicate, or at a turn to the isosceles verdict and the mitre, where the
+bands meet by construction.
 
 Consumers: an island standing in a filleted cavity, on one shell and as
 a second solid, and a thin revolved wall whose convex inner fillet
@@ -82,7 +85,10 @@ leaves through the far wall, all refused; the teapot lid's dome, a
 sphere zone beside the flange's band, clear
 (`crates/sweep/tests/blend_band_reach.rs`); an island filleted in the
 same request as its cavity, its convex round receding from the void's
-concave one, clear (`blend_per_shell_carry`).
+concave one, clear (`blend_per_shell_carry`); a void under a box's
+convex mitre and an island beside a cavity floor's concave ones,
+refused inside the bands and built clear of them
+(`band_planar_mitre`).
 
 ## Walls: one per run
 
@@ -260,8 +266,12 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   the mitre runs from the trimlines' crossing on the shared face down to
   L, and L ends there. Otherwise the band that reaches further is cut off
   past the mitre by the other band's far support, one more short curve
-  down to L. Which holds is a margined verdict: Zero builds the first,
-  definite the second, the sliver band refuses. No ball rests at a turn,
+  down to L. Which holds is a margined verdict (`fillet3_turn_isosceles`,
+  the two face angles at the vertex compared, and the two bands' feet on
+  L): Zero builds
+  the first, definite the second, the sliver band refuses. A Zero
+  verdict is a coincidence decided from values, so the verdict records
+  it (`BatteryVerdict::coincidences`, D10). No ball rests at a turn,
   so the mitre is G0 between the bands; it never competes with the
   patch, because the request count decides.
 
@@ -272,7 +282,9 @@ junction, not a condition on the request. It keeps its name and its
 place in the order, and still refuses at a junction involving a curved
 link. The planar band carves locally, as the ruled band does: the end
 face's rim edges split at the feet, the end curve `mef`'d across it, one
-trimline per support.
+trimline per support; at a turn, L split at its foot, a strut out to the
+trimlines' crossing on the shared face, and the mitre `mef`'d across one
+band, the triangle it cuts off folded into the other.
 
 What still refuses, typed `UnsupportedRunOut` with a detail naming the
 shape: a curved end face (a fillet against a cylinder meets it in a
@@ -281,7 +293,10 @@ rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
 or coincide, metered before any mutation by `fillet3_cut_off_feet`
-(feet apart only within the band escalate); an end vertex
+(feet apart only within the band escalate); a turn whose trihedron
+`fillet3_turn_isosceles` decides definitely not isosceles
+(`TURN_NOT_ISOSCELES`), which includes a chamfer at supplementary face
+angles, whose two feet on L coincide; an end vertex
 of valence other than three. A vertex whose three edges do not round
 one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
 request names there: an edge cut off where its unrequested edges round

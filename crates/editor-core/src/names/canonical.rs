@@ -462,6 +462,8 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCut(_)

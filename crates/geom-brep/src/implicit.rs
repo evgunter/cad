@@ -331,12 +331,61 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
 /// `p`. A spindle or horn torus (`R ≤ r`) has a curvature singularity on
 /// the axis and gets ZERO, so every charge read from it refuses.
 pub fn min_radius_of_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
-    match *s {
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => minor_radius.min((major_radius - minor_radius).max(T::zero())),
+    let toward = |side| min_radius_of_curvature_toward(s, p, side);
+    toward(SurfaceSide::Inner).min(toward(SurfaceSide::Outer))
+}
+
+/// **A side of a surface, named against its chart normal** (the
+/// implicit gradient).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SurfaceSide {
+    /// The side the chart normal points AWAY from: inside a sphere,
+    /// cylinder or cone, inside a torus's tube.
+    Inner,
+    /// The side the chart normal points into.
+    Outer,
+}
+
+/// **The smallest radius of curvature among the bends of `s` that turn
+/// TOWARD one side of it** — [`min_radius_of_curvature`] with each
+/// principal curvature signed, `f64::MAX` where nothing bends toward that
+/// side, poison for [`Surface::Nurbs`].
+///
+/// A normal curvature turns toward [`SurfaceSide::Inner`] exactly where
+/// [`implicit_hessian_form`] is positive.
+///
+/// Per kind, inner | outer: plane — none | none; sphere/cylinder — the
+/// radius | none; cone — the radial distance ρ of `p` | none, the
+/// generator being straight; torus — the tube radius `r` | `R − r`.
+///
+/// The cone's `ρ` bounds its osculating radius `ρ/cos α` from below at
+/// `p` itself, not at points nearer the apex, where `ρ` is smaller. On
+/// the torus the tube bend `1/r` turns inward everywhere, and the
+/// circumferential bend `(ρ − R)/(ρ·r)` turns inward where `ρ > R`, more
+/// gently than the tube, and outward where `ρ < R`, hardest on the inner
+/// equator at `1/(R − r)`; the outer bound is global over the ring for
+/// the reason [`min_radius_of_curvature`]'s is, and is ZERO on a spindle
+/// or horn torus (`R ≤ r`), whose axis points bend outward without
+/// bound.
+pub fn min_radius_of_curvature_toward<T: Real>(
+    s: &Surface<T>,
+    p: Point3<T>,
+    side: SurfaceSide,
+) -> T {
+    match (s, side) {
+        (Surface::Plane { .. }, _)
+        | (
+            Surface::Sphere { .. } | Surface::Cylinder { .. } | Surface::Cone { .. },
+            SurfaceSide::Outer,
+        ) => T::from_f64(f64::MAX),
+        (
+            Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            },
+            SurfaceSide::Outer,
+        ) => (*major_radius - *minor_radius).max(T::zero()),
         _ => curvature_lever_arm(s, p),
     }
 }
