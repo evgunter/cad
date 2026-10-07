@@ -850,7 +850,7 @@ impl Fnv {
 /// digest, and every node's error.
 fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     let poses = solve(doc, opts, Tol::witness());
-    for &id in doc.order() {
+    for id in doc.ids() {
         h.feed(format!("#{id:?}").as_bytes());
         h.feed(format!("role={:?}", poses.role(id)).as_bytes());
         h.feed(format!("fault={:?}", poses.fault(id)).as_bytes());
@@ -868,7 +868,7 @@ fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     }
     let ev = run_at::<f64>(doc, opts, None);
     h.feed(&fixture::digest::digest(&ev).to_le_bytes());
-    for &id in doc.order() {
+    for id in doc.ids() {
         h.feed(format!("{:?}", ev.node_error(id).map(|e| &e.kind)).as_bytes());
     }
 }
@@ -908,10 +908,16 @@ fn run_at<T: editor_core::EvalScalar>(
 /// Re-taken once more for INTENT-LITERALS PR C: every slot holds a
 /// variable's id, so every node is minted from other bytes, and the
 /// id-free rows held.
+///
+/// And again when an id became its mint ordinal and its digest (all
+/// three rows): the digest spells every id it feeds. The same digest
+/// with each id replaced by its document position measured equal on
+/// main and on the branch at all three ε, so no pose, role, fault or
+/// placement moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x2d31_9da2_2717_1972),
-    (1e-6, 0x0858_f725_cff7_c8ea),
-    (1e-12, 0x2325_5f17_5c76_c71c),
+    (1e-9, 0x76be_7889_78b2_4a63),
+    (1e-6, 0xce5d_7fa0_04ae_bccb),
+    (1e-12, 0x4f11_e7b4_127c_0d12),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
@@ -1858,7 +1864,7 @@ fn structure<T: editor_core::EvalScalar>(
     doc: &ProfileDoc,
     ev: &Evaluation<T>,
 ) -> Vec<(RecipeNodeId, String)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter(|&&id| {
             matches!(
@@ -1971,7 +1977,7 @@ fn assert_interval_structure(
         .filter(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label)
         .map(|(_, _, predicate)| *predicate)
         .collect();
-    let mate_log_escalated = doc.order().iter().any(|&id| {
+    let mate_log_escalated = doc.ids().iter().any(|&id| {
         matches!(doc.node(id), Some(Node::Mate { .. }))
             && match i.result(id) {
                 Some(NodeResult::Ok(v)) => !v.escalations.is_empty(),
@@ -2050,7 +2056,7 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
             };
             let d = run_at::<Dual64>(&doc, &o, None);
             assert_eq!(structure(&doc, &d), want, "{label}: seeded {seed:?}");
-            for &id in doc.order() {
+            for id in doc.ids() {
                 if !matches!(doc.node(id), Some(Node::InstantiatePart { .. }))
                     || f.node_error(id).is_some()
                 {

@@ -574,13 +574,14 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   circle mints through the fitted route
   (`FittedLane::sphere_circle_image`, certified by `certify_fitted`'s
   Circle-carrier arm), so the oblique-trihedron octant faces store
-  their rows; the cone/torus oblique classes have no ring-computable
-  meters composite and refuse with the class named, their faces left
-  uncached, excused by C4's exemption until each class's route lands.
-  The same exemption covers a spline carrier at the closed-form door
-  and the mirror-torus spiric and no-fitted classes. Each class has
-  its own PCERT row: the torus general circle, the cone section, the
-  spline carrier, and the spiric and no-fitted classes together.
+  their rows; a torus's Villarceau circle and a cone's tilted section
+  mint their exact image (`Pcurve::FocalSection`), and a circle within
+  the band of a cone or torus that is none of its circles refuses as a
+  defect (`CarrierGrazesChart`). C4's exemption, a face left uncached
+  until its class's route lands, covers a spline carrier at the
+  closed-form door and the mirror-torus spiric and no-fitted classes,
+  each on its own PCERT row: the spline carrier, and the spiric and
+  no-fitted classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
@@ -1228,7 +1229,11 @@ so an operand stays a first-class value after a boolean reads it. The
 product is an explicit list of `Body` variables. A `Face` or `Edge`
 variable is a selection of a `Body` variable by `StableName`, and the
 N5 resolution ladder lives there; deleting a variable leaves its
-readers unresolved, typed, never silently re-pointed.
+readers unresolved, typed, never silently re-pointed. A `Measure`
+defines an *observed* variable, a function of the built geometry
+rather than of what was written; an observed variable, and any
+definition reading one, is read only by an assertion. A construction
+reads what was written.
 
 **Spaces and placement.** A part has no location. A **space** is a set
 of copies related to one another; a part is born in its own space. A

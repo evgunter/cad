@@ -321,7 +321,7 @@ pub fn wide_aim(index: &PickIndex) -> impl Iterator<Item = Aim> + '_ {
 /// If `doc` has neither.
 pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Formula) {
     let env = doc.var_env::<f64>();
-    for &node in doc.order().iter().rev() {
+    for &node in doc.ids().iter().rev() {
         match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {
                 let value = editor_core::eval_var(*distance, editor_core::Dimension::Length, &env)

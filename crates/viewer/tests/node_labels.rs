@@ -144,7 +144,7 @@ fn only_a_creation_can_be_labelled() {
 fn a_labelled_rows_headline_is_its_label_with_kind_and_tag_muted() {
     let tol = Tol::witness();
     let (doc, extrude) = extruded("viewer-node-labels-headline", tol);
-    let t = tag(extrude.0);
+    let t = tag(extrude.0.digest());
     assert_eq!(
         headline(&doc.spoken(extrude), None),
         Headline {
@@ -469,7 +469,10 @@ fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
     };
     let before = failed(&session.tree_rows());
     assert!(
-        before.starts_with(&format!("Extrude \"pocket\" ({}) failed: ", tag(extrude.0))),
+        before.starts_with(&format!(
+            "Extrude \"pocket\" ({}) failed: ",
+            tag(extrude.0.digest())
+        )),
         "{before}"
     );
 
@@ -550,8 +553,12 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
             .map(|m| m.text().to_owned())
             .unwrap_or_default()
     };
-    let is_not_a_profile =
-        |text: &str| format!("Extrude \"{text}\" ({}) is not a profile", tag(extrude.0));
+    let is_not_a_profile = |text: &str| {
+        format!(
+            "Extrude \"{text}\" ({}) is not a profile",
+            tag(extrude.0.digest())
+        )
+    };
 
     let line = batch_line(&mut session, core::slice::from_ref(&refused));
     assert!(
@@ -609,7 +616,7 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     assert!(
         said.contains(&format!(
             "Extrude \"slab\" ({}) is taken as an input twice",
-            tag(extrude.0)
+            tag(extrude.0.digest())
         )),
         "{said}"
     );
@@ -643,7 +650,7 @@ fn a_node_deleted_later_in_the_batch_keeps_its_label_on_the_line() {
     assert!(
         said.starts_with(&format!(
             "Extrude \"plate\" ({}) is not a profile",
-            tag(extrude.0)
+            tag(extrude.0.digest())
         )),
         "{said}"
     );
@@ -675,7 +682,7 @@ fn a_refusal_before_a_new_document_in_its_batch_keeps_the_label_it_was_raised_wi
     assert!(
         said.starts_with(&format!(
             "Extrude \"plate\" ({}) is not a profile",
-            tag(extrude.0)
+            tag(extrude.0.digest())
         )),
         "{said}"
     );
@@ -731,7 +738,10 @@ fn the_path_editors_refusal_speaks_its_node() {
     let refused = viewer::sketch::held_loops(&doc, extrude).expect_err("an extrude is no profile");
     assert_eq!(
         refused.to_string(),
-        format!("Extrude \"plate\" ({}) is not a profile", tag(extrude.0))
+        format!(
+            "Extrude \"plate\" ({}) is not a profile",
+            tag(extrude.0.digest())
+        )
     );
 }
 
@@ -743,7 +753,7 @@ fn the_gathers_refusal_speaks_its_nodes() {
     let tol = Tol::witness();
     let (doc, extrude) = extruded("viewer-node-labels-product", tol);
     let doc = relabelled(&doc, extrude, "plate", tol);
-    let spoken = format!("Extrude \"plate\" ({})", tag(extrude.0));
+    let spoken = format!("Extrude \"plate\" ({})", tag(extrude.0.digest()));
     let collision = pncad::document::ProductError::Naming {
         node: extrude,
         name: Box::new(pncad::prelude::StableName {
@@ -762,7 +772,7 @@ fn the_gathers_refusal_speaks_its_nodes() {
     assert!(
         refused
             .to_string()
-            .contains(&format!("Extrude \"pocket\" ({})", tag(failed.0))),
+            .contains(&format!("Extrude \"pocket\" ({})", tag(failed.0.digest()))),
         "{refused}"
     );
 }
@@ -804,7 +814,7 @@ fn the_checks_window_speaks_its_roots_from_the_landed_document() {
         .iter()
         .find(|row| row.root == big)
         .expect("the two overlapping boxes are a separation finding about the big one");
-    let (b, s) = (tag(big.0), tag(small.0));
+    let (b, s) = (tag(big.0.digest()), tag(small.0.digest()));
     assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
     assert!(
         row.sentence.contains(&format!(

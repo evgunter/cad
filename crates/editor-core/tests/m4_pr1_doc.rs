@@ -267,7 +267,7 @@ fn die_authors_replays_and_diffs() {
         .into_iter()
         .collect();
     assert_eq!(d.vars, [retired, vec![typed]].concat());
-    assert!(!d.order_changed && !d.epsilon_changed);
+    assert!(!d.epsilon_changed);
 
     // Variant 2: pip depth changed through the DOC PARAM the pip
     // extrude references — node payloads identical, param diff only.

@@ -261,11 +261,11 @@ fn a_delete_leaves_its_readers_unresolved() {
             serde_json::json!(old.0),
             "the surgery is aimed at the reader"
         );
-        *radius = serde_json::json!(1);
+        *radius = serde_json::json!("0:0000000000000001");
     });
     match load(&forged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
-            assert_eq!((node.id(), var), (blend, VarId(1)));
+            assert_eq!((node.id(), var), (blend, VarId::new(0, 1)));
         }
         other => panic!("a reader of an unminted id refuses, got {other:?}"),
     }
@@ -390,7 +390,8 @@ fn the_symbol_survives_a_rename() {
     });
     assert_eq!(sign, Ok(Sign::Zero));
     assert_eq!(counts.symbolic_zero, 1, "one symbol before and after");
-    let by_hand = Sym::<f64>::from_f64(R) + Sym::param_over(ParamSymbol::new(w.0), 0.0, 0.0, 0.0);
+    let by_hand =
+        Sym::<f64>::from_f64(R) + Sym::param_over(ParamSymbol::new(w.0.digest()), 0.0, 0.0, 0.0);
     let (_, counts) = session(|| {
         geom_core::k_stats::decide(
             "intent_vars_3",
@@ -509,7 +510,7 @@ fn the_door_lowers_names_before_it_mints() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let frame = next.order()[0];
+    let frame = next.ids()[0];
     log.push(DocEdit::InsertNode {
         node: Box::new(editor_core::test_support::as_written(
             &next,
@@ -604,7 +605,7 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
             distribution: None,
         }]
     );
-    assert!(replaced.doc.var(w).is_none() && !replaced.doc.var_order().contains(&w));
+    assert!(replaced.doc.var(w).is_none() && !replaced.doc.var_ids().contains(&w));
     assert!(replaced.doc.has_minted_var(w), "the log keeps the id");
 }
 
@@ -660,7 +661,7 @@ fn readers_round_trip_and_a_stored_name_refuses() {
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
             assert!(
-                detail.contains("invalid type: map, expected u64"),
+                detail.contains("invalid type: map, expected an id"),
                 "{detail}"
             );
         }
@@ -722,7 +723,7 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.order()[doc.order().len() - 2];
+    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -756,7 +757,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("the cut alone reads h");
     let part_h = id(&out.part, "h");
     assert_ne!(part_h, id(&doc, "h"), "the part mints its own id");
-    let extrude = *out.part.order().last().expect("the carried extrude");
+    let extrude = *out.part.ids().last().expect("the carried extrude");
     assert_eq!(
         slot(&out.part, extrude, SlotId::Distance),
         Formula::var(part_h, Dimension::Length),
@@ -791,7 +792,7 @@ fn split_and_inline_carry_readers_by_id() {
     let carried = out
         .part
         .slot(
-            *out.part.order().last().expect("the carried extrude"),
+            *out.part.ids().last().expect("the carried extrude"),
             SlotId::Distance,
         )
         .expect("the carried extrude's depth");
@@ -1213,7 +1214,7 @@ fn an_unread_free_variable_stays() {
 /// The NAMED variables' names, in the order `doc` declares them (the
 /// typed values' anonymous variables have none).
 fn declared_names(doc: &ProfileDoc) -> Vec<String> {
-    doc.var_order()
+    doc.var_ids()
         .iter()
         .filter_map(|&var| Some(doc.var_name(var)?.as_str().to_owned()))
         .collect()
@@ -1235,7 +1236,7 @@ fn part_reading_d_and_e() -> (ProfileDoc, PartStore, editor_core::DocRef) {
 /// Every variable the extrudes of `doc` read.
 fn extrude_reads(doc: &ProfileDoc) -> BTreeSet<VarId> {
     let mut seen = BTreeSet::new();
-    for &node in doc.order() {
+    for node in doc.ids() {
         if let Some(Node::Extrude { distance, .. }) = doc.node(node) {
             seen.insert(*distance);
         }
@@ -1389,19 +1390,19 @@ fn inline_carries_an_anonymous_variable_whole() {
 
 /// Split declares in the PARENT's declaration order and inline in the
 /// PART's, so each document lists its variables as its author did, not
-/// in id order (ids are digest output).
+/// in digest order.
 #[test]
 fn split_and_inline_declare_in_declaration_order() {
     let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-order"), Tol::witness());
     let doc = ["p", "q", "r", "s"]
         .into_iter()
         .fold(doc, |doc, name| declare(&doc, name, 0.25));
-    let mut by_id = doc.var_order().to_vec();
-    by_id.sort_unstable();
+    let mut by_digest = doc.var_ids();
+    by_digest.sort_unstable_by_key(|id| id.0.digest());
     assert_ne!(
-        doc.var_order(),
-        by_id.as_slice(),
-        "the fixture's premise: declaration order is not id order"
+        doc.var_ids(),
+        by_digest,
+        "the fixture's premise: declaration order is not digest order"
     );
     let sum = ["q", "r", "s"].into_iter().fold(named("p"), |sum, name| {
         Formula::add(sum, named(name)).expect("lengths add")
@@ -1432,13 +1433,9 @@ fn split_and_inline_declare_in_declaration_order() {
         Tol::witness(),
     )
     .expect("the part inlines");
-    let mut part_by_id = out.part.var_order().to_vec();
-    part_by_id.sort_unstable();
-    assert_ne!(
-        out.part.var_order(),
-        part_by_id.as_slice(),
-        "the premise again"
-    );
+    let mut part_by_digest = out.part.var_ids();
+    part_by_digest.sort_unstable_by_key(|id| id.0.digest());
+    assert_ne!(out.part.var_ids(), part_by_digest, "the premise again");
     assert_eq!(declared_names(&inlined.doc), declared_names(&out.part));
 }
 
@@ -1580,7 +1577,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
     let (doc, [_, _, extrude]) = block(doc, 0.0, len(1.0));
     let w = id(&doc, "w");
     let gone = step(&doc, DocEdit::DeleteVar { var: w.into() }).doc;
-    for var in [w, VarId(12_345)] {
+    for var in [w, VarId::new(0, 12_345)] {
         match try_step(
             &gone,
             DocEdit::SetParam {

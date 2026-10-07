@@ -559,7 +559,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .collect();
     for k in surfaces {
         // Stamping a just-enumerated live key cannot fail.
-        let _ = body.set_surface_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_surface_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     let curves: Vec<_> = body
@@ -568,7 +568,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .filter(|&k| body.curve_source(k).is_none())
         .collect();
     for k in curves {
-        let _ = body.set_curve_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_curve_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     let points: Vec<_> = body
@@ -577,7 +577,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .filter(|&k| body.point_source(k).is_none())
         .collect();
     for k in points {
-        let _ = body.set_point_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_point_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     idx
@@ -627,7 +627,7 @@ impl Placing {
 /// and an axis row the input held `Cleared` stays so: there is no
 /// source left to place.
 fn compose_placed<T: Decide>(input: &Body<T>, placed: &mut Body<T>, at: Placing) {
-    let by = at.by.0;
+    let by = at.by.0.digest();
     for (k, _) in input.surfaces() {
         if let Some(src) = input.surface_source(k) {
             let _ = placed.set_surface_source(k, src.placed(by, at.body));
@@ -5025,7 +5025,7 @@ mod route_tests {
         set.sort();
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(0),
+            node: RecipeNodeId::new(0, 0),
             path: vec![RoleSeg::Merged(set)],
         }
     }
@@ -5531,7 +5531,7 @@ mod place_tests {
         let (b, stamped, pending, axis) = fixture(0.0);
         let map = Affine3::translation(Vec3::new(0.0, 5.0, 0.0));
         for m in [Some(&map), None] {
-            let at = Placing::of(RecipeNodeId(41), 2, 1, 0).unwrap();
+            let at = Placing::of(RecipeNodeId::new(0, 41), 2, 1, 0).unwrap();
             let placed = place(&b, m, at, Tol::witness()).unwrap();
             assert_eq!(
                 placed.surface_axis_source(stamped),
@@ -5559,7 +5559,7 @@ mod place_tests {
         let (b, _, _, _) = fixture(3.0);
         let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
         let geom = |body: &Body<f64>| body.surface_source(wall).cloned().unwrap();
-        let transform = RecipeNodeId(9);
+        let transform = RecipeNodeId::new(0, 9);
 
         // Row 1, neither placed: equal.
         assert_eq!(axis(&a), axis(&b), "row 1: neither placed");
@@ -5604,7 +5604,7 @@ mod place_tests {
         let other = place(
             &b,
             Some(&lift(5.0)),
-            Placing::of(RecipeNodeId(10), 0, 1, 0).unwrap(),
+            Placing::of(RecipeNodeId::new(0, 10), 0, 1, 0).unwrap(),
             tol,
         )
         .unwrap();
@@ -5623,7 +5623,7 @@ mod place_tests {
         let (b, _, _, _) = fixture(3.0);
         let master = vec![Arc::new(a), Arc::new(b)];
         let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
-        let pattern = RecipeNodeId(12);
+        let pattern = RecipeNodeId::new(0, 12);
 
         // Placement 0 is the master verbatim.
         assert_eq!(axis(&master[0]), axis(&master[1]), "placement 0");

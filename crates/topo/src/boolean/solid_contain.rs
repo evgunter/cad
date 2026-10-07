@@ -345,8 +345,8 @@ pub enum PointInSolidError {
     /// does wrap that coordinate rather than the artefact it is on the
     /// sphere and the cone. What takes a face out of the class is
     /// therefore never a junction: it is a ring, an unwalkable boundary,
-    /// a boundary edge with no closed-form image on the torus chart (the
-    /// Villarceau class and every other oblique circle), or a window the
+    /// a boundary edge with no affine image on the torus chart (a
+    /// Villarceau circle, whose image is a focal section), or a window the
     /// walk unwound past a full period, which describes no face.
     PartialTorusFace {
         /// The torus face neither class expresses.
@@ -2152,8 +2152,9 @@ pub(super) fn torus_face_windows<T: Decide>(
 /// closed form, which on a torus is exact and purely LINEAR in both
 /// channels: the chart's two circle families are the parallels (`u`
 /// affine in the carrier's parameter, `v` constant) and the meridians
-/// (`v` affine, `u` constant), and every other circle — the Villarceau
-/// class — is refused there rather than approximated. So an edge's exact
+/// (`v` affine, `u` constant); the one other family, the Villarceau
+/// circles, images as a focal section, which takes the face out of the
+/// class rather than being approximated. So an edge's exact
 /// extent in each channel is its two endpoint evaluations, and the
 /// branch of each edge is pinned by nearest-branch continuity against
 /// the previous edge's exit, which is EXACT here because consecutive

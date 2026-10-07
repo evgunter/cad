@@ -2,12 +2,13 @@
 id: a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one
 kind: issue
 title: At a 1e-7 tilt a near-tangent pierce's ∩ reads two cones at the pierce point where its link holds one: the split leaves two vertices and two solids touching there
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 branch: join/near-tangent-two-cones
+closed: 2026-10-07
 ---
 
 ## What

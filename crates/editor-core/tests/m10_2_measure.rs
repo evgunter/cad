@@ -482,11 +482,7 @@ fn a_violated_assertion_changes_no_downstream_outcome() {
     );
     // Every node the two documents share evaluates identically, keys
     // included — the memo currency is what a gate would have to move.
-    for id in [
-        with_assertion.order()[0],
-        with_assertion.order()[1],
-        measure,
-    ] {
+    for id in [with_assertion.ids()[0], with_assertion.ids()[1], measure] {
         let (x, y) = (
             a.nodes.get(&id).expect("live"),
             b.nodes.get(&id).expect("live"),
@@ -522,7 +518,7 @@ fn a_document_without_measures_is_untouched() {
     let (plain, body, holes) = plate();
     let (measured_doc, _, _) = plate_with_web();
     let (a, b) = (eval(&plain), eval(&measured_doc));
-    for id in [plain.order()[0], body, holes[0], holes[1]] {
+    for id in [plain.ids()[0], body, holes[0], holes[1]] {
         match (a.nodes.get(&id), b.nodes.get(&id)) {
             (Some(NodeResult::Ok(x)), Some(NodeResult::Ok(y))) => {
                 assert_eq!(x.content_key, y.content_key);

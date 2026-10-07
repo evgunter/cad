@@ -2309,7 +2309,11 @@ fn a_near_tangent_sliver_is_a_cone_of_its_own() {
         .find(|(name, _)| *name == "w345")
         .unwrap();
     let lo = PLACEMENTS[0].1;
-    let f = near_tangent_frame(&c, 0, 0, 1e-7);
+    // The battery's tilt is 1e-7, a sliver about 2e-7 wide: two hundred
+    // bands at the default ε, but under one band at ε = 1e-6, where the
+    // sliver is honestly one solid with the lump. So the tilt is never
+    // less than 100 ε, which keeps it two hundred bands wide there.
+    let f = near_tangent_frame(&c, 0, 0, (100.0 * tol().eps()).max(1e-7));
     let (x, y) = corner_pieces(&c, f, lo);
     assert_eq!(
         cones_at(c.v, &x, &y, Cones::Intersect),

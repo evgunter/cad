@@ -321,7 +321,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         }
     );
     // Never-minted source id: a typo, not a NodeGone repair.
-    let foreign = cap(RecipeNodeId(9999));
+    let foreign = cap(RecipeNodeId::new(0, 9999));
     assert_eq!(
         t.doc
             .apply(
@@ -434,7 +434,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
     assert_eq!(
         doc.apply(
             &DocEdit::ReWitness {
-                node: RecipeNodeId(9999),
+                node: RecipeNodeId::new(0, 9999),
                 witness: w.clone(),
             },
             Tol::witness(),
@@ -442,7 +442,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
         )
         .unwrap_err(),
         EditError::UnknownNode {
-            id: editor_core::SpokenNode::absent(RecipeNodeId(9999))
+            id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 9999))
         }
     );
     // Replay determinism: same edits, bit-identical document
@@ -599,7 +599,7 @@ fn witness_bifurcation_payload_and_diagnosis_arm_compose() {
         },
         implicated: vec![
             Implicated::Constraint(3),
-            Implicated::Entity(cap(RecipeNodeId(0))),
+            Implicated::Entity(cap(RecipeNodeId::new(0, 0))),
         ],
         witness_age: WitnessAge {
             solved_under: b"d=12".to_vec(),
