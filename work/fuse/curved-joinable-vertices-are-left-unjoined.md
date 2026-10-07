@@ -2,7 +2,9 @@
 id: curved-joinable-vertices-are-left-unjoined
 kind: issue
 title: The join takes planar joinable vertices only: curved valence-2 vertices (arcs of one rim circle, Chart seams of one surface) are left unjoined and unrefused
-status: open
+status: review
+pr: 4233
+branch: fuse/curved-join
 opened: 2026-10-06
 priority: P1
 cost: H
