@@ -412,6 +412,6 @@ main. The cap-plane order row
 `a-loft-caps-plane-is-summed-in-the-authored-vertex-order` was measured
 at P2. Frames: the nonuniform loft bulges as derived (1.646 at 32.6% →
 1.853 at 38.5%); the tube's bend shifts slightly; everything else moves
-at pixel level. The gate is ok on 74fef8a6, which carries main through #4203; nothing landed since touches its files.
+at pixel level. The gate is ok on the head that carries main through #4212.
 
 Signed: (CARVE orchestrator)
