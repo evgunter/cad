@@ -433,9 +433,10 @@ fn digest() -> String {
 /// reading which way an image runs its column** (`pcurve_iso_seam_sense`,
 /// the wrap-edge unit: a one-segment loft's strut runs its column
 /// backward). One more numeric decision per seam-class row, so the two
-/// `validate_geometric` rows gain 8 each (`sym_arc_loft` 708 → 716,
-/// `sym_thin_strip` 716 → 724, `num` 652 → 660). Every verdict hash,
-/// pad, volume, refusal and `frozen` column is unchanged.
+/// `validate_geometric` rows gain 8 each (`sym_arc_loft` 644 → 652,
+/// `num` 596 → 604; `sym_thin_strip` 652 → 660, `num` 604 → 612).
+/// Every verdict hash, pad, volume, refusal and `frozen` column is
+/// unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
