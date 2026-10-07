@@ -41,6 +41,28 @@ edge has no piece the boolean classified at the crossing" })`.
   and that test file added, so the naming arm this PR adds is not
   involved at k = 2.
 
+## Flip-back rows
+
+These must build when this is fixed. Until then each row asserts the
+refusal, by its exact text
+(`union_pinch_member_order.rs`, `UNCLASSIFIED_CROSSING`), in the
+member orders whose first fold step unions two angularly adjacent
+wedges, and in no other order:
+
+| row | fixture | adjacent pairs | refusing orders |
+|---|---|---|---|
+| `wedges_meeting_at_a_vertex_build_one_body_in_every_member_order` | two wedges | 1–2 | 2 of 6 |
+| same | three wedges | every pair | 12 of 24 |
+| same | four wedges | 1–2, 2–3, 3–4, 4–1 | 48 of 120 |
+| `holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_order` | three wedges on one side | every pair | 12 of 24 |
+| same | an L and two wedges | 2–3 (the two wedges) | 4 of 24 |
+| `the_junction_where_the_wedges_meet_has_one_name_in_every_member_order` | three wedges, plate last | every pair | 6 of 6 |
+
+Member 0 is the plate. The regression came in with 704378c3 ("emit:
+every crossing carries its sense; same-sense crossings rank alone"),
+merged to main in #4203. On main 61edf137, before it, every one of
+these orders built and named the junction.
+
 ## Done when
 
-The three rows above pass on main with the naming of #4203 in place.
+The flip-back rows build in every member order, with the naming of #4203 in place, and `every_order_but` and the junction row's refusal arm go.

@@ -59,6 +59,13 @@ Witnesses:
   runs in every op against the plate, both orders
   (`holes_whose_runs_nest_at_their_vertex_refuse_typed_in_every_op`).
 
+Review 5's N6: before the detector, on the head the reviewer read
+(158db6a9), the arch fixture (the crossing pair and one wedge, in every
+pose) refused `JoinDesync` for P − U, U − P, P ∩ U and P ∪ U, where
+main had refused typed at vtxfac (`PierceRunsUnordered`). With the
+detector, `meeting::arch` refuses `PierceRunsNested` in all six ops
+(P − U, U − P, P ∪ U, U ∪ P, P ∩ U, U ∩ P), which the row asserts.
+
 ## The strut facing at k ≥ 3 is unpinned
 
 With the runs' Out wedges disjoint and in clockwise order, the walk
