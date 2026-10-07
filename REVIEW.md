@@ -99,4 +99,3 @@ Exercised: Q1, Q2, Q3, Q4, Q5, Q6, Q7, and Q8 (the check-9 region, `validate.rs:
 - **S8 (Q2, likely).** The skip's comment and the PR body justify it by seam vertices. Its real load is closed seam circles (NOTE-1), so the reason written beside the code is not the one that holds it up.
 
 REVIEW COMPLETE
-
