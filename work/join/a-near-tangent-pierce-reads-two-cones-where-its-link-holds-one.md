@@ -7,6 +7,7 @@ opened: 2026-10-06
 priority: P2
 cost: M
 refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
+branch: join/near-tangent-two-cones
 ---
 
 ## What
