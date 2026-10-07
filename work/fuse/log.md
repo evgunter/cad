@@ -611,3 +611,22 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     bounds-roster line was main's red since #4173 and was ported in.
   - **Rows:** `sweeps-build-one-rim-edge-per-segment-not-per-run`
     closes. Step 3 waits only on the curved join (`fuse/curved-join`).
+- 2026-10-07 — Step 3 stops at a fork: where "no joinable vertex remains" is checked. It goes to Ev as an `[ev]` PR; the row is `a-finished-body-holds-no-joinable-vertex`.
+  - **Why it stopped.** The ratified clause says "checked at tier 2", but tier 2 (`validate_closed`) takes no band, is generic over `Real`, and gates construction state. The predicate's curved arms read margins and can come back undecided.
+  - **Measured by the lane** (main 8115891c9, a timer inside the at-rest gate over the full `ci` suite, 52067 bodies):
+    - `joinable_vertices` costs 1.29% of gate time: 39 µs at p50 and 315 µs at p99 per body.
+    - 344 at-rest bodies, in 149 tests over 80 files, hold joinable vertices; 2 read in band (`halfcap_pole`), and 11 already fail the gate.
+    - The heaviest files are `split_through_a_ruling` (26), `review_3701_probes` (17), `fillet_h5_hostless_rim` (15), `closed_chain_junctions` (13) and `props_sphere_cap_door` (11). Most are outputs of split, fillet/blend, shell and surgery, or hand-built fixtures. Boolean outputs are not among them.
+  - **Measured by the designers** (STEP fixtures):
+    - 13 of 61 imported solids hold joinable vertices: the band and washer fixtures, the split twins, two wild files, and `composed_die` with 21. Two more (`halfcap_eps6/7`) read in band.
+    - The band and washer cases are probably import-made: import's seam re-mint leaves the file's rim vertex at valence 2.
+  - **Designer pair (fork-log row 85).** Three rounds; the blinding byte was drawn late, at PR time.
+    - Round 1 split: at rest (tier 3) against op-door postconditions.
+    - Round 2 crossed.
+    - Round 3 converged on at rest, with every finisher, import included, joining and an in-band reading exempt. The question both named beneath: a joinable vertex is representation (a mark), not a cell, by the station and conventional-vertex rulings.
+  - **Defects named, to file when the unit runs:**
+    - `fillet_edges` (and split, shell and surgery) ship joinable vertices;
+    - `join_stage` is `pub(super)`;
+    - the public merge door doesn't join;
+    - import's band re-mint leaves a valence-2 rim vertex;
+    - `run_walls_built.rs`'s hand assertion becomes redundant.

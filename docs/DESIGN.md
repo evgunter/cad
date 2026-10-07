@@ -268,7 +268,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    coincident-distinct-edges class, each edge classifying separately.
    Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
    sector classification) refuse typed at the consumer.
-   Also at tier 3: **prefer-intrinsic enforcement** (D2) and the
+   Also at tier 3: **maximal edges** (a joinable vertex at rest is a
+   construction that stopped half-way, `JoinableVertexAtRest`; a
+   vertex whose reading lands in band is exempt, as escalated readings
+   are), **prefer-intrinsic enforcement** (D2) and the
    **positive-volume orientation invariant** (exact-B-rep signed volume
    definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
    escalated exempt — an orientation probe, not a thinness gate, so
@@ -543,7 +546,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   the unique complex with maximal faces and maximal edges over its face
   partition, up to the position of each closed edge's conventional
   vertex, so a union's body does not depend on its member order, and
-  the form is checked at tier 2 on the result alone, with no history.
+  the form is checked at rest on the result alone, with no history, by
+  the one predicate the join takes a vertex by: every door that
+  finishes a body, import included, ends with the join, and a vertex
+  whose reading lands in the margin band is exempt at rest.
   Load-bearing dependency: `merge_coplanar_faces` **never fuses two
   vertices into one**. A contact record is a pair of cells, one from each
   touching shell (vertex, edge or face), whose interiors meet, plus its
