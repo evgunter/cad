@@ -2,10 +2,11 @@
 id: a-straight-arrival-off-an-arc-departure-escalates-in-carrier-line-circle
 kind: issue
 title: path_property's straight-arrival-off-an-arc row escalates in the non-adjacent segment-pair check's carrier_line_circle at eps 1e-6 (proptest find, red on main)
-status: open
+status: dispatched
 opened: 2026-10-07
 priority: P0
 cost: M
+branch: claude/clever-bardeen-4itqb3
 ---
 
 

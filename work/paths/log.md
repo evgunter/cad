@@ -660,3 +660,8 @@ Signed: (CARVE orchestrator)
 - 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) closes on `claude/clever-bardeen-4itqb3`. The seed's corner has no exact fillet: its offset circles miss tangency by 5.27e-7, inside the 1e-6 band. The decided centre was the radical-line foot, which carried that gap amplified by (ρ₁ + ρ₂)/d (1.117x here, unbounded on near-equal carriers).
   - The centre now sits midway between the offset circles' nearest points, so each arc×arc rim carries half the gap: the floor where the circles are separated, a bound where they cross. The oracle pins each rim at half the gap, and a pinned sweep draws the decided class at both scalars.
   - The D10 hold did not bind: no joint's recording or verification changed. The sibling sites are filed as `decided-tangent-point-is-the-radical-foot`.
+
+- 2026-10-07 — The fillet-radius P0 merged (#4259, `4aadf5b72`; DR-103, no MAJOR from either reviewer). On a decided offset tangency the fillet centre is the link midpoint: the floor on the separated side, a bound on the crossing side. The oracle now pins each rim at gap/2, and a seeded sweep of decided tangencies runs in the fast set.
+- 2026-10-07 — `a-straight-arrival-off-an-arc-departure-escalates-in-carrier-line-circle` (P0, M) is dispatched on `claude/clever-bardeen-4itqb3`.
+  - D10 check: it is a validation-pair escalation on a drawn path. It touches no intent, placement or declared contact, so it may start under the hold.
+  - Review tier: single. It is one predicate's verdict on one drawn family.
