@@ -347,7 +347,9 @@ fn an_in_band_line_circle_clearance_escalates_only_where_the_arc_holds_the_graze
 /// side closes along y = 1, tangent to the small circle at its top.
 /// Hole 2 lies under y = 0: the rectangle below it, or (`under = Some(R)`)
 /// a region capped by an arc of the circle of radius `R` tangent to
-/// y = 0 at the origin from below.
+/// y = 0 from below at `x = −3.5Kε`, between the two circles' own
+/// tangency points with it, where each arc of hole 1 definitely misses
+/// its tangency with the cap's circle.
 fn holes_touching_between_tangent_arcs(under: Option<f64>) -> profile::Profile<f64> {
     use geom_core::Arc2;
     use profile::{ProfileLoop, RawLoop, Segment};
@@ -376,13 +378,14 @@ fn holes_touching_between_tangent_arcs(under: Option<f64>) -> profile::Profile<f
     let under = match under {
         None => rect(-1.0, -1.0, 2.0, 1.0),
         Some(r) => {
+            let x = -3.5 * t.k * t.eps;
             let y = (r * r - 1.0).sqrt() - r;
-            let cap = arc(Point2::new(0.0, -r), r, 2.0 * (1.0 / r).asin());
+            let cap = arc(Point2::new(x, -r), r, 2.0 * (1.0 / r).asin());
             ProfileLoop::new([
-                (Point2::new(1.0, y), cap),
-                (Point2::new(-1.0, y), Segment::Line),
-                (Point2::new(-1.0, -3.0), Segment::Line),
-                (Point2::new(1.0, -3.0), Segment::Line),
+                (Point2::new(x + 1.0, y), cap),
+                (Point2::new(x - 1.0, y), Segment::Line),
+                (Point2::new(x - 1.0, -3.0), Segment::Line),
+                (Point2::new(x + 1.0, -3.0), Segment::Line),
             ])
         }
     };
@@ -393,7 +396,10 @@ fn holes_touching_between_tangent_arcs(under: Option<f64>) -> profile::Profile<f
 /// miss their tangency with the other hole's edge, is refused** at
 /// `f64` and at `Interval`, against a line (the rectangle's top) and
 /// against an arc (a cap tangent to y = 0 from below). The touching
-/// vertex stands 4.5·K²ε² off the other edge.
+/// vertex stands within 4.5·K²ε² of the other edge. The cap is moved
+/// off the origin because one tangent there escalates instead: its
+/// tangency with the small circle falls within Kε of `E`, where the
+/// small arc's span reads it in band.
 #[test]
 fn holes_touching_at_a_vertex_between_two_tangent_arcs_are_non_simple() {
     for (under, edge) in [(None, 2), (Some(2.0), 0)] {

@@ -178,7 +178,7 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "arc_span".into(),
-                old_count: 12,
+                old_count: 8,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
@@ -203,7 +203,7 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "line_span".into(),
-                old_count: 16,
+                old_count: 12,
                 new_count: 8,
             },
         ],

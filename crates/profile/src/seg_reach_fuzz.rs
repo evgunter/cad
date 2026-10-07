@@ -224,11 +224,33 @@ fn kernel<T: Decide>(s1: Shape, s2: Shape, band: Band) -> Read {
     }
 }
 
-/// One draw: a circle, and a line or a second circle tangent to it to
-/// within ε, or cutting it by 1.5 to 6 Kε (externally or internally),
-/// each segment reaching up to four times the near stretch either side
-/// of the closest point.
+/// One draw: a near-tangent or shallow-secant pair ([`near`]), or a
+/// segment ending at the edge of the band off another ([`band_edge`]).
 fn draw(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
+    if rng.unit() < 0.5 {
+        near(rng, eps, k)
+    } else {
+        band_edge(rng, eps, k)
+    }
+}
+
+/// A signed sweep: a few times `small` (an arc local to one point), up
+/// to three radians, or past a half turn up to 10⁻³ short of a full one.
+fn sweep_of(rng: &mut fuzz::Rng, small: f64) -> f64 {
+    let sign = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    sign * match rng.below(3) {
+        0 => rng.range(0.0, 4.0) * small,
+        1 => rng.range(0.0, 3.0),
+        _ => TAU - 10f64.powf(rng.range(-3.0, 0.5)),
+    }
+}
+
+/// A circle, and a line or a second circle tangent to it to within ε,
+/// or cutting it by 1.5 to 6 Kε (externally, internally, or nearly
+/// concentric inside it), each segment reaching up to four times the
+/// near stretch either side of the closest point, or sweeping up to
+/// 10⁻³ short of a full turn.
+fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
     let c = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
     let r = 10f64.powf(rng.range(-1.0, 0.5));
     let toward = rng.range(0.0, TAU);
@@ -241,22 +263,14 @@ fn draw(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
     let tangency = at(c, r, toward);
     let reach = (2.0 * r * (eps - gap)).sqrt().max(k * eps);
     // An arc on the first circle around the tangency point.
-    let arc_near = |rng: &mut fuzz::Rng, c: P, r: f64, toward: f64| {
-        let from = toward + rng.range(-4.0, 4.0) * reach / r;
-        let sweep = if rng.unit() < 0.5 {
-            rng.range(-4.0, 4.0) * reach / r
-        } else {
-            rng.range(-3.0, 3.0)
-        };
-        Shape::Arc {
-            c,
-            r,
-            start: from,
-            sweep,
-        }
+    let arc_near = |rng: &mut fuzz::Rng, c: P, r: f64, toward: f64| Shape::Arc {
+        c,
+        r,
+        start: toward + rng.range(-4.0, 4.0) * reach / r,
+        sweep: sweep_of(rng, reach / r),
     };
     let s1 = arc_near(rng, c, r, toward);
-    let s2 = match rng.below(3) {
+    let s2 = match rng.below(4) {
         0 => {
             // A line tangent to the circle at `tangency`, `gap` outside.
             let n = (toward.cos(), toward.sin());
@@ -273,21 +287,120 @@ fn draw(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
                 b: (foot.0 + t1 * u.0, foot.1 + t1 * u.1),
             }
         }
-        external => {
+        family => {
             let r2 = 10f64.powf(rng.range(-1.0, 0.5));
-            let (r2, d) = if external == 1 {
-                (r2, r + r2 + gap)
-            } else {
+            let (r2, d) = match family {
+                1 => (r2, r + r2 + gap),
                 // The smaller circle inside the larger.
-                let r2 = r2.min(0.9 * r);
-                (r2, r - r2 + gap)
+                2 => {
+                    let r2 = r2.min(0.9 * r);
+                    (r2, r - r2 + gap)
+                }
+                // Inside it, its centre as little as 10⁻⁷·r off.
+                _ => {
+                    let off = r * 10f64.powf(rng.range(-7.0, -2.0));
+                    (r - off, off + gap)
+                }
             };
             let c2 = (c.0 + d * toward.cos(), c.1 + d * toward.sin());
-            let back = if external == 1 { toward + PI } else { toward };
+            let back = if family == 1 { toward + PI } else { toward };
             arc_near(rng, c2, r2, back)
         }
     };
     (s1, s2)
+}
+
+/// An offset at the edge of the band: ±{0.5, 0.999, 1, 1.001, 2}·ε or
+/// ±{0.999, 1, 1.001, 2}·Kε.
+fn edge(rng: &mut fuzz::Rng, eps: f64, k: f64) -> f64 {
+    let at = [
+        0.5,
+        0.999,
+        1.0,
+        1.001,
+        2.0,
+        k * 0.999,
+        k,
+        k * 1.001,
+        k * 2.0,
+    ];
+    let sign = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    sign * eps * at[rng.below(at.len())]
+}
+
+/// A line or an arc (up to 10⁻³ short of a full turn), and a line or an
+/// arc that ends at an edge of the band off its carrier ([`edge`]),
+/// over a foot that lies at an edge of the band off its end or inside
+/// its span, and leaves that end at an angle as small as 10⁻⁶ to the
+/// carrier, toward it or away.
+fn band_edge(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
+    let o = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
+    let length = 10f64.powf(rng.range(-1.0, 0.5));
+    let psi = rng.range(0.0, TAU);
+    // How far along the host from its start end the foot lies, in
+    // meters: an edge of the band either side of that end, or inside.
+    let at_edge = rng.unit() < 0.5;
+    let (edge_along, inside) = (edge(rng, eps, k), rng.unit());
+    // The host, the foot on its carrier, the carrier's unit normal and
+    // unit tangent there.
+    let (host, foot, normal, tangent) = if rng.unit() < 0.5 {
+        let u = (psi.cos(), psi.sin());
+        let t = if at_edge { edge_along } else { inside * length };
+        let b = (o.0 + length * u.0, o.1 + length * u.1);
+        let foot = (o.0 + t * u.0, o.1 + t * u.1);
+        (Shape::Line { a: o, b }, foot, (-u.1, u.0), u)
+    } else {
+        let sweep = sweep_of(rng, 1.0);
+        let turn = sweep.signum();
+        let t = if at_edge {
+            edge_along
+        } else {
+            inside * sweep.abs() * length
+        };
+        let angle = psi + turn * t / length;
+        let radial = (angle.cos(), angle.sin());
+        let host = Shape::Arc {
+            c: o,
+            r: length,
+            start: psi,
+            sweep,
+        };
+        let tangent = (-turn * radial.1, turn * radial.0);
+        (host, at(o, length, angle), radial, tangent)
+    };
+    let off = edge(rng, eps, k);
+    let end = (foot.0 + off * normal.0, foot.1 + off * normal.1);
+    // The other segment leaves `end` at `phi` to the tangent, either way
+    // along it, toward the carrier or away.
+    let phi = 10f64.powf(rng.range(-6.0, 0.0)) * if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    let back = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    let (sin, cos) = phi.sin_cos();
+    let dir = (
+        back * (tangent.0 * cos - tangent.1 * sin),
+        back * (tangent.0 * sin + tangent.1 * cos),
+    );
+    let reach = 10f64.powf(rng.range(-2.0, 0.5));
+    let other = if rng.unit() < 0.5 {
+        Shape::Line {
+            a: end,
+            b: (end.0 + reach * dir.0, end.1 + reach * dir.1),
+        }
+    } else {
+        // Turning left (centre on the left, counter-clockwise) or right.
+        let turn = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+        let c = (end.0 - turn * reach * dir.1, end.1 + turn * reach * dir.0);
+        Shape::Arc {
+            c,
+            r: reach,
+            start: (end.1 - c.1).atan2(end.0 - c.0),
+            sweep: turn * sweep_of(rng, 1e-3).abs(),
+        }
+    };
+    if rng.unit() < 0.5 {
+        (host, other)
+    } else {
+        (other, host)
+    }
 }
 
 /// Sweeps `n` draws at scalar `T`; returns the counterexamples, and the

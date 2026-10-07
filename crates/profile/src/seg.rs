@@ -633,13 +633,10 @@ fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<(Sign, 
 }
 
 /// **`circle_side`** — which side of an arc's carrier circle a point
-/// lies on. Margin: |q − c| − r (meters; positive = outside).
+/// lies on. Margin: |q − c| − r, the rim through [`Arc2::rim`]
+/// (meters; positive = outside).
 fn circle_side<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
-    decide(
-        "circle_side",
-        Margin::of(q.distance(g.arc.centre) - g.arc.radius),
-        band,
-    )
+    decide("circle_side", Margin::of(g.arc.rim(q) - g.arc.radius), band)
 }
 
 /// **`line_span`** — whether a point *known to lie on the carrier line*
@@ -671,6 +668,13 @@ fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, In
 /// to endpoint-Touch contacts, which are errors for non-adjacent pairs
 /// and are discounted only within ε of the actual shared vertex
 /// (`contact_at_shared_vertex` is an uncompressed direct distance).
+///
+/// [`touches`] reads a segment end's radial foot here, so the same
+/// compression is how far past the arc's end, along the carrier, an end
+/// reads a touch or escalates: s* = 2r·asin(sin(θ/4) + Kε/2r) − rθ/2,
+/// about Kε/cos(θ/4). That is 1.08Kε at a quarter turn, 1.41Kε at a
+/// half, 2.6Kε at three quarters, 14Kε at 6 rad and 490Kε at 6.275 rad
+/// (r = 1). Every such reading refuses or escalates, and none accepts.
 ///
 /// A full turn ([`ArcSpan::FullTurn`]) holds every carrier point, so
 /// nothing is decided: its vertex is not an endpoint.
@@ -1037,16 +1041,17 @@ enum Joint {
 }
 
 /// A point definitely outside either span is no contact at that point,
-/// whatever the other span reads; only then does an indeterminate
-/// reading escalate. The point stands for a stretch along which the
-/// carriers stay within ε, so its miss leaves the pair's ends to read
-/// ([`end_touches`]).
+/// whatever the other span reads, so `m2` is not read past a definite
+/// miss of `m1`; only then does an indeterminate reading escalate.
 fn joint(
     m1: Result<Sign, Indeterminate>,
-    m2: Result<Sign, Indeterminate>,
+    m2: impl FnOnce() -> Result<Sign, Indeterminate>,
 ) -> Result<Option<Joint>, Indeterminate> {
-    match (m1, m2) {
-        (Ok(Sign::Negative), _) | (_, Ok(Sign::Negative)) => Ok(None),
+    if let Ok(Sign::Negative) = m1 {
+        return Ok(None);
+    }
+    match (m1, m2()) {
+        (_, Ok(Sign::Negative)) => Ok(None),
         (Err(source), _) | (_, Err(source)) => Err(source),
         (Ok(Sign::Positive), Ok(Sign::Positive)) => Ok(Some(Joint::Interior)),
         _ => Ok(Some(Joint::Boundary)),
@@ -1110,17 +1115,17 @@ fn line_line<T: Decide>(
         });
     } else {
         // Non-collinear with some endpoint on a carrier: the carriers
-        // meet exactly once, at that endpoint — check span membership.
-        for (o, q) in [(o_c, s2.a), (o_d, s2.b)] {
-            if o == Sign::Zero && line_span(s1, q, band)? != Sign::Negative {
-                contacts.push(Contact {
-                    point: q,
-                    kind: CKind::Touch,
-                });
-            }
-        }
-        for (o, q) in [(o_a, s1.a), (o_b, s1.b)] {
-            if o == Sign::Zero && line_span(s2, q, band)? != Sign::Negative {
+        // meet exactly once, at that endpoint, read by [`touches`]' rule
+        // from the side read above. The crossing test needs all four
+        // sides definite, so an in-band side escalates before its span
+        // is read (`validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+        for (host, o, q) in [
+            (s1, o_c, s2.a),
+            (s1, o_d, s2.b),
+            (s2, o_a, s1.a),
+            (s2, o_b, s1.b),
+        ] {
+            if touches_from(host, q, Ok(o), band)? {
                 contacts.push(Contact {
                     point: q,
                     kind: CKind::Touch,
@@ -1165,25 +1170,30 @@ fn line_arc<T: Decide>(
         }
         Err(source) => return Err(source),
     };
+    let spans = |q| (line_span(line, q, band), arc_span(g, q, band));
     match carriers {
         Sign::Negative => {}
         Sign::Zero => {
-            let tangency = (line_span(line, foot, band), arc_span(g, foot, band));
-            if missed(&mut contacts, tangency, foot, CKind::Tangency)? {
-                end_touches(&mut contacts, line, arc, band)?;
-            }
+            candidates(
+                &mut contacts,
+                (line, arc),
+                &[foot],
+                CKind::Tangency,
+                spans,
+                band,
+            )?;
         }
         Sign::Positive => {
             let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
-            let mut any_missed = false;
-            for t in [tc - half, tc + half] {
-                let q = line.a + line.unit * t;
-                let crossing = (line_span(line, q, band), arc_span(g, q, band));
-                any_missed |= missed(&mut contacts, crossing, q, CKind::Crossing)?;
-            }
-            if any_missed {
-                end_touches(&mut contacts, line, arc, band)?;
-            }
+            let crossings = [tc - half, tc + half].map(|t| line.a + line.unit * t);
+            candidates(
+                &mut contacts,
+                (line, arc),
+                &crossings,
+                CKind::Crossing,
+                spans,
+                band,
+            )?;
         }
     }
     Ok(PairOutcome::Contacts(contacts))
@@ -1263,7 +1273,10 @@ fn arc_arc<T: Decide>(
     let dr = (g1.arc.radius - g2.arc.radius).abs();
     match decide("carrier_circles_identity", Margin::of(d + dr), band)? {
         Sign::Zero | Sign::Negative => {
-            // Cocircular: span overlap on the shared carrier.
+            // Cocircular: span overlap on the shared carrier. Every end
+            // lies on it, so the span alone decides each, and an end
+            // strictly inside the other span is an overlap, not the
+            // touch [`touches`] would read.
             let mut contacts = Vec::new();
             for (host, q) in [(g1, s2.a), (g1, s2.b), (g2, s1.a), (g2, s1.b)] {
                 match arc_span(host, q, band)? {
@@ -1288,6 +1301,7 @@ fn arc_arc<T: Decide>(
         }
         Sign::Positive => {
             let mut contacts = Vec::new();
+            let spans = |q| (arc_span(g1, q, band), arc_span(g2, q, band));
             let sum = g1.arc.radius + g2.arc.radius;
             match decide("carrier_circles_external", Margin::of(d - sum), band)? {
                 Sign::Positive => {}
@@ -1295,10 +1309,7 @@ fn arc_arc<T: Decide>(
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
                     // identity margin, so the division is safe.
                     let q = g1.arc.centre + delta * (g1.arc.radius / d);
-                    let tangency = (arc_span(g1, q, band), arc_span(g2, q, band));
-                    if missed(&mut contacts, tangency, q, CKind::Tangency)? {
-                        end_touches(&mut contacts, s1, s2, band)?;
-                    }
+                    candidates(&mut contacts, (s1, s2), &[q], CKind::Tangency, spans, band)?;
                 }
                 Sign::Negative => {
                     match decide("carrier_circles_internal", Margin::of(d - dr), band)? {
@@ -1311,10 +1322,14 @@ fn arc_arc<T: Decide>(
                             let a =
                                 (d.powi(2) + g1.arc.radius.powi(2) - g2.arc.radius.powi(2)) / two_d;
                             let q = g1.arc.centre + (delta / d) * a;
-                            let tangency = (arc_span(g1, q, band), arc_span(g2, q, band));
-                            if missed(&mut contacts, tangency, q, CKind::Tangency)? {
-                                end_touches(&mut contacts, s1, s2, band)?;
-                            }
+                            candidates(
+                                &mut contacts,
+                                (s1, s2),
+                                &[q],
+                                CKind::Tangency,
+                                spans,
+                                band,
+                            )?;
                         }
                         Sign::Positive => {
                             // Proper secant: d > |Δr| definitely, so
@@ -1326,14 +1341,15 @@ fn arc_arc<T: Decide>(
                                 (d.powi(2) + g1.arc.radius.powi(2) - g2.arc.radius.powi(2)) / two_d;
                             let h = (g1.arc.radius.powi(2) - a.powi(2)).sqrt();
                             let foot = g1.arc.centre + u * a;
-                            let mut any_missed = false;
-                            for q in [foot + n * h, foot - n * h] {
-                                let crossing = (arc_span(g1, q, band), arc_span(g2, q, band));
-                                any_missed |= missed(&mut contacts, crossing, q, CKind::Crossing)?;
-                            }
-                            if any_missed {
-                                end_touches(&mut contacts, s1, s2, band)?;
-                            }
+                            let crossings = [foot + n * h, foot - n * h];
+                            candidates(
+                                &mut contacts,
+                                (s1, s2),
+                                &crossings,
+                                CKind::Crossing,
+                                spans,
+                                band,
+                            )?;
                         }
                     }
                 }
@@ -1343,31 +1359,38 @@ fn arc_arc<T: Decide>(
     }
 }
 
-/// Reads one candidate contact `q` of two carriers from each span's
-/// reading of it ([`joint`]): held by both, it is a contact, of kind
-/// `interior` inside both spans and a touch at an end; in band on
-/// either, it escalates. Returns whether a span definitely missed it,
-/// which settles `q` and nothing more: the caller then asks the
-/// segments' ends ([`end_touches`]).
-fn missed<T: Decide>(
+/// Reads the candidate contacts of two carriers, `points`, each from
+/// the two spans' readings of it (`spans`, through [`joint`]): held by
+/// both, a candidate is a contact, of kind `interior` inside both spans
+/// and a touch at an end; in band on either, it escalates. A candidate
+/// a span definitely misses settles that point and nothing more, so the
+/// pair then reads its ends ([`end_touches`]).
+fn candidates<T: Decide>(
     contacts: &mut Vec<Contact<T>>,
-    (m1, m2): (Result<Sign, Indeterminate>, Result<Sign, Indeterminate>),
-    q: Point2<T>,
+    (s1, s2): (&Seg<T>, &Seg<T>),
+    points: &[Point2<T>],
     interior: CKind,
-) -> Result<bool, Indeterminate> {
-    Ok(match joint(m1, m2)? {
-        None => true,
-        Some(j) => {
-            contacts.push(Contact {
+    spans: impl Fn(Point2<T>) -> (Result<Sign, Indeterminate>, Result<Sign, Indeterminate>),
+    band: Band,
+) -> Result<(), Indeterminate> {
+    let mut missed = false;
+    for &q in points {
+        let (m1, m2) = spans(q);
+        match joint(m1, || m2)? {
+            None => missed = true,
+            Some(j) => contacts.push(Contact {
                 point: q,
                 kind: match j {
                     Joint::Interior => interior,
                     Joint::Boundary => CKind::Touch,
                 },
-            });
-            false
+            }),
         }
-    })
+    }
+    if missed {
+        end_touches(contacts, s1, s2, band)?;
+    }
+    Ok(())
 }
 
 /// The touches of two segments whose carriers meet near a candidate
@@ -1381,10 +1404,16 @@ fn missed<T: Decide>(
 /// the other has one local minimum per candidate and grows away from
 /// it, so the points of each segment within ε of the other carrier form
 /// stretches whose ends inside that zone are segment ends. Two such
-/// stretches meet only where an end of one lies in the other: the pair
-/// touches exactly where an end stands within ε of the other segment,
-/// and is apart where every end is either past that reach or off the
-/// other span.
+/// stretches meet only where an end of one lies in the other, so in the
+/// reals the pair comes within ε exactly where some end does.
+///
+/// The reading of that is one-sided. An end within ε of the other
+/// segment never reads clear: each margin is at most the end's distance
+/// from the segment. An end further off reads a touch or escalates out
+/// to Kε from the carrier and to the span reading's reach past the
+/// span's end, which is Kε along a line but grows toward a full turn
+/// along an arc ([`arc_span`]'s compression): a refusal, never an
+/// acceptance.
 fn end_touches<T: Decide>(
     contacts: &mut Vec<Contact<T>>,
     s1: &Seg<T>,
@@ -1406,27 +1435,39 @@ fn end_touches<T: Decide>(
 
 /// Whether the point `p` touches the segment `host`: it lies on the
 /// host's carrier (`chord_side`, or `circle_side` for an arc), and the
-/// host's span holds its projection onto that carrier (`line_span`, or
-/// `arc_span` of its radial projection). A definite answer either way
-/// settles it before an in-band one escalates, as at [`joint`]: a point
-/// off the carrier, or whose projection the span misses, is no touch.
+/// host's span holds its projection onto that carrier.
 fn touches<T: Decide>(host: &Seg<T>, p: Point2<T>, band: Band) -> Result<bool, Indeterminate> {
-    let (on, held) = match &host.kind {
-        SegKind::Line => (
-            chord_side(host, p, band).map(|(side, _)| side),
-            line_span(host, p, band),
-        ),
+    let side = match &host.kind {
+        SegKind::Line => chord_side(host, p, band).map(|(side, _)| side),
+        SegKind::Arc(g) => circle_side(g, p, band),
+    };
+    touches_from(host, p, side, band)
+}
+
+/// [`touches`], from `p`'s side of the host's carrier as already read.
+/// On the carrier the point is held by it, and off it, on either side,
+/// missed, so [`joint`] settles the pair of readings: a definite miss
+/// of the carrier or of the span (`line_span`, or `arc_span` of the
+/// radial projection) is no touch, and only then does an in-band
+/// reading escalate.
+fn touches_from<T: Decide>(
+    host: &Seg<T>,
+    p: Point2<T>,
+    side: Result<Sign, Indeterminate>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let on = side.map(|side| match side {
+        Sign::Zero => Sign::Positive,
+        Sign::Positive | Sign::Negative => Sign::Negative,
+    });
+    let held = || match &host.kind {
+        SegKind::Line => line_span(host, p, band),
         SegKind::Arc(g) => {
-            let radial = p - g.arc.centre;
-            let foot = g.arc.centre + radial * (g.arc.radius / radial.norm());
-            (circle_side(g, p, band), arc_span(g, foot, band))
+            let foot = g.arc.centre + (p - g.arc.centre) * (g.arc.radius / g.arc.rim(p));
+            arc_span(g, foot, band)
         }
     };
-    match (on, held) {
-        (Ok(Sign::Positive | Sign::Negative), _) | (_, Ok(Sign::Negative)) => Ok(false),
-        (Err(source), _) | (_, Err(source)) => Err(source),
-        (Ok(Sign::Zero), Ok(Sign::Zero | Sign::Positive)) => Ok(true),
-    }
+    Ok(joint(on, held)?.is_some())
 }
 
 /// A grazing ray: the parity question could not be answered definitely
@@ -1732,7 +1773,114 @@ mod pair_contact_tests {
         ]
     }
 
-    fn wrong(scalar: &str, rows: Vec<(&'static str, Read, Read)>) -> Vec<String> {
+    /// The rows whose touching end stands at an edge of the band off the
+    /// other carrier, the pair's candidate missed by more than Kε: an
+    /// arc of the circle tangent to y = 0 at the origin stops short of
+    /// it, so that its end stands `δ` above the line (`chord_side`),
+    /// outside the circle under it (`circle_side`, positive) or inside
+    /// the circle of radius 2 around it (`circle_side`, negative), each
+    /// holding the end's foot. Within ε the end touches; in band it
+    /// escalates; past Kε the pair is apart.
+    fn band_edge_rows<T: Decide>() -> Vec<(String, Read, Read)> {
+        let t = Tol::witness().get();
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let (eps, k) = (t.eps, t.k);
+        let quarter = std::f64::consts::FRAC_PI_2;
+        let pi = std::f64::consts::PI;
+        // How far short of the origin the arc stops for its end to stand
+        // `δ` off each carrier, in the half-angle forms that keep `δ`'s
+        // own digits.
+        let over_line = |delta: f64| 2.0 * (delta / 2.0).sqrt().asin();
+        let over_below = |delta: f64| 2.0 * ((2.0 * delta + delta * delta) / 8.0).sqrt().asin();
+        let inside_around = |delta: f64| 4.0 * (delta.sqrt() / 2.0).asin();
+        let short = |alpha: f64| arc::<T>((0.0, 1.0), 1.0, pi, quarter - alpha, band);
+        let line = line::<T>((-1.0, 0.0), (1.0, 0.0), band);
+        let below = arc::<T>((0.0, -1.0), 1.0, pi, -(quarter + 0.1), band);
+        let around = arc::<T>((0.0, 2.0), 2.0, pi, quarter + 0.1, band);
+        let mut rows = Vec::new();
+        for (name, delta) in [
+            ("0.5ε", 0.5 * eps),
+            ("0.999ε", 0.999 * eps),
+            ("1.001ε", 1.001 * eps),
+            ("2ε", 2.0 * eps),
+            ("0.999Kε", 0.999 * k * eps),
+            ("1.001Kε", 1.001 * k * eps),
+            ("2Kε", 2.0 * k * eps),
+        ] {
+            let want = |predicate| match delta {
+                d if d <= eps => Ok(1),
+                d if d <= k * eps => Err(Some(predicate)),
+                _ => Ok(0),
+            };
+            rows.push((
+                format!("an end {name} above the line"),
+                want("chord_side"),
+                read(&line, &short(over_line(delta)), band),
+            ));
+            rows.push((
+                format!("an end {name} outside the circle under the line"),
+                want("circle_side"),
+                read_arcs(&short(over_below(delta)), &below, band),
+            ));
+            rows.push((
+                format!("an end {name} inside the circle around it"),
+                want("circle_side"),
+                read_arcs(&short(inside_around(delta)), &around, band),
+            ));
+        }
+        rows
+    }
+
+    /// **An end reads clear past the span reading's reach, and not
+    /// before it**, at `f64` and at `Interval`. Past a line's end that
+    /// reach is Kε. Past an arc's end, along its carrier, it is the arc
+    /// length at which `arc_span`'s chordal margin leaves the band:
+    /// s* = 2r·asin(sin(θ/4) + Kε/2r) − rθ/2 for extent θ, about
+    /// Kε/cos(θ/4), which grows without bound toward a full turn. Off
+    /// the carrier the reach is Kε.
+    #[test]
+    fn an_end_reads_clear_only_past_the_span_readings_reach() {
+        fn reads<T: Decide>(band: Band) -> Vec<String> {
+            let t = Tol::witness().get();
+            let ke = t.k * t.eps;
+            let at = |angle: f64, r: f64| (r * angle.cos(), r * angle.sin());
+            let mut wrong = Vec::new();
+            let mut check = |name: String, host: &Seg<T>, p: (f64, f64), clear: bool| {
+                let got = touches(host, pt(p), band);
+                if matches!(got, Ok(false)) != clear {
+                    wrong.push(format!("{name}: clear {clear}, read {got:?}"));
+                }
+            };
+            let line = line::<T>((0.0, 0.0), (1.0, 0.0), band);
+            for f in [0.99, 1.01] {
+                check(
+                    format!("{f}·Kε past a line's end"),
+                    &line,
+                    (-f * ke, 0.0),
+                    f > 1.0,
+                );
+                check(format!("{f}·Kε off a line"), &line, (0.5, f * ke), f > 1.0);
+            }
+            let quarter = std::f64::consts::FRAC_PI_2;
+            for theta in [quarter, 2.0 * quarter, 3.0 * quarter, 6.0, 6.2] {
+                let host = arc::<T>((0.0, 0.0), 1.0, 0.0, theta, band);
+                let reach = 2.0 * ((theta / 4.0).sin() + ke / 2.0).asin() - theta / 2.0;
+                for f in [0.99, 1.01] {
+                    let name = format!("{f}·s* past the end of an arc of extent {theta:.3}");
+                    check(name, &host, at(-f * reach, 1.0), f > 1.0);
+                    let name = format!("{f}·Kε off an arc of extent {theta:.3}");
+                    check(name, &host, at(theta / 2.0, 1.0 + f * ke), f > 1.0);
+                }
+            }
+            wrong
+        }
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let mut wrong_reads = reads::<f64>(band);
+        wrong_reads.extend(reads::<Interval>(band));
+        assert!(wrong_reads.is_empty(), "{}", wrong_reads.join("\n"));
+    }
+
+    fn wrong<N: std::fmt::Display>(scalar: &str, rows: Vec<(N, Read, Read)>) -> Vec<String> {
         rows.into_iter()
             .filter(|(_, want, got)| want != got)
             .map(|(name, want, got)| format!("{scalar}: {name}: want {want:?}, got {got:?}"))
@@ -1752,6 +1900,17 @@ mod pair_contact_tests {
     fn a_pair_reads_no_contact_only_off_both_segments() {
         let mut wrong_rows = wrong("f64", rows::<f64>());
         wrong_rows.extend(wrong("Interval", rows::<Interval>()));
+        assert!(wrong_rows.is_empty(), "{}", wrong_rows.join("\n"));
+    }
+
+    /// **An end at an edge of the band reads as its distance says**, at
+    /// `f64` and at `Interval`: within ε of the other segment it
+    /// touches, in band it escalates on the carrier reading, and past Kε
+    /// the pair is apart ([`band_edge_rows`]).
+    #[test]
+    fn an_end_at_the_band_edge_touches_escalates_or_clears() {
+        let mut wrong_rows = wrong("f64", band_edge_rows::<f64>());
+        wrong_rows.extend(wrong("Interval", band_edge_rows::<Interval>()));
         assert!(wrong_rows.is_empty(), "{}", wrong_rows.join("\n"));
     }
 }
