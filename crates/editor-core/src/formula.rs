@@ -177,18 +177,30 @@ impl Formula {
         if !value.is_finite() {
             return Err(DimensionError::NonFiniteLiteral);
         }
-        Ok(Self::own_leaf(
+        // A dimensionless value has no notation to remember, so it is
+        // the bare number its text is ([`Formula::number`]).
+        if dim == Dimension::Scalar {
+            return Ok(match exact_ratio(value) {
+                Some(ratio) => Self::ratio_leaf(ratio),
+                None => Self::quantity_leaf(value, dim, unit),
+            });
+        }
+        Ok(Self::quantity_leaf(value, dim, unit))
+    }
+
+    /// The written quantity `value` in `unit`, read at `dim`, unchecked.
+    fn quantity_leaf(value: f64, dim: Dimension, unit: UnitSym) -> Self {
+        Self::own_leaf(
             AuthoredLeaf::Quantity(Quantity {
                 value,
                 unit,
                 distribution: None,
             }),
             dim,
-        ))
+        )
     }
 
-    /// A written dimensionless value, in the dimensionless unit: the
-    /// edit door mints a free `Scalar` variable holding it.
+    /// A dimensionless number ([`Formula::number`]).
     ///
     /// # Errors
     ///
@@ -202,18 +214,17 @@ impl Formula {
     /// in range whose value has `value`'s bits (`2.0`, `0.1`), and a
     /// written dimensionless value otherwise (`0.30000000000000004`,
     /// `-0.0`). Inside a formula the one is a constant and the other a
-    /// variable; at a slot's root either mints a free `Scalar` (VR6).
+    /// variable; at a slot's root either mints a free `Scalar` (VR6). A
+    /// dimensionless value has no notation to remember, so this is what
+    /// every door writing one stores ([`Formula::literal`] at
+    /// [`Dimension::Scalar`] included), and what its text reads back
+    /// as.
     ///
     /// # Errors
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
     pub fn number(value: f64) -> Result<Self, DimensionError> {
-        match crate::expr::Ratio::from_decimal(&format!("{value:?}")) {
-            Ok(ratio) if ratio.eval::<f64>().to_bits() == value.to_bits() => {
-                Ok(Self::ratio_leaf(ratio))
-            }
-            _ => Self::scalar(value),
-        }
+        Self::scalar(value)
     }
 
     /// A written quantity from an AUTHORED length — the value and
@@ -288,12 +299,15 @@ impl Formula {
     }
 
     /// This lone written quantity carrying `distribution` (ERROR-DESIGN
-    /// E1/E2): the variable the door mints for it carries it.
+    /// E1/E2): the variable the door mints for it carries it. A lone
+    /// dimensionless number becomes the written value it equals, since
+    /// a toleranced number is a value and not a constant.
     ///
     /// # Errors
     ///
-    /// [`crate::DistributionRefusal::NotAWrittenValue`] where this is
-    /// not one written quantity, and
+    /// [`crate::DistributionRefusal::CountHasNoAnnotation`] for a lone
+    /// integer, [`crate::DistributionRefusal::NotAWrittenValue`] where
+    /// this is not one written quantity or number, and
     /// [`crate::DistributionRefusal::Invalid`] for a distribution that
     /// breaks an E2 invariant.
     pub fn with_distribution(
@@ -310,6 +324,19 @@ impl Formula {
                 q.distribution = distribution;
                 Ok(self)
             }
+            // A toleranced number is a written value, not a constant.
+            &mut ExprKind::Ratio(ratio) => {
+                let mut value = Self::quantity_leaf(
+                    ratio.eval(),
+                    Dimension::Scalar,
+                    UnitSym::canonical_for(Dimension::Scalar),
+                );
+                if let ExprKind::Leaf(AuthoredLeaf::Quantity(q)) = value.kind_mut() {
+                    q.distribution = distribution;
+                }
+                Ok(value)
+            }
+            ExprKind::Integer(_) => Err(crate::DistributionRefusal::CountHasNoAnnotation),
             _ => Err(crate::DistributionRefusal::NotAWrittenValue),
         }
     }
@@ -335,17 +362,27 @@ impl Formula {
         }
     }
 
-    /// A lone written quantity's exact canonical-units value (`None`
-    /// for any other formula) — with [`Formula::display_unit`], the
-    /// display formatter's read surface.
+    /// The exact canonical-units value of a lone written quantity, or
+    /// of a lone dimensionless number (its correctly-rounded double);
+    /// `None` for any other formula — with [`Formula::display_unit`],
+    /// the display formatter's read surface.
     pub fn literal_value(&self) -> Option<f64> {
-        self.as_quantity().map(Quantity::value)
+        match self.kind() {
+            ExprKind::Leaf(AuthoredLeaf::Quantity(q)) => Some(q.value()),
+            ExprKind::Ratio(ratio) => Some(ratio.eval()),
+            _ => None,
+        }
     }
 
-    /// The display unit of a lone written quantity — `None` for every
-    /// other formula, because only a quantity is WRITTEN in a unit.
+    /// The display unit of a lone written quantity, and the
+    /// dimensionless row for a lone dimensionless number — `None` for
+    /// every other formula, because only a value is WRITTEN in a unit.
     pub fn display_unit(&self) -> Option<quantity::UnitDef> {
-        self.as_quantity().map(Quantity::unit)
+        match self.kind() {
+            ExprKind::Leaf(AuthoredLeaf::Quantity(q)) => Some(q.unit()),
+            ExprKind::Ratio(_) => Some(UnitSym::canonical_for(Dimension::Scalar).def()),
+            _ => None,
+        }
     }
 
     /// A variable by name, read at `dim`: lowered to a reader of the
@@ -513,6 +550,14 @@ impl Formula {
             other => leaf_fault(other, dim, scope, fresh).map(|var| Expr::var(var, dim)),
         })
     }
+}
+
+/// The exact rational constant whose value has `value`'s bits and whose
+/// text is `value`'s shortest decimal, where one is in range.
+pub(crate) fn exact_ratio(value: f64) -> Option<crate::expr::Ratio> {
+    crate::expr::Ratio::from_decimal(&format!("{value:?}"))
+        .ok()
+        .filter(|ratio| ratio.eval::<f64>().to_bits() == value.to_bits())
 }
 
 /// **The variable a name or fresh leaf lowers to**, read at `dim`, or

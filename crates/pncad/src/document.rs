@@ -171,6 +171,9 @@ pub use editor_core::{
 // `DimensionError` is the refusal `Formula`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
+// `Ratio` is the exact constant a formula holds (VR5) and `Quantity` a
+// written value (VR6), which `Formula::as_ratio` / `as_quantity` hand
+// back, so a caller reading a formula can name what it holds.
 // `unparse` is `parse_formula`'s inverse, the text door OUTWARD: the
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
@@ -179,14 +182,14 @@ pub use editor_core::{
 // which expression the edit replaces.
 pub use editor_core::{
     AuthoredLeaf, AuthoredNode, Dimension, DimensionError, Expr, ExprPath, ExprTree, Formula,
-    FreshFault, LeafSet, LowerFault, NameFault, ParseError, Slot, StoredLeaf, Unlowered, VarEnv,
-    parse_formula, unparse,
+    FreshFault, LeafSet, LowerFault, NameFault, ParseError, Quantity, Ratio, Slot, StoredLeaf,
+    Unlowered, VarEnv, parse_formula, unparse,
 };
 
 // The expression READ side: an expression's current value under a
 // document's parameter environment (`Doc::var_env`). A panel that
-// shows a slot before editing it needs this — `Expr::literal_value`
-// answers only for a bare literal, and a slot driven by
+// shows a slot before editing it needs this — `Formula::literal_value`
+// answers only for a lone written quantity, and a slot driven by
 // `width/2 - margin` has a value the consumer otherwise cannot obtain
 // without re-implementing the evaluator. `EvalError` rides along so a
 // slot whose value cannot be computed says which parameter is missing

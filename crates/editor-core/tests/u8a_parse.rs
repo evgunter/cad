@@ -707,17 +707,17 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
     );
 
     // The dimensionless row is the one whose notation is the ABSENCE of
-    // a suffix, so a written Scalar writes bare digits — and `2.0`
-    // rather than `2`, because a bare integer is a `Count` in this
-    // grammar. Bare digits are a constant's spelling, so it reads back
-    // as the constant it equals: the one place the round trip
-    // normalises.
+    // a suffix, so a dimensionless value is the bare number its digits
+    // are — `2.0` rather than `2`, because a bare integer is a `Count`
+    // in this grammar — and the constant it equals where one spells it
+    // exactly. One that no constant in range spells is a written value,
+    // and its digits read back as one.
     let scalar = Formula::literal(2.0, Dimension::Scalar).expect("finite scalar");
-    assert_eq!(scalar.display_unit().map(|u| u.symbol()), Some(""));
-    let text = unparse(&scalar, &|_| None);
-    assert_eq!(text, "2.0");
-    assert_eq!(rp(&text).as_ratio(), editor_core::Ratio::new(2, 1).ok());
-    assert_eq!(round_trip(&rp(&text)), "2.0");
+    assert_eq!(scalar.as_ratio(), editor_core::Ratio::new(2, 1).ok());
+    assert_eq!(round_trip(&scalar), "2.0");
+    let inexact = Formula::literal(0.1 + 0.2, Dimension::Scalar).expect("finite scalar");
+    assert_eq!(inexact.display_unit().map(|u| u.symbol()), Some(""));
+    assert_eq!(round_trip(&inexact), "0.30000000000000004");
 }
 
 /// **A minus sign directly before a number is that literal's own**, so

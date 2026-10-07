@@ -2861,8 +2861,19 @@ class Formula:
         `Formula.written_angle(WrittenAngle.in_unit(value, unit))`."""
     @staticmethod
     def count(value: int) -> Formula:
-        """A `Count` literal — the exact integer a structural slot
-        takes. Total: every integer is a count."""
+        """An exact integer: a constant inside a formula, and at a
+        structural slot's root the count it takes. Total: every integer
+        is a count."""
+    @staticmethod
+    def ratio(num: int, den: int) -> Formula:
+        """The exact rational constant `num / den`: a constant inside a
+        formula, a written dimensionless value at a slot's root.
+        `LiteralError` (`kind` `"constant_out_of_range"`) for a zero
+        denominator, or a reduced numerator or denominator past 2^53."""
+    @staticmethod
+    def turn() -> Formula:
+        """One full rotation, the exact angle constant: a right angle is
+        `turn / 4`."""
     @property
     def dimension(self) -> str:
         """`"length"`, `"angle"`, `"count"` or `"scalar"`."""
@@ -2871,10 +2882,10 @@ class Formula:
         """The source text this reads back as (`unparse`)."""
     @property
     def literal_value(self) -> Optional[float]:
-        """The number a BARE literal carries, in canonical kernel
-        units, or None for anything else — including a count literal,
-        since handing a count back as a float is the implicit
-        promotion the expression language refuses."""
+        """The number a lone written value or dimensionless number
+        carries, in canonical kernel units, or None for anything else —
+        including a count, since handing a count back as a float is
+        the implicit promotion the expression language refuses."""
     @property
     def params(self) -> list[VarName]:
         """The variable names this reads, sorted and without
@@ -2898,10 +2909,6 @@ class Expr:
         """The source text this reads back as, a variable written as
         its full id, `#<16 hex>`; `Doc.unparse` writes the names a
         document holds."""
-    @property
-    def literal_value(self) -> Optional[float]:
-        """The number a BARE literal carries, in canonical kernel
-        units, or None for anything else."""
     def __eq__(self, other: object) -> bool: ...
 
 class VarName:

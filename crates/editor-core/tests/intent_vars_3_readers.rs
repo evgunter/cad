@@ -579,8 +579,13 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
     assert_eq!(anonymous.slot(blend, SlotId::Radius), Some(w));
     assert_eq!(
         anonymous.unparse(&editor_core::Expr::var(w, Dimension::Length)),
+        "0.125 m",
+        "an anonymous reader writes what it holds"
+    );
+    assert_eq!(
+        editor_core::unparse(&editor_core::Expr::var(w, Dimension::Length), &|_| None),
         format!("#{}", w.full()),
-        "an anonymous reader writes its full id"
+        "and its full id where no document speaks it"
     );
     match try_step(&anonymous, DocEdit::DeleteVar { var: w.into() }) {
         Err(EditError::DeleteAnonymousVar { var }) => assert_eq!(var.id(), w),

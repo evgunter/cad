@@ -106,10 +106,11 @@ fn mismatched_display_unit_refuses_at_construction() {
         Err(DimensionError::DisplayUnitMismatch { .. }) => {}
         other => panic!("deg on a Scalar literal must refuse, got {other:?}"),
     }
-    // The dimensionless row is the one a Scalar literal MAY name, and
-    // it is the one `Formula::literal` gives it.
+    // The dimensionless row is the one a Scalar value MAY name, and it
+    // is the one `Formula::literal` gives a written one (a value no
+    // exact constant spells; one that is spelled is that constant).
     assert_eq!(
-        Formula::literal_with_unit(0.5, Dimension::Scalar, table_row(""))
+        Formula::literal_with_unit(0.1 + 0.2, Dimension::Scalar, table_row(""))
             .expect("the dimensionless row suits a Scalar")
             .display_unit()
             .map(|u| u.symbol()),
@@ -153,8 +154,9 @@ fn wire_door_refuses_unknown_units_and_writes_every_one() {
     let back: Formula = serde_json::from_str(&json).unwrap();
     assert_eq!(back.display_unit().map(|u| u.symbol()), Some("m"));
 
-    // Including the dimensionless one, whose symbol is empty.
-    let scalar = Formula::literal(0.5, Dimension::Scalar).unwrap();
+    // Including the dimensionless one, whose symbol is empty, on a
+    // written dimensionless value.
+    let scalar = Formula::literal(0.1 + 0.2, Dimension::Scalar).unwrap();
     let json = serde_json::to_string(&scalar).unwrap();
     assert!(
         json.contains(r#""unit":"""#),
@@ -279,6 +281,16 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         // `1.0 == 1.0`. 2.5 distinguishes all three.
         let e = Formula::literal_with_unit(2.5, dim, row)
             .unwrap_or_else(|err| panic!("{} is a table row: {err:?}", row.symbol()));
+        // The dimensionless row names no notation to remember: 2.5 in it
+        // is the bare number 5/2, which persists as that constant and
+        // reads back from its digits.
+        if row.symbol().is_empty() {
+            assert_eq!(e.as_ratio(), editor_core::Ratio::new(5, 2).ok());
+            let bytes = serde_json::to_vec(&e).expect("a constant serializes");
+            assert_eq!(bytes, golden_wire_form("").as_bytes());
+            assert!(parse_formula("2.5", &no_params()).unwrap().bit_eq(&e));
+            continue;
+        }
         assert_eq!(
             e.display_unit().expect("the authored unit is stored"),
             row,
@@ -291,15 +303,7 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         let text = format!("2.5 {}", row.symbol());
         let read = parse_formula(&text, &no_params())
             .unwrap_or_else(|err| panic!("`{text}` must parse: {err:?}"));
-        // The dimensionless row has no suffix to read, and bare digits
-        // spell the constant they equal: the written value is the
-        // constructor's alone.
-        let parsed = if row.symbol().is_empty() {
-            assert_eq!(read.as_ratio(), editor_core::Ratio::new(5, 2).ok(), "{text}");
-            e.clone()
-        } else {
-            read
-        };
+        let parsed = read;
         assert_eq!(
             parsed.dim(),
             dim,
@@ -392,10 +396,9 @@ const UNIT_WIRE_GOLDEN: [(&str, &str); 8] = [
         "pi rad",
         r#"{"Quantity":{"value":7.853981633974483,"dim":"Angle","unit":"pi rad"}}"#,
     ),
-    // The dimensionless row: its symbol is the empty string, and it is
-    // on the wire exactly as every other unit is. `2.5` with no
-    // multiply — the factor is 1.0 and there is nothing to convert.
-    ("", r#"{"Quantity":{"value":2.5,"dim":"Scalar","unit":""}}"#),
+    // The dimensionless row: `2.5` in it is the bare number 5/2, and
+    // persists as that exact constant.
+    ("", r#"{"Ratio":{"num":5,"den":2}}"#),
 ];
 
 fn golden_wire_form(symbol: &str) -> &'static str {

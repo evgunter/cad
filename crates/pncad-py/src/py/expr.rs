@@ -262,6 +262,27 @@ impl Formula {
         Self(d::Formula::count(value))
     }
 
+    /// The exact rational constant `num / den` (`Formula::ratio`):
+    /// inside a formula a constant, at a slot's root a written
+    /// dimensionless value. `LiteralError` with `kind`
+    /// `"constant_out_of_range"` for a zero denominator, or where the
+    /// reduced numerator or denominator exceeds 2^53.
+    #[staticmethod]
+    fn ratio(py: Python<'_>, num: i64, den: u64) -> PyResult<Self> {
+        #[allow(clippy::cast_precision_loss)]
+        let value = num as f64 / den as f64;
+        d::Formula::ratio(num, den)
+            .map(Self)
+            .map_err(|err| literal_err(py, value, &err))
+    }
+
+    /// One full rotation, the exact angle constant (`Formula::turn`): a
+    /// right angle is a quarter of it.
+    #[staticmethod]
+    fn turn() -> Self {
+        Self(d::Formula::turn())
+    }
+
     /// What this expression measures: `"length"`, `"angle"`,
     /// `"count"` or `"scalar"`.
     ///

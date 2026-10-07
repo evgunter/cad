@@ -378,6 +378,8 @@ pub trait LeafSet: Clone + core::fmt::Debug + PartialEq + sealed::Sealed {
     /// Whether the leaf's text is a number, whose sign a minus written
     /// before it is read as ([`unparse`]).
     fn numeric(&self) -> bool;
+    /// The leaf as an author writes it.
+    fn authored(&self) -> AuthoredLeaf;
     /// The leaf's value, read at the continuous dimension `dim`.
     ///
     /// # Errors
@@ -470,6 +472,9 @@ impl LeafSet for StoredLeaf {
         match *self {}
     }
     fn numeric(&self) -> bool {
+        match *self {}
+    }
+    fn authored(&self) -> AuthoredLeaf {
         match *self {}
     }
     fn value<T: Real>(&self, _dim: Dimension) -> Result<T, EvalError> {
@@ -578,6 +583,9 @@ impl LeafSet for AuthoredLeaf {
     }
     fn numeric(&self) -> bool {
         matches!(self, Self::Quantity(_))
+    }
+    fn authored(&self) -> AuthoredLeaf {
+        self.clone()
     }
     fn value<T: Real>(&self, dim: Dimension) -> Result<T, EvalError> {
         match unlowered(self, dim) {
@@ -1523,6 +1531,14 @@ impl<L: LeafSet> ExprTree<L> {
 
 // The constants both forms share.
 impl<L: LeafSet> ExprTree<L> {
+    /// This tree as an author writes it: every leaf kept.
+    pub(crate) fn to_formula(&self) -> crate::Formula {
+        let Ok(formula) = self.try_map_leaves(&mut |leaf, dim| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::own_leaf(leaf.authored(), dim))
+        });
+        formula
+    }
+
     /// The exact rational constant `num / den`, dimension `Scalar`.
     ///
     /// # Errors
@@ -2037,9 +2053,7 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
 /// [`ExprTree::bit_eq`] to `e` — same tree, so the same nesting, and the
 /// same value BITS — and its quantities remember the same display
 /// units (which `bit_eq` deliberately does not compare, being
-/// presentation metadata). The one exception is a written `Scalar`
-/// value: it has no unit to suffix, so its text reads back as the
-/// constant it spells where one is in range. Parentheses are emitted where and only
+/// presentation metadata). Parentheses are emitted where and only
 /// where the grammar needs them to reproduce the same tree, which is
 /// stricter than "the same value": the parser is left-associative, so
 /// `Add(a, Add(b, c))` is parenthesised even though `a + b + c`
@@ -2052,7 +2066,9 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
 /// to the canonical unit for the values that have no preimage in the
 /// asked-for one. A `Scalar` one takes no unit and is written with a
 /// decimal point or an exponent, because a BARE integer is this
-/// grammar's spelling of a `Count`. A rational constant is written as
+/// grammar's spelling of a `Count`; it is one no constant in range
+/// spells exactly ([`crate::Formula::number`]), so its digits read back
+/// as a written value. A rational constant is written as
 /// a decimal where its denominator is a product of twos and fives and
 /// as `p/q` otherwise ([`Ratio`]'s `Display`), and one full rotation
 /// as `turn`.

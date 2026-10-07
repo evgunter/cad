@@ -1250,8 +1250,9 @@ impl<P> Doc<P> {
     /// one read more than once — by two slots, as a fresh entry shared
     /// within one edit, or by a slot and a definition — which a written
     /// re-insert splits into one per reader, and a bare number read by
-    /// a definition — a count, or an untoleranced scalar — which written
-    /// there can read back as a constant.
+    /// a definition — a count, or an untoleranced scalar a constant
+    /// spells exactly — which written there reads back as that
+    /// constant.
     /// Rebuilding a document by re-inserting its nodes as written is
     /// the document only where this is empty and no anonymous variable
     /// was value-edited after its insert (whose mint read the old
@@ -1286,17 +1287,16 @@ impl<P> Doc<P> {
             .filter(|var| {
                 reads.get(var).copied().unwrap_or(0) > 1
                     || (defining.contains(var)
-                        && matches!(
-                            self.free(*var),
-                            Some(
-                                FreeVar::Count { .. }
-                                    | FreeVar::Continuous {
-                                        dim: Dimension::Scalar,
-                                        distribution: None,
-                                        ..
-                                    }
-                            )
-                        ))
+                        && match self.free(*var) {
+                            Some(FreeVar::Count { .. }) => true,
+                            Some(&FreeVar::Continuous {
+                                dim: Dimension::Scalar,
+                                value,
+                                distribution: None,
+                                ..
+                            }) => crate::formula::exact_ratio(value).is_some(),
+                            _ => false,
+                        })
             })
             .collect()
     }
@@ -1492,10 +1492,16 @@ impl<P> Doc<P> {
         }
     }
 
-    /// **The text of `expr`**, its readers written by the names this
-    /// document holds ([`crate::unparse`]).
+    /// **The text of `expr`**, as written: its readers of a named
+    /// variable written by the names this document holds, each reader
+    /// of an anonymous one by what it holds ([`Self::written`]) — a
+    /// written value in its unit (`5 mm`), a definition expanded — and
+    /// a reader of a variable the document does not hold by its full id
+    /// ([`crate::unparse`]).
     pub fn unparse<L: crate::expr::LeafSet>(&self, expr: &crate::expr::ExprTree<L>) -> String {
-        crate::expr::unparse(expr, &|id| self.var_names.get(&id))
+        crate::expr::unparse(&self.written_formula(&expr.to_formula()), &|id| {
+            self.var_names.get(&id)
+        })
     }
 
     /// The variables, by id.
@@ -1781,8 +1787,14 @@ impl<P> Doc<P> {
     /// replaced by what it holds ([`Self::slot_expansion`]); `expr`
     /// itself where that would nest past the bound.
     pub fn written(&self, expr: &Expr) -> crate::Formula {
-        self.anonymous_expansion(expr)
-            .unwrap_or_else(|_| crate::Formula::from(expr))
+        self.written_formula(&crate::Formula::from(expr))
+    }
+
+    /// [`Self::written`] of a formula: each reader of an anonymous
+    /// variable replaced by what it holds, the rest as written.
+    fn written_formula(&self, formula: &crate::Formula) -> crate::Formula {
+        self.anonymous_expansion(formula)
+            .unwrap_or_else(|_| formula.clone())
     }
 
     /// **`expr` expanded only along `path`**: each anonymous definition
@@ -1812,8 +1824,11 @@ impl<P> Doc<P> {
 
     /// `expr` with every reader of an anonymous variable replaced by
     /// what it holds ([`Self::slot_expansion`]).
-    fn anonymous_expansion(&self, expr: &Expr) -> Result<crate::Formula, crate::DimensionError> {
-        crate::Formula::from(expr).substitute_vars(&mut |var| {
+    fn anonymous_expansion(
+        &self,
+        formula: &crate::Formula,
+    ) -> Result<crate::Formula, crate::DimensionError> {
+        formula.substitute_vars(&mut |var| {
             if self.var_names.contains_key(&var) {
                 return None;
             }
@@ -1839,7 +1854,9 @@ impl<P> Doc<P> {
                     *dim,
                 )),
                 crate::VarDef::Free(FreeVar::Count { value }) => Some(crate::Formula::count(*value)),
-                crate::VarDef::Defined(defined) => self.anonymous_expansion(defined).ok(),
+                crate::VarDef::Defined(defined) => {
+                    self.anonymous_expansion(&crate::Formula::from(defined)).ok()
+                }
             }
         })
     }
