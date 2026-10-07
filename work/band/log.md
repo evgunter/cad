@@ -752,3 +752,32 @@ Declined: `#[non_exhaustive]` on `Unfinished`, because the one foreign match
 should break the build on a new case. Filed:
 `restfront/dual-operand-read-passes-an-orientation-it-cannot-measure`.
 Not changed: `common::cavity::cut`'s re-gate (66 callers).
+
+## 2026-10-07 — a straight cap edge clear of the cut-off's sliver carves (PR #4271)
+
+The cut-off sliver's clearance meter read a cap edge only as wholly inside
+the ball's section, wholly beyond the reach, or wholly short of the floor,
+so an edge that left the enclosure Ω by different faces refused where it
+was clear. `line_clearance` now reads a straight edge exactly: the least of
+Ω's defining function over its ends, the radial foot and the terms'
+pairwise crossings, at every scalar (a quotient whose divisor's bracket
+meets zero is skipped; soundness against the sliver rests on the ends).
+Three rectangular-hole witnesses carve, at `Interval` too, and the
+keyhole at `r = BR` carves at its closed form. The half-plane wedge near
+the feet had no witness on main (pinned as a row).
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the `Interval` collapse at a floor-parallel edge;
+- a cancellation far from the centre;
+- a candidate-set fuzzer that can go red, at both scalars;
+- an independent Ω oracle;
+- the filed rows corrected.
+
+Filed: `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver`,
+`cap-sliver-meter-reads-a-curved-edge-term-by-term`.
+
+Claim 1 (a bore wholly inside the sliver dying with it) is NOT built. The
+unit row stays open, re-titled to that question: may a blend delete an
+authored feature wholly inside the material it removes? It goes to Ev
+after the designer protocol (both designers recommend building it).
