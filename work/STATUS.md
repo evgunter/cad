@@ -1592,13 +1592,13 @@ area `kernel`; prefix `join/`; tag `(JOIN orchestrator)`.
 | P1 | `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once` | issue | H | open | A transverse plane across a one-face closed wall meets its wrap edge at one point, and the join refuses SingleSiteSectionLoop; not a coincidence, so not held by D10 |  |  |
 | P1 | `a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc` | issue | M | open | A roof-cross valley corner on a cube's edge refuses JoinDesync 'every chord arc separates a loose scaffolding pair' every op |  |  |
 | P1 | `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` | issue | H | open | Two spheres crossing in a circle no edge reaches refuse SpheresMeet: a ball whose seam lies inside another ball's face, plain or carved |  |  |
-| P1 | `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` | issue | M +design | open | A vertex two crossing pairs cut refuses ClassificationInvariant: the In end of one null edge and the Out end of another | a-pinch-no-kept-face-can-cross-refuses |  |
+| P1 | `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` | issue | M | open | A vertex two crossing pairs cut refuses ClassificationInvariant: the In end of one null edge and the Out end of another |  |  |
 | P1 | `an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact` | issue | M | open | A cube ∪/∖ L-prism whose top edge lies exactly in the cube's face plane ships a body with an undeclared contact (tier 3′ red, pre-existing) |  |  |
 | P1 | `cylinder-sphere-germ-pair-has-no-join-lane` | issue | H +design | open | A transverse cylinder wall x sphere germ pair has its section frame and no chord lane at the join (CurvedBooleanUnsupported): its section is a space quartic, and every lane rides a plane |  |  |
 | P1 | `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times` | issue | M | open | The cylinder x sphere walls' tangency is decided at two sites under two names and two radius conventions, and the axis-to-centre offset is computed three times |  |  |
 | P1 | `skew-cylinder-germ-pair-has-no-section-frame` | issue | M | open | Two cylinder walls with skew axes reach the join and refuse GermFrameUnsupported: their quartic section has no frame |  |  |
 | P1 | `the-cone-vertices-at-a-pinch-share-the-pierce-points-key` | issue | M | open | A pinch's cone vertices that descend from one pierce point sit on two point keys: tier 3′ refuses VertexVertex, and the output-stage join kills one |  |  |
-| P1 | `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` | issue | H | open | The pre-zip pinch weld (finish::weld_pinches) stays as the repair of an operand's coincident pierces; it retires once those split per cone (D10 ground) |  |  |
+| P1 | `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` | issue | H | open | The pre-zip pinch weld (finish::weld_pinches) stays as the repair of an operand's coincident pierces; it retires once those split per cone (D10 ground) | d10-one-way-to-say-intent-is-unbuilt |  |
 | P1 | `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses` | issue | M | open | The pierce sweep's oracle convex_volume misreads some corner-pair poses, so a want can be wrong |  |  |
 | P1 | `torus-germ-pairs-have-no-section-frame` | issue | H +design | open | A torus wall against a sphere, a cylinder or another torus reaches the join and refuses GermFrameUnsupported: no frame names its section |  |  |
 | P1 | `a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync` | issue | M | parked | A flush wedge sunk into a block, its continuation declared, refuses its intersect and subtract JoinDesync though every face is planar | d10-one-way-to-say-intent-is-unbuilt |  |
@@ -2486,11 +2486,11 @@ Blocked: no orchestrator, and no row that can be picked up.
 | `a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts` | join | open | d10-one-way-to-say-intent-is-unbuilt |
 | `a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
 | `a-tube-ending-on-a-ball-refuses-section-loop-mixed` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
-| `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` | join | open | a-pinch-no-kept-face-can-cross-refuses |
 | `closed-in-face-section-loop-has-one-site` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
 | `declared-flush-intersect-refuses-in-one-operand-order` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
 | `peg-in-socket-union-refuses-join-desync-at-a-coarse-eps` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
 | `reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
+| `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` | join | open | d10-one-way-to-say-intent-is-unbuilt |
 | `a-box-independent-mate-fault-bisects-the-whole-leaf-budget` | msolve | parked | d10-one-way-to-say-intent-is-unbuilt, the-box-driver-carries-no-part-resolver |
 | `a-box-over-a-solved-clocking-widens-thirty-thousandfold` | msolve | parked | d10-one-way-to-say-intent-is-unbuilt |
 | `a-clocking-rider-is-levered-unreduced` | msolve | parked | d10-one-way-to-say-intent-is-unbuilt |
