@@ -22,7 +22,9 @@
 //!   hangs struts there before the pair would read it;
 //! - **two blocks in face contact**, one body built through the Euler
 //!   doors, against the standing pyramid, whose apex pierces both
-//!   blocks' faces at a point of their contact.
+//!   blocks' faces at a point of their contact, and against the prism,
+//!   whose first pierce there hangs struts before the second would read
+//!   the orbit.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -50,7 +52,7 @@ fn standing(bearing: f64, rise: f64, r: f64, pose: &Pose) -> AtRestBody<f64> {
     };
     // Counterclockwise seen from below, the apex's side.
     let base = [corner(15.0, r), corner(-15.0, r), corner(0.0, 0.6 * r)];
-    posed_pyramid(&base, MEET, pose)
+    posed_pyramid(&base, MEET, pose, t())
 }
 
 fn union_of(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> AtRestBody<f64> {
@@ -125,7 +127,7 @@ fn every_op(
 #[test]
 fn a_vertex_piercing_a_face_and_paired_on_it_refuses_typed_in_every_op() {
     for pose in poses() {
-        let plate = posed_box("the plate", PLATE, &pose);
+        let plate = posed_box("the plate", PLATE, &pose, t());
         let cone = standing(240.0, 0.7, 0.5, &pose);
         let one = union_of(
             "the plate and one arch",
@@ -142,7 +144,7 @@ fn a_vertex_piercing_a_face_and_paired_on_it_refuses_typed_in_every_op() {
         let arches = union_of("the plate and the arches", &plate, &arches);
         every_op("the arches", &cone, &arches, &pose, "pair", false);
         every_op("one standing pyramid", &cone, &one, &pose, "pair", false);
-        let prism = posed_prism(&wedge(200.0, 260.0, 0), &pose);
+        let prism = posed_prism(&wedge(200.0, 260.0, 0), &pose, t());
         every_op("a prism through the top", &prism, &one, &pose, "pair", true);
     }
 }
@@ -156,8 +158,21 @@ fn a_vertex_piercing_two_faces_refuses_typed_in_every_op() {
             "two blocks in face contact",
             &[PLATE, [(0.5, 2.5), (0.5, 1.5), (1.0, 1.5)]],
             &pose,
+            t(),
         );
         let cone = standing(240.0, 0.7, 0.5, &pose);
         every_op("two blocks", &cone, &blocks, &pose, "pierce", false);
+        // The prism's edge crosses the contact at `MEET`, so its first
+        // pierce hangs struts there: only a refusal before that pass
+        // writes keeps the second pierce off the written orbit.
+        let prism = posed_prism(&wedge(200.0, 260.0, 0), &pose, t());
+        every_op(
+            "a prism through two blocks",
+            &prism,
+            &blocks,
+            &pose,
+            "pierce",
+            true,
+        );
     }
 }

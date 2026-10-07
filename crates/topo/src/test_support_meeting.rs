@@ -517,18 +517,7 @@ pub fn poses() -> Vec<Pose> {
 
 /// A box `[x, y, z]` placed by `pose`, built under the caller's `tol`.
 pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
-    let [(x0, x1), (y0, y1), z] = b;
-    let mut body = Body::<f64>::new();
-    prism_ops(
-        &mut body,
-        &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-        z,
-        |x, y, z| pose.at([x, y, z]),
-        FaceGeometry::Certified,
-        tol,
-    );
-    describe_as_intersections(&mut body, tol);
-    finished(what, body, tol)
+    posed_boxes(what, &[b], pose, tol)
 }
 
 /// A hole's prism placed by `pose`, built under the caller's `tol`.
@@ -547,16 +536,15 @@ pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     finished("a tilted prism", body, tol)
 }
 
-/// A pyramid placed by `pose`: its apex, and its base's corners
-/// counterclockwise seen from the apex's side.
+/// A pyramid placed by `pose`, built under the caller's `tol`: its apex,
+/// and its base's corners counterclockwise seen from the apex's side.
 ///
 /// # Panics
 ///
 /// Where an Euler operator refuses, or the pyramid is not a finished
 /// body (a base wound clockwise from the apex is inside out).
 #[allow(clippy::unwrap_used)]
-pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose) -> AtRestBody<f64> {
-    let tol = Tol::witness();
+pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     let n = base.len();
     assert!(n >= 3, "a pyramid needs at least three base corners");
     let bot: Vec<_> = base.iter().map(|&q| pose.at(q)).collect();
@@ -643,9 +631,15 @@ pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose) -> AtRestBo
     finished("a pyramid", body, tol)
 }
 
-/// Boxes `[x, y, z]` placed by `pose`, as the solids of one body: where
-/// two touch, the body holds its own contact there.
-pub fn posed_boxes(what: &str, boxes: &[[(f64, f64); 3]], pose: &Pose) -> AtRestBody<f64> {
+/// Boxes `[x, y, z]` placed by `pose`, as the solids of one body, built
+/// under the caller's `tol`: where two touch, the body holds its own
+/// contact there.
+pub fn posed_boxes(
+    what: &str,
+    boxes: &[[(f64, f64); 3]],
+    pose: &Pose,
+    tol: Tol,
+) -> AtRestBody<f64> {
     let mut body = Body::<f64>::new();
     for &[(x0, x1), (y0, y1), z] in boxes {
         prism_ops(
@@ -654,9 +648,9 @@ pub fn posed_boxes(what: &str, boxes: &[[(f64, f64); 3]], pose: &Pose) -> AtRest
             z,
             |x, y, z| pose.at([x, y, z]),
             FaceGeometry::Certified,
-            Tol::witness(),
+            tol,
         );
     }
-    describe_as_intersections(&mut body, Tol::witness());
-    finished(what, body, Tol::witness())
+    describe_as_intersections(&mut body, tol);
+    finished(what, body, tol)
 }

@@ -2313,11 +2313,13 @@ pub enum BooleanError {
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
-        /// That vertex.
+        /// That vertex: a key of the operand's working copy, which the
+        /// sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// Two of the other operand's vertices at its point that it
         /// crosses into, in classification order: the first two, when
-        /// it crosses into more.
+        /// it crosses into more. Keys of the other operand's working
+        /// copy, as `vertex` is.
         partners: [VertexKey; 2],
     },
     /// A vertex of `operand` pierces a face of the other solid with
@@ -2331,7 +2333,8 @@ pub enum BooleanError {
     PierceRunsNested {
         /// The piercing operand.
         operand: Operand,
-        /// Its piercing vertex.
+        /// Its piercing vertex: a key of the operand's working copy,
+        /// which the sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// How many Out runs it has against the face.
         runs: usize,
@@ -2346,9 +2349,11 @@ pub enum BooleanError {
     VertexReadTwice {
         /// The operand whose vertex is read twice.
         operand: Operand,
-        /// That vertex.
+        /// That vertex: a key of the operand's working copy, which the
+        /// sweep may have minted on one of its edges.
         vertex: VertexKey,
-        /// Its first two reads, in pass order: the first is a pierce.
+        /// Its first pierce, then its next read: a second pierce, or a
+        /// pair.
         reads: [SectorRead; 2],
     },
     /// The result would hold a non-manifold vertex: both operands hold

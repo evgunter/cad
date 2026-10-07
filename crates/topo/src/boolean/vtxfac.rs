@@ -73,40 +73,38 @@ use crate::validate::decide;
 use geom_core::Tol;
 
 /// Refuses [`BooleanError::VertexReadTwice`] where a vertex is read by
-/// two sector passes, before the first pass writes. Each pass reads its
-/// vertex's orbit as its operand gave it, and a vertex-on-face pass
-/// hangs struts at its piercing vertex: so a piercing vertex pierces
-/// one face and sits in no vertex-vertex pair. A vertex in several
-/// pairs is not refused here, since the vertex-vertex passes read every
-/// pair before the first writes.
+/// two sector passes, before any pass writes. A vertex-on-face pass
+/// hangs struts at its piercing vertex and a vertex-vertex pass inserts
+/// at its paired vertices, so whichever runs second would read an orbit
+/// the first wrote: a piercing vertex pierces one face and sits in no
+/// pair. A vertex in several pairs is not refused here, since the
+/// vertex-vertex passes read every pair before the first writes.
 pub(super) fn refuse_sector_rereads(contacts: &ContactRecords) -> Result<(), BooleanError> {
     for (operand, pierced) in [
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
-        let mut first = std::collections::BTreeMap::new();
-        let pairs = contacts.vv.iter().map(|c| match operand {
-            Operand::A => (c.a, SectorRead::Pair(c.b)),
-            Operand::B => (c.b, SectorRead::Pair(c.a)),
-        });
-        let reads = pierced
-            .iter()
-            .map(|c| (c.vertex, SectorRead::Pierce(c.face)))
-            .chain(pairs);
-        for (vertex, read) in reads {
-            let pierce = matches!(read, SectorRead::Pierce(_));
-            match first.get(&vertex) {
-                Some(&earlier) => {
-                    return Err(BooleanError::VertexReadTwice {
-                        operand,
-                        vertex,
-                        reads: [earlier, read],
-                    });
-                }
-                None if pierce => {
-                    first.insert(vertex, read);
-                }
-                None => {}
+        let twice = |vertex, reads| BooleanError::VertexReadTwice {
+            operand,
+            vertex,
+            reads,
+        };
+        let mut pierces = std::collections::BTreeMap::new();
+        for c in pierced {
+            if let Some(&face) = pierces.get(&c.vertex) {
+                let reads = [SectorRead::Pierce(face), SectorRead::Pierce(c.face)];
+                return Err(twice(c.vertex, reads));
+            }
+            pierces.insert(c.vertex, c.face);
+        }
+        for c in &contacts.vv {
+            let (own, other) = match operand {
+                Operand::A => (c.a, c.b),
+                Operand::B => (c.b, c.a),
+            };
+            if let Some(&face) = pierces.get(&own) {
+                let reads = [SectorRead::Pierce(face), SectorRead::Pair(other)];
+                return Err(twice(own, reads));
             }
         }
     }
