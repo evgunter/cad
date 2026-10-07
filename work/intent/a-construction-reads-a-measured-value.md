@@ -2,11 +2,11 @@
 id: a-construction-reads-a-measured-value
 kind: issue
 title: Stage 2 FORK-5: may a construction's slot read a measured value (a driven dimension)?
-status: open
+status: closed
 opened: 2026-10-07
 priority: P0
 cost: E
-needs_ev: true
+closed: 2026-10-07
 refs: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
@@ -14,3 +14,4 @@ After stage 2, a `Measure` defines a scalar variable, and D10 lets any slot read
 
 Weighed by a designer pair over two rounds, which converged: a construction reads only what was written, and a measured ("observed") value is read only by an assertion. The question and both reports are in the `[ev]` PR. Ev's answer closes this row and writes the D10 sentence.
 
+**Ruled (Ev, 2026-10-07, PR 4218):** a construction reads what was written; a measured (observed) variable, and any definition reading one, is read only by an assertion. Ev: "i don't know if we'd want this feature eventually, but certainly there's no need to support it now", so driven dimensions are deferred, not refused for good.
