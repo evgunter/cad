@@ -302,6 +302,9 @@ pub(super) struct NullPlan<T: geom_core::Real> {
     pub contact: VvContact,
     /// One `[A, B]` run per null-edge pair, in A's walk order.
     runs: Vec<[SideRun<T>; 2]>,
+    /// How many germs each solid's walk orders, two per run: the
+    /// length of the walk [`SideRun::walk`] reads positions in.
+    walk_len: usize,
 }
 
 /// Validates codes, pairs survivors and reads every germ's cells and
@@ -333,6 +336,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     let mut plan = NullPlan {
         contact,
         runs: Vec::new(),
+        walk_len: survivors.len(),
     };
     if survivors.is_empty() {
         return Ok(plan); // touching without crossing: 3′ contact only
@@ -437,9 +441,14 @@ pub(super) fn plan_null_pairs<T: Decide>(
     // F12 guard 1: the pairs do not cross in B's walk order either
     // ([`b_runs`]), checked for every pair before the first mint.
     let pairs: Vec<(usize, usize)> = a_order.chunks(2).map(|c| (c[0], c[1])).collect();
-    let b_runs = b_runs(n, &pairs, &b_pos).ok_or(BooleanError::PairingMismatch {
-        a_vertex: contact.a,
-        b_vertex: contact.b,
+    let b_runs = b_runs(n, &pairs, &b_pos).map_err(|refusal| match refusal {
+        ArcRefusal::Crossing => BooleanError::PairingMismatch {
+            a_vertex: contact.a,
+            b_vertex: contact.b,
+        },
+        ArcRefusal::Cover => BooleanError::ClassificationInvariant {
+            what: "two runs of a plan read from its walk's first entry cover the walk",
+        },
     })?;
     let shared = pairs.len() > 1;
     for (&(i0, i1), &(b_run, _)) in pairs.iter().zip(&b_runs) {
@@ -570,12 +579,12 @@ fn walk_run(n: usize, p0: usize, p1: usize) -> Option<bool> {
 /// runs are intervals of B's walk read from its first entry: disjoint
 /// or nested. A pair whose run holds another's
 /// mints first, and the one it holds mints at its copy ([`mint_plans`]).
-/// `None`: two pairs cross, and the walks are not two simple links'.
+/// [`ArcRefusal::Crossing`]: two pairs cross, and the walks are not two simple links'.
 fn b_runs(
     n: usize,
     pairs: &[(usize, usize)],
     b_pos: &[usize],
-) -> Option<Vec<(Option<bool>, Option<usize>)>> {
+) -> Result<Vec<(Option<bool>, Option<usize>)>, ArcRefusal> {
     let runs: Vec<Option<bool>> = pairs
         .iter()
         .map(|&(i0, i1)| walk_run(n, b_pos[i0], b_pos[i1]))
@@ -589,7 +598,16 @@ fn b_runs(
         })
         .collect();
     let holders = arc_holders(n, &arcs)?;
-    Some(runs.into_iter().zip(holders).collect())
+    Ok(runs.into_iter().zip(holders).collect())
+}
+
+/// Why [`arc_holders`] refuses a plan's arcs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ArcRefusal {
+    /// An arc holds one end of another: their pairs cross in the walk.
+    Crossing,
+    /// Two arcs each hold the other's ends, so they cover the walk.
+    Cover,
 }
 
 /// **Which of one plan's runs holds which, read as arcs of their
@@ -597,14 +615,15 @@ fn b_runs(
 /// `from`'s first, and the run is the arc walked forward between them.
 /// A run holds another when its arc holds both the other's positions;
 /// returns each run's innermost holder, the shortest arc holding it.
-/// The runs' pairs cannot cross in a simple link's walk ([`b_runs`]),
-/// and turning a run onto its complement keeps its ends, so two arcs
-/// are disjoint, nested, or each holds the other's ends: they then
-/// cover the walk between them, a turned run and a run of its plan
-/// that held it, and refuse (`None`), as does an arc holding one
-/// position of another (two pairs crossing). Otherwise every run's
-/// holders nest, and the innermost names the rest.
-fn arc_holders(n: usize, arcs: &[[usize; 2]]) -> Option<Vec<Option<usize>>> {
+/// Refuses [`ArcRefusal::Crossing`] where an arc holds one position of
+/// another: two pairs crossing, which only [`b_runs`] can meet, as it
+/// checks a reading of B's walk. Two arcs of non-crossing pairs, either
+/// way round, are disjoint, nested, or each holds the other's ends, so
+/// a turn ([`reconcile_pass`]), which keeps a run's ends, can only make
+/// two runs cover the walk between them: [`ArcRefusal::Cover`], which no
+/// known pose reaches. Otherwise every run's holders nest, and the
+/// innermost names the rest.
+fn arc_holders(n: usize, arcs: &[[usize; 2]]) -> Result<Vec<Option<usize>>, ArcRefusal> {
     let len = |[from, to]: [usize; 2]| (to + n - from) % n;
     let past = |a: [usize; 2], p: usize| {
         let d = (p + n - a[0]) % n;
@@ -615,15 +634,25 @@ fn arc_holders(n: usize, arcs: &[[usize; 2]]) -> Option<Vec<Option<usize>>> {
     for k in 0..arcs.len() {
         let mut holders = Vec::new();
         for o in (0..arcs.len()).filter(|&o| o != k) {
-            match holds(o, k) {
-                [true, true] if holds(o, k) != holds(k, o) => holders.push(o),
-                [false, false] => {}
-                _ => return None,
+            match (holds(o, k), holds(k, o)) {
+                ([true, false] | [false, true], _) | (_, [true, false] | [false, true]) => {
+                    return Err(ArcRefusal::Crossing);
+                }
+                ([true, true], [true, true]) => return Err(ArcRefusal::Cover),
+                ([true, true], _) => holders.push(o),
+                _ => {}
             }
         }
-        out.push(holders.into_iter().min_by_key(|&o| len(arcs[o])));
+        let inner = holders.iter().copied().min_by_key(|&o| len(arcs[o]));
+        debug_assert!(
+            inner.is_none_or(|i| holders
+                .iter()
+                .all(|&o| o == i || holds(o, i) == [true, true])),
+            "the holders of run {k} nest: {arcs:?}"
+        );
+        out.push(inner);
     }
-    Some(out)
+    Ok(out)
 }
 
 /// The survivors' walk order round one solid's orbit, read from its
@@ -755,11 +784,19 @@ pub(super) fn mint_plans<T: Decide>(
             } else {
                 None
             };
-            // A held run after every run that holds it; then the shared
-            // vertex's struts before its fans. A held run lies inside its
-            // holders, which the reconcile cleared of every other pair's
-            // cut ([`reconcile_pass`]), so its strut nests none of theirs.
-            let held = run(at).held.map_or(0, |h| h.depth);
+            // A run a fan holds after every run that holds it, at the
+            // fan's copy: the reconcile cleared that fan of every other
+            // pair's cut ([`reconcile_pass`]), so nothing there nests a
+            // strut of theirs. A run only struts hold mints at the plan's
+            // own vertex, whose struts another pair's strut may nest in
+            // ([`held_cut`] leaves a nested strut to [`holds_whole`]), so
+            // it sorts among that vertex's struts by its nesting `depth`,
+            // which counts its own holders. Then the vertex's struts before
+            // its fans.
+            let held = run(at)
+                .held
+                .filter(|h| h.fan.is_some())
+                .map_or(0, |h| h.depth);
             keyed.push((held, depth.is_none(), depth.unwrap_or(0), n));
         }
         keyed.sort();
@@ -1014,10 +1051,11 @@ pub(crate) struct Hang {
 /// keeps what lies outside the plan's outermost runs, with the other
 /// pairs' ends, and each copy what its own fan holds, so no vertex is
 /// the In end of one null edge and the Out end of another
-/// ([`mint_directed`]). A turned run and a run of its plan that held it
-/// would cover the walk between them, and refuse
-/// [`BooleanError::SharedVertexCrossings`]. Returns each vertex where
-/// a run was hung.
+/// ([`mint_directed`]). A run only struts hold stays at the shared
+/// vertex, among its struts ([`mint_plans`]). A turned run and a run of
+/// its plan that held it would cover the walk between them, and refuse
+/// [`BooleanError::SharedVertexCrossings`]: a backstop no known pose
+/// reaches. Returns each vertex where a run was hung.
 fn hang_at_shared<T: Decide>(
     plans: &mut [NullPlan<T>],
     sectors: &[Orbits<'_, T>],
@@ -1039,11 +1077,17 @@ fn hang_at_shared<T: Decide>(
                 partners: [at.partner, ends(plans[at.others[0]].contact, slot).1],
             };
             let arcs: Vec<[usize; 2]> = runs.iter().map(|r| r.walk).collect();
+            debug_assert_eq!(plans[i].walk_len, 2 * runs.len(), "two germs per run");
             let holders =
-                arc_holders(2 * runs.len(), &arcs).ok_or(BooleanError::SharedVertexCrossings {
-                    operand: hang.operand,
-                    vertex: hang.vertex,
-                    partners: hang.partners,
+                arc_holders(plans[i].walk_len, &arcs).map_err(|refusal| match refusal {
+                    ArcRefusal::Cover => BooleanError::SharedVertexCrossings {
+                        operand: hang.operand,
+                        vertex: hang.vertex,
+                        partners: hang.partners,
+                    },
+                    ArcRefusal::Crossing => BooleanError::ClassificationInvariant {
+                        what: "two runs of one plan cross in its walk after the reconcile",
+                    },
                 })?;
             let held = held_by(&holders, &strut);
             if held.iter().any(Option::is_some) {
@@ -2678,25 +2722,29 @@ mod tests {
     fn arc_holders_nest_the_runs_a_turn_reroots_and_refuse_a_cover() {
         assert_eq!(
             arc_holders(6, &[[0, 5], [1, 4], [2, 3]]),
-            Some(vec![None, Some(0), Some(1)]),
+            Ok(vec![None, Some(0), Some(1)]),
             "nested: the innermost holder"
         );
         assert_eq!(
             arc_holders(6, &[[1, 4], [2, 3], [5, 0]]),
-            Some(vec![None, Some(0), None]),
+            Ok(vec![None, Some(0), None]),
             "the plan's nesting"
         );
         assert_eq!(
             arc_holders(6, &[[4, 1], [2, 3], [5, 0]]),
-            Some(vec![None, None, Some(0)]),
+            Ok(vec![None, None, Some(0)]),
             "the turn holds the run outside it, and leaves the one inside"
         );
         assert_eq!(
             arc_holders(6, &[[0, 5], [4, 1]]),
-            None,
+            Err(ArcRefusal::Cover),
             "a turned run and its holder cover the walk"
         );
-        assert_eq!(arc_holders(4, &[[0, 2], [1, 3]]), None, "crossing");
+        assert_eq!(
+            arc_holders(4, &[[0, 2], [1, 3]]),
+            Err(ArcRefusal::Crossing),
+            "crossing"
+        );
         let held = held_by(&[None, Some(0), Some(1)], &[false, true, false]);
         assert_eq!(
             held.iter()
@@ -2719,7 +2767,7 @@ mod tests {
         let b_pos = [2, 3, 0, 5, 1, 4];
         assert_eq!(
             b_runs(6, &pairs, &b_pos),
-            Some(vec![
+            Ok(vec![
                 (Some(false), None),
                 (Some(false), None),
                 (Some(true), Some(0)),
@@ -2731,7 +2779,7 @@ mod tests {
         let turned = b_pos.map(|p| (p + 3) % 6);
         assert_eq!(
             b_runs(6, &pairs, &turned),
-            Some(vec![
+            Ok(vec![
                 (Some(true), None),
                 (Some(false), Some(0)),
                 (Some(true), None),
@@ -2740,12 +2788,12 @@ mod tests {
         );
         assert_eq!(
             b_runs(4, &[(0, 2), (1, 3)], &[0, 1, 2, 3]),
-            None,
+            Err(ArcRefusal::Crossing),
             "crossing"
         );
         assert_eq!(
             b_runs(4, &[(0, 1), (2, 3)], &[0, 1, 2, 3]),
-            Some(vec![(Some(false), None), (Some(false), None)]),
+            Ok(vec![(Some(false), None), (Some(false), None)]),
             "four, adjacent"
         );
     }
@@ -2798,7 +2846,11 @@ mod tests {
                 if crossing {
                     if n <= 8 {
                         let b_pos: Vec<usize> = (0..n).collect();
-                        assert_eq!(b_runs(n, m, &b_pos), None, "crossing {m:?}");
+                        assert_eq!(
+                            b_runs(n, m, &b_pos),
+                            Err(ArcRefusal::Crossing),
+                            "crossing {m:?}"
+                        );
                     }
                     continue;
                 }
@@ -2815,7 +2867,7 @@ mod tests {
                             .collect();
                         let b_pos: Vec<usize> = (0..n).collect();
                         let runs = b_runs(n, &pairs, &b_pos)
-                            .unwrap_or_else(|| panic!("refused {pairs:?}"));
+                            .unwrap_or_else(|e| panic!("refused {pairs:?}: {e:?}"));
                         let span = |k: usize| {
                             let (i0, i1) = pairs[k];
                             match runs[k].0 {

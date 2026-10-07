@@ -2315,7 +2315,8 @@ pub enum BooleanError {
     /// one holds (`insert::holds_whole`).
     /// It also refuses where a run the shared vertex turned and a run of
     /// its own pair that held it would together cover the orbit, so
-    /// neither can hang from the other (`insert::arc_holders`). Emitted
+    /// neither can hang from the other (`insert::arc_holders`): a
+    /// backstop no known pose reaches. Emitted
     /// by the insertion only: `insert::reconcile_pass` and
     /// `insert::hang_at_shared`.
     SharedVertexCrossings {
