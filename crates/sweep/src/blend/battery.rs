@@ -41,7 +41,8 @@ use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Ve
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
+    BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, line_meet, plane_plane_blend,
+    plane_sphere_blend,
 };
 use super::build::fan_at;
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
@@ -454,6 +455,29 @@ pub struct BatteryVerdict<T: Real> {
     /// uniform trihedra the corner patch carves are not listed: that
     /// configuration has no tag of its own ([`corner_at`]).
     pub end_faces: Vec<(VertexKey, EndSection<T>)>,
+    /// The open-chain ends predicate 6 classified
+    /// [`CornerConfig::Turn`], each decided isosceles once though two
+    /// chains end there, sorted by vertex. The planar band's plan reads
+    /// each turn off this list rather than re-reading the trihedron.
+    pub turns: Vec<Turn<T>>,
+}
+
+impl<T: Real> BatteryVerdict<T> {
+    /// The coincidences the battery decided from values, in vertex
+    /// order (D10's record; no reader yet, [`DecidedCoincidence`]).
+    pub fn coincidences(&self) -> impl Iterator<Item = &DecidedCoincidence<T>> {
+        self.turns.iter().map(|t| &t.coincidence)
+    }
+}
+
+/// What predicate 6 hands the plans at an end the surgery carves with
+/// something other than the corner patch.
+enum EndVerdict<T: Real> {
+    /// A cut-off, and the section its end face cuts.
+    Section(EndSection<T>),
+    /// A turn: its two requested links, in key order, and its
+    /// unrequested edge, for [`turn_at`] to decide once per vertex.
+    Turn(Box<[Link<T>; 2]>, EdgeKey),
 }
 
 /// A face's outward normal at `p`: the implicit gradient folded
@@ -1621,7 +1645,7 @@ fn break_at_turns<T: Real>(chain: Chain<T>, turns: &[usize]) -> Vec<Chain<T>> {
         // lines meet at one corner and are closed by an arc tangent to
         // both, so its one run starts and ends at that corner, where the
         // end names two of three edges, the turn
-        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_and_refuses_the_turn`).
+        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain`).
         debug_assert!(run.is_empty(), "a closed chain's runs end at turns");
     }
     runs.into_iter()
@@ -1781,24 +1805,36 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // end is judged beside the link that reaches it and against the
     // request, whose count of the vertex's edges decides the end.
     let mut end_faces = Vec::new();
+    let mut turns: Vec<Turn<T>> = Vec::new();
     for chain in &chains {
         if let ChainClosure::Open { head, tail } = chain.closure {
             let last = chain.rest().last().unwrap_or(chain.first());
             for (v, link) in [(head, chain.first()), (tail, last)] {
-                if let Some(section) = corner_at(body, v, link, &req.edges, r, band, kind)? {
-                    end_faces.push((v, section));
+                match corner_at(body, v, link, &req.edges, r, band, kind)? {
+                    Some(EndVerdict::Section(section)) => end_faces.push((v, section)),
+                    // Both chains a turn ends reach it; it is one turn,
+                    // decided once.
+                    Some(EndVerdict::Turn(links, third))
+                        if !turns.iter().any(|t| t.vertex == v) =>
+                    {
+                        let [l1, l2] = &*links;
+                        turns.push(turn_at(body, v, [l1, l2], third, band)?);
+                    }
+                    Some(EndVerdict::Turn(..)) | None => {}
                 }
             }
         }
     }
     end_faces.sort_by_key(|(v, _)| *v);
     end_faces.dedup_by_key(|(v, _)| *v);
+    turns.sort_by_key(|t| t.vertex);
 
     Ok(BatteryVerdict {
         chains,
         size: req.size,
         kind,
         end_faces,
+        turns,
     })
 }
 
@@ -1936,6 +1972,182 @@ pub enum EndSection<T: Real> {
     /// cosine of the tilt, along the tilt's trace. The plan carries it
     /// to the spine's crossing.
     Ellipse(Curve3<T>),
+}
+
+/// The refusal for a turn whose trihedron is definitely not isosceles
+/// about its unrequested edge. It names what the verdict read, the two
+/// face angles beside that edge, and claims nothing about where the
+/// bands would meet: at supplementary face angles a chamfer's two feet
+/// on the edge coincide, and that turn refuses here too.
+pub const TURN_NOT_ISOSCELES: &str = "two requested edges turn at a vertex where they make \
+     different angles with its third edge; a mitre is built only where the two are equal";
+
+/// **A turn predicate 6 admitted**: two of a trivalent vertex's three
+/// edges requested, the third, `edge`, not, and the trihedron decided
+/// isosceles about it ([`turn_at`]). The two bands meet along their
+/// intersection, from `crossing` on the face they share down to
+/// `foot`, where `edge` ends. The battery's reading of the trihedron is
+/// the only one: the planar band's plan carves from these fields.
+#[derive(Clone, Debug)]
+pub struct Turn<T: Real> {
+    /// The vertex the two bands end at.
+    pub vertex: VertexKey,
+    /// The two requested edges, in key order; `others` and `out` are
+    /// in the same order.
+    pub requested: [EdgeKey; 2],
+    /// The unrequested edge.
+    pub edge: EdgeKey,
+    /// The face both requested edges bound.
+    pub shared: FaceKey,
+    /// Each requested edge's other support: a face of `edge`.
+    pub others: [FaceKey; 2],
+    /// Each requested edge's unit direction out of `vertex`.
+    pub out: [Vec3<T>; 2],
+    /// Where the two bands' trimlines on `shared` cross.
+    pub crossing: Point3<T>,
+    /// Where `edge` ends: the midpoint of the two bands' feet on it,
+    /// which the verdict put within its zero band of each other.
+    pub foot: Point3<T>,
+    /// The coincidence the verdict decided (D10's record).
+    pub coincidence: DecidedCoincidence<T>,
+}
+
+/// **A coincidence the battery decided from values** (D10), recorded at
+/// the door that decided it for the `unproven-coincidence` lint. No
+/// reader exists yet: the lint and the one door where every such
+/// record lands are INTENT's stage 4
+/// (`work/intent/value-decided-coincidences-have-no-recording-door.md`).
+#[derive(Clone, Debug)]
+pub enum DecidedCoincidence<T: Real> {
+    /// A turn's trihedron is isosceles about its unrequested edge, so
+    /// the mitre lands on it and four edges meet there. `reading` is
+    /// the margin `fillet3_turn_isosceles` decided Zero ([`turn_at`]).
+    IsoscelesTurn {
+        /// The turn's vertex.
+        vertex: VertexKey,
+        /// The decided reading.
+        reading: T,
+    },
+}
+
+/// **`fillet3_turn_isosceles`** — at a turn, is the trihedron isosceles
+/// about the unrequested edge `third`?
+///
+/// Margin, in meters, the larger of two displacements:
+/// - the difference of the cosines of the two face angles at the
+///   vertex, each between a requested edge and `third` (their unit
+///   directions out of the vertex, dotted), levered at the longer
+///   link's extent;
+/// - the distance between the two bands' feet on `third`, each where
+///   its trimline on its own face of `third` crosses it.
+///
+/// Equal face angles are equal dihedrals at the requested edges, and
+/// then the two feet are one point for either verb, each band's
+/// setback being one function of its dihedral. The cosines alone do
+/// not bound the feet: the feet move as `cos φ / sin³φ` in the face
+/// angle `φ`, so at an acute angle a reading inside the band can leave
+/// them further apart than it. The second term is what puts the
+/// mitre's end, their midpoint, within half the band of each
+/// trimline. Zero builds the mitre and records the coincidence; a
+/// definite reading refuses ([`TURN_NOT_ISOSCELES`]); in band
+/// escalates.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedRunOut`] for a definite reading;
+/// [`BlendError::Escalated`] in band; [`BlendError::BodyNotIntact`]
+/// when the two links share no support or a vertex does not read;
+/// [`BlendError::UnsupportedGeometry`] when a trimline is not a line.
+fn turn_at<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    links: [&Link<T>; 2],
+    third: EdgeKey,
+    band: Band,
+) -> Result<Turn<T>, BlendError> {
+    let [l1, l2] = links;
+    let shared = [l1.face_a, l1.face_b]
+        .into_iter()
+        .find(|f| *f == l2.face_a || *f == l2.face_b)
+        .ok_or_else(|| {
+            not_intact(
+                EntityId::Vertex(vertex),
+                "a turn's two requested edges share no face",
+            )
+        })?;
+    let p = point_at(body, vertex)?;
+    // Each edge's unit direction out of the vertex.
+    let out = |e: EdgeKey| {
+        let far = body.get_edge(e).and_then(|d| {
+            let start = body.get_half_edge(d.he_plus)?.start;
+            if start == vertex {
+                body.half_edge_end(d.he_plus)
+            } else {
+                Some(start)
+            }
+        });
+        far.and_then(|v| body.get_vertex(v))
+            .and_then(|v| body.get_point(v.point))
+            .map(|q| (*q - p).normalize())
+            .ok_or_else(|| not_intact(EntityId::Edge(e), "a turning edge's far end"))
+    };
+    let along = out(third)?;
+    let dirs = [out(l1.edge)?, out(l2.edge)?];
+    let other = |l: &Link<T>| {
+        if l.face_a == shared {
+            l.face_b
+        } else {
+            l.face_a
+        }
+    };
+    let others = [other(l1), other(l2)];
+    let trimline = |l: &Link<T>, f: FaceKey| match l.trim_on(f) {
+        Some((Curve3::Line { origin, dir }, _)) => Ok((*origin, *dir)),
+        _ => Err(unbuilt_geometry(
+            EntityId::Edge(l.edge),
+            "a turning band's trimline is not a line",
+        )),
+    };
+    // Each band's trimline on its face of the third edge, crossed with
+    // that edge's line; and the two on the shared face, crossed.
+    let foot_of = |l: &Link<T>, f: FaceKey| {
+        trimline(l, f).map(|(o, d)| line_meet(o, d, p, along, d.cross(along)))
+    };
+    let (y1, y2) = (foot_of(l1, others[0])?, foot_of(l2, others[1])?);
+    let ((o1, d1), (o2, d2)) = (trimline(l1, shared)?, trimline(l2, shared)?);
+    let crossing = line_meet(o1, d1, o2, d2, d1.cross(d2));
+    let angles = Margin::levered(
+        dirs[0].dot(along) - dirs[1].dot(along),
+        l1.arm_len.max(l2.arm_len),
+    )
+    .value();
+    let margin = Margin::of(angles.abs().max((y2 - y1).norm()));
+    let reading = margin.value();
+    match classify(
+        BlendSite::Joint { vertex },
+        BlendDecision::TurnIsosceles,
+        margin,
+        band,
+    )? {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(super::surgery::unbuilt_run_out(
+                EntityId::Vertex(vertex),
+                TURN_NOT_ISOSCELES,
+            ));
+        }
+    }
+    Ok(Turn {
+        vertex,
+        requested: [l1.edge, l2.edge],
+        edge: third,
+        shared,
+        others,
+        out: dirs,
+        crossing,
+        foot: y1 + (y2 - y1) * T::from_f64(0.5),
+        coincidence: DecidedCoincidence::IsoscelesTurn { vertex, reading },
+    })
 }
 
 /// **`fillet3_cap_transverse`** — the kind-picker for a cylinder band's
@@ -2098,13 +2310,16 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 /// it and against the `requested` edges, returning the CARVED
 /// configuration it classified: `Some` section for a
 /// [`CornerConfig::EndFace`], which the verdict carries for the open
-/// bands' plans to read. A RULED link's end must be a plane cap, its
+/// bands' plans to read, and for a [`CornerConfig::Turn`] its two
+/// requested links, which the caller hands [`turn_at`] once per
+/// vertex. A RULED link's end must be a plane cap, its
 /// section picked by [`cap_transverse`] — and where that is the
 /// ellipse, the cap's three face normals independent
 /// ([`corner_independence`]). Any other link's end is classified as a
 /// trivalent vertex of one convexity with independent support normals,
 /// and then by how many of its three edges the request names: all
-/// three, the corner patch; two, the [`CornerConfig::Turn`], refused;
+/// three, the corner patch; two, the [`CornerConfig::Turn`], whose
+/// trihedron [`turn_at`] decides isosceles about the third edge;
 /// one, [`CornerConfig::EndFace`] — its end face a plane, cutting a
 /// chord from a chamfer and from a fillet the section
 /// [`cap_transverse`] picks. The uniform trihedron returns
@@ -2120,7 +2335,7 @@ fn corner_at<T: Decide + Bounds>(
     radius: T,
     band: Band,
     kind: BlendKind,
-) -> Result<Option<EndSection<T>>, BlendError> {
+) -> Result<Option<EndVerdict<T>>, BlendError> {
     let indeterminate =
         || super::surgery::unbuilt_corner_config(vertex, CornerConfig::Indeterminate);
     // In key order, so the supports below are gathered — and their
@@ -2194,7 +2409,7 @@ fn corner_at<T: Decide + Bounds>(
             }
             corner_independence(vertex, normals, radius, band)?;
         }
-        return Ok(Some(section));
+        return Ok(Some(EndVerdict::Section(section)));
     }
     if valence != 3 {
         return corner_config(
@@ -2242,6 +2457,7 @@ fn corner_at<T: Decide + Bounds>(
     let mut convex = 0usize;
     let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
     let mut faces: Vec<FaceKey> = Vec::new();
+    let mut resolved: Vec<Link<T>> = Vec::with_capacity(edges.len());
     for e in &edges {
         match resolve_link(body, *e, radius, band, kind) {
             Ok(l) => {
@@ -2253,6 +2469,7 @@ fn corner_at<T: Decide + Bounds>(
                         faces.push(f);
                     }
                 }
+                resolved.push(l);
             }
             // An edge at the corner whose own supports are out of the
             // arms' scope makes the CORNER unclassifiable — reported
@@ -2295,19 +2512,30 @@ fn corner_at<T: Decide + Bounds>(
     }
     match (named, end_normal) {
         (3, _) => Ok(None),
-        (2, _) => Err(super::surgery::unbuilt_corner_config(
-            vertex,
-            CornerConfig::Turn,
-        )),
+        (2, _) => {
+            let mut requested_links = resolved.into_iter().filter(|l| requested.contains(&l.edge));
+            let (Some(l1), Some(l2), None) = (
+                requested_links.next(),
+                requested_links.next(),
+                requested_links.next(),
+            ) else {
+                return Err(indeterminate());
+            };
+            let Some(third) = edges.iter().find(|e| !requested.contains(e)) else {
+                return Err(indeterminate());
+            };
+            Ok(Some(EndVerdict::Turn(Box::new([l1, l2]), *third)))
+        }
         // A plane band's section by the end face is a chord at any
         // angle; a cylinder band's is the kind the picker decides.
         (1, Some(normal)) => match kind {
-            BlendKind::Chamfer => Ok(Some(EndSection::Chord)),
+            BlendKind::Chamfer => Ok(Some(EndVerdict::Section(EndSection::Chord))),
             BlendKind::Fillet => {
                 let Surface::Cylinder { axis, .. } = link.blend.surface else {
                     return Err(indeterminate());
                 };
-                cap_transverse(vertex, normal, axis, radius, link.arm_len, band).map(Some)
+                cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
+                    .map(|s| Some(EndVerdict::Section(s)))
             }
         },
         _ => Err(not_intact(
