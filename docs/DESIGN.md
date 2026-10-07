@@ -1229,7 +1229,11 @@ so an operand stays a first-class value after a boolean reads it. The
 product is an explicit list of `Body` variables. A `Face` or `Edge`
 variable is a selection of a `Body` variable by `StableName`, and the
 N5 resolution ladder lives there; deleting a variable leaves its
-readers unresolved, typed, never silently re-pointed.
+readers unresolved, typed, never silently re-pointed. A `Measure`
+defines an *observed* variable, a function of the built geometry
+rather than of what was written; an observed variable, and any
+definition reading one, is read only by an assertion. A construction
+reads what was written.
 
 **Spaces and placement.** A part has no location. A **space** is a set
 of copies related to one another; a part is born in its own space. A
