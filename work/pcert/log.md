@@ -669,3 +669,16 @@ coincidence is now a margined verdict (no declarations), checked by the
   - The fix pass decides Off only from a lower bound, and sweeps all three.
 - **Test gaps** (demonstrated by surviving mutants): five envelope terms and every Villarceau gate.
 - **Fix pass** is with the implementer: session_01Jf5pbwHG7dwojg183pt2vs.
+
+## 2026-10-07 — PR 4227 merged (65af3eca); spline-carrier designers dispatched
+
+- **4227 merged.** `Pcurve::FocalSection` covers both cone sections and Villarceau circles under one closed-form envelope. Incidence on the sphere, cone and torus is one-sided: Off is decided only from a sampled lower bound. A circle on a torus or cone that is in band but is none of its circles refuses as `CarrierGrazesChart`. `UncoveredClass::TorusGeneralCircle` and `::ConeSection` are retired.
+- **Rows:**
+  - Closed: the torus and cone route rows.
+  - Filed: `the-face-whole-excusal-has-no-fixture-on-an-analytic-chart`.
+  - Still open: the incidence issue, for its spline-carrier and no-fitted bullets.
+- **Review: DR-102.**
+  - The concurrent pair's only MAJOR was raised by both reviewers, so the tally is 0.
+  - A single confirming review followed the fix pass: 0 MAJOR, 3 MINOR.
+  - The row was renumbered twice at merge (DR-100, then DR-101), because main took both numbers while CI ran.
+- **Next P1, the spline-carrier route:** an Opus/Fable designer pair is running. The byte, 122, is on `analysis/design-fork/pcert-spline-carrier-route-2026-10-07`. Sessions: session_01QrKCiRg8fQ31Qwsdm8FQ2c and session_012cb8vsD3QyGVpV4oCTU2cZ.
