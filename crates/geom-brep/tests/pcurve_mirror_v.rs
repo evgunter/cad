@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, SpiricImage,
-    SurfaceKey,
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FocalImage, Pcurve,
+    SpiricImage, SurfaceKey,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -138,15 +138,17 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
             0.9,
         ),
         (
-            "ConeSection",
-            Pcurve::ConeSection {
+            "FocalSection",
+            Pcurve::FocalSection(FocalImage {
                 u0: 0.7,
+                t0: 0.375,
                 v0: 2.5,
                 va: -0.75,
                 vb: 0.125,
+                vl: -1.0,
                 beta: 0.3,
                 sense: -1.0,
-            },
+            }),
             -0.4,
             0.9,
         ),
@@ -181,7 +183,7 @@ fn every_variant_appears_in_the_kinds_census() {
             Pcurve::IsoLine { .. } => 3,
             Pcurve::IsoArc { .. } => 4,
             Pcurve::Spiric { .. } => 5,
-            Pcurve::ConeSection { .. } => 6,
+            Pcurve::FocalSection(_) => 6,
         };
         seen[slot] = true;
     }
