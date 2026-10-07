@@ -1325,7 +1325,7 @@ pub enum RoleSeg {
     /// "Flush edges at a union"): the sorted, FLAT set of constituent
     /// names retires into this name (N3; canonical order = name order). A
     /// constituent is never itself a BARE merged name, through any
-    /// `FromA`/`FromB` wrapping — a merge of a merged face lists the
+    /// `FromA`/`FromB`/`FromMember` wrapping — a merge of a merged face lists the
     /// faces, never the merge, and an edge set lists edges. The one
     /// carve-out, stated here and
     /// pointed at from every other site: a FRAGMENT of a merged face

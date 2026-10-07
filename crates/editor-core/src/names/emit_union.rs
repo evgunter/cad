@@ -385,7 +385,9 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 
 /// Member `member`'s edge `edge` in its own body, as its own table
 /// names it, a cited line read as the least row on it (N5), the least
-/// untied one where there is one: a tie
+/// untied one where there is one, and a constituent of an edge set the
+/// member publishes (a nested union's joined edge, which a flat set of
+/// the fold lists by its constituents, N3) read as that set's line: a tie
 /// there is [`NamingError::MemberEdgeTied`], and a member or name the
 /// union does not have is an emission bug (every member-keyed row came
 /// from that member's table).
@@ -396,12 +398,24 @@ fn member_edge<'a, T: geom_core::Decide>(
 ) -> Result<(&'a topo::Body<T>, topo::EdgeKey), NamingError> {
     let bug = |what| NamingError::Emission { what };
     let m = member_of(members, member)?;
-    let entry = m.table.lookup(edge).or_else(|| {
-        let rows = m.table.on_line(edge);
-        rows.iter()
-            .filter_map(|row| m.table.lookup(row))
-            .find(|e| matches!(e, Entry::Unique(_)))
-            .or_else(|| rows.first().and_then(|row| m.table.lookup(row)))
+    let by_line = |edge: &StableName| {
+        m.table.lookup(edge).or_else(|| {
+            let rows = m.table.on_line(edge);
+            rows.iter()
+                .filter_map(|row| m.table.lookup(row))
+                .find(|e| matches!(e, Entry::Unique(_)))
+                .or_else(|| rows.first().and_then(|row| m.table.lookup(row)))
+        })
+    };
+    let entry = by_line(edge).or_else(|| {
+        let set = m.table.iter().find_map(|(row, _)| {
+            let line = edge_line(&NameRef::new(row.clone()));
+            match line.path.as_slice() {
+                [RoleSeg::Merged(set)] if crate::names::merged::covers(set, edge) => Some(line),
+                _ => None,
+            }
+        })?;
+        by_line(set.name())
     });
     match entry {
         Some(Entry::Unique(e)) => match e.key {
@@ -1638,6 +1652,8 @@ struct Parents {
     of_face: BTreeMap<topo::FaceKey, usize>,
     /// Member face, by name → the names of the parents it is linked
     /// into (several only for a tied name whose candidates went apart).
+    /// A merged member face's constituents are keyed too, each to its
+    /// face's parents.
     of_member: BTreeMap<MemberEntity, BTreeSet<StableName>>,
     all: Vec<Parent>,
 }
@@ -1729,12 +1745,17 @@ impl Parents {
                 from.insert((m, of));
             }
             let name = parent_name(union, &from);
-            for m in &from {
-                parents
-                    .of_member
-                    .entry(m.clone())
-                    .or_default()
-                    .insert(name.clone());
+            // A nested union's merged member face is cited by the fold
+            // through its constituents (N3's flat mint), each keyed by
+            // the member, so each cites the parent the face is in.
+            let constituents = from.iter().flat_map(|(m, of)| {
+                crate::names::merged::constituents_through_wrappers(of.name())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|c| (*m, NameRef::new(c)))
+            });
+            for m in from.iter().cloned().chain(constituents) {
+                parents.of_member.entry(m).or_default().insert(name.clone());
             }
             index.insert(r, parents.all.len());
             parents.all.push(Parent {
@@ -1834,7 +1855,9 @@ struct ByParents {
     groups: Rederived,
 }
 
-/// A parent's name: its one member face, or `Merged` of all of them.
+/// A parent's name: its one member face, or `Merged` of all of them,
+/// flat (N3): a member face that is itself a merged face, a nested
+/// union's, stands for its constituents, each keyed by its member.
 fn parent_name(union: RecipeNodeId, from: &BTreeSet<MemberEntity>) -> StableName {
     match from.iter().collect::<Vec<_>>().as_slice() {
         [one] => entity_name(union, one),
@@ -1842,7 +1865,13 @@ fn parent_name(union: RecipeNodeId, from: &BTreeSet<MemberEntity>) -> StableName
             kind: EntityKind::Face,
             node: union,
             path: vec![RoleSeg::Merged(
-                many.iter().map(|m| entity_name(union, m)).collect(),
+                many.iter()
+                    .flat_map(|m| {
+                        let n = entity_name(union, m);
+                        crate::names::merged::constituents_through_wrappers(&n)
+                            .unwrap_or_else(|| vec![n])
+                    })
+                    .collect(),
             )],
         }),
     }
@@ -2368,8 +2397,9 @@ fn orient<'s>(
             // itself a bare merged face. The mint (`emit_topo`'s
             // merge-group loop) holds that at the first door; this is the
             // same rule read at the union's second door — a constituent
-            // that collapses to a bare merged face is refused as the
-            // emission bug it is, never flattened. A fragment of a merged
+            // that collapses to a merged face, bare or through its
+            // member's `FromMember`, is refused as the emission bug it
+            // is, never flattened. A fragment of a merged
             // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
             //
             // The canonical form makes the constituent SET the name, as
@@ -2382,7 +2412,7 @@ fn orient<'s>(
                 let mut set = Vec::with_capacity(constituents.len());
                 for c in constituents {
                     let c = done.need(c)?.name().clone();
-                    if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
+                    if crate::names::merged::constituents_through_wrappers(&c).is_some() {
                         return Err(bug(NESTED_MERGED));
                     }
                     set.push(c);
