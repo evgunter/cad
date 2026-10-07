@@ -82,3 +82,14 @@ finished body of its pose exists:
   re-runs at, which is below the offset.
 - **The bent disc** (`neighbours_bent_across_a_circle`). Its circle
   lies off the bent plane by the same kind of offset.
+
+## The cone half has finished fixtures (2026-10-06)
+
+`sweep/tests/reach_cone_root_lane.rs::every_op_refuses_a_cone_operand_at_the_pair_gate`
+poses revolved frusta (finished bodies, `sweep::revolve`) with their
+cone wall's box reaching a turned cube and a tilted rod, and pins
+`CurvedPairUnsupported { kind: Cone }` under every op in both orders
+(`an-edge-crossing-a-cone-face-has-no-root-lane`). The admit side (a
+cone face whose box clears the other operand), the tilted cone, the
+torus and `curved_face_arm`'s NURBS refusal are untouched by it.
+
