@@ -2,6 +2,85 @@
 
 ## For Ev
 
+### Round 3 (supersedes rounds 1 and 2 where they differ)
+
+**Recommendation (likely): set kinds, distinct-by-authoring, and a body-scoped repair.**
+
+| Reader | Reads |
+|---|---|
+| `Fillet` / `Chamfer` | one `Edges` variable (`Select { body, names }`) |
+| `Shell` | one `Faces` variable (empty = sealed hollow) |
+| `FaceFrame`, `Measure`, a mate side | one `Face`/`Edge` |
+
+- **The blends and the shell lose `target`.**
+- **Identity.** A selection authored at two sites is two variables. The GUI offers an
+  existing equal one.
+- **Repair.** `Rebind { body, from, to }` rewrites `from` in every select that reads that
+  `Body` variable.
+
+This is round 1 plus the other report's repair. I left it in round 2 for a reason that the
+body-scoped repair removes.
+
+**The question beneath both: is a selection a *denotation*, or an *argument*?**
+- **Denotation.** It is "the entity N names in body B", one per `(body, name)`, and facts
+  such as a repair or a person's name for it belong to it.
+- **Argument.** It is "what this fillet blends", one per site, and it belongs to its reader.
+- **What the body-scoped repair shows.** The denotation already *is* the pair
+  `(body, name)` as data. The repair can be addressed to that pair directly, so no variable
+  has to stand for it. The document then needs only the argument.
+
+**What each design makes true that the other cannot** (final-state properties).
+- **Sets, distinct by authoring:**
+  - A verb's selection cannot name a body other than the one it acts on. The verb states
+    its body exactly once, also when the selection is empty.
+  - A site's pick is one stored value, identical to the GUI's pick set and to
+    `select_where`'s result. SELECT-DESIGN §4 then holds word for word.
+- **Singletons, interned:**
+  - Every `(body, name)` the document refers to is one variable. A person's name for an
+    entity ("mouth") and its list of readers are total, and one reader of a single entity
+    and one reader of a list can hold the same variable.
+- **Both designs:** every reader of N in B is repaired together, and no reader in another
+  body moves.
+
+**Does the body-scoped `Rebind` fix the latent defect without interning? Yes (sure).**
+- **Why the defect happens.** The defect is a rewrite that crosses bodies, and a name
+  denotes one entity per body.
+- **Why the scoped rewrite is exactly right.** Every select of B that names N denotes the
+  same entity, so rewriting all of them is the denotation-wide repair. It is also complete:
+  nothing outside B is touched.
+- **What interning still earns.** Nothing semantic. It earns:
+  - one shared user name per entity;
+  - a reader list that is stored rather than derived (it can be derived by scanning the
+    selects of B for N);
+  - the mixed sharing between a singleton reader and a list reader.
+  These are presentation and convenience. Against them stands a hard property, the
+  unrepresentable body mismatch, which singletons give up whether interned or not.
+
+**Does "a later measure wants the blend face" cover every reader? No.**
+- **Mates: yes.** A mate reads its member's body, which is normally the part's final
+  output, where the blended edge is gone.
+- **Readers on the input body: no.** Two cases:
+  - a face frame on the top face of B, where a shell of B opens that same face;
+  - a measure of an edge of B that a fillet of B blends.
+- **What is lost.** Both readers are real. Under sets they are two selects that state the
+  same `(body, name)`. They are still repaired together by the body-scoped `Rebind`, and
+  coincidence still reads them as one construction (D10). The only loss is a single
+  shared name, which is presentation, so this does not move me back.
+
+**Confidence.**
+
+| Claim | Confidence |
+|---|---|
+| Definition over node | likely |
+| Set kinds and the verbs lose `target` | likely |
+| Distinct-by-authoring, with the offer | likely |
+| `Rebind { body, from, to }` | sure it fixes the defect; likely it is the right address |
+
+**Ratified text.**
+- **D10.** Gains the selection as a definition arm, of a `Face`/`Edge` *or a set of them*.
+- **SELECT-DESIGN §4.** Stands, restated only to say that the stored `Vec<StableName>` is
+  a select's definition.
+
 ### Round 2 (supersedes round 1 where they differ)
 
 **Recommendation (likely): a selection is a variable definition,
@@ -87,6 +166,7 @@ above and drops the rest.
 
 ## For the orchestrator
 
+- **Round 3.** Round 2's decisive reason #1 assumed only interning could scope a repair; A's body-scoped `Rebind` scopes it without interning, so the reason dissolves. Reasons #2 and #3 were about whether interning is allowed and useful, not whether it is needed.
 - **Round 2 checks.**
   - **Latent defect.** Confirmed by reading `edit.rs`'s `Rebind` arm: it loops over every
     node's `rebind_payload_names` with no body test, so a site where `from` still resolves
