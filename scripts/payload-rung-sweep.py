@@ -158,8 +158,8 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "boolean-error.md"),
     "RestZipFrontier": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                         "boolean-error.md"),
-    # `BooleanError::VertexReadTwice`'s two reads: the same carrier, the
-    # same row.
+    # `BooleanError::VertexReadTwice`'s two reads (PR 4234): the same
+    # carrier, the same row.
     "SectorRead": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                    "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "

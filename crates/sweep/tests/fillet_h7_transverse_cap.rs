@@ -306,8 +306,8 @@ fn the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form() {
     let source = rod_with_flat(tol());
     assert_eq!(
         census(&source),
-        (6, 8, 4),
-        "the boolean's rod: seam-split cap arcs"
+        (4, 6, 4),
+        "the boolean's rod: each cap one arc and one chord"
     );
     let bracket = Bracket::open();
     let _ = carve_and_check(&source, "rod ∖ box");
@@ -332,7 +332,7 @@ fn one_crease_alone_carves_at_half_the_prism() {
     let vol0 = volume(&source);
     for &e in &creases {
         let out = fillet_edges(&source, &[e], R, tol()).expect("one crease carves");
-        assert_eq!(census(&out.body), (8, 11, 5));
+        assert_eq!(census(&out.body), (6, 9, 5));
         validate_geometric(&out.body, tol()).expect("tier 3");
         let cut = rod_section_cut(ROD_R, ROD_FLAT, R) * ROD_L;
         assert!(

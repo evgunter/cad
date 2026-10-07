@@ -100,8 +100,10 @@ schedule and curved chart refusal, which the boolean answered as
 type, so the sweep's narrowing does not count it a payload rung, and
 this row gains no name.
 
-TANG's PR 4234 adds `BooleanError::VertexReadTwice { operand, vertex,
-reads: [SectorRead; 2] }`. `SectorRead` (a pierce's face, or a pair's
-vertex) is a closed decision type one rung under `BooleanError`, so the
-sweep's `--check` counts it and this row gains the name (filed by
-`join/tier3-pinch-checks`, which met main's lint red on it).
+## One more rung (TANG, PR 4234)
+
+PR 4234 adds `SectorRead` (a vertex-on-face pierce or a vertex-vertex
+pair), carried twice by `BooleanError::VertexReadTwice { reads, .. }`
+(`crates/topo/src/boolean/mod.rs`). The sweep went red on main when it
+merged; its disposition is this row.
+

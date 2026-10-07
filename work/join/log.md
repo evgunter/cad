@@ -1000,6 +1000,40 @@ R2 0/3/4. Tally 1.
 
 Signed (JOIN orchestrator).
 
+## 2026-10-07 — PR 4207: a pinch's cone vertices share one point key
+
+PR 4139 left 9 `dbl` lines with their cones on two point keys. The fix
+derives the key classes by descent:
+- `zip::point_classes` runs a union-find over the point keys that each
+  `SeamCorrespondence` pair links.
+- After the zips, `zip::share_points` rebinds a class's live vertices onto
+  its smallest key through `Body::share_point`, which writes no
+  coordinate.
+- FUSE's `edge_join` key guard then sees the pinch.
+
+No position is read. The premise that a class's points coincide is
+structural: its pairs are ones the zips certify coincident. That premise
+is pinned under the sweep-testing feature by a spread check, 0.0 on
+every rebound class. A runtime check is not expressible over `T: Real`.
+
+**Measured, main vs head:**
+- the 9 `dbl` lines go BAD → SOUND, each with one vertex per cone on one
+  key, meshing, and 2 mesher panics gone;
+- r2's pinched operand: 75 lines BAD → SOUND, and tier-3′ `VertexVertex`
+  drops from 236 to 0;
+- everything else byte-identical, with 0 SOUND → refusal.
+
+**Review tier: single FULL.** It is a contained, descent-decided rebind
+with byte-identical batteries. The review was APPROVE-WITH-FIXES, MAJOR
+0, MINOR 3:
+- docs now give the traced cause;
+- the residue is filed as `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`
+  (three-key operands; a point-touch union);
+- the stale-contact count is corrected to 176.
+
+The 120 still-BAD r2 lines are FUSE's parked D10 row
+`a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms`,
+which now carries the evidence.
 ## 2026-10-07 — next units after the pinch ruling
 
 - Dispatched, each to a fresh implementer:
@@ -1014,5 +1048,28 @@ Signed (JOIN orchestrator).
 - Parked on D10:
   `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`.
   Its declared rows need contact records naming both copies.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07 — PR 4207 landed; three units in review
+
+- **PR 4207** merged. A pinch's cone vertices now share one point key, by
+  descent through the seam records (FULL review, fixes in). It took three
+  main merges to land. One carried main's red `payload-rung-sweep`
+  (`SectorRead`, TANG's `9dea3c25`). Main fixed it in #4241 first, so my
+  PR 4242 closed as superseded.
+- **PR 4240** (tier-3 corner slice and check 9 on every ring pair) is
+  under a FULL review. Its batteries are byte-identical to main over
+  66k lines.
+- **PR 4249** (`hang_in_turned`: the 217 In/Out lines build) is under a
+  DUAL review, adjudication byte 147, parity 1, so A = R2. The 102 `ba`
+  nested-plan lines are filed as
+  `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`.
+- **PR 4250** (near-tangent): the premise was false, and I accepted that
+  on an orchestrator read. The exact link holds two cones at a 1e-7 tilt,
+  and the kernel's two solids are right. The test counter stepped over
+  the sliver at its fixed 1e-5 step. `round_vertex` now shrinks the step
+  until each sample is provably in its cell. The row closes when 4250
+  lands.
 
 Signed (JOIN orchestrator).
