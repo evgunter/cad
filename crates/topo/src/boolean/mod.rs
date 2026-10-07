@@ -212,14 +212,19 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
-        "bool_sector_within" => Coincide::Sectors.subject(),
+        "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" => {
+            Coincide::Sectors.subject()
+        }
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-        crate::query::DATUM_UNIT_NORM | join::BOOL_GERM_PLANE_NORMAL | boxes::BOX_CYLINDER_AXIS => {
-            geom_core::DIRECTION_LENGTH_SUBJECT
-        }
+        crate::query::DATUM_UNIT_NORM
+        | join::BOOL_GERM_PLANE_NORMAL
+        | boxes::BOX_CYLINDER_AXIS
+        | boxes::BOX_SPHERE_AXIS
+        | boxes::BOX_SPHERE_SEAM_UNIT => geom_core::DIRECTION_LENGTH_SUBJECT,
+        boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
@@ -369,7 +374,7 @@ impl BooleanOp {
 
 /// Which operand a key belongs to (keys are body-lineage-scoped;
 /// cross-body records must say which arena they index — F9).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Operand {
     /// The first operand (left of the op).
     A,
@@ -380,7 +385,7 @@ pub enum Operand {
 /// A trilean side code against the *other* solid's boundary — the
 /// boolean analogue of `PlaneSide`, derived from `enters_material`
 /// (module docs): `Enters ⇒ In`, `Exits ⇒ Out`, `Tangent ⇒ On`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SideCode {
     /// Definitely inside the other solid's material.
     In,
@@ -399,6 +404,43 @@ impl SideCode {
             Self::On => Self::On,
         }
     }
+}
+
+/// **One operand edge piece's side of the other operand, beside a
+/// vertex the classification read**: the piece of operand `operand`'s
+/// edge `edge` that starts or ends at `vertex`, and which side of the
+/// other operand's boundary it lies on just beside it.
+///
+/// Two passes write rows, and only the first records a decision the
+/// classification made:
+/// - The vertex-on-face pass records every edge at the piercing vertex,
+///   read against the pierced face: the side codes that pass decided
+///   and acted on, recorded as it read them (D5's birth row), before
+///   any reclassification lumps them.
+/// - The vertex-vertex pass records every edge at each vertex of a pair
+///   whose other vertex lies inside an edge of its body (two faces
+///   meeting along it), read against that wedge, or at a convex corner,
+///   and nothing at any other pair (`sectors::wedge_classes`). The
+///   classification itself decides sector pairs, not edges, so these
+///   rows are a measurement of their own, taken beside it from the same
+///   sectors, not a record of what it decided.
+///
+/// `In` and `On` both lie in the other operand's closed body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EdgePieceClass {
+    /// The operand whose edge the piece is.
+    pub operand: Operand,
+    /// The vertex, in that operand's CLONE keys (as
+    /// [`BooleanNaming::reduction_contacts`]).
+    pub vertex: VertexKey,
+    /// The operand edge the piece lies on, in the operand's own keys:
+    /// the reduction's splits read back to the edge they divided.
+    pub edge: EdgeKey,
+    /// Whether the piece starts at `vertex` as the edge is stored, so it
+    /// lies after the vertex along the edge; `false` where it ends there.
+    pub starts: bool,
+    /// The piece's side of the other operand's boundary.
+    pub class: SideCode,
 }
 
 /// A coincident vertex pair — one `sonvv` record: declared contact
@@ -1663,6 +1705,9 @@ pub struct BooleanReduction<T: Real> {
     pub(crate) coincident: Vec<SettledPair>,
     /// Every edge split the reduction made, both clones, split order.
     pub(crate) edge_splits: Vec<EdgeSplit>,
+    /// Every operand edge piece the sector passes classified beside a
+    /// vertex ([`EdgePieceClass`]), sorted.
+    pub edge_classes: Vec<EdgePieceClass>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -4097,6 +4142,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut pierce_rings = Vec::new();
     let mut covered = Vec::new();
     let mut held = Vec::new();
+    let mut edge_classes = Vec::new();
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
@@ -4115,6 +4161,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
         covered.extend(out.covered);
+        edge_classes.extend(piece_classes(
+            &a,
+            Operand::A,
+            c.vertex,
+            &out.classes,
+            &edge_splits,
+        )?);
     }
     for &c in &contacts.b_on_a {
         let out = vtxfac::classify_vertex_on_face(
@@ -4132,6 +4185,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
         covered.extend(out.covered);
+        edge_classes.extend(piece_classes(
+            &b,
+            Operand::B,
+            c.vertex,
+            &out.classes,
+            &edge_splits,
+        )?);
     }
 
     // The VF passes hang null struts at their piercing vertices and at
@@ -4166,6 +4226,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
+        for (body, operand, vertex, own, other) in [
+            (&a, Operand::A, c.a, &a_sectors, &b_sectors),
+            (&b, Operand::B, c.b, &b_sectors, &a_sectors),
+        ] {
+            let classes = sectors::wedge_classes(own, other, band)?;
+            edge_classes.extend(piece_classes(
+                body,
+                operand,
+                vertex,
+                &classes,
+                &edge_splits,
+            )?);
+        }
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
         // The codes as first read, which the germ loci are derived from.
         let mut raw = records.clone();
@@ -4263,6 +4336,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 
     a.sweep_and_close();
     b.sweep_and_close();
+    let edge_classes = with_copies(edge_classes, &null_edges);
     Ok(BooleanReduction {
         op,
         a: carved_a,
@@ -4280,7 +4354,95 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         rest_contacts,
         coincident,
         edge_splits,
+        edge_classes,
     })
+}
+
+/// The operand edge `piece` of `operand`'s clone lies on: read back
+/// through `splits`, each child to the parent it was split from.
+fn split_root(splits: &[EdgeSplit], operand: Operand, piece: EdgeKey) -> EdgeKey {
+    let mut edge = piece;
+    while let Some(split) = splits
+        .iter()
+        .find(|s| s.operand == operand && s.child == edge)
+    {
+        edge = split.parent;
+    }
+    edge
+}
+
+/// The two vertices each null edge joins, `(operand, below end, above
+/// end)` in clone keys (`BooleanNaming::null_copies`).
+pub(super) fn null_copy_rows<T: Real>(
+    null_edges: &[BoolNullEdgeRecord<T>],
+) -> Vec<(Operand, VertexKey, VertexKey)> {
+    null_edges
+        .iter()
+        .map(|r| (r.operand, r.attr.below_end, r.attr.above_end))
+        .collect()
+}
+
+/// `rows`, read at every vertex the null edges join a classified vertex
+/// to as well: the copies lie on its point, and the join hands each of
+/// them some of its edges. Sorted and deduplicated.
+fn with_copies<T: Real>(
+    mut rows: Vec<EdgePieceClass>,
+    null_edges: &[BoolNullEdgeRecord<T>],
+) -> Vec<EdgePieceClass> {
+    loop {
+        let mut copied = Vec::new();
+        for r in null_edges {
+            let (x, y) = (r.attr.below_end, r.attr.above_end);
+            for row in rows.iter().filter(|row| row.operand == r.operand) {
+                for (from, to) in [(x, y), (y, x)] {
+                    if row.vertex == from {
+                        copied.push(EdgePieceClass { vertex: to, ..*row });
+                    }
+                }
+            }
+        }
+        let before = rows.len();
+        rows.extend(copied);
+        rows.sort();
+        rows.dedup();
+        if rows.len() == before {
+            return rows;
+        }
+    }
+}
+
+/// The rows ([`EdgePieceClass`]) for one classified vertex of
+/// `operand`'s clone `body`: each edge, by the half-edge leaving
+/// `vertex` along it, with its class. The edge is read back through
+/// `splits` to the operand edge it lies on.
+fn piece_classes<T: Real>(
+    body: &Body<T>,
+    operand: Operand,
+    vertex: VertexKey,
+    classes: &[(HalfEdgeKey, SideCode)],
+    splits: &[EdgeSplit],
+) -> Result<Vec<EdgePieceClass>, BooleanError> {
+    let desync = |what| BooleanError::ClassificationInvariant { what };
+    let mut out = Vec::with_capacity(classes.len());
+    for &(he, class) in classes {
+        let piece = body
+            .get_half_edge(he)
+            .ok_or_else(|| desync("a classified half-edge does not resolve in its clone"))?
+            .edge;
+        let starts = body
+            .get_edge(piece)
+            .ok_or_else(|| desync("a classified edge does not resolve in its clone"))?
+            .he_plus
+            == he;
+        out.push(EdgePieceClass {
+            operand,
+            vertex,
+            edge: split_root(splits, operand, piece),
+            starts,
+            class,
+        });
+    }
+    Ok(out)
 }
 
 /// The held edges that bound the held region from outside. A null edge

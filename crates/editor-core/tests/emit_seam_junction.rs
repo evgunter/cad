@@ -10,7 +10,7 @@
 //! piece of the rim instead. The merged edge lies along a member's rim,
 //! and the published table names the point from the finished body
 //! (`emit_union::cite_member_edges`): that rim, crossed by the slab's
-//! wall.
+//! wall, with the sense the fold step that minted the point read there.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
@@ -23,7 +23,7 @@ use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};
 
 use editor_core::{
     BooleanCoincidence, CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, StableName,
+    RecipeNodeId, RoleSeg, Sense, SitedRef, StableName,
 };
 use geom_core::Tol;
 
@@ -113,32 +113,45 @@ fn declared(f: &Fixture) -> Vec<((SitedRef, SitedRef), BooleanCoincidence)> {
 }
 
 /// The name every fused order gives the point where `g`'s `x = 0.3`
-/// wall crosses `a`'s `cap` / `y = 1` rim: that rim and that wall, in
-/// name order.
+/// wall crosses `a`'s `cap` / `y = 1` rim: that rim crossed by that
+/// wall, with the rim's sense. `g` lies on the `+x` side of the wall,
+/// so the rim enters it there where `a` stores it running `+x`, and
+/// leaves it where `a` stores it running `-x`.
 fn crossing(
+    ev: &editor_core::Evaluation<f64>,
     doc: &ProfileDoc,
     union: RecipeNodeId,
     a: RecipeNodeId,
     g: RecipeNodeId,
     cap: CapEnd,
 ) -> StableName {
-    let rim = member_entity(
-        union,
+    let rim_of_a = ename(
         a,
-        ename(
-            a,
-            RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2)),
-        ),
-        EntityKind::Edge,
+        RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2)),
     );
+    let a_body = body_of(ev, a);
+    let editor_core::Entry::Unique(r) = table(ev, a).lookup(&rim_of_a).expect("a's rim") else {
+        panic!("a's rim is one edge");
+    };
+    let editor_core::EntityKey::Edge(e) = r.key else {
+        panic!("a's rim names an edge");
+    };
+    let [v0, v1] = crate::fixture::ends(a_body, e);
+    let x = |v| crate::fixture::point(a_body, v).x;
+    let sense = if x(v1) > x(v0) {
+        Sense::Enters
+    } else {
+        Sense::Leaves
+    };
+    let rim = member_entity(union, a, rim_of_a, EntityKind::Edge);
     let g_x0 = member_face(union, g, fname(g, wall(doc, g, 3)));
-    let (lo, hi) = if rim < g_x0 { (rim, g_x0) } else { (g_x0, rim) };
     StableName {
         kind: EntityKind::Vertex,
         node: union,
-        path: vec![RoleSeg::Seam {
-            a: lo.into(),
-            b: hi.into(),
+        path: vec![RoleSeg::Crossing {
+            edge: rim.into(),
+            face: g_x0.into(),
+            sense,
         }],
     }
 }
@@ -179,7 +192,7 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     // a, and h adds the same less its share inside b.
     assert!((v - (1.5 + 2.0 * (0.9 - 0.05))).abs() < 1e-9, "volume {v}");
     assert_eq!(junctions(table(&ev, union)), BTreeSet::new());
-    let p = point_of(&ev, union, &crossing(&docx, union, a, g, CapEnd::End));
+    let p = point_of(&ev, union, &crossing(&ev, &docx, union, a, g, CapEnd::End));
     assert!(
         (p[0] - 0.3).abs() < 1e-12 && (p[1] - 1.0).abs() < 1e-12 && (p[2] - 1.0).abs() < 1e-12,
         "the crossing sits where g's wall meets the rim, not at {p:?}"
@@ -243,7 +256,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                         BTreeSet::new(),
                         "{label} {order:?}"
                     );
-                    let p = point_of(&ev, union, &crossing(&docx, union, a, g, cap));
+                    let p = point_of(&ev, union, &crossing(&ev, &docx, union, a, g, cap));
                     assert!(
                         (p[0] - 0.3).abs() < 1e-12
                             && (p[1] - 1.0).abs() < 1e-12

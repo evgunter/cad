@@ -506,9 +506,10 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   rung declines. That is a statement about two recorded groups, not a claimed
   flip.
 - *The cutters.* `cutters` (`GroupCutters`, `resolve::group_cutters`) reads the
-  minting node's two tables for the `Seam` rows on the group's parent (a face
-  group's seam edges, an edge group's seam vertices), matched on the
-  `Seam { a, b }` pair with any `Fragment` tail and never on the row, and names
+  minting node's two tables for the seam rows on the group's parent (a face
+  group's seam edges, an edge group's seam and crossing vertices), matched on
+  the pair — a `Seam`'s or an `EdgeCrossing`'s two sides, a `Crossing`'s edge
+  and face — with any `Fragment` tail and never on the row, and names
   every cutter whose seam with the parent only the last-good table spells
   (`gone`) or only the current one does (`new`); both empty says the two
   tables spell seams on the parent with the same cutters. A seam is a crossing,
