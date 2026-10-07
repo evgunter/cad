@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [the-product-is-an-explicit-list]
 ---
 
 
@@ -57,3 +57,9 @@ nothing consumes anything and the product is an explicit list of
 strip it. INTENT stage 2 (operations and one dependency) builds that;
 this row closes with it, its acceptance being that a measured part
 stays in the product. Moved here from RECIPE.
+
+## Stage 2 slicing (2026-10-07)
+
+Re-parked on `the-product-is-an-explicit-list` (INTENT stage 2 PR C,
+`docs/INTENT-STAGE2-SPEC.md` §4): the explicit list keeps the measured part
+whatever reads it, and test 7 is this row's acceptance.
