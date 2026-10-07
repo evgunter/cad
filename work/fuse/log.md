@@ -630,3 +630,12 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - the public merge door doesn't join;
     - import's band re-mint leaves a valence-2 rim vertex;
     - `run_walls_built.rs`'s hand assertion becomes redundant.
+  - **The 344 classified by the lane** (attributed by test, signature and stack; kept locally):
+    - **(a) Door outputs with no join: 298.**
+      - Fillet/blend surgery: 204, mostly two `TangentIntersection` circles, i.e. blend rims left as arcs.
+      - Split: 56.
+      - Shell: 22, chart-seam rulings split at a vertex.
+      - Import: 15.
+      - The public merge door: 1.
+    - **(b) Hand-built construction-state fixtures: 46.** These include 11 that already fail tier 3.
+    - **(c) The predicate misreading: 0.** `composed_die`'s 21 vertices are real split blend rims, not a slit-seam end. The only in-band case is `halfcap_pole`'s 2 bodies.
