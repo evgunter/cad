@@ -528,10 +528,18 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
+// The join's regularity readings share one refusal. The pole distance
+// is rostered at its door below; the pair's wedge is reachable from
+// operands, and is not rostered: `classify_dihedral` is levered by the
+// shorter of the vertex's two edges, so a few-ε arc beside an
+// otherwise joinable vertex reads the wedge in the band and refuses
+// the whole boolean (`JoinUndecided`), where the boolean built before
+// the curved join.
 const EDGE_JOIN_SITE: Door = Door::Site(
     "a valence-2 vertex's distance from its chart's pole is read inside the join's predicate, \
      on a vertex an output stage leaves between two edges of one carrier, which no pair of \
-     operands places within the band of a pole by construction",
+     operands places within the band of a pole by construction; the pair's wedge, read beside \
+     it, is reachable from operands",
 );
 
 /// A point of the unit sphere about `z` at distance `rho` from its

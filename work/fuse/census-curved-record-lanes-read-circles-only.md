@@ -18,8 +18,8 @@ section of a cylinder) or a spiric one. No `ci` row reaches it.
 
 The edge-edge lane finds candidate meeting points where a line or
 circle meets a circle through the circle's plane, plus each edge's
-midpoint for an overlap (`curved_interiors_meet`); an overlap whose
-edges share no midpoint and no crossing reads stale, loudly.
+midpoint and the points halfway between one edge's end and the
+other's ends for an overlap (`curved_interiors_meet`).
 
 ## What it needs
 

@@ -11,8 +11,9 @@
 //! edge whose vertex is conventional — the questions
 //! [`super::on_edge_interior`] asks of a line. Two edges' interiors
 //! meet when one candidate point is on both: where a line or circle
-//! meets a circle (through the circle's plane), and each edge's
-//! midpoint, which an overlap holds. Other carriers refuse typed.
+//! meets a circle (through the circle's plane), each edge's midpoint,
+//! and the points halfway between one edge's end and the other's ends,
+//! one of which an overlap holds. Other carriers refuse typed.
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
@@ -253,6 +254,21 @@ pub(super) fn curved_interiors_meet<T: Decide>(
         ca.eval(geom::mid_param(a0, a1)),
         cb.eval(geom::mid_param(b0, b1)),
     ];
+    // An overlap that holds neither midpoint holds the point halfway
+    // between one edge's end and the other's end on its carrier.
+    for ((c, t0, t1), (other, s0, s1)) in [
+        ((&ca, a0, a1), (&cb, b0, b1)),
+        ((&cb, b0, b1), (&ca, a0, a1)),
+    ] {
+        for q in [other.eval(s0), other.eval(s1)] {
+            if let Some(t) = c.param_near(q, geom::mid_param(t0, t1)) {
+                points.extend([
+                    c.eval(geom::mid_param(t0, t)),
+                    c.eval(geom::mid_param(t, t1)),
+                ]);
+            }
+        }
+    }
     let crossings = match (ra, rb) {
         (
             Carrier::Line { origin, dir },
@@ -300,4 +316,64 @@ pub(super) fn curved_interiors_meet<T: Decide>(
     }
     errors.extend(held);
     None
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::curved_interiors_meet;
+    use crate::body::Body;
+    use crate::entity::EdgeKey;
+    use crate::{EdgeCurveSpec, MevSite};
+
+    /// Arcs of one unit circle, from `t0` to `t1` degrees, each its own
+    /// solid in one arena.
+    fn arcs(spans: [(f64, f64); 2]) -> (Body<f64>, [EdgeKey; 2]) {
+        let tol = Tol::witness();
+        let c = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let mut body = Body::<f64>::new();
+        let edges = spans.map(|(t0, t1)| {
+            let (t0, t1) = (t0.to_radians(), t1.to_radians());
+            let born = body.mvfs(c.eval(t0), true).unwrap();
+            body.mev(
+                MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                c.eval(t1),
+                EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap(),
+                tol,
+            )
+            .unwrap()
+            .edge
+        });
+        (body, edges)
+    }
+
+    /// **Two arcs of one circle meet where they overlap**, though the
+    /// overlap holds neither arc's midpoint; arcs a gap apart do not.
+    #[test]
+    fn overlapping_arcs_meet_off_both_midpoints() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for (spans, meet) in [
+            ([(0.0, 100.0), (90.0, 190.0)], true),
+            ([(90.0, 190.0), (0.0, 100.0)], true),
+            ([(0.0, 80.0), (90.0, 190.0)], false),
+        ] {
+            let (body, [a, b]) = arcs(spans);
+            let mut errors = Vec::new();
+            assert_eq!(
+                curved_interiors_meet(&body, a, b, band, &mut errors),
+                Some(meet),
+                "{spans:?}: {errors:?}"
+            );
+        }
+    }
 }

@@ -132,8 +132,12 @@ from the designers' reading of the ruling:
   - Without these, a body resting exactly there gets a different
     record kind, and a different 3′ verdict, in different member
     orders.
-- **Later cuts.** A section that crosses E exactly at the vertex takes
-  the edge-interior path, not the vertex path.
+- **Later cuts.** A section that crosses E exactly at the vertex
+  reuses it, and builds the same body as a section crossing E
+  anywhere else, pinned by the witness
+  (`snowman::a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere`).
+  A literal edge-interior split would mint a second vertex on the
+  point, which the join's pinch check (`Pass::shared`) then refuses.
 - **Names.**
   - The vertex mints no member- or position-citing name. If emit's
     completeness check needs a name, it gets one derived from its edge
