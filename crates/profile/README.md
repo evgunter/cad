@@ -288,10 +288,14 @@ carrier_radius, offset_radius, largest_tangent_radius }`:
 - `largest_tangent_radius` = (R₁ + R₂ − d)/2 is the existence bound the
   recourse endorses when the corner's two circular carriers define one.
 
-Zero (r within the band of R) escalates with the enclosing recourse. In
-`path::arc_fillet::resolve` the refusal rides the construction channel
-with the other corner refusals rather than aborting, because the carrier
-pair's other crossing turns the other way and may serve the same radius
+Zero (r within the band of R) is not the enclosing class, and this gate
+lets it through: it is a collapsed lever. `fillet_offset_lever` refuses
+that on the outgoing leg, the one its law reads. On the incoming leg a
+Zero ρ reaches `ArcCarrier::offset_circles` as a near-point offset
+circle, and the offset clearances decide it as they decide any other
+pair. In `path::arc_fillet::resolve` the Negative refusal rides the
+construction channel with the other corner refusals rather than
+aborting, because the carrier pair's other crossing turns the other way and may serve the same radius
 as an ordinary tangency. It is its own reason, not laundered into a "no
 corner" one: the corner exists; a fillet of it at this radius does not.
 
