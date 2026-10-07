@@ -1371,11 +1371,19 @@ impl<T: Real> ArcCarrier<T> {
                 margin: r2 - least_lever,
             });
         }
+        if external == Sign::Zero || internal == Sign::Zero {
+            // Decided tangent: midway between the two offset circles'
+            // nearest points on the link, half their gap from each.
+            let reach = if external == Sign::Zero {
+                r1 - r2
+            } else {
+                (r1 + r2).copysign(r1 - r2)
+            };
+            let along = (dist + reach) / T::from_f64(2.0);
+            return Ok(OffsetCentres::tangent(self.center + link * (along / dist)));
+        }
         let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);
         let base = self.center + link * (along / dist);
-        if external == Sign::Zero || internal == Sign::Zero {
-            return Ok(OffsetCentres::tangent(base));
-        }
         let half = (rho1.powi(2) - along.powi(2)).sqrt();
         let offset = left_normal(link) * (half / dist);
         Ok(OffsetCentres::crossing(vec![base + offset, base - offset]))
@@ -1392,10 +1400,13 @@ impl<T: Real> ArcCarrier<T> {
 /// both offset carriers over the reals wherever the decided-positive
 /// radicand is, and each tangent point — the centre's foot on its leg's
 /// carrier — is the fillet radius from it. **A decided tangency proves
-/// nothing**: the one candidate is the foot (or the link point) the
-/// offset carriers would touch at, which is on them only to the
+/// nothing**: the one candidate is the point the offset carriers would
+/// touch at — the foot on the offset line, or the point on the link
+/// midway between the two offset circles — which is on them only to the
 /// `fillet_offset_*` classification that called them tangent
-/// ([`crate::Facts::Decided`]).
+/// ([`crate::Facts::Decided`]). Its distances from the two offset
+/// carriers sum to their gap, which no centre can undercut, so the
+/// fillet's two rims carry that gap and no more.
 struct OffsetCentres<T: Real> {
     centres: Vec<Point2<T>>,
     facts: crate::Facts,
