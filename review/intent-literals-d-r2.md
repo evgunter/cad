@@ -20,135 +20,107 @@ shown by execution:
 ## Findings
 
 **MAJOR-1. Save/load silently drops a toleranced dimensionless number** (C5, D9, fail-loud)
-- **Where:** `crates/editor-core/src/persist/wire.rs:349` (`WireFormula::Quantity`
-  rebuild), with `formula.rs:182` (the `Scalar` branch of `literal_with_unit`)
-  and `formula.rs:347` (`carrying`).
+- **Where:** `persist/wire.rs:349` (`WireFormula::Quantity` rebuild),
+  `formula.rs:182` (`literal_with_unit`'s `Scalar` branch), `formula.rs:347`
+  (`carrying`).
 - **Mechanism:** `Formula::number(0.5).with_distribution(Normal{σ=0.01})` is a
   `Quantity` leaf, as ruling 1 intends. Its wire form is
   `{"Quantity":{"value":0.5,"dim":"Scalar","unit":"","distribution":{…}}}`.
   The rebuild sends it through `literal_with_unit`, which ruling 1 turns into
   `Ratio(1/2)`. `.carrying(distribution)` then finds no `Quantity` leaf and
   drops the distribution without a word.
-- **Shown by execution**, with probes p2 and p3 (in `tests/r2_probes.rs`,
-  scratch, not committed):
-  - A serde round trip of the formula comes back as `Ratio { num: 1, den: 2 }`.
-  - Snapshot = `{w}`, log = `[DeclareVar h := w * number(0.5)±σ]`.
-    `save` accepts the file, because its own replay check runs on the
-    in-memory edits. `load` succeeds. The live doc has 3 variables, one of
-    them `Some(Normal{σ:0.01})`. The loaded `doc` has 2 variables and no
-    distribution: `h := w * 1/2`.
-- **Consequences:**
-  - Replay is not the document: an MC or stackup axis vanishes.
-  - Nothing refuses (D2 "never a silent best-effort load").
-  - The same path is reachable from a slot root (a lone toleranced scalar) and
-    from `Doc::written`/`slot_expansion`, which write such a `Quantity` for a
-    toleranced anonymous `Scalar`.
-- **Why the suite misses it:** no row round-trips a toleranced number through
-  the log.
-- Confidence: **sure**.
+- **Shown by execution** (scratch probes p2, p3, not committed): a serde
+  round trip of the formula comes back as `Ratio { num: 1, den: 2 }`. With
+  snapshot `{w}` and log `[DeclareVar h := w * number(0.5)±σ]`, `save` accepts
+  (its replay check runs on the in-memory edits) and `load` succeeds; the live
+  doc has 3 variables, one `Some(Normal{σ:0.01})`, the loaded `doc` has 2 and
+  no distribution: `h := w * 1/2`.
+- **Consequences:** replay is not the document (an MC or stackup axis
+  vanishes) and nothing refuses (D2 "never a silent best-effort load"). The
+  same path is reachable from a slot root (a lone toleranced scalar) and from
+  `Doc::written`/`slot_expansion`, which write such a `Quantity` for a
+  toleranced anonymous `Scalar`.
+- No row round-trips a toleranced number through the log. Confidence: **sure**.
 
 **MAJOR-2. An unspaced ratio inside a `/` chain re-associates, so previously refused text gets a wrong value** (C6, rulings 2–3)
 - **Where:** `crates/editor-core/src/parse.rs:350` (the lexer's `Fraction`
   lookahead) and `parse.rs:997` (`fraction`). The module grammar at `parse.rs:14`
   says `term` is left-assoc.
-- **Measured by execution** (probe p1, f64):
-
-  | Text | Read as | Value | Left-assoc value |
-  |---|---|---|---|
-  | `turn/4/2` | `turn / (4/2)` | π | π/4 |
-  | `w/2/3` | `w / (2/3)` | 1.5·w | w/6 |
-
-  With spaces, `turn / 4 / 2` gives π/4.
-- **Before D:** both texts refused. `turn` did not exist, and `w / 2` was
-  Scalar / Count. Ruling 2 now admits the operands, and ruling 3's token
-  silently groups the wrong pair.
+- **Measured by execution** (probe p1, f64): `turn/4/2` reads as
+  `turn / (4/2)` = π (left-assoc: π/4; spaced `turn / 4 / 2` gives π/4), and
+  `w/2/3` reads as `w / (2/3)` = 1.5·w (left-assoc: w/6). Before D both
+  refused (`turn` did not exist; `w / 2` was Scalar / Count). Ruling 2 admits
+  the operands and ruling 3's token silently groups the wrong pair.
 - **Related:** `unparse` writes `Div(w, 2/3)` as `w / 2/3`. That text
   round-trips through the parser, but a person reads it as `(w/2)/3`.
-- **Untested reading:** `6/2/3` → `3.0 / 3.0` and `1/2/3` → `0.5 / 3.0` happen
-  to be right, because there the fraction is the left operand.
-- Confidence: **sure**.
+- `6/2/3` and `1/2/3` happen to be right (the fraction is the left operand).
+  Confidence: **sure**.
 
 **MINOR-1. Ruling 1 makes a number's identity depend on how many digits its shortest decimal has** (C4/VR1, ruling 1)
-- **Where:** `formula.rs:563` (`exact_ratio`) and `formula.rs:182`.
-- **Shown by execution** (probe p4): two `DeclareVar`s of `w * Formula::scalar(0.25)`
+- **Where:** `formula.rs:563` (`exact_ratio`), `formula.rs:182`. **Shown by
+  execution** (probe p4): two `DeclareVar`s of `w * Formula::scalar(0.25)`
   are `==`; both are `Ratio(1/4)` constants and share one token. Two of
   `w * Formula::scalar(0.1+0.2)` are not: each mints its own anonymous
   variable, so they get distinct tokens.
 - **Why it matters:** an API caller passing a computed double inside a formula
   (Python `Formula.literal(math.sin(x))`) gets a constant or a typed variable
-  depending on whether the shortest decimal fits in 2^53/10^k. Structure
-  evidence (VR8) then flips with the value, which D10 says structure must
-  never read.
-- **Text door:** the same split happens there (`w * 1e300` mints).
-- Confidence: **sure** (mechanism), **likely** (that it matters in practice).
+  depending on whether the shortest decimal fits in 2^53/10^k, so token
+  evidence (VR8) flips with the value. The text door splits the same way (`w * 1e300` mints). Confidence: **sure**
+  (mechanism), **likely** (that it matters in practice).
 
 **MINOR-2. A decimal the parser cannot hold exactly is stored as a different exact constant, against the module docs** (C6)
 - **Where:** `parse.rs:991` falls back to `Formula::scalar(value)`, which
   re-normalises the double back to a `Ratio`.
-- **Shown by execution** (probe p5):
-  - `0.1000000000000000055511151231257827` parses to `Ratio(1/10)`.
-  - `1.0000000000000000001` parses to `Ratio(1)`.
-
-  Each is an exact constant, but not the number that was written.
-- **The docs say otherwise:** `parse.rs:42` says such a decimal "is instead a
+- **Shown by execution** (probe p5): `0.1000000000000000055511151231257827`
+  parses to `Ratio(1/10)` and `1.0000000000000000001` to `Ratio(1)`. Each is an exact constant, but not the number that was written.
+  `parse.rs:42` says such a decimal "is instead a
   written `Scalar` value, its correctly-rounded double". The f64 bits are
   unchanged. At Interval, though, the enclosure claims exactness for a value
   that was never written.
-- **Second instance:** this is the parser's own copy of the "shortest decimal
-  is exact" rule (`parse.rs:985`) disagreeing with `exact_ratio` (see Style S1).
-- Confidence: **sure**.
+  It is the parser's own copy of the rule (`parse.rs:985`) disagreeing with
+  `exact_ratio` (Style S1). Confidence: **sure**.
 
 **MINOR-3. Asymmetric refusals at the new token boundary** (C6)
-- `2/3.5` refuses with `'.' is outside this grammar's alphabet`, which is
-  misleading. `2 / 3.5` admits (4/7).
-- `1/3` admits and `1 / 3` refuses Count/Count.
-
-  The second pair is documented. The first gives the wrong diagnosis.
-- Shown by execution (p1). Confidence: **sure**.
+- `2/3.5` refuses with a misleading `'.' is outside this grammar's alphabet`
+  while `2 / 3.5` admits (4/7); `1/3` admits and `1 / 3` refuses Count/Count
+  (documented).
+  Shown by execution (p1). Confidence: **sure**.
 
 **MINOR-4. Python `Formula.ratio` takes `den: u64`** (C7)
-- **Where:** `crates/pncad-py/src/py/expr.rs:271`.
-- A negative Python denominator raises a raw `OverflowError` from argument
+- **Where:** `crates/pncad-py/src/py/expr.rs:271`. A negative Python denominator raises a raw `OverflowError` from argument
   extraction, not the documented `LiteralError(constant_out_of_range)`.
-- Found by inspection. Not executed (no Python build in this lane).
-  Confidence: **likely**.
+  Inspection only (no Python build). Confidence: **likely**.
 
 **NOTE-1. C1, the Interval claim**
-- **How checked:** by inspection of the corpus sources
-  (`crates/editor-core/tests/corpus/*.rs`).
-- **What I found:**
-  - Every corpus number is a written quantity at a slot root, an `ang(…)`
-    inside `sink.rs:122`'s `h * sin(90°)`, or a `Formula::count`.
-  - No bare decimal sits inside a formula, so no non-dyadic `Ratio` reaches
-    corpus geometry.
-  - The written quantities became untoleranced variables, which bind as their
-    exact nominal (§11), the same point the old `Lit` was.
+- **How checked:** inspection of `crates/editor-core/tests/corpus/*.rs`.
+  Every corpus number is a written quantity at a slot root, an `ang(…)` inside
+  `sink.rs:122`'s `h * sin(90°)`, or a `Formula::count`. No bare decimal sits
+  inside a formula, so no non-dyadic `Ratio` reaches corpus geometry. The
+  quantities became untoleranced variables, which bind as their exact nominal
+  (§11), the same point the old `Lit` was.
 - **Verdict:** the PR's "Interval dump byte-identical" claim is consistent
   with §1. It holds because the corpus has no such constant, not because
   §1's widening is absent.
-- **What I ran:** `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+  `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
   passed in my full run. I did not re-take the PR's id-free dump.
 - Confidence: **likely**.
 
 **NOTE-2. Row 13's Interval assertion cannot see a wrong-direction enclosure**
 - **Where:** `intent_literals_d_constants.rs:150` checks `lo < hi` and that the
-  *double* `0.1` is inside.
-- An enclosure `[0.1d, next_up(0.1d)]` passes it, and that excludes the true
+  *double* `0.1` is inside. An enclosure `[0.1d, next_up(0.1d)]` passes it, and that excludes the true
   1/10, which lies below `0.1d`. A row that checks against the true rational
   would close this.
 - No Sym row checks that `Ratio(1/10)` folds to the exact rational rather
   than `Rat::of_f64(0.1)`.
-- Found by inspection (style Q3). Confidence: **likely**.
+  Inspection (style Q3). Confidence: **likely**.
 
 **NOTE-3. Row 13's Sym half departs from the spec's text**
-- **Where:** `intent_literals_d_constants.rs:210`.
-- It compares two *toleranced* `90 deg` parameters and evaluates bare `Expr`s,
+- **Where:** `intent_literals_d_constants.rs:210`. It compares two *toleranced* `90 deg` parameters and evaluates bare `Expr`s,
   not "two slots".
 - Under §11's revised VR8, two **untoleranced** `90 deg` bind as exact
   nominals and would decide Zero too. So the spec's "`90 deg − 90 deg` does
   not" now holds only with a tolerance.
-- The adaptation is sound. §8 row 13 should say "toleranced".
-- Confidence: **sure**.
+- The adaptation is sound; §8 row 13 should say "toleranced". **sure**
 
 **NOTE-4. Two survivors on the stored form** (C2)
 - `ExprTree::literal_bits` (`expr.rs:1332`) survives on the stored form, where
@@ -157,18 +129,17 @@ shown by execution:
   `Formula::number` is a pure alias of `scalar`.
 - Each is documented. They are vacuous or duplicate API, not a float in
   `Expr`.
-- Otherwise C2 holds:
-  - `StoredLeaf` is uninhabited.
-  - The `ExprKind` leaves are exactly `Ratio`, `Integer`, `Turn` and `Var`.
-  - No authoring door calls `from_f64` into an `Expr`.
-  - `GeomPred::DatumDistance.value` is a query-time `Formula`, never persisted.
+- Otherwise C2 holds: `StoredLeaf` is uninhabited, the `ExprKind` leaves are
+  exactly `Ratio`, `Integer`, `Turn` and `Var`, no authoring door calls
+  `from_f64` into an `Expr`, and `GeomPred::DatumDistance.value` is a
+  query-time `Formula`, never persisted.
 - Confidence: **sure**.
 
 **NOTE-5. C4 undo and mint-log coverage not shown**
 - Retirement is tested (`a_definitions_quantities_mint_first_and_retire_after_it`).
-- No D row asserts that the mint log keeps a definition's quantity ids, or
+  No D row asserts that the mint log keeps a definition's quantity ids, or
   that undo restores them. C's rows cover only slot-root variables.
-- I did not execute this. Confidence: **unsure**.
+  Not executed. Confidence: **unsure**.
 
 ## The four spec-undecided rulings
 
@@ -177,9 +148,9 @@ shown by execution:
      operator tree is a constant"), and VR5 forces it for in-range decimals.
    - **For the Rust and Python API:** it contradicts §1's letter
      ("`Formula::scalar(f64)` writes a Scalar quantity with unit ONE").
-   - **Problems:**
-     - The out-of-range fallback makes identity value-dependent (MINOR-1).
-     - The wire rebuild re-applies it and drops a distribution (MAJOR-1).
+   - **Problems:** the out-of-range fallback makes identity value-dependent
+     (MINOR-1), and the wire rebuild re-applies it and drops a distribution
+     (MAJOR-1).
    - **No other reading is forced.** The spec's reading (an API scalar is
      always a quantity) is coherent and keeps identity independent of the
      value. It costs only `unparse`'s tree round trip for API-built scalars
@@ -190,9 +161,8 @@ shown by execution:
      rows red.
 2. **A bare integer beside a non-count reads as a scalar (infix fold only).**
    - **Sound in isolation.** §1 spells a right angle `turn/4`, which F1 would
-     refuse without this, and `w * 2` is the natural spelling.
-   - It contradicts no ratified text: F1 governs the `Expr` constructors,
-     which still refuse.
+     refuse without this. It contradicts no ratified text: F1 governs the
+     `Expr` constructors, which still refuse.
    - Composed with ruling 3, it is what lets MAJOR-2 through.
 3. **Unspaced `INT/INT` is one ratio token.**
    - **Unsound as built:** it breaks the grammar's stated left-associativity
@@ -203,10 +173,9 @@ shown by execution:
      bracketed, `(1/3)`, and the lexer drops the special token. The spacing
      sensitivity (`1/3` versus `1 / 3`) is a smell either way.
 4. **`turn` is reserved, refused at the name door and at load.**
-   - **Sound**, and forced by §1 ("`turn` is a keyword").
-   - The load refusal is the consequence of a name the grammar cannot read
-     back.
-   - Fine as ruled. No corpus document uses the name.
+   - **Sound**, and forced by §1 ("`turn` is a keyword"). The load refusal
+     follows from a name the grammar cannot read back. No corpus document
+     uses the name.
 
 ## Claims exercised
 
@@ -222,12 +191,8 @@ shown by execution:
 | C8 | Inspected | VS-Q4, the DESIGN row and the module docs move with the code. `parse.rs:42` is false (MINOR-2) and `expr.rs:2234` is stale (S2) |
 | C9 | Three mutants rerun (above) | All killed |
 
-**Not exercised:**
-- the Python suite and `ty`;
-- viewer;
-- the ε 1e-6/1e-12 rows;
-- the workspace-wide run;
-- the tour regeneration.
+**Not exercised:** the Python suite and `ty`, viewer, the ε 1e-6/1e-12 rows,
+the workspace-wide run, the tour regeneration.
 
 **My run:** `cargo nextest run -p editor-core --profile default` on the head,
 with my scratch probe file present: 2875/2876. The one red was
