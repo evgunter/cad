@@ -2550,3 +2550,109 @@ fn a_near_tangent_sliver_is_a_cone_of_its_own() {
         assert!(line.starts_with("OK "), "{tag}: {line}");
     }
 }
+
+/// **Review r1 of PR 4274: depth above one at a shared vertex.** The two
+/// eight-crossing poses of [`eight_crossing_corners_nest_two_deep_and_build_every_op`]
+/// (one pair's fan holds a strut that holds another strut), with a cube
+/// pinched onto the posed corner at the shared corner: its octant lies
+/// above the posed corner's top face, tilted `tilt` rad from its normal
+/// (0.6155 is where a cube edge lies in that face: near-tangent) and
+/// spun `spin`. The posed corner and the cube unite at the corner alone,
+/// so the shared vertex carries the depth-two nesting and a second pair.
+/// One [`outcome`] line per run, with the built body's
+/// [`pierce_point_finding`] at the corner.
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn review_r1_depth_two_at_a_shared_vertex_probe() {
+    let r2 = {
+        let theta = std::f64::consts::TAU * 13.11 / 24.0;
+        let phi: f64 = 2.0 * 0.23 + 0.02;
+        let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
+        frame(m, 2.3 * std::f64::consts::TAU / 24.0)
+    };
+    let r1 = [
+        [0.6060175730696241, -0.785797686202516, -0.12355038441694527],
+        [
+            -0.29342602576332566,
+            -0.36520218952479033,
+            0.8834752561170229,
+        ],
+        [
+            -0.7393536829796299,
+            -0.4991486322981075,
+            -0.45189243669194745,
+        ],
+    ];
+    let decls = BooleanDeclarations::default();
+    for (pose, a, b, f) in [
+        ("notch343 vs notch343", notch343(), notch343(), r2),
+        ("wedge343 vs wedge330", wedge(343.0), wedge(330.0), r1),
+    ] {
+        let x = finished(
+            "a corner",
+            fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
+        );
+        let a_pieces: Pieces = a.pieces.iter().map(|p| polygon_prism(p)).collect();
+        let (posed_b, b_corner_pieces) = posed(&b, f, a.v);
+        for (ti, tilt) in [0.0f64, 0.3, 0.55, 0.61].into_iter().enumerate() {
+            for (ai, az) in [0.0f64, 1.6, 3.2, 4.8].into_iter().enumerate() {
+                for k in 0..3 {
+                    let spin = f64::from(k) * 0.9 + 0.2;
+                    let d = [0, 1, 2].map(|t| {
+                        tilt.cos() * f[2][t]
+                            + tilt.sin() * (az.cos() * f[0][t] + az.sin() * f[1][t])
+                    });
+                    let g = corner_diagonal_frame(d, spin);
+                    let tag0 = format!("{pose} t={ti} a={ai} k={k}");
+                    let cube = finished("a cube", cube_sized(a.v, g, [0.0; 3], SIDE));
+                    let united = match topo::union_with(&posed_b, &cube, &decls, tol()) {
+                        Ok(BooleanResult::Body(bb)) => bb.body,
+                        other => {
+                            println!("{tag0}: SKIP pinch {:?}", other.err());
+                            continue;
+                        }
+                    };
+                    let mut b_pieces = b_corner_pieces.clone();
+                    b_pieces.push(cube_planes_sized(a.v, g, [0.0; 3], SIDE));
+                    let vol = |ps: &[Vec<Plane>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
+                    let (va, vb) = (vol(&a_pieces), vol(&b_pieces));
+                    let got = mass_properties(&united, tol()).unwrap().volume;
+                    if (got - vb).abs() > 1e-9 {
+                        println!("{tag0}: SKIP pinch volume {got} vs {vb}");
+                        continue;
+                    }
+                    let common: f64 = a_pieces
+                        .iter()
+                        .flat_map(|p| {
+                            b_pieces.iter().map(move |q| {
+                                let mut all = p.clone();
+                                all.extend_from_slice(q);
+                                convex_volume(&all)
+                            })
+                        })
+                        .sum();
+                    for (order, l, r, vl) in [("ab", &x, &united, va), ("ba", &united, &x, vb)] {
+                        let ops: [(&str, Op, f64); 3] = [
+                            ("U", topo::union_with, va + vb - common),
+                            ("I", topo::intersect_with, common),
+                            ("S", topo::subtract_with, vl - common),
+                        ];
+                        for (op, run, want) in ops {
+                            let tag = format!("{order} {op}");
+                            let res = run(l, r, &decls, tol());
+                            let finding =
+                                res.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                                    pierce_point_finding(
+                                        &bb.body,
+                                        a.v,
+                                        tag_cones(&tag, "ab", (&a_pieces, &b_pieces)),
+                                    )
+                                });
+                            println!("{tag0} {tag}: {} {finding:?}", outcome(res, want, tol()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
