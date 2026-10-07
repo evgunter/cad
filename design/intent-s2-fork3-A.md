@@ -1,6 +1,65 @@
 # FORK-3 — What a selection is in the document (designer A)
 
-## For Ev
+## For Ev — round 2
+
+**Both designers agree a selection is a variable definition, not a node.** On
+the three differences I move to the other report on two and offer a synthesis
+on the third.
+
+**1. Set kinds: moved.** A fillet reads one variable of a list kind, `Edges`
+(an ordered, duplicate-free list of names, of one body); a shell reads one
+`Faces`; `FaceFrame`, `Measure` and a mate side read one `Face`/`Edge`. The
+argument that moves me is representability: under singletons the body is
+stated once per edge and once more in the verb's `target`, so a fillet of body
+X targeting body Y is a document that exists and has to be refused at every
+door; and the sealed hollow (an empty `open`, legal by the shell's own
+contract) means `target` cannot be dropped, so the duplication stays for every
+non-empty shell. A set select carries its body even when empty, so the verbs
+lose `target` and the mismatch cannot be written. What singletons bought was
+sharing one edge between a fillet and a measure, and that need is narrow: a
+fillet consumes its edge, so what a measure wants afterwards is the blend face
+of the fillet's output, a different body and a different select. The
+one-type rule of SELECT-DESIGN §4 then holds word for word: the GUI's pick set
+`(body, Vec<StableName>)` is the authored form of one set select, and a
+materializer's `Vec<StableName>` is stored as one definition's names. The
+blend's canonical form (sorted, deduplicated) lives in its content-key
+preimage, since only the shell reads order. Confidence: likely.
+
+**2. Sharing: moved.** A selection authored at two sites is two variables, and
+the GUI offers an existing one of equal definition, as D10 does for a typed
+value. My interning argument (no free arm, so equal selects are one function)
+was correct about geometry and wrong about authoring: VR1 mints identity and
+never infers it from equal values, stage 1 applied that to anonymous
+definitions (two slots showing `w * 2` are two variables), and the reason
+carries over. An anonymous variable belongs to the site that wrote it;
+interning would make it silently shared, so a definition edit at one reader
+(`SetSelection { var, names }`, VR7's define door for the reference kinds)
+would move another reader with no visible link between them. Coincidence is
+unaffected either way: D10 reads a select as its definition, so two equal
+selections are one construction. Confidence: likely.
+
+**3. Repair: a synthesis.** The other report keeps `Rebind { from, to }`
+addressed by name, rewriting every selection that lists `from`. That inherits
+a defect today's rebind has: a name denotes one entity *per body*, and a
+boolean that trims edge N into pieces strands N only in its own output, so a
+rebind of N to a piece also rewrites a select of the upstream body, where N
+still resolved and the piece does not exist. Variable addressing fixes it but
+loses the one-edit repair across several selects of one body. The address
+that is right is the one a name is scoped to: **`Rebind { body, from, to }`**
+rewrites `from` in every select of that `Body` variable, set or singleton,
+deduplicating as today; the appearance store and the declared pairs (until
+stage 4) keep the name-level rewrite, as they hold bare names. The diagnostic
+offer already knows the select's body, so accepting it is this edit.
+Confidence: likely.
+
+**What stands from round 1.** Definition over node, for the reasons both
+reports give. The premise check: D10's selection sentence is agent-drafted on
+PR 3990's draft commit, and your verbatim transcripts (which this checkout
+holds) say nothing on selections, so the fork was open. One name on several
+entities is `Tied`, refused as `Ambiguous` by N5, so one name is one entity.
+
+
+## For Ev — round 1
 
 **Recommendation (likely): a selection is a variable definition, not a node.**
 `VarDef::Select { body: VarId, name: StableName }` is a third arm beside `Free`,
@@ -148,3 +207,11 @@ binding regardless of FORK-5: *sure*.
   check rests on that absence and on PR 3990's drafting commit 84404cdbf8.
 - No code changed. Corpus selection sizes: fillets of 12, 12 and 42 edges,
   chamfers of 12, one shell face, measures of one or two refs.
+- **Round 2.** The empty-`open` question is settled by `Node::Shell`'s docs
+  ("Empty `open` is the sealed hollow"); that is what flips the set-kind
+  lean. `Node::rebind_payload_names` rewrites `name == from` at every site
+  with no body test, so the latent defect is today's and survives B's version
+  verbatim; `Rebind { body, from, to }` is the spec change. Spec rows to take
+  from B: `Edges`/`Faces` kinds, `Fillet`/`Chamfer`/`Shell` lose `target`, the
+  `Vec<StableName>` sugar lowers to one set select, test 13 holds. FORK-1 may
+  reuse the list-kind form for bodies if it wants one; nothing here needs it.
