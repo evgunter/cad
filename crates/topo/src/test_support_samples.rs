@@ -994,6 +994,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ring: loop_,
             ring_vertex: vertex,
         },
+        ValidationError::PinchCornerCrossed { face, vertex, edge },
         ValidationError::CensusLaneUnsupported { subject: pair },
         ValidationError::InstanceInterference {
             outer: solid,
@@ -1104,6 +1105,14 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 },
             ),
             (
+                "PinchCornerEscalated",
+                ValidationError::PinchCornerEscalated {
+                    face,
+                    vertex,
+                    source: cause,
+                },
+            ),
+            (
                 "CensusEscalated",
                 ValidationError::CensusEscalated { cause },
             ),
@@ -1142,6 +1151,17 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::RingMeetsOuter {
                 face,
                 ring: loop_,
+                contact,
+            },
+        ));
+    }
+    for contact in ring_contacts() {
+        s.push((
+            label("RingMeetsRing", &contact),
+            ValidationError::RingMeetsRing {
+                face,
+                ring: loop_,
+                other: loop_,
                 contact,
             },
         ));

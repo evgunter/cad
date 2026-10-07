@@ -32,3 +32,27 @@ Run `ring_outer_contact_about`'s contact arms over every pair of rings
 of a face, with a typed `RingMeetsRing` refusal (a new
 `ValidationError` variant, threaded through `pncad-py`'s tags). Pin it
 on a hand-built face with two rings touching at a vertex.
+
+## Built (branch `join/tier3-pinch-checks`)
+
+Check 9 runs `ring_outer_contact_about`'s contact arms over every pair
+of rings of a face, with the earlier ring in the outer loop's seat.
+A contact refuses `ValidationError::RingMeetsRing { face, ring, other,
+contact }`, where `contact`'s `outer_*` fields name `other`'s
+entities. An in-band margin refuses `RingContactEscalated`, whose doc
+now covers either pair. The arms' residue is check 9's own: ellipse,
+spiric and NURBS edges, and arms 4 and 5 off a plane. Whether one ring
+lies inside another is not asked here; that stays
+`restfront/check-9-does-not-check-a-ring-nested-inside-another-ring`.
+
+Threaded through `pncad-py`: the tag `ring_meets_ring` (and
+`pinch_corner_crossed`, `pinch_corner_escalated` for the corner arm),
+`ring_contact_kind` read off its contact, and the binding census.
+
+Pinned by `validate::tests::check_9_refuses_two_rings_touching_at_a_vertex`:
+a lamina whose face holds two triangular rings meeting at the origin
+refuses one `RingMeetsRing { Vertex }`, and the same rings 0.5 apart
+pass.
+
+**Measured** with the corner arm (same batteries, same result): 0 lines
+moved.

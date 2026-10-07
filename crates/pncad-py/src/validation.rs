@@ -116,14 +116,16 @@ fn stale_declaration(err: &ValidationError) -> Option<&StaleDeclaration> {
     }
 }
 
-/// The ring-vs-outer contact an arm carries, if it carries one.
+/// The contact a ring arm carries, if it carries one: against the
+/// outer loop, or against another ring.
 ///
 /// The escalated sibling (`RingContactEscalated`) carries no contact
 /// to name: an undecidable separation is a margin, not a shape, so
 /// this answers `None` there and the finding's word is the arm's.
 fn ring_contact(err: &ValidationError) -> Option<&RingContact> {
     match err {
-        ValidationError::RingMeetsOuter { contact, .. } => Some(contact),
+        ValidationError::RingMeetsOuter { contact, .. }
+        | ValidationError::RingMeetsRing { contact, .. } => Some(contact),
         _ => None,
     }
 }

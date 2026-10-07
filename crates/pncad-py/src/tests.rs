@@ -4245,6 +4245,21 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
         Some("circle_circle")
     );
 
+    // Two rings meeting carry the same contact, so the same word.
+    assert_eq!(
+        project(&ValidationError::RingMeetsRing {
+            face: FaceKey::default(),
+            ring: Default::default(),
+            other: Default::default(),
+            contact: RingContact::Vertex {
+                ring_vertex: VertexKey::default(),
+                outer_vertex: VertexKey::default(),
+            },
+        })
+        .ring_contact_kind,
+        Some("vertex_vertex")
+    );
+
     // The escalated sibling carries a margin, not a shape: it is a
     // ring contact that could not be decided, so there is no way the
     // ring meets the loop to name, and the arm's own word is the
@@ -6296,6 +6311,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "outer_listed_as_ring",
             "parent_loop_mismatch",
             "pcurve",
+            "pinch_corner_crossed",
+            "pinch_corner_escalated",
             "planar_boundary_escalated",
             "planar_boundary_residual",
             "planar_face_escalated",
@@ -6305,6 +6322,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "poisoned_surface_description",
             "ring_contact_escalated",
             "ring_meets_outer",
+            "ring_meets_ring",
             "ring_nesting_undecided",
             "ring_outside_outer",
             "scaffold_at_rest",
