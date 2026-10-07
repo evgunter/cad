@@ -384,8 +384,9 @@ pub enum PersistError {
     EditReplay {
         /// The refusing edit's index in the log.
         index: usize,
-        /// The typed refusal.
-        error: EditError,
+        /// The typed refusal, boxed so the load door's refusal stays a
+        /// small `Err`.
+        error: Box<EditError>,
     },
     /// The document's recorded ε conflicts with the ε this process
     /// already committed (D4: one process = one ε; refuse loudly).
@@ -521,7 +522,10 @@ pub fn save(
     let mut replay = snapshot.clone();
     for (index, edit) in edits.iter().enumerate() {
         replay = apply_replayed(&replay, edit, tol)
-            .map_err(|error| PersistError::EditReplay { index, error })?
+            .map_err(|error| PersistError::EditReplay {
+                index,
+                error: Box::new(error),
+            })?
             .doc;
     }
     let body = SerBody { snapshot, edits };
@@ -580,8 +584,11 @@ pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     let mut doc = body.snapshot.clone();
     let mut records = Vec::with_capacity(body.edits.len());
     for (index, edit) in body.edits.iter().enumerate() {
-        let applied = apply_replayed(&doc, edit, tol)
-            .map_err(|error| PersistError::EditReplay { index, error })?;
+        let applied =
+            apply_replayed(&doc, edit, tol).map_err(|error| PersistError::EditReplay {
+                index,
+                error: Box::new(error),
+            })?;
         doc = applied.doc;
         records.push(applied.record);
     }

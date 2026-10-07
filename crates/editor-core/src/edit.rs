@@ -200,8 +200,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// ```compile_fail,E0560
     /// let _: editor_core::DocEdit<editor_core::ProfileProgram> =
     ///     editor_core::DocEdit::SetProgram {
-    ///         node: editor_core::RecipeNodeId(1),
-    ///         plane: editor_core::RecipeNodeId(0),
+    ///         node: editor_core::RecipeNodeId::new(0, 1),
+    ///         plane: editor_core::RecipeNodeId::new(0, 0),
     ///         loops: Vec::new(),
     ///         ids: Vec::new(),
     ///     };
@@ -281,8 +281,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// Structural when the kind is `Count`.
     ///
     /// Refuses a name the document already holds
-    /// ([`EditError::VarNameTaken`], naming the holder), an id the mint
-    /// log already holds ([`EditError::VarIdCollides`]), and a
+    /// ([`EditError::VarNameTaken`], naming the holder), and a
     /// definition no door may write (the checks every door that writes
     /// a definition runs: [`EditError::NonFiniteVar`],
     /// [`EditError::InvalidDistribution`],
@@ -938,12 +937,8 @@ fn mint_anonymous<P>(new: &mut Doc<P>, def: VarDef) -> Result<VarId, EditError> 
         &SpokenVar::new(new.mint.would_declare_anonymous(&def), None),
         &def,
     )?;
-    let id = new
-        .mint
-        .declare_anonymous(&def)
-        .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
+    let id = new.mint.declare_anonymous(&def);
     new.vars.insert(id, Var::new(def));
-    new.var_order.push(id);
     Ok(id)
 }
 
@@ -1064,9 +1059,13 @@ fn lower_node<P: crate::ProfilePayload>(
 /// A formula that does not lower, or reads what `doc` cannot answer.
 #[doc(hidden)]
 pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, EditError> {
-    Lowering::none()
-        .slot(doc, formula)
-        .map_err(|fault| fault.at(doc, SpokenNode::absent(RecipeNodeId(0)), ExprSite::Payload))
+    Lowering::none().slot(doc, formula).map_err(|fault| {
+        fault.at(
+            doc,
+            SpokenNode::absent(RecipeNodeId::new(0, 0)),
+            ExprSite::Payload,
+        )
+    })
 }
 
 /// **A name a definition reads that does not lower**, as the doors
@@ -1194,7 +1193,7 @@ fn read_refusal<P>(
                 referenced,
             },
         ) => EditError::SlotVarKind {
-            var: doc.spoken_var(var),
+            var: Box::new(doc.spoken_var(var)),
             node,
             slot,
             declared,
@@ -1547,14 +1546,6 @@ pub enum EditError {
         /// What is wrong with the ids.
         fault: crate::program::StepIdFault,
     },
-    /// The id an `InsertNode` drew from the document's mint chain is
-    /// one the mint log already holds (`names/README.md`, N1). An
-    /// honest log cannot reach it short of a 64-bit digest collision;
-    /// a log a file was edited to hold can.
-    NodeIdCollides {
-        /// The id drawn.
-        id: SpokenNode,
-    },
     /// A list input left with fewer than two entries. A union of one
     /// body is that body and a loft through one section is not a skin:
     /// either is a node whose meaning is its own input, spelled as an
@@ -1616,8 +1607,8 @@ pub enum EditError {
     /// dimension than its kind — by a name, or by a reader whose cached
     /// kind disagrees with the table.
     SlotVarKind {
-        /// The variable.
-        var: SpokenVar,
+        /// The variable, boxed so the refusal stays a small `Err`.
+        var: Box<SpokenVar>,
         /// The reading node.
         node: SpokenNode,
         /// The reading slot.
@@ -1748,12 +1739,6 @@ pub enum EditError {
     DeleteAnonymousVar {
         /// The variable.
         var: SpokenVar,
-    },
-    /// A [`DocEdit::DeclareVar`] drew an id the mint log already holds
-    /// (N1's collision refusal, at the variable tag).
-    VarIdCollides {
-        /// The id drawn.
-        id: VarId,
     },
     /// A formula the edit writes reads an entry of the edit's fresh
     /// table that the table does not hold.
@@ -2519,8 +2504,8 @@ impl EditError {
 }
 
 /// [`EditError::StepIdsRefused`]'s recourse, by the fault. `InsertNode`
-/// raises `Preminted`, `SetProgram` the shape and keep arms, and both
-/// `Collides`; `NotMinted` is the load door's, which an edit door
+/// raises `Preminted`, `SetProgram` the shape and keep arms;
+/// `NotMinted` is the load door's, which an edit door
 /// spells [`EditError::NameStepNeverMinted`].
 fn step_ids_recourse(
     f: &mut core::fmt::Formatter<'_>,
@@ -2548,10 +2533,6 @@ fn step_ids_recourse(
             f,
             format_args!("keep the id on one of the two steps, and give the other none"),
         ),
-        // The mint draws from a SHA-256 chain over the document's own
-        // edits, so a draw the log already holds is a chain or log the
-        // file was damaged in, or a defect.
-        F::Collides { .. } => tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
         F::NotMinted { .. } => tail.ending(f, geom_core::KERNEL_DEFECT_ENDING),
     }
 }
@@ -2601,9 +2582,7 @@ impl EditError {
     /// as raised**: [`EditError::LabelUnchanged`] (about the label the
     /// node held, which said with a later one would claim a label the
     /// refused edit never offered), [`EditError::VarNameUnchanged`]
-    /// (the same, of a variable's name), [`EditError::NodeIdCollides`]
-    /// (about an id the log already held, which spoken from a version
-    /// holding it would name that node as the insert's), and the arms
+    /// (the same, of a variable's name), and the arms
     /// that say a node is not live — said from a version that holds it
     /// again, `X "plate" is not live` would contradict itself.
     #[must_use]
@@ -2669,8 +2648,11 @@ impl EditError {
                 slot: _,
                 declared: _,
                 referenced: _,
+            } => {
+                *node = node.respoken(doc);
+                **var = var.respoken(doc);
             }
-            | Self::SlotUnresolvedVar { node, var, slot: _ }
+            Self::SlotUnresolvedVar { node, var, slot: _ }
             | Self::PayloadVarKind {
                 node,
                 var,
@@ -2811,7 +2793,6 @@ impl EditError {
             Self::Roots(fault) => *fault = fault.respoken(doc),
             Self::LabelUnchanged { node: _ }
             | Self::VarNameUnchanged { var: _ }
-            | Self::NodeIdCollides { id: _ }
             | Self::UnknownNode { id: _ }
             | Self::UnresolvedInput { input: _ }
             | Self::ReadSiteMissingNode { at: _ }
@@ -2826,7 +2807,6 @@ impl EditError {
             | Self::StructuralSlotNeedsStructuralEdit { slot: _ }
             | Self::NotStructuralSlot { slot: _ }
             | Self::UnknownVar { var: _, door: _ }
-            | Self::VarIdCollides { id: _ }
             | Self::FreshUnheld {
                 index: _,
                 referenced: _,
@@ -2970,14 +2950,6 @@ impl EditError {
                     "{node}'s program cannot take the step ids given: {fault}"
                 )?;
                 step_ids_recourse(f, tail, fault)
-            }
-            Self::NodeIdCollides { id } => {
-                write!(
-                    f,
-                    "{id}, the node this insert mints, draws an id the document's mint log \
-                     already holds"
-                )?;
-                tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
             Self::TooFewMembers { found, .. } => {
                 write!(
@@ -3293,14 +3265,6 @@ impl EditError {
                     f,
                     format_args!("replace the expressions that read it, or name it first"),
                 )
-            }
-            Self::VarIdCollides { id } => {
-                write!(
-                    f,
-                    "the declare drew the variable id {id}, which this document's mint log \
-                     already holds"
-                )?;
-                tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::FreshUnheld { index, referenced } => {
                 write!(
@@ -4242,7 +4206,7 @@ fn settle_step_ids(
             }
         }
     }
-    let minted = mint.set_program(node.id(), new, ids).map_err(refuse)?;
+    let minted = mint.set_program(node.id(), new, ids);
     Ok((minted, dropped))
 }
 
@@ -5084,8 +5048,7 @@ fn check_payload_refs<P: crate::ProfilePayload>(
 
 /// [`crate::node::declared_side_fault`] asked of the pairs `pairs` a
 /// door writes onto `node`, refused typed. `carrier` speaks the node
-/// and `at` is its place in `new`'s order (`None` for a node being
-/// inserted): every door that writes a pair asks this, so a pair no
+/// and `at` is its id (`None` for a node being inserted): every door that writes a pair asks this, so a pair no
 /// door admits is one no document holds.
 fn check_declared_sides<'p, P: crate::ProfilePayload>(
     doc: &Doc<P>,
@@ -5093,12 +5056,11 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     node: &Node<P>,
     pairs: impl IntoIterator<Item = &'p crate::DeclaredPair>,
     carrier: impl Fn() -> SpokenNode,
-    at: Option<usize>,
+    at: Option<RecipeNodeId>,
 ) -> Result<(), EditError> {
-    let placed = new.positions();
     let operands = node.inputs();
     match crate::node::declared_side_fault(pairs, Some(&operands), at, |id| {
-        placed.get(&id).copied()
+        new.nodes.contains_key(&id)
     }) {
         None => Ok(()),
         Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
@@ -5129,8 +5091,8 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
         Black,
     }
     let mut color: BTreeMap<RecipeNodeId, Color> =
-        doc.order().iter().map(|&id| (id, Color::White)).collect();
-    for &root in doc.order() {
+        doc.ids().iter().map(|&id| (id, Color::White)).collect();
+    for root in doc.ids() {
         if color.get(&root) != Some(&Color::White) {
             continue;
         }
@@ -5298,10 +5260,14 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
 /// that wants the refusal asks [`apply`] for it, so the typed verdict
 /// has one home.
 ///
-/// One forward pass suffices because [`Doc::order`] is insertion
-/// order and an insertion's inputs must already be live, making the
-/// list topological: a consumer is always seen after every input it
-/// could inherit doom from.
+/// One forward pass suffices because id order ([`Doc::ids`]) is
+/// insertion order and an insertion's inputs must already be live,
+/// making the list topological: a consumer is always seen after every input it
+/// could inherit doom from. **Except** where [`DocEdit::SetMembers`]
+/// gave a union a member minted after it: that union is seen before the
+/// member, so the pass misses it and the first delete refuses
+/// [`EditError::DeleteWouldDangle`]
+/// (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
 pub fn cascade_delete_order<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
@@ -5311,7 +5277,7 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
         return Vec::new();
     }
     let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
-    for &n in doc.order() {
+    for n in doc.ids() {
         let doomed_by_input = doc
             .node(n)
             .is_some_and(|node| node.inputs().iter().any(|input| doomed.contains(input)));
@@ -5319,7 +5285,7 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
             doomed.insert(n);
         }
     }
-    doc.order()
+    doc.ids()
         .iter()
         .rev()
         .copied()
@@ -5423,7 +5389,6 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // keeps its id.
     for var in new.unread_anonymous_vars() {
         new.vars.remove(&var);
-        new.var_order.retain(|&held| held != var);
         reported.push(Maintenance::AnonymousVarRemoved {
             var: doc.spoken_var(var),
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
@@ -5442,14 +5407,10 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // A rule's shape and its listed frames are written only by the
     // insert that authors its node, but a listed frame is admitted at
     // the `tol` this edit is applied at, which need not be the one its
-    // insert was; so the whole document is checked, in document order,
-    // and where one edit breaks two nodes the refusal names the one
-    // placed first.
-    for (&node, n) in new
-        .order
-        .iter()
-        .filter_map(|id| Some((id, new.nodes.get(id)?)))
-    {
+    // insert was; so the whole document is checked, in id order, and
+    // where one edit breaks two nodes the refusal names the one placed
+    // first.
+    for (&node, n) in &new.nodes {
         let listed = |index| FrameSite::Listed { index };
         match n.placement_rule_fault(tol) {
             None => {}
@@ -5526,10 +5487,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
         for formula in held.exprs_mut() {
             *formula = formula.lower_held(&|name| doc.lowering_scope(name));
         }
-        let would = before_lowering
-            .clone()
-            .insert(&held)
-            .unwrap_or_else(|crate::NodeIdCollides { id }| id);
+        let would = before_lowering.clone().insert(&held);
         SpokenNode::entering(would, &held)
     };
     // The node as the door writes it, lowered before anything else is
@@ -5574,11 +5532,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // extends a mint held aside, so a refusal further down
     // leaves the document's untouched.
     let mut mint = new.mint.clone();
-    let id =
-        mint.insert(node)
-            .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides {
-                id: SpokenNode::entering(id, node),
-            })?;
+    let id = mint.insert(node);
     check_node_inputs(doc, id, node)?;
     check_declared_sides(
         doc,
@@ -5633,7 +5587,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     }
     new.mint = mint;
     new.nodes.insert(id, node.clone());
-    new.order.push(id);
     let fresh = lowering.finish(new)?;
     check_acyclic(new)?;
     crate::roots::on_insert(new, id, &node.inputs());
@@ -5790,7 +5743,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 &rewritten,
                 pairs,
                 || doc.spoken(*node),
-                new.positions().get(node).copied(),
+                Some(*node),
             )?;
             new.nodes.insert(*node, rewritten);
             EditRecord {
@@ -6013,23 +5966,20 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     holder: doc.spoken_var(holder),
                 });
             }
-            // A free definition is checked BEFORE anything is minted: a
-            // definition fault outranks a collision, and a refused
-            // declare speaks the id it would have minted. What a defined
-            // one reads is asked after, with the rest of its checks.
+            // A free definition is checked BEFORE anything is minted, and
+            // a refused declare speaks the id it would have minted. What
+            // a defined one reads is asked after, with the rest of its
+            // checks.
             let spoken = SpokenVar::new(new.mint.would_declare(def.kind()), Some(name.clone()));
             if let VarDecl::Free(free) = def {
                 check_var_def(&spoken, &VarDef::Free(free.clone()))?;
             }
             let mut mint = new.mint.clone();
-            let id = mint
-                .declare(def.kind())
-                .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
+            let id = mint.declare(def.kind());
             let def = lower_decl(doc, &Lowering::none(), &spoken, def)?;
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
             new.var_names.insert(id, name.clone());
-            new.var_order.push(id);
             check_definition(new, id)?;
             EditRecord {
                 minted: None,
@@ -6178,7 +6128,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             new.vars.remove(&id);
             new.var_names.remove(&id);
-            new.var_order.retain(|&held| held != id);
             // The readers stay, unresolved: each now refuses at
             // evaluation, which is structural; a variable nothing read
             // moves nothing evaluated.
@@ -6246,14 +6195,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     .declared_pairs()
                     .iter()
                     .filter(|pair| !before.contains(pair));
-                check_declared_sides(
-                    doc,
-                    new,
-                    node,
-                    moved,
-                    || doc.spoken(id),
-                    new.positions().get(&id).copied(),
-                )?;
+                check_declared_sides(doc, new, node, moved, || doc.spoken(id), Some(id))?;
             }
             // Appearance keys are rebind sites (the attribute rides
             // the name — PR 7's store; also the spec D9 banked
@@ -6576,17 +6518,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             } = promote_plan(doc, *instance)?;
             let promoted: Node<P> = Node::gauge(parent, offset);
             let mut mint = new.mint.clone();
-            let id = mint
-                .insert(&promoted)
-                .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides {
-                    id: SpokenNode::entering(id, &promoted),
-                })?;
+            let id = mint.insert(&promoted);
             // The gauge's parent is the instance's gauge, which a live
             // group's root may name dangling: the insert door's check.
             check_gauge_ref(new, id, parent, || SpokenNode::entering(id, &promoted))?;
             new.mint = mint;
             new.nodes.insert(id, promoted);
-            new.order.push(id);
             match new.roots.iter().position(|r| r == instance) {
                 Some(at) => new.roots.insert(at, id),
                 None => new.roots.push(id),
@@ -6630,7 +6567,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             let dependents: Vec<RecipeNodeId> = doc
-                .order()
+                .ids()
                 .iter()
                 .copied()
                 .filter(|&id| doc.node(id).and_then(Node::gauge_ref) == Some(*gauge))
@@ -6753,7 +6690,7 @@ fn mate_that_would_start_placing<P>(
     doc: &Doc<P>,
     gauge_after: impl Fn(RecipeNodeId) -> Option<RecipeNodeId>,
 ) -> Option<RecipeNodeId> {
-    doc.order().iter().copied().find(|&id| {
+    doc.ids().iter().copied().find(|&id| {
         let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
             return false;
         };
@@ -6794,7 +6731,6 @@ fn remove_unread<P: crate::ProfilePayload>(
         unreachable!("node {} is removed only while live", id)
     };
     let inputs = node.inputs();
-    new.order.retain(|&n| n != id);
     let reported = stranded_references(before, new, id);
     crate::roots::on_delete(new, id, &inputs);
     new.witnesses.remove(&id);
@@ -7119,7 +7055,7 @@ mod tests {
     /// admission is asked at exactly the edits this answers `true` for.
     #[test]
     fn exactly_the_mate_insert_writes_a_mates_datum() {
-        let id = crate::node::RecipeNodeId(1);
+        let id = crate::node::RecipeNodeId::new(0, 1);
         let name = |node| crate::names::StableName {
             kind: crate::names::EntityKind::Face,
             node,
@@ -7132,7 +7068,7 @@ mod tests {
                     crate::names::FaceName::new(name(id)).expect("a face"),
                 ),
                 b: crate::node::SitedFace::at_mint(
-                    crate::names::FaceName::new(name(crate::node::RecipeNodeId(2)))
+                    crate::names::FaceName::new(name(crate::node::RecipeNodeId::new(0, 2)))
                         .expect("a face"),
                 ),
                 class: crate::mate::ContactClass::Rest,
@@ -7180,7 +7116,7 @@ mod tests {
             },
             DocEdit::Rebind {
                 from: name(id),
-                to: name(crate::node::RecipeNodeId(2)),
+                to: name(crate::node::RecipeNodeId::new(0, 2)),
             },
             DocEdit::SetStructuralParam {
                 node: id,

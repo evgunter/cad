@@ -2709,14 +2709,14 @@ mod tests {
     use crate::node::{RecipeNodeId, StepId};
 
     /// The node every pin below mints against.
-    const N: RecipeNodeId = RecipeNodeId(7);
+    const N: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     /// The two locator forms every pin below is written at: an
     /// authored piece and a kernel-built section's piece.
     fn edges() -> [ProfileEdgeRef; 2] {
         [
             ProfileEdgeRef::Piece {
-                step: StepId(3),
+                step: StepId::new(0, 3),
                 role: PieceRole::RunOut,
             },
             ProfileEdgeRef::Section {
@@ -2818,7 +2818,7 @@ mod tests {
         }
         assert_eq!(
             serde_json::to_string(&edges()[0]).expect("serializes"),
-            r#"{"Piece":{"step":3,"role":"RunOut"}}"#
+            r#"{"Piece":{"step":"0:0000000000000003","role":"RunOut"}}"#
         );
         assert_eq!(
             serde_json::to_string(&edges()[1]).expect("serializes"),
@@ -2833,23 +2833,23 @@ mod tests {
     fn piece_steps_read_the_names_own_document_only() {
         let wall = |node: u64, step: u64| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: StepId(step),
+                    step: StepId::new(0, step),
                     role: PieceRole::Leg,
                 }
                 .into(),
             )],
         };
-        let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
+        let carried_wall = carried(RecipeNodeId::new(0, 9), wall(1, 4));
         assert_eq!(
             carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
-            vec![StepId(4)]
+            vec![StepId::new(0, 4)]
         );
         let foreign = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::InPart {
                 of: NameRef::new(wall(1, 5)),
             }],
@@ -2865,7 +2865,7 @@ mod tests {
     #[test]
     fn carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind() {
         let inner = band_rim(N, edges()[0].start());
-        let outer = RecipeNodeId(9);
+        let outer = RecipeNodeId::new(0, 9);
         assert_eq!(
             carried(outer, inner.clone()),
             StableName {

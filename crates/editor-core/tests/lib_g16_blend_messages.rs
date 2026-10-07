@@ -145,7 +145,7 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
     let (doc, cube) = cube_doc();
     let wall = fixture::step_of(&fixture::piece(&doc, cube, 0, 0)).to_string();
     let ghost = fixture::step_of(&fixture::no_piece_of(&doc)).to_string();
-    let cube = test_utils::refusal::tag(cube.0);
+    let cube = test_utils::refusal::tag(cube.0.digest());
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
         assert_eq!(label, wl);
         let expected = expected

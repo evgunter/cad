@@ -64,7 +64,7 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
 /// the same document.
 fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
     let profile = part
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(part.node(id), Some(Node::Profile(_))))
@@ -134,7 +134,7 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
 /// If `part` has no such node, or more than one.
 fn body_node(part: &ProfileDoc) -> RecipeNodeId {
     let solids: Vec<RecipeNodeId> = part
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| {
@@ -221,6 +221,7 @@ fn coincidence(
 /// clocking rider on a coincidence over the mated parts' extent, so a
 /// rider (a zero one included) needs the parts in hand where the mate
 /// is authored.
+#[allow(clippy::result_large_err)] // [`at_the_door`]'s pair, as it is
 fn at_the_store(
     doc: &ProfileDoc,
     opts: &EvalOptions,

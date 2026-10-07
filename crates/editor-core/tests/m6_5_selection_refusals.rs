@@ -39,7 +39,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// the profile drawn on it, then the extrude whose body every rim name
 /// below is minted by — the document's third node.
 fn body(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[2]
+    doc.ids()[2]
 }
 
 fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
@@ -192,7 +192,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
                 len(0.125),
                 vec![{
                     let mut elsewhere = rim(&doc, body(&doc), 0);
-                    elsewhere.node = RecipeNodeId(99);
+                    elsewhere.node = RecipeNodeId::new(0, 99);
                     elsewhere
                 }],
             )),
@@ -202,7 +202,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.name().node, RecipeNodeId(99));
+            assert_eq!(name.name().node, RecipeNodeId::new(0, 99));
         }
         other => panic!("a typo id must refuse at the edit door, got {other:?}"),
     }
@@ -222,7 +222,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: doc.order()[1],
+                profile: doc.ids()[1],
                 distance: len(2.0),
                 side: ExtrudeSide::Along,
             }),

@@ -2553,7 +2553,7 @@ impl ProfilePayload for ProfileProgram {
             .iter()
             .map(|lp| vec![None; lp.authored_steps()])
             .collect();
-        self.ids = mint.steps_of_insert(&every_new)?;
+        self.ids = mint.steps_of_insert(&every_new);
         Ok(())
     }
 }
@@ -2787,11 +2787,6 @@ pub enum StepIdFault {
         /// The id.
         step: StepId,
     },
-    /// A mint drew an id the document's mint log already holds.
-    Collides {
-        /// The id.
-        step: StepId,
-    },
 }
 
 impl core::fmt::Display for StepIdFault {
@@ -2825,11 +2820,6 @@ impl core::fmt::Display for StepIdFault {
             Self::NotMinted { step } => write!(
                 f,
                 "step id {} is not in the document's mint log, so the document never minted it",
-                step
-            ),
-            Self::Collides { step } => write!(
-                f,
-                "the mint drew step id {}, which the document's mint log already holds",
                 step
             ),
         }

@@ -225,7 +225,7 @@ fn a_session_with_no_backing_file_refuses_and_names_the_recourse() {
 
     // And the op itself refuses, committing nothing.
     let mut session = session;
-    let before = session.doc().order().len();
+    let before = session.doc().ids().len();
     let outcome = session.perform(SessionOp::AddInstance {
         id: DocumentId::derive("gauth3-anything"),
     });
@@ -236,7 +236,7 @@ fn a_session_with_no_backing_file_refuses_and_names_the_recourse() {
         }
         other => panic!("expected the no-directory refusal, got {other:?}"),
     }
-    assert_eq!(session.doc().order().len(), before);
+    assert_eq!(session.doc().ids().len(), before);
 }
 
 #[test]
@@ -304,7 +304,7 @@ fn a_gesture_in_flight_refuses_the_door() {
     session.pump();
     let extrude = *session
         .doc()
-        .order()
+        .ids()
         .iter()
         .find(|&&id| matches!(session.doc().node(id), Some(Node::Extrude { .. })))
         .expect("the part has an extrude");
@@ -414,7 +414,7 @@ fn a_document_refuses_to_instantiate_itself() {
     let bench = asm::bench("gauth3-self", tol);
     let (mut session, _) = authored_session(&bench, "gauth3-selfref", tol);
     let own = session.doc().id();
-    let before = session.doc().order().len();
+    let before = session.doc().ids().len();
 
     let outcome = session.perform(SessionOp::AddInstance { id: own });
     assert!(outcome.committed.is_empty());
@@ -422,7 +422,7 @@ fn a_document_refuses_to_instantiate_itself() {
         Some(Refusal::SelfInstance { id }) => assert_eq!(id, own),
         other => panic!("expected the self-instance refusal, got {other:?}"),
     }
-    assert_eq!(session.doc().order().len(), before, "nothing was inserted");
+    assert_eq!(session.doc().ids().len(), before, "nothing was inserted");
 }
 
 #[test]

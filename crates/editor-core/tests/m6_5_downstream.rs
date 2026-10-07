@@ -444,5 +444,5 @@ fn all_edges_of_a_nameless_node_is_empty() {
     // A profile node has no output body and so an empty table.
     assert!(editor_core::all_edges(&ev, p).is_empty());
     // A node that is not in the evaluation at all: also empty.
-    assert!(editor_core::all_edges(&ev, RecipeNodeId(999)).is_empty());
+    assert!(editor_core::all_edges(&ev, RecipeNodeId::new(0, 999)).is_empty());
 }

@@ -142,15 +142,15 @@ fn literal_and_pattern_doc(
 /// `id`: a slot on the wire is its variable's id, so this re-points one
 /// slot at another variable — the one corruption a hand edit can make
 /// of it.
-fn repointed_slot(text: &str, key: &str, id: u64) -> String {
+fn repointed_slot(text: &str, key: &str, id: editor_core::MintId) -> String {
     let at = text
-        .find(&format!("\"{key}\": "))
+        .find(&format!("\"{key}\": \""))
         .expect("the wire carries that key")
         + key.len()
-        + 4;
-    let digits = text[at..].bytes().take_while(u8::is_ascii_digit).count();
-    assert!(digits > 0, "a stored slot holds its variable's id");
-    let out = format!("{}{id}{}", &text[..at], &text[at + digits..]);
+        + 5;
+    let spelled = text[at..].find('"').expect("a stored id is a string");
+    assert!(spelled > 0, "a stored slot holds its variable's id");
+    let out = format!("{}{id}{}", &text[..at], &text[at + spelled..]);
     assert_ne!(out, text, "the corruption really landed");
     out
 }
@@ -595,13 +595,13 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::BeginParamGesture {
-        var: pncad::document::VarId(0x6e6f_7375_6368),
+        var: pncad::document::VarId::new(0, 0x6e6f_7375_6368),
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
             .perform(SessionOp::PreviewParamGesture {
-                var: pncad::document::VarId(0x6e6f_7375_6368),
+                var: pncad::document::VarId::new(0, 0x6e6f_7375_6368),
                 value: 1.0
             })
             .refusal,
@@ -761,7 +761,7 @@ fn refusals_render_as_sentences() {
     // The arm that motivated the widening: a value typed into the
     // field of a variable the document does not hold goes to the EDIT
     // door, whose sentence the status line renders verbatim.
-    let absent = pncad::document::VarId(0x7461_7070_6572);
+    let absent = pncad::document::VarId::new(0, 0x7461_7070_6572);
     let edit = session
         .perform(SessionOp::SetParam {
             var: absent,

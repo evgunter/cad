@@ -220,7 +220,7 @@ fn a_positional_array_body_loads() {
     let arr = serde_json::json!([v["snapshot"], v["edits"]]);
     let text = join(&header, &arr);
     match load(&text, Tol::witness()) {
-        Ok(loaded) => assert_eq!(loaded.doc.order().len(), 3),
+        Ok(loaded) => assert_eq!(loaded.doc.ids().len(), 3),
         Err(e) => panic!("recorded expectation: a positional body loads; got {e:?}"),
     }
 }
@@ -390,74 +390,61 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 /// than the break is the additive half, so this exemplar is written by
 /// today's writer and kept minimal: its node vocabulary is
 /// {Datum, Profile, Extrude} and nothing newer, so the row still says
-/// that a document lacking every later arm loads. Re-frozen again when
-/// a profile's steps gained minted ids (the program's `ids` and the
-/// document's step counter), the same kind of break, and again when the
-/// counter became the step mint's chain and log, again when node
-/// ids moved onto that mint, again when an extrude's side became a
-/// required field, and again when a slot came to hold its variable's
-/// id.
+/// that a document lacking every later arm loads. It is re-frozen, by
+/// today's writer, at each such break.
 const OLDER_SHAPED: &str = concat!(
-    "id: 8ad37e1a750ae77132c0bf059acb322f\n{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf",
-    "059acb322f\",\"mint\":{\"chain\":\"0316a8e5f987300fb63dbac217e149d3ac1a39a289aa4d0de",
-    "502fe43be30e09f\",\"log\":[{\"node\":222550937288781839},{\"var\":687067507121259641",
-    "},{\"var\":1692951550161305783},{\"var\":3992818210703844589},{\"var\":4557121810070",
-    "918341},{\"var\":4720270004154464002},{\"var\":5217081412177518420},{\"step\":642089",
-    "1478810644163},{\"node\":6952591527216186421},{\"var\":6958480090943866564},{\"var\"",
-    ":8004427572517704354},{\"var\":9933765765270439050},{\"step\":10270049170496020773},",
-    "{\"var\":10636643242840588584},{\"var\":11508714693452263776},{\"var\":1152016280368",
-    "8111428},{\"var\":12921966442148625044},{\"var\":13437228041663008622},{\"var\":1496",
-    "9638619857046222},{\"var\":15645373147172179756},{\"step\":16054304900290762691},{\"",
-    "var\":16300829493895992422},{\"var\":16922366612452288273},{\"node\":174034797324733",
-    "40673},{\"step\":17434746612444774629},{\"step\":18381077563867063357}]},\"nodes\":{",
-    "\"222550937288781839\":{\"Extrude\":{\"profile\":6952591527216186421,\"distance\":12",
-    "921966442148625044,\"side\":\"along\"}},\"6952591527216186421\":{\"Profile\":{\"plan",
-    "e\":17403479732473340673,\"loops\":[{\"Chain\":[{\"At\":[10636643242840588584,800442",
-    "7572517704354]},{\"LineTo\":{\"Point\":[3992818210703844589,16922366612452288273]}},",
-    "{\"LineTo\":{\"Point\":[14969638619857046222,4720270004154464002]}},{\"LineTo\":{\"P",
-    "oint\":[13437228041663008622,4557121810070918341]}},{\"LineTo\":\"Start\"}]}],\"ids\"",
-    ":[[17434746612444774629,6420891478810644163,18381077563867063357,1605430490029076269",
-    "1,10270049170496020773]]}},\"17403479732473340673\":{\"Datum\":{\"Frame\":{\"origin\"",
-    ":[16300829493895992422,9933765765270439050,1692951550161305783],\"u\":[1564537314717",
-    "2179756,6958480090943866564,5217081412177518420],\"v\":[11508714693452263776,1152016",
-    "2803688111428,687067507121259641]}}}},\"order\":[17403479732473340673,69525915272161",
-    "86421,222550937288781839],\"roots\":[222550937288781839],\"vars\":{\"687067507121259",
-    "641\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"v",
-    "alue\":0.0,\"display_unit\":\"\"}}}},\"1692951550161305783\":{\"kind\":\"Length\",\"",
-    "def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"",
-    "m\"}}}},\"3992818210703844589\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous",
-    "\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"455712181007091834",
-    "1\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"val",
-    "ue\":1.0,\"display_unit\":\"m\"}}}},\"4720270004154464002\":{\"kind\":\"Length\",\"d",
-    "ef\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"",
-    "m\"}}}},\"5217081412177518420\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous",
-    "\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"6958480090943866564",
-    "\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"valu",
-    "e\":0.0,\"display_unit\":\"\"}}}},\"8004427572517704354\":{\"kind\":\"Length\",\"def",
-    "\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"",
-    "}}}},\"9933765765270439050\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
-    "{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"10636643242840588584\"",
-    ":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
-    ":0.0,\"display_unit\":\"m\"}}}},\"11508714693452263776\":{\"kind\":\"Scalar\",\"def\"",
-    ":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}",
-    "}},\"11520162803688111428\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{",
-    "\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"12921966442148625044\":",
-    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
-    ":1.0,\"display_unit\":\"m\"}}}},\"13437228041663008622\":{\"kind\":\"Length\",\"def\"",
-    ":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}",
-    "}}},\"14969638619857046222\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
-    "{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15645373147172179756\"",
-    ":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\"",
-    ":1.0,\"display_unit\":\"\"}}}},\"16300829493895992422\":{\"kind\":\"Length\",\"def\"",
-    ":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}",
-    "}}},\"16922366612452288273\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
-    "{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}}},\"var_order\":[1630082",
-    "9493895992422,9933765765270439050,1692951550161305783,15645373147172179756,695848009",
-    "0943866564,5217081412177518420,11508714693452263776,11520162803688111428,68706750712",
-    "1259641,10636643242840588584,8004427572517704354,3992818210703844589,169223666124522",
-    "88273,14969638619857046222,4720270004154464002,13437228041663008622,4557121810070918",
-    "341,12921966442148625044],\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appea",
-    "rance\":[]},\"edits\":[]}",
+    "id: 8ad37e1a750ae77132c0bf059acb322f\n",
+    "{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf059acb322f\",\"mint\":{\"chain\":\"b4df12e4a4",
+    "1c240fd51afc2c5f7c8122801137c78e464bee6240fe63ab5afab4\",\"log\":[{\"var\":\"1:b639d84",
+    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
+    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
+    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
+    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:d05826096083a72f\"},{\"var\":\"12:3312",
+    "b2f8504eeee2\"},{\"var\":\"13:67cd6e8f80d24d4e\"},{\"var\":\"14:fd8954268d1e7222\"},{\"var",
+    "\":\"15:4e4dce13c4a56d92\"},{\"var\":\"16:e8e5f1ea6e7306c2\"},{\"var\":\"17:0ad5807e1b5f70",
+    "0c\"},{\"var\":\"18:6d679bcadae726fe\"},{\"node\":\"19:f5ee2ea3890bdbd0\"},{\"step\":\"20:05",
+    "3eb2ee5f95c60a\"},{\"step\":\"21:dd0913f0e561776c\"},{\"step\":\"22:5ca04880b5f26723\"},{",
+    "\"step\":\"23:1c5d6d0a2e5f2352\"},{\"step\":\"24:e1a86d05a90489eb\"},{\"var\":\"25:bdc04106",
+    "e3ffa2bc\"},{\"node\":\"26:b4df12e4a41c240f\"}]},\"nodes\":{\"10:54a0180a83275575\":{\"Dat",
+    "um\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:fb5fef638c3",
+    "0912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b90439\"],\"v\"",
+    ":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"19:f5ee2ea",
+    "3890bdbd0\":{\"Profile\":{\"plane\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"",
+    "11:d05826096083a72f\",\"12:3312b2f8504eeee2\"]},{\"LineTo\":{\"Point\":[\"13:67cd6e8f80d",
+    "24d4e\",\"14:fd8954268d1e7222\"]}},{\"LineTo\":{\"Point\":[\"15:4e4dce13c4a56d92\",\"16:e8",
+    "e5f1ea6e7306c2\"]}},{\"LineTo\":{\"Point\":[\"17:0ad5807e1b5f700c\",\"18:6d679bcadae726f",
+    "e\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"20:053eb2ee5f95c60a\",\"21:dd0913f0e561776c\",",
+    "\"22:5ca04880b5f26723\",\"23:1c5d6d0a2e5f2352\",\"24:e1a86d05a90489eb\"]]}},\"26:b4df12",
+    "e4a41c240f\":{\"Extrude\":{\"profile\":\"19:f5ee2ea3890bdbd0\",\"distance\":\"25:bdc04106e",
+    "3ffa2bc\",\"side\":\"along\"}}},\"roots\":[\"26:b4df12e4a41c240f\"],\"vars\":{\"1:b639d844ba",
+    "b8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0",
+    ",\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Co",
+    "ntinuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef638c30912c",
+    "\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"disp",
+    "lay_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuo",
+    "us\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168290\":{\"kin",
+    "d\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_uni",
+    "t\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"di",
+    "m\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"kind\":\"Scal",
+    "ar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}",
+    "},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scal",
+    "ar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Scalar\",\"def",
+    "\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"11:d0",
+    "5826096083a72f\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"va",
+    "lue\":0.0,\"display_unit\":\"m\"}}}},\"12:3312b2f8504eeee2\":{\"kind\":\"Length\",\"def\":{\"F",
+    "ree\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:67cd6e",
+    "8f80d24d4e\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":1.0,\"display_unit\":\"m\"}}}},\"14:fd8954268d1e7222\":{\"kind\":\"Length\",\"def\":{\"Free\"",
+    ":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"15:4e4dce13c4",
+    "a56d92\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0",
+    ",\"display_unit\":\"m\"}}}},\"16:e8e5f1ea6e7306c2\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"C",
+    "ontinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:0ad5807e1b5f70",
+    "0c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"di",
+    "splay_unit\":\"m\"}}}},\"18:6d679bcadae726fe\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
+    "nuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"25:bdc04106e3ffa2bc\":",
+    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"displa",
+    "y_unit\":\"m\"}}}}},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"",
+    "edits\":[]}",
     "\n"
 );
 
@@ -473,19 +460,20 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
     let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
     assert_ne!(text, OLDER_SHAPED);
     let v: serde_json::Value = serde_json::from_str(text.split_once('\n').unwrap().1).unwrap();
-    // In document order: the node map is keyed by minted id.
+    // In document order: the node map is keyed by minted id, which
+    // orders as the nodes were inserted.
     let nodes = v["snapshot"]["nodes"].as_object().unwrap();
-    let tags: Vec<&String> = v["snapshot"]["order"]
-        .as_array()
-        .unwrap()
+    let mut keyed: Vec<(editor_core::MintId, &serde_json::Value)> = nodes
         .iter()
-        .map(|id| {
-            let node = &nodes[&id.as_u64().unwrap().to_string()];
-            node.as_object().unwrap().keys().next().unwrap()
-        })
+        .map(|(id, node)| (editor_core::MintId::parse(id).unwrap(), node))
+        .collect();
+    keyed.sort_by_key(|&(id, _)| id);
+    let tags: Vec<&String> = keyed
+        .iter()
+        .map(|(_, node)| node.as_object().unwrap().keys().next().unwrap())
         .collect();
     assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
     let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");
-    assert_eq!(loaded.doc.order().len(), 3);
+    assert_eq!(loaded.doc.ids().len(), 3);
     assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
 }
