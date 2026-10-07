@@ -24,7 +24,7 @@ use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
 use pncad::workspace::WorkspaceError;
 
-// The recourse this module's `NoSuchParam` arm ends on, read from its
+// The recourse this module's `NoSuchVariable` arm ends on, read from its
 // one home beside the error whose door raises the other half of the
 // pair. A direct edge on the owning crate rather than a new re-export
 // added to `pncad`'s root — the ruling `pncad`'s own crate docs state
@@ -225,7 +225,7 @@ impl Step {
 pub enum Refusal {
     /// The slot is driven by an expression, so a direct numeric edit
     /// is refused — the ratified affordance. The payload is what the
-    /// affordance needs: which parameters drive it (each navigable and
+    /// affordance needs: which variables drive it (each navigable and
     /// editable), and what the slot evaluates to today.
     DrivenByExpression {
         /// The node holding the slot.
@@ -249,7 +249,7 @@ pub enum Refusal {
         /// The slot named.
         slot: SlotId,
     },
-    /// No document parameter with that id.
+    /// No document variable with that id.
     ///
     /// A LOOKUP's not-found arm, never a pre-check: the two sites that
     /// raise it need the declaration itself — its dimension to open a
@@ -272,13 +272,13 @@ pub enum Refusal {
     /// that was refused, and a drag has no edit behind it, so a
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
-    NoSuchParam(VarId),
-    /// A parameter's field was given a constant expression that does
+    NoSuchVariable(VarId),
+    /// A variable's field was given a constant expression that does
     /// not evaluate to a value — a non-finite result, or a count past
     /// its range. Constant text typed as a value is folded here, before
     /// any door, so the evaluator's refusal is this door's to forward.
     ConstantRefused {
-        /// The parameter whose field was typed into.
+        /// The variable whose field was typed into.
         var: SpokenVar,
         /// The evaluator's refusal, in its own words.
         source: EvalError,
@@ -462,7 +462,7 @@ impl Refusal {
                 current,
                 notation,
             },
-            unspoken @ (Self::NoSuchParam(_)
+            unspoken @ (Self::NoSuchVariable(_)
             | Self::EmptyName
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -487,7 +487,7 @@ impl Refusal {
             Self::Parse(error) => Some(&**error),
             Self::DrivenByExpression { .. }
             | Self::NoSuchSlot { .. }
-            | Self::NoSuchParam(_)
+            | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
@@ -528,7 +528,7 @@ impl Refusal {
         match self {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
-            | Self::NoSuchParam(_)
+            | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
@@ -639,7 +639,7 @@ impl Refusal {
     /// still leaves open.
     ///
     /// The name says `new_document` and not `name`: a blank
-    /// *parameter* name is a different question with a different
+    /// *variable* name is a different question with a different
     /// answer — no door refuses one at all
     /// (`work/edit/no-door-refuses-a-blank-parameter-name`) — and a
     /// general name here would be an inviting wrong door for it.
@@ -689,8 +689,8 @@ impl Refusal {
     }
 
     /// The already-declared sentence, and its one home: the add-
-    /// parameter form's notice BEFORE the click, which offers the
-    /// standing parameter's row in place of the Create button. A click
+    /// variable form's notice BEFORE the click, which offers the
+    /// standing variable's row in place of the Create button. A click
     /// that reaches the door anyway is refused by the declare itself
     /// (`EditError::VarNameTaken`, through [`Refusal::Edit`]); the
     /// notice is an offer the form makes from the document it reads,
@@ -704,15 +704,15 @@ impl Refusal {
     /// identifier.
     pub fn exists_wording(name: &VarName, dimension: Dimension) -> String {
         format!(
-            "parameter {} already exists ({dimension}) — edit it instead?",
+            "variable {} already exists ({dimension}) — edit it instead?",
             name.as_str()
         )
     }
 
     /// The create-offer sentence, and its one home — shown over the
-    /// add-parameter form when an expression refused on this name.
+    /// add-variable form when an expression refused on this name.
     pub fn offer_wording(name: &VarName) -> String {
-        format!("create parameter {}?", name.as_str())
+        format!("create variable {}?", name.as_str())
     }
 
     /// The declare-offer question, and its one home — shown over the
@@ -787,7 +787,7 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchSlot { node, slot } => {
                 write!(f, "{node} has no {} slot", slot.label())
             }
-            Self::NoSuchParam(var) => {
+            Self::NoSuchVariable(var) => {
                 write!(
                     f,
                     "variable {var} is not in this document — {UNKNOWN_VAR_RECOURSE}"

@@ -205,18 +205,18 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetParam { .. }
-        | SessionOp::SetParamUnit { .. }
-        | SessionOp::SetParamText { .. }
+        | SessionOp::SetVariable { .. }
+        | SessionOp::SetVariableUnit { .. }
+        | SessionOp::SetVariableText { .. }
         | SessionOp::DeclareVar { .. }
         | SessionOp::RenameVar { .. }
         | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::BeginVariableGesture { .. }
         | SessionOp::PreviewGesture { .. }
         | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewParamGesture { .. }
-        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::PreviewVariableGesture { .. }
+        | SessionOp::CommitVariableGesture { .. }
         | SessionOp::CancelGesture
         | SessionOp::Undo
         | SessionOp::Redo

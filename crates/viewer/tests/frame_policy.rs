@@ -3050,13 +3050,13 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
     assert!((ray.dir.z - forward.z).abs() < 1e-12);
 }
 
-// --- the refuse-then-offer pair for an unknown parameter ------------
+// --- the refuse-then-offer pair for an unknown variable ------------
 
-/// **The unknown-parameter refusal carries its offer, and the frame
+/// **The unknown-variable refusal carries its offer, and the frame
 /// policies hand both to the chrome.** An expression naming an
-/// undeclared parameter refuses at the parse door (typo-safety — text
-/// never creates a parameter); `creation_offer` extracts the name to
-/// prefill the add-parameter affordance, and `retype_draft` hands the
+/// undeclared variable refuses at the parse door (typo-safety — text
+/// never creates a variable); `creation_offer` extracts the name to
+/// prefill the add-variable affordance, and `retype_draft` hands the
 /// refused text back so acting on the offer does not cost the very
 /// expression that raised it.
 #[test]
@@ -3099,7 +3099,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         "and the refused draft comes back"
     );
 
-    // A parse refusal that names NO parameter restores the draft but
+    // A parse refusal that names NO variable restores the draft but
     // offers nothing to create.
     let batch = vec![SessionOp::SetSlotExpression {
         node: extrude,

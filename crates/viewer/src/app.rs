@@ -323,7 +323,7 @@ pub enum Pane {
     Viewport,
     /// The feature tree over the evaluation's result DAG.
     Features,
-    /// The selected node's (or parameter's) properties.
+    /// The selected node's (or variable's) properties.
     Properties,
     /// View settings: display δ and the camera's state.
     View,
@@ -1247,8 +1247,8 @@ impl ViewerApp {
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
-        // refusal does not cost it, and — for an unknown parameter
-        // name — prefill the add-parameter affordance with the name it
+        // refusal does not cost it, and — for an unknown variable
+        // name — prefill the add-variable affordance with the name it
         // offers to create (dimension deliberately left unpicked). An
         // expression edit that was NOT refused this way releases the
         // field back to the document, which is now what the user
@@ -1268,9 +1268,9 @@ impl ViewerApp {
             None => {}
         }
         if let Some(name) = frame::creation_offer(refusal.as_ref()) {
-            self.drafts.new_param_name = name.as_str().to_owned();
-            self.drafts.new_param_dimension = None;
-            self.drafts.new_param_offer = Some(name.clone());
+            self.drafts.new_variable_name = name.as_str().to_owned();
+            self.drafts.new_variable_dimension = None;
+            self.drafts.new_variable_offer = Some(name.clone());
         }
         if let Some(offer) = frame::declare_offer(refusal.as_ref()) {
             self.drafts.declare_offer = Some(offer);
@@ -3702,14 +3702,14 @@ mod properties_pane_tests {
         );
     }
 
-    /// **An undeclared parameter is said once**: against the frame with
+    /// **An undeclared variable is said once**: against the frame with
     /// nothing selected, the pane gains the verdict line and loses the
     /// "select a feature" prompt, and nothing else.
     #[test]
     fn an_undeclared_parameter_is_said_once_in_the_pane() {
         let var = pncad::document::VarId(0x0123_4567_89ab_cdef);
         let verdict = format!("{var} is no longer declared");
-        let mut with = painted_with(Selection::Param(var));
+        let mut with = painted_with(Selection::Variable(var));
         let mut without = painted_with(Selection::None);
         assert!(
             without.iter().any(|text| text == "select a feature"),
@@ -3925,7 +3925,7 @@ mod properties_pane_tests {
         startup_node(0)
     }
 
-    /// An expression with no parameter in it: computed all the same,
+    /// An expression with no variable in it: computed all the same,
     /// so the slot it drives has no written unit.
     const COMPUTED: &str = "1 mm + 1 mm";
 

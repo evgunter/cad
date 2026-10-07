@@ -162,13 +162,13 @@ fn a_profile_marks_the_body_built_from_it() {
     assert_eq!(by_profile, by_extrude);
 }
 
-/// **Selecting a document parameter marks what that number moves** —
+/// **Selecting a document variable marks what that number moves** —
 /// every feature whose expressions read it, including through
 /// arithmetic.
 ///
-/// The fixture's extrude distance is `thickness / 2`, so the parameter
+/// The fixture's extrude distance is `thickness / 2`, so the variable
 /// is reached through a division rather than named bare, which is the
-/// case a shallow "is this expression the parameter" test would miss.
+/// case a shallow "is this expression the variable" test would miss.
 #[test]
 fn selecting_a_parameter_marks_the_features_it_drives() {
     let tol = Tol::witness();
@@ -177,18 +177,18 @@ fn selecting_a_parameter_marks_the_features_it_drives() {
     session.pump();
     let index = index_of(&session);
 
-    session.perform(SessionOp::Select(Selection::Param(common::thickness_var(
-        session.committed_doc(),
-    ))));
+    session.perform(SessionOp::Select(Selection::Variable(
+        common::thickness_var(session.committed_doc()),
+    )));
     let driven = marks::focus(&index, session.doc(), session.selection());
     let extrude_ids: BTreeSet<u32> = index.ids_of_node(extrude).into_iter().collect();
     assert!(!extrude_ids.is_empty());
-    assert_eq!(driven, extrude_ids, "the parameter drives the extrude");
+    assert_eq!(driven, extrude_ids, "the variable drives the extrude");
 
-    // A parameter nothing reads marks nothing — the honest answer, not
+    // A variable nothing reads marks nothing — the honest answer, not
     // "everything" and not a panic.
     let unused = pncad::document::VarId(0x756e_7573_6564);
-    let quiet = marks::focus(&index, session.doc(), &Selection::Param(unused));
+    let quiet = marks::focus(&index, session.doc(), &Selection::Variable(unused));
     assert!(quiet.is_empty());
 }
 

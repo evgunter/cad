@@ -335,7 +335,7 @@ fn a_slot_edit_that_flips_the_sense_reports_nothing() {
 }
 
 /// **The same flip, dragged**: the preview and the release both report
-/// nothing — the GUI user dragging a parameter past a sense change
+/// nothing — the GUI user dragging a variable past a sense change
 /// moves no name.
 #[test]
 fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
@@ -481,12 +481,12 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     assert_line_words(&line_after(&outcome, op), &expected);
 }
 
-/// **A parameter edit through a state that draws nothing reports
+/// **A variable edit through a state that draws nothing reports
 /// nothing.** A driven circular hole at radius zero encloses nothing,
 /// so the profile does not validate and nothing is named — the frame
 /// on the hole's wall resolves to nothing until the radius comes back,
 /// and then to that wall again. No name was moved, so none is reported
-/// — written through the parameter panel's door.
+/// — written through the variable panel's door.
 #[test]
 fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let tol = Tol::witness();
@@ -506,7 +506,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 1, 0));
 
     let mut session = DocSession::inline(doc, tol);
-    let op = SessionOp::SetParam {
+    let op = SessionOp::SetVariable {
         var: common::var_of(session.committed_doc(), hole_r.as_str()),
         value: viewer::props::SlotValue::Continuous(0.0),
     };

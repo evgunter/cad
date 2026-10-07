@@ -42,10 +42,10 @@ the preferences file as `[notation] length` and `angle`, by unit
 symbol; it is never written into a document. A literal you wrote reads
 in the unit it was written in.
 
-In the Properties panel, the document-parameters list ends with an
-add-parameter row (name + dimension + value, written in the working
+In the Properties panel, the document-variables list ends with an
+add-variable row (name + dimension + value, written in the working
 notation's unit, one undoable edit); an
-expression that names an undeclared parameter refuses typed, and the
+expression that names an undeclared variable refuses typed, and the
 refusal offers to create it — prefilled into that row, with the
 dimension left as your pick.
 
@@ -1524,9 +1524,9 @@ typed refusal comes from the door rather than from here.* Pre-checking
 in layer 3 what `apply` refuses is two spellings of one rule, and the
 delegating arm exists to carry the door's answer unchanged.
 
-**A lookup is not a pre-check.** Opening a gesture on a parameter needs
+**A lookup is not a pre-check.** Opening a gesture on a variable needs
 its dimension, and the range probe needs its value and unit; both look
-the parameter up whether or not an edit ever follows, so a flat arm is
+the variable up whether or not an edit ever follows, so a flat arm is
 the honest answer when the lookup fails. What separates the two cases
 is whether an edit is about to be committed that would refuse on its
 own.
@@ -1534,7 +1534,7 @@ own.
 ### The G1 machine is held once
 
 Two gestures implement G1's preview/commit shape — the value drag
-`DocSession` owns over a slot or a document parameter, and the
+`DocSession` owns over a slot or a document variable, and the
 free-move probe `DisplayState` owns over an instance's frame — and
 their three transition rules are one value, `g1::Slot`:
 
@@ -1599,7 +1599,7 @@ place rather than inferred from every dispatch target.
 under an open gesture is refused by that gesture's own door —
 `g1::Slot::begin`, reached through `DocSession::start` for the value
 drag and `DisplayState::begin_free_move` for the probe — so
-`BeginGesture` and `BeginParamGesture` are permitted by this table and
+`BeginGesture` and `BeginVariableGesture` are permitted by this table and
 refused anyway, one layer down, with the same `GestureInFlight` a row
 here would raise off the same state. A row would be a second spelling
 of one answer and would leave the door's own arm unreachable through
@@ -1646,8 +1646,8 @@ question with its own item.
 
 ### A driving operation names its own gesture
 
-`PreviewGesture`, `CommitGesture`, `PreviewParamGesture`,
-`CommitParamGesture`, `PreviewFreeMove` and `CommitFreeMove` each carry
+`PreviewGesture`, `CommitGesture`, `PreviewVariableGesture`,
+`CommitVariableGesture`, `PreviewFreeMove` and `CommitFreeMove` each carry
 the target they are driving, and each is refused when that is not the
 gesture in flight — `Refusal::WrongGesture` for the value drag,
 `DisplayFault::WrongFreeMove` for the probe, raised where the gesture's
@@ -1815,7 +1815,7 @@ operation is a parameter of the mapping beside the commit — and a
 has a cancel and `every_gesture_cancel_has_a_chrome_door`, which names
 every `SessionOp`, keeps it so. Both drags the panel maps run
 through that one function, so both ends are the same rule at the slot
-field, the parameter field and the free-move probe; the stake is
+field, the variable field and the free-move probe; the stake is
 largest at the first two, where a commit reaches the document and costs
 an undo step.
 
@@ -2095,7 +2095,7 @@ way they are; the sites carry only their local reasons.
 
 **Where this crate decides something over an enum, the decision is a
 `match` with an arm for every variant and no `_`.** Which tool an
-operation closes, which refusal offers to create a parameter, which
+operation closes, which refusal offers to create a variable, which
 node a seat admits, whether a row is a fault. A subset pattern —
 `matches!(x, A | B)`, `!matches!(x, C)`, a `_ =>` arm, a bare binding
 standing for "the rest" — answers for every variant it does not name,
@@ -2251,7 +2251,7 @@ where, exhaustively:
   `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad", "bvh"}`), so every branch
   that can break one of those fourteen seeds the toolkit and takes the
   all-features pass. **The fifteenth does not.**
-  `session::refuse`'s `Refusal::NoSuchParam` doc links
+  `session::refuse`'s `Refusal::NoSuchVariable` doc links
   `` [`editor_core::edit::UNKNOWN_VAR_RECOURSE`] ``, and
   `editor-core` is not in the seed set — so a branch that renames or
   deletes that constant reaches `viewer` through the closure, takes

@@ -2,23 +2,23 @@
 //! little lighthouse — three coaxial drums, each pierced a few
 //! millimetres into the one below — built through the session's op
 //! vocabulary and then LIVED IN parametrically: every proportion hangs
-//! off four document parameters, and the session edits the part by
+//! off four document variables, and the session edits the part by
 //! moving those numbers rather than by touching geometry again.
 //!
 //! The walk covers the whole parametric surface as one continuous
 //! session: the create/replace param partition (`DeclareVar` refuses
-//! a taken name, `SetParam` refuses an absent variable — both in the
+//! a taken name, `SetVariable` refuses an absent variable — both in the
 //! edit door's words),
 //! expressions driving slots (`SetSlotExpression`) and the ratified
 //! refuse-with-affordance on a numeric write to a driven slot, display
 //! units as a separate door from values (`SetSlotUnit`), slider
-//! gestures over a slot and over a parameter (previews against
+//! gestures over a slot and over a variable (previews against
 //! scratch, exactly one undo step, a cancel leaving no trace), a
 //! locally-valid-range probe (`ProbeBounds`) and its discard on the
 //! next edit, param edits rippling through evaluation against a closed
 //! form, tree-shaped undo history (an edit after an undo mints a
 //! sibling), and a save/reopen round trip that keeps the expressions,
-//! the parameters and the written units.
+//! the variables and the written units.
 //!
 //! One test, deliberately, following `assembly_walk`: the walk's
 //! readability is part of what it asserts — each stage is a numbered
@@ -44,7 +44,7 @@ use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
 use viewer::session::{BoundsTarget, DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
-/// The lighthouse's proportions, as the parameters are first declared:
+/// The lighthouse's proportions, as the variables are first declared:
 /// base radius, tier ratio, tier height, and how deep each drum sinks
 /// into the one below (what keeps every union seam transversal).
 const BASE_R: f64 = 0.05;
@@ -52,7 +52,7 @@ const TAPER: f64 = 0.6;
 const HEIGHT: f64 = 0.03;
 const EMBED: f64 = 0.005;
 /// The lamp room's height — the one dimension of the part that is NOT
-/// parameter-driven, kept literal so the walk has a slot that carries
+/// variable-driven, kept literal so the walk has a slot that carries
 /// a display unit and a slider of its own.
 const LAMP_H: f64 = 0.012;
 
@@ -109,12 +109,12 @@ fn radius_slot(doc: &Doc<ProfileProgram>, profile: RecipeNodeId) -> SlotId {
         .expect("a circle profile carries a radius slot")
 }
 
-/// A declared parameter's stored value.
-fn param_of(doc: &Doc<ProfileProgram>, name: &VarName) -> SlotValue {
-    props::param_rows(doc)
+/// A declared variable's stored value.
+fn variable_value(doc: &Doc<ProfileProgram>, name: &VarName) -> SlotValue {
+    props::variable_rows(doc)
         .into_iter()
         .find(|row| row.label.name() == Some(name))
-        .expect("the parameter is declared")
+        .expect("the variable is declared")
         .value
 }
 
@@ -173,7 +173,7 @@ fn the_parametric_living_walk() {
     assert!(session.tree_rows().is_empty(), "an empty document");
     assert_eq!(session.history().len(), 1, "a fresh history: root only");
 
-    // ── 2. The user declares the proportions FIRST — four parameters,
+    // ── 2. The user declares the proportions FIRST — four variables,
     // each one committed `DeclareVar` edit and one undo step.
     let base_r = VarName::from_static("base_r");
     let taper = VarName::from_static("taper");
@@ -198,9 +198,9 @@ fn the_parametric_living_walk() {
         );
         assert_eq!(session.history().len(), before + 1, "one undo step");
     }
-    assert_eq!(props::param_rows(session.committed_doc()).len(), 4);
+    assert_eq!(props::variable_rows(session.committed_doc()).len(), 4);
     assert_eq!(
-        param_of(session.committed_doc(), &taper),
+        variable_value(session.committed_doc(), &taper),
         SlotValue::Continuous(TAPER)
     );
 
@@ -239,7 +239,7 @@ fn the_parametric_living_walk() {
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     let absent = pncad::document::VarId(0x7461_7070_6572);
-    let outcome = session.perform(SessionOp::SetParam {
+    let outcome = session.perform(SessionOp::SetVariable {
         var: absent,
         value: SlotValue::Continuous(0.5),
     });
@@ -261,7 +261,7 @@ fn the_parametric_living_walk() {
     // what, and the evaluated body is the closed-form cylinder.
     // The literal 0.03 deliberately equals `height`'s value, so the
     // part is coherent even mid-build; were the expression below to
-    // silently not take over, the stage-9/11 parameter ripples would
+    // silently not take over, the stage-9/11 variable ripples would
     // catch the literal standing still.
     let (base_profile, base) = drum(&mut session, "base_r", 0.03);
     drive(&mut session, base, SlotId::Distance, "height");
@@ -275,7 +275,7 @@ fn the_parametric_living_walk() {
         SlotDriver::Expression {
             params: vec![spoken(session.committed_doc(), &base_r)]
         },
-        "the radius names its driving parameter"
+        "the radius names its driving variable"
     );
     assert_eq!(radius_row.value, Ok(SlotValue::Continuous(BASE_R)));
     let got = body_volume(&mut session, base, tol);
@@ -368,7 +368,7 @@ fn the_parametric_living_walk() {
             input: lamp,
             // 0.08 deliberately equals `height * 3 - embed * 2` today
             // (coherent mid-build); a literal that stayed driving would
-            // be caught by the stage-9/11 parameter ripples.
+            // be caught by the stage-9/11 variable ripples.
             translation: len3([0.0, 0.0, 0.08]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(0.0),
@@ -409,7 +409,7 @@ fn the_parametric_living_walk() {
 
     // ── 7. Living in it, first touch: a direct number onto the
     // tower's driven distance refuses with the ratified affordance —
-    // the typed payload names the driving parameter and the value the
+    // the typed payload names the driving variable and the value the
     // slot has today, and the refusal commits nothing.
     let before = session.history().len();
     let outcome = session.perform(SessionOp::SetSlot {
@@ -444,16 +444,16 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), before, "and mints no history");
 
     // ── 8. About to move `taper`, the user asks how far it can go.
-    // The probe targets the PARAMETER, and on a driven slot it must:
+    // The probe targets the VARIABLE, and on a driven slot it must:
     // the probe refuses an expression-driven slot with the same
     // affordance the numeric write above got, which names the
-    // parameter to ask about instead. The probe is explicit, commits
+    // variable to ask about instead. The probe is explicit, commits
     // nothing,
     // and answers in the session: below, a wall exists (a drum's radius hits zero before
     // taper does — degenerate profile), so the low side is an EDGE
     // strictly inside (0, taper); above, the drums merely re-stack, so
     // the search finds real room past the first reach. A probe on an
-    // undeclared parameter refuses through the same typed door as the
+    // undeclared variable refuses through the same typed door as the
     // value write.
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Slot {
@@ -476,14 +476,14 @@ fn the_parametric_living_walk() {
         "a refused probe lands no reading"
     );
     let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
+        target: BoundsTarget::Variable {
             var: pncad::document::VarId(0x7461_7070_6572),
         },
     });
-    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
+    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchVariable(_))));
     let before = session.history().len();
     let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
+        target: BoundsTarget::Variable {
             var: common::var_of(session.committed_doc(), taper.as_str()),
         },
     });
@@ -494,7 +494,7 @@ fn the_parametric_living_walk() {
     let bounds = reading.bounds;
     assert_eq!(
         reading.target,
-        BoundsTarget::Param {
+        BoundsTarget::Variable {
             var: common::var_of(session.committed_doc(), taper.as_str())
         }
     );
@@ -520,12 +520,12 @@ fn the_parametric_living_walk() {
         bounds.samples
     );
 
-    // ── 9. The ripple: one parameter moves and the whole part
+    // ── 9. The ripple: one variable moves and the whole part
     // follows. The probe's answer — a statement about the OLD document
     // — is discarded by the edit; the volume tracks the closed form;
     // one undo restores the old geometry exactly; redo returns.
     let v_before = body_volume(&mut session, lighthouse, tol);
-    let outcome = session.perform(SessionOp::SetParam {
+    let outcome = session.perform(SessionOp::SetVariable {
         var: common::var_of(session.committed_doc(), taper.as_str()),
         value: SlotValue::Continuous(0.7),
     });
@@ -545,9 +545,9 @@ fn the_parametric_living_walk() {
 
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert_eq!(
-        param_of(session.committed_doc(), &taper),
+        variable_value(session.committed_doc(), &taper),
         SlotValue::Continuous(TAPER),
-        "undo returns the parameter"
+        "undo returns the variable"
     );
     let v_back = body_volume(&mut session, lighthouse, tol);
     assert_eq!(
@@ -557,7 +557,7 @@ fn the_parametric_living_walk() {
     );
     assert!(session.perform(SessionOp::Redo).refusal.is_none());
     assert_eq!(
-        param_of(session.committed_doc(), &taper),
+        variable_value(session.committed_doc(), &taper),
         SlotValue::Continuous(0.7),
         "redo walks forward along the same branch"
     );
@@ -638,7 +638,7 @@ fn the_parametric_living_walk() {
     assert_eq!(history.entry(fork).children().len(), 2, "a real branch");
     assert!(history.entry(fork).children().contains(&abandoned));
     assert_eq!(
-        param_of(history.entry(abandoned).doc(), &taper),
+        variable_value(history.entry(abandoned).doc(), &taper),
         SlotValue::Continuous(0.7),
         "nothing destroyed: the abandoned branch still holds its edit"
     );
@@ -646,7 +646,7 @@ fn the_parametric_living_walk() {
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, 0.013);
     assert!(near(got, want), "taller lamp volume {got} vs {want}");
 
-    // ── 11. A slider drag on a PARAMETER — the affordance's landing
+    // ── 11. A slider drag on a VARIABLE — the affordance's landing
     // spot, and the same gesture machinery through its own door. Mid-
     // drag the preview drives the EVALUATION (the picture follows the
     // scratch document), the document is locked against other edits,
@@ -654,14 +654,14 @@ fn the_parametric_living_walk() {
     let before = session.history().len();
     assert!(
         session
-            .perform(SessionOp::BeginParamGesture {
+            .perform(SessionOp::BeginVariableGesture {
                 var: common::var_of(session.committed_doc(), height.as_str())
             })
             .refusal
             .is_none()
     );
     for value in [0.032, 0.04, 0.036] {
-        let outcome = session.perform(SessionOp::PreviewParamGesture {
+        let outcome = session.perform(SessionOp::PreviewVariableGesture {
             var: common::var_of(session.committed_doc(), height.as_str()),
             value,
         });
@@ -680,14 +680,14 @@ fn the_parametric_living_walk() {
         "the picture follows the newest preview: {previewed}"
     );
     assert_eq!(
-        param_of(session.committed_doc(), &height),
+        variable_value(session.committed_doc(), &height),
         SlotValue::Continuous(HEIGHT),
-        "the committed parameter has not moved"
+        "the committed variable has not moved"
     );
     assert!(
         matches!(
             session
-                .perform(SessionOp::SetParam {
+                .perform(SessionOp::SetVariable {
                     var: common::var_of(session.committed_doc(), embed.as_str()),
                     value: SlotValue::Continuous(0.004),
                 })
@@ -696,7 +696,7 @@ fn the_parametric_living_walk() {
         ),
         "other edits refuse typed while the drag holds the document"
     );
-    let outcome = session.perform(SessionOp::CommitParamGesture {
+    let outcome = session.perform(SessionOp::CommitVariableGesture {
         var: common::var_of(session.committed_doc(), height.as_str()),
     });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
@@ -706,7 +706,7 @@ fn the_parametric_living_walk() {
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
     assert_eq!(
-        param_of(session.committed_doc(), &height),
+        variable_value(session.committed_doc(), &height),
         SlotValue::Continuous(0.036),
         "the LAST previewed value is what the commit recorded"
     );
@@ -716,12 +716,12 @@ fn the_parametric_living_walk() {
     // One undo returns the whole drag; redo re-lands it.
     session.perform(SessionOp::Undo);
     assert_eq!(
-        param_of(session.committed_doc(), &height),
+        variable_value(session.committed_doc(), &height),
         SlotValue::Continuous(HEIGHT)
     );
     session.perform(SessionOp::Redo);
     assert_eq!(
-        param_of(session.committed_doc(), &height),
+        variable_value(session.committed_doc(), &height),
         SlotValue::Continuous(0.036)
     );
 
@@ -761,7 +761,7 @@ fn the_parametric_living_walk() {
     ));
 
     // ── 13. Save, reopen, and everything parametric survives: the
-    // document bit-for-bit, the four parameters at their final values,
+    // document bit-for-bit, the four variables at their final values,
     // the drivers still expressions over the same names, the mm
     // notation still on the lamp's height, and the same solid.
     let v_final = body_volume(&mut session, lighthouse, tol);
@@ -790,7 +790,7 @@ fn the_parametric_living_walk() {
         (&embed, EMBED),
     ] {
         assert_eq!(
-            param_of(session.committed_doc(), name),
+            variable_value(session.committed_doc(), name),
             SlotValue::Continuous(want),
             "{name:?} survives the round trip"
         );

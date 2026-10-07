@@ -54,26 +54,26 @@ pub(crate) struct Drafts {
     /// document's afterwards, so there is only one thing this layer
     /// has to remember: text a parse refusal sent back
     /// ([`crate::frame::retype_draft`]). Acting on the refusal — going off to
-    /// declare the parameter it named — must not cost the text that
+    /// declare the variable it named — must not cost the text that
     /// raised it, so the field keeps showing it until an expression
     /// edit for that slot lands.
     pub(crate) expr_target: Option<(RecipeNodeId, SlotId)>,
     /// The refused text itself.
     pub(crate) expr_text: String,
-    /// The add-parameter form's name field.
-    pub(crate) new_param_name: String,
+    /// The add-variable form's name field.
+    pub(crate) new_variable_name: String,
     /// Its chosen dimension — `None` until the user picks one, and
     /// the Create button waits for the pick. The offer path lands
     /// here from an expression whose context does not determine the
-    /// new parameter's dimension, and a silently-defaulted one would
+    /// new variable's dimension, and a silently-defaulted one would
     /// be a guess none of this program's doors make.
-    pub(crate) new_param_dimension: Option<Dimension>,
+    pub(crate) new_variable_dimension: Option<Dimension>,
     /// Its value field.
-    pub(crate) new_param_value: f64,
-    /// The name an unknown-parameter refusal offered to create
+    pub(crate) new_variable_value: f64,
+    /// The name an unknown-variable refusal offered to create
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
-    pub(crate) new_param_offer: Option<VarName>,
+    pub(crate) new_variable_offer: Option<VarName>,
     /// The mate tool's class/alignment choice, as widget state: an
     /// index into [`crate::matetool::admitted_classes`], an index into
     /// [`crate::forms::MATE_PRIMITIVES`], and the sense toggle. Draft chrome state
@@ -619,10 +619,10 @@ impl Default for Drafts {
             delta_text: None,
             expr_target: None,
             expr_text: String::new(),
-            new_param_name: String::new(),
-            new_param_dimension: None,
-            new_param_value: 0.0,
-            new_param_offer: None,
+            new_variable_name: String::new(),
+            new_variable_dimension: None,
+            new_variable_value: 0.0,
+            new_variable_offer: None,
             mate_class: 0,
             mate_primitive: 0,
             mate_opposed: false,

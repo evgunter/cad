@@ -1,5 +1,5 @@
 //! The Properties pane: what the current selection is, and the slot,
-//! parameter and instance fields that edit it.
+//! variable and instance fields that edit it.
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
@@ -15,7 +15,7 @@ use crate::app::{ViewerBehavior, indeterminate_wording, toned};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::frame::Tone;
-use crate::props::{self, Notation, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
+use crate::props::{self, Notation, SlotDriver, SlotGroup, SlotRow, SlotValue, VariableRow};
 use crate::session::{
     BoundsTarget, NodeKindWanted, Refusal, Selection, SessionOp, Standing, ValueGestureName, admits,
 };
@@ -82,16 +82,16 @@ impl ViewerBehavior<'_> {
                     self.feature_rows_ui(ui, feature, &groups);
                 }
             }
-            Selection::Param(var) => {
+            Selection::Variable(var) => {
                 // **The previewed document here, deliberately**: this
                 // row's field IS the drag, so it must show the value
                 // the gesture is previewing. What decides whether the
                 // row is drawn at all — the declaration — is the same
                 // in both documents, because the only edit a preview
-                // applies to a parameter is a value write
-                // (`props::param_edit`), which cannot declare or
+                // applies to a variable is a value write
+                // (`props::variable_edit`), which cannot declare or
                 // undeclare one.
-                if let Some(row) = crate::props::param_rows(self.session.doc())
+                if let Some(row) = crate::props::variable_rows(self.session.doc())
                     .into_iter()
                     .find(|row| row.var == var)
                 {
@@ -100,29 +100,29 @@ impl ViewerBehavior<'_> {
                     // a label a person reads is prose.
                     crate::widgets::message(
                         ui,
-                        format!("parameter {} ({})", row.label, row.dimension),
+                        format!("variable {} ({})", row.label, row.dimension),
                     );
                     ui.horizontal(|ui| {
                         value_field_ops(
                             ui,
-                            param_showing(&row, *self.notation),
-                            value_gesture(ValueGestureName::Param(var)),
-                            param_doors(var),
+                            variable_showing(&row, *self.notation),
+                            value_gesture(ValueGestureName::Variable(var)),
+                            variable_doors(var),
                             self.ops,
                             self.notices,
                         );
                         // **The unit is the picker's to say.** A
-                        // parameter's notation is a fact the document
+                        // variable's notation is a fact the document
                         // stores and an edit changes
-                        // (`SessionOp::SetParamUnit`, over
+                        // (`SessionOp::SetVariableUnit`, over
                         // `DocEdit::SetVarUnit`), so the row says
                         // it the way a slot row does: with the control
                         // that changes it. The dimensionless row and a
                         // `Count` have no notation to offer and draw
                         // nothing.
-                        self.param_unit_ui(ui, &row);
+                        self.variable_unit_ui(ui, &row);
                     });
-                    self.param_bounds_ui(ui, &row);
+                    self.variable_bounds_ui(ui, &row);
                 } else if let Some(row) = crate::props::defined_rows(self.session.doc())
                     .into_iter()
                     .find(|row| row.var == var)
@@ -134,18 +134,18 @@ impl ViewerBehavior<'_> {
                     // door's to refuse.
                     crate::widgets::message(
                         ui,
-                        format!("parameter {} ({})", row.label, row.dimension),
+                        format!("variable {} ({})", row.label, row.dimension),
                     );
                     value_field_ops(
                         ui,
                         defined_showing(&row, *self.notation),
-                        value_gesture(ValueGestureName::Param(var)),
-                        param_doors(var),
+                        value_gesture(ValueGestureName::Variable(var)),
+                        variable_doors(var),
                         self.ops,
                         self.notices,
                     );
                 }
-                // No row is an undeclared parameter, and nothing is
+                // No row is an undeclared variable, and nothing is
                 // drawn for it here: the header above has said so
                 // ([`standing_verdict`]), loud, and this panel says a
                 // fact once — the rule `failure_lines` keeps for a
@@ -156,21 +156,23 @@ impl ViewerBehavior<'_> {
             }
         }
         ui.separator();
-        ui.label("document parameters");
-        for row in crate::props::param_rows(self.session.doc()) {
+        ui.label("variables");
+        for row in crate::props::variable_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
             if crate::widgets::message_link(ui, row.label.to_string()).clicked() {
-                self.ops.push(SessionOp::Select(Selection::Param(row.var)));
+                self.ops
+                    .push(SessionOp::Select(Selection::Variable(row.var)));
             }
         }
         for row in crate::props::defined_rows(self.session.doc()) {
             if crate::widgets::message_link(ui, format!("{} = {}", row.label, row.formula))
                 .clicked()
             {
-                self.ops.push(SessionOp::Select(Selection::Param(row.var)));
+                self.ops
+                    .push(SessionOp::Select(Selection::Variable(row.var)));
             }
         }
-        self.add_param_ui(ui);
+        self.add_variable_ui(ui);
     }
 
     /// **A feature's editing rows**: its slot rows — and, for a
@@ -209,7 +211,7 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// The create half of the document-parameters section: name,
+    /// The create half of the document-variables section: name,
     /// dimension, value, the NOTATION to write it in, one
     /// [`SessionOp::DeclareVar`] on commit.
     ///
@@ -218,23 +220,23 @@ impl ViewerBehavior<'_> {
     /// creation form in the crate writes its lengths in and every value
     /// nobody wrote reads in ([`props::Notation`]). The panel's
     /// pickers are per literal for the opposite reason, and a
-    /// parameter's DECLARED notation is one of those: it is changed
-    /// afterwards at its own row ([`ViewerBehavior::param_unit_ui`]),
+    /// variable's DECLARED notation is one of those: it is changed
+    /// afterwards at its own row ([`ViewerBehavior::variable_unit_ui`]),
     /// not here.
     ///
     /// Two deliberate frictions, both refusals-in-advance. The
     /// dimension starts UNPICKED and Create waits for it — the offer
     /// path arrives here from an expression whose context does not
-    /// determine the new parameter's dimension, and a silent default
+    /// determine the new variable's dimension, and a silent default
     /// would be a guess. And a name that is already declared shows the
     /// already-exists sentence ([`Refusal::exists_wording`]) with the
     /// edit door offered, before the click ever reaches the declare's
     /// own refusal of a taken name (`EditError::VarNameTaken`).
-    pub(crate) fn add_param_ui(&mut self, ui: &mut egui::Ui) {
-        // The offer from an unknown-parameter parse refusal, shown
+    pub(crate) fn add_variable_ui(&mut self, ui: &mut egui::Ui) {
+        // The offer from an unknown-variable parse refusal, shown
         // while the name field still says the offered name.
-        if let Some(offered) = self.drafts.new_param_offer.clone() {
-            if offered.as_str() == self.drafts.new_param_name.trim() {
+        if let Some(offered) = self.drafts.new_variable_offer.clone() {
+            if offered.as_str() == self.drafts.new_variable_name.trim() {
                 crate::widgets::message_toned(
                     ui,
                     Refusal::offer_wording(&offered),
@@ -243,13 +245,13 @@ impl ViewerBehavior<'_> {
                 );
             } else {
                 // The user typed past the offer; it is stale.
-                self.drafts.new_param_offer = None;
+                self.drafts.new_variable_offer = None;
             }
         }
         ui.horizontal(|ui| {
             ui.label("add");
             ui.add(
-                egui::TextEdit::singleline(&mut self.drafts.new_param_name)
+                egui::TextEdit::singleline(&mut self.drafts.new_variable_name)
                     .hint_text("name")
                     .desired_width(90.0),
             );
@@ -265,7 +267,7 @@ impl ViewerBehavior<'_> {
             // is what these four buttons used to read as.
             for dimension in Dimension::ALL {
                 ui.radio_value(
-                    &mut self.drafts.new_param_dimension,
+                    &mut self.drafts.new_variable_dimension,
                     Some(dimension),
                     dimension.to_string(),
                 );
@@ -283,23 +285,23 @@ impl ViewerBehavior<'_> {
             // serves as the placeholder.
             let speed = self
                 .drafts
-                .new_param_dimension
+                .new_variable_dimension
                 .map_or(FIELD_DRAG_SPEED, |dimension| {
                     FieldWriting::of(dimension, None, Notation::CANONICAL).tick
                 });
-            match self.new_param_unit() {
-                Some(unit) => unit_field(ui, unit, speed, &mut self.drafts.new_param_value),
+            match self.new_variable_unit() {
+                Some(unit) => unit_field(ui, unit, speed, &mut self.drafts.new_variable_value),
                 // A `Count` and a bare `Scalar` name no notation, so
                 // the field is the number itself and no picker is
                 // drawn beside it.
                 None => {
-                    ui.add(number_field(&mut self.drafts.new_param_value, speed));
+                    ui.add(number_field(&mut self.drafts.new_variable_value, speed));
                 }
             }
             // Drawn AFTER the field it governs, which is the forms'
             // rule (`widgets::length_picker`): the pick is an input
             // event, so the field it re-writes is next frame's.
-            match self.drafts.new_param_dimension {
+            match self.drafts.new_variable_dimension {
                 Some(Dimension::Length) => {
                     length_picker(ui, "add_param", &mut self.notation.length);
                 }
@@ -310,10 +312,10 @@ impl ViewerBehavior<'_> {
             }
         });
         // The draft text is offered to the one door that decides what
-        // a parameter name is; a refused text leaves the control
+        // a variable name is; a refused text leaves the control
         // disabled, and the sentence the refusal carries is not yet
         // shown beside it.
-        let name = VarName::new(self.drafts.new_param_name.trim()).ok();
+        let name = VarName::new(self.drafts.new_variable_name.trim()).ok();
         // The declare door applies to `committed_doc()`, so the notice
         // ahead of the click asks it too: a notice drawn from the
         // previewed document would be answering about a document the
@@ -325,39 +327,39 @@ impl ViewerBehavior<'_> {
         });
         if let (Some(name), Some((var, dimension))) = (&name, existing) {
             if exists_notice(ui, &self.theme, name, dimension) {
-                self.ops.push(SessionOp::Select(Selection::Param(var)));
+                self.ops.push(SessionOp::Select(Selection::Variable(var)));
             }
             return;
         }
-        let ready = name.is_some() && self.drafts.new_param_dimension.is_some();
+        let ready = name.is_some() && self.drafts.new_variable_dimension.is_some();
         let create = ui.add_enabled(ready, egui::Button::new("Create"));
-        let create = if self.drafts.new_param_dimension.is_none() {
+        let create = if self.drafts.new_variable_dimension.is_none() {
             create.on_disabled_hover_text("pick a dimension first")
         } else {
             create
         };
         // The draft value is asked whether the dimension can carry it
-        // before a declaration is minted from it: a `Count` parameter
+        // before a declaration is minted from it: a `Count` variable
         // declared from a field holding `NaN` would otherwise be
         // created holding zero, which is a value nobody authored.
         // `SlotValue::of` is the one door that decides this.
         if create.clicked()
             && let Some(name) = name
-            && let Some(dimension) = self.drafts.new_param_dimension
-            && let Ok(value) = SlotValue::of(dimension, self.drafts.new_param_value)
+            && let Some(dimension) = self.drafts.new_variable_dimension
+            && let Ok(value) = SlotValue::of(dimension, self.drafts.new_variable_value)
         {
             self.ops.push(SessionOp::DeclareVar {
                 name,
-                value: crate::props::doc_param(dimension, value, self.new_param_unit()),
+                value: crate::props::doc_variable(dimension, value, self.new_variable_unit()),
             });
-            self.drafts.new_param_name.clear();
-            self.drafts.new_param_dimension = None;
-            self.drafts.new_param_value = 0.0;
-            self.drafts.new_param_offer = None;
+            self.drafts.new_variable_name.clear();
+            self.drafts.new_variable_dimension = None;
+            self.drafts.new_variable_value = 0.0;
+            self.drafts.new_variable_offer = None;
         }
     }
 
-    /// **The notation the add-parameter form is authoring in** — the
+    /// **The notation the add-variable form is authoring in** — the
     /// form's own unit for the dimension picked, and `None` where
     /// there is no notation to name (a `Count`, a bare `Scalar`, or no
     /// dimension picked yet).
@@ -375,8 +377,8 @@ impl ViewerBehavior<'_> {
     /// on CHROME, and the pairing it protects — a length picker that
     /// could write a `deg` — is the one the typed notation already makes
     /// unrepresentable.
-    fn new_param_unit(&self) -> Option<UnitDef> {
-        match self.drafts.new_param_dimension? {
+    fn new_variable_unit(&self) -> Option<UnitDef> {
+        match self.drafts.new_variable_dimension? {
             Dimension::Length => Some(self.notation.length.def()),
             Dimension::Angle => Some(self.notation.angle.def()),
             Dimension::Scalar | Dimension::Count => None,
@@ -402,7 +404,7 @@ impl ViewerBehavior<'_> {
         let landed = self.session.landed_pair();
         let said = self.session.selection_said();
         match standing {
-            Standing::Empty | Standing::Param { .. } => {}
+            Standing::Empty | Standing::Variable { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
                     ui.label(selected_node_heading(
@@ -638,7 +640,7 @@ impl ViewerBehavior<'_> {
                     ui.weak(family.dimension().to_string());
                 });
                 // The notes stay PER COMPONENT: an affordance names the
-                // parameters driving one component, and a range is one
+                // variables driving one component, and a range is one
                 // field's. Each names its component's slot.
                 for row in rows.iter() {
                     self.slot_notes_ui(ui, node, row);
@@ -662,13 +664,13 @@ impl ViewerBehavior<'_> {
     /// which is exactly what an expression needs. So what a user typed
     /// is read once, by [`crate::props::field_edit`], and takes one of two
     /// doors: a bare number through `SessionOp::SetSlot`, anything
-    /// else — an operator, a parameter, a unit — through
+    /// else — an operator, a variable, a unit — through
     /// `SessionOp::SetSlotExpression`. The panel parses nothing.
     ///
     /// The field commits on Enter or on leaving it
     /// (`update_while_editing(false)`), never per keystroke: half of
     /// `thickness * 2` is a parse refusal at best and a DIFFERENT
-    /// parameter at worst.
+    /// variable at worst.
     ///
     /// The number is shown in the unit the slot is WRITTEN in, scrubbed
     /// at a tick in that same unit, and authored back through the same
@@ -680,7 +682,7 @@ impl ViewerBehavior<'_> {
         let draft = (self.drafts.expr_target == Some((node, row.slot)))
             .then_some(self.drafts.expr_text.as_str());
         // **The panel's value field, both doors and the gesture** —
-        // the parameter row's field is this same call with its own
+        // the variable row's field is this same call with its own
         // two operations. What a slot contributes is what the field
         // shows and what its edit opens on ([`slot_showing`]): a
         // number typed over a driven slot's reading is no echo of
@@ -700,11 +702,11 @@ impl ViewerBehavior<'_> {
         );
     }
 
-    /// The written-unit picker for a document parameter's row.
+    /// The written-unit picker for a document variable's row.
     ///
     /// **"How do I want this number written" is an edit**, here as at
     /// a slot row: the notation rides on the declaration and persists,
-    /// so the picker emits `SessionOp::SetParamUnit` and the change
+    /// so the picker emits `SessionOp::SetVariableUnit` and the change
     /// enters the history like any other.
     ///
     /// Nothing is drawn for a dimension with no units (`Scalar`,
@@ -720,7 +722,7 @@ impl ViewerBehavior<'_> {
     /// question at every picker in the chrome. What this row adds is
     /// that a pick is an EDIT, and that re-picking the row already
     /// shown is not one.
-    pub(crate) fn param_unit_ui(&mut self, ui: &mut egui::Ui, row: &ParamRow) {
+    pub(crate) fn variable_unit_ui(&mut self, ui: &mut egui::Ui, row: &VariableRow) {
         let Some(written) = props::rendering_unit(row.dimension, row.unit, *self.notation) else {
             return;
         };
@@ -733,7 +735,7 @@ impl ViewerBehavior<'_> {
         ) && unit != written
         {
             self.ops
-                .push(SessionOp::SetParamUnit { var: row.var, unit });
+                .push(SessionOp::SetVariableUnit { var: row.var, unit });
         }
     }
 
@@ -880,7 +882,7 @@ impl ViewerBehavior<'_> {
         };
         let reading = self.bounds_wording(&target);
         if let Some(var) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
-            self.ops.push(SessionOp::Select(Selection::Param(var)));
+            self.ops.push(SessionOp::Select(Selection::Variable(var)));
         }
     }
 
@@ -889,7 +891,7 @@ impl ViewerBehavior<'_> {
     ///
     /// Written in the unit the SEARCH used, which the reading carries,
     /// not re-derived from the row it is drawn under: one sentence for
-    /// a slot's range and a parameter's alike
+    /// a slot's range and a variable's alike
     /// (`BoundsReading::wording`).
     fn bounds_wording(&self, target: &BoundsTarget) -> Option<String> {
         self.session
@@ -967,7 +969,7 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// The range probe's button and reading for a DOCUMENT PARAMETER —
+    /// The range probe's button and reading for a DOCUMENT VARIABLE —
     /// the one field that is not a slot.
     ///
     /// The reading is written in the unit the SEARCH ran in, which
@@ -976,8 +978,8 @@ impl ViewerBehavior<'_> {
     /// "the range says millimetres because the search stepped
     /// millimetres" a fact about one value rather than an agreement
     /// between two reads.
-    pub(crate) fn param_bounds_ui(&mut self, ui: &mut egui::Ui, row: &ParamRow) {
-        let target = BoundsTarget::Param { var: row.var };
+    pub(crate) fn variable_bounds_ui(&mut self, ui: &mut egui::Ui, row: &VariableRow) {
+        let target = BoundsTarget::Variable { var: row.var };
         let reading = self.bounds_wording(&target);
         if bounds_notes(ui, &self.theme, reading.as_deref()) {
             self.ops.push(SessionOp::ProbeBounds { target });
@@ -1005,7 +1007,7 @@ fn selected_node_heading(
 
 /// **What the selection's standing has to SAY, drawn**: the verdict on
 /// a selection that no longer denotes — a deleted node, an undeclared
-/// parameter, a picked entity whose name did not resolve — in the
+/// variable, a picked entity whose name did not resolve — in the
 /// voice [`Standing::tone`] gives it, and the rebind count under a
 /// failed name. Draws nothing for a selection that still denotes, or
 /// for none.
@@ -1039,20 +1041,20 @@ pub(crate) fn standing_verdict(
     let (noun, resolution) = match standing {
         Standing::Empty
         | Standing::Node { present: true, .. }
-        | Standing::Param { present: true, .. } => return,
+        | Standing::Variable { present: true, .. } => return,
         // One word, beside the node number the caller drew.
         Standing::Node { present: false, .. } => {
             ui.label(toned("deleted", theme, tone));
             return;
         }
-        Standing::Param {
+        Standing::Variable {
             var,
             present: false,
         } => {
             // A name the document no longer holds is not spoken, so a
             // nameless variable is said by its tag alone.
             let said = match var.name() {
-                Some(name) => format!("parameter {name} is no longer declared"),
+                Some(name) => format!("variable {name} is no longer declared"),
                 None => format!("{var} is no longer declared"),
             };
             crate::widgets::message_toned(ui, said, theme, tone);
@@ -1162,10 +1164,10 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
     }
 }
 
-/// **A free parameter's value field**: its number, in the unit it was
+/// **A free variable's value field**: its number, in the unit it was
 /// DECLARED in, with no text over it and no source to seed its edit
 /// with. A defined one's is [`defined_showing`].
-pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing {
+pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
     FieldShowing {
         writing,
@@ -1176,7 +1178,7 @@ pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing 
     }
 }
 
-/// **A defined parameter's value field**: its formula over the number
+/// **A defined variable's value field**: its formula over the number
 /// it evaluates to, and the formula again as the text an edit starts
 /// from, as a driven slot's field shows its expression. A definition
 /// that refuses holds a zero under its text, which no edit writes: a
@@ -1192,17 +1194,17 @@ pub(crate) fn defined_showing(row: &props::DefinedRow, notation: Notation) -> Fi
     }
 }
 
-/// **The two doors a parameter's field has**: a bare number is a
+/// **The two doors a variable's field has**: a bare number is a
 /// value in the field's notation and nothing else moves; anything
-/// else is text for `SessionOp::SetParamText`, which reads a number
+/// else is text for `SessionOp::SetVariableText`, which reads a number
 /// and its notation through the one parser and refuses what is
 /// neither.
-pub(crate) fn param_doors(
+pub(crate) fn variable_doors(
     var: VarId,
 ) -> FieldVocabulary<impl Fn(SlotValue) -> SessionOp, impl Fn(String) -> SessionOp> {
     FieldVocabulary {
-        number: move |value| SessionOp::SetParam { var, value },
-        text: move |text| SessionOp::SetParamText { var, text },
+        number: move |value| SessionOp::SetVariable { var, value },
+        text: move |text| SessionOp::SetVariableText { var, text },
     }
 }
 
@@ -1237,10 +1239,10 @@ pub(crate) fn slot_doors(
 /// status line when they try. Its wording is the ratified one, from
 /// its one home, the same string the status line shows when the edit
 /// is actually attempted. Its doors share a WRAPPING row, one per
-/// parameter the expression reads, so a door too long for what is
+/// variable the expression reads, so a door too long for what is
 /// left of the line starts the next one.
 ///
-/// Answers the parameter whose door was clicked.
+/// Answers the variable whose door was clicked.
 fn slot_notes(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -1349,7 +1351,7 @@ fn free_move_probe(
     });
 }
 
-/// **A document parameter's range `reading` and the button that takes
+/// **A document variable's range `reading` and the button that takes
 /// one** — the reading on its own line, the button under it, which is
 /// the order a slot's reading ([`slot_notes`]) and its range row are
 /// drawn in.
@@ -1396,7 +1398,7 @@ fn hide_toggle(
     toggle.changed()
 }
 
-/// What a range button says on hover, for a slot's and a parameter's
+/// What a range button says on hover, for a slot's and a variable's
 /// alike.
 const PROBE_HOVER: &str =
     "probe how far this can move before something new fails (tens of evaluations)";
@@ -1628,7 +1630,7 @@ mod tests {
     }
 
     /// One extrude distance row, driven or not, with the value the
-    /// document's parameters give it.
+    /// document's variables give it.
     fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
         SlotRow {
             slot: SlotId::Distance,
@@ -1779,7 +1781,7 @@ mod tests {
     /// an `Err` value and no `EvalError`: `props::slot_row` reports a
     /// slot its node lists and carries no expression for as
     /// `SlotFault::NoExpression`, and classifies it as driven with an
-    /// empty parameter list, which is the refusing direction.
+    /// empty variable list, which is the refusing direction.
     #[test]
     fn a_driven_slot_that_did_not_evaluate_still_gets_the_refusal() {
         let row = distance_row(
@@ -2386,16 +2388,16 @@ mod verdict_tests {
         assert_eq!(find(&painted, "deleted").ink, Some(voices.actionable));
     }
 
-    /// **An undeclared parameter is said once, loud** — the only line
-    /// the pane draws for it (`properties_ui`'s `Param` arm draws none).
+    /// **An undeclared variable is said once, loud** — the only line
+    /// the pane draws for it (`properties_ui`'s `Variable` arm draws none).
     #[test]
     fn an_undeclared_parameters_verdict_is_drawn_loud() {
-        let (painted, voices) = drawn(&Standing::Param {
+        let (painted, voices) = drawn(&Standing::Variable {
             var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
             present: false,
         });
         assert_eq!(
-            find(&painted, "parameter width is no longer declared").ink,
+            find(&painted, "variable width is no longer declared").ink,
             Some(voices.actionable)
         );
     }
@@ -2410,7 +2412,7 @@ mod verdict_tests {
                 node: RecipeNodeId(test_utils::refusal::tagged(3)),
                 present: true,
             },
-            Standing::Param {
+            Standing::Variable {
                 var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
                 present: true,
             },
