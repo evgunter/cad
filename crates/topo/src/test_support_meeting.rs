@@ -386,6 +386,13 @@ pub fn at(p: Point3<f64>) -> Point {
 
 /// A body's geometry, key-free: each face by the points of its loops'
 /// vertices, each edge by its ends' points, as sorted multisets.
+///
+/// # Panics
+///
+/// Where a half-edge of `body` has no start point: a body that is not
+/// live.
+#[must_use]
+#[allow(clippy::expect_used)]
 pub fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
     let pt = |he| {
         at(body
