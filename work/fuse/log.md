@@ -602,3 +602,12 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - Fork-log row 78 is complete.
   - `curved-joinable-vertices-are-left-unjoined` is dispatched on
     `fuse/curved-join`.
+- 2026-10-07 — PR 4200 lands: sweeps build one rim edge per run,
+  the sweep half of step 2.
+  - **Review:** single FULL review, with 568 probe bodies clean and the
+    mutants killed. The fix pass added the coverage rows and the k-lint
+    correction, and gave `Collapsed` one home.
+  - **CI fixes on the way:** the guide doctest was this PR's own; the
+    bounds-roster line was main's red since #4173 and was ported in.
+  - **Rows:** `sweeps-build-one-rim-edge-per-segment-not-per-run`
+    closes. Step 3 waits only on the curved join (`fuse/curved-join`).

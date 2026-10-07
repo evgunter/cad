@@ -105,7 +105,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             registered: 0,
-            symbolic_zero: [1103, 1103, 1103],
+            symbolic_zero: [1047, 1047, 1047],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -116,7 +116,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             registered: 0,
-            symbolic_zero: [588, 588, 588],
+            symbolic_zero: [564, 564, 564],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -130,8 +130,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.029e2,
             refuses_at: Some(3.030e2),
             refused_by: None,
-            registered: 52,
-            symbolic_zero: [824, 824, 824],
+            registered: 48,
+            symbolic_zero: [772, 772, 772],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -144,13 +144,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved.
-            registered: 49,
+            registered: 47,
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic_zero: [1401, 1401, 1401],
+            symbolic_zero: [1373, 1373, 1373],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -165,7 +165,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic_zero: [1340, 1340, 1340],
+            symbolic_zero: [1256, 1256, 1256],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -545,7 +545,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1340, 2, 54, 1276, 3186),
+        (1256, 2, 54, 1192, 3171),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(

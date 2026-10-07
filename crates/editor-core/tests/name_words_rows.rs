@@ -220,7 +220,8 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
                     ProfileEdgeRef::Piece {
                         step: StepId(step << 16),
                         role: PieceRole::Leg,
-                    },
+                    }
+                    .into(),
                 )],
             },
         }
@@ -752,7 +753,7 @@ fn unheld(r: &Recorder, block: RecipeNodeId, kind: EntityKind) -> StableName {
         kind,
         node: block,
         path: vec![match kind {
-            EntityKind::Edge => RoleSeg::RimEdge(CapEnd::End, piece),
+            EntityKind::Edge => RoleSeg::RimEdge(CapEnd::End, piece.into()),
             _ => RoleSeg::Lateral(piece.into()),
         }],
     }

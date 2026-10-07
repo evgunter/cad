@@ -12,7 +12,6 @@ use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
 use crate::shared::fixture;
-use crate::shared::fixture::wide_window as window;
 use crate::shared::surf;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
@@ -77,7 +76,6 @@ fn general_without_a_mate_escalates_at_the_pair() {
         &ruling(),
         &quarter_cylinder_wall(),
         None,
-        window(),
         band(),
         Some(FittedLane::certified()),
     );
@@ -101,7 +99,6 @@ fn a_general_image_of_the_wrong_column_refuses_definitely() {
         &ruling(),
         &quarter_cylinder_wall(),
         Some(&m),
-        window(),
         band(),
         Some(FittedLane::certified()),
     );
@@ -127,7 +124,6 @@ fn the_closed_form_door_refuses_a_general_image() {
         1.0,
         &ruling(),
         &quarter_cylinder_wall(),
-        window(),
         band(),
     );
     assert!(
@@ -230,7 +226,6 @@ fn global_fit_image() -> Arc<NurbsCurve2<f64>> {
 fn a_general_circle_image_outside_the_hermite_form_refuses() {
     let (t0, t1) = ARC;
     let img = global_fit_image();
-    let w = Pcurve::General(Arc::clone(&img)).chart_box(t0, t1);
     let err = PcurveCache::certify_general(
         img,
         t0,
@@ -238,7 +233,6 @@ fn a_general_circle_image_outside_the_hermite_form_refuses() {
         &general_circle(),
         &sphere(),
         Some(&tilted_plane()),
-        w,
         band(),
         Some(FittedLane::certified()),
     )
@@ -258,7 +252,6 @@ fn a_general_circle_image_certifies_at_the_fitted_grade() {
     let (t0, t1) = ARC;
     let img = lane_image();
     let carrier = general_circle();
-    let w = Pcurve::General(Arc::clone(&img)).chart_box(t0, t1);
     let plane = tilted_plane();
     let cache = PcurveCache::certify_general(
         Arc::clone(&img),
@@ -267,7 +260,6 @@ fn a_general_circle_image_certifies_at_the_fitted_grade() {
         &carrier,
         &sphere(),
         Some(&plane),
-        w,
         band(),
         Some(FittedLane::certified()),
     )
@@ -287,7 +279,6 @@ fn a_general_circle_image_certifies_at_the_fitted_grade() {
         &carrier,
         &sphere(),
         Some(&plane),
-        w,
         band(),
         FittedLane::certified(),
     )

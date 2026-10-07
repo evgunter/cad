@@ -24,7 +24,6 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom::curves::fit::interpolate_columns;
 use geom::{NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::ChartWindow;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -137,19 +136,6 @@ pub(crate) fn transverse_plane() -> Surface<f64> {
 /// A straight degree-1 carrier through two points, on `[0, 1]`.
 pub(crate) fn segment(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
     NurbsCurve3::new(kv1(), vec![a, b], vec![1.0, 1.0]).unwrap()
-}
-
-/// The `[-10, 10]²` chart window: wide enough that a pcurve's own
-/// parameters are never what clips it, so a refusal is the meter's and
-/// not the window's. The two suites that drive
-/// [`quarter_cylinder_wall`] through the pcurve doors both want that.
-pub(crate) fn wide_window() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -10.0,
-        u_max: 10.0,
-        v_min: -10.0,
-        v_max: 10.0,
-    }
 }
 
 /// A non-analytic bicubic patch: a height field with no closed form

@@ -251,27 +251,22 @@ pub(crate) fn assert_split(
     // reader one sixth of what had happened.
     let mut moved: Vec<String> = Vec::new();
     for (pred, want) in expected {
-        let got = table
-            .get(pred)
-            .copied()
-            .unwrap_or_else(|| panic!("{name}: no {pred} decisions — the pinned table lists it"));
-        if got != *want {
-            moved.push(format!("{pred} {want:?} -> {got:?}"));
+        match table.get(pred) {
+            None => moved.push(format!("{pred} {want:?} -> no decisions")),
+            Some(got) if got != want => moved.push(format!("{pred} {want:?} -> {got:?}")),
+            Some(_) => {}
         }
     }
-    assert!(
-        moved.is_empty(),
-        "{name}: these moved at the nominal (theorem/gated/registered/numeric); if a rule \
-         took them, re-pin and say which: {moved:?}"
-    );
     let unlisted: Vec<String> = table
         .iter()
         .filter(|(p, _)| !expected.iter().any(|(e, _)| e == *p))
         .map(|(p, row)| format!("{p} {row:?}"))
         .collect();
     assert!(
-        unlisted.is_empty(),
-        "{name}: predicates decided that the pinned table does not list: {unlisted:?}"
+        moved.is_empty() && unlisted.is_empty(),
+        "{name}: these moved at the nominal (theorem/gated/registered/numeric); if a rule \
+         took them, re-pin and say which: {moved:?}; and these decided but the pinned table \
+         does not list them: {unlisted:?}"
     );
 }
 

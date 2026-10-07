@@ -2,8 +2,9 @@
 id: pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways
 kind: issue
 title: PR 3945's lift_joint (tier 3 requires the identity at every joint) and TOPO's R build (PRs 4037/4039: stored per-half-edge joint elements, ruled PR 4024) implement C4's joint deck element two ways; whichever lands second reconciles
-status: dispatched
+status: closed
 opened: 2026-10-05
+closed: 2026-10-06
 priority: P1
 cost: M
 refs: [pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin, a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass]
@@ -70,3 +71,28 @@ stored elements.
 - spline charts keep their gap.
 
 "Tier 3 requires the identity at every joint" does not come back. The re-ported head gets a fresh review pair.
+
+## Closed
+
+Closed by PR 3945's merge of main (`1f3a5cc2`), which carries the
+reconciliation as answered above. There is one decider,
+`topo::pcurves::decide_joint`: the walk, the site mint's new joints,
+`split_cache` and `turn_element` write what it decides, and tier 3
+checks each stored element against it. The other writers compose or
+copy, as R has them (kill sums, `revert`'s inverse, null-edge
+identities, kept and carried elements, the boolean graft copy); tier 3's
+re-decision makes any of them that disagrees loud at rest. It returns a `Reset` only on a decided 3-D
+incidence (`singular_at`). R's storage, `loop_lift`, the kill sums and
+the stored-element reads are main's, unchanged.
+
+Closure is main's `Winding::closes`. Against 3945's pinned set
+(`Lift::closes`) it differs in two places, and main's is kept in both:
+- Under the twin it bounds no second-channel periods. Conjugating by
+  `T_v` moves `v` by two under the twin, so a bound on `|v|` there
+  would depend on which member the composition starts from; main's
+  verdict reads conjugation invariants only.
+- It counts no azimuth winding across a reset, which 3945 had no
+  element to say.
+
+The azimuth half turns it admits (at most 2 without the twin, odd and
+at most 3 with it) are the pinned set's.
