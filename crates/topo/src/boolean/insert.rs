@@ -1388,8 +1388,8 @@ pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
 /// whose null half from that copy is `fan_half` ([`corner_bound`]).
 /// `by_strut`, in a plan any of whose runs is held ([`Held`]: B's
 /// nested pairing, or a run a turned run holds), says whether a strut of
-/// the plan holds the run directly; a turned run is a fan, so its
-/// plan's runs read `Some(false)`.
+/// the plan holds the run directly; a turned run is a fan, so the runs
+/// it holds directly read `Some(false)`.
 #[derive(Clone, Copy)]
 struct MintSite {
     operand: Operand,
