@@ -150,5 +150,7 @@ mod verbs_chamfer_roundtrip;
 mod wall_column_structure;
 #[path = "wild.rs"]
 mod wild;
+#[path = "rp_cone_split.rs"]
+mod rp_cone_split;
 
 test_utils::every_suite_file_is_aggregated!();

@@ -554,6 +554,10 @@ pub(crate) mod cone_islands;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rp_cone_probe;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::cone_islands::{band, cone, frames, lune, on_nappe, sector};
     use super::*;
