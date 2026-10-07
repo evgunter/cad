@@ -309,16 +309,11 @@ impl<T: Real> EdgeDescriptionSpec<T> {
     /// column a closed spline net's chart closes across (D1), stated on
     /// the carrier's own parameter.
     pub fn wrap_iso(surface: SurfaceKey, u: T, v0: T, v1: T, t0: T, t1: T) -> Self {
-        let slope = (v1 - v0) / (t1 - t0);
-        EdgeDescriptionSpec::Chart {
-            surface,
-            image: Some(crate::pcurve_cache::Pcurve::IsoLine {
-                p0: geom_core::Point2::new(u, v0 - slope * t0),
-                pl: geom_core::Vec2::new(T::zero(), slope),
-            }),
-            wrap: true,
-            declared: None,
+        let mut spec = Self::iso(surface, u, v0, v1, t0, t1);
+        if let EdgeDescriptionSpec::Chart { ref mut wrap, .. } = spec {
+            *wrap = true;
         }
+        spec
     }
 
     /// The same description with `mc` recorded as the authority that

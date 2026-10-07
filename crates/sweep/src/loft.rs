@@ -640,30 +640,20 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     for (li, segs) in bloops.iter().enumerate().skip(1) {
         let hq = &bq[li];
         let m = segs.len();
-        let one = profile::is_full_turn(segs);
-        // A full turn's anchor is its FAR vertex: it is swept whole
-        // there, far rim first, so the ring keeps the far rim.
-        let bridge = body.mev_line(
-            MevSite::Fan {
-                he1: anchor,
-                he2: anchor,
-            },
-            if one { tq[li][0] } else { hq[0] },
-            tol,
-        )?;
-        let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
-        if one {
-            // The transient disc, as the chain's below.
-            let disc = FaceSurface::Shared {
-                key: bottom_surface,
-                sense: false,
-            };
-            let turn = full_turn(&mut body, li, ring, disc)?;
-            body.kfmrh(bottom_face, turn.near_face)?;
+        if profile::is_full_turn(segs) {
+            let (turn, ()) = crate::swept::full_turn_hole(
+                &mut body,
+                anchor,
+                tq[li][0],
+                bottom_face,
+                tol,
+                |b, ring, disc| Ok::<_, LoftError>((full_turn(b, li, ring, disc)?, ())),
+            )?;
             bases.push(vec![turn.near_in_wall]);
             early[li] = Some(turn);
             continue;
         }
+        let (ring, _) = crate::swept::plant_hole_ring(&mut body, anchor, hq[0], tol)?;
         let mut hole_hes = Vec::with_capacity(m);
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
@@ -692,12 +682,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 he2: first.he_plus,
             },
             placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0], tol),
-            // The disc is transient: `kfmrh` kills it at once, and
-            // nothing reads its bit.
-            FaceSurface::Shared {
-                key: bottom_surface,
-                sense: false,
-            },
+            crate::swept::transient_disc(bottom_surface),
             tol,
         )?;
         hole_hes.push(close.he_plus);

@@ -1783,9 +1783,16 @@ fn cylinder_material_sign<T: Decide>(
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     let chart = cylinder_chart(origin, axis, radius, loops, band)?;
+    chart_area_side(radius * chart.area, chart.length, band)
+}
+
+/// The material side a chart Green form's area encodes: its sign,
+/// metered as the mean width `2·A/P` of the face's `area` (in m²)
+/// over its boundary `length`. A face of no width encodes no side.
+fn chart_area_side<T: Decide>(area: T, length: T, band: Band) -> Result<MaterialSign, PropsError> {
     match classify(
         "props_chart_area_side",
-        Margin::over_lever(radius * chart.area * T::from_f64(2.0), chart.length),
+        Margin::over_lever(area * T::from_f64(2.0), length),
         band,
         PropsCheck::Inventory,
     )? {
@@ -3888,9 +3895,11 @@ struct TorusPiece<'a, T: Real> {
 /// adjacent pieces with one [`CarrierId`](super::CarrierId), one
 /// traversal direction, and intervals that ABUT exactly (the split's
 /// own `t`, decided at the exact-order band) are one step over the span
-/// they assemble, so a split edge reads as the edge it was. Pieces that
-/// do not abut stay apart, each its own step: the Green form sums them
-/// to the same integral, so nothing is refused, only not rejoined.
+/// they assemble ([`loop_runs`]), so a split edge reads as the edge it
+/// was, bit for bit. The rejoin is for that stability alone: the Green
+/// form is linear in each step's `Δu` and `Δv` and takes no `sin`/`cos`
+/// of a span, so pieces left apart sum to the same integral, and
+/// nothing here is refused or re-decided.
 fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec<TorusStep<T>> {
     let joins = |a: &TorusPiece<'_, T>, b: &TorusPiece<'_, T>| {
         let (ea, eb) = (a.edge, b.edge);
@@ -3915,49 +3924,60 @@ fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec
             Ok(Sign::Zero)
         )
     };
-    let n = pieces.len();
-    let Some(start) = (0..n).find(|&i| !joins(&pieces[(i + n - 1) % n], &pieces[i])) else {
-        return pieces.into_iter().map(|p| p.step).collect();
+    let runs = match loop_runs(pieces, joins) {
+        Ok(runs) => runs,
+        Err(pieces) => return pieces.into_iter().map(|p| p.step).collect(),
     };
-    let mut pieces = pieces;
-    pieces.rotate_left(start);
-    let mut steps: Vec<TorusStep<T>> = Vec::with_capacity(n);
-    let mut chain: Vec<TorusPiece<'_, T>> = Vec::new();
-    let flush = |chain: &mut Vec<TorusPiece<'_, T>>, steps: &mut Vec<TorusStep<T>>| {
-        let (Some(first), Some(last)) = (chain.first(), chain.last()) else {
-            return;
-        };
-        if chain.len() == 1 {
-            steps.extend(chain.drain(..).map(|p| p.step));
-            return;
-        }
-        let span = if first.edge.forward {
-            last.edge.t1 - first.edge.t0
-        } else {
-            first.edge.t1 - last.edge.t0
-        };
-        let sign = first.sign;
-        steps.push(match first.step {
-            TorusStep::Rim {
-                sin_v, cos_v, rho, ..
-            } => TorusStep::Rim {
-                sin_v,
-                cos_v,
-                du: sign * span,
-                rho,
-            },
-            TorusStep::Meridian { .. } => TorusStep::Meridian { dv: sign * span },
-        });
-        chain.clear();
+    runs.into_iter()
+        .map(|run| {
+            let (first, last) = (&run[0], &run[run.len() - 1]);
+            if run.len() == 1 {
+                return first.step;
+            }
+            let span = if first.edge.forward {
+                last.edge.t1 - first.edge.t0
+            } else {
+                first.edge.t1 - last.edge.t0
+            };
+            match first.step {
+                TorusStep::Rim {
+                    sin_v, cos_v, rho, ..
+                } => TorusStep::Rim {
+                    sin_v,
+                    cos_v,
+                    du: first.sign * span,
+                    rho,
+                },
+                TorusStep::Meridian { .. } => TorusStep::Meridian {
+                    dv: first.sign * span,
+                },
+            }
+        })
+        .collect()
+}
+
+/// **The one home of a loop's run grouping.** `items` is a boundary
+/// loop in traversal order; `joins(a, b)` says `b` continues `a` (the
+/// next piece of one split edge). The loop is walked from an item no
+/// run continues into, so no run is cut at the seam of the `Vec`, and
+/// handed back as its maximal runs in loop order, each non-empty.
+/// A loop every item of which continues the one before has no such
+/// start: it comes back whole as the `Err`, for the caller to decide
+/// what a loop of one run is.
+fn loop_runs<I>(mut items: Vec<I>, joins: impl Fn(&I, &I) -> bool) -> Result<Vec<Vec<I>>, Vec<I>> {
+    let n = items.len();
+    let Some(start) = (0..n).find(|&i| !joins(&items[(i + n - 1) % n], &items[i])) else {
+        return if n == 0 { Ok(Vec::new()) } else { Err(items) };
     };
-    for p in pieces {
-        if chain.last().is_some_and(|last| !joins(last, &p)) {
-            flush(&mut chain, &mut steps);
+    items.rotate_left(start);
+    let mut runs: Vec<Vec<I>> = Vec::new();
+    for item in items {
+        match runs.last_mut() {
+            Some(run) if run.last().is_some_and(|last| joins(last, &item)) => run.push(item),
+            _ => runs.push(vec![item]),
         }
-        chain.push(p);
     }
-    flush(&mut chain, &mut steps);
-    steps
+    Ok(runs)
 }
 
 /// `atan2(y, x)` with its branch cut kept away from the arguments:
@@ -4218,15 +4238,7 @@ fn torus_material_sign<T: Decide>(
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     let chart = torus_chart(center, axis, major, minor, loops, band)?;
-    match classify(
-        "props_chart_area_side",
-        Margin::over_lever(chart.area * T::from_f64(2.0), chart.length),
-        band,
-        PropsCheck::Inventory,
-    )? {
-        Sign::Zero => Err(PropsError::DegenerateFace),
-        side => Ok(MaterialSign::Encoded(side)),
-    }
+    chart_area_side(chart.area, chart.length, band)
 }
 
 /// A torus minor-circle boundary meridian (iso-`u`) as the parse
@@ -4397,10 +4409,10 @@ fn torus_classify<'a, T: Decide>(
 /// structural fact of the split (one `t` is both children's boundary)
 /// decided at the exact-order band rather than inferred at ε — and the
 /// interval they assemble must be one certification could have
-/// admitted. A loop of arcs that all continue one another (one closed
-/// minor circle in pieces, no rim) has no chain boundary and refuses
-/// by one name whatever rotation it arrives in; every other loop is
-/// walked from an edge no chain continues into, so no chain is cut.
+/// admitted, since this parse reads the span through `sin`/`cos`. A
+/// loop of arcs that all continue one another (one closed minor circle
+/// in pieces, no rim) has no run boundary ([`loop_runs`]) and refuses
+/// by one name whatever rotation it arrives in.
 ///
 /// The folded interval is `[lowest t0, highest t1]` over the chain —
 /// on one parametrisation, the original edge's own stored interval,
@@ -4408,7 +4420,7 @@ fn torus_classify<'a, T: Decide>(
 /// at its `t0` end, so a meridian carried by one edge folds to exactly
 /// the record that edge produces alone.
 fn fold_torus_meridians<T: Decide>(
-    mut edges: Vec<TorusEdge<'_, T>>,
+    edges: Vec<TorusEdge<'_, T>>,
     minor: T,
     band: Band,
 ) -> Result<TorusParts<T>, PropsError> {
@@ -4416,40 +4428,28 @@ fn fold_torus_meridians<T: Decide>(
         a.edge.forward == b.edge.forward
             && matches!((a.edge.carrier_id, b.edge.carrier_id), (Some(x), Some(y)) if x == y)
     }
-    let n = edges.len();
-    if n == 0 {
-        return Ok((Vec::new(), Vec::new()));
-    }
-    let Some(start) = (0..n).find(|&i| match (&edges[(i + n - 1) % n], &edges[i]) {
-        (TorusEdge::Arc(a), TorusEdge::Arc(b)) => !same_edge(a, b),
-        _ => true,
-    }) else {
+    let joins = |a: &TorusEdge<'_, T>, b: &TorusEdge<'_, T>| match (a, b) {
+        (TorusEdge::Arc(a), TorusEdge::Arc(b)) => same_edge(a, b),
+        _ => false,
+    };
+    let Ok(runs) = loop_runs(edges, joins) else {
         return Err(PropsError::NotIsoRectangle {
             what: "torus meridian pieces close a loop with no rim",
         });
     };
-    edges.rotate_left(start);
     let mut rims = Vec::new();
     let mut meridians = Vec::new();
-    let mut chain: Vec<TorusArc<'_, T>> = Vec::new();
-    for e in edges {
-        match e {
-            TorusEdge::Rim(r) => {
-                if !chain.is_empty() {
-                    meridians.push(fold_chain(core::mem::take(&mut chain), minor, band)?);
-                }
-                rims.push(r);
-            }
-            TorusEdge::Arc(a) => {
-                if chain.last().is_some_and(|last| !same_edge(last, &a)) {
-                    meridians.push(fold_chain(core::mem::take(&mut chain), minor, band)?);
-                }
-                chain.push(a);
+    for run in runs {
+        let mut arcs = Vec::with_capacity(run.len());
+        for e in run {
+            match e {
+                TorusEdge::Rim(r) => rims.push(r),
+                TorusEdge::Arc(a) => arcs.push(a),
             }
         }
-    }
-    if !chain.is_empty() {
-        meridians.push(fold_chain(chain, minor, band)?);
+        if !arcs.is_empty() {
+            meridians.push(fold_chain(arcs, minor, band)?);
+        }
     }
     Ok((rims, meridians))
 }

@@ -173,54 +173,42 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     // a validated profile, so the generic sweep handles them). ----
     for (li, segs) in loops.iter().enumerate().skip(1) {
         let hq = &points[li];
-        let full_turn = profile::is_full_turn(segs);
-        // A full turn's anchor is its FAR vertex: it is swept whole
-        // there, far rim first, so the ring keeps the far rim.
-        let bridge = body.mev_line(
-            MevSite::Fan {
-                he1: anchor,
-                he2: anchor,
-            },
-            if full_turn { rpoints[li][0] } else { hq[0] },
-            tol,
-        )?;
-        let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
-        if full_turn {
-            let (turn, swept) = sweep_turn(
+        if profile::is_full_turn(segs) {
+            let (turn, swept) = crate::swept::full_turn_hole(
                 &mut body,
-                frame,
-                &cols[li].cls,
-                &segs[0],
-                ring,
-                &ends(li),
-                theta,
-                axis_c,
-                // The transient disc, as the chain's below.
-                FaceSurface::Shared {
-                    key: start_surface,
-                    sense: false,
-                },
+                anchor,
+                rpoints[li][0],
+                start_face,
                 tol,
+                |b, ring, disc| {
+                    sweep_turn(
+                        b,
+                        frame,
+                        &cols[li].cls,
+                        &segs[0],
+                        ring,
+                        &ends(li),
+                        theta,
+                        axis_c,
+                        disc,
+                        tol,
+                    )
+                },
             )?;
-            body.kfmrh(start_face, turn.near_face)?;
             bases.push(vec![turn.near_in_wall]);
             verts.push(vec![he_start(&body, turn.near_in_wall)]);
             swept_early[li] = Some(swept);
             continue;
         }
+        let (ring, ring_vertex) = crate::swept::plant_hole_ring(&mut body, anchor, hq[0], tol)?;
         let hole = build_chain(
             &mut body,
             frame,
             ring,
-            bridge.vertex,
+            ring_vertex,
             segs,
             hq,
-            // The disc is transient: `kfmrh` kills it at once, and
-            // nothing reads its bit.
-            FaceSurface::Shared {
-                key: start_surface,
-                sense: false,
-            },
+            crate::swept::transient_disc(start_surface),
             tol,
         )?;
         body.kfmrh(start_face, hole.face)?;
