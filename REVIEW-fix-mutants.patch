@@ -1,8 +1,8 @@
 diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
-index 4ef79ebff..d17bf0bc3 100644
+index 4ef79ebff..efda027e6 100644
 --- a/crates/topo/src/boolean/insert.rs
 +++ b/crates/topo/src/boolean/insert.rs
-@@ -795,7 +795,7 @@ pub(super) fn mint_plans<T: Decide>(
+@@ -795,11 +795,22 @@ pub(super) fn mint_plans<T: Decide>(
              // its fans.
              let held = run(at)
                  .held
@@ -11,7 +11,22 @@ index 4ef79ebff..d17bf0bc3 100644
                  .map_or(0, |h| h.depth);
              keyed.push((held, depth.is_none(), depth.unwrap_or(0), n));
          }
-@@ -1089,7 +1089,21 @@ fn hang_at_shared<T: Decide>(
+         keyed.sort();
++        if std::env::var("R3_TRACE").is_ok() && keyed.iter().any(|k| !k.1 && k.2 > 0) {
++            let desc: Vec<String> = keyed
++                .iter()
++                .map(|&(h, f, d, n)| {
++                    let (i, k) = runs[n];
++                    let r = run((i, k));
++                    format!("p{i}r{k}:h{h}{}d{d}{}", if f { "F" } else { "S" }, match r.held { Some(x) => format!("[{},{:?},{}]", x.depth, x.fan, x.by_strut), None => String::new() })
++                })
++                .collect();
++            eprintln!("R3K slot={slot} {}", desc.join(" "));
++        }
+         let body = if slot == 0 {
+             &mut *a_body
+         } else {
+@@ -1089,7 +1100,21 @@ fn hang_at_shared<T: Decide>(
                          what: "two runs of one plan cross in its walk after the reconcile",
                      },
                  })?;

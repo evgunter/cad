@@ -2730,13 +2730,35 @@ fn review_fix_eight_crossings_with_cubes(
         let d = [0, 1, 2].map(|t| {
             tilt.cos() * f[2][t] + tilt.sin() * (az.cos() * f[0][t] + az.sin() * f[1][t])
         });
-        let g = corner_diagonal_frame(d, spin);
-        let cube = finished("a cube", cube_sized(a.v, g, [0.0; 3], side));
+        // A narrow parallelepiped: the cube's edges pulled toward its
+        // diagonal, so several fit disjointly round the point.
+        let g = corner_diagonal_frame(d, spin).map(|e| {
+            let c = e[0] * d[0] + e[1] * d[1] + e[2] * d[2];
+            let q = [0, 1, 2].map(|t| c * d[t] + 0.35 * (e[t] - c * d[t]));
+            let l = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2]).sqrt();
+            q.map(|x| x / l)
+        });
+        let cube = finished("a sliver", cube_sized(a.v, g, [0.0; 3], side));
         united = match topo::union_with(&united, &cube, &decls, tol()) {
             Ok(BooleanResult::Body(bb)) => bb.body,
             other => return Err(format!("{pose}: the pinch {:?}", other.err())),
         };
-        b_pieces.push(cube_planes_sized(a.v, g, [0.0; 3], side));
+        let cross = |x: [f64; 3], y: [f64; 3]| {
+            [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]]
+        };
+        let dt = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+        let mut planes = Vec::new();
+        for ax in 0..3 {
+            let mut n = cross(g[(ax + 1) % 3], g[(ax + 2) % 3]);
+            if dt(n, g[ax]) < 0.0 {
+                n = n.map(|c| -c);
+            }
+            let l = dt(n, n).sqrt();
+            let n = n.map(|c| c / l);
+            planes.push((n.map(|c| -c), -dt(n, a.v)));
+            planes.push((n, dt(n, a.v) + side * dt(n, g[ax])));
+        }
+        b_pieces.push(planes);
     }
     let vol = |ps: &[Vec<Plane>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
     let (va, vb) = (vol(&a_pieces), vol(&b_pieces));
@@ -2771,7 +2793,7 @@ fn review_fix_eight_crossings_with_cubes(
 #[test]
 #[ignore = "review probe; run with --ignored --nocapture"]
 fn review_fix_strut_chain_with_many_cubes_battery() {
-    let dirs: Vec<(f64, f64)> = [0.0f64, 0.3, 0.55]
+    let dirs: Vec<(f64, f64)> = [0.0f64, 0.3, 0.6]
         .into_iter()
         .flat_map(|t| [0.0f64, 1.6, 3.2, 4.8].map(|a| (t, a)))
         .collect();
