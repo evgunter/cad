@@ -2709,3 +2709,102 @@ fn eight_crossings_with_a_pinched_cube_battery() {
         }
     }
 }
+
+/// Review (fix pass) probe: [`eight_crossings_with_a_pinched_cube`] with
+/// several cubes `(tilt, az, spin, side)` pinched onto the posed corner
+/// at the shared point, so several other pairs' struts can nest in the
+/// eight-crossing pair's strut chain at different depths. `Err` where
+/// the pinches do not unite as posed (the cubes overlap).
+fn review_fix_eight_crossings_with_cubes(
+    (pose, a, b, f): &(&str, Corner, Corner, Frame),
+    cubes: &[(f64, f64, f64, f64)],
+) -> Result<Vec<(String, String)>, String> {
+    let decls = BooleanDeclarations::default();
+    let x = finished(
+        "a corner",
+        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
+    );
+    let a_pieces: Pieces = a.pieces.iter().map(|p| polygon_prism(p)).collect();
+    let (mut united, mut b_pieces) = posed(b, *f, a.v);
+    for &(tilt, az, spin, side) in cubes {
+        let d = [0, 1, 2].map(|t| {
+            tilt.cos() * f[2][t] + tilt.sin() * (az.cos() * f[0][t] + az.sin() * f[1][t])
+        });
+        let g = corner_diagonal_frame(d, spin);
+        let cube = finished("a cube", cube_sized(a.v, g, [0.0; 3], side));
+        united = match topo::union_with(&united, &cube, &decls, tol()) {
+            Ok(BooleanResult::Body(bb)) => bb.body,
+            other => return Err(format!("{pose}: the pinch {:?}", other.err())),
+        };
+        b_pieces.push(cube_planes_sized(a.v, g, [0.0; 3], side));
+    }
+    let vol = |ps: &[Vec<Plane>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
+    let (va, vb) = (vol(&a_pieces), vol(&b_pieces));
+    let got = mass_properties(&united, tol()).unwrap().volume;
+    if (got - vb).abs() > 1e-9 {
+        return Err(format!("{pose}: the pinch's volume {got} vs {vb}"));
+    }
+    let common = common_volume(&a_pieces, &b_pieces);
+    let mut out = Vec::new();
+    for (order, l, r, vl) in [("ab", &x, &united, va), ("ba", &united, &x, vb)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union_with, va + vb - common),
+            ("I", topo::intersect_with, common),
+            ("S", topo::subtract_with, vl - common),
+        ];
+        for (op, run, want) in ops {
+            let tag = format!("{order} {op}");
+            let res = run(l, r, &decls, tol());
+            let finding = res.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                pierce_point_finding(&bb.body, a.v, tag_cones(&tag, "ab", (&a_pieces, &b_pieces)))
+            });
+            out.push((tag, format!("{} {finding:?}", outcome(res, want, tol()))));
+        }
+    }
+    Ok(out)
+}
+
+/// Review (fix pass) battery: two or three cubes of sides 4, 2 and 1
+/// pinched at the eight crossings' shared point, each at one of twelve
+/// tilt/azimuth directions, so the other pairs' struts nest in the
+/// strut chain at different depths.
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn review_fix_strut_chain_with_many_cubes_battery() {
+    let dirs: Vec<(f64, f64)> = [0.0f64, 0.3, 0.55]
+        .into_iter()
+        .flat_map(|t| [0.0f64, 1.6, 3.2, 4.8].map(|a| (t, a)))
+        .collect();
+    for pose in &eight_crossing_poses() {
+        for (i, &(t1, a1)) in dirs.iter().enumerate() {
+            for (j, &(t2, a2)) in dirs.iter().enumerate() {
+                if i == j {
+                    continue;
+                }
+                for k in 0..2 {
+                    let spin = f64::from(k) * 0.9 + 0.2;
+                    let mut sets = vec![vec![(t1, a1, spin, 4.0), (t2, a2, spin + 0.4, 2.0)]];
+                    if j == (i + 5) % dirs.len() {
+                        let (t3, a3) = dirs[(i + 8) % dirs.len()];
+                        sets.push(vec![
+                            (t1, a1, spin, 4.0),
+                            (t2, a2, spin + 0.4, 2.0),
+                            (t3, a3, spin + 0.7, 1.0),
+                        ]);
+                    }
+                    for set in sets {
+                        let at = format!("{} c={} i={i} j={j} k={k}", pose.0, set.len());
+                        match review_fix_eight_crossings_with_cubes(pose, &set) {
+                            Ok(lines) => {
+                                for (tag, line) in lines {
+                                    println!("{at} {tag}: {line}");
+                                }
+                            }
+                            Err(e) => println!("{at}: SKIP {e}"),
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

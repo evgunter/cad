@@ -1,0 +1,36 @@
+diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
+index 4ef79ebff..d17bf0bc3 100644
+--- a/crates/topo/src/boolean/insert.rs
++++ b/crates/topo/src/boolean/insert.rs
+@@ -795,7 +795,7 @@ pub(super) fn mint_plans<T: Decide>(
+             // its fans.
+             let held = run(at)
+                 .held
+-                .filter(|h| h.fan.is_some())
++                .filter(|h| std::env::var("R3_MUT").is_ok_and(|m| m == "oldkey") || h.fan.is_some())
+                 .map_or(0, |h| h.depth);
+             keyed.push((held, depth.is_none(), depth.unwrap_or(0), n));
+         }
+@@ -1089,7 +1089,21 @@ fn hang_at_shared<T: Decide>(
+                         what: "two runs of one plan cross in its walk after the reconcile",
+                     },
+                 })?;
+-            let held = held_by(&holders, &strut);
++            let holders: Vec<Option<usize>> = if std::env::var("R3_MUT").is_ok_and(|m| m == "outer") {
++                (0..arcs.len()).map(|k| {
++                    let mut h = holders[k];
++                    while let Some(x) = h.and_then(|x| holders[x]) { h = Some(x); }
++                    h
++                }).collect()
++            } else { holders };
++            let mut held = held_by(&holders, &strut);
++            for h in held.iter_mut().flatten() {
++                if std::env::var("R3_MUT").is_ok_and(|m| m == "depth1") { h.depth = 1; }
++                if std::env::var("R3_MUT").is_ok_and(|m| m == "nostrut") { h.by_strut = false; }
++            }
++            if std::env::var("R3_TRACE").is_ok() {
++                eprintln!("R3 slot={slot} arcs={arcs:?} strut={strut:?} held={:?}", held.iter().map(|h| h.map(|h| (h.depth, h.fan, h.by_strut))).collect::<Vec<_>>());
++            }
+             if held.iter().any(Option::is_some) {
+                 hangs.push(hang);
+             }
