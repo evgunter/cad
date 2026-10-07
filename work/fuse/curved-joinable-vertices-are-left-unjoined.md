@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-06
 priority: P1
 cost: H
-needs_ev: true
 refs: [a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made, 4140]
 ---
 
@@ -40,7 +39,8 @@ open:
   keyed by the surfaces and the intersection branch. Otherwise the op
   refuses typed."
 - "A closed edge keeps the canonical cut fixed by its carrier (C12.5),
-  which is a function of the carrier, not of history."
+  which is a function of the carrier, not of history." This sentence
+  is retired by Ev's PR 4198 ruling below.
 - "The theorem is proven for the planar inventory. Curved arms join it
   as each gains a structural intersection carrier."
 
@@ -91,13 +91,9 @@ written into DESIGN.md's maximal-edges clause.
   population is about 2450 vertices: arcs of one rim or section
   circle, rulings and latitudes of one cylinder, and a few tangent
   pieces.
-- **A closed joined edge's one vertex is canonical.** Where it sits
-  must not depend on member order. A fold-order witness, a cap on two
-  flush blocks in different orders, leaves it at different points
-  with different names. Where one face is curved, the vertex goes at
-  the first crossing of that surface's chart cut. Where both faces are
-  one curved kind, it is set by a symmetric rule on the unordered
-  pair.
+- **A closed joined edge's one vertex is conventional.** Ev ruled
+  this on PR 4198, replacing the designers' canonical cut. See "Ruled"
+  below.
 
 ## Residue the build owns
 
@@ -111,3 +107,57 @@ written into DESIGN.md's maximal-edges clause.
   own origin cannot be the cut.
 - **The witness:** the cap-on-two-flush-blocks document in all six
   orders.
+
+## Ruled (Ev, PR 4198, 2026-10-07)
+
+Ev accepted items 1, 2 and 4 as written: the vertex decides the
+branch; poles and apexes are never joined; the clause is restored to
+"structural carrier". Ev replaced item 3: a closed edge's one vertex is
+conventional, like a seam's position. The ratified text is DESIGN.md's
+maximal-edges clause.
+
+**The build must make "no identity" true.** These requirements come
+from the designers' reading of the ruling:
+- **Definition.** The vertex is defined by structure, so tier 2 can
+  check it: a vertex whose only edge is one closed edge, at both its
+  ends. `joinable`'s e1 == e2 already excludes it. A sweep's closed
+  rim meets its seam strut and stays outside.
+- **Records.**
+  - The join substitutes the survivor as well as the killed vertex
+    onto the kept edge.
+  - Every carry writes a record at that point as (u, E), never (u, v).
+  - The census reads a touch there as a touch on E's interior.
+  - Without these, a body resting exactly there gets a different
+    record kind, and a different 3′ verdict, in different member
+    orders.
+- **Later cuts.** A section that crosses E exactly at the vertex takes
+  the edge-interior path, not the vertex path.
+- **Names.**
+  - The vertex mints no member- or position-citing name. If emit's
+    completeness check needs a name, it gets one derived from its edge
+    alone, and that name resolves to the edge.
+  - Ranking and citation skip it (`least_vertex`, crossings).
+  - A pick there resolves to the edge.
+  - A construction's own rim self-loop vertex (`MeridianVertex(Seam)`)
+    keeps its name.
+- **Conventional data.** The edge's parameter origin and witness hang
+  on the vertex and are conventional too.
+- **Numbers.** Meshes, STEP `VERTEX_POINT`s and last-bit volumes may
+  differ across member orders. They stay deterministic within one
+  evaluation, and cross-order rows compare modulo the vertex.
+- **Kernel.**
+  - A `kev` arm that leaves a self-loop: `kev` refuses self-loops
+    today.
+  - Restate the joined edge's description and re-mint its pcurve rows.
+- **EMIT's order rows** (`one_vertex_set_in_every_order` and its
+  siblings) compare conventional vertices modulo position, through one
+  helper.
+- **Witnesses:**
+  - a third body's corner exactly at a cap circle's conventional
+    vertex, in two member orders, with the same records and the same
+    3′ verdict;
+  - a plane through a closed rim at that vertex, and the same plane
+    rotated to cut elsewhere, taking one code path.
+- **Not now:** closed edges with no vertex at all, which would need
+  the Euler operators restructured. Ev put this out of scope until
+  something else needs it.

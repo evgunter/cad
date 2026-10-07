@@ -530,15 +530,19 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   decides the branch, and nothing is compared between the two edges. A
   pole, a cone's apex or any point where the locus is not one curve is
   never joinable; a reading of the vertex in the margin band refuses
-  typed. A closed edge the join makes keeps one vertex, at the cut its
-  surfaces fix: where one face is curved, the first crossing of that
-  surface's chart cut (u = 0, lowest v; else its least-u point); where
-  both faces are curved surfaces of one kind, a symmetric rule on the
-  unordered pair. A sweep builds one rim
+  typed. A closed edge the join makes keeps one *conventional vertex*:
+  a vertex whose only edge is that one closed edge, at both its ends.
+  Its position, and the edge's parameter origin and witness that hang
+  on it, are conventional data the kernel owns, like a seam's place.
+  The vertex has no identity of its own. It mints no name a reference
+  binds to; a reference or a pick there resolves to the edge, and a
+  record, census reading or later cut at its point reads the edge's
+  interior. A sweep builds one rim
   edge per run, as it builds one wall, and a boolean's output stage joins
   every joinable vertex after the merge, whatever drew it. A body is then
   the unique complex with maximal faces and maximal edges over its face
-  partition, so a union's body does not depend on its member order, and
+  partition, up to the position of each closed edge's conventional
+  vertex, so a union's body does not depend on its member order, and
   the form is checked at tier 2 on the result alone, with no history.
   Load-bearing dependency: `merge_coplanar_faces` **never fuses two
   vertices into one**. A contact record is a pair of cells, one from each
