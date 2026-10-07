@@ -196,7 +196,8 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         let back = (o_onto - o_from).dot(n_from);
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol).unwrap();
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).unwrap();
+            let carried = sealed.kfmrh_carried_redescriptions(rim, source).unwrap();
+            sealed.kfmrh_describing(rim, source, &carried, tol).unwrap();
         }
         out.push((format!("{what}~reverted"), sealed.revert()));
         out.push((what.to_string(), sealed));

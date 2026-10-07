@@ -7,6 +7,7 @@ opened: 2026-10-06
 priority: P1
 cost: M
 closed: 2026-10-06
+branch: cleave/frustum-apex
 pr: 4181
 ---
 

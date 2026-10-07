@@ -45,7 +45,8 @@
 //! the plane and not clear. [`Shortfall::Short`] is read only where that
 //! is certified not so, and a reading that resolves neither is
 //! [`Shortfall::Undecided`]. A side's end whose `|φ|` is not certified
-//! within ε is such a reading. Where a box resolves no piece but an end
+//! within ε, or whose sign is not resolved within the side's halvings,
+//! is such a reading. Where a box resolves no piece but an end
 //! is certified unreached by its own box (by the side's reading where a
 //! side holds that box's piece, by an arc's where none does), no chain
 //! reaches that end, and the refusal is `Short`.
@@ -635,8 +636,10 @@ struct CarrierEnd {
 /// end certified far ([`end_reading`]), a side's end off its stretch or
 /// on a point the pass reads clear. A reading that resolves neither is
 /// [`Shortfall::Undecided`]: an arc's end read neither way, a side's end
-/// whose `φ` is refused, or whose `|φ|` is not certified within ε
-/// ([`Reading::Beyond`], which is no certificate that it is beyond).
+/// whose `φ` is refused or whose sign is not resolved within the side's
+/// halvings ([`Reading::Refused`]), or whose `|φ|` is not certified
+/// within ε ([`Reading::Beyond`], which is no certificate that it is
+/// beyond).
 fn reaches_end<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     plane: ([Interval; 3], [Interval; 3]),
@@ -1566,6 +1569,112 @@ mod tests {
             })
             .collect();
         NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap()
+    }
+
+    /// `z = k·x + h(y)` over `[0, 1]²`, `h` over `m` C0 quadratic spans
+    /// of `y` with Bernstein coefficients `(P, −N, P)` on each: along the
+    /// side `u = 0`, `φ = h ≥ (P − N)/2 > 0`, though every span's hull
+    /// holds `−N`.
+    fn loose_wall(k: f64, m: u32, (p, n): (f64, f64)) -> NurbsSurface<f64> {
+        let mut kv = vec![0.0, 0.0, 0.0];
+        for i in 1..m {
+            let t = f64::from(i) / f64::from(m);
+            kv.extend([t, t]);
+        }
+        kv.extend([1.0, 1.0, 1.0]);
+        let rows = 2 * m + 1;
+        let control = (0..2 * rows)
+            .map(|i| {
+                let (x, j) = (f64::from(i / rows), i % rows);
+                let h = if j % 2 == 0 { p } else { -n };
+                Point3::new(x, f64::from(j) / f64::from(rows - 1), k * x + h)
+            })
+            .collect();
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            KnotVector::clamped(kv, 2).unwrap(),
+            control,
+            vec![1.0; 2 * rows as usize],
+        )
+        .unwrap()
+    }
+
+    /// **A side whose hull is loose reads clear at limb 3's side arm, as
+    /// the boundary pass reads it.** On [`loose_wall`], ε = 10⁻⁹, the wall
+    /// rises inward from a side the plane is clear of: a stretch of it
+    /// reads [`super::Reading::Clear`], so no window on it holds the
+    /// side's piece. Red under the sign read on the unrefined hull: every
+    /// piece's hull straddles zero, the stretch reads `Within`, and the
+    /// side arm takes the window.
+    #[test]
+    fn a_window_on_a_side_whose_hull_is_loose_holds_no_sides_piece() {
+        let whole = rect((0.0, 1.0), (0.0, 1.0));
+        for (k, m, pn) in [(10.0, 64, (0.6e-9, 0.2e-9)), (100.0, 256, (0.9e-9, 0.5e-9))] {
+            let wall = loose_wall(k, m, pn);
+            let boxes = NurbsBoxes::new(&wall);
+            let readers = super::side_readers(&boxes, ground());
+            let side = super::SIDES[0];
+            assert_eq!((side.fixed, side.end), (ChartAxis::U, super::ChartEnd::Low));
+            let reader = super::reader_of(&readers, side).unwrap();
+            for r in [rect((0.0, 0.01), (0.25, 0.5)), rect((0.0, 0.2), whole.v)] {
+                assert_eq!(
+                    super::read_stretch(&boxes, ground().0, reader, (side, r), band().zero()),
+                    super::Reading::Clear,
+                    "k {k}, m {m}: the stretch {r:?}"
+                );
+                assert_eq!(
+                    super::side_piece(&boxes, ground(), (whole, &readers), r, band()),
+                    None,
+                    "k {k}, m {m}: the window {r:?}"
+                );
+            }
+        }
+    }
+
+    /// **A stretch whose sign is not resolved within the side's halvings
+    /// reads `Refused`, not clear and not the side's, and its pieces share
+    /// one side's halvings.** On [`loose_wall`] rising inward, the first
+    /// of the stretch's 64 pieces spends one halving and reads clear; with
+    /// none to spend the stretch is refused. Falling inward, no piece
+    /// clears, and the 64 pieces, one span each, spend 64 halvings
+    /// between them: 63 refuse. Red under the refusal read as no sign
+    /// (`Within`), and under a budget per piece.
+    #[test]
+    fn a_stretch_past_its_halvings_reads_refused() {
+        let r = rect((0.0, 0.2), (0.0, 1.0));
+        let side = super::SIDES[0];
+        for (k, rows) in [
+            (
+                10.0,
+                [(1, super::Reading::Clear), (0, super::Reading::Refused)],
+            ),
+            (
+                -10.0,
+                [
+                    (64, super::Reading::Within(0.0)),
+                    (63, super::Reading::Refused),
+                ],
+            ),
+        ] {
+            let wall = loose_wall(k, 64, (0.6e-9, 0.2e-9));
+            let boxes = NurbsBoxes::new(&wall);
+            let readers = super::side_readers(&boxes, ground());
+            let reader = super::reader_of(&readers, side).unwrap();
+            for (halvings, want) in rows {
+                let got = super::super::boundary::stretch_within(
+                    &boxes,
+                    ground().0,
+                    reader,
+                    (side, r),
+                    (band().zero(), halvings),
+                );
+                let same = match (got, want) {
+                    (super::Reading::Within(_), super::Reading::Within(_)) => true,
+                    _ => got == want,
+                };
+                assert!(same, "k {k}, {halvings} halvings: {got:?}, not {want:?}");
+            }
+        }
     }
 
     /// A polyline pcurve through `pts`, one span per segment.
