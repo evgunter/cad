@@ -14027,6 +14027,82 @@ mod tests {
             }
         }
 
+        /// Escalation fires in band and not otherwise: a side whose lever
+        /// off a bound lands between `zero` and `escalate` escalates; one
+        /// decided outside the wedge by its other bound does not; a turn
+        /// in band escalates whatever the side.
+        #[test]
+        fn wedge_holds_escalates_in_band_only() {
+            let band = Band::new(1e-6, 1e-3).unwrap();
+            let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+            let at = |lever: f64| geom_core::Vec3::new((1.0 - lever * lever).sqrt(), lever, 0.0);
+            let (a, b) = (dir(0.0), dir(90.0));
+            // after_a in band, before_b positive: undecidable.
+            assert!(wedge_holds(n, a, b, at(1e-4), band).is_err());
+            // decided inside / on the bound.
+            assert_eq!(wedge_holds(n, a, b, at(1e-2), band), Ok(true));
+            assert_eq!(wedge_holds(n, a, b, at(1e-8), band), Ok(false));
+            // after_a in band but before_b certifies outside: decided.
+            let back = geom_core::Vec3::new(-1.0, 1e-4, 0.0);
+            assert_eq!(wedge_holds(n, a, b, back, band), Ok(false));
+            // the turn itself in band: escalates even for a side at 270.
+            assert!(wedge_holds(n, a, at(1e-4), dir(270.0), band).is_err());
+            // a certified straight wedge reads the leaving bound alone.
+            assert_eq!(wedge_holds(n, a, dir(180.0), dir(90.0), band), Ok(true));
+            assert_eq!(wedge_holds(n, a, dir(180.0), dir(270.0), band), Ok(false));
+        }
+
+        /// Check 9's ring-pair loop on one face with `k` rings, timed.
+        /// Measurement only (prints); not an assertion.
+        #[test]
+        #[ignore = "measurement: cargo test --release -- --ignored --nocapture ring_pair_cost"]
+        fn ring_pair_cost() {
+            let tol = Tol::witness();
+            let band = Band::linear(tol).unwrap();
+            for side in [5usize, 10, 20, 40] {
+                let span = side as f64 * 3.0 + 3.0;
+                let outer = [
+                    Point3::new(-1.0, -1.0, 0.0),
+                    Point3::new(span, -1.0, 0.0),
+                    Point3::new(span, span, 0.0),
+                    Point3::new(-1.0, span, 0.0),
+                ];
+                let tri = |i: usize, j: usize| {
+                    let (x, y) = (i as f64 * 3.0 + 1.0, j as f64 * 3.0 + 1.0);
+                    [
+                        Point3::new(x, y, 0.0),
+                        Point3::new(x + 1.0, y, 0.0),
+                        Point3::new(x, y + 1.0, 0.0),
+                    ]
+                };
+                let (mut body, face) = lamina_with_ring(&outer, &tri(0, 0), tol);
+                let at = match body
+                    .get_loop(body.get_face(face).unwrap().outer)
+                    .unwrap()
+                    .boundary
+                {
+                    LoopBoundary::Cycle { first } => first,
+                    LoopBoundary::Empty { .. } => unreachable!(),
+                };
+                for i in 0..side {
+                    for j in 0..side {
+                        if i + j > 0 {
+                            plant_ring_face(&mut body, at, &tri(i, j), tol);
+                        }
+                    }
+                }
+                plane_every_face(&mut body, tol);
+                let k = body.get_face(face).unwrap().rings.len();
+                let t = std::time::Instant::now();
+                let words = check_9_words(&body, band, tol);
+                eprintln!(
+                    "REVIEWPROBE rings={k} check9+tier3 {:?} words={}",
+                    t.elapsed(),
+                    words.len()
+                );
+            }
+        }
+
         fn recarry_line(body: &mut Body<f64>, edge: EdgeKey, tol: Tol) {
             let e = body.get_edge(edge).unwrap().clone();
             let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
