@@ -20,9 +20,10 @@
 //! `γ ∩ F ∩ G` lies on an edge of one face inside the other: either
 //! `γ ⊂ F ∩ G` and `x` is a point of `γ` on a boundary, or `x` is a
 //! relative boundary point of the proper closed subset `γ ∩ F ∩ G` of
-//! the connected `γ`. The sweep examines every box-overlapping
-//! edge × face pair and records the contact there, or refuses (premise
-//! **S**). So the components no event can evidence are exactly those
+//! the connected `γ`. The sweep examines every edge × face pair whose
+//! boxes overlap and which the narrow phase (`boolean::separating`)
+//! does not certify apart, and records the contact there, or refuses
+//! (premise **S**); a pair certified apart has no point to record. So the components no event can evidence are exactly those
 //! with `γ ⊂ int F ∩ int G`, and the certificate's job is to prove, per
 //! component, that `γ ∩ F ∩ G = ∅` or `γ ⊄ int F ∩ int G`.
 //!

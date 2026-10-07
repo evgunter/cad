@@ -1632,7 +1632,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
-        BooleanErrorKind::PierceRunsUnordered => "pierce_runs_unordered",
+        BooleanErrorKind::PierceRunsNested => "pierce_runs_nested",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
