@@ -21,7 +21,7 @@ use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::ExtrudeSide;
-use sweep::skin::loft_geometry;
+use sweep::skin::{loft_geometry, loft_parameters};
 use sweep::{Extrusion, extrude};
 use topo::{FaceSurface, validate_geometric};
 
@@ -32,13 +32,10 @@ use crate::common;
 fn geometry() -> sweep::LoftGeometry {
     let chain = common::chain;
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
-    loft_geometry(
-        &[chain(1.0), chain(1.6), chain(1.0)],
-        &places,
-        2,
-        Tol::witness(),
-    )
-    .expect("the loft skins")
+    let sections = [chain(1.0), chain(1.6), chain(1.0)];
+    let params =
+        loft_parameters(&sections, &places, 2, Tol::witness()).expect("the loft parameterizes");
+    loft_geometry(&sections, &places, 2, &params, Tol::witness()).expect("the loft skins")
 }
 
 /// The walls exist, are real NURBS (not the placeholder), and carry

@@ -2,11 +2,13 @@
 id: loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body
 kind: issue
 title: loft_geometry takes the whole surface's v from the first strip, so a section rolled about its own normal builds a different body
-status: dispatched
+status: closed
 opened: 2026-09-12
 priority: P0
 cost: H
 branch: carve/loft-v-is-the-whole-sets
+pr: 4193
+closed: 2026-10-07
 ---
 
 
@@ -71,18 +73,24 @@ v. So the answer is built, not put to Ev.
   parameters. Averaging does not make the sections "cross-sections of
   nothing in particular". The parameters shape only the surface between
   sections, which is shape, not labelling.
-- **Loft: Book Eq. 10.8 over every compatible control row of every
-  wall**, outer loop and holes alike. Each section's per-row chord
-  shares are sorted before they are summed, so the parameters are a
-  function of the multiset of rows. Every re-spelling (start vertex,
-  sense, a roll by the section's own symmetry, sketch origin) then
-  builds the bit-identical solid. A pinned row abstains as today, and
-  "every row pinned" stays the existing refusal.
-- **Sweep: v is the path's own parameter**, normalised
-  (`(t_i − lo)/(hi − lo)`, today `i/(k−1)`). The stations are samples of
-  the path at known parameters, and that is what the user wrote. The
-  answer is invariant under every re-spelling and every roll of the
-  start frame, because neither enters it.
+- **Loft: Book Eq. 10.8 over every compatible control row of the
+  outer loop's walls; holes read the outer loop's parameters** (the
+  orchestrator's ruling after PR 4193's review: the outer loop is
+  structurally unique, so this is label-free, the seam argument holds
+  within a loop, and a hole no longer moves the outer walls). Each
+  section's per-row chord shares are sorted before they are summed, so
+  the parameters are a function of the multiset of rows. Every
+  re-spelling (start vertex, sense, a roll by the section's own
+  symmetry, sketch origin) then builds bit-identical parameters and
+  walls. A pinned row abstains as today, and "every row pinned" stays
+  the existing refusal.
+- **Sweep: the loft's rule, for now** (the orchestrator's ruling after
+  PR 4193's review). Both designers preferred the path's own parameter,
+  `(t_i − lo)/(hi − lo)`. Built, it exposed the frame's spin near
+  anti-parallel to the start tangent, and the tour's coil stopped
+  building. The loft's whole-set rule is just as free of labels and
+  rolls, and it absorbs the spin. The path parameter waits on a correct
+  frame: `sweep-frame-is-a-minimal-rotation-from-the-start-tangent`.
 - **Shape of the code.** `loft_geometry` takes the parameters as an
   argument, as `skin_on` already does one layer down. `loft_body`
   derives them by the whole-set rule, through the one helper
@@ -99,3 +107,42 @@ v. So the answer is built, not put to Ev.
   form holds at the new `t`), the `loft_parameters` doctest value, the
   inflecting duct's `v = 0.5` location (it becomes the inflection), and
   curved-sweep goldens and renders.
+
+## Built (2026-10-06)
+
+On `carve/loft-v-is-the-whole-sets` (PR 4193):
+
+- `loft_geometry` takes the parameters as an argument.
+- `loft_body` and `loft_parameters` share one helper. Following the
+  orchestrator's ruling (option B, after the review), it is Eq. 10.8
+  over the OUTER loop's compatible control rows only, per-section
+  shares sorted, the mean exact when the rows agree. Holes are
+  interpolated at the outer loop's parameters: the outer loop is
+  structurally unique (its validated role), so this is still
+  label-free; a hole cannot move the outer walls; and a hole that is
+  the outer loop scaled lofts to the outer surface scaled (the tour's
+  tube identity holds to 1.9e-16, where holes in the average put it
+  5.1e-5 off).
+- `sweep_body` and `sweep_geometry` read the same rule (the path
+  parameter was built, then retired by the ruling above).
+
+Pinned by `loft_v_is_the_section_set` (corners, symmetry roll,
+order-free means, holes, arcs: bit-identical parameters and walls;
+the cap planes are not, see
+`a-loft-caps-plane-is-summed-in-the-authored-vertex-order`) and
+`turning_orientation::the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll`.
+
+**The coil (resolved by the sweep ruling).** Under the path parameter
+the tour's square coil refused at assembly
+(`Escalated { ParamSpan, nurbs_span_meter }`); the root cause is the
+frame law, filed as
+`sweep-frame-is-a-minimal-rotation-from-the-start-tangent`. Under the
+loft's rule the coil builds again.
+
+**`lily_leaf_b` escalates at the default ε: walled (the orchestrator's
+ruling), as `lily` wall 17, pinned to QUAD's row.** Under the loft's
+rule its volume refuses with the in-band convergence arm (margin
+−2.7e-9 in (1e-9, 1e-8)). It measures at 1e-6 and 1e-12, and it measured
+under both the old rule and the path parameter. This is QUAD's
+`quadrature-convergence-test-escalates-instead-of-refining`, and the
+evidence is added there.

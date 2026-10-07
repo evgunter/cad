@@ -55,6 +55,17 @@ All from `crates/editor-core/tests/union_pinch_member_order.rs`
   round, all fail 3′. So do P − X, X − P, X ∪ P and P ∪ X, where
   X = slab − p1 − p2 and P is the plate. They fail on main too.
 
+- **Prisms touching along a line** (PR 4129's review 4 N3 and review 5,
+  reproduced on main 1f27ea08). U is two upright triangular prisms
+  about (1.5, 1), radius 0.4, over 0–50° and 180–230° (or 0–50° and
+  120–170°), z 0.5–2.0 and 0.4–1.9. They touch only along the vertical
+  line through (1.5, 1), and U is tier-3′ valid with its contacts.
+  Against the plate `[0, 3] × [0, 2] × [0, 1]`, P − U [14, 30, 19],
+  U − P [10, 18, 12] and P ∩ U [10, 18, 12] build with the closed-form
+  volumes (5.932588, 0.116439, 0.067412) and pass tier 3, but tier 3′
+  refuses `UndeclaredContact` along that line. Review 5 measured the
+  same pose with leaning prisms, and found P ∪ U fails 3′ there too.
+
 ## Owed
 
 - Carry each operand's surviving records through the op, under

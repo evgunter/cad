@@ -9,17 +9,17 @@
 //! - **extrude, revolve**: the two segments are one run on one carrier
 //!   (the cosurface verdict the sweep lowering decides per join), so
 //!   the verb builds ONE wall over both (`crates/sweep/README.md`,
-//!   "Walls: one per run"). Where a cap carries the profile the
-//!   continuation's vertex stays, splitting the cap rim into collinear
-//!   edges; nothing is left for the structural rung to merge, and the
-//!   body is a boolean operand as built.
+//!   "Walls: one per run"), and each cap carries the run as one rim
+//!   edge: the continuation's vertex has no entity (maximal edges).
+//!   Nothing is left for the structural rung to merge, and the body is a
+//!   boolean operand as built.
 //! - **loft**: each segment's wall is its own NURBS surface under its
 //!   own key, so no rung merges them; the boolean refuses the body's
 //!   spline edges before its gate is reached.
-//! - **fillet, chamfer**: the subdivided rim is a two-link chain whose
-//!   joint is collinear. Both links lie on the same two faces (the one
-//!   wall and the cap), so the blend carves them as one band across the
-//!   joint, as built.
+//! - **a rim split by hand** (`split_edge` at the station, the shape a
+//!   boolean's cut leaves): the boolean's output stage joins it back,
+//!   and the fillet and the chamfer carve its two collinear links as
+//!   one band across the joint, since both lie on the same two faces.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,6 +33,7 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{AtRestBody, Body, BooleanError, EdgeKey, FaceKey, union, validate_closed};
 
 use crate::common::oracles;
+use crate::common::stations::{cut_stations, station_vertices};
 
 /// `[0,2]²` whose bottom side is authored as `line(1)` and then the
 /// straight continuation to `(2, 0)`: five vertices, four corners, and
@@ -72,6 +73,27 @@ fn subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
         t,
     )
     .unwrap()
+}
+
+/// `body` with both rims of `wall`, a wall over the bottom side
+/// `y = 0` of a prism of height 2, cut at each of `xs` (`common::stations`).
+fn cut_wall(body: Body<f64>, wall: &sweep::SideWall, xs: &[f64], t: Tol) -> Body<f64> {
+    let at = |z: f64| {
+        xs.iter()
+            .map(|&x| Point3::new(x, 0.0, z))
+            .collect::<Vec<_>>()
+    };
+    let body = cut_stations(body, wall.bottom_rim, &at(0.0), t);
+    cut_stations(body, wall.top_rim, &at(2.0), t)
+}
+
+/// [`subdivided_prism`] with its station cut back into both rims of
+/// the run's wall.
+fn stationed_prism(t: Tol) -> Body<f64> {
+    let ex = subdivided_prism(t);
+    let wall = &ex.walls[0][0];
+    assert_eq!(wall.segments, vec![0, 1]);
+    cut_wall(ex.body, wall, &[1.0], t)
 }
 
 /// An axis-aligned cube of side `s` with its low corner at `(x0, y0, z0)`.
@@ -153,23 +175,37 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
         None,
         "the continuation's vertex is a station: no strut"
     );
-    // The station stays on both caps: each rim of the wall is two
-    // collinear edges meeting at the continuation's vertex.
-    for rims in [&wall.bottom_rims, &wall.top_rims] {
-        assert_eq!(rims.len(), 2);
-        let ends = |e: EdgeKey| {
-            let edge = ex.body.get_edge(e).unwrap();
-            let a = ex.body.get_half_edge(edge.he_plus).unwrap().start;
-            let b = ex.body.get_half_edge(edge.he_minus).unwrap().start;
-            [a, b]
+    // The station has no entity: each rim of the wall is one edge
+    // over the run, ending at the wall's two struts.
+    let strut_ends = |e: EdgeKey| {
+        let edge = ex.body.get_edge(e).unwrap();
+        [edge.he_plus, edge.he_minus].map(|h| ex.body.get_half_edge(h).unwrap().start)
+    };
+    let next = &ex.walls[0][1];
+    for rim in [wall.bottom_rim, wall.top_rim] {
+        let ends = strut_ends(rim);
+        let on = |strut: EdgeKey| {
+            ends.iter()
+                .filter(|v| strut_ends(strut).contains(v))
+                .count()
         };
-        let shared: Vec<_> = ends(rims[0])
-            .into_iter()
-            .filter(|v| ends(rims[1]).contains(v))
-            .collect();
-        assert_eq!(shared.len(), 1, "the station vertex joins the two rims");
+        assert_eq!(
+            (on(wall.strut), on(next.strut)),
+            (1, 1),
+            "the rim runs from the wall's strut to the next wall's"
+        );
     }
-    assert_eq!(ex.body.vertices().count(), 10, "five vertices on each cap");
+    assert_eq!(
+        topo::joinable_vertices(
+            &ex.body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![],
+        "no station vertex on either cap"
+    );
+    assert_eq!(station_vertices(&ex.body), vec![]);
+    assert_eq!(ex.body.vertices().count(), 8, "four vertices on each cap");
     assert_eq!(ex.body.faces().count(), 6);
     assert_eq!(validate_closed(&ex.body), Ok(()), "tier 2");
     assert_eq!(topo::validate_geometric(&ex.body, t), Ok(()), "tier 3");
@@ -188,17 +224,17 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     assert!((volume(body, t) - 8.5).abs() < 1e-12, "{}", volume(body, t));
 }
 
-/// **A single-operand result has maximal edges.** The subdivided prism
+/// **A single-operand result has maximal edges.** The stationed prism
 /// unioned with a cube strictly inside it: no boundary crosses, so the
 /// union is the prism's own material, answered by the single-operand
-/// fallback. The prism carries its station vertex on both cap rims, and
+/// fallback. The prism carries a station vertex on both cap rims, and
 /// the fallback's output stage joins both: the result is a 2 × 2 × 2
 /// box with 8 vertices and 12 edges. Red when the fallback skips the
 /// join.
 #[test]
 fn a_union_answered_by_one_operand_joins_its_station_vertices() {
     let t = Tol::witness();
-    let prism = finished("the subdivided prism", subdivided_prism(t).body, t);
+    let prism = finished("the stationed prism", stationed_prism(t), t);
     assert_eq!(
         topo::joinable_vertices(
             &prism,
@@ -209,6 +245,7 @@ fn a_union_answered_by_one_operand_joins_its_station_vertices() {
         2,
         "the station on each cap rim"
     );
+    assert_eq!(station_vertices(&prism).len(), 2, "the reader finds both");
     let cube = cube_at(0.5, 0.5, 0.5, 1.0);
     let r = union(&prism, &cube, t).expect("the cube lies inside the prism");
     let out = r.body().expect("non-empty");
@@ -229,9 +266,10 @@ fn a_union_answered_by_one_operand_joins_its_station_vertices() {
 }
 
 /// `[0,3] × [0,2]` whose bottom side is authored as `line(1)` and two
-/// straight continuations, to `(2, 0)` and `(3, 0)`, extruded by 2:
-/// each cap rim along the bottom side is three collinear edges.
-fn twice_subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
+/// straight continuations, to `(2, 0)` and `(3, 0)`, extruded by 2,
+/// with both stations cut back into both rims of the run's wall: each
+/// cap rim along the bottom side is three collinear edges.
+fn twice_stationed_prism(t: Tol) -> Body<f64> {
     let lp: ProfileLoop<f64> = Open
         .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
@@ -257,7 +295,7 @@ fn twice_subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
     let v = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
         .unwrap();
-    extrude(
+    let ex = extrude(
         &v,
         Extrusion::Distance {
             depth: 2.0,
@@ -265,11 +303,14 @@ fn twice_subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
         },
         t,
     )
-    .unwrap()
+    .unwrap();
+    let wall = &ex.walls[0][0];
+    assert_eq!(wall.segments, vec![0, 1, 2]);
+    cut_wall(ex.body, wall, &[1.0, 2.0], t)
 }
 
 /// **A seam joined twice reads through both joins.** The twice
-/// subdivided prism unioned with a cube strictly inside it: the
+/// stationed prism unioned with a cube strictly inside it: the
 /// fallback's output stage joins each cap rim's three collinear edges
 /// into one, two joins per rim, the second's `gone` the first's `kept`.
 /// `BooleanNaming::joined_edge` takes every edge any join killed to the
@@ -278,11 +319,7 @@ fn twice_subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
 #[test]
 fn a_rim_joined_twice_reads_through_both_joins() {
     let t = Tol::witness();
-    let prism = finished(
-        "the twice subdivided prism",
-        twice_subdivided_prism(t).body,
-        t,
-    );
+    let prism = finished("the twice stationed prism", twice_stationed_prism(t), t);
     assert_eq!(
         topo::joinable_vertices(
             &prism,
@@ -328,10 +365,10 @@ fn a_rim_joined_twice_reads_through_both_joins() {
 /// **Revolve, full and partial: the same branch.** The subdivided
 /// square at `x ∈ [1, 3]` revolved about the sketch's y axis: its
 /// subdivided bottom side sweeps to ONE annulus wall, its subdivided
-/// outer side to ONE cylinder wall. The partial revolve's wedge caps
-/// keep each continuation's vertex (a meridian vertex splitting the
-/// cap's chain); the full revolve keeps no entity for it. The union
-/// with a cube across the annulus runs as built.
+/// outer side to ONE cylinder wall. Neither revolve keeps an entity for
+/// a continuation's vertex: the partial revolve's wedge caps carry each
+/// run as one meridian edge. The union with a cube across the annulus
+/// runs as built.
 #[test]
 fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
     let t = Tol::witness();
@@ -366,7 +403,7 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
     // A cube across the annulus plane y = 0 over the continuation's
     // circle at radius 2, clear of the axis.
     let cube = cube_at(1.5, -0.5, -0.5, 1.0);
-    for (rev, vertices) in [(Revolution::Full, 4), (Revolution::Partial(FRAC_PI_2), 12)] {
+    for (rev, vertices) in [(Revolution::Full, 4), (Revolution::Partial(FRAC_PI_2), 8)] {
         let r = revolve(&v, axis, rev, t).unwrap();
         let walls = r.walls();
         let w = |j: usize| walls[0][j].expect("off-axis segment has a wall");
@@ -378,6 +415,16 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
         assert_eq!(r.rims[0][1], None, "{rev:?}: no rim at a station");
         assert_eq!(r.rims[0][3], None, "{rev:?}: no rim at a station");
         assert_eq!(r.body.vertices().count(), vertices, "{rev:?}");
+        assert_eq!(
+            topo::joinable_vertices(
+                &r.body,
+                geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+            )
+            .unwrap(),
+            vec![],
+            "{rev:?}"
+        );
+        assert_eq!(station_vertices(&r.body), vec![], "{rev:?}");
         assert_eq!(topo::validate_geometric(&r.body, t), Ok(()), "{rev:?}");
         let mut merged = r.body.clone();
         assert!(
@@ -425,21 +472,20 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
 /// The blend radius the rows below request.
 const R: f64 = 0.25;
 
-/// **Fillet and chamfer: a subdivided rim is ONE band across its
-/// joint.** Every edge of the prism as built — the twelve cube edges,
-/// two of them split at the continuation's rim vertices — blends as
-/// the plain cube does, the two halves of each split rim carved as one
-/// band face whose trimlines carry the joint's feet. Its volume is the
-/// plain cube's closed form for both verbs. (The extrusion builds one
-/// wall over the run, so both halves already lie on the same two faces;
-/// no merge is needed first.)
+/// **Fillet and chamfer: a split rim is ONE band across its joint.**
+/// Every edge of the stationed prism — the twelve cube edges, two of
+/// them split at the station's rim vertices — blends as the plain cube
+/// does, the two halves of each split rim carved as one band face whose
+/// trimlines carry the joint's feet. Its volume is the plain cube's
+/// closed form for both verbs. (The extrusion builds one wall over the
+/// run, so both halves already lie on the same two faces; no merge is
+/// needed first.)
 #[test]
-fn subdivided_rim_blends_as_one_band_as_built() {
+fn split_rim_blends_as_one_band() {
     let t = Tol::witness();
-    let ex = subdivided_prism(t);
     // One wall over the run, as built: there is no strut at the
     // continuation and nothing for the merge to do.
-    let mut merged = ex.body.clone();
+    let mut merged = stationed_prism(t);
     assert!(merged.merge_coplanar_faces(t).unwrap().groups.is_empty());
     let req: Vec<_> = merged.edges().map(|(k, _)| k).collect();
     assert_eq!(req.len(), 14, "12 cube edges + the split rims");
@@ -448,7 +494,7 @@ fn subdivided_rim_blends_as_one_band_as_built() {
         .map(|(v, _)| v)
         .filter(|v| merged.edges_of_vertex(*v).is_some_and(|es| es.len() == 2))
         .collect();
-    assert_eq!(joints.len(), 2, "the continuation's two rim vertices");
+    assert_eq!(joints.len(), 2, "the station's two rim vertices");
 
     let f = sweep::fillet::fillet_edges(&merged, &req, R, t).expect("the merged prism fillets");
     assert_eq!(validate_closed(&f.body), Ok(()), "fillet: tier 2");
@@ -526,14 +572,14 @@ fn subdivided_rim_blends_as_one_band_as_built() {
 }
 
 /// **A joint and two cut-offs on one band**: only the split rim's two
-/// halves on the top cap. They join through the continuation vertex as
+/// halves on the top cap. They join through the station vertex as
 /// one band, and each end, where the rim meets an unrequested side
 /// edge, is cut off at the side wall, at the prism closed form over the
 /// rim's whole length `2`.
 #[test]
 fn a_joined_band_is_cut_off_at_both_ends() {
     let t = Tol::witness();
-    let body = subdivided_prism(t).body;
+    let body = stationed_prism(t);
     let half = |a: f64, b: f64| {
         body.edges()
             .map(|(k, _)| k)

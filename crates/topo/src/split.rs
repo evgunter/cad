@@ -171,7 +171,10 @@ impl<T: Decide> Body<T> {
     /// ([`crate::pcurves::split_cache`]), so a face this op touches is
     /// never left half-minted and a refusal
     /// ([`EulerOpError::PcurveSplit`]) arrives with the body
-    /// untouched. A half-edge with no row keeps none: the op carries
+    /// untouched. So does the joint between the two children, decided
+    /// at the split point as every joint is: where it is undecided the
+    /// op refuses ([`EulerOpError::SplitJointUndecided`]) rather than
+    /// write an element nothing decided. A half-edge with no row keeps none: the op carries
     /// what is there, and minting what is missing is the producer's
     /// closing mint.
     ///
@@ -309,13 +312,22 @@ impl<T: Decide> Body<T> {
         // leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
             crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band, T::fitted_lane())
-                .map_err(|crate::pcurves::SplitRowError { half_edge, error }| {
-                    EulerOpError::PcurveSplit {
-                        edge,
-                        half_edge,
-                        error,
-                    }
-                })?;
+                .map_err(
+                    |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {
+                        crate::pcurves::SplitRefusal::Certify(error) => EulerOpError::PcurveSplit {
+                            edge,
+                            half_edge,
+                            error,
+                        },
+                        crate::pcurves::SplitRefusal::Joint(diag) => {
+                            EulerOpError::SplitJointUndecided {
+                                edge,
+                                half_edge,
+                                diag,
+                            }
+                        }
+                    },
+                )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
