@@ -16,7 +16,7 @@
 //!   combinatorially indistinguishable — that is what a tie means — so
 //!   the tied set expressed in names is the tie row itself, and the
 //!   [`TieWitness`] carries the multiplicity and site).
-//! - The documented `order_along` over-tie widens: a reference to a
+//! - The documented `rank_by` over-tie widens: a reference to a
 //!   RANKED fragment name whose group over-tied resolves `Ambiguous`
 //!   with the WIDENED base name as the candidate — never a mis-bind.
 //! - N3's offered candidates (a retired constituent's merged name; a
@@ -120,7 +120,7 @@ pub enum ResolveError {
         name: StableName,
         /// The distinct names the tied set answers to (module docs:
         /// the tie row itself, or the widened base on an
-        /// `order_along` over-tie).
+        /// `rank_by` over-tie).
         candidates: Vec<StableName>,
         /// The recorded tie's site and width.
         tie: TieWitness,
@@ -300,7 +300,7 @@ impl ResolveError {
     /// The tie row IS the ambiguity (N5), so the candidates are that
     /// row expressed in names and are derived from the witness here
     /// rather than restated per door. `at` is the referenced name
-    /// itself, except on an `order_along` over-tie, where it is the
+    /// itself, except on an `rank_by` over-tie, where it is the
     /// widened base row the reference actually tied against.
     pub(crate) fn ambiguous(
         name: &StableName,
@@ -916,7 +916,7 @@ pub struct TieWitness {
     /// The node whose table records the tie.
     pub node: RecipeNodeId,
     /// The tied table row (the referenced name itself, or the widened
-    /// base name on an `order_along` over-tie).
+    /// base name on an `rank_by` over-tie).
     pub at: StableName,
     /// How many equally-admissible candidates tie there.
     pub width: usize,
@@ -1408,7 +1408,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         None => {}
     }
 
-    // 3. The order_along over-tie widening (spec D1): a ranked
+    // 3. The `rank_by` over-tie widening (spec D1): a ranked
     //    fragment reference whose group over-tied resolves Ambiguous
     //    against the WIDENED base row — never a mis-bind.
     let mut offers = Vec::new();

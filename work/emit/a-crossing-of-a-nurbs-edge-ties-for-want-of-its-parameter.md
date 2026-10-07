@@ -59,7 +59,19 @@ readings then order as the parameters do. A difference the band
 decides is the order of the feet, wherever the crossing points sit
 within tolerance of the curve. The check is sufficient, not necessary.
 A piece it cannot certify keeps N2's tie, and so does a pair the band
-cannot part.
+cannot part. The certificate never escalates. A step it cannot decide
+positive, in-band included, is no certificate, and so is a closed piece,
+whose chord has no length. Only the comparison of two readings can
+escalate, as with `param_along`. The chord is asked for only for two
+crossings on one piece, so a piece's sliver step cannot touch a group
+ranked by spans. The soundness of ordering off-curve feet rests on
+K > 2 (filed:
+`work/flux/a-band-decided-order-of-off-curve-feet-needs-k-above-two.md`).
+
+Rank versus tie now depends on the control net, not only on the
+geometry. A refit carrier of the same curve, with a different net, can
+certify where this one does not, or fail where it does, and so flip a
+pair between ranked and tied.
 
 `rank_crossings` keeps the span order across pieces and uses the chord
 reading for two crossings on one piece.
@@ -72,10 +84,22 @@ from its residuals would need a speed bound and a uniqueness argument
 of the same kind.
 
 Rows (`emit_topo`'s `nurbs_crossings_rank_by_parameter`, at ε 1e-6,
-1e-9 and 1e-12): the first and third of three same-sense crossings of
-a plane rank by parameter, whichever order they are handed in. Two
-crossings a quarter of the band apart tie, and so does one point
-handed in twice.
+1e-9 and 1e-12):
+- The first and third of three same-sense crossings of a plane rank by
+  parameter, whichever order they are handed in.
+- Two crossings a quarter of the band apart tie, and so does one point
+  handed in twice.
+- A degree-1 piece with a control step of 3ε in the band ties its
+  crossings rather than refusing.
+- A piece that folds back along its chord ties: without the polygon
+  check its readings would rank the crossings reversed.
+- A closed piece has no chord and gives no certificate.
 
 Found on the way and filed:
-`work/nurbs/a-swaying-loft-corner-refuses-as-a-vanishing-span.md`.
+- `work/nurbs/a-swaying-loft-corner-refuses-as-a-vanishing-span.md`;
+- `work/emit/a-flush-reading-finds-no-point-on-a-nurbs-member-edge.md`;
+- `work/emit/n2s-crossing-clause-states-only-part-of-the-tie.md`;
+- `work/flux/a-band-decided-order-of-off-curve-feet-needs-k-above-two.md`.
+
+The end-to-end row this case owes is noted on
+`work/reach/delete-the-boolean-operand-edge-gate.md`.
