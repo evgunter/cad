@@ -154,6 +154,7 @@ pub mod euler_ring;
 // because its consumers now span both halves and the shared sector
 // walk; its own docs carry the argument. Non-doc comment for the same
 // rustdoc reason as the sector modules below.
+pub mod face_boxes;
 pub mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
@@ -839,6 +840,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
+pub use face_boxes::{FaceBox, FaceBoxes};
 pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use pieces::PieceSortError;
 pub use query::{

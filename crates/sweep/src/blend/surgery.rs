@@ -139,8 +139,11 @@
 //! conventional chart image, in-band refuses [`BlendError::Escalated`]
 //! at the link, and a transverse station refuses
 //! [`BlendError::SurgeryInvariant`]: the routing sends every contact
-//! whose surfaces cross at an angle to the plain intersection instead. Everything else in this
-//! module is structural: cycle walks, key equality, stored senses.
+//! whose surfaces cross at an angle to the plain intersection instead.
+//! After the ring check and before any mutation it runs predicate 2's
+//! reach (`blend::reach`), whose decisions are that module's. Everything
+//! else in this module is structural: cycle walks, key equality, stored
+//! senses.
 //!
 //! # Out of scope, refused typed
 //!
@@ -706,6 +709,11 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         .chain(cut_offs.iter().map(|c| (&c.end.sliver, c.link.convexity())))
         .collect();
     ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;
+    // ---- Predicate 2's reach: every band against every face of the
+    // body that is not a support of its chain, in any shell. After the
+    // exact meters above, which judge a support's own rings and edges
+    // where both would refuse.
+    super::reach::band_reach(source, &verdict.chains, radius, kind, band)?;
 
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
@@ -2557,8 +2565,8 @@ impl<T: Bounds> CircleFrame<T> {
 /// It lives here rather than in `test_support` because its signature
 /// carries the surgery's own `Decide + Bounds` compound, which the
 /// `Bounds` scope rule ratifies for the edge-blend seam alone —
-/// `battery.rs`, `build.rs`, this file and the two open bands under
-/// `open/` — and for no other file in the crate.
+/// `battery.rs`, `build.rs`, `reach.rs`, this file and the two open
+/// bands under `open/` — and for no other file in the crate.
 #[cfg(any(test, feature = "test-support"))]
 pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     face: FaceKey,
