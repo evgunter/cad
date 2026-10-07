@@ -17,21 +17,36 @@ surface against a reach only for reaches that are `apart`: no chain in
 common and no shared vertex between their chains (`meet`). The excuse
 is that bands meeting at a corner or a turn touch there by construction,
 which the corner predicate and the surgery judge. But the skip is by
-chain, not by neighbourhood: two links of one chain, or of two chains
-that share a vertex, whose bands come together AWAY from that vertex
-(a chain that runs back alongside itself, a U whose arms close in) are
-never metered against each other.
+chain, not by neighbourhood.
 
-The same holds for a chain's own supports: `excluded` skips every
-support of every link of the chain for each link's reach. A far link's
-support that enters this link's reach inside the strip its own band
-replaces would be cleared by that band's `replaces` region anyway, so
-what is left is the band-against-band case above.
+Where it lives in production: the battery breaks a chain at every turn
+(`battery.rs` `broken_at_turns`) before the reach reads
+`verdict.chains`, so a multi-link chain spans valence-2 joints only,
+and two links that turn into each other are two chains that `meet`.
+Chains that do not meet are metered against each other: a box's
+top-front edge turning down the front-right edge into the bottom-right
+one, whose first and last bands overlap below `h = 1`, refuses at the
+meter and at the door
+(`blend_band_reach_chain_ends::the_bands_of_chains_that_meet_at_turns_are_metered_against_each_other`).
 
-No body is known to reach it past the support screen
-(`fillet3_face_clearance` refuses two strips crossing on one support,
-e.g. `blend_band_reach_chain_ends::a_cut_off_face_at_another_links_end_is_metered_against_the_link`
-whose door refuses at the screen); a witness should be built first,
-likely two links of one chain with no common support whose bands
-approach. The fix would meter the band surfaces of links of one chain
-against each other with each shared vertex's neighbourhood taken out.
+What is left is two bands of one chain, or of two chains that meet,
+coming together away from the vertex they share. Every chain the door
+builds today is plane–plane, so its links are straight: one chain's
+links are collinear through their joints, and two straight chains
+through one vertex approach only at it, where the mitre or the corner
+patch is the judge. The residue becomes reachable when a chain can
+curve back on itself — mixed line–arc chains and open arc chains, which
+the door refuses today (`UnsupportedChain`; see
+`blend-reach-takes-an-open-arc-link-over-the-whole-turn`). Build the
+witness then: a G1 chain whose arms close in, or two such chains
+sharing a vertex.
+
+The same holds for a chain's own supports: a link's reach skips every
+support of every link of its chain. A far link's support that enters
+this link's reach inside the strip its own band replaces would be
+cleared by that band's `replaces` region anyway, so what is left is the
+band-against-band case above.
+
+The fix would meter the band surfaces of links of one chain, and of
+chains that meet, against each other with each shared vertex's
+neighbourhood taken out.

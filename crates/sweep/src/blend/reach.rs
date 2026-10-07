@@ -37,11 +37,15 @@
 //!
 //! # The meter
 //!
-//! A reach skips its chain's supports, every face at one of its own
-//! vertices (the face the band runs into, judged by predicate 6 and the
-//! surgery; a plane end face lies on the cap that ends the window, so
-//! it never meets the reach's inside), and any face on a support's stored surface whose side
-//! bounds it (that face lies on the side's zero set). A support of
+//! A link's reach skips its chain's supports, the faces its own window
+//! ends in, and any face on a support's stored surface whose side bounds
+//! it (that face lies on the side's zero set). A face the window ends in
+//! is one the band runs into, judged by predicate 6 and the surgery:
+//! a plane the reach is capped by, so it lies on the reach's boundary
+//! (a curved one is the battery's refusal, and the reach fails loud on
+//! it), or a support of a corner patch's links. A face at another
+//! link's end bounds nothing here and is metered like any other; a
+//! circular link's window has no ends. A support of
 //! another chain of the request is metered by what survives that
 //! chain's band: a cell inside the strip the band replaces is clear.
 //! The other band's surface is metered too, except a concave band's
@@ -684,8 +688,10 @@ struct Reach<T: Real> {
     /// a corner patch's vertex.
     chains: Vec<usize>,
     /// The faces this reach does not meter by key, sorted: a link's,
-    /// its chain's supports and every face at one of its own two
-    /// vertices ([`excluded`]); a corner patch's, the faces at its
+    /// its chain's supports and the faces its own window ends in (a
+    /// plane it is capped by, or a corner patch's support, which
+    /// [`straight_reach`] records as it builds the ends; a circular
+    /// link's window has none); a corner patch's, the faces at its
     /// vertex.
     skip: Vec<FaceKey>,
     /// The cross-section's reach from its spine point: the scale a
@@ -790,25 +796,6 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
         n,
         d: (o - Point3::origin()).dot(n),
     }
-}
-
-/// The faces a link's reach does not meter by key: its chain's supports,
-/// and every face at one of the link's own two vertices. A face at its
-/// own end is a plane (the battery refuses a curved end face) on a cap
-/// that bounds the reach, or a support of a corner patch's links there;
-/// a face at another link's end, which lies on no bound of this reach,
-/// is metered like any other.
-fn excluded<T: Decide>(
-    body: &Body<T>,
-    chain: &Chain<T>,
-    link: &Link<T>,
-) -> Result<Vec<FaceKey>, BlendError> {
-    let mut out: Vec<FaceKey> = chain.links().flat_map(|l| [l.face_a, l.face_b]).collect();
-    out.extend(faces_at(body, link.start)?);
-    out.extend(faces_at(body, link.end)?);
-    out.sort_unstable();
-    out.dedup();
-    Ok(out)
 }
 
 /// **The premise [`Reach::replaces`] stands on**: the battery's support
@@ -980,6 +967,7 @@ fn straight_reach<T: Decide + Bounds>(
     let mut ends = Vec::new();
     let mut core: Vec<Bound<T>> = cross.iter().map(|(_, b)| b.clone()).collect();
     let mut caps = Vec::new();
+    let mut skip = Vec::new();
     for v in [link.start, link.end] {
         let pv = point_of(body, v)?;
         let patch = corners.iter().find(|(cv, _)| *cv == v);
@@ -988,7 +976,6 @@ fn straight_reach<T: Decide + Bounds>(
             if f == link.face_a || f == link.face_b {
                 continue;
             }
-            exact &= matches!(surface_of(body, f)?, Surface::Plane { .. });
             let n = normal_at(body, f, pv)?;
             let cap = half_space(pv, n, q);
             core.push(cap.clone());
@@ -1002,9 +989,20 @@ fn straight_reach<T: Decide + Bounds>(
                         detail: "an end face tangent to the spine, whose plane bounds no window",
                     });
                 }
+                // The face lies on its cap, the reach's boundary, only
+                // when it is the plane the cap is: that is the licence
+                // to skip it.
+                if !matches!(surface_of(body, f)?, Surface::Plane { .. }) {
+                    return Err(BlendError::SurgeryInvariant {
+                        at: EntityId::Face(f),
+                        detail: "a straight band's window ends in a curved face, which the \
+                                 battery refuses (END_FACE_CURVED) before the reach is read",
+                    });
+                }
                 caps.push((Role::Other, cap));
                 pad = pad.max(reach * (n.cross(tau).norm() / along));
             }
+            skip.push(f);
         }
         let sv = (pv - start).dot(tau);
         ends.push(match patch {
@@ -1093,7 +1091,7 @@ fn straight_reach<T: Decide + Bounds>(
             .collect(),
         confine: None,
         chains: vec![chain],
-        skip: Vec::new(),
+        skip,
         width: reach,
     })
 }
@@ -1901,6 +1899,10 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             corners.push((v, anchors));
         }
     }
+    let supports: Vec<Vec<FaceKey>> = chains
+        .iter()
+        .map(|c| c.links().flat_map(|l| [l.face_a, l.face_b]).collect())
+        .collect();
     for (ci, link) in &all {
         let st = station(body, link)?;
         let mut r = if link.arm.is_coaxial_torus() {
@@ -1908,7 +1910,9 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         } else {
             straight_reach(body, link, &st, &corners, *ci, band)?
         };
-        r.skip = excluded(body, &chains[*ci], link)?;
+        r.skip.extend(&supports[*ci]);
+        r.skip.sort_unstable();
+        r.skip.dedup();
         for (f, strip) in &r.replaces {
             screened(body, &ends_all, *f, strip, band)?;
         }
@@ -2158,13 +2162,16 @@ fn metered<T: Decide + Bounds>(
 }
 
 /// The test-support door to [`band_reach`] alone, for a fillet request:
-/// its links resolved and walked into chains as the battery does, and
-/// no other predicate run — so a row can pin the reach on a body some
-/// earlier predicate or door refuses. Compiled into no shipped build.
+/// its links resolved, walked into chains and broken at their turns as
+/// the battery builds the verdict's chains, and no other predicate run
+/// — so a row can pin the reach on a body some earlier predicate or
+/// door refuses, over the chains production meters. Compiled into no
+/// shipped build.
 ///
 /// # Errors
 ///
-/// [`band_reach`]'s, and whatever resolving a link refuses.
+/// [`band_reach`]'s, and whatever resolving a link or classifying a
+/// junction refuses.
 #[cfg(any(test, feature = "test-support"))]
 pub fn band_reach_for_tests<T: Decide + Bounds>(
     req: &super::BlendRequest<'_, T>,
@@ -2180,6 +2187,7 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
             BlendKind::Fillet,
         )?);
     }
-    let chains = super::battery::walk_chains(links);
+    let chains =
+        super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;
     band_reach(req.body, &chains, req.size, BlendKind::Fillet, band)
 }
