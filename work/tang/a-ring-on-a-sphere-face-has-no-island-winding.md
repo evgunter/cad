@@ -2,10 +2,12 @@
 id: a-ring-on-a-sphere-face-has-no-island-winding
 kind: issue
 title: A section passing through a sphere face as a ring refuses RingOffCylinderChart: the ring lane winds its island on a cylinder wall's chart only
-status: open
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
+closed: 2026-10-07
+branch: tang/sphere-ring-island-winding
 ---
 
 
@@ -88,3 +90,28 @@ crosses a sphere face, the join stops here. Measured on
 
 The reviewers report the box cases under every op
 (`analysis/reach-dual/4046-r1`, NOTE 4; `-r2`, NOTE 9).
+
+## Closed (2026-10-07, `tang/sphere-ring-island-winding`)
+
+A sphere face's ring lane winds its island without a chart,
+`chord_join::sphere_island_winding`, closed by the chord's arc (so
+`boolean::join::choose_roles` waits on the segment's curve for a
+sphere, `RoleLane::SphereRing`, as the planar lane does). The run lies
+in one closed cap of the section plane (the side its edges' midpoints
+decide, or, for a run on the section circle, the side the arc leans
+to); its left region is the inner one when the arc's left normal
+points into that cap; and an outer-loop point decides which region is
+the island: one on the far side directly, one on the run's side by the
+parity of the great-circle path to the far cap's pole
+(`chord_join::sphere_path_parity`). Ring re-homing on a sphere,
+`chord_join::sphere_ring_side`, reads the same parity from a ring
+vertex to an outer-loop vertex of the old face apart from the run, and
+reads a ring whose every vertex is on a run vertex `OnRun`, so a pierce
+strut at a pinch waits as it does on a plane.
+
+The probe pose builds ∩ in both orders and slab ∖ ball at the slice
+integral; ∪ in both orders and ball ∖ slab keep the ring as a hole of
+the ball's face and refuse at the result gate
+(`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`). The rows
+are `crates/sweep/tests/a_ring_on_a_sphere_face.rs`. Filed: the cone and
+torus kinds, `a-ring-on-a-cone-or-torus-face-has-no-island-winding`.

@@ -1573,7 +1573,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "RingOffCylinderChart",
                 J::RingOffCylinderChart {
                     face,
-                    kind: geom::SurfaceKind::Sphere,
+                    kind: geom::SurfaceKind::Cone,
                 },
             ),
             (
