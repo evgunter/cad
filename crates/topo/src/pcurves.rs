@@ -4490,6 +4490,22 @@ fn chart_edge<T: Decide>(
     }
 }
 
+/// A chart's `u` period, decided by surface KIND: `τ` for every surface
+/// of revolution, a closed spline chart's own knot domain, and none for
+/// a plane. `chart_u_period` answers `τ` for a PLANE — it defaults every
+/// non-spline chart to the azimuth period — so a reader that must tell a
+/// plane from a periodic chart asks this one.
+pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> Option<T> {
+    match *chart {
+        Surface::Plane { .. } => None,
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => Some(T::tau()),
+        Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
+    }
+}
+
 /// **The face's boundary in a chart the CALLER names** — the certified
 /// outer description a subdivision consumer intersects its carrier
 /// window with, and tests its cells against
