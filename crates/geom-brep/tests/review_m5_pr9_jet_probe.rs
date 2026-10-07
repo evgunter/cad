@@ -8,7 +8,7 @@ use crate::shared::surf::arena2;
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Point3, Vec3};
 
 fn zcyl(cx: f64, r: f64) -> Surface<f64> {
@@ -35,8 +35,7 @@ fn certify_line(
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -135,8 +134,7 @@ fn ruling_drift_is_exactly_zero_and_the_bound_discriminates() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(50.0),
         },
         carrier,

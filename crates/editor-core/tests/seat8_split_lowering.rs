@@ -178,13 +178,19 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
 /// constant here held.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`): the digest feeds each edge's
+/// description `Debug`, which now spells `pair: {a, b}` in key order
+/// where it spelled `s1`, `s2` in the builder's order. No body moved:
+/// `m4_pr8_corpus`'s exact mass pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xbad2_4a97_64d1_ce35u64),
-        ("part_select", 0xfa68_83fb_a80b_4538),
-        ("kitchen_sink", 0x0de0_b3b7_9cde_affd),
+        ("cut_cylinder", 0x34fe_80d7_a429_03ebu64),
+        ("part_select", 0x0616_0789_b5f4_92f6),
+        ("kitchen_sink", 0x623d_b169_3d96_061d),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -272,6 +278,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`): the digest feeds each edge's
+/// description `Debug`, which now spells `pair: {a, b}` in key order
+/// where it spelled `s1`, `s2` in the builder's order. No body moved:
+/// `m4_pr8_corpus`'s exact mass pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -292,7 +304,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xb71f_3b0d_97ba_2ab3,
+        got, 0x3a29_4bbd_e7bd_feab,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

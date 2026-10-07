@@ -1214,10 +1214,9 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
-    /// resolve; [`EulerOpError::DescriptionNotAdjacent`] on an
-    /// `Intersection`/`Seam` description whose surfaces are not the
-    /// edge's faces' surfaces; [`EulerOpError::Certification`] on a
-    /// failed gate, whose plane × NURBS lane is the scalar's policy
+    /// resolve; [`EulerOpError::DescriptionNotAdjacent`] on a
+    /// description whose surfaces are not the edge's faces' surfaces;
+    /// [`EulerOpError::Certification`] on a failed gate, whose plane × NURBS lane is the scalar's policy
     /// ([`crate::AtRestPolicy::nurbs_lane`]), and
     /// [`EulerOpError::NurbsLaneUnsupported`] where that class meets a
     /// scalar holding none; [`EulerOpError::PcurveMint`] where a face is
@@ -1908,7 +1907,7 @@ pub(crate) enum Named {
     /// An intrinsic description's two operands (`Intersection` and
     /// `TangentIntersection` alike: the described pair IS the faces'
     /// pair).
-    Pair(SurfaceKey, SurfaceKey),
+    Pair(geom_brep::SurfacePair),
     /// A chart image's chart, and whether the image claims to be the
     /// chart's parameterization seam.
     Chart { surface: SurfaceKey, seam: bool },
@@ -1927,10 +1926,8 @@ impl Named {
 
     fn of_description<T: Real>(description: &geom_brep::EdgeDescription<T>) -> Self {
         match description {
-            geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-            | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                Self::Pair(*s1, *s2)
-            }
+            geom_brep::EdgeDescription::Intersection { pair, .. }
+            | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => Self::Pair(*pair),
             geom_brep::EdgeDescription::Chart(c) => Self::Chart {
                 surface: c.surface,
                 seam: c.seam,
@@ -1941,10 +1938,8 @@ impl Named {
 
     fn of_spec<T: Real>(description: &geom_brep::EdgeDescriptionSpec<T>) -> Self {
         match *description {
-            geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, .. }
-            | geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
-                Self::Pair(s1, s2)
-            }
+            geom_brep::EdgeDescriptionSpec::Intersection { pair, .. }
+            | geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, .. } => Self::Pair(pair),
             geom_brep::EdgeDescriptionSpec::Chart { surface, seam, .. } => {
                 Self::Chart { surface, seam }
             }
@@ -1957,7 +1952,10 @@ impl Named {
     /// pushforward carries its own defining data) or a null edge.
     pub(crate) fn keys(self) -> impl Iterator<Item = SurfaceKey> {
         let (a, b) = match self {
-            Self::Pair(s1, s2) => (Some(s1), Some(s2)),
+            Self::Pair(pair) => {
+                let [s1, s2] = pair.keys();
+                (Some(s1), Some(s2))
+            }
             Self::Chart { surface, .. } => (Some(surface), None),
             Self::Nothing => (None, None),
         };
@@ -1973,10 +1971,10 @@ impl Named {
     /// scaffold names none.
     fn adjacent_to(self, [plus, minus]: [Slot; 2], slot_of: impl Fn(SurfaceKey) -> Slot) -> bool {
         match self {
-            Self::Pair(s1, s2) => {
-                let (s1, s2) = (slot_of(s1), slot_of(s2));
-                (s1 == plus && s2 == minus) || (s1 == minus && s2 == plus)
-            }
+            Self::Pair(pair) => pair
+                .keys()
+                .into_iter()
+                .any(|k| slot_of(k) == plus && pair.other(k).map(&slot_of) == Some(minus)),
             Self::Chart { surface, seam } => {
                 let surface = slot_of(surface);
                 if seam {
@@ -1994,7 +1992,7 @@ impl Named {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom::Surface;
-    use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Point3, Tol, Vec3};
 
     use super::Rechart;
@@ -2343,7 +2341,7 @@ mod tests {
             assert!(
                 matches!(
                     description(&body, e),
-                    EdgeDescription::Intersection { s1, s2, .. } if s1 == new || s2 == new
+                    EdgeDescription::Intersection { pair, .. } if pair.contains(new)
                 ),
                 "an edge listed from the helper keeps its kind, on the new key"
             );
@@ -2868,8 +2866,7 @@ mod tests {
         let [plus, minus] = faces_of(body, edge);
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
-            s1: surf(body, plus),
-            s2: surf(body, minus),
+            pair: SurfacePair::new(surf(body, plus), surf(body, minus)),
             witness: p0.lerp(p1, 0.5),
         };
         spec
@@ -3107,10 +3104,10 @@ mod tests {
         let bottom = surf(&body, face_at(&body, 2, 0.0));
         let front = surf(&body, face_at(&body, 1, 0.0));
         let mut far_pair = restated(&body, edge);
-        let EdgeDescriptionSpec::Intersection { s1, s2, .. } = &mut far_pair.description else {
+        let EdgeDescriptionSpec::Intersection { pair, .. } = &mut far_pair.description else {
             panic!("the brick's rim is described as intersections")
         };
-        (*s1, *s2) = (bottom, front);
+        *pair = SurfacePair::new(bottom, front);
         let far_pair = vec![(edge, far_pair)];
         assert_err_deep_unchanged(
             &mut body,
@@ -3334,8 +3331,7 @@ mod tests {
     fn rim(s1: SurfaceKey, s2: SurfaceKey) -> EdgeCurveSpec<f64> {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: SurfacePair::new(s1, s2),
                 witness: Point3::new(-1.0, 0.0, 0.0),
             },
             carrier: geom::Curve3::Circle {

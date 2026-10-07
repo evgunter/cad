@@ -695,7 +695,7 @@ mod tests {
             "whether the tube's wall leaves a bore is too close to call",
             "at an edge, whether the edge is convex or concave is too close to call",
             "the transversality margin at sample 4 escalated",
-            "the residual against surface 1 at sample 4 escalated",
+            "the residual against one of the edge's surfaces at sample 4 escalated",
             "the stored interval's span (not a sampled check) escalated",
             "the fillet at this corner is undecided",
             "an authored leg extent could not be told from zero",

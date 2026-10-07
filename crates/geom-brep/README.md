@@ -46,7 +46,7 @@ escalated typed refusal, never a raw comparison.
 
 **C1 — Intersection loci live on a three-rung ladder.** The *carrier*
 of an `Intersection` edge (the 3-D curve cached against the intensional
-description `{s1, s2, witness}`) is, by surface-kind pair and most exact
+description `{pair, witness}`) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
 `Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
 equal-radius cylinder×cylinder)
@@ -473,7 +473,7 @@ table is a function of recipe structure and verdicts only.
 ### Tangency
 
 **C7 — `TangentIntersection` and second-order sector classification.**
-`EdgeDescription::TangentIntersection { s1, s2, witness }` mirrors
+`EdgeDescription::TangentIntersection { pair, witness }` mirrors
 `Intersection` one differential order up. Its jet (`tangent.rs`,
 `TangentJet { sin_theta, kappa_rel }`) is certified per sample: surface
 coincidence within ε, normal parallelism within the derived angle at

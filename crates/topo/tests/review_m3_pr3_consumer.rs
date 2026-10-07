@@ -55,17 +55,16 @@ fn audit_geometry(body: &Body<f64>) {
         assert!(live_c.binary_search(&k).is_ok(), "orphan curve {k:?}");
     }
     // Surfaces are kept alive by faces AND by edge descriptions (the
-    // carve rule: an `Intersection`/`Seam` description on a surviving
+    // carve rule: an intrinsic or chart description on a surviving
     // edge must never dangle — with D6's native descriptions this lane
     // is now live on every split result).
     let mut live_s: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
     for (_, e) in body.edges() {
         if let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) {
             match c.description() {
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                    live_s.push(*s1);
-                    live_s.push(*s2);
+                geom_brep::EdgeDescription::Intersection { pair, .. }
+                | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                    live_s.extend(pair.keys());
                 }
                 geom_brep::EdgeDescription::Chart(c) => live_s.push(c.surface),
                 geom_brep::EdgeDescription::Scaffold(_) => {}

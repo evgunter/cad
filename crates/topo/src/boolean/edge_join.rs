@@ -153,8 +153,8 @@ fn joinable<T: Real>(body: &Body<T>, w: VertexKey, pass: &Pass) -> Option<Join> 
         certified_line(body, e, d).is_some_and(|c| {
             matches!(
                 c.description(),
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                    if Body::<T>::cites_pair((*s1, *s2), sf, sg)
+                geom_brep::EdgeDescription::Intersection { pair, .. }
+                    if *pair == geom_brep::SurfacePair::new(sf, sg)
             )
         })
     };

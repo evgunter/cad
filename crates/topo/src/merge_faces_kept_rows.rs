@@ -47,10 +47,8 @@ fn intersections_naming(body: &Body<f64>, key: SurfaceKey) -> Vec<EdgeKey> {
             body.get_curve_geom(edge.curve)
                 .and_then(crate::null::CurveGeom::certified)
                 .is_some_and(|curve| match curve.description() {
-                    EdgeDescription::Intersection { s1, s2, .. }
-                    | EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                        *s1 == key || *s2 == key
-                    }
+                    EdgeDescription::Intersection { pair, .. }
+                    | EdgeDescription::TangentIntersection { pair, .. } => pair.contains(key),
                     _ => false,
                 })
         })
@@ -238,7 +236,10 @@ pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, 
             geom_brep::classify_dihedral(&surfaces.0, &surfaces.1, witness, p0.distance(p1), band)
         {
             let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-            spec.description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
+            spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                witness,
+            };
             body.set_edge_curve(key, spec, tol).unwrap();
         }
     }

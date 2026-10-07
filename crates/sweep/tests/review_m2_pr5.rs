@@ -861,15 +861,14 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
     let rim = t.rims[0][0].unwrap();
     let e = t.body.get_edge(rim).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-    let EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+    let EdgeDescription::Intersection { pair, .. } = *c.description() else {
         panic!("intersection rim");
     };
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let start = carrier.eval(t0);
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair,
             witness: start,
         },
         carrier,

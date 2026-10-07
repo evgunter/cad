@@ -1608,8 +1608,9 @@ pub enum BlendError {
     Op {
         /// The surgery step that ran the operator.
         site: &'static str,
-        /// The operator's typed refusal.
-        source: topo::EulerOpError,
+        /// The operator's typed refusal (boxed: it is the largest
+        /// payload any blend refusal carries).
+        source: Box<topo::EulerOpError>,
     },
 }
 
@@ -2100,7 +2101,7 @@ mod recourse_tests {
             },
             BlendError::Op {
                 site: "strut mev",
-                source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
+                source: Box::new(topo::EulerOpError::DescriptionNotAdjacent { edge: None }),
             },
         ];
         seeds.extend(BlendDecision::ALL.map(|decision| BlendError::Escalated {

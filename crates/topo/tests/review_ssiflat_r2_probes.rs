@@ -358,8 +358,7 @@ fn the_margin_is_legible_through_the_public_topo_door() {
             p1,
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: sph_key,
-                    s2: pl_key,
+                    pair: geom_brep::SurfacePair::new(sph_key, pl_key),
                     witness: carrier.eval(mid),
                 },
                 carrier: carrier.clone(),

@@ -446,8 +446,9 @@ pub enum SplitReduceError {
         edge: EdgeKey,
         /// Its endpoint vertices (the strictly Above/Below pair).
         endpoints: (VertexKey, VertexKey),
-        /// The underlying Euler refusal, untouched.
-        source: EulerOpError,
+        /// The underlying Euler refusal, untouched (boxed: it is the
+        /// largest payload any split refusal carries).
+        source: Box<EulerOpError>,
     },
     /// An underlying Euler operation refused (`split_edge` includes the
     /// certified-interiority refusals and escalations).

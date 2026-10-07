@@ -20,7 +20,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey,
-    tangent_certificate_lane, tangent_jet,
+    SurfacePair, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::{Bounds, Decide, Interval, Point3, Real, Vec3};
 use slotmap::SlotMap;
@@ -110,8 +110,7 @@ fn the_corner_ball_cylinder_circle_certifies_as_a_tangent_intersection() {
     );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k_sphere,
-            s2: k_cyl,
+            pair: SurfacePair::new(k_sphere, k_cyl),
             witness,
         },
         carrier: circle,
@@ -188,17 +187,25 @@ fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 }
 
 /// A quarter of `cap_crossing`'s circle at the scalar `T`, described
-/// by `describe` over the (plane, cylinder) keys, certified.
+/// by `describe` over the (plane, cylinder) keys, certified. The pair
+/// certifies in key order, so `cylinder_first` (the cylinder minted
+/// first, holding the lower key) is what puts the cylinder first.
 fn certify_cap_quarter<T: Decide>(
     r: f64,
+    cylinder_first: bool,
     describe: impl Fn(SurfaceKey, SurfaceKey, Point3<T>) -> EdgeDescriptionSpec<T>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
     let (plane, cylinder, circle) = cap_crossing(r, 0.5);
     let lift = |x: f64| T::from_f64(x);
     let circle = circle.map_scalar(lift);
     let mut surfaces: SlotMap<SurfaceKey, Surface<T>> = SlotMap::with_key();
-    let k_plane = surfaces.insert(plane.map_scalar(lift));
-    let k_cyl = surfaces.insert(cylinder.map_scalar(lift));
+    let (k_plane, k_cyl) = if cylinder_first {
+        let k_cyl = surfaces.insert(cylinder.map_scalar(lift));
+        (surfaces.insert(plane.map_scalar(lift)), k_cyl)
+    } else {
+        let k_plane = surfaces.insert(plane.map_scalar(lift));
+        (k_plane, surfaces.insert(cylinder.map_scalar(lift)))
+    };
     let (t0, t1) = (T::zero(), lift(core::f64::consts::FRAC_PI_2));
     let witness = circle.eval(lift(core::f64::consts::FRAC_PI_4));
     let spec = EdgeCurveSpec {
@@ -219,13 +226,11 @@ fn certify_cap_quarter<T: Decide>(
 /// The cap crossing described as a tangency at `T`, with the surfaces
 /// in the (plane, cylinder) order or reversed.
 fn tangent_cap_quarter<T: Decide>(r: f64, reversed: bool) -> Result<EdgeCurve<T>, CertifyError> {
-    certify_cap_quarter(r, |plane, cylinder, witness| {
-        let (s1, s2) = if reversed {
-            (cylinder, plane)
-        } else {
-            (plane, cylinder)
-        };
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+    certify_cap_quarter(r, reversed, |plane, cylinder, witness| {
+        EdgeDescriptionSpec::TangentIntersection {
+            pair: SurfacePair::new(plane, cylinder),
+            witness,
+        }
     })
 }
 
@@ -275,10 +280,11 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
         );
     }
 
-    certify_cap_quarter::<f64>(r, |s1, s2, witness| EdgeDescriptionSpec::Intersection {
-        s1,
-        s2,
-        witness,
+    certify_cap_quarter::<f64>(r, false, |s1, s2, witness| {
+        EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        }
     })
     .expect("the cap crossing is a certified transverse intersection");
 

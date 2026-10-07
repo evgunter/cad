@@ -2537,7 +2537,7 @@ pub(crate) mod tests {
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
     use geom::Surface;
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
@@ -2677,8 +2677,7 @@ pub(crate) mod tests {
         let cyl = body.add_surface(cyl_surface);
         let arc = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: cyl,
+                pair: SurfacePair::new(plane, cyl),
                 witness,
             },
             carrier,
@@ -2865,8 +2864,7 @@ pub(crate) mod tests {
             (
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: wall,
-                        s2: plane,
+                        pair: SurfacePair::new(wall, plane),
                         witness: on((u0 + u1) * 0.5, z),
                     },
                     carrier,
@@ -3783,8 +3781,7 @@ pub(crate) mod tests {
             };
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: plane,
+                    pair: SurfacePair::new(torus, plane),
                     witness: on((u0 + u1) * 0.5, v),
                 },
                 carrier,
@@ -3802,12 +3799,14 @@ pub(crate) mod tests {
             let spine = center + e(u) * major;
             let description = if up {
                 EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: body.add_surface(Surface::Plane {
-                        origin: center,
-                        normal: axis.cross(e(u)),
-                        u_ref: e(u),
-                    }),
+                    pair: SurfacePair::new(
+                        torus,
+                        body.add_surface(Surface::Plane {
+                            origin: center,
+                            normal: axis.cross(e(u)),
+                            u_ref: e(u),
+                        }),
+                    ),
                     witness: on(u, (v0 + v1) * 0.5),
                 }
             } else {
@@ -4143,8 +4142,7 @@ pub(crate) mod tests {
                 (
                     EdgeCurveSpec {
                         description: EdgeDescriptionSpec::Intersection {
-                            s1: torus,
-                            s2: pk,
+                            pair: SurfacePair::new(torus, pk),
                             witness: on(u, core::f64::consts::PI),
                         },
                         carrier: Curve3::Circle {
@@ -4180,8 +4178,7 @@ pub(crate) mod tests {
         });
         let strut_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: torus,
-                s2: eq_plane,
+                pair: SurfacePair::new(torus, eq_plane),
                 witness: on((u0 + u1) * 0.5, 0.0),
             },
             carrier: Curve3::Circle {
@@ -5975,8 +5972,7 @@ mod sphere_rect_rows {
             let witness = carrier.mid_point(t0, t1);
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: sphere,
-                    s2: plane,
+                    pair: geom_brep::SurfacePair::new(sphere, plane),
                     witness,
                 },
                 carrier,
@@ -6229,8 +6225,7 @@ mod sphere_rect_rows {
                 let witness = carrier.mid_point(t0, t1);
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: sphere,
-                        s2: plane,
+                        pair: geom_brep::SurfacePair::new(sphere, plane),
                         witness,
                     },
                     carrier,

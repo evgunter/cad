@@ -777,7 +777,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 SplitReduceError::CrossingInsertion {
                     edge: target,
                     endpoints: (u, v),
-                    source: source.from_driver(),
+                    source: Box::new(source.from_driver()),
                 }
             })?;
             sides.insert(created.vertex, PlaneSide::On);

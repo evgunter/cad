@@ -1450,8 +1450,7 @@ fn dangling_description_is_a_tier1_error() {
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-        s1: s_seed,
-        s2: s_plus,
+        pair: geom_brep::SurfacePair::new(s_seed, s_plus),
         witness: Point3::new(0.5, 0.0, 0.0),
     };
     // NB: coincident planes would fail transversality — so tilt the
@@ -1492,8 +1491,7 @@ fn description_references_keep_a_surface_alive() {
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-        s1: s_seed,
-        s2: s_plus,
+        pair: geom_brep::SurfacePair::new(s_seed, s_plus),
         witness: Point3::new(0.5, 0.0, 0.0),
     };
     body.set_edge_curve(split.edge, spec, tol).unwrap();
@@ -1687,9 +1685,15 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     // The kissing edge is the one whose two faces are the two
     // cylinders; every other edge here is a definite corner.
     let description = if adjacent_are_the_two_cylinders(body, edge) {
-        geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        geom_brep::EdgeDescriptionSpec::TangentIntersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            witness,
+        }
     } else {
-        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            witness,
+        }
     };
     EdgeCurveSpec {
         description,
@@ -3002,7 +3006,10 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
         let (s1, s2) = adjacent_surfaces(&p.body, e);
         let witness = carrier.eval(0.5 * t1);
         let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                witness,
+            },
             carrier,
             param_start: 0.0,
             param_end: t1,

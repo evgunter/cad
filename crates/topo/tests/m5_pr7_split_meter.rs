@@ -172,8 +172,7 @@ fn body_with_rung3_edge() -> Rung3Scaffold {
             p1,
             EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: sph,
+                    pair: geom_brep::SurfacePair::new(cyl, sph),
                     // The witness contract: carrier(mid), bitwise the
                     // certification schedule's middle sample.
                     witness: carrier.eval(mid),
@@ -355,8 +354,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             p1,
             EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: sph,
-                    s2: plane,
+                    pair: geom_brep::SurfacePair::new(sph, plane),
                     witness: carrier.eval(mid),
                 },
                 carrier: Curve3::Nurbs(carrier.clone()),
@@ -458,8 +456,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             p1,
             EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: sph2,
-                    s2: plane2,
+                    pair: geom_brep::SurfacePair::new(sph2, plane2),
                     witness: carrier.eval(mid),
                 },
                 carrier: Curve3::Nurbs(carrier.clone()),

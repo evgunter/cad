@@ -110,6 +110,13 @@ fn difference_branch(r: f64, big_r: f64) -> f64 {
 // Reading a body's contact edges through the rule.
 // ---------------------------------------------------------------
 
+/// A pair of surface kinds, in kind-name order: the pair is a set, so
+/// a reading keyed by it does not depend on which surface was minted
+/// first.
+fn kinds_of(a: SurfaceKind, b: SurfaceKind) -> (SurfaceKind, SurfaceKind) {
+    if a.name() <= b.name() { (a, b) } else { (b, a) }
+}
+
 /// One contact edge's reading: the pair, the lane, every interior
 /// station's margin and verdict, and the rule's own answer.
 struct ContactReading {
@@ -147,9 +154,10 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let EdgeDescription::TangentIntersection { s1, s2, .. } = *c.description() else {
+        let EdgeDescription::TangentIntersection { pair, .. } = *c.description() else {
             continue;
         };
+        let [s1, s2] = pair.keys();
         let s1 = body.get_surface(s1).expect("a described edge's surface");
         let s2 = body.get_surface(s2).expect("a described edge's surface");
         let carrier = c.carrier();
@@ -174,7 +182,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
             .collect();
         let verdict = must_carry_over_edge(s1, s2, carrier, t0, t1, extent, band);
         out.push(ContactReading {
-            kinds: (s1.kind(), s2.kind()),
+            kinds: kinds_of(s1.kind(), s2.kind()),
             in_lane,
             stations,
             verdict,
@@ -449,7 +457,7 @@ fn every_contact_edge_on_the_corpus_is_jet_determinate() {
         let min_of = |pair: (SurfaceKind, SurfaceKind)| {
             readings
                 .iter()
-                .filter(|r| r.kinds == pair)
+                .filter(|r| r.kinds == kinds_of(pair.0, pair.1))
                 .map(|r| r.min_margin())
                 .fold(f64::INFINITY, f64::min)
         };
@@ -511,7 +519,7 @@ fn the_rod_family_the_door_admits_stores_the_intrinsic_description() {
         );
         let cylinder = readings
             .iter()
-            .find(|r| r.kinds == (SurfaceKind::Cylinder, SurfaceKind::Cylinder))
+            .find(|r| r.kinds == kinds_of(SurfaceKind::Cylinder, SurfaceKind::Cylinder))
             .expect("the cylinder-side trimline");
         assert_eq!(cylinder.verdict, MustCarryVerdict::JetDeterminate);
         assert!(
@@ -694,4 +702,50 @@ fn each_contact_edge_spends_the_rules_stations_once_beside_the_certificates() {
         "each contact edge spends the schedule's interior once in the rule and once in the \
          certificate"
     );
+}
+
+/// **The rule reads one verdict whichever surface it is asked from
+/// first.** Constructors and the certificate both read the pair in key
+/// order now (`SurfacePair::sorted`), so the order is pinned either
+/// way; this row measures whether it had to be. For every contact edge
+/// the corpus carves, all of them jet-determinate, the rule's verdict
+/// at `Interval` is the same with the two surfaces swapped.
+#[test]
+fn the_rule_reads_every_corpus_contact_the_same_in_both_orders_at_interval() {
+    use geom_core::{Interval, Real};
+    let band = band();
+    let mut read = 0;
+    for (name, body) in corpus() {
+        for (_, e) in body.edges() {
+            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            let EdgeDescription::TangentIntersection { pair, .. } = *c.description() else {
+                continue;
+            };
+            let [a, b] = pair.keys().map(|k| {
+                body.get_surface(k)
+                    .expect("a described edge's surface")
+                    .map_scalar(Interval::from_f64)
+            });
+            let carrier = c.carrier().map_scalar(Interval::from_f64);
+            let (t0, t1) = c.params();
+            let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
+            let extent = Interval::from_f64(edge_extent(c.carrier(), t0, t1, chord));
+            let (t0, t1) = (Interval::from_f64(t0), Interval::from_f64(t1));
+            let ab = must_carry_over_edge(&a, &b, &carrier, t0, t1, extent, band);
+            let ba = must_carry_over_edge(&b, &a, &carrier, t0, t1, extent, band);
+            assert_eq!(
+                ab,
+                MustCarryVerdict::JetDeterminate,
+                "{name}: the contact is jet-determinate"
+            );
+            assert_eq!(
+                ab, ba,
+                "{name}: the rule's verdict does not depend on the pair's order"
+            );
+            read += 1;
+        }
+    }
+    assert!(read > 0, "the corpus carves contact edges");
 }

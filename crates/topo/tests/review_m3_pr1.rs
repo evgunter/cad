@@ -522,7 +522,7 @@ fn split_edge_intersection_witness_bitwise_remint() {
             .unwrap()
             .certified()
             .unwrap();
-        let topo::EdgeDescription::Intersection { witness, s1, s2 } = *child.description() else {
+        let topo::EdgeDescription::Intersection { witness, pair } = *child.description() else {
             panic!("child lost its Intersection description");
         };
         // Independent derivation of the mid-parameter: (t_a + t_b) / 2,
@@ -542,11 +542,7 @@ fn split_edge_intersection_witness_bitwise_remint() {
             "witness is not the bitwise mid-parameter point"
         );
         // Children keep the parent's surface keys.
-        let topo::EdgeDescription::Intersection { s1: p1, s2: p2, .. } = *parent.description()
-        else {
-            panic!("parent description");
-        };
-        assert_eq!((s1, s2), (p1, p2));
+        assert_eq!(Some(pair), parent.description().pair());
     }
 }
 

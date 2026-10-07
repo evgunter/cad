@@ -269,6 +269,18 @@ fn eps_row(eps: f64) -> usize {
 /// at every row while every count — calls, forms, frozen — holds, and
 /// `Early/Decision`, which reads no variable, holds its digest.
 ///
+/// Re-captured when an intrinsic edge description's surfaces became a
+/// set (`geom_brep::SurfacePair`): the certificate reads the
+/// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
+/// `n1.cross(n2)`) in key order where the extrude reads it in builder
+/// order, and the cross product is symmetric in value up to sign but not
+/// in form, so mixed orientations build distinct hash-consed forms.
+/// Measured composed with the cap orientation (`cap_plane_orientation`,
+/// [`PLATE_LEDGER`]'s note: +4 `Assertion` calls per walk here): the
+/// `*/Assertion` walks build 188 more forms (998 → 1186, 2041 → 2229)
+/// and the `Plain/*` and `Early/Assertion` digests move at every row;
+/// calls, frozen counts and `Early/Decision` hold.
+///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
 /// edges' mid-parameter points are the lever — the witness an edge is
 /// minted with, the certificate's midpoint check and its schedule's
@@ -277,20 +289,20 @@ fn eps_row(eps: f64) -> usize {
 /// here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest ebd5dc4da3bdeaa10c0afd94b42b2d87\n\
-     Plain/Assertion calls 514 forms 998 frozen 0 digest 5206c920343d6282631593785c59fd94\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest f453938c3049c0c4f2216c8726d2d139\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest 6cc3925553d39ab11afdd6f49e2e95fc\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2041 frozen 0 digest 3db9ed51fb47a298354b2832b038c78a",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest c1a337dfb3fddea52f0b602dee5ce284",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 8494d680ab698df2f3469e823fc87b98\n\
-     Plain/Assertion calls 514 forms 998 frozen 0 digest bcfbe11c2bdeed2409771fd302947d91\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 2019bf563b9e25ce5e73c2683c3d06cb\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest e01dd6ba526d880e783c1591e8ec918d\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2041 frozen 0 digest e17861a58d5e7b4a5b43d4001d4bce08",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 07d7408b59196363c53b96cbc8093e55",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 22f0ef9b79cc104cbde46fca27614b59\n\
-     Plain/Assertion calls 514 forms 998 frozen 0 digest 88893d9f9257c4f96979ed9188e3ff26\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest e14807ef580704d932f297bb166d80ae\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest ed52a22cbba70cd084174fda0dd6d15c\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2041 frozen 0 digest 4265056406dca4880d3caf74f355b9cb",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 567124dbedb7c16baa8e3ed1ec024203",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -505,12 +517,22 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   15720 → 15710 and `Early/Decision`'s 8689 → 8633 with the cap's own
 ///   10 and 56, the `Assertion` forms are the cap's, and
 ///   `Door/Decision` builds 7099 forms. No `Report` line.
+///
+/// Re-captured when an intrinsic edge description's surfaces became a
+/// set (`geom_brep::SurfacePair`) and the certificate began reading the
+/// transversality wedge's `n1.cross(n2)` in key order, a form distinct
+/// from the extrude's builder-order one. Measured composed with the
+/// chart-angle unit and the cap orientation above: `Plain/Assertion`
+/// 4173/360 → 4349/389 (+176 forms, +29 frozen), `Early/Assertion`
+/// 5136 → 5312 (+176), `Door/Decision` 7099 → 7181 (+82); calls,
+/// `*/Decision` forms and every decision tally hold
+/// (`m10_10_pins_interval` reads the pair's sum unchanged).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1047 forms 15710 frozen 252 digest 31308502235a95639fe1678c9a2a981f\n\
-     Plain/Assertion calls 654 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
-     Early/Decision calls 352 forms 8633 frozen 0 digest dfd56c276c08ef0be8256716c68484b9\n\
-     Early/Assertion calls 654 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\
-     Door/Decision calls 396 forms 7099 frozen 0 digest 4b490dcb93367447183d6428998bbfbd\n\
+     Plain/Decision calls 1047 forms 15710 frozen 252 digest 2932c8769b031e875492a3b0ba38ba53\n\
+     Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
+     Early/Decision calls 352 forms 8633 frozen 0 digest c363617edb77ee7438e1f300e4598323\n\
+     Early/Assertion calls 654 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
+     Door/Decision calls 396 forms 7181 frozen 0 digest 188fd982307faf268e6444b8ea1c82bb\n\
      Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

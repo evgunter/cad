@@ -42,12 +42,25 @@ use crate::m10_9_pins_interval::measured_studies;
 /// moved since SYM-11 (2026-09-21), merge by merge, is the attribution
 /// table in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+///
+/// Re-taken on the tree that composes three changes: PCERT's
+/// chart-angle unit and the extrude's cap decide
+/// (`cap_plane_orientation`) set the decision columns, and an intrinsic
+/// edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`) moves only `frozen`: 612 → 641, 804 → 828,
+/// 486 → 498, 806 → 830, 302 → 314, and no decision column. The cause is the
+/// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
+/// `n1.cross(n2)`), which the certificate now takes in key order where
+/// the extrude took it in builder order: the cross product is symmetric
+/// in value up to sign but not in form, so a document that reads one
+/// edge's wedge in both orientations builds two hash-consed forms where
+/// it built one. The residual checks' order contributes nothing.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [1047, 0, 654, 612]),
-    ("r1_annulus", [564, 0, 399, 804]),
-    ("r2_link", [345, 9, 259, 486]),
-    ("r2_filleted_bracket", [620, 0, 464, 806]),
-    ("r2_rounded_pad", [340, 0, 276, 302]),
+    ("two_hole_plate", [1047, 0, 654, 641]),
+    ("r1_annulus", [564, 0, 399, 828]),
+    ("r2_link", [345, 9, 259, 498]),
+    ("r2_filleted_bracket", [620, 0, 464, 830]),
+    ("r2_rounded_pad", [340, 0, 276, 314]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

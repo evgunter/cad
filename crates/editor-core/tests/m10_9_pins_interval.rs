@@ -505,6 +505,18 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// analyzed box, the two dials read the same receipt at every ε row
 /// (`work/rules/the-negative-arm-lost-its-document-consumer`).
 ///
+/// Re-taken on the tree that composes three changes: PCERT's
+/// chart-angle unit and the extrude's cap decide
+/// (`cap_plane_orientation`) set the decision columns, and an intrinsic
+/// edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`) moves only the frozen count, which is
+/// 3232 composed (3171 without the set).
+/// The cause is the transversality wedge
+/// (`geom_brep::dihedral::wedge_decided`'s `n1.cross(n2)`), which the
+/// certificate reads in key order and the extrude's dihedral in builder
+/// order: symmetric in value up to sign, not in form, so mixed
+/// orientations build distinct hash-consed forms. No decision moved.
+///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
 /// at every ε row. It is two whole-box pad replays on top of the gating
@@ -545,7 +557,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1256, 2, 54, 1192, 3171),
+        (1256, 2, 54, 1192, 3232),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(

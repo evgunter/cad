@@ -38,7 +38,7 @@
 use crate::common::approx::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
@@ -162,8 +162,7 @@ fn intrinsic_seam_at(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: SurfacePair::new(s1, s2),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,
@@ -265,10 +264,10 @@ fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> Surface<f64> {
     let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
         panic!("the seam's carrier is certified")
     };
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+    let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
         panic!("the seam is described as an intersection")
     };
-    [s1, s2]
+    pair.keys()
         .into_iter()
         .find_map(|k| match body.get_surface(k) {
             Some(p @ Surface::Plane { .. }) => Some(p.clone()),
@@ -727,10 +726,10 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
             panic!("certified")
         };
-        let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+        let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
             panic!("intersection")
         };
-        [s1, s2]
+        pair.keys()
             .into_iter()
             .find(|k| matches!(body.get_surface(*k), Some(Surface::Plane { .. })))
             .expect("one operand is the plane")
@@ -791,8 +790,7 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         body.get_half_edge(he).unwrap().edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane_key,
-                s2: key,
+                pair: SurfacePair::new(plane_key, key),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier: carrier.clone(),
@@ -807,16 +805,12 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
             panic!("certified")
         };
-        let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+        let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
             panic!("intersection")
         };
-        let other = if key == s1 {
-            s2
-        } else if key == s2 {
-            s1
-        } else {
-            panic!("mate_surface's precondition: the face's own surface is in the pair")
-        };
+        let other = pair
+            .other(key)
+            .expect("mate_surface's precondition: the face's own surface is in the pair");
         body.get_surface(other).cloned().expect("the mate resolves")
     };
     let eps = Tol::witness().get().eps;

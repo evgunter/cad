@@ -29,7 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair};
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
@@ -180,7 +180,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
             );
             let (t0, t1) = c.params();
             assert!(t1 - t0 < core::f64::consts::PI, "{what}: the arc is short");
-            let EdgeDescription::Intersection { s1, s2, .. } = c.description() else {
+            let EdgeDescription::Intersection { pair, .. } = c.description() else {
                 panic!(
                     "{what}: the arc is a transverse intersection, got {:?}",
                     c.description()
@@ -188,11 +188,11 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
             };
             let (fa, fb) = edge_surfaces(&out.body, a);
             assert!(
-                (*s1 == fa && *s2 == fb) || (*s1 == fb && *s2 == fa),
+                *pair == SurfacePair::new(fa, fb),
                 "{what}: the arc's description names its two faces' surfaces"
             );
             assert!(
-                *s1 == band_surface || *s2 == band_surface,
+                pair.contains(band_surface),
                 "{what}: the arc's description cites the band"
             );
         }
@@ -218,7 +218,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 dir.cross(axis).norm() < 1e-15,
                 "{what}: the trimline runs along the ruling"
             );
-            let EdgeDescription::TangentIntersection { s1, s2, .. } = c.description() else {
+            let EdgeDescription::TangentIntersection { pair, .. } = c.description() else {
                 panic!(
                     "{what}: a trimline is a tangent contact, got {:?}",
                     c.description()
@@ -226,8 +226,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
             };
             let support_surface = out.body.get_face(support).unwrap().surface;
             assert!(
-                (*s1 == band_surface && *s2 == support_surface)
-                    || (*s1 == support_surface && *s2 == band_surface),
+                *pair == SurfacePair::new(band_surface, support_surface),
                 "{what}: the trimline's description cites the band and its support"
             );
         }
@@ -620,10 +619,10 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
     else {
         panic!("an arc");
     };
-    let EdgeDescription::Intersection { s1, s2, witness } = c.description() else {
+    let EdgeDescription::Intersection { pair, witness } = c.description() else {
         panic!("a transverse intersection");
     };
-    let (s1, s2, witness) = (*s1, *s2, *witness);
+    let (pair, witness) = (*pair, *witness);
     let (t0, t1) = c.params();
     let mutants = [
         (
@@ -650,7 +649,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+                description: EdgeDescriptionSpec::Intersection { pair, witness },
                 carrier,
                 param_start: t0,
                 param_end: t1,

@@ -168,9 +168,9 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 }
 
 /// **ALL FOUR OF THE PLATE'S, at the nominal, as THEOREMS.** With the
-/// algebra off the split is M10-9's; with it on,
-/// `carrier_on_surface_2` and `witness_on_surface_2` are theorems
-/// outright (rule D with A/B per node, no value read, no axiom), and so
+/// algebra off the split is M10-9's; with it on, the cylinder's
+/// `carrier_on_surface_*` and `witness_on_surface_*` decisions are
+/// theorems outright (rule D with A/B per node, no value read, no axiom), and so
 /// are `carrier_matches_mapped_source` at every sample (rule D meets
 /// the two spellings) and `pcurve_map_residual` at every sample (rule
 /// D's A1 folds take the chart's phase — `atan2(0, r²/sqrt(r²))` is the
@@ -190,10 +190,16 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
             .copied()
             .unwrap_or_else(|| panic!("no {p} decisions"))
     };
+    // The `_1`/`_2` slots are the surface pair's key order, not the
+    // plate's against the cylinder's, so the pair is read as one sum.
+    let pair = |t: &BTreeMap<&'static str, [u64; 4]>, stem: &str| {
+        let (a, b) = (row(t, &format!("{stem}_1")), row(t, &format!("{stem}_2")));
+        core::array::from_fn::<u64, 4, _>(|i| a[i] + b[i])
+    };
     // The split with the algebra off.
     assert_eq!(row(&off, "carrier_matches_mapped_source"), [180, 0, 16, 56]);
-    assert_eq!(row(&off, "carrier_on_surface_2"), [108, 0, 0, 72]);
-    assert_eq!(row(&off, "witness_on_surface_2"), [12, 0, 0, 8]);
+    assert_eq!(pair(&off, "carrier_on_surface"), [288, 0, 0, 72]);
+    assert_eq!(pair(&off, "witness_on_surface"), [32, 0, 0, 8]);
     assert_eq!(row(&off, "pcurve_map_residual"), [0, 0, 0, 36]);
     // The algebra on.
     assert_eq!(
@@ -203,14 +209,14 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
          vertex folds onto the authored |r|, so every one of the 72 is a THEOREM"
     );
     assert_eq!(
-        row(&on, "carrier_on_surface_2"),
-        [180, 0, 0, 0],
-        "the cylinder residual at the carrier's samples: a THEOREM of rule D with A/B"
+        pair(&on, "carrier_on_surface"),
+        [360, 0, 0, 0],
+        "both residuals at the carrier's samples, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
-        row(&on, "witness_on_surface_2"),
-        [20, 0, 0, 0],
-        "the cylinder residual at the strut witness: a THEOREM of rule D with A/B"
+        pair(&on, "witness_on_surface"),
+        [40, 0, 0, 0],
+        "both residuals at the strut witness, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),

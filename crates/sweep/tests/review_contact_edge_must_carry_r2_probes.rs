@@ -53,6 +53,13 @@ fn difference(r: f64, big_r: f64) -> f64 {
     (1.0 / r - 1.0 / big_r).abs() * r * r * 0.5
 }
 
+/// A pair of surface kinds, in kind-name order: the pair is a set, so
+/// a reading keyed by it does not depend on which surface was minted
+/// first.
+fn kinds_of(a: SurfaceKind, b: SurfaceKind) -> (SurfaceKind, SurfaceKind) {
+    if a.name() <= b.name() { (a, b) } else { (b, a) }
+}
+
 /// One contact edge as the rule sees it: its support pair, whether the
 /// certificate's lane admits it, the rule's verdict and the weakest
 /// interior station's margin.
@@ -72,9 +79,10 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let EdgeDescription::TangentIntersection { s1, s2, .. } = *c.description() else {
+        let EdgeDescription::TangentIntersection { pair, .. } = *c.description() else {
             continue;
         };
+        let [s1, s2] = pair.keys();
         let (s1, s2) = (
             body.get_surface(s1).expect("a described edge's surface"),
             body.get_surface(s2).expect("a described edge's surface"),
@@ -92,7 +100,7 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
             })
             .fold(f64::INFINITY, f64::min);
         out.push(Contact {
-            kinds: (s1.kind(), s2.kind()),
+            kinds: kinds_of(s1.kind(), s2.kind()),
             in_lane: tangent_certificate_lane(carrier, s1, s2),
             verdict: must_carry_over_edge(s1, s2, carrier, t0, t1, extent, band),
             min_margin,
@@ -104,7 +112,7 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
 /// The weakest margin over the contact edges of one support pair.
 fn min_of(rows: &[Contact], pair: (SurfaceKind, SurfaceKind)) -> f64 {
     rows.iter()
-        .filter(|r| r.kinds == pair)
+        .filter(|r| r.kinds == kinds_of(pair.0, pair.1))
         .map(|r| r.min_margin)
         .fold(f64::INFINITY, f64::min)
 }
@@ -504,7 +512,7 @@ fn r2_the_corner_balls_arcs_carry_the_rules_verdict() {
     let rows = contacts(&out.body);
     let arcs: Vec<&Contact> = rows
         .iter()
-        .filter(|r| r.kinds == (SurfaceKind::Cylinder, SurfaceKind::Sphere))
+        .filter(|r| r.kinds == kinds_of(SurfaceKind::Cylinder, SurfaceKind::Sphere))
         .collect();
     assert_eq!(
         arcs.len(),

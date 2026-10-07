@@ -404,8 +404,7 @@ impl Rim {
             .surfaces();
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: geom_brep::SurfacePair::new(s1, s2),
                 witness: self.mid,
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline.clone())),

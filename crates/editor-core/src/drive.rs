@@ -344,7 +344,8 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// shut (`SymRules::without_the_reads`) the same columns move by less
 /// than the takes' spread, so the read is not what it costs. What it
 /// buys is the link's twelve theorems, ten of them exactly the ten
-/// rule G costs `carrier_on_surface_2` at one attempt per rung
+/// rule G costs the `carrier_on_surface_1`/`_2` pair at one attempt per
+/// rung
 /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`)
 /// — so the rule-G attempt pays back what the default rule G takes.
 ///
@@ -2286,7 +2287,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, SurfacePair};
     use geom_core::k_stats::{Bracket, Escalation};
     use geom_core::{Band, Point3, Real, Vec3};
 
@@ -2336,8 +2337,7 @@ mod tests {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::TangentIntersection {
-                s1: k1,
-                s2: k2,
+                pair: SurfacePair::new(k1, k2),
                 witness: carrier.eval(lift(0.5)),
             },
             carrier,

@@ -10,7 +10,7 @@
 use geom::Curve3;
 use geom_brep::{
     DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal,
-    classify_dihedral, edge_extent, must_carry_over_edge,
+    SurfacePair, classify_dihedral, edge_extent, must_carry_over_edge,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
@@ -81,7 +81,7 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
     })
 }
 
-/// Upgrades one edge to `Intersection { s1, s2, witness }` when the
+/// Upgrades one edge to `Intersection { pair, witness }` when the
 /// two surfaces are definitely transverse at the witness: cap–wall
 /// meridian rims, cap–cap axis edges (partial), and full-revolve
 /// latitude rims all funnel here. Smooth descends one order through
@@ -114,8 +114,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1,
-                    s2,
+                    pair: SurfacePair::new(s1, s2),
                     witness: data.witness,
                 },
                 carrier: data.carrier,
@@ -151,17 +150,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                 MustCarryRefusal::InBand(source) => sliver(source.diag()),
                 MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
             };
-            match must_carry_over_edge(
-                &surf1,
-                &surf2,
-                &data.carrier,
-                data.t0,
-                data.t1,
-                data.extent,
-                band,
-            )
-            .description(s1, s2, data.witness)
-            .map_err(refused)?
+            let (pair, [sa, sb]) = SurfacePair::sorted(s1, &surf1, s2, &surf2);
+            match must_carry_over_edge(sa, sb, &data.carrier, data.t0, data.t1, data.extent, band)
+                .description(pair, data.witness)
+                .map_err(refused)?
             {
                 MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {

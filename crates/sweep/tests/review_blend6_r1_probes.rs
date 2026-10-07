@@ -179,7 +179,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Op {
             site: "strut mev",
-            source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
+            source: Box::new(topo::EulerOpError::DescriptionNotAdjacent { edge: None }),
         },
     ]
 }

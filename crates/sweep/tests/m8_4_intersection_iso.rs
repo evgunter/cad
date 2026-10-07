@@ -26,7 +26,7 @@
 use crate::common::approx::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Vec3};
@@ -174,8 +174,7 @@ fn intrinsic_seam_at(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: SurfacePair::new(s1, s2),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,
@@ -692,16 +691,10 @@ fn mate_the_mint_would_find(
     let topo::CurveGeom::Certified(c) = body.get_curve_geom(edge.curve)? else {
         return None;
     };
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+    let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
         return None;
     };
-    let other = if own == s1 {
-        s2
-    } else if own == s2 {
-        s1
-    } else {
-        return None;
-    };
+    let other = pair.other(own)?;
     body.get_surface(other).cloned()
 }
 
@@ -721,10 +714,10 @@ fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> (topo::SurfaceKey, Sur
     let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
         panic!("certified")
     };
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+    let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
         panic!("intersection")
     };
-    [s1, s2]
+    pair.keys()
         .into_iter()
         .find_map(|k| match body.get_surface(k) {
             Some(p @ Surface::Plane { .. }) => Some((k, p.clone())),
@@ -755,8 +748,7 @@ fn redescribe_against(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: wall,
+                pair: SurfacePair::new(plane, wall),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,

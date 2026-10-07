@@ -1908,7 +1908,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         reaches.push(r);
     }
     let boxes = FaceBoxes::of(body, band)
-        .map_err(|(face, _)| not_intact(EntityId::Face(face), "a face's certified box"))?;
+        .map_err(|e| not_intact(EntityId::Face(e.0), "a face's certified box"))?;
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.

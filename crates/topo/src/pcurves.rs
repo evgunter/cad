@@ -1058,7 +1058,7 @@ fn half_edge_carrier<T: Decide>(
 /// It is read from the edge's **intensional description**, not from the
 /// topology, and that is the D2 answer rather than a convenience: the
 /// description is what is authoritative about which two surfaces the
-/// locus belongs to (`EdgeDescription::Intersection { s1, s2 }` names them
+/// locus belongs to (`EdgeDescription::Intersection { pair, .. }` names them
 /// by key), while "the face across the edge" is a derived fact that a
 /// mid-construction body, a spur edge or a seam can perfectly well have
 /// wrong. Re-read from the body at rest, never stored with the cache,
@@ -1071,17 +1071,10 @@ fn half_edge_carrier<T: Decide>(
 #[track_caller]
 fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Surface<T>> {
     let curve = half_edge_curve(body, half_edge).ok()?;
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *curve.description() else {
+    let geom_brep::EdgeDescription::Intersection { pair, .. } = *curve.description() else {
         return None;
     };
-    let own = half_edge_face(body, half_edge).1.surface;
-    let other = if own == s1 {
-        s2
-    } else if own == s2 {
-        s1
-    } else {
-        return None;
-    };
+    let other = pair.other(half_edge_face(body, half_edge).1.surface)?;
     let surface = body.get_surface(other).unwrap_or_else(|| {
         dangling_link(
             EntityId::Edge(edge_record(body, half_edge).0),
@@ -6173,7 +6166,7 @@ mod pole_slit_tests {
     use core::f64::consts::{FRAC_PI_2, PI};
 
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use crate::{Body, FaceKey, FaceSurface, LoopBoundary, MefSite, MevSite};
@@ -6216,8 +6209,7 @@ mod pole_slit_tests {
         });
         let rim = |t0: f64, t1: f64| EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: sphere,
-                s2: rim_plane,
+                pair: SurfacePair::new(sphere, rim_plane),
                 witness: at(0.5 * (t0 + t1), v0),
             },
             carrier: Curve3::Circle {
@@ -6278,8 +6270,7 @@ mod pole_slit_tests {
             at(0.0, FRAC_PI_2),
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: sphere,
-                    s2: meridian_plane,
+                    pair: SurfacePair::new(sphere, meridian_plane),
                     witness: at(PI, 0.5 * (v0 + FRAC_PI_2)),
                 },
                 carrier: Curve3::Circle {

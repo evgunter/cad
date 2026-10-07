@@ -212,12 +212,18 @@ fn both_blends_evaluate_in_one_document() {
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
 /// and with the same pins holding.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`): the digest feeds each edge's
+/// description `Debug`, which now spells `pair: {a, b}` in key order
+/// where it spelled `s1`, `s2` in the builder's order. No body moved:
+/// `m4_pr8_corpus`'s exact mass pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xd3bc_cb75_265e_a675u64),
-        ("die_chamfer", 0xe497_df5e_3a54_45f1),
+        ("die_fillet", 0x75af_40ba_9b27_5ed7u64),
+        ("die_chamfer", 0x62b4_0518_0be4_034f),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -329,13 +335,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
 /// constant here held.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`): the digest feeds each edge's
+/// description `Debug`, which now spells `pair: {a, b}` in key order
+/// where it spelled `s1`, `s2` in the builder's order. No body moved:
+/// `m4_pr8_corpus`'s exact mass pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xd8f6_906e_a04c_d10eu64),
-        ("heat_sink", 0xf02f_3477_7067_6658),
-        ("kiss_carry", 0xd6a4_029a_dfd6_d8d1),
+        ("crossing_slots", 0x5424_d0d1_19d0_5dd2u64),
+        ("heat_sink", 0x4741_dbeb_1b36_b0b4),
+        ("kiss_carry", 0xe86e_6333_d430_2ddb),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -387,6 +399,12 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`): the digest feeds each edge's
+/// description `Debug`, which now spells `pair: {a, b}` in key order
+/// where it spelled `s1`, `s2` in the builder's order. No body moved:
+/// `m4_pr8_corpus`'s exact mass pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -433,7 +451,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xbfd9_320e_299c_1f44,
+        got, 0xc8a2_3605_09c3_cdf0,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

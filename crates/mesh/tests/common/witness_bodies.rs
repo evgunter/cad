@@ -8,7 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceKey, FaceSurface, MefSite, MevSite};
@@ -490,8 +490,7 @@ pub fn one_circle_cut(
                 .restated_spec();
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: s_seed,
-                    s2: s_made,
+                    pair: SurfacePair::new(s_seed, s_made),
                     witness: circle.eval(mid),
                 },
                 ..spec

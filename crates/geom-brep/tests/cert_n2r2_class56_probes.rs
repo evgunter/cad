@@ -7,7 +7,7 @@ use crate::shared::fixture::segment;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
-use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, plane_nurbs_limbs};
+use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair, plane_nurbs_limbs};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;
@@ -91,7 +91,10 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
         let witness = carrier.eval(0.5);
         let ends = (carrier.eval(0.0), carrier.eval(1.0));
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(s1, s2),
+                witness,
+            },
             carrier: carrier.clone(),
             param_start: 0.0,
             param_end: 1.0,

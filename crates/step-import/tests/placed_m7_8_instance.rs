@@ -71,8 +71,7 @@ fn m7_8_cube() -> topo::Body<f64> {
             edge_key,
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1,
-                    s2,
+                    pair: geom_brep::SurfacePair::new(s1, s2),
                     witness: if (p0.x - p1.x).abs() > 0.5 {
                         Point3::new(0.5, 0.5 * BOW, p0.z)
                     } else {

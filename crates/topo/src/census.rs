@@ -7571,7 +7571,7 @@ mod tests {
     /// in the cap's plane, far away.
     fn half_disc_cap_and_far_cube() -> Body<f64> {
         use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let (p0, p1) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
@@ -7591,8 +7591,7 @@ mod tests {
                 p1,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: cyl,
-                        s2: plane,
+                        pair: SurfacePair::new(cyl, plane),
                         witness: Point3::new(0.0, 1.0, 0.0),
                     },
                     carrier: Curve3::Circle {
@@ -7630,7 +7629,7 @@ mod tests {
     /// minor angle `v ∈ [v0, v1]` — and the chord closing it.
     fn spiric_cap(big_r: f64, r: f64, offset: f64, (v0, v1): (f64, f64)) -> Body<f64> {
         use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
         let tol = Tol::witness();
         let spiric = Curve3::Spiric {
             center: Point3::origin(),
@@ -7663,8 +7662,7 @@ mod tests {
                 p1,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: torus,
-                        s2: plane,
+                        pair: SurfacePair::new(torus, plane),
                         witness: spiric.eval(0.5 * (v0 + v1)),
                     },
                     carrier: spiric,

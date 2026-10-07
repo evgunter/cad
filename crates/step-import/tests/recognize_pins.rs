@@ -597,14 +597,14 @@ fn plane_nurbs_seams(
             let topo::CurveGeom::Certified(curve) = geom else {
                 return None;
             };
-            let (&s1, &s2) = match curve.description() {
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => (s1, s2),
-                _ => return None,
+            let geom_brep::EdgeDescription::Intersection { pair, .. } = curve.description() else {
+                return None;
             };
-            let pair = plane(s1)
-                .zip(described(s2))
-                .or_else(|| plane(s2).zip(described(s1)))?;
-            Some((key, pair.0, pair.1))
+            let (plane, wall) = pair
+                .keys()
+                .into_iter()
+                .find_map(|k| plane(k).zip(described(pair.other(k)?)))?;
+            Some((key, plane, wall))
         })
         .collect()
 }

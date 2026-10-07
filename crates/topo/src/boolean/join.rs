@@ -4535,9 +4535,15 @@ mod radical_plane_rows {
             let witness = Point3::new(0.0, 0.0, 0.5);
             geom_brep::EdgeCurveSpec {
                 description: if tangent {
-                    geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+                    geom_brep::EdgeDescriptionSpec::TangentIntersection {
+                        pair: geom_brep::SurfacePair::new(s1, s2),
+                        witness,
+                    }
                 } else {
-                    geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness }
+                    geom_brep::EdgeDescriptionSpec::Intersection {
+                        pair: geom_brep::SurfacePair::new(s1, s2),
+                        witness,
+                    }
                 },
                 carrier: line.clone(),
                 param_start: 0.0,

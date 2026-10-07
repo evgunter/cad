@@ -544,7 +544,7 @@ fn a_lens_against_a_ball_crossing_both_its_caps_builds() {
 /// partner face of the ball is both a plane×sphere germ's partner (its
 /// aux is a copy of the ball's sphere) and a sphere pair's (its aux is
 /// a radical plane). Keyed by the partner face alone, the two auxes
-/// collide and every op refuses `ResidualExceeded { Surface2Residual }`;
+/// collide and every op refuses `ResidualExceeded { SurfaceResidual }`;
 /// keyed by the datum each one is, every op builds to the oracle — in
 /// both operand orders.
 #[test]

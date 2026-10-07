@@ -126,6 +126,15 @@ fn decide_3_no_predicate_loses_a_decision() {
             // brought in the extrude's pcurve mint and PCERT's
             // certificate; it reads `[8, 0, 0, 0]` on both sides since.)
             //
+            // The two `carrier_on_surface_*` slots are the pair's key
+            // order (`geom_brep::SurfacePair`), not the order the
+            // extrude named the surfaces in, so the trade above now
+            // lands half on each slot: both read
+            // `[96, 0, 0, 12] -> [92, 0, 8, 8]`, which sums to the old
+            // `_1` (`[108, 0, 0, 0]` on both sides) plus the old `_2`,
+            // and the document totals did not move
+            // (`work/carve/certify-residual-predicates-still-name-a-slot`).
+            //
             // The decision read no longer answers any of this
             // document's theorems first (DECIDE-9's early zero arm), so
             // `dihedral_wedge` and `path_seam_arrival_turn` read the same
@@ -139,7 +148,9 @@ fn decide_3_no_predicate_loses_a_decision() {
             // is pinned where the ladder is:
             // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`.
             let rebaselined: Option<([u64; 4], [u64; 4])> = match (*name, *p) {
-                ("r2_link", "carrier_on_surface_2") => Some(([84, 0, 0, 24], [76, 0, 16, 16])),
+                ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
+                    Some(([96, 0, 0, 12], [92, 0, 8, 8]))
+                }
                 ("r2_link", "carrier_matches_mapped_source") => {
                     Some(([108, 0, 44, 28], [144, 0, 12, 24]))
                 }
