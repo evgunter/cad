@@ -19,7 +19,8 @@
 //!   one arch; the fourth **over** the arch, the two crossing;
 //! - a pyramid **hanging** inside the plate below the arch;
 //! - **the cavity**: the plate less a hanging pyramid, against a
-//!   standing one and against a hanging one crossing it;
+//!   standing one, a hanging one crossing it, and one hanging inside
+//!   its void through its floor;
 //! - **the strut hangers**: a prism through the top (`meeting::wedge`,
 //!   and `meeting::leaned`) beside one standing pyramid, whose minted
 //!   vertex at `MEET` crosses the top before the pair reads it;
@@ -75,6 +76,24 @@ fn standing(bearing: f64, rise: f64, r: f64, pose: &Pose) -> AtRestBody<f64> {
 
 fn hanging(bearing: f64, drop: f64, r: f64, pose: &Pose) -> AtRestBody<f64> {
     pyramid(bearing, -drop, r, pose)
+}
+
+/// A pyramid hanging from [`MEET`] inside the cone of the cavity's void
+/// (`hanging(120, 0.5, 0.4)`): each base corner mixes the void's three,
+/// 3 : 1 : 1, so its edges at `MEET` run into the void, and it reaches
+/// 1.4 times as deep, through the void's floor.
+fn in_the_void(pose: &Pose) -> AtRestBody<f64> {
+    let corner = |d: f64, r: f64| {
+        let (s, c) = (120.0 + d).to_radians().sin_cos();
+        [r * c, r * s, -0.5]
+    };
+    let void = [corner(-15.0, 0.4), corner(15.0, 0.4), corner(0.0, 0.24)];
+    let base = [0, 1, 2].map(|i| {
+        let mix =
+            |k: usize| (3.0 * void[i][k] + void[(i + 1) % 3][k] + void[(i + 2) % 3][k]) * 1.4 / 5.0;
+        [0, 1, 2].map(|k| MEET[k] + mix(k))
+    });
+    posed_pyramid(&base, MEET, pose, t())
 }
 
 fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<f64> {
@@ -360,6 +379,7 @@ struct Scene {
     over: AtRestBody<f64>,
     hang: AtRestBody<f64>,
     hang_over: AtRestBody<f64>,
+    in_void: AtRestBody<f64>,
     bare: AtRestBody<f64>,
     arches: AtRestBody<f64>,
     one: AtRestBody<f64>,
@@ -381,6 +401,7 @@ impl Scene {
             over: standing(50.0, 0.7, 0.5, pose),
             hang: hanging(240.0, 0.6, 0.5, pose),
             hang_over: hanging(130.0, 0.6, 0.5, pose),
+            in_void: in_the_void(pose),
             arches: built("the plate and the arches", union(&plate, &bare, t())),
             one: built(
                 "the plate and one arch",
@@ -407,7 +428,8 @@ impl Scene {
 /// **A vertex that touches a face and pairs with a vertex resting on it
 /// builds sound in every op**: a standing pyramid beside the arch, one
 /// crossing it, one hanging inside the plate below it, and a standing
-/// and a crossing hanging pyramid against the cavity. At rest; every
+/// and a crossing hanging pyramid against the cavity, and one running
+/// into its void. At rest; every
 /// pose is the slow matrix's.
 #[test]
 fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
@@ -425,6 +447,12 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
     builds(
         "a hanging pyramid across the cavity",
         &s.hang_over,
+        &s.cavity,
+        pose,
+    );
+    builds(
+        "a hanging pyramid into the void",
+        &s.in_void,
         &s.cavity,
         pose,
     );
@@ -470,7 +498,7 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
 }
 
 /// **Every scene, at every pose, in every op and both orders, builds
-/// sound or refuses typed**: 20 scenes, 600 op cells.
+/// sound or refuses typed**: 21 scenes, 630 op cells.
 #[test]
 fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     let mut held = 0;
@@ -487,6 +515,7 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
             ("standing over the cavity", &s.cone, &s.cavity),
             ("hanging below the cavity", &s.hang, &s.cavity),
             ("hanging across the cavity", &s.hang_over, &s.cavity),
+            ("hanging into the void", &s.in_void, &s.cavity),
             ("standing on the plate", &s.cone, &s.plate),
             ("hanging in the plate", &s.hang, &s.plate),
             ("the bare arches", &s.cone, &s.bare),
