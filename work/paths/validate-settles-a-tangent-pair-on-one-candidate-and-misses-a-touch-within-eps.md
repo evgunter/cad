@@ -2,10 +2,11 @@
 id: validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps
 kind: issue
 title: The simplicity pair pass reads a decided tangency's single candidate and returns no contact for segments that touch within eps (line x arc, arc x arc)
-status: open
+status: dispatched
 opened: 2026-10-07
 priority: P0
 cost: M
+branch: claude/clever-bardeen-4itqb3
 refs: [validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc]
 ---
 
