@@ -313,7 +313,8 @@ fn a_tilts_turn_across_the_wall_is_levered_at_the_faces_reach_across() {
     let at = Point3::new(1.0, 0.0, 0.0);
     let reach = Reach::Face {
         at,
-        along: 0.0,
+        below: 0.0,
+        above: 0.0,
         across: 1.0,
     };
     let leaning = |c: f64| Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
@@ -354,7 +355,8 @@ fn a_tangent_cut_is_levered_from_its_rulings_hinge() {
     let at = Point3::new(r, 0.0, 0.0);
     let reach = Reach::Face {
         at,
-        along: e,
+        below: 0.0,
+        above: e,
         across: e,
     };
     let tilted = |c: f64| Vec3::new((1.0 - c * c).sqrt(), 0.0, c);

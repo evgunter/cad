@@ -1546,12 +1546,14 @@ pub(super) enum FrameExtent<T> {
     Radii,
     /// A cylinder pair's walls' span ([`frame_reading`]).
     Span(T),
-    /// A plane×cylinder pair's wall face: how far it reaches along its
-    /// axis from `at`, and across the wall.
+    /// A plane×cylinder pair's wall face: how far it reaches either way
+    /// along its axis from `at`, and its farthest distance from `at`.
     Wall {
-        /// The face's farthest axial distance from `at`.
-        along: T,
-        /// The face's reach across the wall from the plane's hinge.
+        /// How far the face reaches from `at` against the axis.
+        below: T,
+        /// How far the face reaches from `at` along the axis.
+        above: T,
+        /// The face's farthest distance from `at`.
         across: T,
     },
 }
@@ -1559,15 +1561,17 @@ pub(super) enum FrameExtent<T> {
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
 /// taken from the reading point `at`. For a plane×cylinder pair the
 /// section lies on the wall face:
-/// - a tilt pinned at `at`'s foot moves it by the tilt times a point's
-///   axial distance from there, so the lever is the face's axial extent
-///   ([`face_axial_extent`](crate::splitting::rules::face_axial_extent),
+/// - a tilt moves it by the tilt times a point's axial distance from
+///   the rulings' hinge, so the reach carries how far the face reaches
+///   either way along the axis from `at`
+///   ([`face_axial_range`](crate::splitting::rules::face_axial_range),
 ///   its curved edges included);
-/// - the tilt's second-order turn about the plane's hinge moves a point
-///   by how far it stands across the wall from the hinge. The section
-///   meets the face on the plane, so that is at most the face's
-///   diameter, which twice its farthest distance from `at` bounds
-///   ([`face_reach_from`](crate::splitting::rules::face_reach_from)).
+/// - the tilt's second-order turn about the hinge moves a point by how
+///   far it stands across the wall from the hinge, which the face's
+///   farthest distance from `at`
+///   ([`face_reach_from`](crate::splitting::rules::face_reach_from))
+///   bounds beside `at`'s own offset from the hinge (the table's to
+///   read, [`geom_brep::Reach::turn_lever`]).
 ///
 /// Every other pair takes the walls' `span`.
 ///
@@ -1590,11 +1594,13 @@ fn frame_extent<T: Decide>(
         _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
     };
     let lone = |_| "a germ wall's outer loop is a lone vertex";
-    let along = crate::splitting::rules::face_axial_extent(body, face, at, axis).map_err(lone)?;
-    let far = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
+    let (below, above) =
+        crate::splitting::rules::face_axial_range(body, face, at, axis).map_err(lone)?;
+    let across = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
     Ok(FrameExtent::Wall {
-        along,
-        across: far + far,
+        below,
+        above,
+        across,
     })
 }
 
@@ -1992,7 +1998,16 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         _ => return Err(FrameError::NoArm),
     };
     let reach = match extent {
-        FrameExtent::Wall { along, across } => geom_brep::Reach::Face { at, along, across },
+        FrameExtent::Wall {
+            below,
+            above,
+            across,
+        } => geom_brep::Reach::Face {
+            at,
+            below,
+            above,
+            across,
+        },
         FrameExtent::Radii | FrameExtent::Span(_) => {
             geom_brep::Reach::Measured { at, lever: radius }
         }

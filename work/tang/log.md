@@ -699,7 +699,7 @@ two far-pole notches whose outer-point paths run through a run vertex.
 
 chord_join's cylinder lane and the germ frame's plane×cylinder pair
 lever the axis tilt at the wall face's axial extent from the reading
-point (`face_axial_extent`, `Reach::axial_lever_from` per edge, a
+point (`face_axial_range`, `Reach::range_along` per edge, a
 conic arc over its span), and `pc_axis_plane_parallel` reads the
 rulings' hinge station and the face's own reach across the wall
 (`Reach::Face`), so a finite tilt is never read parallel over a short

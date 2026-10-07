@@ -113,7 +113,7 @@ use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
-use crate::splitting::rules::{face_axial_extent, face_extent};
+use crate::splitting::rules::{face_axial_range, face_extent};
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -551,31 +551,40 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
 }
 
 /// Where the section table reads a wall's pose, and how far `face`
-/// reaches from there: the base vertex `at`'s point, the lever, and the
-/// reach across the wall. A cylinder's tilt pinned at the vertex's foot
-/// moves the section by the tilt times a consumed point's AXIAL distance
-/// from that foot, so its lever is the face's axial extent from the
-/// vertex ([`face_axial_extent`]), the curved edges' bulge included. Its
-/// second-order turn about the plane's hinge moves a point by how far it
-/// stands across the wall from the hinge; the vertex lies on the plane
-/// and on the hinge's line across the wall, so that is at most the
-/// face's distance from the vertex, [`face_extent`]. A cone's lever is
-/// [`face_extent`], and it reads no reach across.
+/// reaches from there: the base vertex `at`'s point and [`face_extent`],
+/// the cone lane's lever, and the cylinder lane's [`geom_brep::Reach`].
+/// A cylinder's tilt pinned at the vertex's foot moves the section by
+/// the tilt times a consumed point's AXIAL distance from the rulings'
+/// hinge, so the reach carries how far the face reaches either way
+/// along the axis from the vertex ([`face_axial_range`]), the curved
+/// edges' bulge included. Its second-order turn about the hinge moves
+/// a point by how far it stands across the wall from the hinge, which
+/// the face's distance from the vertex, [`face_extent`], bounds beside
+/// the vertex's own offset from the hinge (the table's to read).
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
     wall: &geom::Surface<T>,
-) -> Result<(Point3<T>, T, T), SplitJoinError> {
+) -> Result<(T, geom_brep::Reach<T>), SplitJoinError> {
     let p = body.resolve_vertex_point(at, Proven);
     let extent = face_extent(body, at, face).map_err(unbounded)?;
-    match wall {
+    let reach = match wall {
         geom::Surface::Cylinder { axis, .. } => {
-            let along = face_axial_extent(body, face, p, *axis).map_err(unbounded)?;
-            Ok((p, along, extent))
+            let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
+            geom_brep::Reach::Face {
+                at: p,
+                below,
+                above,
+                across: extent,
+            }
         }
-        _ => Ok((p, extent, T::zero())),
-    }
+        _ => geom_brep::Reach::Measured {
+            at: p,
+            lever: extent,
+        },
+    };
+    Ok((extent, reach))
 }
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
@@ -878,7 +887,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    (at, extent, across): (Point3<T>, T, T),
+    (extent, reach): (T, geom_brep::Reach<T>),
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -975,11 +984,6 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let reach = geom_brep::Reach::Face {
-        at,
-        along: extent,
-        across,
-    };
     let sec = geom_brep::plane_cylinder_section(plane_s, wall, &reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
@@ -4517,8 +4521,14 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    fn reach() -> (Point3<f64>, f64, f64) {
-        (Point3::origin(), 4.0, 4.0)
+    fn reach() -> (f64, geom_brep::Reach<f64>) {
+        let reach = geom_brep::Reach::Face {
+            at: Point3::origin(),
+            below: 4.0,
+            above: 4.0,
+            across: 4.0,
+        };
+        (4.0, reach)
     }
 
     fn plane() -> geom::Surface<f64> {

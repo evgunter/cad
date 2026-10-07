@@ -52,7 +52,7 @@ LONGER than the radius on a short wall, and it must stay green.
 
 `germ_section_frame` levers the plane×cylinder pair at its wall face's
 axial extent from the reading point (`boolean::join::frame_extent`,
-`splitting::rules::face_axial_extent`, a conic arc read over the span
+`splitting::rules::face_axial_range`, a conic arc read over the span
 it holds), with twice the face's farthest distance from that point as
 its reach across the wall (`geom_brep::Reach::Face`). A pair handed to
 `pair_section_frame` without its faces still levers at the radius; the

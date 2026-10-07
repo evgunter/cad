@@ -14,7 +14,7 @@ axial lever exact over their span.
 
 ## What
 
-`geom_brep::Reach::axial_lever_from` (`crates/geom-brep/src/extent.rs`)
+`geom_brep::Reach::range_along` (`crates/geom-brep/src/extent.rs`)
 reads a `Reach::Span` of a conic exactly over `[t0, t1]`
 (`conic_arc_along`), but:
 
@@ -27,7 +27,7 @@ reads a `Reach::Span` of a conic exactly over `[t0, t1]`
 Both are sound (never short of the span), but an edge holding a short
 piece of either is levered past the face it bounds, and on a two-sided
 served row (`pc_axis_plane_parallel`, through
-`splitting::rules::face_axial_extent`) an over-long lever escalates a
+`splitting::rules::face_axial_range`) an over-long lever escalates a
 tilt that is Zero at the face's real extent, and serves a conic for one
 that is in the band there. No
 fixture builds a cylinder wall bounded by such an edge today.

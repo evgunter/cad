@@ -61,8 +61,8 @@ in the split lane), so whether they move with it is part of the item.
 ## Outcome (2026-10-07)
 
 `section_reach` hands the table a `Reach::Face`: the wall face's axial
-extent from the base vertex (`splitting::rules::face_axial_extent`,
-each certified edge's `Reach::axial_lever_from`, a conic arc read over
+extent from the base vertex (`splitting::rules::face_axial_range`,
+each certified edge's `Reach::range_along`, a conic arc read over
 the span it holds), and its reach across the wall, `face_extent`, which
 only the tilt's second-order turn about the rulings' hinge reads. On
 main the face extent already folded in each curved edge's Euclidean

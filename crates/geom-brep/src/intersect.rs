@@ -839,11 +839,12 @@ pub enum PlaneCylinderSection<T: Real> {
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
 /// 1. `pc_axis_plane_parallel` — margin `c·lever`, `c = axis·normal`,
-///    the axis' angle off the plane levered from that foot by `reach`
-///    ([`Reach::lever_from`]), plus the two second-order terms of a
-///    finite tilt about the rulings' hinge: its station's offset
-///    `|gap·c|`, and the reach's own measure across the wall levered at
-///    `|c|/(1 + cos)` ([`Reach::across`]): Zero ⇒ the axis lies in the plane
+///    the axis' angle off the plane levered over `reach` from the
+///    rulings' hinge, the line through the foot's projection on the
+///    plane: the consumed region's axial distance from the hinge's
+///    station ([`Reach::hinge_lever`]), plus its distance across the
+///    wall from the hinge at second order ([`Reach::turn_lever`]): Zero
+///    ⇒ the axis lies in the plane
 ///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
 ///    (step 3).
 /// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|` at
@@ -936,16 +937,15 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
     let o = reach.foot_on(o, a);
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
-    // The rulings this lane mints stand on the plane's hinge through
-    // `o − n·gap`, whose axial station is `gap·c` from the foot's, and the
-    // real plane turns off theirs about that hinge: a consumed point
-    // moves by `c` times its axial distance from the hinge's station, at
-    // most the reach's lever plus `|gap·c|`, and by `1 − cos` times its
-    // reach across the wall from the hinge (`Reach::across`), levered at
-    // `|c|/(1 + cos)` so nothing divides by `c`.
+    // The rulings this lane mints stand on the plane's hinge through the
+    // foot's projection `o − n·gap`, `−gap·c` along the axis from the
+    // foot, and the real plane turns off theirs about that hinge: a
+    // consumed point moves by `c` times its axial distance from the
+    // hinge's station (`Reach::hinge_lever`), and by `1 − cos` times its
+    // distance across the wall from the hinge (`Reach::turn_lever`).
+    let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
-    let lever =
-        reach.lever_from(o) + (gap_signed * c).abs() + reach.across() * c.abs() / (T::one() + cos);
+    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
     match decide("pc_axis_plane_parallel", Margin::levered(c, lever), band)? {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Ok(None),

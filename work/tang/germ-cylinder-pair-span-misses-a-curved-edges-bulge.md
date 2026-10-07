@@ -36,9 +36,9 @@ extent only escalates more; the under-statement is the defect.
 ## The shape of a fix
 
 Measure each wall's farthest distance along its own axis from `at`
-over its boundary spans, `splitting::rules::face_axial_extent`, which
+over its boundary spans, `splitting::rules::face_axial_range`, which
 reads a conic arc over the span it holds
-(`geom_brep::Reach::axial_lever_from`), and lever the pair at the
+(`geom_brep::Reach::range_along`), and lever the pair at the
 longer of the two (the axes drift apart by the sine times that), never
 at a whole turn of an arc the face does not hold. A spiric or spline
 edge is read at its torus's support or whole control net there, which

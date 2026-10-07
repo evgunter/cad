@@ -566,34 +566,39 @@ pub(crate) fn face_reach_from<T: Decide>(
     )
 }
 
-/// **A face's axial extent from `at`**: the farthest any point of
-/// `face`'s boundary stands from `at` along the unit `axis`,
-/// `max |(x − at)·axis|`: its vertices, and each certified edge's
-/// carrier ([`geom_brep::Reach::axial_lever_from`] of its
-/// [`geom_brep::Reach::Span`]), so a curved edge's bulge past every
-/// vertex is reached. A coordinate along an axis has no interior
-/// extremum on a plane or a cylinder about that axis, so the boundary's
-/// bound is the face's. It is the lever of a tilt of `axis` read at
-/// `at`'s foot on it, whose reading moves by the tilt times the axial
-/// distance: never shorter than the face, never longer than
+/// **How far a face reaches from `at` either way along `axis`** (unit):
+/// `(below, above)`, the farthest `−(x − at)·axis` and `(x − at)·axis`
+/// over `face`'s boundary, each at least zero: its vertices, and each
+/// certified edge's carrier over the span it holds
+/// ([`geom_brep::Reach::range_along`] of its [`geom_brep::Reach::Span`]),
+/// so a curved edge's bulge past every vertex is reached. A coordinate
+/// along an axis has no interior extremum on a plane or a cylinder about
+/// that axis, so the boundary's bounds are the face's. They lever a tilt
+/// of `axis` read at `at`'s foot on it, whose reading moves by the tilt
+/// times the axial distance: never inside the face, never past
 /// [`face_reach_from`] the same point, and exact wherever the boundary's
 /// edges are segments and conic arcs. A spiric edge is read at its
 /// torus's support and a spline at its whole control net, which can
 /// reach past the span the edge holds.
 ///
 /// The refusal is [`face_extent`]'s, on the same loop shapes.
-pub(crate) fn face_axial_extent<T: Decide>(
+pub(crate) fn face_axial_range<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     at: Point3<T>,
     axis: geom_core::Vec3<T>,
-) -> Result<T, UnboundedFace> {
-    boundary_reach(
+) -> Result<(T, T), UnboundedFace> {
+    let along = |p: Point3<T>| (p - at).dot(axis);
+    let above = boundary_reach(body, face, along, |curve| {
+        span_of(curve).range_along(at, axis).1
+    })?;
+    let below = boundary_reach(
         body,
         face,
-        |p| (p - at).dot(axis).abs(),
-        |curve| span_of(curve).axial_lever_from(at, axis),
-    )
+        |p| -along(p),
+        |curve| -span_of(curve).range_along(at, axis).0,
+    )?;
+    Ok((below, above))
 }
 
 /// A certified edge as the reach of the span it holds.
@@ -688,23 +693,25 @@ mod tests {
         );
     }
 
-    /// **A face's axial extent reaches its rim's bulge past every
-    /// vertex, and not round the wall.** The wall about `z` trimmed at
-    /// `φ`, its rim one closed ellipse on the seam vertex
-    /// (`oblique_rim_wall`): from that vertex the rim reaches `2·tan φ`
-    /// along the axis, which the vertex alone (zero) misses, and
-    /// [`face_extent`]'s distance round the rim, `2/cos φ`, over-states.
+    /// **A face's axial range reaches its rim's bulge past every vertex,
+    /// and not round the wall.** The wall about `z` trimmed at `φ`, its
+    /// rim one closed ellipse on the seam vertex (`oblique_rim_wall`), the
+    /// rim's highest point: from that vertex the rim reaches `2·tan φ`
+    /// down the axis and nothing up it, which the vertex alone (zero)
+    /// misses, and [`face_extent`]'s distance round the rim, `2/cos φ`,
+    /// over-states.
     #[test]
     fn a_faces_axial_extent_reaches_its_rims_bulge() {
         for phi in [0.2, core::f64::consts::FRAC_PI_4, 1.2] {
             let (body, face, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
             let at = body.resolve_vertex_point(vertex, Proven);
-            let axial = face_axial_extent(&body, face, at, geom_core::Vec3::unit_z()).unwrap();
+            let (below, above) =
+                face_axial_range(&body, face, at, geom_core::Vec3::unit_z()).unwrap();
             let euclid = face_extent(&body, vertex, face).unwrap();
             let bulge = 2.0 * phi.tan();
             assert!(
-                (axial - bulge).abs() <= 1e-12 * bulge,
-                "φ = {phi}: the axial extent {axial} is the bulge {bulge}"
+                (below - bulge).abs() <= 1e-12 * bulge && above.abs() <= 1e-12,
+                "φ = {phi}: the rim reaches {below} below and {above} above, not the bulge {bulge}"
             );
             assert!(
                 (euclid - 2.0 / phi.cos()).abs() <= 1e-12 * euclid,
