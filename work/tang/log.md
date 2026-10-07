@@ -717,3 +717,13 @@ is now the half-chord, linear in the graze angle; either change alone
 restores the pair. The review's sphere-island and cone-grid fixtures
 are rows now. Across the review's 10,254 probe ops, the outcomes
 match main's again.
+
+2026-10-07 — PR 4246's second fix pass (second FULL review,
+REQUEST-CHANGES, 1 MAJOR). The meets-plane margin is the gap
+`rρ − |D|` again: it is the deviation that flips the meeting, and the
+half-chord had decided wrong parities at a smooth vertex grazed within
+rounding. The escalation fallback alone carries the graze the
+half-chord was meant to. Every ring reader now goes through one
+first-decided reading, the plane's `ring_side` and the cylinder's
+`chart_ring_side` included, so an escalated vertex or path asks the
+next and escalates only when none decides.
