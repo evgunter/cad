@@ -466,7 +466,7 @@ enum EndVerdict<T: Real> {
     Section(EndSection<T>),
     /// A turn: its two requested links, in key order, and its
     /// unrequested edge, for [`turn_at`] to decide once per vertex.
-    Turn([Link<T>; 2], EdgeKey),
+    Turn(Box<[Link<T>; 2]>, EdgeKey),
 }
 
 /// A face's outward normal at `p`: the implicit gradient folded
@@ -1791,10 +1791,11 @@ pub fn run_battery_for<T: Decide + Bounds>(
                     Some(EndVerdict::Section(section)) => end_faces.push((v, section)),
                     // Both chains a turn ends reach it; it is one turn,
                     // decided once.
-                    Some(EndVerdict::Turn([l1, l2], third))
+                    Some(EndVerdict::Turn(links, third))
                         if !turns.iter().any(|t| t.vertex == v) =>
                     {
-                        turns.push(turn_at(body, v, [&l1, &l2], third, band)?);
+                        let [l1, l2] = &*links;
+                        turns.push(turn_at(body, v, [l1, l2], third, band)?);
                     }
                     Some(EndVerdict::Turn(..)) | None => {}
                 }
@@ -2500,7 +2501,7 @@ fn corner_at<T: Decide + Bounds>(
             let Some(third) = edges.iter().find(|e| !requested.contains(e)) else {
                 return Err(indeterminate());
             };
-            Ok(Some(EndVerdict::Turn([l1, l2], *third)))
+            Ok(Some(EndVerdict::Turn(Box::new([l1, l2]), *third)))
         }
         // A plane band's section by the end face is a chord at any
         // angle; a cylinder band's is the kind the picker decides.
