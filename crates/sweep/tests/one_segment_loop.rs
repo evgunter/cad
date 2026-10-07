@@ -416,7 +416,9 @@ fn a_one_segment_section_skins_and_the_loft_refuses_typed() {
     ];
     for (what, section, want) in cases {
         let sections = vec![section.clone(), section];
-        let geometry = sweep::loft_geometry(&sections, &places, 1, tol())
+        let params = sweep::loft_parameters(&sections, &places, 1, tol())
+            .unwrap_or_else(|e| panic!("{what}: the sections parameterize: {e}"));
+        let geometry = sweep::loft_geometry(&sections, &places, 1, &params, tol())
             .unwrap_or_else(|e| panic!("{what}: the sections skin: {e}"));
         assert_eq!(geometry.walls[want].len(), 1, "{what}: one wall");
         let got = sweep::loft_body::<f64>(&sections, &places, 1, tol());
