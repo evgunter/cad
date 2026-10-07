@@ -91,6 +91,7 @@ impl Standings {
                 node: failed,
                 slot: SlotId::Distance,
                 expr: len(0.0),
+                fresh: Vec::new(),
             },
         );
         let broken = run(&doc, &CancelToken::new());

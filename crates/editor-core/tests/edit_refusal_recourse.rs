@@ -137,6 +137,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         DocEdit::DefineVar {
             var: p("n").into(),
             def: editor_core::VarDecl::Free(length(4.0)),
+            fresh: Vec::new(),
         },
     )
     .expect_err("n is a count for good");
@@ -164,6 +165,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         DocEdit::DefineVar {
             var: p("n").into(),
             def: editor_core::VarDecl::Free(FreeVar::Count { value: 5 }),
+            fresh: Vec::new(),
         },
     )
     .expect("a count definition lands on the count");

@@ -14,63 +14,24 @@ use crate::fixture::value_channel::value_digest_nodes;
 use corpus::{eval, failures};
 use editor_core::Node;
 
-/// `(document, node's mint ordinal, digest)` for every `Transform` the
-/// registry holds, in registry then document order, the same at the
-/// default, `1e-6` and `1e-12` ε rows. The digest feeds the node id, so
-/// a re-minted id moves the word with no geometry moving; so does a
-/// point landing in another arena slot.
+/// `(document, node id, digest)` for every `Transform` the registry
+/// holds, in registry then document order — taken on `569540027`, and
+/// the same at the default, `1e-6` and `1e-12` ε rows. The digest feeds
+/// the node id, so a re-minted id moves the word with no geometry
+/// moving; so does a point landing in another arena slot.
+///
+/// Re-pinned when declaring a variable began minting its id: the rows of
+/// the four documents that declare one (`die`, `heat_sink`,
+/// `kitchen_sink`, `part_select`) moved with their re-minted node ids,
+/// and every other row held its word.
+///
+/// **Re-pinned for INTENT-LITERALS PR C** (a slot holds a variable):
+/// every node is minted from slots that hold variable ids, a typed
+/// value's variable drawn from what it holds, so every node id moved
+/// and with it every row this hashes. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched across the change.
 const PINNED: &[(&str, u32, u64)] = &[
-    ("die", 58, 0x02ccfe6746763318),
-    ("die", 60, 0xf323df7dde9d8c59),
-    ("die", 62, 0xe369eff096aea1b4),
-    ("die", 64, 0x2b9bec8b2a2ce111),
-    ("die", 66, 0x6e3981d3264460de),
-    ("die", 68, 0xf1cfd5a7f9238b77),
-    ("die", 70, 0x026e84293ab33df2),
-    ("die", 72, 0xd2692807dede8a0c),
-    ("die", 74, 0x72bd38525dad3799),
-    ("die", 76, 0x2ae90b85341ac928),
-    ("die", 78, 0x1b0f40c5bd879b57),
-    ("die", 80, 0x5ebc778b7fe041dd),
-    ("die", 82, 0xa3fb11cb2b394e0f),
-    ("die", 84, 0x65414abb85c62859),
-    ("die", 86, 0x252432c3d13c2a89),
-    ("die", 88, 0xa13e8d46a89d47bd),
-    ("die", 90, 0x82cbfc37271c1d51),
-    ("die", 92, 0x9ba708105f28f5ab),
-    ("die", 94, 0x02fe5e8c4211d531),
-    ("die", 96, 0x3d4a790e2d10e043),
-    ("die", 98, 0x463ae4bfb348b1a3),
-    ("heat_sink", 19, 0xd5d9c40700d9e7fe),
-    ("heat_sink", 21, 0x65e374a7b8e6edeb),
-    ("heat_sink", 23, 0x1556a15b6d486112),
-    ("heat_sink", 25, 0xe6e15ad06e10118c),
-    ("heat_sink", 27, 0xb0e2af246a1d1204),
-    ("kitchen_sink", 24, 0xecb8d4e9f34ac356),
-    ("die_pips", 16, 0xab71e6164a732142),
-    ("part_select", 17, 0x59eed151c544b503),
-    ("die_composed", 16, 0xab71e6164a732142),
-    ("die_composed_tour", 17, 0x3981379782091844),
-    ("die_composed_tour", 18, 0xcd7cb53dd49e7f20),
-    ("die_composed_tour", 19, 0xbe192ef65dfd7734),
-    ("die_composed_tour", 20, 0x8b405a8729bb498b),
-    ("die_composed_tour", 21, 0x67037af29a6fee57),
-    ("die_composed_tour", 22, 0xa61360a5736d3892),
-    ("die_composed_tour", 23, 0x224094ca8fe4f28c),
-    ("die_composed_tour", 24, 0xe49f19ec65b5744d),
-    ("die_composed_tour", 25, 0x36ba8059eeffc6d1),
-    ("die_composed_tour", 26, 0x0a82b75b5c9c9b55),
-    ("die_composed_tour", 27, 0x9c642ecb412f9de7),
-    ("die_composed_tour", 28, 0x8a962b51640372bc),
-    ("die_composed_tour", 29, 0xcbb6cbcc13ea2e85),
-    ("die_composed_tour", 30, 0xa3bd48ed216141a8),
-    ("die_composed_tour", 31, 0xe5fdeb386fb99746),
-    ("die_composed_tour", 32, 0xe94516dec1964f11),
-    ("die_composed_tour", 33, 0x7612b357a64cec56),
-    ("die_composed_tour", 34, 0x86d736b21cdca4b9),
-    ("die_composed_tour", 35, 0x951cac56dcbebc8c),
-    ("die_composed_tour", 36, 0xa45b53aca74065b8),
-    ("die_composed_tour", 37, 0xd6a71d6008be9801),
 ];
 
 #[test]

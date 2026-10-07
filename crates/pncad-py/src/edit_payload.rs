@@ -503,6 +503,9 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: Some(name),
             ..none
         },
+        EditError::FreshUnheld { .. } | EditError::FreshKind { .. } | EditError::FreshUnread { .. } => {
+            none
+        }
         EditError::SlotUnresolvedVar { var, node, slot } => EditPayload {
             node: Some(node.id()),
             param: var.name(),

@@ -96,7 +96,7 @@ pub mod witness;
 pub use analysis::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
     DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError, SeedError,
-    SeedScalar, analyzed_box, box_mass, sample_offset, seed_env, std_deviation, tail_mass,
+    SeedScalar, analyzed_box, box_mass, is_axis, sample_offset, seed_env, std_deviation, tail_mass,
     var_env_over,
 };
 pub use appearance::{
@@ -148,9 +148,10 @@ pub use spoken::{
 pub use eval::entity_door::Found;
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
-    ParamValue, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count, unparse,
+    ParamValue, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count, eval_var,
+    eval_var_count, unparse,
 };
-pub use formula::{Formula, NameFault};
+pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
@@ -210,7 +211,7 @@ pub use product::{
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault,
-    StepSegmentsError, resolve_loops,
+    StepSegmentsError, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,

@@ -128,6 +128,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
                     editor_core::Dimension::Length,
                     0.0625,
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -270,6 +271,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         DocEdit::DefineVar {
             var: h.into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+            fresh: Vec::new(),
         },
         DocEdit::SetExtrudeSide {
             node: block,
@@ -312,6 +314,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                     fixture::scl(0.0),
                 )
                 .unwrap(),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -328,6 +331,9 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             match &e.kind {
                 editor_core::NodeErrorKind::Expr { slot, source } => {
                     assert_eq!(*slot, SlotId::Distance);
+                    // The formula written at the slot is the anonymous
+                    // definition it reads, whose refusal is the slot's
+                    // own (`VarEnv::written`).
                     assert_eq!(*source, editor_core::EvalError::NonFiniteResult);
                 }
                 other => panic!("expected Expr error, got {other:?}"),

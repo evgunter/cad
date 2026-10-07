@@ -65,6 +65,7 @@ fn axis_doc(name: &str, dir: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: dir.map(scl),
             })),
+            fresh: Vec::new(),
         },
     );
     let spine = *doc.ids().last().expect("the datum");
@@ -111,6 +112,7 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
                 minor_radius: len(outer),
                 wall: len(wall),
             }),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.ids().last().expect("the tube");
@@ -167,6 +169,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                 },
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     let solid = *doc.ids().last().expect("solid tube");
@@ -184,6 +187,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                 minor_radius: len(0.5),
                 wall: len(0.125),
             }),
+            fresh: Vec::new(),
         },
     );
     let hollow = *doc.ids().last().expect("hollow tube");
@@ -203,6 +207,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                 },
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     let twin = *doc.ids().last().expect("the twin tube");
@@ -280,6 +285,7 @@ fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
                 minor_radius: len(0.5),
                 wall: len(0.125),
             }),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.ids().last().expect("the tube");
@@ -330,6 +336,7 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.ids().last().expect("the tube");
@@ -378,6 +385,7 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     let long_tube = *long_doc.ids().last().expect("the tube");
@@ -400,6 +408,7 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.ids().last().expect("the tube");
@@ -451,6 +460,7 @@ fn r2_a_tube_bearing_save_refuses_typed_on_a_build_that_lacks_the_vocabulary() {
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     let bytes = save(&doc, &[], Tol::witness()).expect("the document saves");

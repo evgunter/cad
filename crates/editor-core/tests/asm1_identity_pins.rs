@@ -81,6 +81,7 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         DocEdit::DefineVar {
             var: VarName::from_static("depth").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+            fresh: Vec::new(),
         },
     );
     // Path B: wander through 0.1 first, then land on 0.9.
@@ -89,6 +90,7 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         DocEdit::DefineVar {
             var: VarName::from_static("depth").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.1)),
+            fresh: Vec::new(),
         },
     );
     let (b, _) = step(
@@ -96,6 +98,7 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         DocEdit::DefineVar {
             var: VarName::from_static("depth").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(
@@ -108,10 +111,12 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     let log_a = vec![DocEdit::DefineVar {
         var: VarName::from_static("depth").into(),
         def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+        fresh: Vec::new(),
     }];
     let mut log_b = vec![DocEdit::DefineVar {
         var: VarName::from_static("depth").into(),
         def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.1)),
+        fresh: Vec::new(),
     }];
     log_b.extend(log_a.clone());
     let loaded_a = load(
@@ -155,6 +160,7 @@ fn row2_undone_edit_pin_unchanged() {
         DocEdit::DefineVar {
             var: VarName::from_static("depth").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(
@@ -167,6 +173,7 @@ fn row2_undone_edit_pin_unchanged() {
         DocEdit::DefineVar {
             var: VarName::from_static("depth").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(content_pin(&undone, Tol::witness()).unwrap(), before);
@@ -198,6 +205,7 @@ fn row4_node_edit_moves_pin() {
             node: extrude,
             slot: editor_core::SlotId::Distance,
             expr: len(0.625),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
@@ -213,6 +221,7 @@ fn row4_param_edit_moves_pin() {
         DocEdit::DefineVar {
             var: VarName::from_static("depth").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.8)),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);

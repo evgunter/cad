@@ -304,7 +304,20 @@ fn chain_steps() -> Vec<ProgramStep<Formula>> {
 /// The corpus: the chain above plus the two complete-loop carrier
 /// forms, which are `LoopProgram` variants rather than steps.
 fn corpus() -> ProfileProgram {
-    editor_core::test_support::stored_program(&ProfileProgram {
+    corpus_lowered().0
+}
+
+/// A program lowered as the door lowers it, and the environment its
+/// variables evaluate in.
+fn lowered(program: &ProfileProgram<Formula>) -> (ProfileProgram, VarEnv<f64>) {
+    let mut doc = editor_core::test_support::scratch(geom_core::Tol::witness());
+    let program = editor_core::test_support::stored_program(&mut doc, program);
+    (program, doc.var_env())
+}
+
+/// The corpus lowered, and its environment.
+fn corpus_lowered() -> (ProfileProgram, VarEnv<f64>) {
+    lowered(&ProfileProgram {
         // The corpus is resolved and serialized directly, never
         // inserted, so the frame it names is scaffolding: no row here
         // reads what the plane denotes.
@@ -468,10 +481,8 @@ fn every_table_verb_is_a_document_program() {
     // a second corpus kept in step by hand, and it lines up with the
     // resolved loops only while `corpus()`'s first loop happens to be
     // the chain. Walking every chain loop drops that assumption too.
-    let program = corpus();
-    let resolved = program
-        .resolve(&VarEnv::<f64>::default())
-        .expect("the corpus resolves at f64");
+    let (program, env) = corpus_lowered();
+    let resolved = program.resolve(&env).expect("the corpus resolves at f64");
 
     let mut chains = 0usize;
     for (l, loop_) in program.loops.iter().enumerate() {
@@ -553,7 +564,7 @@ fn every_table_verb_is_a_document_program() {
 #[test]
 fn every_target_form_is_a_document_program() {
     for kind in TargetKind::ALL {
-        let program = editor_core::test_support::stored_program(&ProfileProgram {
+        let (program, env) = lowered(&ProfileProgram {
             plane: SCAFFOLD_PLANE,
             loops: vec![LoopProgram::Chain(vec![ProgramStep::LineTo(
                 target_witness(*kind),
@@ -561,7 +572,7 @@ fn every_target_form_is_a_document_program() {
             ids: Vec::new(),
         });
         let resolved = program
-            .resolve(&VarEnv::<f64>::default())
+            .resolve(&env)
             .expect("a one-step target witness resolves at f64");
         let profile::Step::LineTo(got) = &resolved[0][0] else {
             panic!(
@@ -585,41 +596,43 @@ fn every_target_form_is_a_document_program() {
     // into a trailing arm, because which verbs can carry a target is
     // what this clause assumes, and a verb that gains one is
     // adjudicated here.
-    let seen: Vec<TargetKind> = corpus()
-        .resolve(&VarEnv::<f64>::default())
-        .expect("the corpus resolves at f64")
-        .iter()
-        .flat_map(|loop_| loop_.iter())
-        .flat_map(|step| match step {
-            profile::Step::LineTo(t)
-            | profile::Step::ContinueTo(t)
-            | profile::Step::TangentArcTo(t) => vec![t.kind()],
-            profile::Step::ArcTo(spec)
-            | profile::Step::FilletArc { spec, .. }
-            | profile::Step::ArcFillet { spec, .. } => spec
-                .target()
-                .map(profile::Target::kind)
-                .into_iter()
-                .collect(),
-            profile::Step::ArcFilletArc { spec, spec2, .. } => [spec, spec2]
-                .into_iter()
-                .filter_map(|s| s.target())
-                .map(profile::Target::kind)
-                .collect(),
-            profile::Step::At(_)
-            | profile::Step::Angle(_)
-            | profile::Step::Toward { .. }
-            | profile::Step::Tangent
-            | profile::Step::Cusp
-            | profile::Step::Turn(_)
-            | profile::Step::Line(_)
-            | profile::Step::Fillet { .. }
-            | profile::Step::FarEndTo(_)
-            | profile::Step::CloseTo
-            | profile::Step::Circle { .. }
-            | profile::Step::CircleSplit { .. } => vec![],
-        })
-        .collect();
+    let seen: Vec<TargetKind> = {
+        let (program, env) = corpus_lowered();
+        program.resolve(&env)
+    }
+    .expect("the corpus resolves at f64")
+    .iter()
+    .flat_map(|loop_| loop_.iter())
+    .flat_map(|step| match step {
+        profile::Step::LineTo(t)
+        | profile::Step::ContinueTo(t)
+        | profile::Step::TangentArcTo(t) => vec![t.kind()],
+        profile::Step::ArcTo(spec)
+        | profile::Step::FilletArc { spec, .. }
+        | profile::Step::ArcFillet { spec, .. } => spec
+            .target()
+            .map(profile::Target::kind)
+            .into_iter()
+            .collect(),
+        profile::Step::ArcFilletArc { spec, spec2, .. } => [spec, spec2]
+            .into_iter()
+            .filter_map(|s| s.target())
+            .map(profile::Target::kind)
+            .collect(),
+        profile::Step::At(_)
+        | profile::Step::Angle(_)
+        | profile::Step::Toward { .. }
+        | profile::Step::Tangent
+        | profile::Step::Cusp
+        | profile::Step::Turn(_)
+        | profile::Step::Line(_)
+        | profile::Step::Fillet { .. }
+        | profile::Step::FarEndTo(_)
+        | profile::Step::CloseTo
+        | profile::Step::Circle { .. }
+        | profile::Step::CircleSplit { .. } => vec![],
+    })
+    .collect();
     let missing: Vec<&TargetKind> = TargetKind::ALL
         .iter()
         .filter(|k| !seen.contains(k))
@@ -655,7 +668,7 @@ fn every_target_form_is_a_document_program() {
 #[test]
 fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
-        let program = editor_core::test_support::stored_program(&ProfileProgram {
+        let (program, env) = lowered(&ProfileProgram {
             plane: SCAFFOLD_PLANE,
             loops: vec![LoopProgram::Chain(vec![ProgramStep::ArcTo(mode_witness(
                 *mode,
@@ -663,7 +676,7 @@ fn every_arc_mode_is_a_document_program() {
             ids: Vec::new(),
         });
         let resolved = program
-            .resolve(&VarEnv::<f64>::default())
+            .resolve(&env)
             .expect("a one-step mode witness resolves at f64");
         let profile::Step::ArcTo(spec) = &resolved[0][0] else {
             panic!(
@@ -679,36 +692,38 @@ fn every_arc_mode_is_a_document_program() {
         );
     }
 
-    let corpus_modes: Vec<ArcMode> = corpus()
-        .resolve(&VarEnv::<f64>::default())
-        .expect("the corpus resolves at f64")
-        .iter()
-        .flat_map(|loop_| loop_.iter())
-        .flat_map(|step| match step {
-            profile::Step::ArcTo(spec)
-            | profile::Step::FilletArc { spec, .. }
-            | profile::Step::ArcFillet { spec, .. } => vec![spec.mode()],
-            profile::Step::ArcFilletArc { spec, spec2, .. } => vec![spec.mode(), spec2.mode()],
-            // Named rather than swept into a trailing arm: which verbs
-            // carry an arc spec is what this clause assumes, so a verb
-            // that gains one is adjudicated here.
-            profile::Step::At(_)
-            | profile::Step::Angle(_)
-            | profile::Step::Toward { .. }
-            | profile::Step::Tangent
-            | profile::Step::Cusp
-            | profile::Step::Turn(_)
-            | profile::Step::Line(_)
-            | profile::Step::LineTo(_)
-            | profile::Step::ContinueTo(_)
-            | profile::Step::TangentArcTo(_)
-            | profile::Step::Fillet { .. }
-            | profile::Step::FarEndTo(_)
-            | profile::Step::CloseTo
-            | profile::Step::Circle { .. }
-            | profile::Step::CircleSplit { .. } => vec![],
-        })
-        .collect();
+    let corpus_modes: Vec<ArcMode> = {
+        let (program, env) = corpus_lowered();
+        program.resolve(&env)
+    }
+    .expect("the corpus resolves at f64")
+    .iter()
+    .flat_map(|loop_| loop_.iter())
+    .flat_map(|step| match step {
+        profile::Step::ArcTo(spec)
+        | profile::Step::FilletArc { spec, .. }
+        | profile::Step::ArcFillet { spec, .. } => vec![spec.mode()],
+        profile::Step::ArcFilletArc { spec, spec2, .. } => vec![spec.mode(), spec2.mode()],
+        // Named rather than swept into a trailing arm: which verbs
+        // carry an arc spec is what this clause assumes, so a verb
+        // that gains one is adjudicated here.
+        profile::Step::At(_)
+        | profile::Step::Angle(_)
+        | profile::Step::Toward { .. }
+        | profile::Step::Tangent
+        | profile::Step::Cusp
+        | profile::Step::Turn(_)
+        | profile::Step::Line(_)
+        | profile::Step::LineTo(_)
+        | profile::Step::ContinueTo(_)
+        | profile::Step::TangentArcTo(_)
+        | profile::Step::Fillet { .. }
+        | profile::Step::FarEndTo(_)
+        | profile::Step::CloseTo
+        | profile::Step::Circle { .. }
+        | profile::Step::CircleSplit { .. } => vec![],
+    })
+    .collect();
     let missing: Vec<&ArcMode> = ArcMode::ALL
         .iter()
         .filter(|m| !corpus_modes.contains(m))
@@ -1000,16 +1015,34 @@ fn every_document_verb_survives_the_wire() {
 }
 
 /// The expressions of a program, counted from the wire rather than
-/// from a number written here: every expression this suite builds is a
-/// bare literal, so the `Literal` tags in its serialization ARE its
-/// expressions. It holds for the one-step programs below for the same
+/// from a number written here: a stored slot is its variable's id, so
+/// the numbers in its loops' serialization ARE its expressions. It holds for the one-step programs below for the same
 /// reason it holds for the corpus: each is one of the corpus's own
 /// chain steps, so the property is inherited rather than re-argued.
 fn literal_count(program: &ProfileProgram) -> usize {
-    serde_json::to_string(program)
-        .expect("the program serializes")
-        .matches("\"Literal\"")
-        .count()
+    fn walk(v: &serde_json::Value, out: &mut usize) {
+        match v {
+            serde_json::Value::Object(map) => {
+                for (key, value) in map {
+                    // A split circle's piece count is a structural
+                    // field, not a slot.
+                    if key != "n" {
+                        walk(value, out);
+                    }
+                }
+            }
+            serde_json::Value::Array(items) => items.iter().for_each(|item| walk(item, out)),
+            serde_json::Value::Number(_) => *out += 1,
+            serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::String(_) => {
+            }
+        }
+    }
+    let mut out = 0;
+    walk(
+        &serde_json::to_value(&program.loops).expect("the program serializes"),
+        &mut out,
+    );
+    out
 }
 
 /// Every position in a program that enumerates a number of slots other
@@ -1120,12 +1153,13 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
         slots.len(),
         mismatched = positions_whose_slot_count_disagrees(&program),
     );
-    let mut addresses: Vec<(*const editor_core::Expr, SlotId)> = Vec::new();
+    let env = corpus_lowered().1;
+    let mut addresses: Vec<(*const editor_core::VarId, SlotId)> = Vec::new();
     for slot in &slots {
-        let Some(expr) = node.expr(*slot) else {
+        let Some(var) = node.expr(*slot) else {
             panic!("{slot:?} is enumerated but addresses nothing");
         };
-        let addr: *const editor_core::Expr = expr;
+        let addr: *const editor_core::VarId = var;
         if let Some((_, first)) = addresses.iter().find(|(seen, _)| *seen == addr) {
             panic!("{slot:?} addresses the expression {first:?} already addresses");
         }
@@ -1133,11 +1167,11 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
         let SlotId::Profile { arg, .. } = slot else {
             panic!("a profile payload enumerated a non-profile slot: {slot:?}");
         };
+        let dim = env.bindings[var].dim();
         assert_eq!(
-            expr.dim(),
+            dim,
             arg.dimension(),
-            "{slot:?} addresses an expression of dimension {:?}, and the role wants {:?}",
-            expr.dim(),
+            "{slot:?} addresses a variable of dimension {dim:?}, and the role wants {:?}",
             arg.dimension()
         );
     }
@@ -1160,7 +1194,8 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
 /// Blind spot, stated: the corpus's, as for the census above.
 #[test]
 fn every_enumerated_slot_is_where_its_refusal_reports() {
-    let node = Node::Profile(corpus());
+    let (program, env) = corpus_lowered();
+    let node = Node::Profile(program);
     let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
     let unbound = editor_core::VarId::new(0, u64::MAX);
@@ -1170,11 +1205,11 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
         let expr = broken
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
-        *expr = editor_core::Expr::var(unbound, expr.dim());
+        *expr = unbound;
         let Node::Profile(broken) = broken else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };
-        match broken.resolve(&VarEnv::<f64>::default()) {
+        match broken.resolve(&env) {
             Err((reported, _)) if reported == *slot => {}
             Err((reported, _)) => {
                 misplaced.push(format!("{} refuses at {}", slot.label(), reported.label()))
@@ -1277,11 +1312,13 @@ fn field_named(step: &profile::Step<f64>, arg: StepArg) -> Option<f64> {
 /// Blind spot, stated: the corpus's, as for the censuses above.
 #[test]
 fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
-    let node = Node::Profile(corpus());
+    let (program, env) = corpus_lowered();
+    let node = Node::Profile(program);
     let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
     // Finite and valid in every dimension; no corpus literal is this.
     let sentinel = 7.123_456_789;
+    let probed = editor_core::VarId::new(0, u64::MAX);
     let mut misread = Vec::new();
     for slot in &slots {
         let SlotId::Profile { loop_, step, arg } = *slot else {
@@ -1291,17 +1328,21 @@ fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
         let expr = probe
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
-        *expr = editor_core::test_support::stored_expr(
-            &Formula::literal(sentinel, expr.dim()).expect("a finite literal"),
+        *expr = probed;
+        let mut env = env.clone();
+        env.bindings.insert(
+            probed,
+            editor_core::ParamValue::Continuous {
+                dim: arg.dimension(),
+                value: sentinel,
+            },
         );
         let Node::Profile(probe) = probe else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };
-        let loops = probe
-            .resolve(&VarEnv::<f64>::default())
-            .unwrap_or_else(|(at, e)| {
-                panic!("the literal corpus refuses at {}: {e:?}", at.label())
-            });
+        let loops = probe.resolve(&env).unwrap_or_else(|(at, e)| {
+            panic!("the literal corpus refuses at {}: {e:?}", at.label())
+        });
         let resolved = &loops[loop_ as usize][step as usize];
         if field_named(resolved, arg) != Some(sentinel) {
             misread.push(format!("{} resolves into {resolved:?}", slot.label()));
@@ -1380,7 +1421,7 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
 ///
 /// It covers what the corpus reaches, which is every member of all
 /// four document vocabularies (the censuses above are what make that
-/// true) plus the `Expr` records they carry.
+/// true); their arguments are variable ids, which carry no words.
 ///
 /// **It is a SET, and that is its blind spot.** A swapped `Ccw`/`Cw`, a
 /// `spec`/`spec2` exchanged between two fused verbs, a reordered
@@ -1390,18 +1431,13 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
 /// one that localises a rename to the word. Neither subsumes the
 /// other, and a reader chasing a red uses which of the two fired to
 /// tell a rename from a rearrangement.
+///
+/// A stored argument is the id of the variable it reads (INTENT-LITERALS
+/// PR C), a bare number on the wire, so the `Expr` record and its closed
+/// tables — `Literal`, `dim`, `unit`, `value` and the dimension and
+/// unit words — left this list then: the program's wire carries no
+/// expression.
 const PERSISTED_SPELLING: &[&str] = &[
-    // The `Expr` record and its closed tables: the dimensionless
-    // literal's display symbol is the empty string.
-    "",
-    "Length",
-    "Literal",
-    "Scalar",
-    "dim",
-    "m",
-    "rad",
-    "unit",
-    "value",
     // `ProfileProgram` and `LoopProgram`.
     "Chain",
     "Circle",
@@ -1494,10 +1530,8 @@ fn the_persisted_spelling_of_the_program_is_pinned() {
 /// recording lifts to.
 #[test]
 fn lifting_then_erasing_is_erasing_the_recording() {
-    let program = corpus();
-    let resolved = program
-        .resolve(&VarEnv::<f64>::default())
-        .expect("the corpus resolves at f64");
+    let (program, env) = corpus_lowered();
+    let resolved = program.resolve(&env).expect("the corpus resolves at f64");
     for (l, steps) in resolved.iter().enumerate() {
         let lifted = LoopProgram::from_recorded(steps).expect("a literal recording lifts");
         let erased: Vec<editor_core::StepShape> = steps

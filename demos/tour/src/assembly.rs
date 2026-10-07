@@ -267,6 +267,7 @@ fn insert_through(
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         reach,
@@ -528,6 +529,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
                 )
                 .expect("the post lies down about +y"),
             )),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -554,6 +556,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
                 0.9,
                 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -670,6 +673,7 @@ fn stand_doc(
                 (SHELF_DEPTH - POST_SECTION) / 2.0,
                 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,

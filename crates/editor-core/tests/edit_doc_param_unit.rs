@@ -158,6 +158,7 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
         &DocEdit::DefineVar {
             var: p("wall").into(),
             def: editor_core::VarDecl::Free(rebuilt),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -171,14 +172,14 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
     );
     // The older twin's strength (`m10_1_r2_probes.rs` section 6): the
     // deletion is not a field going `None`, it is the analysis now
-    // reading a varying parameter as FIXED.
+    // reading a varying parameter as FIXED: no axis at all, a
+    // constant of the analysis (VR8).
     let axis = analyzed_box(&after, &AnalysisPolicy::default())
         .get(v(&after, "wall"))
-        .copied()
-        .expect("the parameter has an axis");
+        .copied();
     assert!(
-        axis.offsets.is_fixed(),
-        "a notation rebuild turned a varying parameter into a fixed one: {axis:?}"
+        axis.is_none(),
+        "a notation rebuild turned a varying parameter into a constant: {axis:?}"
     );
 }
 
@@ -696,6 +697,7 @@ fn annotating_through_define_var_reverts_the_notation() {
                 value,
                 Distribution::Normal { sigma: 2e-5 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -759,7 +761,8 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
             &doc,
             &DocEdit::DefineVar {
                 var: p("wall").into(),
-                def: editor_core::VarDecl::Free(crooked)
+                def: editor_core::VarDecl::Free(crooked),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach,

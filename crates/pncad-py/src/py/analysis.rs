@@ -298,8 +298,9 @@ fn quantity(py: Python<'_>, canonical: f64, dim: d::Dimension) -> PyResult<Py<Py
 /// limits and says every value between them is equally likely;
 /// `normal` states a spread with unbounded support; `truncated_normal`
 /// restricts a normal to a window and renormalizes it. A parameter
-/// with NO distribution is FIXED — annotation is opt-in and means
-/// something, and the analysis never guesses a spread nobody stated.
+/// with NO distribution is FIXED, a constant of the analysis and no
+/// axis of it (VR8) — annotation is opt-in and means something, and
+/// the analysis never guesses a spread nobody stated.
 ///
 /// The shape is `PatternKind`'s and `PartSelect`'s: a frozen value
 /// class of static constructors, one per kernel arm, spelled in snake
@@ -547,10 +548,9 @@ impl AnalysisPolicy {
 /// offset interval the analysis varies it over, and the distribution
 /// that interval came from.
 ///
-/// An unannotated continuous parameter is still an axis — a
-/// width-zero one at its nominal, with `distribution` `None`. That is
-/// the typed spelling of FIXED, and it is why a document says what it
-/// varies rather than having it inferred.
+/// A parameter with no tolerance is no axis (VR8): the analysis reads
+/// it as a constant at its nominal, so a document says what it varies
+/// rather than having it inferred.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct AnalyzedParam {
@@ -677,9 +677,9 @@ impl AnalyzedBox {
     /// **The tail mass of one axis**: what this box's own interval for
     /// `name` leaves outside.
     ///
-    /// `None` when the document declares no such continuous parameter.
-    /// An unannotated axis is FIXED and its tail is `0.0` — nothing was
-    /// declared to vary, so the analysis is leaving nothing out.
+    /// `None` when the box carries no such axis: a name the document
+    /// does not declare, or a parameter with no tolerance, which is a
+    /// constant of the analysis rather than an axis (VR8).
     ///
     /// Raises `MeasureUnavailable` when the axis carries a band whose
     /// support escapes the interval: how much of it escapes is
@@ -702,11 +702,10 @@ impl AnalyzedBox {
     /// in another dimension is a `DimensionError` — the pairing this
     /// door exists to make impossible, one rung out from the kernel's.
     ///
-    /// `None` when the document declares no such continuous parameter.
-    /// An unannotated axis is a point mass at its nominal, so it
-    /// answers `1.0` for any interval containing offset zero and `0.0`
-    /// otherwise. A band raises `MeasureUnavailable` unless the
-    /// interval covers its whole support or misses it entirely.
+    /// `None` when the box carries no such axis: a name the document
+    /// does not declare, or a parameter with no tolerance (VR8). A band
+    /// raises `MeasureUnavailable` unless the interval covers its whole
+    /// support or misses it entirely.
     fn box_mass(
         &self,
         py: Python<'_>,

@@ -81,11 +81,11 @@ fn param_lookup_and_typed_failures() {
             VarName::from_static("depth"),
             Dimension::Length
         )),
-        Err(editor_core::NameFault {
+        Err(editor_core::LowerFault::Name(editor_core::NameFault {
             name: VarName::from_static("depth"),
             dim: Dimension::Length,
             why: editor_core::Unlowered::Unheld,
-        })
+        }))
     );
 }
 

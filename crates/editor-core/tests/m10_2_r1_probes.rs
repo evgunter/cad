@@ -49,6 +49,7 @@ fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Rec
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1010,41 +1011,36 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     let doc = corruptible();
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
-    // (a) The bound's dimension: Length → Angle. The bound literal is
-    // distinctive, so locate its dim line relative to it.
+    // (a) The bound's dimension: Length → Angle. The bound is written
+    // as a distinctive value, so its variable is found by it.
     //
-    // The UNIT moves with the dim, and must: since v20 every literal
-    // names the notation it was written in, so a literal whose dim said
-    // `Angle` while its unit said `m` is corrupt in a NEARER way, and
-    // the wire rebuild refuses it as a display-unit mismatch before the
-    // snapshot walk this row is about ever runs. Moving both keeps the
-    // literal well-formed and leaves exactly one thing wrong with the
-    // document — the bound's dimension against its measure — which is
-    // what this row is here to pin.
-    let target =
-        "\"value\": 0.777,\n              \"dim\": \"Length\",\n              \"unit\": \"m\"";
-    let (target, replacement) = if text.contains(target) {
-        (
-            target.to_string(),
-            target
-                .replace("Length", "Angle")
-                .replace("\"m\"", "\"rad\""),
-        )
-    } else {
-        // Fall back to a whitespace-insensitive locate: find the literal,
-        // then the next "Length" and the unit after it.
-        let at = text
-            .find("0.777")
-            .expect("the bound literal is in the file");
-        let unit_at = text[at..].find("\"m\"").expect("its unit follows") + at;
-        let t = &text[at..unit_at + 3];
-        (
-            t.to_string(),
-            t.replace("Length", "Angle").replace("\"m\"", "\"rad\""),
-        )
+    // The kind, the dimension and the UNIT all move, and must: a
+    // variable whose kind said `Angle` while its unit said `m` is
+    // corrupt in a NEARER way, refused before the snapshot walk this
+    // row is about ever runs. Moving all three keeps the variable
+    // well-formed and leaves exactly one thing wrong with the document
+    // — the bound's dimension against its measure — which is what this
+    // row is here to pin.
+    let (header, body) = text.split_once('\n').expect("a header line");
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("a JSON body");
+    let bound: Vec<String> = wire["snapshot"]["vars"]
+        .as_object()
+        .expect("a variable table")
+        .iter()
+        .filter(|(_, var)| var["def"]["Free"]["Continuous"]["value"] == serde_json::json!(0.777))
+        .map(|(id, _)| id.clone())
+        .collect();
+    let [bound] = &bound[..] else {
+        panic!("one variable holds the bound, got {bound:?}")
     };
-    assert_eq!(text.matches(&target).count(), 1);
-    let corrupt = text.replace(&target, &replacement);
+    let held = &mut wire["snapshot"]["vars"][bound.as_str()];
+    held["kind"] = serde_json::json!("Angle");
+    held["def"]["Free"]["Continuous"]["dim"] = serde_json::json!("Angle");
+    held["def"]["Free"]["Continuous"]["display_unit"] = serde_json::json!("rad");
+    let corrupt = format!(
+        "{header}\n{}",
+        serde_json::to_string(&wire).expect("re-emit")
+    );
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
             measured: Dimension::Length,
@@ -1110,6 +1106,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::measure(expr, at_mint([bottom, top])).expect("indices in range")),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

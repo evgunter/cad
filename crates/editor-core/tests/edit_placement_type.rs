@@ -13,7 +13,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Axis3, CancelToken, Dimension, DocEdit, EditError, EvalOptions, Formula, Frame, FrameSite,
     FreeValue, FreeVar, Node, PersistError, Placement, ProfileDoc, ProfileProgram,
-    REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step, ValuePayload, VarEnv,
+    REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step, ValuePayload,
     VarName, VectorSlot, evaluate, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
@@ -90,8 +90,9 @@ fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
 }
 
 fn motion(p: &Placement<Formula>) -> Affine3<f64> {
-    editor_core::test_support::stored_placement(p)
-        .eval::<f64>(&VarEnv::default(), band())
+    let mut doc = editor_core::test_support::scratch(geom_core::Tol::witness());
+    editor_core::test_support::stored_placement(&mut doc, p)
+        .eval::<f64>(&doc.var_env(), band())
         .expect("the placement evaluates")
 }
 
@@ -250,6 +251,7 @@ fn the_empty_chain_is_the_identity_at_both_doors() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(Node::transform(body, Placement::IDENTITY)),
+            fresh: Vec::new(),
         },
     );
     let placed = placed.expect("the edit door admits the empty chain");
@@ -288,6 +290,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
             body,
             Placement::from(about_z([0.0; 3], 0.0)).compose(&Placement::literal(frame)),
         )),
+        fresh: Vec::new(),
     };
     let door = |edit| {
         editor_core::apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach).map(|_| ())
@@ -421,6 +424,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
             node: placed,
             slot: angle,
             expr: ang(quarter),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(
@@ -434,6 +438,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
             node: placed,
             slot: SlotId::RotationAngle,
             expr: ang(quarter),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -485,6 +490,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
                 axis: [scl(0.0), scl(0.0), scl(1.0)],
                 angle: ang(0.0),
             })),
+            fresh: Vec::new(),
         },
     ) {
         Err(EditError::SlotDimensionMismatch { slot, .. }) => assert_eq!(slot, x),
@@ -499,7 +505,8 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         door(
             &doc,
             DocEdit::InsertNode {
-                node: Box::new(chain(unknown))
+                node: Box::new(chain(unknown)),
+                fresh: Vec::new()
             }
         )
         .is_err(),
@@ -513,6 +520,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
             axis: [scl(0.0), scl(0.0), scl(1.0)],
             angle: Formula::named(turn, Dimension::Angle),
         })),
+        fresh: Vec::new(),
     };
     let (doc, t) = step(doc, insert_edit.clone());
     let t = t.expect("the chain inserts");
@@ -528,6 +536,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         node: t,
         slot: SlotId::rigid(2, RigidArg::Translation(Axis3::Y)),
         expr: len(-0.0),
+        fresh: Vec::new(),
     };
     let (doc, _) = step(doc, set.clone());
     let wire = serde_json::to_string(&set).expect("the edit serializes");
@@ -554,6 +563,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
                     node: t,
                     slot: SlotId::rigid(1, RigidArg::RotationAngle),
                     expr: ang(0.5),
+                    fresh: Vec::new(),
                 }
             ),
             Err(EditError::UnknownSlot { .. })
@@ -567,12 +577,8 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         let angle = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"][2]
             ["Rigid"]["angle"];
         let turn = doc.var_named("turn").expect("the fixture declares turn");
-        let text = angle.to_string().replace(
-            &format!("\"var\":\"{}\"", turn.0),
-            "\"var\":\"0:0000000000000001\"",
-        );
-        assert_ne!(text, angle.to_string(), "aimed at the variable");
-        *angle = serde_json::from_str(&text).expect("still an expression");
+        assert_eq!(*angle, serde_json::json!(turn.0), "aimed at the variable");
+        *angle = serde_json::json!(1);
     });
     assert!(
         load(&bad_ref, Tol::witness()).is_err(),
@@ -584,7 +590,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         steps[2]["Rigid"]["translation"][0] = angle;
     });
     match load(&bad_dim, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDimension { slot, .. })) => {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind { slot, .. })) => {
             assert_eq!(slot, x);
         }
         other => panic!("a wrong dimension at step 2 must refuse at load, got {other:?}"),

@@ -566,6 +566,11 @@ trait HoldsNodes {
     fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp>;
     /// The name the document holds for the variable `id`, if any.
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
+    /// A reader of `id` at `dim` as written ([`Doc::written`]), where
+    /// the document holds what `id` holds.
+    fn written(&self, _id: crate::var::VarId, _dim: crate::expr::Dimension) -> Option<crate::Expr> {
+        None
+    }
     /// The slot of `node`'s payload at `reference` that holds `name`
     /// ([`Node::reference_slot`]), `None` where it is not held here. A
     /// door's held nodes keep none, so a refusal they say names the
@@ -583,6 +588,10 @@ trait HoldsNodes {
 impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.spoken(id)
+    }
+
+    fn written(&self, id: crate::var::VarId, dim: crate::expr::Dimension) -> Option<crate::Expr> {
+        Some(Doc::written(self, &crate::Expr::var(id, dim)))
     }
 
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
@@ -1044,6 +1053,18 @@ impl<'a> Speaker<'a> {
         })
     }
 
+    /// **A slot's variable, said as written**: what an anonymous one
+    /// holds, its readers said ([`Self::formula`]); a named one by its
+    /// name; `#<16 hex>` where the speaker's document does not hold it.
+    #[must_use]
+    pub fn slot_var(self, var: crate::var::VarId, dim: crate::expr::Dimension) -> String {
+        let written = self
+            .doc
+            .and_then(|doc| doc.written(var, dim))
+            .unwrap_or_else(|| crate::Expr::var(var, dim));
+        self.formula(&written)
+    }
+
     /// The name `name` in words ([`crate::LeafRole`]): `the end cap of
     /// Extrude e548, cut in at Subtract 1669`. The one spelling of a name
     /// in a sentence, article-led; [`StableName`]'s own `Display` is
@@ -1250,6 +1271,7 @@ mod tests {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(node),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &RefusingReach,
@@ -1283,6 +1305,7 @@ mod tests {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(test_support::xy_frame()),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &RefusingReach,

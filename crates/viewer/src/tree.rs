@@ -183,10 +183,10 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr, Label,
-    MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
-    node_kind_noun,
+    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
+    Expr, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind,
+    NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
+    VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
@@ -604,7 +604,13 @@ pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
 pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Option<String> {
     match node {
         Node::Datum(Datum::Frame { origin, u, v }) => {
-            Some(match (plane_name(u, v), written_point(origin)) {
+            let written = |xs: &[VarId; 3], dim| xs.map(|var| doc.written(&Expr::var(var, dim)));
+            let (origin, u, v) = (
+                written(origin, Dimension::Length),
+                written(u, Dimension::Scalar),
+                written(v, Dimension::Scalar),
+            );
+            Some(match (plane_name(&u, &v), written_point(&origin)) {
                 (Some(plane), Some(at)) => format!("{plane} at {at}"),
                 (Some(plane), None) => format!("{plane}, origin driven"),
                 (None, Some(at)) => format!("at {at}"),

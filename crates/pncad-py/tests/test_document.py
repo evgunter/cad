@@ -52,6 +52,13 @@ from pncad import (
 from spoken import tag
 
 
+def strands(doc):
+    """The last edit's maintenance without the anonymous variables it
+    retired: a rewrite retires the variables its old values were
+    written in (VR7), which a row about names does not ask about."""
+    return [row for row in doc.last_maintenance if row.variant != "anonymous_var_removed"]
+
+
 def unit_box(doc, width, depth, height):
     """Insert a rectangular prism rooted at the origin."""
     return slab(doc, (0 * m, width), (0 * m, depth), (0 * m, height))
@@ -871,22 +878,26 @@ class TestPersistence(unittest.TestCase):
         """A unit box's save text with the extrude's distance expression
         replaced by `wire`.
 
+        A slot holds a variable's id, so a saved expression lives in a
+        definition: the distance is written as a formula, which the edit
+        door lowers to an anonymous defined variable, and that
+        variable's definition is what is swapped.
+
         Structural rather than a string substitution: an expression's
         spelling carries whatever fields the wire form has today, so a
         needle written out in full would stop matching without failing,
         and an assertion nothing reaches asserts nothing. This one fails
-        the test if the slot it aims at is gone.
+        the test if the definition it aims at is gone.
         """
         doc = Doc()
-        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        doc.apply(DocEdit.set_param(box, "distance", doc.parse_formula("0.5 m + 0.5 m")))
+        var = doc.slot(box, "distance")
         header, body_text = doc.save().split("\n", 1)
         body = json.loads(body_text)
-        swapped = 0
-        for node in body["snapshot"]["nodes"].values():
-            if "Extrude" in node:
-                node["Extrude"]["distance"] = wire
-                swapped += 1
-        self.assertEqual(swapped, 1, "the fixture has one extrude to tamper")
+        held = body["snapshot"]["vars"][str(int(var.hex, 16))]
+        self.assertIn("Defined", held["def"], "the distance is a defined variable to tamper")
+        held["def"]["Defined"] = wire
         return header + "\n" + json.dumps(body)
 
     def test_a_header_that_disagrees_with_the_snapshot_names_both_ids(self):
@@ -1745,7 +1756,9 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[4]: s[3], new[5]: s[4]}
         doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
-        self.assertEqual(doc.last_maintenance, [])
+        # The reshaped program's values are variables of its own: the
+        # old ones' retirement is all the edit reports.
+        self.assertEqual(strands(doc), [])
         self.assertEqual(evaluate(doc).resolve(rim).status, "resolved")
         self.assertEqual(doc.step(profile, 0, new[4]), s[3], "the kept step keeps its id")
         self.assertNotIn(doc.step(profile, 0, new[2]), s, "the new leg mints fresh")
@@ -1770,7 +1783,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[5]: s[4]}
         doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
-        (row,) = doc.last_maintenance
+        (row,) = strands(doc)
         self.assertEqual(row.variant, "strand")
         self.assertEqual(row.node, fillet)
         self.assertEqual(row.name, rim)

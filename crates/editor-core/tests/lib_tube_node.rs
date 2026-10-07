@@ -90,6 +90,7 @@ fn spine_doc(
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: axis_dir.map(scl),
             })),
+            fresh: Vec::new(),
         },
     );
     let spine = *doc.ids().last().expect("the datum is there");
@@ -97,6 +98,7 @@ fn spine_doc(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(build(spine)),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.ids().last().expect("the tube is there");
@@ -211,11 +213,19 @@ fn the_two_kinds_share_every_slot_but_the_wall() {
 
     // One DAG edge each: the spine. A tube has no profile operand.
     assert_eq!(
-        editor_core::test_support::stored(&solid).inputs(),
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &solid
+        )
+        .inputs(),
         vec![RecipeNodeId::new(0, 0)]
     );
     assert_eq!(
-        editor_core::test_support::stored(&hollow).inputs(),
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &hollow
+        )
+        .inputs(),
         vec![RecipeNodeId::new(0, 0)]
     );
     // And no payload names: a tube references no stable name, so a
@@ -437,6 +447,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
             })),
+            fresh: Vec::new(),
         },
     );
     let spine = *doc.ids().last().expect("datum");
@@ -450,6 +461,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
                 window: arc(t0, t1),
                 minor_radius: len(outer),
             }),
+            fresh: Vec::new(),
         },
     );
     let solid = *doc.ids().last().expect("solid");
@@ -464,6 +476,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
                 minor_radius: len(outer),
                 wall: len(wall),
             }),
+            fresh: Vec::new(),
         },
     );
     let hollow = *doc.ids().last().expect("hollow");
@@ -773,6 +786,7 @@ fn a_spine_that_is_not_an_axis_refuses_at_the_operand() {
             node: Box::new(Node::Datum(Datum::Point {
                 position: [len(0.0), len(0.0), len(0.0)],
             })),
+            fresh: Vec::new(),
         },
     );
     let point = *doc.ids().last().expect("datum point");
@@ -786,6 +800,7 @@ fn a_spine_that_is_not_an_axis_refuses_at_the_operand() {
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.ids().last().expect("tube");

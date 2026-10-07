@@ -46,7 +46,10 @@ fn doc_with_a_crossing() -> ProfileDoc {
     let push = |doc: &ProfileDoc, node| {
         apply(
             doc,
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node,
+                fresh: Vec::new(),
+            },
             Tol::witness(),
             &RefusingReach,
         )
@@ -138,6 +141,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
         &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema-empty"), Tol::witness()),
         &DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(doc_ref)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

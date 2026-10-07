@@ -284,6 +284,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(frame_at(0.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -291,6 +292,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(quad(f0))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -302,6 +304,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
                 distance: Formula::named(VarName::from_static("d"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -309,6 +312,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(frame_at(1.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -316,6 +320,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(quad(f1))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -327,6 +332,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
                 distance: len(1.5),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -339,6 +345,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
                 b: e1,
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -347,6 +354,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(frame_at(5.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -354,6 +362,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(quad(f_doomed))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -366,6 +375,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: e1,
             slot: SlotId::Distance,
             expr: len(2.0),
+            fresh: Vec::new(),
         },
     );
     // 5 SetExpression (whole-slot path)
@@ -392,6 +402,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
                     spacing: len(4.0),
                 },
             }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -401,6 +412,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: pat,
             slot: SlotId::Count,
             expr: Formula::count(3),
+            fresh: Vec::new(),
         },
     );
     // 7 ReWitness

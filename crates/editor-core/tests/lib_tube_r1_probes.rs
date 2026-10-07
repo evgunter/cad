@@ -51,6 +51,7 @@ fn axis_doc() -> (ProfileDoc, RecipeNodeId) {
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: [scl(0.0), scl(0.0), scl(1.0)],
             })),
+            fresh: Vec::new(),
         },
     );
     let spine = *doc.ids().last().expect("datum");
@@ -92,6 +93,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
                     minor_radius: len(outer),
                     wall: len(wall),
                 }),
+                fresh: Vec::new(),
             },
         );
         let tube = *doc.ids().last().expect("tube");
@@ -125,6 +127,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
                 window: TubeWindow::Full,
                 minor_radius: len(0.3),
             }),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.ids().last().expect("tube");
@@ -155,6 +158,7 @@ fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(mk()),
+            fresh: Vec::new(),
         },
     );
     let first = *doc.ids().last().expect("first tube");
@@ -162,6 +166,7 @@ fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(mk()),
+            fresh: Vec::new(),
         },
     );
     let second = *doc.ids().last().expect("second tube");
@@ -209,6 +214,7 @@ fn a_hollow_full_rings_cavity_faces_are_named_totally() {
                 minor_radius: len(0.5),
                 wall: len(0.125),
             }),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.ids().last().expect("tube");

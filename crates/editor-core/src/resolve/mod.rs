@@ -2165,7 +2165,7 @@ pub fn apply_with_names<T: Decide>(
     // unchecked group silently, which is the one outcome the split is
     // there to prevent.
     match edit {
-        DocEdit::InsertNode { node } => names.extend(node.payload_names()),
+        DocEdit::InsertNode { node, .. } => names.extend(node.payload_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::SetDeclare { pairs, .. } => {
             names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
@@ -2456,21 +2456,13 @@ fn structural_param_change(
                 continue;
             }
             let (ea, eb) = (a.expr(slot), b.expr(slot));
-            let expr_changed = match (ea, eb) {
-                (Some(x), Some(y)) => !x.bit_eq(y),
-                (None, None) => false,
-                _ => true,
-            };
-            if expr_changed {
+            if ea != eb {
                 return Some((id, slot));
             }
-            // A changed Count variable the slot reads.
-            if let Some(expr) = eb {
-                let mut reads = Vec::new();
-                expr.var_reads(&mut reads);
-                if reads.iter().any(|(var, _)| changed_vars.contains(var)) {
-                    return Some((id, slot));
-                }
+            // A changed Count variable the slot reads, directly or
+            // through a definition (`DocDiff::vars` closes over them).
+            if eb.is_some_and(|var| changed_vars.contains(var)) {
+                return Some((id, slot));
             }
         }
     }
@@ -2524,7 +2516,7 @@ fn continuous_only_change(
         let (Some(dst), Some(src)) = (patched.expr_mut(slot), new.expr(slot)) else {
             return false; // slot sets disagree: structural change
         };
-        *dst = src.clone();
+        *dst = *src;
     }
     patched.bit_eq(new)
 }

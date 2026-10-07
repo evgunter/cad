@@ -314,6 +314,7 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
             node: pat,
             slot: SlotId::Count,
             expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev = rerun(&doc, &prior_ev);
@@ -404,6 +405,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
             node: a,
             slot: SlotId::Distance,
             expr: len(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);

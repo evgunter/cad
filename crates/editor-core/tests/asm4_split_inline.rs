@@ -82,6 +82,7 @@ fn two_group_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>)
             offset: Some(editor_core::Placement::literal(
                 &editor_core::Frame::translation([5.0, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
     );
     (store, doc, ids)
@@ -707,6 +708,7 @@ fn row3_further_typed_refusals() {
             offset: Some(editor_core::Placement::literal(
                 &editor_core::Frame::translation([3.0, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
     );
     match inline(&host2, inst2, &resolver, Tol::witness()) {
@@ -783,6 +785,7 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
                     offset: Some(editor_core::Placement::literal(
                         &editor_core::Frame::translation([dx, 0.0, 0.0]),
                     )),
+                    fresh: Vec::new(),
                 },
             );
             doc2 = next;
@@ -955,6 +958,7 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
                 offset: Some(editor_core::Placement::literal(
                     &editor_core::Frame::translation([dx, 0.0, 0.0]),
                 )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1722,6 +1726,7 @@ fn reshaped_component(
                 .map(editor_core::LoopProgram::authored)
                 .collect(),
             ids,
+            fresh: Vec::new(),
         },
     );
     (doc, [f2, p2, e2], face_frame)

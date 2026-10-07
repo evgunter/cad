@@ -237,6 +237,7 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 5.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
 
@@ -288,6 +289,7 @@ fn row2_one_part_two_instances_one_evaluation() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 9.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
 
@@ -319,6 +321,7 @@ fn row2_one_part_two_instances_one_evaluation() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 20.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
@@ -357,6 +360,7 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 0.0, 9.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -366,6 +370,7 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 9.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -441,6 +446,7 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 5.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -561,6 +567,7 @@ fn row4_set_offset_moves_undoes_and_refuses() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 7.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let after = run(&moved, &opts);
@@ -592,6 +599,7 @@ fn row4_set_offset_moves_undoes_and_refuses() {
         &DocEdit::SetOffset {
             instance: ids[0],
             offset: Some(editor_core::Placement::literal(&mirror)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -624,6 +632,7 @@ fn row4_set_offset_moves_undoes_and_refuses() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -763,6 +772,7 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0);
@@ -794,6 +804,7 @@ fn row6_placement_is_part_of_the_content_key() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 4.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let second = evaluate::<f64>(
@@ -849,6 +860,7 @@ fn row7_instantiate_and_placement_round_trip() {
                 )
                 .expect("a literal axis has a definite direction"),
             )),
+            fresh: Vec::new(),
         },
     );
 
@@ -896,6 +908,7 @@ fn row7_the_validator_refuses_gauge_states_the_edits_cannot_produce() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");

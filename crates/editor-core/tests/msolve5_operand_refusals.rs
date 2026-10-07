@@ -247,6 +247,7 @@ fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         doc,
         DocEdit::InsertNode {
             node: Box::new(mate),
+            fresh: Vec::new(),
         },
     );
     (doc, id.expect("the mate mints"))

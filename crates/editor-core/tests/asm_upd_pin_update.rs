@@ -134,6 +134,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
                     offset: Some(editor_core::Placement::literal(&Frame::translation([
                         dx, 0.0, 0.0,
                     ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
@@ -796,6 +797,7 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
         offset: Some(editor_core::Placement::literal(&Frame::translation([
             1.0, 2.0, 3.0,
         ]))),
+        fresh: Vec::new(),
     };
     let update = DocEdit::UpdateReference {
         node: ids[0],

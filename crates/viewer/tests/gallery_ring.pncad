@@ -3,230 +3,439 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
   "snapshot": {
     "id": "1c20a55875fd2760f4d43eb67ee0d135",
     "mint": {
-      "chain": "ac52f34ad69d613cbaaea17696b98cd3ee0d62d8014d9a7bf0f3e59cab55889f",
+      "chain": "095ca88d7b634b11f98908db809b5c785d48fb14035c7a784ae31cc8a07ba1c4",
       "log": [
         {
-          "node": "1:e4b910a32c253755"
+          "node": 674599369812691729
         },
         {
-          "node": "2:a6dbda3247182970"
+          "var": 1091871188827065336
         },
         {
-          "step": "3:589d2955c5c624d9"
+          "var": 1392255783914758375
         },
         {
-          "step": "4:e98c9e215f2e0c55"
+          "node": 1506345327853966809
         },
         {
-          "node": "5:8ce1da495b6c13cc"
+          "var": 3401573372380402825
         },
         {
-          "node": "6:ac52f34ad69d613c"
+          "var": 3448947394207089721
+        },
+        {
+          "step": 4167551575891191188
+        },
+        {
+          "var": 4875129520599735669
+        },
+        {
+          "var": 5148695566016437331
+        },
+        {
+          "var": 5514680444773879897
+        },
+        {
+          "var": 6691751588830927969
+        },
+        {
+          "var": 8408112078831007610
+        },
+        {
+          "var": 10005145576708338578
+        },
+        {
+          "node": 10539758160114331258
+        },
+        {
+          "step": 10934490259634767407
+        },
+        {
+          "var": 11124874396375259744
+        },
+        {
+          "node": 11816360271807690027
+        },
+        {
+          "var": 12293544745038946360
+        },
+        {
+          "var": 12651911651089633281
+        },
+        {
+          "var": 13130763978277447718
+        },
+        {
+          "var": 14437251982142344510
+        },
+        {
+          "var": 17066213266012501434
+        },
+        {
+          "var": 17157997324443552470
+        },
+        {
+          "var": 17943597815277453968
+        },
+        {
+          "var": 18113459437140218156
+        },
+        {
+          "var": 18354867158737954631
         }
       ]
     },
     "nodes": {
-      "1:e4b910a32c253755": {
+      "674599369812691729": {
+        "Revolve": {
+          "profile": 10539758160114331258,
+          "axis": 11816360271807690027,
+          "angle": 11124874396375259744
+        }
+      },
+      "1506345327853966809": {
         "Datum": {
           "Frame": {
             "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              }
+              13130763978277447718,
+              8408112078831007610,
+              18113459437140218156
             ],
             "u": [
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
+              17157997324443552470,
+              17943597815277453968,
+              3448947394207089721
             ],
             "v": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
+              6691751588830927969,
+              12651911651089633281,
+              1392255783914758375
             ]
           }
         }
       },
-      "2:a6dbda3247182970": {
+      "10539758160114331258": {
         "Profile": {
-          "plane": "1:e4b910a32c253755",
+          "plane": 1506345327853966809,
           "loops": [
             {
               "Circle": {
                 "centre": [
-                  {
-                    "Literal": {
-                      "value": 0.3,
-                      "dim": "Length",
-                      "unit": "mm"
-                    }
-                  },
-                  {
-                    "Literal": {
-                      "value": 0.0,
-                      "dim": "Length",
-                      "unit": "mm"
-                    }
-                  }
+                  1091871188827065336,
+                  3401573372380402825
                 ],
-                "radius": {
-                  "Literal": {
-                    "value": 0.07,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
+                "radius": 5148695566016437331
               }
             },
             {
               "Circle": {
                 "centre": [
-                  {
-                    "Literal": {
-                      "value": 0.3,
-                      "dim": "Length",
-                      "unit": "mm"
-                    }
-                  },
-                  {
-                    "Literal": {
-                      "value": 0.0,
-                      "dim": "Length",
-                      "unit": "mm"
-                    }
-                  }
+                  14437251982142344510,
+                  12293544745038946360
                 ],
-                "radius": {
-                  "Literal": {
-                    "value": 0.05,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
+                "radius": 18354867158737954631
               }
             }
           ],
           "ids": [
             [
-              "3:589d2955c5c624d9"
+              4167551575891191188
             ],
             [
-              "4:e98c9e215f2e0c55"
+              10934490259634767407
             ]
           ]
         }
       },
-      "5:8ce1da495b6c13cc": {
+      "11816360271807690027": {
         "Datum": {
           "AxisInPlane": {
-            "plane": "1:e4b910a32c253755",
+            "plane": 1506345327853966809,
             "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              }
+              10005145576708338578,
+              4875129520599735669
             ],
             "direction": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
+              17066213266012501434,
+              5514680444773879897
             ]
           }
         }
+      }
+    },
+    "order": [
+      1506345327853966809,
+      10539758160114331258,
+      11816360271807690027,
+      674599369812691729
+    ],
+    "roots": [
+      674599369812691729
+    ],
+    "vars": {
+      "1091871188827065336": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.3,
+              "display_unit": "mm"
+            }
+          }
+        }
       },
-      "6:ac52f34ad69d613c": {
-        "Revolve": {
-          "profile": "2:a6dbda3247182970",
-          "axis": "5:8ce1da495b6c13cc",
-          "angle": {
-            "Literal": {
-              "value": 6.283185307179586,
+      "1392255783914758375": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "3401573372380402825": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "3448947394207089721": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "4875129520599735669": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "5148695566016437331": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.07,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "5514680444773879897": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "6691751588830927969": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "8408112078831007610": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "10005145576708338578": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "11124874396375259744": {
+        "kind": "Angle",
+        "def": {
+          "Free": {
+            "Continuous": {
               "dim": "Angle",
-              "unit": "pi rad"
+              "value": 6.283185307179586,
+              "display_unit": "pi rad"
+            }
+          }
+        }
+      },
+      "12293544745038946360": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "12651911651089633281": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "13130763978277447718": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "14437251982142344510": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.3,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "17066213266012501434": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "17157997324443552470": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "17943597815277453968": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "18113459437140218156": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "mm"
+            }
+          }
+        }
+      },
+      "18354867158737954631": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.05,
+              "display_unit": "mm"
             }
           }
         }
       }
     },
-    "roots": [
-      "6:ac52f34ad69d613c"
+    "var_order": [
+      13130763978277447718,
+      8408112078831007610,
+      18113459437140218156,
+      17157997324443552470,
+      17943597815277453968,
+      3448947394207089721,
+      6691751588830927969,
+      12651911651089633281,
+      1392255783914758375,
+      1091871188827065336,
+      3401573372380402825,
+      5148695566016437331,
+      14437251982142344510,
+      12293544745038946360,
+      18354867158737954631,
+      10005145576708338578,
+      4875129520599735669,
+      17066213266012501434,
+      5514680444773879897,
+      11124874396375259744
     ],
-    "vars": {},
     "epsilon": 1e-9,
     "witnesses": {},
     "metadata": {},

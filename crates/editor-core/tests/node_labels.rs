@@ -385,6 +385,7 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
                 members: vec![extrude, extrude],
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
     );
     let EditError::DuplicateInput { node, input } = &twice else {
@@ -480,8 +481,9 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         &editor_core::RefusingReach,
     )
     .expect("a name is not an edge, so the delete lands");
-    let [Maintenance::Strand { node, name, .. }] = applied.maintenance.as_slice() else {
-        panic!("one strand, got {:?}", applied.maintenance);
+    let reported = crate::fixture::without_anonymous(&applied.maintenance);
+    let [Maintenance::Strand { node, name, .. }] = reported.as_slice() else {
+        panic!("one strand, got {reported:?}");
     };
     assert_eq!((node.id(), name.name()), (carrier, &named));
     assert_eq!(
@@ -490,7 +492,10 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         "the minting node is spoken from the document that still held it"
     );
     assert_eq!(
-        applied.maintenance[0].to_string().split(';').next(),
+        crate::fixture::without_anonymous(&applied.maintenance)[0]
+            .to_string()
+            .split(';')
+            .next(),
         Some(
             format!(
                 "Datum frame (on face) \"mount\" ({}) carries a name for the side wall over \
@@ -782,6 +787,7 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
             offset: Some(editor_core::Placement::literal(
                 &editor_core::Frame::translation([3.0, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
     );
     let refused = inline(&placed, inst, &resolver, tol).expect_err("a placed plain part");
@@ -1369,6 +1375,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
                 members: vec![extrude, extrude],
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
     );
     let roots = refusal(

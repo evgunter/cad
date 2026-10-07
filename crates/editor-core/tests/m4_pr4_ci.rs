@@ -41,7 +41,14 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// ids, `Borders` on the ambiguous row's piece, `Ends` on the probed rim
 /// pieces) as well as with a row's diagnosis; a move that keeps every
 /// row's shape is a spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0xa766_eaa3_97bb_cfca;
+///
+/// **Re-pinned for INTENT-LITERALS PR C** (a slot holds a variable):
+/// every node is minted from slots that hold variable ids, a typed
+/// value's variable drawn from what it holds, so every node id moved
+/// and with it every row this hashes. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched across the change.
+const DIAGNOSIS_DIGEST: u64 = 0xe7a3_ecce_9a24_56f2;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

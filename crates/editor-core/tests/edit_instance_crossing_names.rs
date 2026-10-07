@@ -241,6 +241,7 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
                 None,
                 Some(editor_core::Placement::IDENTITY),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -471,6 +471,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::instantiate_part(doc_ref)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -513,6 +514,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

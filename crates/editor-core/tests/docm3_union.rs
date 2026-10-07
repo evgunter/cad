@@ -7,7 +7,6 @@
 use crate::fixture;
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
-use editor_core::Formula;
 
 use crate::corpus::body_of;
 use editor_core::{
@@ -246,6 +245,7 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(node.clone()),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -448,8 +448,10 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .iter()
         .map(|id| DocEdit::InsertNode {
             node: Box::new(crate::fixture::as_authored(
+                &doc,
                 doc.node(*id).expect("an ordered node"),
             )),
+            fresh: Vec::new(),
         })
         .collect();
     edits.push(DocEdit::SetMembers {
@@ -645,12 +647,15 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .collect();
     assert_eq!(blends.len(), 2, "the box-edge blend and the rim blend");
     let before = run(&doc);
-    let (rim_target, rim_radius, rims) = match doc.node(blends[1]) {
+    // The radius as written: deleting the blend retires the anonymous
+    // variable its radius reads, so the re-authored blend writes it
+    // again.
+    let (rim_target, rim_radius, rims) = match doc.node(blends[1]).map(|n| n.written(&doc)) {
         Some(Node::Fillet {
             target,
             radius,
             selection,
-        }) => (*target, radius.clone(), selection.clone()),
+        }) => (target, radius, selection),
         other => panic!("the die's last node is the rim blend, got {other:?}"),
     };
     assert_eq!(rims.len(), 42, "the die selects two rim arcs per pip");
@@ -723,7 +728,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .doc;
         let (edited, rim) = insert(
             edited,
-            Node::fillet(rim_target, Formula::from(&rim_radius), kept_rims.clone()),
+            Node::fillet(rim_target, rim_radius.clone(), kept_rims.clone()),
         );
         let after = evaluate::<f64>(
             &edited,
@@ -1085,6 +1090,7 @@ fn a_one_section_loft_is_refused_at_the_insert_door() {
                     profiles: vec![profiles[0]],
                     v_degree: editor_core::Formula::count(1),
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

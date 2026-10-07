@@ -270,6 +270,25 @@ pub(crate) fn lower(scope: ParamScope, defs: Definitions<'_, '_>, expr: &Expr) -
     ParamSource::from_lowered(&bytes)
 }
 
+/// **The lowered identity of one slot**, the variable it reads (VR8):
+/// [`lower`] of a lone reader of `var`, so a slot reading a free
+/// variable lowers to that variable and one reading a defined variable
+/// to its expansion.
+pub(crate) fn lower_var(scope: ParamScope, defs: Definitions<'_, '_>, var: VarId) -> ParamSource {
+    lower(scope, defs, &slot_reader(var))
+}
+
+/// [`feed_content_key`] of a slot reading `var`.
+pub(crate) fn feed_var(h: &mut KeyHasher, defs: Definitions<'_, '_>, var: VarId) {
+    feed_content_key(h, defs, &slot_reader(var));
+}
+
+/// A lone reader of `var`, as a slot's identity reads it: the encoding
+/// writes no reader's dimension, so the one it is built at is moot.
+fn slot_reader(var: VarId) -> Expr {
+    Expr::var(var, crate::expr::Dimension::Scalar)
+}
+
 /// **The expression half of a slot's identity, written into a content
 /// key.** Scope-free on purpose: the key is compared against a prior
 /// evaluation of the same document, so the table is a constant of the
@@ -355,8 +374,8 @@ pub fn invert<P: crate::ProfilePayload>(
     for node in doc.ids() {
         let Some(n) = doc.node(node) else { continue };
         for slot in n.slots() {
-            let Some(expr) = n.expr(slot) else { continue };
-            if lower(scope, &defs, expr) == *token {
+            let Some(&var) = n.expr(slot) else { continue };
+            if lower_var(scope, &defs, var) == *token {
                 return Some(crate::expr::ExprPath {
                     node,
                     slot,
@@ -586,7 +605,7 @@ pub(crate) fn profile_radius_tokens<T: Real>(
         .map(|loop_| {
             loop_
                 .iter()
-                .map(|expr| expr.as_ref().map(|e| lower(scope, defs, e)))
+                .map(|var| var.map(|var| lower_var(scope, defs, var)))
                 .collect()
         })
         .collect()

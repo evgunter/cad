@@ -108,6 +108,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(assertion(frame_node, len(1.0))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -141,6 +142,7 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(assertion(measure, fixture::ang(0.5))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -179,6 +181,7 @@ fn saved_assertion(
         doc,
         &DocEdit::InsertNode {
             node: Box::new(assertion(measure, bound)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -214,14 +217,12 @@ fn repoint_measure(
 /// read is the DIMENSION rule's.
 fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
     doctored(text, |wire| {
-        let lit = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
-        assert_eq!(
-            lit["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at a length bound"
+        crate::wire::retype_slot_var(
+            wire,
+            |wire| &wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"],
+            "Angle",
+            "rad",
         );
-        lit["dim"] = serde_json::json!("Angle");
-        lit["unit"] = serde_json::json!("rad");
     })
 }
 
@@ -347,6 +348,7 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(non_finite),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -631,6 +633,7 @@ fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -699,6 +702,7 @@ fn an_improper_placement_is_refused_at_both_doors() {
         &DocEdit::SetOffset {
             instance: ids[0],
             offset: Some(editor_core::Placement::literal(&mirror)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -744,6 +748,7 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
         &DocEdit::SetOffset {
             instance: ids[0],
             offset: Some(editor_core::Placement::literal(&stretched)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -822,6 +827,7 @@ fn saved_offset(doc: &editor_core::ProfileDoc, node: RecipeNodeId, frame: Frame)
         DocEdit::SetOffset {
             instance: node,
             offset: Some(editor_core::Placement::literal(&frame)),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");

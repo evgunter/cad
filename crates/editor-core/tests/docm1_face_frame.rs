@@ -596,6 +596,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
                 node: frame,
                 slot: SlotId::Spin,
                 expr,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

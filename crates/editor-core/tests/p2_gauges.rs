@@ -203,7 +203,15 @@ pub(crate) fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
@@ -309,6 +317,7 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     );
     let mate = DocEdit::InsertNode {
         node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)))),
+        fresh: Vec::new(),
     };
     let applied = apply(&doc, &mate, Tol::witness(), &editor_core::RefusingReach)
         .expect("a mate with no rider asks no store");
@@ -329,9 +338,11 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     let log = vec![
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(p.base)),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(p.top)),
+            fresh: Vec::new(),
         },
         mate,
     ];
@@ -404,6 +415,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
             },
             DocEdit::InsertNode {
                 node: Box::new(mate),
+                fresh: Vec::new(),
             },
         ],
         "the record is the group's re-gauges in document order, then the insert"
@@ -1021,7 +1033,10 @@ fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
     let out = split(&checked, &[base, top, mate]).expect("a checked member crosses");
     assert_eq!(
         offset_of(&out.part, out.node_map[&top]),
-        Some(editor_core::test_support::stored_placement(&solved)),
+        Some(editor_core::test_support::stored_placement(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &solved
+        )),
         "the member's checked offset, verbatim"
     );
 
@@ -1243,6 +1258,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
                 class,
                 alignment,
             }),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -1498,7 +1514,10 @@ fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
         offset_of(&out.part, out.node_map[&ids[1]]),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the top's checked offset survives the carry"
     );
     for (source, part) in offsets_through(&doc, |id| out.node_map[&id], &out.part) {
@@ -1529,7 +1548,10 @@ fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
         offset_of(&back.doc, through(ids[1])),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the top's checked offset survives the splice"
     );
     for (source, spliced) in offsets_through(&part, through, &back.doc) {
@@ -1614,7 +1636,10 @@ fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
         offset_of(&back.doc, back.node_map[&out.node_map[&ids[1]]]),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the round trip holds the checked offset"
     );
 }
@@ -1670,13 +1695,19 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
         assert_eq!(
             offset_of(&out.part, out.node_map[&i]),
             want.as_ref()
-                .map(editor_core::test_support::stored_placement),
+                .map(|p| editor_core::test_support::stored_placement(
+                    &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                    p
+                )),
             "{what} in the part"
         );
         assert_eq!(
             offset_of(&back.doc, host(i)),
             want.as_ref()
-                .map(editor_core::test_support::stored_placement),
+                .map(|p| editor_core::test_support::stored_placement(
+                    &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                    p
+                )),
             "{what} in the host"
         );
     }

@@ -239,6 +239,7 @@ pub fn document() -> CorpusDoc {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(PIP_Y_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: pip,
     }

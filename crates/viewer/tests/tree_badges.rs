@@ -1051,6 +1051,7 @@ fn child_band_refusal_rows() {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,

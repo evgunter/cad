@@ -59,6 +59,7 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -116,6 +117,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                 loops: vec![outer],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let outer_p = crate::fixture::newest(&doc);
@@ -127,6 +129,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                 distance: len(0.1),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let plate = crate::fixture::newest(&doc);
@@ -143,6 +146,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
         );
         let hole_p = crate::fixture::newest(&doc);
@@ -154,6 +158,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                     distance: len(0.1),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
         );
         holes[i] = crate::fixture::newest(&doc);
@@ -240,6 +245,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                     loops: vec![square()],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
         );
         let profile = crate::fixture::newest(&doc);
@@ -251,6 +257,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                     distance: len(1.0),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
         );
         slabs.push(crate::fixture::newest(&doc));
@@ -295,6 +302,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
         );
         let profile = crate::fixture::newest(&doc);
@@ -306,6 +314,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                     distance: len(0.5),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
         );
         prisms.push(crate::fixture::newest(&doc));
@@ -371,6 +380,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::measure(web, walls).expect("both indices address a reference")),
+            fresh: Vec::new(),
         },
     );
     let measure = crate::fixture::newest(&doc);
@@ -382,6 +392,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 bound: len(MIN_WEB),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = crate::fixture::newest(&doc);
@@ -536,6 +547,7 @@ fn cylinder_distance_is_the_axis_separation() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let (d, dim) = measured(&eval(&doc), last(&doc));
@@ -584,6 +596,7 @@ fn plane_angle_between_opposed_caps_is_pi() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let (a, dim) = measured(&eval(&doc), last(&doc));
@@ -624,6 +637,7 @@ fn a_plane_gap_over_disjoint_slabs_is_positive_both_ways() {
                     )
                     .expect("indices in range"),
                 ),
+                fresh: Vec::new(),
             },
         );
         let (g, dim) = measured(&eval(&doc), last(&doc));
@@ -657,6 +671,7 @@ fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
                     )
                     .expect("indices in range"),
                 ),
+                fresh: Vec::new(),
             },
         );
         measured(&eval(&doc), last(&doc)).0
@@ -702,6 +717,7 @@ fn the_gap_sign_convention_walks_all_three_regimes() {
                     )
                     .expect("indices in range"),
                 ),
+                fresh: Vec::new(),
             },
         );
         let (g, dim) = measured(&eval(&doc), last(&doc));
@@ -758,6 +774,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::measure(over_zero, Vec::new()).expect("no references to bound")),
+            fresh: Vec::new(),
         },
     );
     let measure = last(&doc);
@@ -769,6 +786,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = last(&doc);
@@ -819,6 +837,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 }],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let disc = last(&doc);
@@ -834,6 +853,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let extrude = last(&doc);
@@ -847,7 +867,8 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 ..
             }
         ),
-        "the slot lane refuses non-finite, got {err:?}"
+        "the slot lane refuses non-finite — the slot reads the variable its \
+         formula defines, whose refusal is the slot's own — got {err:?}"
     );
 }
 
@@ -880,6 +901,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                 ])],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let square_p = last(&doc);
@@ -891,6 +913,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let solid = crate::fixture::newest(&doc);
@@ -905,6 +928,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                     angle: ang(0.0),
                 },
             )),
+            fresh: Vec::new(),
         },
     );
     let placed = crate::fixture::newest(&doc);
@@ -938,6 +962,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let (d, _) = measured(&eval(&doc), last(&doc));
@@ -1017,6 +1042,7 @@ fn a_reference_that_stops_resolving_refuses_typed() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -1047,6 +1073,7 @@ fn deleting_a_referenced_node_is_refused() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let err = apply(
@@ -1084,6 +1111,7 @@ fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -1119,6 +1147,7 @@ fn a_mixed_carrier_pair_refuses() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -1153,6 +1182,7 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let measure = last(&doc);
@@ -1164,6 +1194,7 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
                 bound: len(0.1),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = last(&doc);

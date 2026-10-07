@@ -14,7 +14,7 @@ use crate::distribution::{Distribution, DistributionFault, DistributionField};
 use crate::expr::{Dimension, Expr, ExprPath, ParamValue, VarEnv};
 use crate::ident::DocumentId;
 use crate::names::StableName;
-use crate::node::{Node, RecipeNodeId};
+use crate::node::{Node, RecipeNodeId, SlotId};
 use crate::var::{Var, VarId};
 use geom_core::Tol;
 
@@ -1188,17 +1188,63 @@ impl<P> Doc<P> {
     /// the anonymous variables read by no node and by no definition of
     /// a variable still standing — so a defined variable comes before
     /// the variables only its definition read.
+    /// **Whether `var` is a typed value**: an anonymous free variable,
+    /// what a value written at a slot lowers to. A value gesture or a
+    /// re-notation on a slot reading one moves it in place, keeping its
+    /// identity and its distribution (INTENT-LITERALS Q6).
+    #[must_use]
+    pub fn is_typed_value(&self, var: VarId) -> bool {
+        !self.var_names.contains_key(&var) && self.free(var).is_some()
+    }
+
+    /// **The anonymous variables [`Node::written`] would not reproduce**:
+    /// one read more than once — by two slots, as a fresh entry shared
+    /// within one edit, or by a slot and a definition — which a written
+    /// re-insert splits into one per reader, and one that carries a
+    /// distribution, which a value written at a slot cannot carry.
+    /// Rebuilding a document by re-inserting its nodes as written is
+    /// the document only where this is empty and no anonymous variable
+    /// was value-edited after its insert (whose mint read the old
+    /// value); the last is the caller's to check, by the ids.
+    ///
+    /// [`Node::written`]: crate::Node::written
+    pub fn written_would_not_reproduce(&self) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut reads: BTreeMap<VarId, usize> = BTreeMap::new();
+        for node in self.nodes.values() {
+            for &var in node.exprs() {
+                *reads.entry(var).or_default() += 1;
+            }
+        }
+        for held in self.vars.values() {
+            if let crate::VarDef::Defined(defined) = held.def() {
+                let mut read = Vec::new();
+                defined.var_reads(&mut read);
+                for (var, _) in read {
+                    *reads.entry(var).or_default() += 1;
+                }
+            }
+        }
+        self.vars
+            .keys()
+            .copied()
+            .filter(|var| !self.var_names.contains_key(var))
+            .filter(|var| {
+                reads.get(var).copied().unwrap_or(0) > 1
+                    || self.free(*var).and_then(FreeVar::distribution).is_some()
+            })
+            .collect()
+    }
+
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,
     {
         let mut node_read = BTreeSet::new();
         for node in self.nodes.values() {
-            for expr in node.exprs() {
-                let mut reads = Vec::new();
-                expr.var_reads(&mut reads);
-                node_read.extend(reads.into_iter().map(|(var, _)| var));
-            }
+            node_read.extend(node.exprs().into_iter().copied());
         }
         let edges = self.definition_edges();
         let unheld = |at: usize| {
@@ -1363,7 +1409,7 @@ impl<P> Doc<P> {
     ///
     /// The first name the document does not hold at the kind it is
     /// read at ([`crate::NameFault`]).
-    pub fn lowered(&self, formula: &crate::Formula) -> Result<Expr, crate::NameFault> {
+    pub fn lowered(&self, formula: &crate::Formula) -> Result<Expr, crate::LowerFault> {
         formula.lower(&|name| self.lowering_scope(name))
     }
 
@@ -1592,17 +1638,125 @@ impl<P> Doc<P> {
         }
     }
 
-    /// The expression subtree an [`ExprPath`] addresses, or `None` if
-    /// the node is gone, the slot absent, or the path off the tree
-    /// (spec D5).
-    pub fn expr_at(&self, path: &ExprPath) -> Option<&Expr>
+    /// **The variable a node's slot reads** (VARIABLES-DESIGN VR4), or
+    /// `None` if the node is gone or does not carry the slot.
+    pub fn slot(&self, node: RecipeNodeId, slot: SlotId) -> Option<VarId>
     where
         P: crate::ProfilePayload,
     {
-        self.nodes
-            .get(&path.node)?
-            .expr(path.slot)?
+        self.nodes.get(&node)?.expr(slot).copied()
+    }
+
+    /// **The free variable a node's slot reads**, or `None` where the
+    /// slot reads a defined variable, a variable the document no longer
+    /// holds, or no slot is there.
+    pub fn slot_free(&self, node: RecipeNodeId, slot: SlotId) -> Option<&FreeVar>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.free(self.slot(node, slot)?)
+    }
+
+    /// **A continuous slot's written value**: the value its free
+    /// variable holds, in canonical units, and the unit it was written
+    /// in. `None` where [`Self::slot_free`] is, and for a count.
+    pub fn slot_value(&self, node: RecipeNodeId, slot: SlotId) -> Option<(f64, quantity::UnitDef)>
+    where
+        P: crate::ProfilePayload,
+    {
+        match *self.slot_free(node, slot)? {
+            FreeVar::Continuous {
+                value,
+                display_unit,
+                ..
+            } => Some((value, display_unit.def())),
+            FreeVar::Count { .. } => None,
+        }
+    }
+
+    /// **What a node's slot reads, as written**: a reader of its
+    /// variable, each anonymous variable it reaches replaced by what it
+    /// holds — a free one by its value in the unit it was written in, a
+    /// defined one by its definition, expanded the same way — so the
+    /// formula the slot was written as, every name read by id. `None`
+    /// if the node is gone or the slot absent; a reader of the slot's
+    /// variable where the expansion would nest past the bound every
+    /// expression is held to.
+    pub fn slot_expansion(&self, node: RecipeNodeId, slot: SlotId) -> Option<Expr>
+    where
+        P: crate::ProfilePayload,
+    {
+        let var = self.slot(node, slot)?;
+        let dim = self
+            .vars
+            .get(&var)
+            .map_or(slot.dimension(), |v| v.kind().dimension());
+        Some(self.written(&Expr::var(var, dim)))
+    }
+
+    /// **`expr` as written**: each anonymous variable it reaches
+    /// replaced by what it holds ([`Self::slot_expansion`]); `expr`
+    /// itself where that would nest past the bound.
+    pub fn written(&self, expr: &Expr) -> Expr {
+        self.anonymous_expansion(expr)
+            .unwrap_or_else(|_| expr.clone())
+    }
+
+    /// **`expr` expanded only along `path`**: each anonymous definition
+    /// the path enters replaced by what it holds, every leaf off the
+    /// path kept as the variable it reads. `path` addresses this as it
+    /// addresses [`Self::written`] (an anonymous definition's reader is
+    /// its definition, a free one's a leaf), so an edit at `path`
+    /// rebuilt from it re-lowers nothing off the path from a value —
+    /// a shared read, or a distribution, survives (`SetExpression`).
+    /// `None` where `path` leaves the tree.
+    pub(crate) fn expansion_along(&self, expr: &Expr, path: &[u8]) -> Option<Expr> {
+        let Some((&i, rest)) = path.split_first() else {
+            return Some(expr.clone());
+        };
+        if let Some(var) = expr.as_var() {
+            return match self.vars.get(&var).map(Var::def) {
+                Some(crate::VarDef::Defined(defined)) if !self.var_names.contains_key(&var) => {
+                    self.expansion_along(defined, path)
+                }
+                // A free variable, or a named one, is a leaf as written.
+                _ => None,
+            };
+        }
+        let expanded = self.expansion_along(expr.descend(&[i])?, rest)?;
+        expr.with_replaced(&[i], expanded)?.ok()
+    }
+
+    /// `expr` with every reader of an anonymous variable replaced by
+    /// what it holds ([`Self::slot_expansion`]).
+    fn anonymous_expansion(&self, expr: &Expr) -> Result<Expr, crate::DimensionError> {
+        expr.substitute_vars(&mut |var| {
+            if self.var_names.contains_key(&var) {
+                return None;
+            }
+            match self.vars.get(&var)?.def() {
+                crate::VarDef::Free(FreeVar::Continuous {
+                    dim,
+                    value,
+                    display_unit,
+                    ..
+                }) => Expr::literal_leaf_with_unit(*value, *dim, display_unit.def()).ok(),
+                crate::VarDef::Free(FreeVar::Count { value }) => Some(Expr::count(*value)),
+                crate::VarDef::Defined(defined) => self.anonymous_expansion(defined).ok(),
+            }
+        })
+    }
+
+    /// The expression subtree an [`ExprPath`] addresses in its slot's
+    /// expansion ([`Self::slot_expansion`]), or `None` if the node is
+    /// gone, the slot absent, or the path off the tree (spec D5).
+    pub fn expr_at(&self, path: &ExprPath) -> Option<Expr>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.slot_expansion(path.node, path.slot)?
             .descend(&path.path)
+            .cloned()
     }
 
     /// The evaluation environment for this document's variables,
@@ -1630,6 +1784,7 @@ impl<P> Doc<P> {
         let mut env = VarEnv {
             bindings,
             refused: BTreeMap::new(),
+            written: std::collections::BTreeSet::new(),
         };
         self.bind_definitions(&mut env);
         env
@@ -1649,6 +1804,11 @@ impl<P> Doc<P> {
             };
             env.bindings.remove(&id);
             env.refused.remove(&id);
+            if self.var_names.contains_key(&id) {
+                env.written.remove(&id);
+            } else {
+                env.written.insert(id);
+            }
             let bound = if expr.dim() == Dimension::Count {
                 crate::expr::eval_count(expr, env).map(ParamValue::Count)
             } else {
@@ -1711,9 +1871,9 @@ pub(crate) enum ExpansionFault {
     TooLarge { var: VarId, nodes: usize },
 }
 
-/// Whether any expression `node` carries reads `var`.
+/// Whether any slot or payload leaf of `node` reads `var`.
 pub(crate) fn node_reads<P: crate::ProfilePayload>(node: &Node<P>, var: VarId) -> bool {
-    node.exprs().into_iter().any(|expr| expr.reads(var))
+    node.exprs().into_iter().any(|&read| read == var)
 }
 
 impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
@@ -2071,7 +2231,9 @@ mod tests {
     }
 
     /// A document holding `a := b + 1 mm` and `b := a`, written past
-    /// the doors (which refuse it, as the load walk does): the shape
+    /// the doors (which refuse it, as the load walk does), both named
+    /// (an unnamed definition is a slot's formula, whose refusal is the
+    /// slot's own — `VarEnv::written`): the shape
     /// [`Doc::definition_order`] and [`Doc::bind_definitions`] still
     /// answer for.
     fn cyclic() -> (ProfileDoc, crate::var::VarId, crate::var::VarId) {
@@ -2088,6 +2250,8 @@ mod tests {
             )),
         );
         doc.vars.insert(b, Var::new(VarDef::Defined(read(a))));
+        doc.var_names.insert(a, super::VarName::from_static("a"));
+        doc.var_names.insert(b, super::VarName::from_static("b"));
         (doc, a, b)
     }
 

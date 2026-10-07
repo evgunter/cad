@@ -77,6 +77,7 @@ pub fn document() -> CorpusDoc {
             node: elbow,
             slot: SlotId::TubeWall,
             expr: len(WALL_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: elbow,
     }

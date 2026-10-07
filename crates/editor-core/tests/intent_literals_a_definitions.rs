@@ -165,6 +165,7 @@ fn a_definition_reading_itself_back_refuses_as_a_cycle() {
         DocEdit::DefineVar {
             var: n("w").into(),
             def: VarDecl::defined(plus),
+            fresh: Vec::new(),
         },
     )
     .unwrap_err();
@@ -231,10 +232,21 @@ fn a_file_holding_a_definition_cycle_refuses_at_load() {
 fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
     let doc = w_and_h("intent-literals-a-pushforward");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
+    // A tolerance on `w`, so the stackup varies it (VR8: an untoleranced
+    // variable is a constant of the analysis).
+    let doc = step(
+        &doc,
+        DocEdit::SetVarDistribution {
+            var: w.into(),
+            distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
+        },
+    )
+    .doc;
     let applied = step(
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::measure(MeasureExpr::value(named("h")), Vec::new()).unwrap()),
+            fresh: Vec::new(),
         },
     );
     let measure = applied.record.minted.expect("an insert mints");
@@ -333,6 +345,7 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
         DocEdit::DefineVar {
             var: n("h").into(),
             def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -390,6 +403,7 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
         DocEdit::DefineVar {
             var: n("h").into(),
             def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -539,6 +553,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
         DocEdit::DefineVar {
             var: n("w").into(),
             def: VarDecl::defined(Formula::add(named("v"), named("v")).unwrap()),
+            fresh: Vec::new(),
         },
     ) {
         Err(EditError::DefinitionTooLarge { var, .. }) => {
@@ -571,7 +586,7 @@ fn the_anonymous_lifecycle_cascades_through_definitions() {
     let doc = unname(&doc, h);
     // `w` is read by `h`'s definition, and `h` by a slot: both live.
     let doc = unname(&doc, w);
-    assert_eq!(doc.vars().len(), 2);
+    assert!(doc.var(w).is_some() && doc.var(h).is_some());
     assert_eq!(doc.var_readers(w), vec![extrude], "a reader of h reads w");
     let applied = step(
         &doc,
@@ -579,18 +594,19 @@ fn the_anonymous_lifecycle_cascades_through_definitions() {
             node: extrude,
             slot: editor_core::SlotId::Distance,
             expr: len(1.0),
+            fresh: Vec::new(),
         },
     );
     let removed: Vec<VarId> = applied
         .maintenance
         .iter()
         .map(|m| match m {
-            Maintenance::AnonymousVarRemoved { var } => var.id(),
+            Maintenance::AnonymousVarRemoved { var, .. } => var.id(),
             other => panic!("{other:?}"),
         })
         .collect();
     assert_eq!(removed, vec![h, w], "the definition, then its input");
-    assert!(applied.doc.vars().is_empty());
+    assert!(applied.doc.var(h).is_none() && applied.doc.var(w).is_none());
     assert!(applied.doc.has_minted_var(h) && applied.doc.has_minted_var(w));
 }
 
@@ -653,6 +669,7 @@ fn definitions_bind_after_what_they_read() {
         DocEdit::DefineVar {
             var: n("h").into(),
             def: VarDecl::defined(times(2.0, "w")),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -721,6 +738,7 @@ fn split_and_inline_carry_definitions() {
         DocEdit::DefineVar {
             var: n("h").into(),
             def: VarDecl::defined(times(2.0, "w")),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -956,6 +974,7 @@ fn the_bound_counts_a_reader_declared_before_what_it_reads() {
         DocEdit::DefineVar {
             var: n("x").into(),
             def: VarDecl::defined(Formula::add(named("c10"), named("c10")).unwrap()),
+            fresh: Vec::new(),
         },
     ) {
         Err(EditError::DefinitionTooLarge { var, nodes }) => {
@@ -983,6 +1002,7 @@ fn a_refusal_through_a_dead_read_names_the_definition_it_came_through() {
         DocEdit::DefineVar {
             var: n("g").into(),
             def: VarDecl::defined(Formula::add(named("h"), len(0.001)).unwrap()),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -991,6 +1011,7 @@ fn a_refusal_through_a_dead_read_names_the_definition_it_came_through() {
         DocEdit::DefineVar {
             var: n("h").into(),
             def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -1043,11 +1064,14 @@ fn inline_shares_a_definition_the_host_already_holds() {
         Tol::witness(),
     )
     .expect("the host's w and h are the part's");
+    // The block's typed values cross as anonymous variables of their
+    // own; every NAMED variable is the host's.
     assert_eq!(
-        inlined.doc.var_ids(),
-        host.var_ids(),
+        inlined.doc.var_names(),
+        host.var_names(),
         "nothing declared twice"
     );
+    assert_eq!(inlined.doc.var_ids()[..3], host.var_ids()[..]);
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }
 
@@ -1072,6 +1096,7 @@ fn monte_carlo_binds_a_definition_in_every_draw() {
             &doc,
             DocEdit::InsertNode {
                 node: Box::new(Node::measure(MeasureExpr::value(named(name)), Vec::new()).unwrap()),
+                fresh: Vec::new(),
             },
         )
         .doc;

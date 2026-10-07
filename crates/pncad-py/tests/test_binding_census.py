@@ -600,6 +600,12 @@ BOUND_AS = {
     # `Doc.eval_count`, `GeomPred.datum_distance`), `unlowered_name`
     # or `var_kind_mismatch`.
     "NameFault": "EvalError.variant",
+    # The lowering's refusal outside an edit (`Doc::lowered`): a name,
+    # as `NameFault` rides it, or a fresh-table read, which a formula
+    # Python builds cannot make and which rides the same `EvalError`
+    # (`fresh_unheld`, `fresh_kind`).
+    "LowerFault": "EvalError.variant",
+    "FreshFault": "EvalError.variant",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
@@ -1230,6 +1236,10 @@ BOUND_AS = {
     # G1 stays open on its authoring half.
     "eval": "Doc.eval",
     "eval_count": "Doc.eval_count",
+    # A slot's variable evaluated: Python hands `Doc.eval` the handle
+    # `Doc.slot` answers, which reads as its lone reader.
+    "eval_var": "Doc.eval",
+    "eval_var_count": "Doc.eval_count",
     "parse_formula": "Doc.parse_formula",
     "unparse": "Formula.text",
     # The display formatter, on the receiver the carrier-projection
@@ -2642,6 +2652,11 @@ NOT_BOUND = {
     # Python door has that shape: `Node.profile` always has a document
     # to name a frame in, so there is nothing here Python cannot say.
     "resolve_loops": INTERIOR,
+    # Its twin for loops as WRITTEN, each argument lowered into a
+    # scratch document's variables — the viewer's sketch preview, for
+    # the same reason, and its fault.
+    "resolve_written_loops": INTERIOR,
+    "WrittenLoopFault": INTERIOR,
     "v2": SHAPE,
     "v3": SHAPE,
     "write_step": SHAPE,
@@ -3607,6 +3622,9 @@ MEMBERS_BOUND_AS = {
     "EditError::DeleteAnonymousVar": "EditError.variant",
     "EditError::SlotUnresolvedVar": "EditError.variant",
     "EditError::PayloadUnresolvedVar": "EditError.variant",
+    "EditError::FreshUnheld": "EditError.variant",
+    "EditError::FreshKind": "EditError.variant",
+    "EditError::FreshUnread": "EditError.variant",
     "EditError::VarKindFixed": "EditError.variant",
     "EditError::NotAFreeVar": "EditError.variant",
     "EditError::DefinitionCycle": "EditError.variant",
@@ -3691,7 +3709,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
     "InlineError::VarNameConflict": "InlineError.variant",
-    "InlineError::AnonymousVarCrossesCut": "InlineError.variant",
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::UnplaceableFrame": "InlineError.variant",
     "InlineError::MatePlaced": "InlineError.variant",
@@ -3840,7 +3857,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
-    "SplitError::AnonymousVarCrossesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",

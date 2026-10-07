@@ -100,10 +100,15 @@ pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
     (nodes, steps)
 }
 
-/// `text` with every `RecipeNodeId(..)` the map holds read as its image
-/// and every `StepId(..)` the step map holds as its image, each id as
-/// `Debug` spells it.
-fn renamed(text: &str, ids: &BTreeMap<MintId, MintId>, steps: &BTreeMap<MintId, MintId>) -> String {
+/// `text` with every `RecipeNodeId(id)` the map holds read as its image,
+/// every `StepId(id)` the step map holds as its image, and every
+/// `VarId(id)` the variable map holds as its image.
+fn renamed(
+    text: &str,
+    ids: &BTreeMap<MintId, MintId>,
+    steps: &BTreeMap<MintId, MintId>,
+    vars: &BTreeMap<MintId, MintId>,
+) -> String {
     const OPEN: &str = "Id(MintId { ordinal: ";
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -113,6 +118,8 @@ fn renamed(text: &str, ids: &BTreeMap<MintId, MintId>, steps: &BTreeMap<MintId, 
             Some(ids)
         } else if head.ends_with(&format!("Step{OPEN}")) {
             Some(steps)
+        } else if head.ends_with(&format!("Var{OPEN}")) {
+            Some(vars)
         } else {
             None
         };
@@ -141,18 +148,22 @@ fn renamed(text: &str, ids: &BTreeMap<MintId, MintId>, steps: &BTreeMap<MintId, 
     out
 }
 
-/// Field by field: `b` is `a` with its node and step ids read as their
-/// images, read off the node's derived rendering, which spells every
-/// field (gauge references, offsets, placements, alignments, heads,
-/// a profile's step ids); the first disagreement is reported in context.
+/// Field by field: `b` is `a` with its node, step and named-variable ids
+/// read as their images, read off the node's derived rendering as
+/// written ([`Node::written`]: each anonymous variable its value or
+/// definition, so the two documents' own minted ids do not enter),
+/// which spells every field (gauge references, offsets, placements,
+/// alignments, heads, a profile's step ids); the first disagreement is
+/// reported in context.
 fn same_payload(
-    a: &editor_core::Node<editor_core::ProfileProgram>,
-    b: &editor_core::Node<editor_core::ProfileProgram>,
+    a: &editor_core::AuthoredNode,
+    b: &editor_core::AuthoredNode,
     ids: &BTreeMap<MintId, MintId>,
     steps: &BTreeMap<MintId, MintId>,
+    vars: &BTreeMap<MintId, MintId>,
     out: &mut Vec<String>,
 ) {
-    let want = renamed(&format!("{a:?}"), ids, steps);
+    let want = renamed(&format!("{a:?}"), ids, steps, vars);
     let got = format!("{b:?}");
     if want == got {
         return;
@@ -206,6 +217,13 @@ pub fn same_up_to_ids(
     }
     let ids: BTreeMap<MintId, MintId> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
     let step_ids: BTreeMap<MintId, MintId> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
+    // A named variable is matched by its name: the two documents mint
+    // their own ids, and a name is what a reader reads.
+    let var_ids: BTreeMap<MintId, MintId> = a
+        .var_names()
+        .iter()
+        .filter_map(|(id, name)| Some((id.0, b.var_named(name.as_str())?.0)))
+        .collect();
     let mut covered = BTreeSet::new();
     for id in live(a) {
         let Some(&to) = map.get(&id) else {
@@ -218,7 +236,14 @@ pub fn same_up_to_ids(
             continue;
         };
         let mut out = Vec::new();
-        same_payload(x, y, &ids, &step_ids, &mut out);
+        same_payload(
+            &x.written(a),
+            &y.written(b),
+            &ids,
+            &step_ids,
+            &var_ids,
+            &mut out,
+        );
         problems.extend(
             out.into_iter()
                 .map(|p| format!("payload: {id:?} -> {to:?}{p}")),

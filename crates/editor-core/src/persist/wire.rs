@@ -62,6 +62,7 @@ use crate::expr::{AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, Slot}
 use crate::formula::Formula;
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
+use crate::var::VarId;
 
 use super::nesting::Child;
 
@@ -236,32 +237,50 @@ macro_rules! wire_tree {
 
         impl Wired for $form {
             type Wire = $wire;
+            fn to_wire(&self, _dim: Dimension) -> $wire {
+                $wire::from(self)
+            }
+            fn rebuild_leaf(wire: &$wire) -> Result<(Self, Dimension), DimensionError> {
+                let leaf = wire.rebuild()?;
+                let dim = leaf.dim();
+                Ok((leaf, dim))
+            }
         }
     };
 }
 
-/// **A persisted expression form and its wire vocabulary**: what a
-/// tree generic over its form ([`MeasureExpr`]) persists its leaves as.
+/// **A persisted slot form and its wire vocabulary**: what a tree
+/// generic over its form ([`MeasureExpr`]) persists its value leaves
+/// as. A leaf is written with the dimension the tree reads it at, and
+/// rebuilt with the dimension it holds: an expression holds its own,
+/// and a stored slot, a bare variable id, holds the one written beside
+/// it.
 pub(crate) trait Wired: Sized {
-    /// The form's wire enum.
-    type Wire: Serialize + for<'de> Deserialize<'de> + for<'a> From<&'a Self> + Rebuild<Self>;
+    /// The form's wire value.
+    type Wire: Serialize + for<'de> Deserialize<'de>;
+    /// The wire value of a leaf read at `dim`.
+    fn to_wire(&self, dim: Dimension) -> Self::Wire;
+    /// The leaf a wire value rebuilds, through its form's checking
+    /// constructors, and its dimension.
+    fn rebuild_leaf(wire: &Self::Wire) -> Result<(Self, Dimension), DimensionError>;
 }
 
-/// A wire value rebuilt through its form's checking constructors.
-pub(crate) trait Rebuild<T> {
-    /// The checked value.
-    fn rebuild_form(&self) -> Result<T, DimensionError>;
+/// **A stored value leaf on the wire**: the variable, and the
+/// dimension the measure reads it at.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WireVarLeaf {
+    var: VarId,
+    dim: Dimension,
 }
 
-impl Rebuild<Expr> for WireExpr {
-    fn rebuild_form(&self) -> Result<Expr, DimensionError> {
-        self.rebuild()
+impl Wired for VarId {
+    type Wire = WireVarLeaf;
+    fn to_wire(&self, dim: Dimension) -> WireVarLeaf {
+        WireVarLeaf { var: *self, dim }
     }
-}
-
-impl Rebuild<Formula> for WireFormula {
-    fn rebuild_form(&self) -> Result<Formula, DimensionError> {
-        self.rebuild()
+    fn rebuild_leaf(wire: &WireVarLeaf) -> Result<(Self, Dimension), DimensionError> {
+        Ok((wire.var, wire.dim))
     }
 }
 
@@ -276,12 +295,21 @@ wire_tree! {
 
 wire_tree! {
     /// The persisted authored formula, as an edit log carries it: the
-    /// stored vocabulary plus a variable by name.
+    /// stored vocabulary plus a variable by name and a fresh-table
+    /// read.
     WireFormula for Formula {
         /// A variable by name, with the dimension it is read at.
         Name {
             /// The name.
             name: VarName,
+            /// The dimension it is read at.
+            dim: Dimension,
+        }
+        /// Entry `index` of the edit's fresh table, with the dimension
+        /// it is read at.
+        Fresh {
+            /// The table index.
+            index: u16,
             /// The dimension it is read at.
             dim: Dimension,
         }
@@ -291,9 +319,11 @@ wire_tree! {
             name: name.clone(),
             dim,
         },
+        &AuthoredLeaf::Fresh(index) => WireFormula::Fresh { index, dim },
     };
     rebuild {
         WireFormula::Name { name, dim } => Ok(Formula::named(name.clone(), *dim)),
+        WireFormula::Fresh { index, dim } => Ok(Formula::fresh(*index, *dim)),
     }
 }
 
@@ -458,7 +488,7 @@ impl<S: Slot + Wired> From<&MeasureExpr<S>> for WireMeasureExpr<S::Wire> {
         let b = |x: &MeasureExpr<S>| Child::new(WireMeasureExpr::from(x));
         match e.kind() {
             MeasureKind::Primitive(p) => WireMeasureExpr::Primitive(*p),
-            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(S::Wire::from(v))),
+            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(v.to_wire(e.dim()))),
             MeasureKind::Add(x, y) => WireMeasureExpr::Add(b(x), b(y)),
             MeasureKind::Sub(x, y) => WireMeasureExpr::Sub(b(x), b(y)),
             MeasureKind::Neg(x) => WireMeasureExpr::Neg(b(x)),
@@ -474,14 +504,14 @@ impl<W> WireMeasureExpr<W> {
     /// Rebuilds through the DIMENSION-CHECKING constructors — the load
     /// door is the construction door, so a file cannot carry a tree the
     /// authoring API refuses.
-    fn rebuild<S: Slot>(&self) -> Result<MeasureExpr<S>, DimensionError>
-    where
-        W: Rebuild<S>,
-    {
+    fn rebuild<S: Slot + Wired<Wire = W>>(&self) -> Result<MeasureExpr<S>, DimensionError> {
         let b = |x: &WireMeasureExpr<W>| x.rebuild();
         match self {
             WireMeasureExpr::Primitive(p) => Ok(MeasureExpr::primitive(*p)),
-            WireMeasureExpr::Value(v) => Ok(MeasureExpr::value(v.rebuild_form()?)),
+            WireMeasureExpr::Value(v) => {
+                let (leaf, dim) = S::rebuild_leaf(v)?;
+                Ok(MeasureExpr::value_at(leaf, dim))
+            }
             WireMeasureExpr::Add(x, y) => MeasureExpr::add(b(x)?, b(y)?),
             WireMeasureExpr::Sub(x, y) => MeasureExpr::sub(b(x)?, b(y)?),
             WireMeasureExpr::Neg(x) => MeasureExpr::neg(b(x)?),
@@ -514,4 +544,4 @@ macro_rules! measure_serde {
     )*};
 }
 
-measure_serde!(Expr, Formula);
+measure_serde!(VarId, Expr, Formula);

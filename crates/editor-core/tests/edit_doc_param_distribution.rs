@@ -85,13 +85,12 @@ fn notation(doc: &editor_core::ProfileDoc, name: &'static str) -> UnitSym {
 
 /// Whether the error analysis reads the parameter as FIXED — the
 /// consequence an annotation has, as opposed to a field going `Some`.
+/// An untoleranced parameter is no axis at all (VR8), a constant of
+/// the analysis.
 fn is_fixed(doc: &editor_core::ProfileDoc, name: &'static str) -> bool {
     analyzed_box(doc, &AnalysisPolicy::default())
         .get(doc.var_named(name).expect("declared"))
-        .copied()
-        .expect("the parameter has an axis")
-        .offsets
-        .is_fixed()
+        .is_none_or(|axis| axis.offsets.is_fixed())
 }
 
 /// The declaring log the fixture is replayable from: `wall`, a Length

@@ -38,6 +38,7 @@ fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {
                 node: Box::new(Node::Datum(Datum::Point {
                     position: [len(x), len(0.0), len(0.0)],
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -131,6 +132,7 @@ fn every_form() -> ProfileDoc {
                 Node::measure(expr, vec![name(doc.ids()[0]), name(doc.ids()[1])])
                     .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     doc = push(
@@ -141,6 +143,7 @@ fn every_form() -> ProfileDoc {
                 bound: len(0.0005),
                 dir: AssertionDir::AtMost,
             }),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -177,6 +180,7 @@ fn angular() -> ProfileDoc {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     doc = push(
@@ -187,6 +191,7 @@ fn angular() -> ProfileDoc {
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -292,7 +297,7 @@ fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
         measure["expr"] = serde_json::json!({
             "Add": [
                 inner,
-                { "Value": { "Literal": { "value": 1.0, "dim": "Length", "unit": "m" } } },
+                { "Value": { "var": 1, "dim": "Length" } },
             ]
         });
         wrapped += 1;
@@ -350,6 +355,7 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -381,6 +387,7 @@ fn an_assertion_over_a_non_measure_refuses() {
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

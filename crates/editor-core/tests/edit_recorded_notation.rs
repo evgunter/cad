@@ -147,6 +147,7 @@ fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 2] {
     [
         DocEdit::InsertNode {
             node: Box::new(fixture::xy_frame()),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
@@ -154,6 +155,7 @@ fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 2] {
                 loops: vec![program],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     ]
 }

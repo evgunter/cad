@@ -178,6 +178,7 @@ fn seat(label: &str, post_height: f64) -> Seat {
                 (block_i, block_body),
                 coincide(MateFrame::from_face(), identity()),
             )),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -251,6 +252,7 @@ fn shorten_or_grow(s: &mut Seat, height: f64) {
             node: s.post_body,
             slot: SlotId::Distance,
             expr: len(height),
+            fresh: Vec::new(),
         },
     );
 }
@@ -872,7 +874,8 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     // post's: the entry carries the rows that door minted, which is
     // what replay re-applies.
     let logged = DocEdit::InsertNode {
-        node: Box::new(s.doc.node(s.mate).expect("the mate").authored()),
+        node: Box::new(s.doc.node(s.mate).expect("the mate").authored(&s.doc)),
+        fresh: Vec::new(),
     };
     let (unmated, _) = step_with(s.doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
     unmated
@@ -1077,6 +1080,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let cap_after = cap_pose(&s.post, s.post_body, CapEnd::End);
@@ -1419,6 +1423,7 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
                     (s.block_i, s.block_body),
                     coincide(poisoned, identity()),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &RefusingReach,

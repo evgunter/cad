@@ -376,6 +376,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
                 corpus::plate_param::HOLE_R_VALUE,
                 Distribution::Normal { sigma: 1e-4 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -519,7 +520,11 @@ fn a_mixed_document_analyzes_end_to_end() {
         .doc;
     }
     let b = analyzed_box(&doc, &AnalysisPolicy::default());
-    assert_eq!(b.params().len(), 5, "five continuous axes, no count");
+    assert_eq!(
+        b.params().len(),
+        4,
+        "four toleranced axes; the untoleranced length and the count are constants"
+    );
     assert_eq!(b.varying().count(), 4, "four declared variable");
     for (name, axis) in b.params() {
         let Some(dist) = axis.distribution else {

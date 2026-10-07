@@ -93,6 +93,7 @@ fn saved_fillet(segments: &[u32]) -> String {
                 fixture::len(0.0625),
                 segments.iter().map(|s| edge(&doc, solid, *s)).collect(),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -134,6 +135,7 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(raw),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -147,6 +149,7 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(raw_fillet(&doc, solid, &[0, 2])),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -168,6 +171,7 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(raw),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -188,6 +192,7 @@ fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(raw),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -254,9 +259,12 @@ fn the_construction_doors_canonicalize() {
     };
     assert_eq!(selection, &canonical, "sorted and deduplicated");
     assert!(
-        editor_core::test_support::stored(&fillet)
-            .input_fault()
-            .is_none(),
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &fillet
+        )
+        .input_fault()
+        .is_none(),
         "and therefore canonical"
     );
 
@@ -266,9 +274,12 @@ fn the_construction_doors_canonicalize() {
     };
     assert_eq!(selection, &canonical, "sorted and deduplicated");
     assert!(
-        editor_core::test_support::stored(&chamfer)
-            .input_fault()
-            .is_none(),
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &chamfer
+        )
+        .input_fault()
+        .is_none(),
         "and therefore canonical"
     );
 }
@@ -288,14 +299,18 @@ fn an_empty_selection_is_canonical() {
         selection: Vec::new(),
     };
     assert!(
-        editor_core::test_support::stored(&empty)
-            .input_fault()
-            .is_none()
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &empty
+        )
+        .input_fault()
+        .is_none()
     );
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(empty),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -344,6 +359,7 @@ fn both_doors_forward_one_sentence() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(raw_fillet(&doc, solid, &[0, 4, 2])),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -393,12 +409,16 @@ fn at_names_each_position() {
         ("repeat at 0 + swap at 2", vec![0, 0, 4, 2], Some(0)),
     ];
     for (what, segs, want) in cases {
-        let got =
-            match editor_core::test_support::stored(&raw_fillet(&doc, solid, segs)).input_fault() {
-                Some(InputFault::SelectionNotCanonical { at }) => Some(at),
-                None => None,
-                other => panic!("{what}: unexpected fault {other:?}"),
-            };
+        let got = match editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &raw_fillet(&doc, solid, segs),
+        )
+        .input_fault()
+        {
+            Some(InputFault::SelectionNotCanonical { at }) => Some(at),
+            None => None,
+            other => panic!("{what}: unexpected fault {other:?}"),
+        };
         assert_eq!(got, *want, "{what}");
     }
 }
@@ -411,6 +431,7 @@ fn the_insert_door_reports_a_non_zero_position() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(raw_fillet(&doc, solid, &[0, 4, 2])),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -458,6 +479,7 @@ fn a_rebind_leaves_a_canonical_selection() {
                         edge(&doc, solid, 4),
                     ],
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

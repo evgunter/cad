@@ -73,6 +73,7 @@ fn widened_document(width: f64) -> ProfileDoc {
                     hi: width,
                 }),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

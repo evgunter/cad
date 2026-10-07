@@ -679,7 +679,7 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
         let mut seen_e = BTreeSet::new();
         for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
             seen_e.insert(edit_kind(e));
-            if let DocEdit::InsertNode { node } = e {
+            if let DocEdit::InsertNode { node, .. } = e {
                 seen_n.insert(node_kind(node));
                 seen_s.extend(sub_kinds(node));
             }

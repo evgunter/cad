@@ -109,9 +109,9 @@ fn the_quantile_mass_is_a_checked_request_knob() {
     ));
 }
 
-/// A parameter with NO distribution is FIXED, and a `Count` parameter
-/// is not an axis at all: the analysis varies exactly what the author
-/// declared variable.
+/// A parameter with NO distribution is no axis at all — a constant of
+/// the analysis (VR8) — and neither is a `Count` parameter: the analysis
+/// varies exactly what the author declared variable.
 #[test]
 fn opt_in_means_an_unannotated_param_is_fixed() {
     let doc = doc_with(&[
@@ -123,13 +123,16 @@ fn opt_in_means_an_unannotated_param_is_fixed() {
         ),
     ]);
     let b = analyzed_box(&doc, &AnalysisPolicy::default());
-    assert_eq!(b.params().len(), 2, "Count is not a box axis");
-    assert!(b.get(v(&doc, "holes")).is_none());
-    let fixed = b.get(v(&doc, "plain")).expect("continuous params are axes");
-    assert_eq!(fixed.offsets, OffsetInterval::FIXED);
-    assert!(fixed.offsets.is_fixed());
-    assert_eq!(fixed.absolute(), (2.0, 2.0), "width zero AT the nominal");
-    assert_eq!(fixed.distribution, None);
+    assert_eq!(
+        b.params().len(),
+        1,
+        "only the toleranced parameter is an axis"
+    );
+    assert!(b.get(v(&doc, "holes")).is_none(), "Count is not a box axis");
+    assert!(
+        b.get(v(&doc, "plain")).is_none(),
+        "an untoleranced parameter is a constant, not an axis"
+    );
     let varying: Vec<VarId> = b.varying().map(|(n, _)| n).collect();
     assert_eq!(
         varying,
@@ -444,16 +447,10 @@ fn the_name_keyed_doors_take_all_three_from_one_axis() {
         "the mispaired call answers {mispaired}, nothing like the right {free}"
     );
 
-    // A fixed axis leaves nothing out, and is a point mass at nominal.
-    assert_eq!(boxed.axis_tail_mass(v(&doc, "fixed")), Some(Ok(0.0)));
-    assert_eq!(
-        boxed.axis_box_mass(v(&doc, "fixed"), (-1.0, 1.0)),
-        Some(Ok(1.0))
-    );
-    assert_eq!(
-        boxed.axis_box_mass(v(&doc, "fixed"), (0.5, 1.0)),
-        Some(Ok(0.0))
-    );
+    // An untoleranced parameter is no axis (VR8): the keyed doors have
+    // nothing to pair, as for a name the document does not declare.
+    assert_eq!(boxed.axis_tail_mass(v(&doc, "fixed")), None);
+    assert_eq!(boxed.axis_box_mass(v(&doc, "fixed"), (-1.0, 1.0)), None);
     // And a name the document does not declare is not an axis at all.
     assert_eq!(boxed.axis_tail_mass(v(&doc, "nope")), None);
     assert_eq!(boxed.axis_box_mass(v(&doc, "nope"), (0.0, 1.0)), None);

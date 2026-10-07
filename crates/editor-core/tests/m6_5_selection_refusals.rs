@@ -68,6 +68,7 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::fillet(body, len(0.125), selection(&doc))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -89,6 +90,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
             doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -194,6 +196,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
                     elsewhere
                 }],
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -223,6 +226,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
                 distance: len(2.0),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -237,6 +241,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
                 len(0.125),
                 vec![rim(&spare.doc, spare_id, 0)],
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -338,6 +343,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
         &doc,
         &editor_core::DocEdit::InsertNode {
             node: Box::new(Node::fillet(us, len(0.125), vec![tied.clone()])),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -134,7 +134,7 @@ use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, FreeVar};
+use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
@@ -430,11 +430,11 @@ impl core::fmt::Display for SensitivityRefusal {
 
 impl core::error::Error for SensitivityRefusal {}
 
-/// **The n-pass E4 driver.** One entry per continuous document
-/// parameter, in name order — a parameter without a distribution still
-/// gets its ∂m/∂pᵢ (the fixed-parameter typed spelling: distributions
-/// matter to the report's mass and spread columns, not to the
-/// derivative).
+/// **The n-pass E4 driver.** One entry per analysis axis of the
+/// document — a toleranced variable ([`crate::analysis::is_axis`]) —
+/// in declaration order. A variable with no tolerance is a constant of
+/// the analysis and has no entry: nobody asks a sensitivity to a value
+/// that carries no tolerance (VR8).
 ///
 /// `paired` is the caller's validated f64 build of record — a
 /// build-path evaluation (`EvalOptions::default()`) of `doc` — gated as
@@ -524,7 +524,7 @@ fn driver(
     }
 
     // The variables, in declaration order (deterministic in both schedules).
-    let names: Vec<VarId> = continuous_params(doc).collect();
+    let names: Vec<VarId> = toleranced_params(doc).collect();
 
     // One UNSEEDED dual base, threaded into every pass as the memo
     // prior: a node outside a pass's seeded cone carries identical
@@ -1072,18 +1072,20 @@ const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
 
 // ------------------------------------------------- the verdict's tie
 
-/// The document's continuous free variables, in declaration order — the entry
-/// set of every driver call.
-fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = VarId> + '_ {
+/// The document's analysis axes ([`crate::analysis::is_axis`]: its
+/// toleranced variables), in declaration order — the entry set of
+/// every driver call.
+fn toleranced_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = VarId> + '_ {
     doc.free_vars()
-        .filter(|(_, free)| matches!(free, FreeVar::Continuous { .. }))
+        .filter(|(_, free)| crate::analysis::is_axis(free))
         .map(|(id, _)| id)
 }
 
 /// Whether a verdict's root box spans exactly this document's
-/// continuous parameters — the cheap pre-check before the content tie.
+/// analysis axes ([`toleranced_params`]) — the cheap pre-check before
+/// the content tie.
 fn box_spans_doc_params(root: &ParamBox, doc: &Doc<ProfileProgram>) -> bool {
-    let doc_names: Vec<VarId> = continuous_params(doc).collect();
+    let doc_names: Vec<VarId> = toleranced_params(doc).collect();
     root.axes().len() == doc_names.len() && doc_names.into_iter().all(|n| root.get(n).is_some())
 }
 

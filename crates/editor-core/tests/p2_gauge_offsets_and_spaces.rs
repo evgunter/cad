@@ -297,7 +297,15 @@ fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 /// The seat relation, read off a control solve (base at the world
@@ -495,6 +503,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
             node: pat,
             slot: SlotId::Count,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let unstated = solve(&doc, &o, Tol::witness());
@@ -609,6 +618,7 @@ fn the_mate_door_clears_a_checked_offset_in_the_moving_group_too() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(seat(head(p.top_cap(pp)), head(p.base_cap(r)))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -648,6 +658,7 @@ fn the_mate_door_clears_a_checked_offset_in_the_moving_group_too() {
         &doc_before_mate,
         &DocEdit::InsertNode {
             node: Box::new(seat(head(p.top_cap(pp)), head(p.base_cap(r)))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
     )
@@ -1156,7 +1167,8 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     let k = k.expect("the promote mints its gauge");
     let out = split(&doc).expect("the promoted offset stays in the host");
     assert!(
-        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&editor_core::test_support::stored_placement(&offset))),
+        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. })
+            if crate::fixture::written_placement(&out.remainder, placement) == offset),
         "the promoted gauge holds the parametric offset"
     );
     assert_eq!(

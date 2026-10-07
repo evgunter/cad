@@ -114,22 +114,26 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::doc::{Doc, NameCarrier};
+use crate::doc::{Doc, FreeVar, NameCarrier, VarName};
 use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, Recorded, Recording};
+use crate::expr::Dimension;
+use crate::formula::Formula;
 use crate::ident::{DocRef, DocumentId};
 use crate::names::{
     Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
     StableName,
 };
-use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId};
+use crate::node::{
+    AuthoredNode, InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId,
+};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
 use crate::sentence::{Recourse, Staged};
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
-use crate::var::VarId;
+use crate::var::{VarDecl, VarDef, VarId};
 use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
@@ -292,10 +296,11 @@ fn carry<E>(
     source: &ProfileDoc,
     olds: &[RecipeNodeId],
     target: &mut Recording<'_, ProfileProgram>,
+    vars: &mut VarCarry<'_>,
     (world, carried_gauge, settle): (
         Option<RecipeNodeId>,
         impl Fn(RecipeNodeId) -> bool,
-        impl Fn(RecipeNodeId, &mut Node<ProfileProgram>),
+        impl Fn(RecipeNodeId, &mut AuthoredNode),
     ),
     edit: impl Fn(EditError) -> E,
     miss: impl Fn(RecipeNodeId, RemapMiss) -> E,
@@ -324,7 +329,7 @@ fn carry<E>(
                 .ok_or(RemapMiss::Input(g)),
             _ => Ok(world),
         };
-        let mut carried = match remap_node(node, &node_map, &step_map, &regauge) {
+        let carried = match remap_node(node, &node_map, &step_map, &regauge) {
             Ok(carried) => carried,
             Err(RemapMiss::Name { name, missing }) if forward(&missing) => {
                 return Err(edit(EditError::DeclareNamesMissingNode {
@@ -333,8 +338,18 @@ fn carry<E>(
             }
             Err(other) => return Err(miss(old, other)),
         };
-        settle(old, &mut carried);
-        let new = target.insert(carried.authored()).map_err(&edit)?;
+        let (mut authored, fresh) = vars.author(&carried);
+        settle(old, &mut authored);
+        let record = target
+            .apply_recorded(DocEdit::InsertNode {
+                node: Box::new(authored),
+                fresh: fresh.fresh.clone(),
+            })
+            .map_err(&edit)?;
+        vars.minted(fresh, &record.fresh);
+        let Some(new) = record.minted else {
+            unreachable!("an accepted insert mints its node")
+        };
         node_map.insert(old, new);
         if let Some(Node::InstantiatePart { offset, .. }) = target.doc().node(new) {
             stated.push((new, offset.clone()));
@@ -378,6 +393,7 @@ fn carry<E>(
                 .apply(DocEdit::SetOffset {
                     instance,
                     offset: offset.as_ref().map(crate::placement::Placement::authored),
+                    fresh: Vec::new(),
                 })
                 .map_err(&edit)?;
         }
@@ -609,15 +625,6 @@ pub enum SplitError {
         /// promoting it moves that offset into a kept gauge, so the
         /// parameter stays in this document.
         promote: bool,
-    },
-    /// A cut node reads an anonymous variable. The part document would
-    /// have to hold it under a name the kernel minted, and the kernel
-    /// mints no name (VR2).
-    AnonymousVarCrossesCut {
-        /// The variable.
-        var: SpokenVar,
-        /// A cut node reading it.
-        node: SpokenNode,
     },
     /// A cut node reads a variable this document no longer holds (a
     /// deleted one: VR7 leaves its readers unresolved, which is legal
@@ -897,12 +904,6 @@ impl core::fmt::Display for SplitError {
                     )
                 })
             ),
-            Self::AnonymousVarCrossesCut { var, node } => write!(
-                f,
-                "split: {node}, which is cut, reads {var}, which has no name, and the part \
-                 would have to hold it under a name nobody gave it. {}",
-                Recourse("name it (RenameVar), then split")
-            ),
             Self::UnresolvedVarCrossesCut { var, node } => write!(
                 f,
                 "split: {node}, which is cut, reads {var}, which this document no longer \
@@ -1110,13 +1111,6 @@ pub enum InlineError {
         /// The name.
         name: crate::doc::VarName,
     },
-    /// The referenced document holds an anonymous variable its spliced
-    /// recipe reads: the host would have to hold it under a name the
-    /// kernel minted, and the kernel mints no name (VR2).
-    AnonymousVarCrossesCut {
-        /// The variable, spoken from the referenced document.
-        var: SpokenVar,
-    },
     /// The referenced document's spliced recipe reads a variable that
     /// document no longer holds (a deleted one, legal there by VR7):
     /// the host has no variable to point the reader at.
@@ -1307,12 +1301,6 @@ impl core::fmt::Display for InlineError {
                     "define this document's {name} as the referenced document's (DefineVar), \
                      then inline"
                 ))
-            ),
-            Self::AnonymousVarCrossesCut { var } => write!(
-                f,
-                "inline: the referenced document reads {var}, which has no name, and this \
-                 document would have to hold it under a name nobody gave it. {}",
-                Recourse("name it in the referenced document (RenameVar), then inline")
             ),
             Self::UnresolvedVarCrossesCut { var, node } => write!(
                 f,
@@ -1606,6 +1594,9 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::ContinuousVarCannotBeCount { .. }
             | EditError::UnknownVar { .. }
             | EditError::VarNameTaken { .. }
+            | EditError::FreshUnheld { .. }
+            | EditError::FreshKind { .. }
+            | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
             | EditError::NotAFreeVar { .. }
             | EditError::DefinitionCycle { .. }
@@ -1919,7 +1910,7 @@ fn remap_rule(
         PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
         PatternKind::Circular { axis, step } => PatternKind::Circular {
             axis: id(*axis)?,
-            step: step.clone(),
+            step: *step,
         },
     })
 }
@@ -2007,8 +1998,8 @@ fn remap_node(
             direction,
         }) => Node::Datum(crate::Datum::AxisInPlane {
             plane: id(*plane)?,
-            origin: origin.clone(),
-            direction: direction.clone(),
+            origin: *origin,
+            direction: *direction,
         }),
         // A derived frame is not a leaf either: its body is an input
         // and its face is a frozen name, and both cross the cut or
@@ -2018,7 +2009,7 @@ fn remap_node(
             Node::Datum(crate::Datum::FaceFrame {
                 at: id(*at)?,
                 face: nm(face)?,
-                spin: spin.clone(),
+                spin: *spin,
             })
         }
         Node::Datum(
@@ -2046,7 +2037,7 @@ fn remap_node(
             side,
         } => Node::Extrude {
             profile: id(*profile)?,
-            distance: distance.clone(),
+            distance: *distance,
             side: *side,
         },
         Node::Revolve {
@@ -2056,7 +2047,7 @@ fn remap_node(
         } => Node::Revolve {
             profile: id(*profile)?,
             axis: id(*axis)?,
-            angle: angle.clone(),
+            angle: *angle,
         },
         // The two tube kinds remap the same way — one spine edge, every
         // other field carried — and are written apart rather than
@@ -2070,10 +2061,10 @@ fn remap_node(
             minor_radius,
         } => Node::Tube {
             spine: id(*spine)?,
-            u_ref: u_ref.clone(),
-            major_radius: major_radius.clone(),
+            u_ref: *u_ref,
+            major_radius: *major_radius,
             window: window.clone(),
-            minor_radius: minor_radius.clone(),
+            minor_radius: *minor_radius,
         },
         Node::HollowTube {
             spine,
@@ -2084,15 +2075,15 @@ fn remap_node(
             wall,
         } => Node::HollowTube {
             spine: id(*spine)?,
-            u_ref: u_ref.clone(),
-            major_radius: major_radius.clone(),
+            u_ref: *u_ref,
+            major_radius: *major_radius,
             window: window.clone(),
-            minor_radius: minor_radius.clone(),
-            wall: wall.clone(),
+            minor_radius: *minor_radius,
+            wall: *wall,
         },
         Node::Loft { profiles, v_degree } => Node::Loft {
             profiles: profiles.iter().map(|&p| id(p)).collect::<Result<_, _>>()?,
-            v_degree: v_degree.clone(),
+            v_degree: *v_degree,
         },
         Node::Sweep {
             profile,
@@ -2102,8 +2093,8 @@ fn remap_node(
         } => Node::Sweep {
             profile: id(*profile)?,
             path: id(*path)?,
-            stations: stations.clone(),
-            v_degree: v_degree.clone(),
+            stations: *stations,
+            v_degree: *v_degree,
         },
         Node::Fillet {
             target,
@@ -2111,7 +2102,7 @@ fn remap_node(
             selection,
         } => Node::fillet(
             id(*target)?,
-            radius.clone(),
+            *radius,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Chamfer {
@@ -2120,7 +2111,7 @@ fn remap_node(
             selection,
         } => Node::chamfer(
             id(*target)?,
-            distance.clone(),
+            *distance,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         // Through the construction door, which keeps the designation
@@ -2132,7 +2123,7 @@ fn remap_node(
             open,
         } => Node::shell(
             id(*target)?,
-            thickness.clone(),
+            *thickness,
             open.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Split { target, tool } => Node::Split {
@@ -2155,7 +2146,7 @@ fn remap_node(
         },
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: id(*input)?,
-            count: count.clone(),
+            count: *count,
             kind: remap_rule(kind, &id)?,
         },
         // The selector is payload with no id in it (a half, or an
@@ -2166,7 +2157,7 @@ fn remap_node(
         },
         Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
             input: id(*input)?,
-            count: count.clone(),
+            count: *count,
             kind: remap_rule(kind, &id)?,
         },
         // The reference crosses verbatim (the function's docs say why);
@@ -2239,24 +2230,20 @@ fn remap_node(
             dir,
         } => Node::Assertion {
             measure: id(*measure)?,
-            bound: bound.clone(),
+            bound: *bound,
             dir: *dir,
         },
     })
 }
 
-/// The variables a node's expressions read. The expressions no slot
-/// addresses count too: a measured bound reading a variable is exactly
-/// as much a reason to carry that variable into a split part as an
-/// extrude's distance is.
+/// The variables a node's slots and payload read. The expressions no
+/// slot addresses count too: a measured bound reading a variable is
+/// exactly as much a reason to carry that variable into a split part
+/// as an extrude's distance is.
 fn node_var_reads(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> BTreeSet<VarId> {
-    let mut reads = Vec::new();
-    for expr in node.exprs() {
-        expr.var_reads(&mut reads);
-    }
     // A reader of a defined variable reads what its definition reads.
     let mut through: BTreeSet<VarId> = BTreeSet::new();
-    let mut frontier: Vec<VarId> = reads.into_iter().map(|(var, _)| var).collect();
+    let mut frontier: Vec<VarId> = node.exprs().into_iter().copied().collect();
     while let Some(var) = frontier.pop() {
         if through.insert(var) {
             frontier.extend(doc.definition_reads(var));
@@ -2265,20 +2252,191 @@ fn node_var_reads(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> BTreeSet<Var
     through
 }
 
-/// `var`'s definition re-authored for another document, its readers
-/// re-pointed through `map`.
-fn carried_def(var: &crate::var::Var, map: &BTreeMap<VarId, VarId>) -> crate::var::VarDef {
-    let mut def = var.def().clone();
-    if let crate::var::VarDef::Defined(expr) = &mut def {
-        expr.remap_vars(map);
-    }
-    def
+/// **The variables a carry re-points** (VR4, VR6): each variable of
+/// the source document the target already holds, by source id.
+///
+/// A named variable is declared in the target before any node reads
+/// it. An anonymous one crosses as an entry of the fresh table of the
+/// first carried edit that reads it, directly or through the
+/// definitions of other anonymous variables, with its definition bit
+/// for bit, distribution included; a later carried reader reads the
+/// id that edit minted.
+struct VarCarry<'s> {
+    source: &'s ProfileDoc,
+    map: BTreeMap<VarId, VarId>,
 }
 
-/// Every reader in `node` re-pointed through `map`.
-fn remap_node_vars(node: &mut Node<ProfileProgram>, map: &BTreeMap<VarId, VarId>) {
-    for expr in node.exprs_mut() {
-        expr.remap_vars(map);
+/// One carried edit's variables: the fresh table it carries and the
+/// source variable each entry stands for.
+struct Carried {
+    fresh: Vec<VarDecl>,
+    anonymous: Vec<VarId>,
+}
+
+impl<'s> VarCarry<'s> {
+    fn new(source: &'s ProfileDoc) -> Self {
+        Self {
+            source,
+            map: BTreeMap::new(),
+        }
+    }
+
+    /// The anonymous variables `reads` reach, through the definitions
+    /// of anonymous variables, that the target does not hold yet, in
+    /// the source's definition order: a definition after what it
+    /// reads.
+    fn unheld(&self, reads: impl IntoIterator<Item = VarId>) -> Vec<VarId> {
+        let mut reached: BTreeSet<VarId> = BTreeSet::new();
+        let mut frontier: Vec<VarId> = reads.into_iter().collect();
+        while let Some(var) = frontier.pop() {
+            if self.map.contains_key(&var)
+                || self.source.var_name(var).is_some()
+                || self.source.var(var).is_none()
+                || !reached.insert(var)
+            {
+                continue;
+            }
+            frontier.extend(self.source.definition_reads(var));
+        }
+        self.source
+            .definition_order()
+            .into_iter()
+            .filter(|var| reached.contains(var))
+            .collect()
+    }
+
+    /// A reader of the source variable `var` at `dim`, as the carried
+    /// edit writes it: entry `i` of its fresh table where `var` is
+    /// `anonymous[i]`, the target's id where the target holds it, and
+    /// `var` itself otherwise — a reader of a variable the source no
+    /// longer holds, which the target's door refuses in its words.
+    fn reader(&self, anonymous: &[VarId], var: VarId, dim: Dimension) -> Formula {
+        match anonymous.iter().position(|&held| held == var) {
+            Some(index) => Formula::fresh(
+                u16::try_from(index).unwrap_or_else(|_| {
+                    unreachable!("one edit's fresh table is a node's own variables")
+                }),
+                dim,
+            ),
+            None => Formula::var(self.map.get(&var).copied().unwrap_or(var), dim),
+        }
+    }
+
+    /// `var`'s definition, as the carried edit declares it.
+    fn decl(&self, anonymous: &[VarId], var: VarId) -> VarDecl {
+        let Some(held) = self.source.var(var) else {
+            unreachable!("the carry declares only variables its source holds")
+        };
+        match held.def() {
+            VarDef::Free(free) => VarDecl::Free(free.clone()),
+            VarDef::Defined(expr) => {
+                let formula = Formula::from(expr)
+                    .substitute_vars(&mut |read| {
+                        Some(self.reader(anonymous, read, kind_of(self.source, read)?))
+                    })
+                    .unwrap_or_else(|fault| {
+                        unreachable!(
+                            "a reader re-pointed at its own kind keeps every dimension: {fault}"
+                        )
+                    });
+                VarDecl::Defined(formula)
+            }
+        }
+    }
+
+    /// The fresh table an edit reading `reads` carries.
+    fn table(&self, reads: impl IntoIterator<Item = VarId>) -> Carried {
+        let anonymous = self.unheld(reads);
+        let fresh = anonymous
+            .iter()
+            .map(|&var| self.decl(&anonymous, var))
+            .collect();
+        Carried { fresh, anonymous }
+    }
+
+    /// **`node` as the carried insert writes it**: every slot a reader
+    /// re-pointed into the target ([`Self::reader`]), and its table.
+    fn author(&self, node: &Node<ProfileProgram>) -> (AuthoredNode, Carried) {
+        let carried = self.table(node.exprs().into_iter().copied());
+        let authored = node.authored_with(self.source, &mut |var, dim| {
+            self.reader(&carried.anonymous, var, dim)
+        });
+        (authored, carried)
+    }
+
+    /// Whether the target's variable `held` is the source's `var` bit
+    /// for bit, read through this carry: a definition reading an
+    /// anonymous variable the target does not hold is never.
+    fn agrees(&self, var: &crate::var::Var, held: Option<&crate::var::Var>) -> bool {
+        let Some(held) = held else { return false };
+        let def = match var.def() {
+            VarDef::Free(free) => VarDef::Free(free.clone()),
+            VarDef::Defined(expr) => {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                if reads.iter().any(|(read, _)| !self.map.contains_key(read)) {
+                    return false;
+                }
+                let mut expr = expr.clone();
+                expr.remap_vars(&self.map);
+                VarDef::Defined(expr)
+            }
+        };
+        held.bit_eq(&crate::var::Var::new(def))
+    }
+
+    /// The ids the carried edit's fresh table minted, entry by entry.
+    fn minted(&mut self, carried: Carried, minted: &[VarId]) {
+        assert_eq!(
+            carried.anonymous.len(),
+            minted.len(),
+            "an accepted edit mints one variable per fresh entry"
+        );
+        self.map
+            .extend(carried.anonymous.into_iter().zip(minted.iter().copied()));
+    }
+
+    /// **The named variable `var` declared in the target** as `name`:
+    /// its definition re-pointed, an anonymous variable it reads
+    /// carried in a fresh table — through a free declare of its kind,
+    /// then the definition, since a declare carries no table.
+    fn declare(
+        &mut self,
+        target: &mut Recording<'_, ProfileProgram>,
+        var: VarId,
+        name: VarName,
+    ) -> Result<VarId, EditError> {
+        let carried = self.table(self.source.definition_reads(var));
+        let decl = self.decl(&carried.anonymous, var);
+        let minted = if carried.anonymous.is_empty() {
+            target.declare(name, decl)?
+        } else {
+            let minted = target.declare(name, VarDecl::Free(placeholder(decl.kind())))?;
+            let record = target.apply_recorded(DocEdit::DefineVar {
+                var: minted.into(),
+                def: decl,
+                fresh: carried.fresh.clone(),
+            })?;
+            self.minted(carried, &record.fresh);
+            minted
+        };
+        self.map.insert(var, minted);
+        Ok(minted)
+    }
+}
+
+/// The dimension the source variable `var` is read at, where the
+/// source holds it.
+fn kind_of(source: &ProfileDoc, var: VarId) -> Option<Dimension> {
+    Some(source.var(var)?.kind().dimension())
+}
+
+/// A free value of `kind`, held only until the definition that
+/// replaces it, in the same action.
+fn placeholder(kind: crate::var::VarKind) -> FreeVar {
+    match kind.dimension() {
+        Dimension::Count => FreeVar::Count { value: 0 },
+        dim => FreeVar::continuous(dim, 0.0),
     }
 }
 
@@ -2698,7 +2856,7 @@ pub fn split(
                 Some(Node::InstantiatePart {
                     offset: Some(offset),
                     ..
-                }) => offset.rows().into_iter().any(|(_, expr)| expr.reads(var)),
+                }) => offset.rows().into_iter().any(|(_, &read)| read == var),
                 _ => false,
             };
             return Err(SplitError::UncutVarReference {
@@ -2809,29 +2967,20 @@ pub fn split(
             node: doc.spoken(node),
         });
     }
-    // Declared in the PARENT's definition order — its declaration
-    // order, a definition after what it reads — so the part lists its
-    // variables as the parent's author did. Each carried reader is
-    // re-pointed at the part's own minted id.
-    let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
+    // The named variables, declared in the PARENT's definition order —
+    // its declaration order, a definition after what it reads — so the
+    // part lists them as the parent's author did. An anonymous one
+    // crosses with the first carried edit that reads it (`VarCarry`).
+    let mut vars = VarCarry::new(doc);
     for id in doc
         .definition_order()
         .into_iter()
         .filter(|id| cut_refs.contains_key(id))
     {
-        let Some(var) = doc.var(id) else {
-            unreachable!("a cut reader of a variable the parent does not hold refused above")
-        };
-        let Some(name) = doc.var_name(id) else {
-            return Err(SplitError::AnonymousVarCrossesCut {
-                var: doc.spoken_var(id),
-                node: doc.spoken(cut_refs[&id]),
-            });
-        };
-        let minted = part
-            .declare(name.clone(), carried_def(var, &var_map).into())
-            .map_err(part_refused)?;
-        var_map.insert(id, minted);
+        if let Some(name) = doc.var_name(id) {
+            vars.declare(&mut part, id, name.clone())
+                .map_err(part_refused)?;
+        }
     }
     // The cut nodes in document order, each under the id the part's
     // insert door mints for it (D9 — two runs agree byte for byte).
@@ -2839,13 +2988,14 @@ pub fn split(
         doc,
         &in_order,
         &mut part,
+        &mut vars,
         (
             // A gauge reference leaving the cut lands on the anchor,
             // which is the part's world; one inside it lands on the
             // gauge's image.
             None,
             |g: RecipeNodeId| cut.contains(&g),
-            |_: RecipeNodeId, node: &mut Node<ProfileProgram>| remap_node_vars(node, &var_map),
+            |_: RecipeNodeId, _: &mut AuthoredNode| {},
         ),
         part_refused,
         |old, miss| match miss {
@@ -3464,27 +3614,26 @@ pub fn inline(
             });
         }
     }
-    let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
+    // A named part variable merges into the host's variable of its
+    // name only where the two agree bit for bit (a definition reading
+    // an anonymous variable never does); a disagreeing shared name
+    // refuses. An anonymous one crosses with the first spliced edit
+    // that reads it (`VarCarry`).
+    let mut vars = VarCarry::new(&part);
     for id in part.definition_order() {
-        let Some(var) = part.var(id) else { continue };
-        let Some(name) = part.var_name(id) else {
-            return Err(InlineError::AnonymousVarCrossesCut {
-                var: part.spoken_var(id),
-            });
+        let (Some(var), Some(name)) = (part.var(id), part.var_name(id)) else {
+            continue;
         };
-        let def = carried_def(var, &var_map);
-        let held = match doc.var_named(name.as_str()) {
-            Some(held)
-                if doc.var(held).is_some_and(|existing| {
-                    existing.bit_eq(&crate::var::Var::new(def.clone()))
-                }) =>
-            {
-                held
+        match doc.var_named(name.as_str()) {
+            Some(held) if vars.agrees(var, doc.var(held)) => {
+                vars.map.insert(id, held);
             }
             Some(_) => return Err(InlineError::VarNameConflict { name: name.clone() }),
-            None => current.declare(name.clone(), def.into()).map_err(refused)?,
-        };
-        var_map.insert(id, held);
+            None => {
+                vars.declare(&mut current, id, name.clone())
+                    .map_err(refused)?;
+            }
+        }
     }
     // The promoted gauge, under the instance's gauge holding its
     // offset, takes the instance's label: it stands in for the instance,
@@ -3514,19 +3663,19 @@ pub fn inline(
         &part,
         &part.ids(),
         &mut current,
+        &mut vars,
         (
             // The part's world is the instance's gauge, or the minted
             // one; every gauge of the part is carried.
             world,
             |_: RecipeNodeId| true,
             // The part's root takes the instance's place.
-            |old: RecipeNodeId, node: &mut Node<ProfileProgram>| {
-                remap_node_vars(node, &var_map);
+            |old: RecipeNodeId, node: &mut AuthoredNode| {
                 if let (Landing::Root { root, offset }, Node::InstantiatePart { offset: held, .. }) =
                     (&landing, node)
                     && *root == old
                 {
-                    held.clone_from(offset);
+                    *held = offset.as_ref().map(crate::placement::Placement::authored);
                 }
             },
         ),

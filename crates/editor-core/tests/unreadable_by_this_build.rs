@@ -270,6 +270,9 @@ fn a_document_from_before_the_extrude_side_refuses_unreadable() {
         "an unknown variant is Unreadable: {err:?}"
     );
     let msg = err.to_string();
+    // The first thing this build cannot read in bytes that old is a
+    // slot written as an expression where a slot now holds its
+    // variable's id.
     assert!(
         msg.contains("expected an id: its mint ordinal"),
         "the refusal names what it cannot read: {msg}"

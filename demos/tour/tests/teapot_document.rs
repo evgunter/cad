@@ -100,6 +100,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -442,6 +443,7 @@ fn the_rolled_names_are_one_set_at_two_radii() {
                 node: rolled,
                 slot: pncad::document::SlotId::Radius,
                 expr: len(roll),
+                fresh: Vec::new(),
             },
             tol,
             &pncad::document::RefusingReach,
