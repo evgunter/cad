@@ -13987,6 +13987,244 @@ mod tests {
         assert!(!msg.contains("MarginDiag"), "{msg}");
         assert!(!msg.contains("Value("), "{msg}");
     }
+
+    /// Review probes (branch `join/tier3-pinch-checks-review`): the
+    /// corner arm's wedge classes, and a pinch whose ring holds one
+    /// closed arc, so one edge carries both of a pair of corners' sides.
+    mod review_probes {
+        use super::*;
+
+        fn dir(deg: f64) -> geom_core::Vec3<f64> {
+            let t = deg.to_radians();
+            geom_core::Vec3::new(t.cos(), t.sin(), 0.0)
+        }
+
+        /// `wedge_holds` over convex, reflex, straight and cusp wedges,
+        /// at bounds and off them, and mirrored through `-n`.
+        #[test]
+        fn wedge_holds_reads_every_class() {
+            let band = Band::linear(Tol::witness()).unwrap();
+            let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+            #[rustfmt::skip]
+            let rows = [
+                (0., 90., 45., true), (0., 90., 135., false), (0., 90., 270., false),
+                (0., 90., 0., false), (0., 90., 90., false), (0., 90., 180., false),
+                (0., 90., -45., false),
+                (0., 270., 90., true), (0., 270., 180., true), (0., 270., 300., false),
+                (0., 270., 0., false), (0., 270., 270., false), (0., 270., 269., true),
+                (0., 270., 1., true),
+                (0., 180., 90., true), (0., 180., 270., false), (0., 180., 0., false),
+                (0., 180., 180., false),
+                (10., 350., 0., false), (10., 350., 180., true),
+                // a cusp is not read: silent either way
+                (0., 0., 90., false), (0., 0., 270., false),
+            ];
+            for (a, b, d, want) in rows {
+                let got = wedge_holds(n, dir(a) * 2.0, dir(b) * 3.0, dir(d) * 0.5, band).unwrap();
+                assert_eq!(got, want, "a={a} b={b} d={d}");
+                let got = wedge_holds(-n, dir(b) * 2.0, dir(a) * 3.0, dir(d) * 0.5, band).unwrap();
+                assert_eq!(got, want, "mirrored a={a} b={b} d={d}");
+            }
+        }
+
+        fn recarry_line(body: &mut Body<f64>, edge: EdgeKey, tol: Tol) {
+            let e = body.get_edge(edge).unwrap().clone();
+            let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
+            let spec = geom_brep::EdgeCurveSpec::line_between(s, t);
+            let curve =
+                geom_brep::EdgeCurve::certify(spec, s, t, |_| None, Band::linear(tol).unwrap())
+                    .expect("the chord certifies");
+            *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
+        }
+
+        /// One edge, both ends at `p`: the whole circle about `center`,
+        /// walked by `he_plus` counterclockwise about `axis`.
+        fn recarry_full_circle(
+            body: &mut Body<f64>,
+            edge: EdgeKey,
+            center: Point3<f64>,
+            axis: geom_core::Vec3<f64>,
+            tol: Tol,
+        ) {
+            let e = body.get_edge(edge).unwrap().clone();
+            let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
+            assert!(s.distance(t) == 0.0, "a closed edge");
+            let radius = (s - center).norm();
+            let u_ref = (s - center) / radius;
+            let carrier = geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            };
+            let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU)
+                .unwrap();
+            let curve =
+                geom_brep::EdgeCurve::certify(spec, s, t, |_| None, Band::linear(tol).unwrap())
+                    .expect("the whole circle certifies against its one end point");
+            *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
+        }
+
+        /// A lamina whose face holds one ring through two vertices on
+        /// one point key `P = (0, 0)`: the triangle `P, (0.5, -0.87),
+        /// (0, -1)` and one closed arc about `(0, 0.2)`, tangent to the
+        /// x axis at `P`, radius 0.2 (its area under the triangle's, so the
+        /// loop's signed area keeps the ring's role). `crossed: false` walks the arc in the
+        /// triangle's sense (a figure-eight hole, the ruling's legal
+        /// shape); `crossed: true` walks it the other way, so each
+        /// corner at `P` bridges the triangle and the disc.
+        /// Returns the body, the ringed face and the oracle: whether
+        /// some corner at `P` holds a side of the other corner,
+        /// ignoring which edge the side lies on.
+        fn closed_arc_pinch(crossed: bool, tol: Tol) -> (Body<f64>, FaceKey, bool) {
+            let band = Band::linear(tol).unwrap();
+            let p = Point3::new(0.0, 0.0, 0.0);
+            let outer = [
+                Point3::new(-5.0, -5.0, 0.0),
+                Point3::new(5.0, -5.0, 0.0),
+                Point3::new(5.0, 5.0, 0.0),
+                Point3::new(-5.0, 5.0, 0.0),
+            ];
+            // The membrane's outward-CCW order, so the host's ring
+            // walks P -> (0.3, 0) -> (0.5, -0.87) -> (0, -1): clockwise.
+            let rim = [
+                p,
+                Point3::new(0.0, -1.0, 0.0),
+                Point3::new(0.5, -0.87, 0.0),
+                Point3::new(0.3, 0.0, 0.0),
+            ];
+            let (mut body, face) = lamina_with_ring(&outer, &rim, tol);
+            let ring = body.get_face(face).unwrap().rings[0];
+            let cycle = loop_cycle_of(&body, ring).unwrap();
+            // The vertices at P and at (0.3, 0): merge the second onto P.
+            let at = |body: &Body<f64>, q: Point3<f64>| {
+                cycle
+                    .iter()
+                    .map(|&h| body.get_half_edge(h).unwrap().start)
+                    .find(|&v| vertex_point(body, v).unwrap().distance(q) < 1e-12)
+                    .unwrap()
+            };
+            let (vp, vq) = (at(&body, p), at(&body, rim[3]));
+            let arc_he = *cycle
+                .iter()
+                .find(|&&h| {
+                    let e = body.get_half_edge(h).unwrap();
+                    let end = body.half_edge_end(h).unwrap();
+                    (e.start == vp && end == vq) || (e.start == vq && end == vp)
+                })
+                .unwrap();
+            let arc_edge = body.get_half_edge(arc_he).unwrap().edge;
+            let keep = body.get_vertex(vp).unwrap().point;
+            let gone = body.get_vertex(vq).unwrap().point;
+            body.vertices.get_mut(vq).unwrap().point = keep;
+            body.points.remove(gone);
+            let others: Vec<EdgeKey> = cycle
+                .iter()
+                .map(|&h| body.get_half_edge(h).unwrap().edge)
+                .filter(|&e| e != arc_edge)
+                .collect();
+            for e in others {
+                recarry_line(&mut body, e, tol);
+            }
+            // The triangle's sense in the ring, about the outward normal.
+            let n = crate::face_normal::face_outward_normal_at(&body, face, p, band)
+                .unwrap()
+                .unwrap()
+                .vec();
+            let pts: Vec<Point3<f64>> = cycle
+                .iter()
+                .filter(|&&h| h != arc_he)
+                .map(|&h| vertex_point(&body, body.get_half_edge(h).unwrap().start).unwrap())
+                .collect();
+            let mut area = geom_core::Vec3::new(0.0, 0.0, 0.0);
+            for i in 0..pts.len() {
+                let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
+                area = area + (a - Point3::origin()).cross(b - Point3::origin());
+            }
+            let tri_ccw = n.dot(area) > 0.0;
+            let arc_ccw = tri_ccw != crossed;
+            let ring_walks_plus = body.get_edge(arc_edge).unwrap().he_plus == arc_he;
+            let axis = if arc_ccw == ring_walks_plus { n } else { -n };
+            recarry_full_circle(&mut body, arc_edge, Point3::new(0.0, 0.2, 0.0), axis, tol);
+            // The oracle: every side of every corner at P, edges ignored.
+            let len = cycle.len();
+            let corners: Vec<[geom_core::Vec3<f64>; 2]> = (0..len)
+                .filter(|&i| {
+                    let v = body.get_half_edge(cycle[i]).unwrap().start;
+                    vertex_point(&body, v).unwrap().distance(p) < 1e-12
+                })
+                .map(|i| {
+                    let prev = cycle[(i + len - 1) % len];
+                    [
+                        side(&body, cycle[i]).unwrap().1.unwrap(),
+                        side(&body, mate(&body, prev).unwrap()).unwrap().1.unwrap(),
+                    ]
+                })
+                .collect();
+            assert_eq!(corners.len(), 2, "the ring passes P twice");
+            let holds = (0..2).any(|k| {
+                corners[1 - k]
+                    .iter()
+                    .any(|&d| wedge_holds(n, corners[k][0], corners[k][1], d, band).unwrap())
+            });
+            (body, face, holds)
+        }
+
+        /// Check 9's words on the ringed face alone. The membrane
+        /// covering the hole is a bow-tie (two loops' worth of region
+        /// through one point as one outer loop), crossed under the
+        /// ruling either way, and it refuses in both rows below.
+        fn host_words(body: &Body<f64>, face: FaceKey, tol: Tol) -> Vec<ValidationError> {
+            check_9_words(body, Band::linear(tol).unwrap(), tol)
+                .into_iter()
+                .filter(|e| {
+                    matches!(e,
+                        ValidationError::PinchCornerCrossed { face: f, .. }
+                        | ValidationError::PinchCornerEscalated { face: f, .. }
+                        | ValidationError::RingMeetsOuter { face: f, .. }
+                        | ValidationError::RingMeetsRing { face: f, .. }
+                        | ValidationError::RingContactEscalated { face: f, .. }
+                        | ValidationError::RingOutsideOuter { face: f, .. }
+                        | ValidationError::RingNestingUndecided { face: f, .. } if *f == face)
+                })
+                .collect()
+        }
+
+        /// The legal figure-eight hole with a closed arc: its ring's
+        /// two corners at P are disjoint, and the host face passes.
+        #[test]
+        fn a_figure_eight_hole_with_a_closed_arc_passes() {
+            let tol = Tol::witness();
+            let (body, face, holds) = closed_arc_pinch(false, tol);
+            assert!(!holds, "the oracle reads the legal ring uncrossed");
+            assert_eq!(host_words(&body, face, tol), Vec::new());
+        }
+
+        /// **The crossed twin passes too.** The ring's corners at P are
+        /// (leaving the arc at 0 deg, arriving from 270 deg) and
+        /// (leaving at 300 deg, arriving off the arc at 180 deg): they
+        /// overlap, each holding the other's ARC side. Both corners hold
+        /// the arc edge, so `edge == out_edge || edge == in_edge` drops
+        /// exactly those two sides, and the line sides are outside.
+        /// Asserts the head's silence; a side-level skip turns it red.
+        #[test]
+        fn a_crossed_pinch_through_a_closed_arc_passes_check_9_at_head() {
+            let tol = Tol::witness();
+            let (body, face, holds) = closed_arc_pinch(true, tol);
+            assert!(holds, "the oracle reads the crossed ring crossed");
+            assert_eq!(host_words(&body, face, tol), Vec::new());
+            // Nothing else in tier 3 names the host face either.
+            let (all, _) = tier3_local_checks(
+                &body,
+                Band::linear(tol).unwrap(),
+                tol,
+                None,
+                Some(crate::props::QuadLane::certified()),
+            );
+            let words: Vec<String> = all.iter().map(|e| format!("{e:?}")).collect();
+            eprintln!("REVIEWPROBE tier3 on the crossed lamina: {words:?}");
+        }
+    }
 }
 
 #[cfg(test)]
