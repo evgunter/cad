@@ -51,6 +51,19 @@
 //! (`(In,In)`/`(Out,Out)` ⇒ no intersection) confirm no crossing is
 //! recorded. Mixed keeps the In side (both witnesses' choice for the
 //! split analogue).
+//!
+//! **Read twice.** A piercing vertex that also pairs with a vertex of
+//! the other solid — which then holds its own contact at the point — is
+//! read by both passes ([`refuse_sector_rereads`]). It is read again
+//! only where its pierce touches the face, so its orbit is unwritten;
+//! a pierce that would cross refuses before it writes, and so does a
+//! second pierce. The pair's partner must lie strictly on one side of
+//! the face ([`partner_side`]). The vertex's edges are then classed
+//! against the face and its partners together ([`touch_classes`]): the
+//! partners' cones nest or lie apart on each side, and crossing each
+//! boundary flips the side ([`layered`]); an edge it cannot class
+//! refuses. A vertex in pairs alone layers them the same way, its
+//! outermost cones read off which hold which ([`pair_classes`]).
 
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
@@ -132,12 +145,9 @@ pub(super) struct PierceDatum<T: geom_core::Real> {
 /// datum, the reading the touch itself was decided by; `None` where any
 /// bound reads on the face, in band, or the bounds read both sides.
 ///
-/// `None` refuses. A partner whose link runs along the face meets the
-/// face away from the point, so the face and the partner's cone are no
-/// longer two pieces of the other solid touching only there, and that
-/// is the premise [`touch_classes`] and the vertex-vertex pass read the
-/// touch under. Such a partner has been seen to build right, but the
-/// premise is what makes the reading sound, so it is kept.
+/// `None` refuses: [`touch_classes`] and the vertex-vertex pass read
+/// the touch as the face and the partner's cone meeting only at the
+/// point (`work/tang/a-touching-vertex-beside-a-partner-along-the-face-refuses.md`).
 pub(super) fn partner_side<T: Decide>(
     partner: &[BoolSector<T>],
     datum: PierceDatum<T>,
@@ -157,13 +167,23 @@ pub(super) fn partner_side<T: Decide>(
     side
 }
 
-/// One pair of a vertex read again: the partner's side of the face its
-/// vertex touches ([`partner_side`]; `None` where it touches none), and
-/// what [`super::sectors::wedge_classes`] read against the partner.
+/// One pair of a vertex read again: its partner, the partner's side of
+/// the face the vertex touches ([`partner_side`]; `None` where it
+/// touches none), what [`super::sectors::wedge_classes`] read against the
+/// partner (`None` where it read nothing), and the partner's sectors.
 #[derive(Debug, Clone)]
-pub(super) struct PairRead {
+pub(super) struct PairRead<T: geom_core::Real> {
+    pub partner: VertexKey,
     pub side: Option<SideCode>,
-    pub wedge: super::sectors::WedgeRows,
+    pub read: Option<super::sectors::WedgeRead>,
+    pub sectors: Vec<BoolSector<T>>,
+}
+
+/// Whether a partner's reading of an edge puts it inside the partner's
+/// cone: In its material where that is the cone (met), Out of it where
+/// that is the cone's complement.
+fn held(class: SideCode, met: bool) -> bool {
+    matches!((class, met), (SideCode::In, true) | (SideCode::Out, false))
 }
 
 /// **An edge's class among layered partners**: `base` where it lies in
@@ -174,25 +194,26 @@ pub(super) struct PairRead {
 /// cones nest or lie apart. Every face bounds the other solid's
 /// material on one side only, so crossing a partner's boundary flips
 /// it. A partner's row says on which side of its own boundary the edge
-/// lies, In its material or Out of it, so which cones hold the edge,
-/// and how many, is read off the rows alone. An edge on one partner's
-/// boundary is on the solid's; one on two, or beside a partner that
-/// read no rows, is not decided here.
-fn layered<'a>(
+/// lies, so which cones hold the edge, and how many, is read off the
+/// rows alone. An edge on one partner's boundary is on the solid's,
+/// whatever depth that boundary lies at; one on two, or beside a
+/// partner that read no rows, is not decided here.
+fn layered<'a, T: geom_core::Real + 'a>(
     base: SideCode,
     he: HalfEdgeKey,
-    partners: impl Iterator<Item = &'a PairRead>,
+    partners: impl Iterator<Item = &'a PairRead<T>>,
 ) -> Option<SideCode> {
-    let (mut held, mut on) = (0usize, 0usize);
+    let (mut holding, mut on) = (0usize, 0usize);
     for p in partners {
-        let &(_, class) = p.wedge.rows.iter().find(|&&(h, _)| h == he)?;
-        match (class, p.wedge.met) {
-            (SideCode::On, _) => on += 1,
-            (SideCode::In, true) | (SideCode::Out, false) => held += 1,
-            _ => {}
+        let read = p.read.as_ref()?;
+        let &(_, class) = read.rows.iter().find(|&&(h, _)| h == he)?;
+        if class == SideCode::On {
+            on += 1;
+        } else if held(class, read.met) {
+            holding += 1;
         }
     }
-    match (on, held % 2, base) {
+    match (on, holding % 2, base) {
         (0, 0, _) => Some(base),
         (0, _, SideCode::Out) => Some(SideCode::In),
         (0, _, SideCode::In) => Some(SideCode::Out),
@@ -202,52 +223,98 @@ fn layered<'a>(
 }
 
 /// **The classes of a touching vertex's edges against the other solid**,
-/// from its pierce's classes (`touch`) and its pairs'.
+/// from its pierce's classes (`touch`) and its pairs'; `Err` names a
+/// partner where an edge is left undecided, which refuses.
 ///
 /// Near the point the other solid is the pierced face's half-space `H`
 /// and the material of each partner, whose boundary lies strictly on
 /// one side of the face. The side of the face an edge leaves on is
 /// outside every cone on the other side, so only its own side's
 /// partners read it, [`layered`] over its pierce's class: outside `H`
-/// beside no cone, inside `H` beside no void. An edge on the face is
-/// on the solid's boundary, and no partner's cone reaches it.
-pub(super) fn touch_classes(
+/// beside no cone, inside `H` beside no void. An edge on the face is on
+/// the solid's boundary, and no partner's cone reaches it.
+pub(super) fn touch_classes<T: geom_core::Real>(
     touch: &[(HalfEdgeKey, SideCode)],
-    pairs: &[PairRead],
-) -> Vec<(HalfEdgeKey, SideCode)> {
+    pairs: &[PairRead<T>],
+) -> Result<Vec<(HalfEdgeKey, SideCode)>, VertexKey> {
     touch
         .iter()
-        .filter_map(|&(he, own)| {
-            let side = pairs.iter().filter(|p| p.side == Some(own));
-            Some((he, layered(own, he, side)?))
+        .map(|&(he, own)| {
+            let side = || pairs.iter().filter(move |p| p.side == Some(own));
+            layered(own, he, side()).map(|c| (he, c)).ok_or_else(|| {
+                side()
+                    .find(|p| p.read.is_none())
+                    .or_else(|| side().next())
+                    .or(pairs.first())
+                    .map_or_else(VertexKey::default, |p| p.partner)
+            })
         })
         .collect()
 }
 
 /// **The classes of a vertex's edges against the other solid, where
-/// the vertex is in several pairs and touches no face**: [`layered`]
-/// over `Out`, where every partner is a convex cone, which lie apart
-/// (two that nested would overlap their material), so the solid there
-/// is their union; none where any is not, since then the material
-/// outside every cone is not known from the rows. One pair's rows stand
-/// as read.
-pub(super) fn pair_classes(pairs: &[PairRead]) -> Vec<(HalfEdgeKey, SideCode)> {
+/// the vertex is in pairs alone**, touching no face.
+///
+/// Several partners read [`layered`]: the cones that no other holds
+/// are outermost, and the material beyond them is outside the solid
+/// where they are met and inside it where they are joined. Where a
+/// partner reads nothing, an edge is left undecided, or the outermost
+/// disagree, each pair's rows stand as read, as for one pair. Rows
+/// read through a hollow corner's complement stand in no pair's own.
+pub(super) fn pair_classes<T: Decide>(
+    pairs: &[PairRead<T>],
+    band: Band,
+) -> Vec<(HalfEdgeKey, SideCode)> {
+    let alone = || {
+        pairs
+            .iter()
+            .filter_map(|p| p.read.as_ref().filter(|r| !r.hollow))
+            .flat_map(|r| r.rows.iter().copied())
+            .collect()
+    };
     match pairs {
-        [one] => one.wedge.rows.clone(),
-        [first, ..]
-            if pairs
-                .iter()
-                .all(|p| p.wedge.met && !p.wedge.rows.is_empty()) =>
-        {
-            first
-                .wedge
-                .rows
-                .iter()
-                .filter_map(|&(he, _)| Some((he, layered(SideCode::Out, he, pairs.iter())?)))
-                .collect()
-        }
-        _ => Vec::new(),
+        [_] => alone(),
+        _ => layered_alone(pairs, band).unwrap_or_else(alone),
     }
+}
+
+/// [`pair_classes`]' layering, or `None` where it cannot decide.
+fn layered_alone<T: Decide>(
+    pairs: &[PairRead<T>],
+    band: Band,
+) -> Option<Vec<(HalfEdgeKey, SideCode)>> {
+    // Partner `i`'s cone lies inside `j`'s where `j` holds every edge
+    // of `i` (strictly: cones whose boundaries meet only at the point).
+    let inside = |i: usize, j: usize| -> Option<bool> {
+        let read =
+            super::sectors::wedge_classes(&pairs[i].sectors, &pairs[j].sectors, band).ok()??;
+        Some(!read.rows.is_empty() && read.rows.iter().all(|&(_, c)| held(c, read.met)))
+    };
+    let mut base = None;
+    for i in 0..pairs.len() {
+        let mut outermost = true;
+        for j in (0..pairs.len()).filter(|&j| j != i) {
+            if inside(i, j)? {
+                outermost = false;
+            }
+        }
+        if outermost {
+            let met = pairs[i].read.as_ref()?.met;
+            let here = if met { SideCode::Out } else { SideCode::In };
+            if base.is_some_and(|b| b != here) {
+                return None;
+            }
+            base = Some(here);
+        }
+    }
+    let base = base?;
+    pairs[0]
+        .read
+        .as_ref()?
+        .rows
+        .iter()
+        .map(|&(he, _)| Some((he, layered(base, he, pairs.iter())?)))
+        .collect()
 }
 
 /// Output of one vertex-on-face classification.
@@ -1373,90 +1440,120 @@ mod tests {
 
     /// A touching edge reads its own side's partners, layered over its
     /// pierce's class: flipped once per cone that holds it, a met cone
-    /// holding what it reads In and a joined one what it reads Out; on
-    /// one partner's boundary, on the solid's; on two, or beside a
-    /// partner with no rows, undecided. Several pairs and no face read
-    /// as a union where every partner is met, and not at all otherwise.
+    /// holding what it reads In and a hollow one (read through its
+    /// complement) what it reads Out; on one partner's boundary, on the
+    /// solid's, at any depth. On two boundaries, or beside a partner
+    /// that read nothing, it names a partner to refuse on. Each input is
+    /// a partner a scene of `a_vertex_read_by_two_sector_passes` reads:
+    /// an arch, a void in the arch, the cavity's void, an island in it,
+    /// arches apart, arches sharing a ray, and a dart. One pair alone
+    /// keeps its rows, except through a hollow corner.
     #[test]
     fn a_vertex_read_again_layers_its_partners() {
-        let key = |n: u64| HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
-        let (e, f, g) = (key(1), key(2), key(3));
-        let read = |side, met, rows: &[(HalfEdgeKey, SideCode)]| PairRead {
+        use super::super::sectors::WedgeRead;
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let (e, f, g) = (
+            HalfEdgeKey::from(key(1)),
+            HalfEdgeKey::from(key(2)),
+            HalfEdgeKey::from(key(3)),
+        );
+        let (w, x) = (VertexKey::from(key(4)), VertexKey::from(key(5)));
+        let read = |partner, side, met: bool, rows: &[(HalfEdgeKey, SideCode)]| PairRead::<f64> {
+            partner,
             side,
-            wedge: super::super::sectors::WedgeRows {
+            read: Some(WedgeRead {
                 met,
+                hollow: !met,
                 rows: rows.to_vec(),
-            },
+            }),
+            sectors: Vec::new(),
+        };
+        let unread = |partner, side| PairRead::<f64> {
+            partner,
+            side,
+            read: None,
+            sectors: Vec::new(),
         };
         let three = [(e, In), (f, Out), (g, On)];
         let touches = [
             (
-                "Out, beside a cone",
+                "Out, beside an arch",
                 vec![(e, Out), (f, Out), (g, On)],
-                vec![read(Some(Out), true, &three)],
-                vec![(e, In), (f, Out), (g, On)],
+                vec![read(w, Some(Out), true, &three)],
+                Ok(vec![(e, In), (f, Out), (g, On)]),
             ),
             (
-                "Out, beside an In-side partner",
+                "Out, beside the cavity's void",
                 vec![(e, Out), (f, Out)],
-                vec![read(Some(In), false, &three)],
-                vec![(e, Out), (f, Out)],
+                vec![read(w, Some(In), false, &three)],
+                Ok(vec![(e, Out), (f, Out)]),
             ),
             (
-                "In, beside a void",
+                "In, beside the cavity's void",
                 vec![(e, In), (f, In), (g, In)],
-                vec![read(Some(In), false, &three)],
-                vec![(e, In), (f, Out), (g, On)],
+                vec![read(w, Some(In), false, &three)],
+                Ok(vec![(e, In), (f, Out), (g, On)]),
             ),
             (
-                "Out, beside two cones apart",
+                "In, beside the void and the island in it",
+                vec![(e, In), (f, In), (g, In)],
+                vec![
+                    read(w, Some(In), false, &[(e, Out), (f, Out), (g, Out)]),
+                    read(x, Some(In), true, &[(e, In), (f, On), (g, Out)]),
+                ],
+                Ok(vec![(e, In), (f, On), (g, Out)]),
+            ),
+            (
+                "Out, beside two arches apart",
                 vec![(e, Out), (f, Out)],
                 vec![
-                    read(Some(Out), true, &[(e, In), (f, Out)]),
-                    read(Some(Out), true, &[(e, Out), (f, Out)]),
+                    read(w, Some(Out), true, &[(e, In), (f, Out)]),
+                    read(x, Some(Out), true, &[(e, Out), (f, Out)]),
                 ],
-                vec![(e, In), (f, Out)],
+                Ok(vec![(e, In), (f, Out)]),
             ),
             (
-                "Out, beside a cone and the void in it",
-                vec![(e, Out), (f, Out)],
+                "Out, beside the arch and the void in it, on the void's face",
+                vec![(e, Out), (f, Out), (g, Out)],
                 vec![
-                    read(Some(Out), true, &[(e, In), (f, In)]),
-                    read(Some(Out), false, &[(e, Out), (f, In)]),
+                    read(w, Some(Out), true, &[(e, In), (f, In), (g, In)]),
+                    read(x, Some(Out), false, &[(e, Out), (f, In), (g, On)]),
                 ],
-                vec![(e, Out), (f, In)],
+                Ok(vec![(e, Out), (f, In), (g, On)]),
             ),
             (
-                "on two boundaries, or beside a partner with no rows",
-                vec![(e, Out), (g, Out), (f, On)],
+                "on two arches' shared ray",
+                vec![(e, Out), (g, Out)],
                 vec![
-                    read(Some(Out), true, &[(g, On)]),
-                    read(Some(Out), true, &[(g, On), (e, In)]),
+                    read(w, Some(Out), true, &[(e, Out), (g, On)]),
+                    read(x, Some(Out), true, &[(e, Out), (g, On)]),
                 ],
-                vec![(f, On)],
+                Err(w),
+            ),
+            (
+                "beside a dart, which reads nothing",
+                vec![(e, On), (f, Out)],
+                vec![read(w, Some(Out), true, &three), unread(x, Some(Out))],
+                Err(x),
             ),
         ];
         for (what, touch, pairs, want) in touches {
             assert_eq!(touch_classes(&touch, &pairs), want, "{what}");
         }
-        let alone = [
-            ("one pair", vec![read(None, false, &three)], three.to_vec()),
+        let band = Band::linear(Tol::witness()).unwrap();
+        for (what, pairs, want) in [
             (
-                "two cones",
-                vec![
-                    read(None, true, &three),
-                    read(None, true, &[(e, Out), (f, In), (g, Out)]),
-                ],
-                vec![(e, In), (f, In), (g, On)],
+                "one arch",
+                vec![read(w, None, true, &three)],
+                three.to_vec(),
             ),
             (
-                "a cone and a void",
-                vec![read(None, true, &three), read(None, false, &three)],
+                "one hollow corner",
+                vec![read(w, None, false, &three)],
                 vec![],
             ),
-        ];
-        for (what, pairs, want) in alone {
-            assert_eq!(pair_classes(&pairs), want, "{what}");
+        ] {
+            assert_eq!(pair_classes(&pairs, band), want, "{what}");
         }
     }
 

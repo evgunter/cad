@@ -439,10 +439,11 @@ impl SideCode {
 ///   classification itself decides sector pairs, not edges, so these
 ///   rows are a measurement of their own, taken beside it from the same
 ///   sectors, not a record of what it decided.
-/// - A vertex in several pairs, or that touches a face and pairs too,
-///   records each edge once, read against its partners and the face
-///   together (`vtxfac::pair_classes`, `vtxfac::touch_classes`), and
-///   nothing where they leave it undecided.
+/// - A vertex that touches a face and pairs too records each edge once,
+///   read against the face and its partners together, or the boolean
+///   refuses (`vtxfac::touch_classes`). A vertex in several pairs alone
+///   does the same where its partners' layering decides, and keeps each
+///   pair's rows where it does not (`vtxfac::pair_classes`).
 ///
 /// `In` and `On` both lie in the other operand's closed body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -4373,7 +4374,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // every pair is read (`vtxfac::touch_classes`), and each vertex in
     // pairs alone, likewise (`vtxfac::pair_classes`).
     let mut touches = std::collections::BTreeMap::new();
-    let mut paired: std::collections::BTreeMap<_, Vec<vtxfac::PairRead>> =
+    let mut paired: std::collections::BTreeMap<_, Vec<vtxfac::PairRead<T>>> =
         std::collections::BTreeMap::new();
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for (operand, pierced) in [
@@ -4398,6 +4399,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 band,
                 tol,
             )?;
+            // `classify_vertex_on_face` refuses a re-read vertex that
+            // would write, so a re-read one touched: its orbit, and the
+            // pierced face, are as the operands gave them.
+            debug_assert!(
+                reread.is_none() || (out.edges.is_empty() && out.ring.is_none()),
+                "a re-read pierce wrote"
+            );
             null_edges.extend(out.edges);
             null_pairs.extend(out.pairs);
             pierce_rings.extend(out.ring);
@@ -4440,7 +4448,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             (Operand::A, c.a, &a_sectors, &b_sectors, c.b),
             (Operand::B, c.b, &b_sectors, &a_sectors, c.a),
         ] {
-            let wedge = sectors::wedge_classes(own, other, band)?;
+            let read = sectors::wedge_classes(own, other, band)?;
+            let mut pair = vtxfac::PairRead {
+                partner,
+                side: None,
+                read,
+                sectors: other.clone(),
+            };
             match touches.get_mut(&(operand, vertex)) {
                 Some(touch) => {
                     let side = vtxfac::partner_side(other, touch.datum, band).ok_or(
@@ -4450,15 +4464,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
                         },
                     )?;
-                    touch.pairs.push(vtxfac::PairRead {
-                        side: Some(side),
-                        wedge,
-                    });
+                    pair.side = Some(side);
+                    touch.pairs.push(pair);
                 }
-                None => paired
-                    .entry((operand, vertex))
-                    .or_default()
-                    .push(vtxfac::PairRead { side: None, wedge }),
+                None => paired.entry((operand, vertex)).or_default().push(pair),
             }
         }
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
@@ -4492,15 +4501,23 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         )?;
         classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
     }
-    let read = touches
-        .iter()
-        .map(|(k, touch)| (k, vtxfac::touch_classes(&touch.classes, &touch.pairs)))
-        .chain(
-            paired
-                .iter()
-                .map(|(k, pairs)| (k, vtxfac::pair_classes(pairs))),
-        );
-    for (&(operand, vertex), classes) in read {
+    let mut read = Vec::with_capacity(touches.len() + paired.len());
+    for (&(operand, vertex), touch) in &touches {
+        // A touching vertex classes every edge or refuses, as it did
+        // before its touch was read at all.
+        let classes = vtxfac::touch_classes(&touch.classes, &touch.pairs).map_err(|partner| {
+            BooleanError::VertexReadTwice {
+                operand,
+                vertex,
+                reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
+            }
+        })?;
+        read.push(((operand, vertex), classes));
+    }
+    for (&key, pairs) in &paired {
+        read.push((key, vtxfac::pair_classes(pairs, band)));
+    }
+    for ((operand, vertex), classes) in read {
         let body = match operand {
             Operand::A => &a,
             Operand::B => &b,
@@ -4623,7 +4640,7 @@ struct Touch<T: Real> {
     /// The pierced face.
     face: FaceKey,
     /// Each pair's partner side and rows, in pair order.
-    pairs: Vec<vtxfac::PairRead>,
+    pairs: Vec<vtxfac::PairRead<T>>,
 }
 
 /// The two vertices each null edge joins, `(operand, below end, above

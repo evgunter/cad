@@ -48,8 +48,8 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, at, leaned, orders, posed_box, posed_boxes, posed_prism, posed_pyramid,
-    poses, wedge,
+    MEET, PLATE, Pose, apex_pyramid, at, corners, leaned, mix, nest, orders, posed_box,
+    posed_boxes, posed_prism, poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
@@ -58,40 +58,15 @@ use topo::{
     point_in_solid_of, readback, subtract, union, validate_geometric, validate_pseudomanifold,
 };
 
+const THIRD: f64 = 1.0 / 3.0;
+
 fn t() -> Tol {
     Tol::witness()
 }
 
-/// Three base corners relative to [`MEET`]: two at radius `r` 15° either
-/// side of `bearing` (degrees) and one at `0.6 r` on it, `rise` above
-/// it (below, where `rise` is negative).
-fn corners(bearing: f64, rise: f64, r: f64) -> [[f64; 3]; 3] {
-    let corner = |d: f64, r: f64| {
-        let (s, c) = (bearing + d).to_radians().sin_cos();
-        [r * c, r * s, rise]
-    };
-    [corner(15.0, r), corner(-15.0, r), corner(0.0, 0.6 * r)]
-}
-
-/// Corners whose cone lies inside `base`'s: each mixes `base`'s three
-/// 3 : 1 : 1, scaled by `s`, so the tetrahedron on them reaches past
-/// `base`'s where `s` exceeds 1.
-fn nest(base: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
-    [0, 1, 2].map(|i| {
-        [0, 1, 2]
-            .map(|k| (3.0 * base[i][k] + base[(i + 1) % 3][k] + base[(i + 2) % 3][k]) * s / 5.0)
-    })
-}
-
-/// The tetrahedron with its apex at [`MEET`] and `base` (relative to it),
-/// wound counterclockwise seen from the apex.
+/// The pyramid with its apex at [`MEET`] over `base`, relative to it.
 fn tet(base: [[f64; 3]; 3], pose: &Pose) -> AtRestBody<f64> {
-    let [a, b, c] = base;
-    let det = a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
-        + a[2] * (b[0] * c[1] - b[1] * c[0]);
-    let at = |q: [f64; 3]| [0, 1, 2].map(|k| MEET[k] + q[k]);
-    let base = if det < 0.0 { [a, b, c] } else { [b, a, c] }.map(at);
-    posed_pyramid(&base, MEET, pose, t())
+    apex_pyramid(&base, pose, t())
 }
 
 fn standing(bearing: f64, rise: f64, r: f64, pose: &Pose) -> AtRestBody<f64> {
@@ -431,6 +406,11 @@ struct Scene {
     in_island: AtRestBody<f64>,
     hollow: AtRestBody<f64>,
     in_hollow: AtRestBody<f64>,
+    bare_hollow: AtRestBody<f64>,
+    deep: AtRestBody<f64>,
+    cross3: AtRestBody<f64>,
+    on2: AtRestBody<f64>,
+    cross_in: AtRestBody<f64>,
     along: AtRestBody<f64>,
     lying: AtRestBody<f64>,
     blocks: AtRestBody<f64>,
@@ -450,6 +430,10 @@ impl Scene {
         let cavity = built(
             "the plate less a hanging pyramid",
             subtract(&plate, &tet(void(), pose), t()),
+        );
+        let hollow = built(
+            "a void in the arch",
+            subtract(&one, &tet(nest(arch(), 0.7), pose), t()),
         );
         let pair = |what, [x, y]: [[[f64; 3]; 3]; 2]| {
             built(what, union(&tet(x, pose), &tet(y, pose), t()))
@@ -496,11 +480,45 @@ impl Scene {
                 union(&cavity, &tet(nest(void(), 0.7), pose), t()),
             ),
             in_island: tet(nest(nest(void(), 0.7), 0.7), pose),
-            hollow: built(
-                "a void in the arch",
-                subtract(&one, &tet(nest(arch(), 0.7), pose), t()),
-            ),
+            hollow: hollow.clone(),
             in_hollow: tet(nest(nest(arch(), 0.7), 0.7), pose),
+            bare_hollow: built(
+                "a void in the bare arch",
+                subtract(&arch_body, &tet(nest(arch(), 0.7), pose), t()),
+            ),
+            deep: built(
+                "an island in the void in the arch",
+                union(&hollow, &tet(nest(nest(arch(), 0.7), 0.7), pose), t()),
+            ),
+            // Corners in the island, in the void only, and in the arch
+            // only: its edges lie at three depths.
+            cross3: tet(
+                mix(
+                    arch(),
+                    [[THIRD, THIRD, THIRD], [0.85, 0.1, 0.05], [0.5, 0.28, 0.22]],
+                    0.6,
+                ),
+                pose,
+            ),
+            // An edge on the void's face, inside the arch.
+            on2: tet(
+                mix(
+                    arch(),
+                    [[0.4, 0.4, 0.2], [0.45, 0.45, 0.1], [0.7, 0.25, 0.05]],
+                    0.6,
+                ),
+                pose,
+            ),
+            // Corners in the island, in the void only, and in the plate
+            // only, below the top.
+            cross_in: tet(
+                mix(
+                    void(),
+                    [[THIRD, THIRD, THIRD], [0.7, 0.2, 0.1], [1.2, -0.3, 0.1]],
+                    0.6,
+                ),
+                pose,
+            ),
             along: tet([mid, out(p), out(q)], pose),
             lying: built(
                 "the plate and a lying pyramid",
@@ -610,6 +628,21 @@ fn a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once() {
         pose,
     );
     builds_along("a pyramid along the arch", &s.along, &s.one, pose, true);
+    // A void in the arch reads through its complement: an edge on its
+    // face is on the solid's, two boundaries deep, and a pyramid over a
+    // void in the arch alone names as it did before any of this.
+    builds(
+        "a pyramid on the void's face in the arch",
+        &s.on2,
+        &s.hollow,
+        pose,
+    );
+    builds(
+        "a pyramid over a void in the bare arch",
+        &s.over,
+        &s.bare_hollow,
+        pose,
+    );
 }
 
 /// **A vertex that crosses a face it is paired on, or pierces two
@@ -660,7 +693,7 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
 }
 
 /// **Every scene, at every pose, in every op and both orders, builds
-/// sound or refuses typed**: 34 scenes, 1020 op cells.
+/// sound or refuses typed**: 45 scenes, 1350 op cells.
 #[test]
 fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     let mut held = 0;
@@ -692,6 +725,21 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
             ("hanging across the arch and void", &s.hang_over, &s.both),
             ("in the island in the void", &s.in_island, &s.island),
             ("in the void in the arch", &s.in_hollow, &s.hollow),
+            ("over the void in the arch", &s.over, &s.hollow),
+            ("beside the void in the arch", &s.cone, &s.hollow),
+            ("crossing the void in the arch", &s.cross3, &s.hollow),
+            ("on the void's face in the arch", &s.on2, &s.hollow),
+            ("crossing the island in the void", &s.cross_in, &s.island),
+            ("beside the island in the void", &s.cone, &s.island),
+            ("over a void in the bare arch", &s.over, &s.bare_hollow),
+            (
+                "two up over a void in the bare arch",
+                &s.two_up,
+                &s.bare_hollow,
+            ),
+            ("crossing three levels in the arch", &s.cross3, &s.deep),
+            ("on the void's face, the island in it", &s.on2, &s.deep),
+            ("over the deep arch", &s.over, &s.deep),
         ] {
             held += builds(label, x, y, &pose);
         }
