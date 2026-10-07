@@ -60,16 +60,19 @@ and follows.
 ## Outcome (2026-10-07)
 
 Each section row that serves a verdict on a position datum beside a
-tilt its routing row admitted decides it across the reach
+term its routing row admitted decides it across the reach
 (`decide_across`, `crates/geom-brep/src/intersect.rs`): the zero side
-on `|datum| + tilt·lever` (the farthest a consumed point of the served
+on `|datum| + swing` (the farthest a consumed point of the served
 ruling or circle stands off), each definite side on the datum shrunk
-toward zero by the tilt (its `_floor` row), a straddle escalating
-through the gate. The tilt row only routes, and the lever is the
-row's own. Applied to `pc_parallel_gap`, `cc_coaxial`,
-`cc_parallel_gap`, `coc_coaxial`, the witness's
-`tangent_locus_internal_gap`, and the sweep's siblings in the same
-file: `pt_axis_plane_gap`, `pt_spiric_two_ovals`, `pt_cap_gap` and
-`pn_apex_section`. Rows: `axis_rows_read_as_one_sum`. The sweep's
-siblings outside these files are filed on this slate (`work/tang/`,
-the items naming this one).
+toward zero by the swing (its `_floor` row), a straddle escalating
+through the gate. The routing row keeps its own lever. The swing is
+each row's own: the tilt levered at the reach (`pc_parallel_gap`,
+`pt_spiric_two_ovals`, `pt_cap_gap`), the axes' distance's exact range
+over the reach (`cc_coaxial`, `cc_parallel_gap`,
+`tangent_locus_internal_gap`, `coc_coaxial`), or the apex gap
+(`pn_apex_section`). `pt_axis_plane_gap` reads its gap alone: the tilt
+turns the meridian circles along the torus. Rows:
+`axis_rows_read_as_one_sum`; the differential:
+`one_sum_differential`. The sweep's siblings are filed on the slates
+whose ground they land on, and the levers the differential found
+over-long on this one.

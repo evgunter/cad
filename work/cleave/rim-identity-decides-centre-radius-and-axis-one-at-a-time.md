@@ -18,7 +18,8 @@ when all three are Zero: two rims each term just inside the band apart
 stand up to about `3ε` apart.
 
 Found by the sweep of the TANG unit that closed
-`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time` (`work/tang/`),
+and filed on this slate, whose ground it lands on.
 
 ## The shape of a fix
 

@@ -18,7 +18,8 @@ coaxial section certificates from the exact coaxial formula with no
 allowance for the tilt or the offset (near 668 and 692–699).
 
 Found by the sweep of the TANG unit that closed
-`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time` (`work/tang/`),
+and filed on this slate, whose ground it lands on.
 
 ## The shape of a fix
 

@@ -20,7 +20,8 @@ radius row, `boolean/solid_contain.rs:1472`) and the sphere latitude
 rim (`bool_sphere_iso_rim`, `solid_contain.rs:3251`).
 
 Found by the sweep of the TANG unit that closed
-`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time` (`work/tang/`),
+and filed on this slate, whose ground it lands on.
 
 ## The shape of a fix
 

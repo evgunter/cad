@@ -18,7 +18,11 @@ when all read Zero. The halved gate band on `Bridged` narrows each row
 but does not sum them.
 
 Found by the sweep of the TANG unit that closed
-`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time` (`work/tang/`),
+and filed on this slate, whose ground it lands on. The same rows
+also read each cylinder's stored origin off the reach: TANG's parked
+`declared-cylinder-pair-offsets-read-off-the-reach` (`work/tang/`)
+holds that half, and a fix here should land with it or after it.
 
 ## The shape of a fix
 

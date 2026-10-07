@@ -16,8 +16,8 @@
 //! beside such a datum read that sum on each verdict's own side
 //! (`decide_across` in `crate::intersect`): `pc_parallel_gap`,
 //! `cc_coaxial`, `cc_parallel_gap`, `tangent_locus_internal_gap`,
-//! `coc_coaxial`, `pt_spiric_two_ovals`,
-//! `pt_cap_gap` and `pn_apex_section`. The tightest lever reads the position
+//! `coc_coaxial`, `pt_spiric_two_ovals`, `pt_cap_gap` and
+//! `pn_apex_section`. The tightest lever reads the position
 //! datum at the pivot nearest the ball's centre ([`ExtentBall::foot_on`]
 //! for an axis), where the lever is little more than the ball's radius.
 //!

@@ -21,7 +21,8 @@ and `latitude_circle` mints from it. Each row can sit just inside the
 zero band, so the served constraint stands up to about `2ε` off.
 
 Found by the sweep of the TANG unit that closed
-`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time` (`work/tang/`),
+and filed on this slate, whose ground it lands on.
 
 ## The shape of a fix
 
