@@ -693,3 +693,11 @@ The bracket's wall 3 stays (its section-face corners are not isosceles). The
 run-out row stays open for step 5: the overrun at a non-isosceles turn,
 including the supplementary chamfer whose feet coincide, then deleting the
 residue.
+
+## 2026-10-07 — the run-out row closes at step 4; step 5 split
+
+Per the ruling's build order, `a-plane-plane-blend-cannot-end-at-an-unrequested-corner`
+closes with PR 4209. Step 5 (the non-isosceles overrun, a numeric probe
+before its spec) is now its own row,
+`a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
+whole-face planar path step 5 was to delete went at step 2.

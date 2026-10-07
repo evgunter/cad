@@ -2,11 +2,12 @@
 id: a-plane-plane-blend-cannot-end-at-an-unrequested-corner
 kind: issue
 title: blend: a plane–plane chain cannot end at a corner whose other edges are unrequested, nor turn a sharp corner, so no proper subset of a box's edges can be chamfered or filleted
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
-pr: 4121
+pr: 4209
+closed: 2026-10-07
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo`, whose scene
