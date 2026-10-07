@@ -1036,3 +1036,289 @@ mod tests {
         }
     }
 }
+
+/// Review probes (band-dual-4271-r1): the straight-edge meter against
+/// the TRUE enclosure `Ω` (elliptic section, tilted frame, random unit
+/// floors), on random and adversarial segments, at f64 and `Interval`.
+#[cfg(test)]
+mod review_4271_r1 {
+    use super::{CapSliver, SectionFrame};
+    use geom::Curve3;
+    use geom_core::{Bounds, Interval, Point3, Real, Vec3};
+    use topo::{EdgeKey, FaceKey};
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+        fn range(&mut self, a: f64, b: f64) -> f64 {
+            a + (b - a) * self.next()
+        }
+    }
+
+    #[derive(Clone)]
+    struct Spec {
+        round: Option<(f64, f64, f64)>, // (angle of u, major, minor)
+        reach: f64,
+        floors: Vec<((f64, f64), f64)>,
+    }
+
+    fn build<T: Bounds>(s: &Spec) -> CapSliver<T> {
+        let f = T::from_f64;
+        CapSliver {
+            cap: FaceKey::default(),
+            rims: [EdgeKey::default(); 2],
+            center: Point3::new(f(0.0), f(0.0), f(0.0)),
+            inside: s.round.map(|(a, major, minor)| SectionFrame {
+                u: Vec3::new(f(a.cos()), f(a.sin()), f(0.0)),
+                w: Vec3::new(f(-a.sin()), f(a.cos()), f(0.0)),
+                major: f(major),
+                minor: f(minor),
+            }),
+            reach: f(s.reach),
+            floors: s
+                .floors
+                .iter()
+                .map(|&((x, y), fl)| (Vec3::new(f(x), f(y), f(0.0)), f(fl)))
+                .collect(),
+        }
+    }
+
+    /// Is `p` in the TRUE enclosure `Ω` (the ellipse, not the minor disc)?
+    fn in_omega(s: &Spec, p: (f64, f64)) -> bool {
+        let r = p.0.hypot(p.1);
+        if r > s.reach {
+            return false;
+        }
+        if let Some((a, major, minor)) = s.round {
+            let (x, y) = (
+                p.0 * a.cos() + p.1 * a.sin(),
+                -p.0 * a.sin() + p.1 * a.cos(),
+            );
+            if (x / major).powi(2) + (y / minor).powi(2) < 1.0 {
+                return false;
+            }
+        }
+        s.floors
+            .iter()
+            .all(|&((dx, dy), fl)| p.0 * dx + p.1 * dy >= fl)
+    }
+
+    fn g(s: &Spec, p: (f64, f64)) -> f64 {
+        let r = p.0.hypot(p.1);
+        let mut v = r - s.reach;
+        if let Some((_, _, minor)) = s.round {
+            v = v.max(minor - r);
+        }
+        s.floors
+            .iter()
+            .fold(v, |v, &((dx, dy), fl)| v.max(fl - (p.0 * dx + p.1 * dy)))
+    }
+
+    fn random_spec(rng: &mut Lcg) -> Spec {
+        let round = (rng.next() < 0.75).then(|| {
+            let minor = rng.range(0.3, 1.0);
+            let major = if rng.next() < 0.5 {
+                minor
+            } else {
+                minor * rng.range(1.0, 2.5)
+            };
+            (rng.range(0.0, 6.3), major, minor)
+        });
+        let reach = rng.range(0.8, 2.5);
+        let n = (rng.next() * 6.0) as usize;
+        let mut floors = Vec::new();
+        for _ in 0..n {
+            let t = rng.range(0.0, 6.3);
+            let d = if rng.next() < 0.3 {
+                // axis-aligned and repeated directions
+                [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)][(rng.next() * 4.0) as usize]
+            } else {
+                (t.cos(), t.sin())
+            };
+            floors.push((d, rng.range(-1.5, 1.2)));
+        }
+        Spec {
+            round,
+            reach,
+            floors,
+        }
+    }
+
+    /// Segments: random, plus adversarial ones (along a floor direction,
+    /// along a floor's zero set, through the centre, tangent to the
+    /// minor / mid / reach circles, very short, very long).
+    fn segments(rng: &mut Lcg, s: &Spec) -> Vec<((f64, f64), (f64, f64))> {
+        let mut out = Vec::new();
+        for _ in 0..40 {
+            out.push((
+                (rng.range(-3.0, 3.0), rng.range(-3.0, 3.0)),
+                (rng.range(-3.0, 3.0), rng.range(-3.0, 3.0)),
+            ));
+        }
+        for &((dx, dy), fl) in &s.floors {
+            let (px, py) = (dx * fl, dy * fl);
+            let l = rng.range(0.1, 4.0);
+            let o = rng.range(-0.01, 0.01);
+            // along the zero set (perpendicular to d), offset slightly
+            out.push((
+                (px + o * dx - dy * l, py + o * dy + dx * l),
+                (px + o * dx + dy * l, py + o * dy - dx * l),
+            ));
+            // along d
+            let c = rng.range(-1.0, 1.0);
+            out.push((
+                (-dy * c - dx * 3.0, dx * c - dy * 3.0),
+                (-dy * c + dx * 3.0, dx * c + dy * 3.0),
+            ));
+        }
+        let mut radii = vec![s.reach];
+        if let Some((_, _, minor)) = s.round {
+            radii.push(minor);
+            radii.push((minor + s.reach) / 2.0);
+        }
+        for r in radii {
+            let t = rng.range(0.0, 6.3);
+            let (nx, ny) = (t.cos(), t.sin());
+            let rr = r * (1.0 + rng.range(-1e-9, 1e-9));
+            let l = rng.range(0.01, 3.0);
+            out.push((
+                (nx * rr - ny * l, ny * rr + nx * l),
+                (nx * rr + ny * l * 0.3, ny * rr - nx * l * 0.3),
+            ));
+        }
+        let t = rng.range(0.0, 6.3);
+        out.push((
+            (-2.0 * t.cos(), -2.0 * t.sin()),
+            (2.0 * t.cos(), 2.0 * t.sin()),
+        ));
+        let (x, y) = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
+        out.push(((x, y), (x + 1e-9, y - 3e-10)));
+        out.push(((-1e3, y), (1e3, y + 0.5)));
+        out
+    }
+
+    #[test]
+    fn line_meter_is_sound_against_the_true_enclosure() {
+        let mut rng = Lcg(0x4271);
+        const N: usize = 2000;
+        let (mut cases, mut handed, mut iv_slack, mut tight_fail) =
+            (0usize, 0usize, 0usize, 0usize);
+        let mut worst_iv: f64 = 0.0;
+        let mut kinds = std::collections::BTreeMap::new();
+        for _ in 0..3000 {
+            let spec = random_spec(&mut rng);
+            let sf = build::<f64>(&spec);
+            let si = build::<Interval>(&spec);
+            let segs = segments(&mut rng, &spec);
+            let nf = spec.floors.len();
+            for (idx, (a, b)) in segs.into_iter().enumerate() {
+                let kind = if idx < 40 {
+                    "random"
+                } else if idx < 40 + 2 * nf {
+                    if (idx - 40) % 2 == 0 {
+                        "along-zero-set"
+                    } else {
+                        "along-d"
+                    }
+                } else {
+                    "tangent/through/short/long"
+                };
+                cases += 1;
+                // a non-unit dir with an offset window
+                let scale = rng.range(0.2, 5.0);
+                let t0 = rng.range(-2.0, 2.0);
+                let dir = Vec3::new((b.0 - a.0) / scale, (b.1 - a.1) / scale, 0.0);
+                let origin = Point3::new(a.0 - dir.x * t0, a.1 - dir.y * t0, 0.0);
+                let m = sf.line_clearance(origin, dir, (t0, t0 + scale));
+                let carrier = Curve3::Line { origin, dir };
+                let whole = sf.clearance(&carrier, (t0, t0 + scale)).unwrap();
+                let len = (b.0 - a.0).hypot(b.1 - a.1);
+                let mut least = f64::INFINITY;
+                let mut in_o = false;
+                for k in 0..=N {
+                    let t = k as f64 / N as f64;
+                    let p = (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t);
+                    least = least.min(g(&spec, p));
+                    in_o |= in_omega(&spec, p);
+                }
+                let tol = 1e-9 * (1.0 + len);
+                assert!(
+                    m <= least + tol,
+                    "meter {m} above sampled G {least}: {spec_dbg} {a:?}->{b:?}",
+                    spec_dbg = format!("{:?} {} {:?}", spec.round, spec.reach, spec.floors)
+                );
+                if m < least - len / (2 * N) as f64 - tol {
+                    tight_fail += 1;
+                }
+                assert!(
+                    !(in_o && whole > tol),
+                    "clearance {whole} > 0 but a sample is in Ω: {:?} {} {:?} {a:?}->{b:?}",
+                    spec.round,
+                    spec.reach,
+                    spec.floors
+                );
+                if m > 1e-3 && !in_o {
+                    handed += 1;
+                }
+                // Interval: the enclosure's low end never above f64's
+                let ci_origin = Point3::new(
+                    Interval::from_f64(origin.x),
+                    Interval::from_f64(origin.y),
+                    Interval::from_f64(0.0),
+                );
+                let ci_dir = Vec3::new(
+                    Interval::from_f64(dir.x),
+                    Interval::from_f64(dir.y),
+                    Interval::from_f64(0.0),
+                );
+                let ci = Curve3::Line {
+                    origin: ci_origin,
+                    dir: ci_dir,
+                };
+                let wi = si
+                    .clearance(
+                        &ci,
+                        (Interval::from_f64(t0), Interval::from_f64(t0 + scale)),
+                    )
+                    .unwrap();
+                assert!(
+                    !(in_o && wi.lo() > tol),
+                    "Interval clearance {wi:?} > 0 but a sample is in Ω"
+                );
+                let li = si.line_clearance(
+                    ci_origin,
+                    ci_dir,
+                    (Interval::from_f64(t0), Interval::from_f64(t0 + scale)),
+                );
+                assert!(
+                    li.lo() <= least + tol,
+                    "Interval low {} above sampled G {least}",
+                    li.lo()
+                );
+                assert!(
+                    li.lo() <= m + tol && li.hi() >= m - tol,
+                    "Interval {li:?} does not enclose f64 {m}"
+                );
+                if li.lo() < m - 1e-6 && m > 1e-6 {
+                    iv_slack += 1;
+                    if iv_slack % 400 == 1 {
+                        eprintln!("loose {kind}: f64 {m} iv {li:?} len {len}");
+                    }
+                    *kinds.entry(kind).or_insert(0usize) += 1;
+                    worst_iv = worst_iv.max(m - li.lo());
+                }
+            }
+        }
+        eprintln!("{kinds:?}");
+        eprintln!(
+            "cases {cases}, cleared {handed}, not-tight {tight_fail}, interval-much-looser {iv_slack} worst {worst_iv}"
+        );
+        assert!(handed > 100);
+    }
+}
