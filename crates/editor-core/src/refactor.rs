@@ -130,7 +130,7 @@
 //! remap in document order — so two split runs, in any two processes,
 //! produce byte-identical documents.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, btree_map};
 
 use crate::doc::{Doc, FreeVar, NameCarrier, VarName};
 use crate::edit::Maintenance;
@@ -2520,8 +2520,8 @@ fn moving_vars(
         let mut frontier = vec![seed];
         while let Some(var) = frontier.pop() {
             for &tied in ties.get(&var).into_iter().flatten() {
-                if !group_of.contains_key(&tied) {
-                    group_of.insert(tied, seed);
+                if let btree_map::Entry::Vacant(slot) = group_of.entry(tied) {
+                    slot.insert(seed);
                     frontier.push(tied);
                 }
             }
