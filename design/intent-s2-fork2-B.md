@@ -1,5 +1,55 @@
 # FORK-2 — how the explicit product list is kept
 
+## For Ev — round 4
+
+**Recommendation (likely): no per-edit clause.**
+- The insert, delete and re-point doors apply the default rule, and
+  `SetProduct` is the one override. This is the other report's round-3
+  design, which I now share whole.
+
+**The correction is right.** I checked `DocEdit::InsertNode` in `edit.rs`
+and `persist::Loaded`.
+- The log stores edits as authored, and replay lowers them again through
+  the doors. The record of what an edit did is handed back to the caller,
+  not stored.
+- So my round-2 "each door records the lowered change" would have been a
+  new stored mechanism for the product alone.
+- The product default is one more lowering at the door, in the place
+  formula lowering already holds: `Formula` in the log, `Expr` in the
+  snapshot.
+- My replay argument therefore lapses. The hazard it named is shared by
+  every lowering, and the pre-release policy (Band 4) already accepts it.
+
+**What the clause would still earn: not a `DocEdit` field.**
+- What is left is that a deviation would be one edit instead of two, and
+  the log would read more clearly.
+- A façade keyword, `product="append"` or `"leave"`, lowered to insert plus
+  `SetProduct` in one history action, gives the person and the script the
+  same one gesture.
+- The one difference: grouping is the viewer's own state, so after a reopen,
+  undo separates the two edits. The state in between is a valid document,
+  so nothing breaks.
+- A field on every body-defining insert and delete, for a property that few
+  of them use, is a second spelling of a list change. It does not earn its
+  place.
+
+**Ratification text: accepted, with three sentences added** so the clause
+is complete on its own:
+- "A body-defining operation is one with a `Body` output; an operation
+  defining no body, among them a mate, measure, assertion, select or
+  gauge, is never listed and moves nothing."
+- "Split and inline state their own list edits: the part's product is the
+  cut's listed bodies in list order, the instance takes the first one's
+  place, and inline splices the part's product back there. A cut holding
+  no listed body refuses."
+- "An empty product is a valid document; only the gather refuses,
+  `EmptyProduct`."
+
+**Is anything left for Ev?** No fork remains. Ev rules only on the
+ratification text, because it replaces A10.
+
+---
+
 ## For Ev — round 3
 
 **Recommendation (likely): the two reports now converge. Nothing is left
