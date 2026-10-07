@@ -322,7 +322,9 @@ impl std::error::Error for PointInLoopError {}
 /// **The one table**, and no consumer owns it: this module's in-plane
 /// ray parity (which projects each triple into the loop plane and
 /// skips the near-parallel members), [`crate::splitting::order`]'s
-/// point ordering, and [`crate::boolean::solid_contain`]'s
+/// point ordering (whose frame takes the three axes for an axis plane
+/// and the members after them for any other, so the axes stay first),
+/// and [`crate::boolean::solid_contain`]'s
 /// containment sweep (which normalizes the raw triple). They do not
 /// sweep the same directions. What each needs is only that its own
 /// schedule is a `const` in a fixed order every run, which holds per

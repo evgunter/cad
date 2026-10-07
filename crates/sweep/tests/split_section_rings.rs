@@ -1148,6 +1148,170 @@ fn plane_section_area_of_an_uncancelled_arc_at_f64_and_interval() {
     );
 }
 
+/// The unit cylinder `x² + y² ≤ 1`, `0 ≤ z ≤ 1` at scalar `T`, its
+/// two seams at azimuths `phi` and `phi + π`, cut by the plane through
+/// `origin` with normal `n`.
+fn cylinder_section<T: geom_core::Decide + topo::AtRestPolicy>(
+    phi: f64,
+    origin: Point3<f64>,
+    n: Vec3<f64>,
+) -> Result<topo::Section<T>, topo::SectionError<T>> {
+    let p2 = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
+    let (c, s) = (phi.cos(), phi.sin());
+    let disc = profile::test_support::bulge_loop(vec![
+        (p2(c, s), T::from_f64(1.0)),
+        (p2(-c, -s), T::from_f64(1.0)),
+    ]);
+    let cylinder = sweep::test_support::extruded(
+        profile::SketchPlane::<T>::xy(),
+        vec![disc],
+        T::from_f64(1.0),
+        tol(),
+    );
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol());
+    let plane = topo::test_support::split_plane(origin.map(T::from_f64), n.map(T::from_f64), tol());
+    topo::plane_section(&cylinder, &plane, tol())
+}
+
+/// **A steep cut through a cylinder's two caps answers at `f64` and at
+/// `Interval`, whichever coordinate plane its normal lies in and
+/// wherever the seams are.** The plane through the axis's midpoint at
+/// tilt `t` from the axis meets each cap in a chord at `0.5·cot t` from
+/// the axis, so the section is the strip `|s| ≤ 0.5·cot t` of the unit
+/// disc seen at `1 / cos t`. Each chord's two crossings are a chord
+/// apart and share every coordinate but the one along the chord. With
+/// the normal in a coordinate plane, an order frame built from an axis
+/// would be perpendicular to that chord, a tie the interval lane cannot
+/// certify; the join's frame for such a plane is oblique.
+#[test]
+fn a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval() {
+    use geom_core::{Bounds, Interval};
+    let mid = Point3::new(0.0, 0.0, 0.5);
+    for t in [0.9_f64, 1.2, 1.4] {
+        let x0 = 0.5 / t.tan();
+        let want = 2.0 * (x0 * (1.0 - x0 * x0).sqrt() + x0.asin()) / t.cos();
+        for (frame, n) in [
+            ("xz", Vec3::new(t.sin(), 0.0, t.cos())),
+            ("yz", Vec3::new(0.0, t.sin(), t.cos())),
+        ] {
+            for phi in [0.0, 0.7] {
+                let what = format!("normal in {frame}, tilt {t}, seams at {phi}");
+                let s = cylinder_section::<f64>(phi, mid, n)
+                    .unwrap_or_else(|e| panic!("{what}, f64: {e}"));
+                let [region] = &s.regions[..] else {
+                    panic!("{what}, f64: one region, got {}", s.regions.len());
+                };
+                let got = region.area();
+                assert!(
+                    (got - want).abs() < 1e-12,
+                    "{what}, f64: the section's area is {got}, want {want}"
+                );
+                let s = cylinder_section::<Interval>(phi, mid, n)
+                    .unwrap_or_else(|e| panic!("{what}, Interval: {e}"));
+                let [region] = &s.regions[..] else {
+                    panic!("{what}, Interval: one region, got {}", s.regions.len());
+                };
+                let got = region.area();
+                assert!(
+                    got.lo() - 1e-14 <= want && want <= got.hi() + 1e-14,
+                    "{what}, Interval: [{}, {}] encloses {want}",
+                    got.lo(),
+                    got.hi()
+                );
+                assert!(
+                    got.hi() - got.lo() < 1e-12,
+                    "{what}, Interval: [{}, {}] is too wide to be useful",
+                    got.lo(),
+                    got.hi()
+                );
+            }
+        }
+    }
+}
+
+/// **A cut along a cylinder's axis keeps the interval lane's refusal,
+/// and the refusal names the order key.** On an axis plane the join
+/// orders by coordinates, exactly, and the plane `x = 0.3` crosses the
+/// two rims at `(0.3, ±√0.91)`: a bottom crossing and the top one above
+/// it share `y` in truth, computed twice. `f64` orders them by rounding
+/// and answers the `2√0.91` rectangle; the interval lane cannot certify
+/// the tie.
+#[test]
+fn a_cut_along_a_cylinders_axis_refuses_its_rims_tie_at_interval() {
+    let (origin, n) = (Point3::new(0.3, 0.0, 0.5), Vec3::new(1.0, 0.0, 0.0));
+    let s = cylinder_section::<f64>(0.0, origin, n).expect("f64 answers");
+    let [region] = &s.regions[..] else {
+        panic!("f64: one region, got {}", s.regions.len());
+    };
+    let want = 2.0 * 0.91_f64.sqrt();
+    assert!(
+        (region.area() - want).abs() < 1e-12,
+        "f64: the section's area is {}, want {want}",
+        region.area()
+    );
+    let err = cylinder_section::<geom_core::Interval>(0.0, origin, n)
+        .expect_err("the interval lane refuses the rims' tie");
+    let topo::SectionError::Split(SplitError::Join(topo::SplitJoinError::OrderEscalated { diag })) =
+        &err
+    else {
+        panic!("the join order refuses, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("split_join_order_u"), "{err:?}");
+}
+
+/// **A cut parallel to a cylinder's axis answers whichever axis the
+/// cylinder runs along**: the radius-1 cylinder of length `2.5` along
+/// x, y and z, its seams turned three ways, cut at `c` from the axis by
+/// a plane at azimuth `phi` about it. The section is two rulings, one
+/// wall face holding all four crossings in some poses; it is the
+/// `2√(1 − c²) × 2.5` rectangle, and both halves build. The join pairs
+/// each ruling's two crossings along it, whatever order the sweep
+/// meets them in: along x the order's first key runs along the
+/// rulings, and meets the two crossings of one rim in turn.
+#[test]
+fn an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling() {
+    use core::f64::consts::PI;
+    let h = 2.5;
+    for (axis, sketch) in [
+        ("x", profile::SketchPlane::<f64>::yz()),
+        ("y", profile::SketchPlane::<f64>::zx()),
+        ("z", profile::SketchPlane::<f64>::xy()),
+    ] {
+        for turn in [PI / 2.0 + 0.05, 0.0, 1.0] {
+            let disc = profile::test_support::bulge_loop(vec![
+                (Point2::new(turn.cos(), turn.sin()), 1.0),
+                (Point2::new(-turn.cos(), -turn.sin()), 1.0),
+            ]);
+            let body = sweep::test_support::extruded(sketch, vec![disc], h, tol());
+            let body = finished("the cylinder", body, tol());
+            for c in [0.3_f64, -0.7] {
+                for phi in [0.0_f64, 1.3] {
+                    let (a, b) = (phi.cos(), phi.sin());
+                    let (origin, n) = match axis {
+                        "x" => (Point3::new(1.0, c * a, c * b), Vec3::new(0.0, a, b)),
+                        "y" => (Point3::new(c * b, 1.0, c * a), Vec3::new(b, 0.0, a)),
+                        _ => (Point3::new(c * a, c * b, 1.0), Vec3::new(a, b, 0.0)),
+                    };
+                    let what = format!("along {axis}, seams at {turn:.3}, c {c}, phi {phi}");
+                    let plane = topo::test_support::split_plane(origin, n, tol());
+                    split(&body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: split: {e}"));
+                    let s = topo::plane_section(&body, &plane, tol())
+                        .unwrap_or_else(|e| panic!("{what}: section: {e}"));
+                    let [region] = &s.regions[..] else {
+                        panic!("{what}: one region, got {}", s.regions.len());
+                    };
+                    let want = 2.0 * (1.0 - c * c).sqrt() * h;
+                    assert!(
+                        (region.area() - want).abs() < 1e-12,
+                        "{what}: the section's area is {}, want {want}",
+                        region.area()
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// Each ellipse edge of `half` as its carrier and parameter window,
 /// written out bit for bit.
 fn ellipse_arcs(half: &Body<f64>) -> Vec<(String, (f64, f64), Option<String>)> {

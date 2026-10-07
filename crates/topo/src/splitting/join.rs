@@ -36,9 +36,10 @@
 //!   rounding order (`super::order`'s module docs). A curved face's
 //!   crossings lie on a conic, which no lexicographic order follows:
 //!   they are paired along the conic, each entry into the face with
-//!   the exit that ends the arc inside it ([`conic_pairs`]). The
-//!   partner of such a half is consumed only by it, and it consumes
-//!   only its partner.
+//!   the exit that ends the arc inside it ([`conic_pairs`]); where the
+//!   section is straight, a curved face's crossings are paired along
+//!   each of its lines ([`ruling_pairs`]). The partner of such a half
+//!   is consumed only by it, and it consumes only its partner.
 //! - **Elsewhere, the book's rule**: the first registered half in the
 //!   *same face* (at the time of the scan) with the *opposite* up/down
 //!   sense, among the halves with no fixed partner.
@@ -399,13 +400,76 @@ fn line_pairs<T: Decide>(
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
+    pair_along(order.into_iter().map(|i| &crossings[i]), &mut pairs);
+    Ok(pairs)
+}
+
+/// One line's crossings, in order along it, each taking the first
+/// unpaired one before it of opposite sense: along a line the section
+/// enters and leaves the face by turns.
+fn pair_along<'a, T: Decide + 'a>(
+    line: impl Iterator<Item = &'a Crossing<T>>,
+    pairs: &mut Vec<(HalfEdgeKey, HalfEdgeKey)>,
+) {
     let mut loose: Vec<&Crossing<T>> = Vec::new();
-    for i in order {
-        let c = &crossings[i];
+    for c in line {
         match loose.iter().position(|e| e.down != c.down) {
             Some(j) => pairs.push((loose.remove(j).half, c.half)),
             None => loose.push(c),
         }
+    }
+}
+
+/// A curved face's crossings where its section is straight — the
+/// rulings a plane parallel to a cylinder's axis cuts, or the
+/// generators of a cone through its apex — paired along each line.
+/// A crossing's line is the one through it along its leaving direction
+/// ([`split_leave`]): the section there is a line of the wall. Two
+/// crossings are on one line where the second lies off the first's
+/// line by a Zero distance (**`split_join_ruling`**), and on two where
+/// that distance is Positive; each line's crossings are then ordered
+/// and paired as a planar face's are ([`line_pairs`]).
+///
+/// The book's rule pairs these by the sweep's order, which follows a
+/// line's crossings in turn only where the line runs along the order's
+/// second key.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] naming the face, where whether two
+/// crossings share a line, or their order along it, is undecided.
+fn ruling_pairs<T: Decide>(
+    face: FaceKey,
+    crossings: &[Crossing<T>],
+    band: Band,
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+    let escalate = |diag| SplitJoinError::Escalated { face, diag };
+    let mut lines: Vec<(Point3<T>, geom_core::Vec3<T>, Vec<usize>)> = Vec::new();
+    for (i, c) in crossings.iter().enumerate() {
+        let mut home = None;
+        for (k, (anchor, dir, _)) in lines.iter().enumerate() {
+            let off = (c.point - *anchor).cross(*dir).norm();
+            if decide("split_join_ruling", Margin::of(off), band).map_err(escalate)? == Sign::Zero {
+                home = Some(k);
+                break;
+            }
+        }
+        match home {
+            Some(k) => lines[k].2.push(i),
+            None => lines.push((c.point, c.leave.normalize(), vec![i])),
+        }
+    }
+    let mut pairs = Vec::new();
+    for (anchor, dir, members) in lines {
+        let keys: Vec<T> = members
+            .iter()
+            .map(|&i| (crossings[i].point - anchor).dot(dir))
+            .collect();
+        let order = super::order::sort_along_line(&keys, band).map_err(escalate)?;
+        pair_along(
+            order.into_iter().map(|k| &crossings[members[k]]),
+            &mut pairs,
+        );
     }
     Ok(pairs)
 }
@@ -455,8 +519,9 @@ fn line_pairs<T: Decide>(
 /// reads the order cyclically, so where the cycle starts changes no
 /// pair.
 ///
-/// A planar face, a straight section and the kinds the gate refuses
-/// pair nothing here: they keep the book's rule.
+/// A straight section pairs along its rulings ([`ruling_pairs`]); a
+/// planar face and the kinds the gate refuses pair nothing here: they
+/// keep the book's rule.
 ///
 /// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
 /// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
@@ -481,13 +546,18 @@ fn conic_pairs<T: Decide>(
         .get_half_edge(first)
         .ok_or_else(|| corrupt_he(first))?
         .start;
-    let Some(WallSection {
-        wall,
-        case: SectionCase::Conic(conic),
-    }) = wall_section(body, band, red.plane.origin, red.plane.normal, face, at)?
-    else {
-        return Ok(Vec::new());
-    };
+    let (wall, conic) =
+        match wall_section(body, band, red.plane.origin, red.plane.normal, face, at)? {
+            Some(WallSection {
+                wall,
+                case: SectionCase::Conic(conic),
+            }) => (wall, conic),
+            Some(WallSection {
+                case: SectionCase::Straight,
+                ..
+            }) => return ruling_pairs(face, crossings, band),
+            _ => return Ok(Vec::new()),
+        };
     let refuse = |case| SplitJoinError::SectionCrossings { face, case, band };
     let escalate = |diag| SplitJoinError::Escalated { face, diag };
     let mut heading = None;

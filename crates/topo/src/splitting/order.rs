@@ -12,11 +12,25 @@
 //! difference straddles zero: sorting on raw (x, y, z) would escalate
 //! spuriously. The sort key is therefore the pair of **in-plane
 //! coordinates** `(w·u, w·v)`, `w = p − origin`, against a
-//! deterministic in-plane frame built from the plane alone: the first
-//! member of the fixed [`containment schedule`](super::containment)
-//! whose projection into the plane has a definitely-positive length
-//! (**`split_join_frame_arm`**) gives `u`; `v = n × u`. For an
-//! axis-aligned plane the frame is an exact coordinate pair.
+//! deterministic in-plane frame built from the plane alone: a member
+//! of the fixed [`containment schedule`](super::containment) whose
+//! projection into the plane has a definitely-positive length
+//! (**`split_join_frame_arm`**) gives `u`; `v = n × u`. Which members
+//! are eligible depends on the plane:
+//!
+//! - **An axis plane** — two of the normal's components exactly zero
+//!   (**`split_join_frame_axis`**) — takes the first of the schedule's
+//!   three axes that lies in it, so the frame is an exact coordinate
+//!   pair and the keys are coordinates.
+//! - **Any other plane** takes the first of the schedule's oblique
+//!   members. Its frame is inexact whatever member it starts from, and
+//!   a frame built from an axis inherits the symmetries of an
+//!   axis-aligned body: for a normal in the xz plane `u` is the
+//!   projected x axis, perpendicular to y, so the two crossings of
+//!   every section line along y — a cylinder cap's chord, a box
+//!   face's — share `u` in truth, a tie no computed enclosure
+//!   certifies. An oblique member is perpendicular to no axis, so such
+//!   crossings are ordered by their real separation.
 //!
 //! # The exact-order band
 //!
@@ -32,10 +46,14 @@
 //!
 //! Interval-lane coverage, honestly: any split whose crossings share
 //! an in-plane u-coordinate arrived at through INEXACT arithmetic
-//! refuses typed (the **`split_join_order_u`** hairline straddles) —
-//! in practice the interval lane splits axis-aligned planes over
-//! dyadic geometry, and tilted planes refuse. Documented contract,
-//! not a bug.
+//! refuses typed (the **`split_join_order_u`** hairline straddles).
+//! On an axis plane that is any two computed crossings sharing a
+//! coordinate — the two rims of a cylinder cut along its axis; on any
+//! other plane, crossings whose separation is parallel to `v`, which
+//! the oblique frame leaves to no symmetry of an axis-aligned body.
+//! Several null edges at one point tie in both keys, which the interval
+//! lane certifies only where the keys are exact: on an axis plane, over
+//! points whose offsets from the plane's origin are exact.
 //!
 //! # One planar face's crossings, along the face's own line
 //!
@@ -76,8 +94,9 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
     Band::new(f64::from_bits(1), f64::from_bits(2))
 }
 
-/// The deterministic in-plane frame `(u, v)` (module docs): the first
-/// schedule member that projects definitely into the plane. `arm` is
+/// The deterministic in-plane frame `(u, v)` (module docs): on an axis
+/// plane the first schedule axis that projects definitely into it, on
+/// any other the first oblique member that does. `arm` is
 /// the caller's lever arm in meters (the spread of the points to be
 /// ordered): the SCHEDULE triples are bare numbers, so the projected
 /// norm alone would be a dimensionless comparand against the length band
@@ -94,17 +113,29 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 ///
 /// # Errors
 ///
-/// When no member projects definitely — unreachable for a unit normal
-/// (the three axes are members) — the first in-band arm, else an
-/// invalid margin on the arm's row.
+/// A normal component the exact band cannot call zero or not (an
+/// enclosure straddling zero, interval lane only). When no eligible
+/// member projects definitely — unreachable for a unit normal (two
+/// axes lie in an axis plane, and no two oblique members are near one
+/// direction) — the first in-band arm, else an invalid margin on the
+/// arm's row.
 pub(super) fn in_plane_frame<T: Decide>(
     plane: &SplitPlane<T>,
     arm: T,
     band: Band,
+    exact: Band,
 ) -> Result<(Vec3<T>, Vec3<T>), Indeterminate> {
     let n = plane.normal.get();
+    let mut zeros = 0;
+    for c in [n.x, n.y, n.z] {
+        if decide("split_join_frame_axis", Margin::of(c), exact)? == Sign::Zero {
+            zeros += 1;
+        }
+    }
+    let (axes, oblique) = super::containment::SCHEDULE.split_at(3);
+    let members = if zeros == 2 { axes } else { oblique };
     let mut first_in_band = None;
-    for r in &super::containment::SCHEDULE {
+    for r in members {
         let r = r.map(T::from_f64);
         let d = r - n * n.dot(r);
         match decide(
@@ -181,7 +212,7 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     for p in points {
         arm = arm.max((*p - plane.origin).norm());
     }
-    let frame = in_plane_frame(plane, arm, band)?;
+    let frame = in_plane_frame(plane, arm, band, exact)?;
     let mut order: Vec<usize> = (0..points.len()).collect();
     for i in 1..order.len() {
         let mut j = i;
@@ -332,13 +363,61 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let exact = exact_band().unwrap();
         let plane = plane_y1();
-        let frame = in_plane_frame(&plane, 1.0, band).unwrap();
+        let frame = in_plane_frame(&plane, 1.0, band, exact).unwrap();
         let a = Point3::new(1.0, 1.0, 0.0);
         let b = Point3::new(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
         let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();
         assert_eq!(cmp(a, b), core::cmp::Ordering::Less);
         assert_eq!(cmp(b, a), core::cmp::Ordering::Greater);
         assert_eq!(cmp(a, a), core::cmp::Ordering::Equal);
+    }
+
+    /// A cap chord's two crossings under a plane whose normal lies in
+    /// the xz plane, at the interval scalar: computed (the chord's
+    /// half-width is a square root), so each is an enclosure, and they
+    /// share every coordinate but y. The oblique frame orders them by
+    /// that separation; a frame built from the x axis is perpendicular
+    /// to it, and a straddling `split_join_order_u` refused them.
+    #[test]
+    fn an_oblique_plane_orders_a_chord_along_an_axis_at_interval() {
+        use geom_core::{Bounds, Interval, Real};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let exact = exact_band().unwrap();
+        let iv = Interval::from_f64;
+        for t in [0.9_f64, 1.2, 1.4] {
+            let plane = crate::test_support::split_plane(
+                Point3::new(iv(0.0), iv(0.0), iv(0.5)),
+                Vec3::new(iv(t.sin()), iv(0.0), iv(t.cos())),
+                tol,
+            );
+            let x0 = iv(0.5) * iv(t.cos()) / iv(t.sin());
+            let y0 = (iv(1.0) - x0 * x0).sqrt();
+            assert!(y0.hi() > y0.lo(), "tilt {t}: the crossings are computed");
+            let pts = [Point3::new(x0, y0, iv(0.0)), Point3::new(x0, -y0, iv(0.0))];
+            let order = sort_indices_by_point(&pts, &plane, band, exact)
+                .unwrap_or_else(|e| panic!("tilt {t}: {e:?}"));
+            assert_eq!(order, vec![1, 0], "tilt {t}: −y first");
+        }
+    }
+
+    /// A normal component the exact band cannot call zero or not
+    /// refuses, naming the axis-plane test: the two lanes would build
+    /// different frames.
+    #[test]
+    fn a_normal_component_straddling_zero_refuses_the_frame() {
+        use geom_core::{Interval, Real};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let exact = exact_band().unwrap();
+        let iv = Interval::from_f64;
+        let plane = crate::test_support::split_plane(
+            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            Vec3::new(iv(1.0), Interval::from_bounds(-1e-300, 1e-300), iv(0.0)),
+            tol,
+        );
+        let err = in_plane_frame(&plane, iv(1.0), band, exact).unwrap_err();
+        assert_eq!(err.predicate, Some("split_join_frame_axis"));
     }
 
     /// Along one line: ascending keys; keys a few ULPs apart (one point,
