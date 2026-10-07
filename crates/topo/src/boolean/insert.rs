@@ -580,11 +580,7 @@ fn walk_run(n: usize, p0: usize, p1: usize) -> Option<bool> {
 /// or nested. A pair whose run holds another's
 /// mints first, and the one it holds mints at its copy ([`mint_plans`]).
 /// [`ArcRefusal::Crossing`]: two pairs cross, and the walks are not two simple links'.
-fn b_runs(
-    n: usize,
-    pairs: &[(usize, usize)],
-    b_pos: &[usize],
-) -> Result<Vec<(Option<bool>, Option<usize>)>, ArcRefusal> {
+fn b_runs(n: usize, pairs: &[(usize, usize)], b_pos: &[usize]) -> Result<Vec<BRun>, ArcRefusal> {
     let runs: Vec<Option<bool>> = pairs
         .iter()
         .map(|&(i0, i1)| walk_run(n, b_pos[i0], b_pos[i1]))
@@ -600,6 +596,10 @@ fn b_runs(
     let holders = arc_holders(n, &arcs)?;
     Ok(runs.into_iter().zip(holders).collect())
 }
+
+/// A pair's run in B ([`b_runs`]): which way round, as [`walk_run`]
+/// says, and the pair whose run holds it innermost.
+type BRun = (Option<bool>, Option<usize>);
 
 /// Why [`arc_holders`] refuses a plan's arcs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
