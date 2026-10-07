@@ -166,3 +166,30 @@ corroboration probe, and they are not pinned. A two-seam cylinder,
   refuses with margin 4.85e-12, band `(1e-12, 1e-11)`. The same cut
   measures at 1e-6.
 
+
+## 2026-10-07 — split halves of a rim-touching cut (CLEAVE)
+
+These come from `cleave/rim-touch`'s azimuth sweep on `origin/main`
+`dfcd7f35`. The fixture is the tube of
+`split_across_a_revolve_seam::a_section_touching_a_rim_splits_at_the_closed_form`,
+and every split it measures builds and passes tiers 1, 3 and 3′. The
+failures are `mass_properties` of a half. The sweep ran 72 azimuths ×
+both rims × both normals.
+
+- **`props_quad_converged` in band:**
+  - 1e-9: azimuth 3π/4, margins −9.25e-9 and −8.90e-9; azimuth
+    5.606, margin −5.68e-9.
+  - 1e-12: azimuths 0.697, 2.160 and 5.606, margins 8.3e-12 to
+    −5.9e-12.
+  - 1e-6: azimuth 4.2315 on the bottom rim, margin −1.32e-6. Here it
+    reaches tier 3 as `VolumeUncomputable`.
+- **`QuadratureBudget` (13 rounds):** at azimuth 6.195 (0.088 rad
+  short of the seam vertex), top rim, `s = +1`, at every ε row. The
+  width stays at about 3.3× the target: 3.40e-6 against 1.024e-6 at
+  1e-9, 6.3e-9 against 1.02e-9 at 1e-12, and 3.39e-3 against 1.02e-3
+  at 1e-6.
+
+The same sweep over an extruded rod (r 1, z ∈ [0, 1]), cut by planes
+touching either rim, splits at every pose. At each row, 6 to 15 of its
+192 poses per rim fail `mass_properties` the same two ways. Most are
+`QuadratureBudget`, with the width 1.1 to 7.6× the target.
