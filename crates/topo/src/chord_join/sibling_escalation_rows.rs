@@ -4,8 +4,12 @@
 //! band says nothing there, and its next vertex decides, as the sphere
 //! and cone readings do ([`super::first_decided`]). Each row sweeps the
 //! first vertex's offset through the band, reads the rows where that
-//! vertex alone escalates, and holds the ring's side to where its second
-//! vertex lies — on both sides of the run.
+//! vertex alone escalates, and holds the ring's side to where its other
+//! vertices lie — on both sides of the run. The ring has three vertices,
+//! two of them decided, so the reading passes over the escalation to a
+//! decided vertex that is not the last; that the decided vertices agree
+//! is [`super::first_decided`]'s premise (the ring does not cross the
+//! run), so which of them answers changes nothing here.
 
 use super::*;
 use crate::euler::{MefSite, MevSite};
@@ -29,14 +33,10 @@ fn offsets() -> impl Iterator<Item = f64> {
 }
 
 /// An empty ring of `face` at `p`, bridged from the outer loop's first
-/// vertex and the bridge killed; with `then`, a strut from `p` to it, so
-/// the ring's vertices are `p`, then `then`.
-fn ring_at(
-    body: &mut Body<f64>,
-    face: FaceKey,
-    p: Point3<f64>,
-    then: Option<Point3<f64>>,
-) -> LoopKey {
+/// vertex and the bridge killed; then a chain of struts from `p` through
+/// `then`, so the ring's cycle starts at `p` and visits each point of
+/// `then` in order (and back).
+fn ring_at(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>, then: &[Point3<f64>]) -> LoopKey {
     let outer = body.get_face(face).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("outer is a cycle");
@@ -54,16 +54,30 @@ fn ring_at(
         )
         .unwrap();
     let ring = body.kemr(bridge.he_plus, bridge.he_minus).unwrap().ring;
-    if let Some(q) = then {
-        body.mev_line(MevSite::Lone { r#loop: ring }, q, tol())
-            .unwrap();
+    let mut tip = None;
+    for &q in then {
+        let site = match tip {
+            None => MevSite::Lone { r#loop: ring },
+            Some(he) => MevSite::Fan { he1: he, he2: he },
+        };
+        tip = Some(body.mev_line(site, q, tol()).unwrap().he_minus);
+    }
+    if !then.is_empty() {
         let points: Vec<_> = ring_vertices(body, ring)
             .unwrap()
             .into_iter()
             .map(|v| vertex_point(body, v))
             .collect();
+        let want: Vec<_> = core::iter::once(p)
+            .chain(then.iter().copied())
+            .chain(then.iter().rev().skip(1).copied())
+            .collect();
         assert!(
-            points.len() == 2 && (points[0] - p).norm() == 0.0 && (points[1] - q).norm() == 0.0,
+            points.len() == want.len()
+                && points
+                    .iter()
+                    .zip(&want)
+                    .all(|(a, b)| (*a - *b).norm() == 0.0),
             "the ring's vertices, in order: {points:?}"
         );
     }
@@ -71,14 +85,14 @@ fn ring_at(
 }
 
 /// **A planar bystander whose first vertex reads a diagonal run in the
-/// escalation band is re-homed by its second.** The slab's 2×2 top face
+/// escalation band is re-homed by the others.** The slab's 2×2 top face
 /// divided along its diagonal; the first vertex a hair off the diagonal,
-/// the second at `(1.5, 0.5)` or `(0.5, 1.5)`.
+/// then `(1.5, 0.5)` and `(1.7, 0.2)`, or their mirrors, each decided.
 #[test]
 fn a_planar_ring_vertex_escalating_hands_re_homing_to_the_next() {
     let mut escalated = [0; 2];
     for delta in offsets() {
-        for second in [(1.5, 0.5), (0.5, 1.5)] {
+        for (second, third) in [((1.5, 0.5), (1.7, 0.2)), ((0.5, 1.5), (0.2, 1.7))] {
             let p = prism_z::<f64>(
                 &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
                 0.0,
@@ -89,7 +103,8 @@ fn a_planar_ring_vertex_escalating_hands_re_homing_to_the_next() {
             let off = delta / 2f64.sqrt();
             let p0 = Point3::new(1.0 + off, 1.0 - off, 1.0);
             let p1 = Point3::new(second.0, second.1, 1.0);
-            let ring = ring_at(&mut body, face, p0, Some(p1));
+            let p2 = Point3::new(third.0, third.1, 1.0);
+            let ring = ring_at(&mut body, face, p0, &[p1, p2]);
             let outer = |v| {
                 let outer = body.get_face(face).unwrap().outer;
                 body.loop_cycle(match body.get_loop(outer).unwrap().boundary {
@@ -114,6 +129,15 @@ fn a_planar_ring_vertex_escalating_hands_re_homing_to_the_next() {
             }
             let inside =
                 point_in_loop(&body, run, normal, p1, band()).unwrap() == LoopContainment::In;
+            assert_eq!(
+                point_in_loop(&body, run, normal, p2, band()).unwrap(),
+                if inside {
+                    LoopContainment::In
+                } else {
+                    LoopContainment::Out
+                },
+                "the third vertex is decided, on the second's side"
+            );
             escalated[usize::from(inside)] += 1;
             let side = ring_side(&body, ring, run, normal, band()).unwrap();
             assert_eq!(
@@ -172,7 +196,8 @@ fn rim_arc(
 /// `[0.2, 1.4] × [0, 1]` holding the island `[0.5, 1] × [0.3, 0.7]`,
 /// walled off by its closing ruling at 0.5; the first vertex at height
 /// 0.5 a hair past azimuth 0.5, where its ray runs along the island's
-/// ruling, the second at azimuth 0.75 (inside) or 1.2 (outside).
+/// ruling, then two at azimuths 0.75 and 0.85 (inside) or 1.2 and 1.3
+/// (outside), each decided.
 #[test]
 fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
     let at = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
@@ -190,11 +215,15 @@ fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
             );
             let cyl = body.get_face(face).unwrap().surface;
             let surface = body.get_surface(cyl).unwrap().clone();
-            let (p0, p1) = (at(0.5 + delta, 0.5), at(second, 0.5));
-            let ring = ring_at(&mut body, face, p0, Some(p1));
+            let (p0, p1, p2) = (
+                at(0.5 + delta, 0.5),
+                at(second, 0.5),
+                at(second + 0.1, 0.45),
+            );
+            let ring = ring_at(&mut body, face, p0, &[p1, p2]);
             // The island's run: the low arc, the ruling at 1, the high arc.
             let corners = [at(0.5, 0.3), at(1.0, 0.3), at(1.0, 0.7), at(0.5, 0.7)];
-            let island = ring_at(&mut body, face, corners[0], None);
+            let island = ring_at(&mut body, face, corners[0], &[]);
             let low = rim_arc(&mut body, cyl, 0.3, (0.5, 1.0));
             let e0 = body
                 .mev(MevSite::Lone { r#loop: island }, corners[1], low, tol())
@@ -232,7 +261,7 @@ fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
                 )
                 .unwrap();
             // The first vertex alone escalates.
-            let lone = ring_at(&mut body, face, p0, None);
+            let lone = ring_at(&mut body, face, p0, &[]);
             if !matches!(
                 chart_ring_side(&body, &surface, made.face, lone, band()),
                 Err(SplitJoinError::Escalated { .. })
@@ -240,6 +269,14 @@ fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
                 continue;
             }
             let inside = second < 1.0;
+            for q in [p1, p2] {
+                let alone = ring_at(&mut body, face, q, &[]);
+                assert_eq!(
+                    chart_ring_side(&body, &surface, made.face, alone, band()).unwrap(),
+                    if inside { RingSide::In } else { RingSide::Out },
+                    "each later vertex is decided, on one side"
+                );
+            }
             escalated[usize::from(inside)] += 1;
             let side = chart_ring_side(&body, &surface, made.face, ring, band()).unwrap();
             assert_eq!(

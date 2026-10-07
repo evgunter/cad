@@ -752,3 +752,13 @@ other's plane at, so its margin is the displacement that moves the
 root past the span's end. The sphere's reader on main had the same
 lever. The cone's segment and ruling arms never graze, because their
 slopes are bounded below, so the lever there is for shape.
+
+2026-10-07 — PR 4246's third fix pass, the final report's addendum. A
+cone path's turns now lie on the parallel the next piece runs round, so
+the pieces meet exactly; at the carrier's ratio they were open by a
+vertex's offset from the carrier, up to the band. The reader's
+first-decided walk states its premise: a ring does not cross the run.
+That is check 9's premise, assumed on Ellipse, Spiric and NURBS edges,
+and RESTFRONT's item now names this reader as sharing it. At ε 1e-3 the
+slope lever escalates two poses' winding that main decided by arc
+length, inside the root's own error.

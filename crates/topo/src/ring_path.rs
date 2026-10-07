@@ -189,8 +189,18 @@ impl<T: Decide> Quadric<T> {
                     (e / e.norm(), e.norm())
                 };
                 let mut paths = Vec::with_capacity(2);
+                // Each turn is placed on the parallel the next piece runs
+                // round, at that parallel's own radius, so the pieces meet
+                // exactly: the ends lie on the carrier only up to the
+                // band, and a turn at the carrier's ratio `|r|·h'/h` would
+                // leave a gap of that offset at the seam, where a crossing
+                // could go uncounted. The segment then leans off the
+                // ruling by the same offset: its crossings of a section
+                // are read from its ends, and the rulings-apart reading
+                // is decided past the band that offset lies in.
+                let (ua, ub) = (ra / ra.norm(), rb / rb.norm());
                 // Along `from`'s ruling to `to`'s height, then round.
-                let turned = apex + axis * hb + ra * (hb / ha);
+                let turned = apex + axis * hb + ua * rb.norm();
                 let (e, slant) = ruling(from);
                 let round = parallel(apex + axis * hb, axis, rb.norm(), turned, to);
                 paths.push(Path {
@@ -207,7 +217,7 @@ impl<T: Decide> Quadric<T> {
                 });
                 // Round `from`'s parallel to `to`'s ruling, then along it.
                 let (e, slant) = ruling(to);
-                let below = apex + axis * ha + rb * (ha / hb);
+                let below = apex + axis * ha + ub * ra.norm();
                 let rise = slant - (below - apex).norm();
                 let along = decide("split_ring_path_rise", Margin::of(rise), band)?;
                 if along != Sign::Zero {
@@ -478,10 +488,18 @@ pub(crate) fn path_parity<T: Decide>(
                     let [r0, r1] = [phase + offset, phase - offset].map(|t| branch(t, p.span));
                     // On the arrival arc, the root nearer the end is the
                     // arrival; the other is read. The pick is a raw
-                    // comparison and needs no decision: the arrival lies
-                    // on the plane up to rounding, and a decided gap
-                    // `g ≥ Kε` puts the roots a chord
-                    // `2√((rρ)² − D²)/ρ ≥ 2√(2Kεr)` apart, far past it.
+                    // comparison and needs no decision. The arrival lies
+                    // on the plane up to rounding δ, and a root misplaced
+                    // by δ in the plane's offset moves by δ over the
+                    // slope it crosses at (as the in-span readings below
+                    // are levered): near a graze, with half-angle ω
+                    // between the roots, the slope is `ρ·sin ω` and the
+                    // roots lie `2rω` apart along the arc, so the root
+                    // error against their separation is
+                    // `δ/(2rρ·sin ω·ω) ≈ δ/(4g)` for the gap
+                    // `g = rρ − |D| ≈ rρω²/2`. A decided gap `g ≥ Kε`
+                    // keeps that far below the half the pick can absorb
+                    // (about 150× headroom at ε 1e-12, offset 1e3).
                     let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
                     let roots = if arrival {
                         [nearer.select_le_zero(r1, r0), r1]
@@ -653,5 +671,60 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **A cone path's pieces meet exactly**, from end to end, wherever
+    /// its ends lie off the carrier within the band: a vertex is on its
+    /// face up to the band, not to rounding, so a piece aimed at the
+    /// other end's parallel by the carrier's own ratio would miss the
+    /// next by that offset, and a crossing in the gap would go uncounted.
+    /// Points on a grid of both nappes in three frames, moved off the cone
+    /// along its normal by up to the escalation threshold.
+    #[test]
+    fn a_cone_paths_pieces_meet_at_their_seams() {
+        let ends = |piece: &Piece<f64>| match *piece {
+            Piece::Arc(a) => (a.at(a.span.0), a.at(a.span.1)),
+            Piece::Segment { from, to, .. } => (from, to),
+        };
+        let b = band();
+        let mut asked = 0usize;
+        for f in frames() {
+            for mirror in [false, true] {
+                let cone = cone(f, mirror);
+                let quadric = Quadric::of(&cone).unwrap();
+                let mut points = Vec::new();
+                for (k, h) in [0.17, 0.6, 1.3, 2.9].into_iter().enumerate() {
+                    for j in 0..6u32 {
+                        let p = on_nappe(f, h, -PI + (f64::from(j) + 0.5) * PI / 3.0);
+                        let off =
+                            [0.0, b.zero(), -b.escalate(), b.escalate()][(k + j as usize) % 4];
+                        points.push(p + quadric.chart_normal(p) * off);
+                    }
+                }
+                for &a in &points {
+                    for &z in &points {
+                        for path in quadric.paths((a, z), b).unwrap() {
+                            asked += 1;
+                            let mut at = a;
+                            for piece in &path.pieces {
+                                let (from, to) = ends(piece);
+                                assert!(
+                                    (from - at).norm() <= 1e-13,
+                                    "a seam is open by {:e} from {a:?} to {z:?}",
+                                    (from - at).norm()
+                                );
+                                at = to;
+                            }
+                            assert!(
+                                (at - z).norm() <= 1e-13,
+                                "the path ends {:e} off {z:?}",
+                                (at - z).norm()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(asked > 1000, "{asked} paths");
     }
 }

@@ -2716,6 +2716,17 @@ pub(crate) fn path_island_winding<T: Decide>(
 /// says nothing (`Ok(None)`: the zero band) or escalates moves to the
 /// next. The first escalation escalates only where no reading decides; a
 /// hard error stops the walk.
+///
+/// **The premise**: the decided readings agree. For the winding's
+/// references and a ring's paths it holds by construction (each reads one
+/// point's side). For a ring's vertices it holds because the ring does
+/// not cross the curve it is read against: a ring crossing it would have
+/// decided vertices on both sides, and the walk would answer with the
+/// first. That is the premise `validate::ring_nesting` rests on, checked
+/// by check 9's contact arms on `Line` and `Circle` edges and assumed on
+/// `Ellipse`, `Spiric` and NURBS ones
+/// (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
+/// Under it, which decided reading is taken changes nothing.
 fn first_decided<R, E>(
     readings: impl IntoIterator<Item = Result<Result<Option<R>, Indeterminate>, E>>,
 ) -> Result<Result<Option<R>, Indeterminate>, E> {
@@ -2756,8 +2767,9 @@ fn quadric_paths<T: Decide>(
 /// a reading in the zero band says nothing and the next path or pair is
 /// asked: one ending on the run does, so a ring vertex on the run never
 /// decides. One with a reading in the escalation band says nothing
-/// either; the first escalation escalates only where no pair decides. A
-/// ring no pair decides otherwise is [`RingSide::Undecided`], as on a
+/// either; the first escalation escalates only where no pair decides.
+/// The decided pairs agree because the ring does not cross the run
+/// ([`first_decided`]'s premise). A ring no pair decides otherwise is [`RingSide::Undecided`], as on a
 /// wall's chart ([`chart_ring_side`]).
 fn path_ring_side<T: Decide>(
     body: &Body<T>,
@@ -3480,7 +3492,8 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// every vertex does: each such verdict is decided, so the ring is on
 /// the run. A vertex whose reading escalates says nothing either, and
 /// the next is asked; the first escalation escalates only where no
-/// vertex decides ([`first_decided`]).
+/// vertex decides ([`first_decided`]). The vertices agree because the
+/// ring does not cross the run ([`first_decided`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -3556,8 +3569,9 @@ fn ring_vertices<T: Decide>(
 /// through its azimuth at a vertex, or along it) says nothing and the
 /// next vertex is asked, as [`ring_side`] does for a vertex on the run;
 /// so does one whose reading escalates, and the first escalation
-/// escalates only where no vertex decides ([`first_decided`]).
-/// Such a vertex may or may not be on the run, so a ring none of whose
+/// escalates only where no vertex decides ([`first_decided`]); the
+/// decided vertices agree because the ring does not cross the run (its
+/// premise). Such a vertex may or may not be on the run, so a ring none of whose
 /// vertices is decided is [`RingSide::Undecided`], never
 /// [`RingSide::OnRun`]: a pierce strut at a pinch, whose point is a run
 /// vertex, always reads so here, and refuses rather than waiting.
