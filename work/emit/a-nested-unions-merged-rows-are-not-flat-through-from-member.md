@@ -2,8 +2,9 @@
 id: a-nested-unions-merged-rows-are-not-flat-through-from-member
 kind: issue
 title: A union over a union publishes FromMember(u, Merged{…}) constituents: N3's flatness stops at FromMember
-status: review
+status: closed
 opened: 2026-10-06
+closed: 2026-10-07
 priority: P2
 cost: M
 branch: emit/nested-union-flat
@@ -82,3 +83,13 @@ red with its revert. No golden moved.
   orders (red on main); a union offers its member's run wall across a
   station (`run_wall_offers`, red on main).
 - Filed `a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
+
+## Closed (PR 4281, 2026-10-07)
+
+Merged sets are flat through `FromMember`, for a union over a union and
+for a union over a pair boolean. Rows pin both, in every order, and the
+member's run wall is pinned too. Review found `member_edge`'s reading of
+a retired constituent unobservable by its one caller, so its doc now says
+so and the lookup is indexed. The wrong cascade diagnosis on a vanished
+merged name is filed separately.
+
