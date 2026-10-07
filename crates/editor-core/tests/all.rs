@@ -729,6 +729,8 @@ mod edit_refusal_recourse;
 mod emit_crossing_sense;
 #[path = "emit_edge_piece_locality.rs"]
 mod emit_edge_piece_locality;
+#[path = "emit_nested_union_flat.rs"]
+mod emit_nested_union_flat;
 #[path = "emit_pair_cut_and_merged.rs"]
 mod emit_pair_cut_and_merged;
 #[path = "emit_seam_edge_merged.rs"]
