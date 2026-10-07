@@ -1,5 +1,65 @@
 # FORK-3 — What a selection is in the document (designer A)
 
+## For Ev — round 3
+
+**The question beneath the fork is the unit of reference: an entity, or a
+body's selection.** The two designs each make one property true that the
+other cannot, and the two properties cannot both hold. Everything else has
+converged, and one earlier recommendation (interning) is withdrawn by both
+lines of argument below.
+
+**What each makes true.** *Singletons* (`Edge`/`Face` variables, a blend
+reads a list of them): every referenced entity is a variable, so it can be
+named ("mouth"), read by a fillet, a measure, a frame or a mate alike, and is
+one thing in the panel wherever it appears. *Sets* (`Edges`/`Faces`
+variables, a blend reads one): the body a blend or shell acts on is stated
+exactly once, so a selection off the acted-on body cannot be written and the
+verbs carry no `target`; and the value the GUI and every materializer already
+produce, a body's `Vec<StableName>`, is the stored thing. The conservation law
+behind the tension: N individually addressable entities are N statements of
+a body, and their agreement is a door check, never a representation fact.
+Keeping `target` makes it N+1; dropping it for the blends makes it N and
+gives the blends and the shell different rules. Only the set makes it one.
+
+**Body-scoped `Rebind` fixes the defect without interning, and interning then
+earns nothing.** The defect is that a name denotes one entity per body, and
+today's rebind rewrites the name in every body. `Rebind { body, from, to }`
+rewrites `from` only in selects of that `Body` variable, where every holder of
+`from` is stranded together, so one edit repairs them all, set members and
+singletons alike. That is exactly what interning was for. What interning adds
+beyond it is a uniqueness invariant, a merge rule, and anonymous variables
+that are silently shared between readers, which is the state VR1 exists to
+rule out: stage 1 mints two variables for two slots showing `w * 2`, and a
+select has no stronger claim to be inferred from its definition than a
+formula has. So, under either unit: a selection authored twice is two
+variables, the GUI offers the existing one, naming it is how two readers share
+one, and `Rebind` is addressed by body and name. The other report's claim that
+a per-site selection "has to fall back to rewriting names, which is the
+defective form" is not so: it is the body scope, not the address kind, that
+the defect turns on. Confidence: sure on the fix, likely on the withdrawal.
+
+**My round-2 claim about sharing was too strong.** "A measure wants the
+blend face afterwards, a different body" is true of a measure of the blend,
+and false of a reader placed before the fillet on the same body: a frame on
+the top face that a later shell opens, or an assertion that an edge is long
+enough to fillet, read the same `(body, name)` the set reads. Under sets they
+are two selects of one body, repaired together by the body-scoped rebind, and
+the one thing lost is that the set's member cannot carry the frame's name.
+Under singletons they are one variable. The need is real and occasional.
+
+**Lean.** Body-once, so sets, by a small margin: the mismatch it removes is a
+representable wrong document that three verbs would otherwise police at every
+door, while what singletons add is a name on a member of a blend's set, which
+a user can still read by its spoken entity name. The margin is small because
+your own words, "the role played by edges is replaced by sharing variables",
+read most literally as singletons, and because sets add a kind family D10
+does not list. If you value entity-level sharing over the unrepresentable
+mismatch, singletons without `target` on the blends, with `body` kept on the
+shell, is the consistent form; keep `target` on all three only if one rule for
+the verbs outweighs the extra statement. Confidence on the lean: unsure.
+Confidence that the tension is the whole remaining fork: sure.
+
+
 ## For Ev — round 2
 
 **Both designers agree a selection is a variable definition, not a node.** On
@@ -215,3 +275,13 @@ binding regardless of FORK-5: *sure*.
   from B: `Edges`/`Faces` kinds, `Fillet`/`Chamfer`/`Shell` lose `target`, the
   `Vec<StableName>` sugar lowers to one set select, test 13 holds. FORK-1 may
   reuse the list-kind form for bodies if it wants one; nothing here needs it.
+- **Round 3.** Both designers now agree: definition not node; distinct by
+  authoring with the GUI offer; `Rebind { body, from, to }`; `SetSelection`
+  as the define door. Interning is withdrawn from both of my positions. The
+  one fork left for Ev is the unit of reference (sets vs singletons), with
+  the `target` question riding on it as stated above. If Ev takes sets, the
+  spec's `Select { body, name }` becomes `{ body, names }` with kinds
+  `Edges`/`Faces` beside `Edge`/`Face` (one name admitted), and the three
+  verbs drop `target`; the blend's content key sorts the names. If Ev takes
+  singletons, the spec stands with `Rebind` re-addressed and the blends'
+  `target` as Ev rules.
