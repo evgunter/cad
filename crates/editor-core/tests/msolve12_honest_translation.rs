@@ -554,6 +554,7 @@ fn out_of_range_through_the_doors() {
             doc,
             DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
         );
         (doc, id.expect("the insert minted an id"))
@@ -565,6 +566,7 @@ fn out_of_range_through_the_doors() {
         DocEdit::SetOffset {
             instance: i1,
             offset: None,
+            fresh: Vec::new(),
         },
     );
     let (doc, first) = add(

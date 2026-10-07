@@ -2118,6 +2118,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Band
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
+        | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::CurvedEdgeUnsupported
         | BooleanErrorKind::CrossingCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
@@ -2476,6 +2477,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "conic_quadric/mod.rs",
+        "cone_roots",
+        "BooleanDecision::ArcConeRoots",
+        2,
+    ),
+    (
+        "conic_quadric/mod.rs",
         "conic_quadric_roots",
         "BooleanDecision::ArcCylinderRoots",
         1,
@@ -2669,6 +2676,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     (
         "reduce.rs",
+        "line_cone_roots",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
         "line_wall_roots_of",
         "BooleanDecision::SphereRoots",
         1,
@@ -2715,7 +2728,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "wall_crossing",
         "BooleanDecision::Containment",
-        1,
+        2,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (

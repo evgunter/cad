@@ -2,8 +2,9 @@
 id: range-synthetic-name-mints-a-name
 kind: issue
 title: range.rs mints a variable name for the slot it widens, which VR2 says the kernel never does
-status: open
+status: closed
 opened: 2026-10-04
+closed: 2026-10-06
 ---
 
 `range::synthetic_name` (`crates/editor-core/src/range.rs:598`) spells a
@@ -22,3 +23,11 @@ choose. One thing to check when doing it: an anonymous variable must be
 read (walk 6, `AnonymousVarUnread`), which the rewritten slot is.
 
 Raised by PR 3's dual review (r1 S8).
+
+Closed by INTENT-LITERALS PR C. A slot holds a variable, so the query
+widens the slot's own free variable, an anonymous one where the value
+was typed. It declares nothing and spells no name: `synthetic_name` is
+gone. A slot that reads a defined variable refuses
+`RangeRefusal::SlotIsDefined`, because its free inputs are the fields
+to range. The rows are `docm9_range::the_slot_widens_its_own_variable`
+and its `SlotIsDefined` row.

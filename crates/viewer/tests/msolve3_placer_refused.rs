@@ -347,6 +347,7 @@ fn a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at() {
             node: s.pattern,
             slot: SlotId::Count,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -376,6 +377,7 @@ fn a_part_selecting_another_copy_blames_the_mate_and_not_the_part() {
             node: part,
             slot: SlotId::Instance,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -444,6 +446,7 @@ fn a_part_past_its_patterns_count_fails_beside_the_mate() {
             node: part,
             slot: SlotId::Instance,
             expr: Formula::count(5),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -485,6 +488,7 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
             node: s.pattern,
             slot: SlotId::Count,
             expr: Formula::count(0),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -514,6 +518,7 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
             node: s.pattern,
             slot: SlotId::Count,
             expr: overflowing,
+            fresh: Vec::new(),
         },
         tol,
     );

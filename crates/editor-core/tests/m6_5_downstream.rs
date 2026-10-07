@@ -63,6 +63,7 @@ fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Rec
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -342,6 +343,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
             node: cube,
             slot: editor_core::SlotId::Distance,
             expr: len(1.25),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -406,6 +408,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
             node: cube,
             slot: editor_core::SlotId::Distance,
             expr: len(1.25),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -355,6 +355,8 @@ impl RoleSeg {
             | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
+            | RoleSeg::Mitre { vertex: n }
+            | RoleSeg::TurnFoot { vertex: n }
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
@@ -407,6 +409,8 @@ impl RoleSeg {
             | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
+            | RoleSeg::Mitre { vertex: n }
+            | RoleSeg::TurnFoot { vertex: n }
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
@@ -1893,6 +1897,8 @@ pub(super) mod tests {
                     vertex: r(a),
                     edge: r(b),
                 },
+                R::Mitre { vertex: r(a) },
+                R::TurnFoot { vertex: r(b) },
                 R::BandFace(vec![a.clone(), b.clone()]),
                 R::BandTrim {
                     edge: r(a),

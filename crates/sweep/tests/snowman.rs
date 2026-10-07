@@ -27,6 +27,8 @@ use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
 use topo::{AtRestBody, Body, BooleanOp, EdgeKey, ShellKey};
 
+use crate::common::oracles::{ball_volume, cap_volume, lens_volume};
+
 /// A ball of radius `r` centred on the y axis at height `y`.
 fn ball(r: f64, y: f64) -> AtRestBody<f64> {
     let ball = revolved_about_y(
@@ -38,23 +40,6 @@ fn ball(r: f64, y: f64) -> AtRestBody<f64> {
         Tol::witness(),
     );
     finished("the ball", ball, Tol::witness())
-}
-
-fn ball_volume(r: f64) -> f64 {
-    4.0 / 3.0 * PI * r.powi(3)
-}
-
-/// The volume of a spherical cap of height `h` on a sphere of radius `r`.
-fn cap_volume(r: f64, h: f64) -> f64 {
-    PI * h.powi(2) * (3.0 * r - h) / 3.0
-}
-
-/// The lens two balls `r1`, `r2` at centre distance `d` share: the cap
-/// of each beyond the radical plane, which sits at
-/// `x = (d² + r1² − r2²)/2d` from the first centre.
-fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
-    let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
-    cap_volume(r1, r1 - x) + cap_volume(r2, r2 - (d - x))
 }
 
 /// Every tier of validation, a closed tessellation, then the volume

@@ -3998,6 +3998,7 @@ mod split_carries_candidates {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &RefusingReach,

@@ -170,6 +170,14 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         BlendDecision::CutOffFeet,
         sweep::blend::FILLET3_CORNER_RECOURSE,
     ),
+    (
+        BlendDecision::TurnIsosceles,
+        sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
+    (
+        BlendDecision::MitreSection,
+        sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
 ];
 
 fn census() -> PredicateCensus {
@@ -318,14 +326,18 @@ fn in_band_readings() -> Vec<(MarginDiag, bool)> {
 }
 
 /// The decisions no smaller tolerance can truthfully be offered for:
-/// the three that pass only at zero (a refused margin is a miss, D4 ¶1
-/// (i)), and the must-carry relay, whose in-band verdict may be a
-/// first-order wedge reading that a smaller tolerance refuses.
+/// those that pass only at zero (a refused margin is a miss, D4 ¶1
+/// (i)); the must-carry relay, whose in-band verdict may be a
+/// first-order wedge reading that a smaller tolerance refuses; and the
+/// mitre's section, which relays three readings, two passing only at
+/// zero.
 const NO_TOLERANCE: &[BlendDecision] = &[
     BlendDecision::ChainG1,
     BlendDecision::SupportCoaxiality,
     BlendDecision::CapTransverse,
     BlendDecision::ContactSecondOrder,
+    BlendDecision::TurnIsosceles,
+    BlendDecision::MitreSection,
 ];
 
 /// The decisions that pass on a negative sign as well as a positive one.

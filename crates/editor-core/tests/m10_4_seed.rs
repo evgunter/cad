@@ -150,6 +150,7 @@ fn two_param_web() -> ProfileDoc {
             node: plate,
             slot: editor_core::SlotId::Distance,
             expr: param("depth"),
+            fresh: Vec::new(),
         },
     );
     let old = measure_node(&doc);
@@ -172,6 +173,7 @@ fn two_param_web() -> ProfileDoc {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::measure(with_depth, refs).expect("indices in range")),
+            fresh: Vec::new(),
         },
     );
     doc

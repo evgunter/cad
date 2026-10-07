@@ -26,7 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::Expr;
+
 use editor_core::ExtrudeSide;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -149,6 +149,25 @@ const NOTCH_SEED: RangeSeed = RangeSeed { lo: -0.25, hi: 0.3 };
 
 /// The same document with the extrusion distance left as a bare
 /// LITERAL — a field with no name at all until the query derives one.
+/// A slab whose depth slot reads a variable DEFINED by a formula over
+/// the document's `depth`.
+fn defined_slab() -> ProfileDoc {
+    let mut r = Recorder::new();
+    declare(&mut r, "depth", 1.0);
+    let f = frame(&mut r);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        plane: f,
+        loops: vec![unit_square()],
+        ids: Vec::new(),
+    }));
+    r.insert(Node::Extrude {
+        profile: p,
+        distance: Formula::mul(param("depth"), scl(2.0)).expect("a length times a scalar"),
+        side: ExtrudeSide::Along,
+    });
+    r.doc
+}
+
 fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     let f = frame(&mut r);
@@ -700,10 +719,12 @@ fn the_derived_witness_is_the_documents_own_build() {
     assert!(!mine.0.is_empty());
 }
 
-/// **C3.** The synthetic parameter's nominal is the literal's bits,
-/// and the slot names it.
+/// **C3.** A slot widens through the free variable it reads (VR4):
+/// the axis is the slot's own id, its nominal the written value's
+/// bits, and the derived document names nothing, declares nothing and
+/// rewrites no slot (`range-synthetic-name-mints-a-name`).
 #[test]
-fn the_slot_rewrite_is_exact() {
+fn the_slot_widens_its_own_variable() {
     let literal = 1.0_f64 + 2.0_f64.powi(-40);
     let (doc, node) = slab_slot(literal);
     let derived = derive(
@@ -717,22 +738,31 @@ fn the_slot_rewrite_is_exact() {
     )
     .expect("the slot widens");
     assert_eq!(derived.nominal.to_bits(), literal.to_bits());
+    assert_eq!(
+        Some(derived.axis),
+        doc.slot(node, SlotId::Distance),
+        "the axis is the variable the slot already reads"
+    );
     let Some(FreeVar::Continuous { value, dim, .. }) = derived.doc.free(derived.axis) else {
-        panic!("the derived document declares the synthetic parameter");
+        panic!("the slot reads a free continuous variable");
     };
     assert_eq!(value.to_bits(), literal.to_bits());
     assert_eq!(*dim, Dimension::Length);
     assert_eq!(
-        derived
-            .doc
-            .node(node)
-            .and_then(|n| n.expr(SlotId::Distance)),
-        Some(&editor_core::Expr::var(derived.axis, Dimension::Length))
+        derived.doc.slot(node, SlotId::Distance),
+        doc.slot(node, SlotId::Distance),
+        "the slot is not rewritten"
     );
-    // The input document declared no parameter at all; the derived one
-    // declares exactly the query's.
-    assert!(doc.vars().is_empty());
-    assert_eq!(derived.doc.vars().len(), 1);
+    assert_eq!(
+        derived.doc.var_names(),
+        doc.var_names(),
+        "no name is minted"
+    );
+    assert_eq!(
+        derived.doc.var_order(),
+        doc.var_order(),
+        "no variable is declared"
+    );
 }
 
 /// **A6.** A parameter field boxes directly: no rewrite, no synthetic
@@ -776,9 +806,9 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             slot: SlotId::Count
         })
     );
-    // A slot already driven by an expression: naming it would shadow
-    // the expression, so the query refuses instead.
-    let driven = slab(1.0);
+    // A slot reading a defined variable has no interval of its own:
+    // the query refuses, naming the variables to certify instead.
+    let driven = defined_slab();
     let extrude = *driven.order().last().expect("the extrude is last");
     assert_eq!(
         derive(
@@ -790,7 +820,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             seed,
             tol()
         ),
-        Err(RangeRefusal::SlotIsNotALiteral {
+        Err(RangeRefusal::SlotIsDefined {
             node: driven.spoken(extrude),
             slot: SlotId::Distance
         })
@@ -895,10 +925,9 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
     );
 }
 
-/// A slot's label is prose for a person — a profile step argument's
-/// is `loop L step S · <arg>` — and the query's synthetic name is not
-/// spelled from it, so a profile step argument widens like any other
-/// continuous literal slot.
+/// A profile step argument — whose label, `loop L step S · <arg>`, is
+/// prose for a person and no identifier — widens like any other
+/// continuous slot: through the variable it reads.
 #[test]
 fn a_profile_step_argument_widens() {
     let mut r = Recorder::new();
@@ -918,10 +947,7 @@ fn a_profile_step_argument_widens() {
     let slot = profile
         .slots()
         .into_iter()
-        .find(|s| {
-            matches!(s, SlotId::Profile { .. })
-                && profile.expr(*s).and_then(Expr::literal_value).is_some()
-        })
+        .find(|s| matches!(s, SlotId::Profile { .. }) && doc.slot_value(p, *s).is_some())
         .expect("the square carries a literal step argument");
     assert!(
         VarName::new(slot.label().replace(' ', "_")).is_err(),
@@ -936,70 +962,14 @@ fn a_profile_step_argument_widens() {
     )
     .unwrap_or_else(|e| panic!("the {} slot widens: {e}", slot.label()));
     assert_eq!(
-        derived.doc.node(p).and_then(|n| n.expr(slot)),
-        Some(&editor_core::Expr::var(derived.axis, slot.dimension())),
-        "the slot names the synthetic parameter"
+        Some(derived.axis),
+        doc.slot(p, slot),
+        "the slot widens through its own variable"
     );
-}
-
-/// The synthetic name is fresh: a document that already declares the
-/// query's spellings keeps its parameters as they were, and the slot
-/// is widened through the first spelling nobody declared, never
-/// through a parameter the caller authored.
-#[test]
-fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
-    let (mut doc, node) = slab_slot(1.0);
-    let base = format!("query_certified_range_{:016x}", node.0);
-    let declared = [
-        base.clone(),
-        format!("{base}_1"),
-        format!("{base}_distance"),
-    ];
-    for (i, spelled) in declared.iter().enumerate() {
-        doc = editor_core::apply(
-            &doc,
-            &DocEdit::DeclareVar {
-                name: VarName::new(spelled.clone()).expect("an author can type it"),
-                def: editor_core::VarDecl::Free(FreeVar::continuous(
-                    Dimension::Length,
-                    3.0 + i as f64,
-                )),
-            },
-            tol(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the parameter declares")
-        .doc;
-    }
-    let derived = derive(
-        &doc,
-        &RangeField::Slot {
-            node,
-            slot: SlotId::Distance,
-        },
-        RangeSeed::symmetric(0.25),
-        tol(),
-    )
-    .expect("the slot widens through a fresh name");
     assert_eq!(
-        derived.doc.var_name(derived.axis).expect("named").as_str(),
-        format!("{base}_2"),
-        "the first spelling the document does not declare"
-    );
-    for spelled in &declared {
-        assert_eq!(
-            derived.doc.free_named(spelled.as_str()),
-            doc.free_named(spelled.as_str()),
-            "{spelled} is the author's and is left as declared"
-        );
-    }
-    assert_eq!(
-        derived
-            .doc
-            .node(node)
-            .and_then(|n| n.expr(SlotId::Distance)),
-        Some(&editor_core::Expr::var(derived.axis, Dimension::Length)),
-        "the slot reads the synthetic parameter, not an authored one"
+        derived.doc.var_names(),
+        doc.var_names(),
+        "no name is minted"
     );
 }
 

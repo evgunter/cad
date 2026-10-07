@@ -126,7 +126,7 @@ fn union_released_from_a_declared_member(
     )
     .expect("the member list is replaceable");
     assert_eq!(
-        released.maintenance,
+        crate::fixture::without_anonymous(&released.maintenance),
         Vec::new(),
         "a rewire strands nothing: the declared pairs are names, not inputs"
     );
@@ -185,7 +185,7 @@ fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
         "one name per pair is minted in the deleted member"
     );
     assert_eq!(
-        strands(&applied.maintenance),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         expected,
         "the accepted delete names every stranded name, in the payload's own order, and no site"
     );
@@ -349,7 +349,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        strands(&applied.maintenance),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         expected,
         "one row per carried name, in document order and then payload order"
     );
@@ -377,9 +377,9 @@ fn a_delete_that_strands_nothing_reports_nothing() {
 
     let applied = delete(&doc, spare);
     assert!(
-        applied.maintenance.is_empty(),
+        crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
         "nothing named the deleted node: {:?}",
-        applied.maintenance
+        crate::fixture::without_anonymous(&applied.maintenance)
     );
 }
 
@@ -404,7 +404,9 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let mut reported = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        reported.extend(strands(&applied.maintenance));
+        reported.extend(strands(&crate::fixture::without_anonymous(
+            &applied.maintenance,
+        )));
         doc = applied.doc;
     }
     assert!(
@@ -455,7 +457,10 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let mut per_step = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        per_step.push((id, strands(&applied.maintenance)));
+        per_step.push((
+            id,
+            strands(&crate::fixture::without_anonymous(&applied.maintenance)),
+        ));
         doc = applied.doc;
     }
     assert_eq!(
@@ -544,15 +549,15 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
 
     let applied = delete(&doc, ia);
     assert_eq!(
-        strands(&applied.maintenance),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         vec![(mate, head_a)],
         "the head is a name and is reported; the operand at the same id is not"
     );
     assert_eq!(
-        applied.maintenance.len(),
+        crate::fixture::without_anonymous(&applied.maintenance).len(),
         1,
         "deleting a placed member records no frame: {:?}",
-        applied.maintenance
+        crate::fixture::without_anonymous(&applied.maintenance)
     );
 }
 
@@ -581,11 +586,12 @@ fn a_round_tripped_document_reports_the_same_strands() {
     let direct = delete(&doc, b);
     let after_load = delete(&loaded.doc, b);
     assert!(
-        !direct.maintenance.is_empty(),
+        !crate::fixture::without_anonymous(&direct.maintenance).is_empty(),
         "the delete strands the declared pairs' names"
     );
     assert_eq!(
-        direct.maintenance, after_load.maintenance,
+        crate::fixture::without_anonymous(&direct.maintenance),
+        crate::fixture::without_anonymous(&after_load.maintenance),
         "the report is derived from the document and the edit, so it survives the boundary \
          by being recomputable rather than by being carried"
     );
@@ -625,7 +631,7 @@ fn a_delete_reports_the_appearance_keys_it_stranded() {
     let mut stranded = vec![one, two];
     stranded.sort();
     assert_eq!(
-        appearance_strands(&applied.maintenance),
+        appearance_strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         stranded,
         "both keys the deleted node minted, and only those"
     );
@@ -656,10 +662,10 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        appearance_strands(&applied.maintenance),
+        appearance_strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         vec![doomed],
         "the key the deleted node minted, and not the one the live node did: {:?}",
-        applied.maintenance
+        crate::fixture::without_anonymous(&applied.maintenance)
     );
     assert!(
         applied.doc.appearance().contains_key(&live),
@@ -696,7 +702,7 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![
             Maintenance::Strand {
                 node: doc.spoken(fillet),
@@ -748,6 +754,7 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
                     clocking: Some(0.0),
                 },
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -755,11 +762,11 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
     .expect("the mate inserts");
     assert!(
         matches!(
-            mated.maintenance.as_slice(),
+            crate::fixture::without_anonymous(&mated.maintenance).as_slice(),
             [Maintenance::OffsetCleared { instance, .. }] if instance.id() == ia
         ),
         "the mate's insert clears the mover's offset and strands nothing: {:?}",
-        mated.maintenance
+        crate::fixture::without_anonymous(&mated.maintenance)
     );
     let mate = mated.record.minted.expect("the mate is minted");
     let doc = mated.doc;
@@ -768,7 +775,7 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
 
     let applied = delete(&doc, ia);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![
             Maintenance::Strand {
                 node: doc.spoken(mate),
@@ -816,7 +823,9 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let mut reported = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        reported.push(appearance_strands(&applied.maintenance));
+        reported.push(appearance_strands(&crate::fixture::without_anonymous(
+            &applied.maintenance,
+        )));
         doc = applied.doc;
     }
     assert_eq!(
@@ -847,7 +856,7 @@ fn a_reported_appearance_strand_is_still_clearable() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        appearance_strands(&applied.maintenance),
+        appearance_strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         vec![painted.clone()],
         "the door named the key"
     );
@@ -889,12 +898,13 @@ fn a_round_tripped_document_reports_the_same_appearance_strands() {
     let direct = delete(&doc, victim);
     let after_load = delete(&loaded.doc, victim);
     assert_eq!(
-        appearance_strands(&direct.maintenance).len(),
+        appearance_strands(&crate::fixture::without_anonymous(&direct.maintenance)).len(),
         2,
         "the delete strands both painted faces"
     );
     assert_eq!(
-        direct.maintenance, after_load.maintenance,
+        crate::fixture::without_anonymous(&direct.maintenance),
+        crate::fixture::without_anonymous(&after_load.maintenance),
         "the store's half is derived from the document and the edit too"
     );
 }

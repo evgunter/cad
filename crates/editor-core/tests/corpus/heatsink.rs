@@ -91,6 +91,7 @@ pub fn document() -> CorpusDoc {
         node: pattern,
         slot: SlotId::Count,
         expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
+        fresh: Vec::new(),
     });
 
     // The explicit one-solid chain. Fin i sits at x = i·PITCH; every
@@ -127,6 +128,7 @@ pub fn document() -> CorpusDoc {
             node: fin,
             slot: SlotId::Distance,
             expr: len(0.6875),
+            fresh: Vec::new(),
         },
         bump_root: fin,
     }

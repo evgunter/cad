@@ -763,6 +763,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
                 offset: Some(pncad::document::Placement::literal(
                     &pncad::document::Frame::translation(at),
                 )),
+                fresh: Vec::new(),
             },
             tol,
         );
