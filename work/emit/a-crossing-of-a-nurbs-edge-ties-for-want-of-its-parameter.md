@@ -2,10 +2,11 @@
 id: a-crossing-of-a-nurbs-edge-ties-for-want-of-its-parameter
 kind: issue
 title: Crossings of a NURBS edge tie because param_along has no parameter for a NURBS carrier, where N2 ranks them by the carrier's own parameter
-status: review
+status: closed
 branch: emit/nurbs-crossing-param
 pr: 4278
 opened: 2026-10-01
+closed: 2026-10-07
 priority: P2
 cost: M
 refs: [edge-pieces-are-named-by-their-ends]
@@ -103,3 +104,13 @@ Found on the way and filed:
 
 The end-to-end row this case owes is noted on
 `work/reach/delete-the-boolean-operand-edge-gate.md`.
+
+## Closed (PR 4278, 2026-10-07)
+
+Two same-sense crossings on one NURBS piece rank by the piece's chord
+reading, which is certified to order as the parameter does. The
+certificate never escalates: anything it can't decide ties. Five rows
+pin it, including a folded-back piece and an in-band control step, and
+each has mutation evidence. No body the kernel accepts reaches the case
+yet; the reach gate row notes that it owes an end-to-end row.
+

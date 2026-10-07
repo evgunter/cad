@@ -2094,3 +2094,17 @@ Review asked for three things, all done:
 - rows with mutation evidence;
 - a measurement: no corpus name moves.
 
+## 2026-10-07 — PR 4278: crossings of one NURBS piece rank by its parameter
+
+A crossing point is read along the piece's chord. The reading is used
+only when every control step shaping the piece advances along the
+chord, which makes the piece a graph over its chord, so the readings
+order as the parameters do.
+
+Review confirmed the argument and caught two things, both fixed: the
+certificate escalated where main tied, and no row checked the certificate.
+
+Filed from the review: K > 2 is unenforced (flux), and N2 states only
+part of the tie rule (emit). The lane also filed a swaying-loft refusal
+(nurbs) and the flush reading's NURBS gap (emit).
+
