@@ -1,0 +1,92 @@
+diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
+index ababd2ae3..c45b9eacf 100644
+--- a/crates/topo/src/boolean/insert.rs
++++ b/crates/topo/src/boolean/insert.rs
+@@ -989,6 +989,9 @@ fn hang_in_turned<T: Decide>(
+     band: Band,
+ ) -> Result<Vec<Hang>, BooleanError> {
+     let mut hangs = Vec::new();
++    if std::env::var("REV_MUT").as_deref() == Ok("nohang") {
++        return Ok(hangs);
++    }
+     for slot in 0..2 {
+         for i in 0..plans.len() {
+             let Some(at) = shared_at(plans, sectors, slot, i) else {
+@@ -1038,9 +1041,16 @@ fn sibling_holds<T: Decide>(
+     let n = runs.len();
+     let mut holds = vec![vec![0; n]; n];
+     for k in 0..n {
+-        for cut in run_cuts(secs, runs[k], owner, band)? {
++        let mutant = std::env::var("REV_MUT").unwrap_or_default();
++        let all_cuts = run_cuts(secs, runs[k], owner, band)?;
++        for (ci, cut) in all_cuts.into_iter().enumerate() {
++            let w = match (mutant.as_str(), ci) {
++                ("cut1", 0) | ("cut2", 1) => 2,
++                ("cut1", _) | ("cut2", _) => 0,
++                _ => 1,
++            };
+             for m in (0..n).filter(|&m| m != k) {
+-                holds[k][m] += usize::from(held_cut(secs, runs[m], &[cut], band)?.is_some());
++                holds[k][m] += w * usize::from(held_cut(secs, runs[m], &[cut], band)?.is_some());
+             }
+         }
+     }
+@@ -1069,7 +1079,9 @@ fn sibling_holders(holds: &[Vec<usize>], strut: &[bool]) -> Option<Vec<Option<us
+             }
+         }
+     }
+-    if holder.iter().flatten().any(|&m| holder[m].is_some()) {
++    if std::env::var("REV_MUT").as_deref() != Ok("noheldheld")
++        && holder.iter().flatten().any(|&m| holder[m].is_some())
++    {
+         return None;
+     }
+     Some(holder)
+diff --git a/crates/topo/src/boolean/join.rs b/crates/topo/src/boolean/join.rs
+index e86fb3411..5f6e37320 100644
+--- a/crates/topo/src/boolean/join.rs
++++ b/crates/topo/src/boolean/join.rs
+@@ -461,6 +461,7 @@ impl Sides {
+         ) {
+             (true, false) => Ok(true),
+             (false, true) => Ok(false),
++            (true, true) if std::env::var("REV_MUT").as_deref() == Ok("isup") => Ok(true),
+             (true, true) => Err(desync("null half starts at a vertex of both side sets")),
+             (false, false) => Err(desync("null half starts at a vertex of neither side set")),
+         }
+diff --git a/crates/topo/src/boolean/mod.rs b/crates/topo/src/boolean/mod.rs
+index 5c8eeb5c3..92bcd2a68 100644
+--- a/crates/topo/src/boolean/mod.rs
++++ b/crates/topo/src/boolean/mod.rs
+@@ -4602,7 +4602,11 @@ fn hung_points<T: Real>(
+             }
+         }
+         let mut keys: [Vec<crate::geometry::PointKey>; 2] = [Vec::new(), Vec::new()];
++        let oneop = std::env::var("REV_MUT").as_deref() == Ok("oneop");
+         for s in 0..2 {
++            if oneop && s != slot {
++                continue;
++            }
+             for &v in &at[s] {
+                 let d = bodies[s]
+                     .get_vertex(v)
+diff --git a/crates/topo/src/boolean/zip.rs b/crates/topo/src/boolean/zip.rs
+index 1c2761476..ad4724f5e 100644
+--- a/crates/topo/src/boolean/zip.rs
++++ b/crates/topo/src/boolean/zip.rs
+@@ -374,10 +374,14 @@ pub(super) fn refuse_split_hung_points<T: geom_core::Real>(
+     classes: &[BTreeSet<PointKey>],
+     hung: &[(super::insert::Hang, BTreeSet<PointKey>)],
+ ) -> Result<(), BooleanError> {
++    let mutant = std::env::var("REV_MUT").unwrap_or_default();
++    if mutant == "noguard" {
++        return Ok(());
++    }
+     for (hang, keys) in hung {
+         let keys: BTreeSet<PointKey> = classes
+             .iter()
+-            .filter(|c| !c.is_disjoint(keys))
++            .filter(|c| mutant != "noclass" && !c.is_disjoint(keys))
+             .flatten()
+             .chain(keys)
+             .copied()
