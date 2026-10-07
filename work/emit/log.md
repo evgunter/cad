@@ -2079,3 +2079,18 @@ Filed from it: the forward-member row (doors), the u64-token residue
 merged second after #4228 and re-measured exactly the pins #4228 moved.
 The name row is closed.
 
+## 2026-10-07 — PR 4269: a vertex reads every key fused into it (P0)
+
+This fixes a regression from #4203. Leaning wedges' unions refused the
+unclassified-crossing emission in the 78 member orders whose first fold
+step unions two adjacent wedges.
+
+The cause was that `fused_partners` read the zips' fusions one hop deep.
+`split_cones` leaves per-cone copies that chain two fusions, so B's keys
+never reached the pinch vertex.
+
+Review asked for three things, all done:
+- partners nearest first, so every one-hop identity holds;
+- rows with mutation evidence;
+- a measurement: no corpus name moves.
+

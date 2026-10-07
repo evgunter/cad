@@ -889,7 +889,7 @@ pub use splitting::{
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
-    RingPairContact, StaleDeclaration, ValidationError, WedgeCheck, contact_marks,
+    RingPairContact, StaleDeclaration, Unfinished, ValidationError, WedgeCheck, contact_marks,
     contact_marks_structural, validate, validate_closed, validate_geometric,
     validate_geometric_certificate, validate_geometric_certificate_structural,
     validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,

@@ -114,7 +114,7 @@ use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::ring_path::{LoopArc, Path, Quadric, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
-use crate::splitting::rules::face_extent;
+use crate::splitting::rules::{face_axial_range, face_extent};
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -551,20 +551,37 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
-/// Where the section table reads a wall's pose, and the lever: the base
-/// vertex `at`'s point, and [`face_extent`], the farthest boundary vertex
-/// of `face` from it, which bounds how far along the axis a tilt pinned
-/// at the vertex's foot moves the section. No ball around the vertex is
-/// a lever ([`geom_brep::Reach`]'s module docs): levered at one, a vertex
-/// on a wall `r` from the axis read `r + face_extent` from the foot, and
-/// an in-band tilt decided as an ellipse.
+/// Where the section table reads a wall's pose, and how far `face`
+/// reaches from there: the base vertex `at`'s point, [`face_extent`]
+/// (the cone lane's lever), and the cylinder lane's
+/// [`geom_brep::Reach::Face`]: the face's axial range from the vertex
+/// ([`face_axial_range`], the curved edges' bulge included) and its
+/// distance from it ([`face_extent`]), which the table reads from the
+/// rulings' hinge.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
-) -> Result<(Point3<T>, T), SplitJoinError> {
+    wall: &geom::Surface<T>,
+) -> Result<(T, geom_brep::Reach<T>), SplitJoinError> {
+    let p = body.resolve_vertex_point(at, Proven);
     let extent = face_extent(body, at, face).map_err(unbounded)?;
-    Ok((body.resolve_vertex_point(at, Proven), extent))
+    let reach = match wall {
+        geom::Surface::Cylinder { axis, .. } => {
+            let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
+            geom_brep::Reach::Face {
+                at: p,
+                below,
+                above,
+                across: extent,
+            }
+        }
+        _ => geom_brep::Reach::Measured {
+            at: p,
+            lever: extent,
+        },
+    };
+    Ok((extent, reach))
 }
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
@@ -867,7 +884,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    (at, extent): (Point3<T>, T),
+    (extent, reach): (T, geom_brep::Reach<T>),
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -964,7 +981,6 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let reach = geom_brep::Reach::Measured { at, lever: extent };
     let sec = geom_brep::plane_cylinder_section(plane_s, wall, &reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
@@ -1424,7 +1440,13 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let case = section_case(face, band, &plane_s, &wall, section_reach(body, at, face)?)?;
+    let case = section_case(
+        face,
+        band,
+        &plane_s,
+        &wall,
+        section_reach(body, at, face, &wall)?,
+    )?;
     Ok(Some(WallSection { wall, case }))
 }
 
@@ -1536,7 +1558,13 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let conic = match section_case(face, band, &plane_s, wall, section_reach(body, u1, face)?)? {
+    let conic = match section_case(
+        face,
+        band,
+        &plane_s,
+        wall,
+        section_reach(body, u1, face, wall)?,
+    )? {
         // A two-ruling section's chords are straight on the plane too.
         SectionCase::Straight(_) => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING
@@ -3986,6 +4014,261 @@ mod tests {
         }
     }
 
+    /// **A wall's pose is levered at its axial extent, its rim's bulge
+    /// included, not the distance round it.** A unit wall about `z`
+    /// trimmed at `φ = ±45°`, its rim one closed ellipse on the seam vertex
+    /// `(1, 0, ±1)` (`oblique_rim_wall`), the rim's highest point or its
+    /// lowest, and the plane through the vertex tilted so the axis meets
+    /// it at `sin β = k·ε/2`. The rim reaches `2·tan |φ| = 2` down or up
+    /// the axis from the vertex's foot, at its low crest or its high one, so
+    /// `pc_axis_plane_parallel` reads `k·ε` and escalates at every `k` in
+    /// the band. The vertex alone levers nothing and reads Zero (the
+    /// tangent ruling); the rim's Euclidean reach from the vertex,
+    /// `2/cos φ`, reads `√2·k·ε`, definite from `k = K/√2`, and serves a
+    /// tilted ellipse.
+    #[test]
+    fn a_rims_bulge_levers_the_pose_along_the_axis() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let quarter = core::f64::consts::FRAC_PI_4;
+        for (phi, frac) in [quarter, -quarter]
+            .into_iter()
+            .flat_map(|phi| [0.12, 0.8, 0.9, 0.99].map(|frac| (phi, frac)))
+        {
+            let (body, face, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
+            let base = body.resolve_vertex_point(vertex, Proven);
+            let k = frac * Tol::witness().k();
+            let sin_beta: f64 = k * band.zero() / 2.0;
+            let normal = UnitVec3::new(
+                Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
+                "rim row",
+                band,
+            )
+            .unwrap();
+            let got = wall_section(&body, band, base, normal, face, vertex);
+            assert!(
+                matches!(
+                    got,
+                    Err(SplitJoinError::Escalated { ref diag, .. })
+                        if diag.predicate == Some("pc_axis_plane_parallel")
+                ),
+                "φ = {phi}, k = {k}: an in-band tilt over the rim must escalate, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
+    /// **A short face is never turned definite by its wall's size.** A
+    /// wall of radius `r` whose face is the lone ruling `(r, 0, 0)` to
+    /// `(r, 0, 10 µm)`, cut by the plane through the vertex and the axis
+    /// tilted so the axis meets it at `sin β = k·ε/10 µm`: the ruling
+    /// leaves the plane by at most `k·ε`, so the section over it is the
+    /// ruling pair (`Straight`) at every `k < 1`, on a 1 km wall and a
+    /// 1 m one. Levered across the whole cylinder (`r + |gap|`) the tilt's
+    /// second-order turn read `r·sin² β`, which served an ellipse on the
+    /// 1 km wall and escalated on the 1 m one; the face reaches 10 µm
+    /// across the wall and reads nothing.
+    #[test]
+    fn a_short_face_is_never_turned_definite_by_its_walls_size() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let e = 1e-5;
+        for r in [1000.0, 1.0] {
+            let base = Point3::new(r, 0.0, 0.0);
+            let mut body = crate::Body::<f64>::new();
+            let seed = body.mvfs(base, true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Cylinder {
+                        origin: Point3::origin(),
+                        axis: Vec3::unit_z(),
+                        radius: r,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            body.mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(r, 0.0, e),
+                Tol::witness(),
+            )
+            .unwrap();
+            for k in [0.5, 0.8, 0.95] {
+                let c: f64 = k * band.zero() / e;
+                let normal =
+                    UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "short face", band)
+                        .unwrap();
+                let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+                assert!(
+                    matches!(
+                        got,
+                        Ok(Some(WallSection {
+                            case: SectionCase::Straight(_),
+                            ..
+                        }))
+                    ),
+                    "r = {r}, k = {k}: the ruling pair, got {:?}",
+                    got.map(|w| w.map(|w| match w.case {
+                        SectionCase::Straight(_) => "straight",
+                        SectionCase::Tangent(_) => "tangent",
+                        SectionCase::Conic(_) => "conic",
+                    }))
+                );
+            }
+        }
+    }
+
+    /// **A face at one station is cut by a plane across the axis in a
+    /// conic.** A unit wall about `z` whose face is the rim arc at `z = 0`
+    /// from `(1, 0, 0)` a quarter turn round: it reaches nothing along the
+    /// axis, so a tilt levered along the axis alone moves it by nothing,
+    /// read Zero and minted rulings for the plane `z = 0` (the merge
+    /// later refused them). The plane turns about the rulings' hinge, and
+    /// the face reaches across the wall from there by up to its distance
+    /// from the base vertex: the plane `z = 0` and the planes 30° and 60°
+    /// off it are conics.
+    #[test]
+    fn a_face_at_one_station_is_cut_by_a_plane_across_the_axis_in_a_conic() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let carrier = geom::Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let base = carrier.eval(0.0);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(base, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let cyl = body.get_face(seed.face).unwrap().surface;
+        let rim_plane = body.add_surface(geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        });
+        let quarter = core::f64::consts::FRAC_PI_2;
+        body.mev(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            carrier.eval(quarter),
+            EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: cyl,
+                    s2: rim_plane,
+                    witness: carrier.mid_point(0.0, quarter),
+                },
+                carrier,
+                param_start: 0.0,
+                param_end: quarter,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        for degrees in [90.0_f64, 60.0, 30.0] {
+            let tilt = degrees.to_radians();
+            let normal =
+                UnitVec3::new(Vec3::new(0.0, tilt.cos(), tilt.sin()), "one station", band).unwrap();
+            let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+            assert!(
+                matches!(
+                    got,
+                    Ok(Some(WallSection {
+                        case: SectionCase::Conic(_),
+                        ..
+                    }))
+                ),
+                "{degrees}° off the axis: a conic, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
+    /// **A one-sided face is levered from the rulings' hinge station
+    /// either way.** A wall of radius `r` whose face is the lone ruling
+    /// `(r, 0, 0)` to `(r, 0, e)`, `e` = 1 mm, cut by the plane through the
+    /// vertex tilted to `sin β = c`. The rulings this lane mints stand on
+    /// the hinge through the foot's projection, `r·c` up the axis: with
+    /// `r·c = e/2` the face reaches `e/2` from that station either way, so
+    /// the tilt moves it by `c·e/2 = 0.6·Kε`, in the band, and the table
+    /// escalates. Read as reaching `e` both ways from the vertex, the
+    /// lever was `e + r·c` and served an ellipse (main's face extent, `e`,
+    /// read `1.2·Kε` and served one too).
+    #[test]
+    fn a_one_sided_face_is_levered_from_the_hinge_station_either_way() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let e = 1e-3;
+        let c: f64 = 1.2 * band.escalate() / e;
+        let r = e / (2.0 * c);
+        let base = Point3::new(r, 0.0, 0.0);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(base, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: r,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(r, 0.0, e),
+            Tol::witness(),
+        )
+        .unwrap();
+        let normal = UnitVec3::new(
+            Vec3::new((1.0 - c * c).sqrt(), 0.0, c),
+            "one-sided face",
+            band,
+        )
+        .unwrap();
+        let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+        assert!(
+            matches!(
+                got,
+                Err(SplitJoinError::Escalated { ref diag, .. })
+                    if diag.predicate == Some("pc_axis_plane_parallel")
+            ),
+            "the tilt over the face from the hinge station is in the band, got {:?}",
+            got.map(|w| w.map(|w| match w.case {
+                SectionCase::Straight(_) => "straight",
+                SectionCase::Tangent(_) => "tangent",
+                SectionCase::Conic(_) => "conic",
+            }))
+        );
+    }
+
     /// The split lane's adjacency question on a conic between edge (a
     /// cylinder cap's rim, which a planar divided face carries): the
     /// belly verdict and the coplanar verdict. The rim is the upper
@@ -4203,8 +4486,14 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    fn reach() -> (Point3<f64>, f64) {
-        (Point3::origin(), 4.0)
+    fn reach() -> (f64, geom_brep::Reach<f64>) {
+        let reach = geom_brep::Reach::Face {
+            at: Point3::origin(),
+            below: 4.0,
+            above: 4.0,
+            across: 4.0,
+        };
+        (4.0, reach)
     }
 
     fn plane() -> geom::Surface<f64> {

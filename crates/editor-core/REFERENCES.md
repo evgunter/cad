@@ -186,9 +186,10 @@ carry that cost on top of its own. So the chain goes, not the link:
   edit that changes a list input, by naming the whole new list; nothing is
   inferred. It refuses typed an unknown or non-live member, a cycle
   (`WouldCycle` through the existing check), a duplicate (DM5), or fewer than
-  two members. Deleting a pip is `SetMembers` without it plus a plain
-  `DeleteNode` of the orphaned transform, one committed action
-  (`commit_action`), and the other twenty rims survive. `Loft`'s `profiles`
+  two members. Deleting a pip is `SetMembers` without it, and the other
+  twenty rims survive. The transform stays a value, out of the product
+  because nothing places it; deleting it too is tidiness, not a
+  requirement. `Loft`'s `profiles`
   list is the same shape and takes the same edit; nothing else in the
   vocabulary is a list.
 - The viewer's combining doors take a union seat of N body picks (not yet

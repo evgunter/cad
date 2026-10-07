@@ -35,9 +35,14 @@ const PIP_D: f64 = 0.22;
 fn blank() -> AtRestBody<f64> {
     let body = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    let blank = fillet_edges(&body, &edges, DIE_R, Tol::witness())
-        .expect("the die blank")
-        .body;
+    let blank = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the die blank")
+    .body;
     finished("the die blank", blank, Tol::witness())
 }
 
@@ -363,9 +368,14 @@ fn deviation_1_both_doors_compose_and_agree() {
         .filter(|k| pipped.get_edge(*k).is_some())
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the pips");
-    let via_surgery = fillet_edges(&pipped, &surviving, DIE_R, Tol::witness())
-        .expect("the in-place surgery takes the subset request (M6 unit 1)")
-        .body;
+    let via_surgery = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &surviving,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the in-place surgery takes the subset request (M6 unit 1)")
+    .body;
     assert_eq!(
         topo::validate_geometric(&via_surgery, Tol::witness()),
         Ok(()),

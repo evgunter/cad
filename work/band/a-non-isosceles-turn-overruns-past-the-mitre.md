@@ -199,6 +199,12 @@ tangent point, and both verbs' far foot (0.141) lands inside it.
   `Fⱼ`'s ("at a mitre, the other band's support", `blend::reach`).
   That region is `R_k` itself, overrun included. It skips the faces at
   the vertex, however, so nothing on `Fⱼ` is its concern.
+  *Note (2026-10-07, PR 4254):* that skip now reads "the faces band
+  `k`'s window is capped by" (`straight_reach` records them), and it
+  is sound only while `Fⱼ` lies on that cap. If the overrun's build
+  re-caps `R_k` anywhere but `Fⱼ`'s plane (at the mitre plane, say),
+  or carries band `k`'s material past it, `Fⱼ` leaves the reach's
+  boundary: meter `Fⱼ` past the cap, or keep the cap at `Fⱼ`.
 - **Arm (a)** does not cover it. Band `j`'s arm meters `Fⱼ`'s rings
   against `t_jF`, and passes a ring on the far side of that line,
   which is where the overrun lies. Band `k`'s arm meters only `S` and

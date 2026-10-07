@@ -65,6 +65,7 @@ use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{CurveKind, CurveKindSet, EdgeKey, chamfer_edges, fillet_edges, query};
 use pncad::topo::Body;
 
+use crate::booleans::finished;
 use crate::diefillet::{L, R};
 use crate::{SceneBody, Stop, View};
 
@@ -131,6 +132,7 @@ fn edge_material(a: f64, d: f64) -> f64 {
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let (cube, pipped) = crate::diefillet::source_bodies(tol);
+    let (cube, pipped) = (finished("cube", cube, tol), finished("pipped", pipped, tol));
 
     // ---- the blank, both verbs, at r == d ----
     let filleted = fillet_edges(&cube, &query::all_edges(&cube), R, tol)

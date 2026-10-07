@@ -2,10 +2,11 @@
 id: germ-frame-levers-a-plane-cylinder-tilt-at-the-radius
 kind: issue
 title: the germ frame levers a plane×cylinder pair's axis tilt at the radius, not at the wall's length
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: M
+closed: 2026-10-07
 ---
 
 
@@ -46,3 +47,19 @@ consumed points (the boundary edges' per-carrier distances,
 `Reach::Span`'s rule). Re-measure the rows in `frame_dispatch_tests` that
 pin the plane×cylinder frame. The coin row pins that the lever is not
 LONGER than the radius on a short wall, and it must stay green.
+
+## Outcome (2026-10-07)
+
+`germ_section_frame` levers the plane×cylinder pair at its wall face's
+axial extent from the reading point (`boolean::join::frame_extent`,
+`splitting::rules::face_axial_range`, a conic arc read over the span
+it holds), with twice the face's farthest distance from that point as
+its reach across the wall (`geom_brep::Reach::Face`). A pair handed to
+`pair_section_frame` without its faces still levers at the radius; the
+coin row pins that path and stays green. Rows (`frame_dispatch_tests`):
+`a_long_walls_tilt_is_levered_at_its_length_not_its_radius`,
+`a_short_walls_tilt_is_levered_at_its_axial_extent_not_its_radius`,
+`a_rims_bulge_levers_the_germ_frames_tilt`,
+`a_partial_rim_levers_the_frame_at_its_arcs_reach_not_the_whole_turn`.
+The cylinder pair's span has the same vertex-only blind spot, filed as
+`germ-cylinder-pair-span-misses-a-curved-edges-bulge`.
