@@ -1000,6 +1000,40 @@ R2 0/3/4. Tally 1.
 
 Signed (JOIN orchestrator).
 
+## 2026-10-07 — PR 4207: a pinch's cone vertices share one point key
+
+PR 4139 left 9 `dbl` lines with their cones on two point keys. The fix
+derives the key classes by descent:
+- `zip::point_classes` runs a union-find over the point keys that each
+  `SeamCorrespondence` pair links.
+- After the zips, `zip::share_points` rebinds a class's live vertices onto
+  its smallest key through `Body::share_point`, which writes no
+  coordinate.
+- FUSE's `edge_join` key guard then sees the pinch.
+
+No position is read. The premise that a class's points coincide is
+structural: its pairs are ones the zips certify coincident. That premise
+is pinned under the sweep-testing feature by a spread check, 0.0 on
+every rebound class. A runtime check is not expressible over `T: Real`.
+
+**Measured, main vs head:**
+- the 9 `dbl` lines go BAD → SOUND, each with one vertex per cone on one
+  key, meshing, and 2 mesher panics gone;
+- r2's pinched operand: 75 lines BAD → SOUND, and tier-3′ `VertexVertex`
+  drops from 236 to 0;
+- everything else byte-identical, with 0 SOUND → refusal.
+
+**Review tier: single FULL.** It is a contained, descent-decided rebind
+with byte-identical batteries. The review was APPROVE-WITH-FIXES, MAJOR
+0, MINOR 3:
+- docs now give the traced cause;
+- the residue is filed as `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`
+  (three-key operands; a point-touch union);
+- the stale-contact count is corrected to 176.
+
+The 120 still-BAD r2 lines are FUSE's parked D10 row
+`a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms`,
+which now carries the evidence.
 ## 2026-10-07 — next units after the pinch ruling
 
 - Dispatched, each to a fresh implementer:

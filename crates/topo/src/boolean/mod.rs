@@ -153,7 +153,9 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
-pub use edge_join::{EdgeJoin, joinable_vertices};
+pub use edge_join::{
+    EdgeJoin, JoinReading, JoinUndecided, is_conventional_vertex, joinable_vertices,
+};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -165,6 +167,8 @@ pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
 pub use shell_witness::ShellOrientation;
 pub use zip::Fusions;
+#[cfg(feature = "sweep-testing")]
+pub use zip::take_shared_points;
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and
@@ -1795,6 +1799,18 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
+/// One sector read of a vertex, named in
+/// [`BooleanError::VertexReadTwice`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectorRead {
+    /// The vertex-on-face pass that classifies the vertex against this
+    /// face of the other operand.
+    Pierce(FaceKey),
+    /// The vertex-vertex pass that pairs the vertex with this vertex of
+    /// the other operand.
+    Pair(VertexKey),
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2301,11 +2317,13 @@ pub enum BooleanError {
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
-        /// That vertex.
+        /// That vertex: a key of the operand's working copy, which the
+        /// sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// Two of the other operand's vertices at its point that it
         /// crosses into, in classification order: the first two, when
-        /// it crosses into more.
+        /// it crosses into more. Keys of the other operand's working
+        /// copy, as `vertex` is.
         partners: [VertexKey; 2],
     },
     /// A vertex of `operand` pierces a face of the other solid with
@@ -2319,10 +2337,28 @@ pub enum BooleanError {
     PierceRunsNested {
         /// The piercing operand.
         operand: Operand,
-        /// Its piercing vertex.
+        /// Its piercing vertex: a key of the operand's working copy,
+        /// which the sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// How many Out runs it has against the face.
         runs: usize,
+    },
+    /// A vertex of `operand` is read by two sector passes: it pierces
+    /// two faces of the other solid, or pierces one and coincides with a
+    /// vertex of it. That other solid holds its own contact at the
+    /// vertex's point: two of its faces meet there in their interiors,
+    /// or a vertex of it rests on one of its faces. A vertex-on-face pass
+    /// hangs struts at its piercing vertex, so a later pass would read
+    /// an orbit an earlier one wrote (`vtxfac::refuse_sector_rereads`).
+    VertexReadTwice {
+        /// The operand whose vertex is read twice.
+        operand: Operand,
+        /// That vertex: a key of the operand's working copy, which the
+        /// sweep may have minted on one of its edges.
+        vertex: VertexKey,
+        /// Its first pierce, then its next read: a second pierce, or a
+        /// pair.
+        reads: [SectorRead; 2],
     },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
@@ -2641,6 +2677,40 @@ pub enum BooleanError {
         /// The precise sub-frontier.
         what: RestZipFrontier,
     },
+    /// The output stage's join could not decide whether a valence-2
+    /// vertex is a regular point of its edges' carrier: a reading in
+    /// the margin band (D4 ¶3).
+    JoinUndecided(edge_join::JoinUndecided),
+    /// **A curved join on a carrier the stage cannot run on.** The join
+    /// restates the kept edge over both edges' span on its own carrier:
+    /// a closed join over the carrier's period, an open one through the
+    /// killed edge's far end, recovered on the carrier
+    /// (`Curve3::param_near`). A carrier with no period, or no
+    /// parameter inverse there (a spline), cannot be run on, and the
+    /// join refuses rather than leave the vertex standing
+    /// (`work/fuse/joining-a-spline-carrier-is-unbuilt`).
+    JoinCarrierUnsupported {
+        /// The edge the join keeps.
+        edge: EdgeKey,
+        /// Its carrier's kind.
+        carrier: geom::CurveKind,
+        /// Whether the join closes (it wants a period) or runs on (it
+        /// wants a parameter inverse).
+        closed: bool,
+    },
+    /// **A record whose edge rests on a face's interior, the edge or
+    /// the face curved.** A record carried through a join or a merge
+    /// that lands on an edge and a face is consumed as structure only
+    /// on a line and a plane, which meet by lying one in the other or
+    /// by a pierce the boolean cut; a circle can rest on a plane at
+    /// one point, which no record kind stores
+    /// (`work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses`).
+    CurvedRestUnrecorded {
+        /// The edge.
+        edge: EdgeKey,
+        /// The face it rests on.
+        face: FaceKey,
+    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
@@ -2891,6 +2961,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PierceRunsNested`].
     PierceRunsNested,
+    /// [`BooleanError::VertexReadTwice`].
+    VertexReadTwice,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -2917,6 +2989,12 @@ pub enum BooleanErrorKind {
     Join,
     /// [`BooleanError::RestZipUnsupported`].
     RestZipUnsupported,
+    /// [`BooleanError::JoinUndecided`].
+    JoinUndecided,
+    /// [`BooleanError::JoinCarrierUnsupported`].
+    JoinCarrierUnsupported,
+    /// [`BooleanError::CurvedRestUnrecorded`].
+    CurvedRestUnrecorded,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::TornComponent`].
@@ -3096,6 +3174,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PierceRunsNested { .. } => BooleanErrorKind::PierceRunsNested,
+            Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3109,6 +3188,9 @@ impl BooleanError {
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
             Self::RestZipUnsupported { .. } => BooleanErrorKind::RestZipUnsupported,
+            Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
+            Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
+            Self::CurvedRestUnrecorded { .. } => BooleanErrorKind::CurvedRestUnrecorded,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3587,6 +3669,17 @@ impl core::fmt::Display for BooleanError {
                  order. There is no way through this in the kernel yet",
                 operand_word(*operand)
             ),
+            Self::VertexReadTwice { operand, reads, .. } => write!(
+                f,
+                "a corner of the {} solid lands where the other solid touches itself \
+                 ({}), and the Boolean cannot yet classify one corner against both. \
+                 There is no way through this in the kernel yet",
+                operand_word(*operand),
+                match reads[1] {
+                    SectorRead::Pierce(_) => "two of its faces meet there",
+                    SectorRead::Pair(_) => "a corner of it rests on one of its faces",
+                }
+            ),
             Self::NonManifoldResult { .. } => write!(
                 f,
                 "the result would meet itself in a fan of faces around one point, where \
@@ -3617,6 +3710,29 @@ impl core::fmt::Display for BooleanError {
                  contact ({}); it zips planar contacts whose seam splits cleanly. {}",
                 what.what(),
                 what.ending()
+            ),
+            Self::JoinUndecided(e) => write!(f, "{e}"),
+            Self::JoinCarrierUnsupported {
+                edge,
+                carrier,
+                closed,
+            } => write!(
+                f,
+                "the Boolean cannot yet join edge {edge:?} across a vertex on its {} carrier: \
+                 the join runs the edge on along its carrier {}, which this carrier has no \
+                 reading for (work/fuse/joining-a-spline-carrier-is-unbuilt)",
+                carrier.name(),
+                if *closed {
+                    "over a whole period"
+                } else {
+                    "through the other edge's far end"
+                }
+            ),
+            Self::CurvedRestUnrecorded { edge, face } => write!(
+                f,
+                "the Boolean cannot yet record edge {edge:?} resting on the interior of face \
+                 {face:?} where one of them is curved: no contact record stores such a rest \
+                 (work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses)"
             ),
             Self::JoinDesync { what } => write!(
                 f,
@@ -4245,6 +4361,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut held = Vec::new();
     let mut edge_classes = Vec::new();
 
+    vtxfac::refuse_sector_rereads(&contacts)?;
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
         let out = vtxfac::classify_vertex_on_face(
@@ -4294,26 +4411,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &edge_splits,
         )?);
     }
-
-    // The VF passes hang null struts at their piercing vertices and at
-    // ring vertices they mint, and every sector read (each VF contact's
-    // piercing vertex, each VV pair's two) reads an orbit as its operand
-    // gave it: so a vertex pierces at most one face, and a paired vertex
-    // pierces none.
-    debug_assert!(
-        [(&contacts.a_on_b, true), (&contacts.b_on_a, false)]
-            .into_iter()
-            .all(|(pierced, a_side)| {
-                pierced.iter().enumerate().all(|(i, f)| {
-                    !pierced[..i].iter().any(|g| g.vertex == f.vertex)
-                        && !contacts
-                            .vv
-                            .iter()
-                            .any(|c| f.vertex == if a_side { c.a } else { c.b })
-                })
-            }),
-        "a vertex is read by two sector passes after the first may hang a strut there: {contacts:?}"
-    );
 
     // Vertex-vertex classification, every pair read before the first
     // insertion: a vertex may sit in more than one pair (an operand
@@ -6250,6 +6347,14 @@ mod tests {
                 vertex: VertexKey::default(),
                 runs: 3,
             },
+            BooleanError::VertexReadTwice {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                reads: [
+                    SectorRead::Pierce(face),
+                    SectorRead::Pair(VertexKey::default()),
+                ],
+            },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
                 b_vertices: [VertexKey::default(); 2],
@@ -6419,6 +6524,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PierceRunsNested => "PierceRunsNested",
+                BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
@@ -6432,6 +6538,9 @@ mod tests {
                 BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::RestZipUnsupported => "RestZipUnsupported",
+                BooleanErrorKind::JoinUndecided => "JoinUndecided",
+                BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
+                BooleanErrorKind::CurvedRestUnrecorded => "CurvedRestUnrecorded",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",

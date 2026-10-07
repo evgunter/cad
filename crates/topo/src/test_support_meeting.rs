@@ -15,8 +15,11 @@ use std::collections::BTreeMap;
 use crate::AtRestBody;
 use crate::body::Body;
 use crate::entity::{Face, HalfEdgeKey, LoopBoundary};
+use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::test_support::finished;
-use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops};
+use crate::test_support_fixtures::{
+    FaceGeometry, describe_as_intersections, line, plane, prism_ops,
+};
 use geom_core::{Point3, Tol};
 
 /// The plate, `[x, y, z]` bounds.
@@ -514,18 +517,7 @@ pub fn poses() -> Vec<Pose> {
 
 /// A box `[x, y, z]` placed by `pose`, built under the caller's `tol`.
 pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
-    let [(x0, x1), (y0, y1), z] = b;
-    let mut body = Body::<f64>::new();
-    prism_ops(
-        &mut body,
-        &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-        z,
-        |x, y, z| pose.at([x, y, z]),
-        FaceGeometry::Certified,
-        tol,
-    );
-    describe_as_intersections(&mut body, tol);
-    finished(what, body, tol)
+    posed_boxes(what, &[b], pose, tol)
 }
 
 /// A hole's prism placed by `pose`, built under the caller's `tol`.
@@ -542,4 +534,123 @@ pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     );
     describe_as_intersections(&mut body, tol);
     finished("a tilted prism", body, tol)
+}
+
+/// A pyramid placed by `pose`, built under the caller's `tol`: its apex,
+/// and its base's corners counterclockwise seen from the apex's side.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses, or the pyramid is not a finished
+/// body (a base wound clockwise from the apex is inside out).
+#[allow(clippy::unwrap_used)]
+pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    let n = base.len();
+    assert!(n >= 3, "a pyramid needs at least three base corners");
+    let bot: Vec<_> = base.iter().map(|&q| pose.at(q)).collect();
+    let top = pose.at(apex);
+    let face = |corners: &[Point3<f64>]| FaceSurface::New {
+        surface: plane(corners, tol),
+        sense: true,
+    };
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(bot[0], true).unwrap();
+    let mut chain = vec![
+        body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            bot[1],
+            line(bot[0], bot[1]),
+            tol,
+        )
+        .unwrap(),
+    ];
+    for i in 2..n {
+        let at = chain[i - 2].he_minus;
+        let e = body.mev(
+            MevSite::Fan { he1: at, he2: at },
+            bot[i],
+            line(bot[i - 1], bot[i]),
+            tol,
+        );
+        chain.push(e.unwrap());
+    }
+    // The base, outward away from the apex: the corners reversed.
+    let corners: Vec<_> = core::iter::once(seed.vertex)
+        .chain(chain.iter().map(|m| m.vertex))
+        .collect();
+    let he_last = body
+        .find_half_edge(seed.face, corners[n - 1], corners[n - 2])
+        .unwrap();
+    let rev: Vec<_> = core::iter::once(bot[0])
+        .chain(bot[1..].iter().rev().copied())
+        .collect();
+    let bottom = body
+        .mef(
+            MefSite::Chords {
+                he1: he_last,
+                he2: chain[0].he_plus,
+            },
+            line(bot[n - 1], bot[0]),
+            face(&rev),
+            tol,
+        )
+        .unwrap();
+    // The apex up from the first corner, then one side face per base
+    // edge; the seed face is the last side.
+    let at = chain[0].he_plus;
+    let strut = body
+        .mev(
+            MevSite::Fan { he1: at, he2: at },
+            top,
+            line(bot[0], top),
+            tol,
+        )
+        .unwrap();
+    let mut he1 = strut.he_minus;
+    for i in 1..n {
+        let he2 = if i < n - 1 {
+            chain[i].he_plus
+        } else {
+            bottom.he_plus
+        };
+        let side = body
+            .mef(
+                MefSite::Chords { he1, he2 },
+                line(top, bot[i]),
+                face(&[bot[i - 1], bot[i], top]),
+                tol,
+            )
+            .unwrap();
+        he1 = side.he_plus;
+    }
+    body.set_face_surface(seed.face, face(&[bot[n - 1], bot[0], top]))
+        .unwrap();
+    describe_as_intersections(&mut body, tol);
+    finished("a pyramid", body, tol)
+}
+
+/// Boxes `[x, y, z]` placed by `pose`, as the solids of one body, built
+/// under the caller's `tol`: where two touch, the body holds its own
+/// contact there.
+pub fn posed_boxes(
+    what: &str,
+    boxes: &[[(f64, f64); 3]],
+    pose: &Pose,
+    tol: Tol,
+) -> AtRestBody<f64> {
+    let mut body = Body::<f64>::new();
+    for &[(x0, x1), (y0, y1), z] in boxes {
+        prism_ops(
+            &mut body,
+            &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+            z,
+            |x, y, z| pose.at([x, y, z]),
+            FaceGeometry::Certified,
+            tol,
+        );
+    }
+    describe_as_intersections(&mut body, tol);
+    finished(what, body, tol)
 }

@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_pole_and_an_apex_join_nothing.rs"]
+mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ring_on_a_sphere_face.rs"]
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
@@ -232,6 +234,8 @@ mod band_planar_oblique_fillet;
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_turn_overrun_probe.rs"]
+mod band_turn_overrun_probe;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
