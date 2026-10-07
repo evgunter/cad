@@ -2007,7 +2007,7 @@ class TestRocker(unittest.TestCase):
     BLEND, KNEE, EYE = 0.5 * m, 0.5 * m, 0.25 * m
     DEPTH = 0.5 * m
     KEY_C, KEY_R, KEY_W, KEY_SLOT = (3.5, -0.25), 0.5, 0.2, 0.8
-    CREASE = 0.25
+    CREASE = BLEND.meters
 
     def outline(self):
         return (
