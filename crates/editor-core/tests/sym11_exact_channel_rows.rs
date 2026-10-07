@@ -43,9 +43,11 @@ use crate::m10_9_pins_interval::measured_studies;
 /// table in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
 ///
-/// Only the `frozen` column moved when an intrinsic edge description's
-/// surfaces became a set (`geom_brep::SurfacePair`): +29, +24, +12, +24,
-/// +12 in this order, and no decision column. The cause is the
+/// Re-taken under two changes together. `cap_plane_orientation` (the
+/// extrude's cap decide) adds the `numeric` column's +6, +4, +3, +4, +2.
+/// An intrinsic edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`) moves only `frozen`: 612 → 641, 804 → 828,
+/// 486 → 498, 806 → 830, 302 → 314, and no decision column. The cause is the
 /// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
 /// `n1.cross(n2)`), which the certificate now takes in key order where
 /// the extrude took it in builder order: the cross product is symmetric
@@ -53,11 +55,11 @@ use crate::m10_9_pins_interval::measured_studies;
 /// edge's wedge in both orientations builds two hash-consed forms where
 /// it built one. The residual checks' order contributes nothing.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [1103, 0, 704, 641]),
-    ("r1_annulus", [588, 0, 451, 828]),
-    ("r2_link", [373, 9, 284, 496]),
-    ("r2_filleted_bracket", [644, 0, 516, 830]),
-    ("r2_rounded_pad", [368, 0, 302, 314]),
+    ("two_hole_plate", [1103, 0, 710, 641]),
+    ("r1_annulus", [588, 0, 455, 828]),
+    ("r2_link", [373, 9, 287, 498]),
+    ("r2_filleted_bracket", [644, 0, 520, 830]),
+    ("r2_rounded_pad", [368, 0, 304, 314]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

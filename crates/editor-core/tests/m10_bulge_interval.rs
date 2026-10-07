@@ -122,12 +122,17 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// read `[126, 0, 0, 18]` each (they were `[135, 0, 0, 9]` and
 /// `[117, 0, 0, 27]`, the same sum) and `witness_on_surface_*`
 /// `[14, 0, 0, 2]` each (they were `[15, 0, 0, 1]` and `[13, 0, 0, 3]`).
-/// No other row moved.
+/// No other row moved with it; the table below holds both changes.
+///
+/// **`cap_plane_orientation` is new, 0/0/0/4**: each extrude's two caps
+/// decide once whether Newell's normal agrees with the profile's
+/// winding, definite and numeric, on this table and on the boss's.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
     ("arc_span", [4, 0, 0, 4]),
     ("assert_bound", [0, 0, 0, 1]),
+    ("cap_plane_orientation", [0, 0, 0, 4]),
     ("carrier_circles_identity", [3, 0, 0, 0]),
     ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
     ("carrier_endpoint_end", [32, 0, 4, 0]),
@@ -243,6 +248,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("arc_diameter_clearance", [0, 0, 0, 6]),
             ("arc_span", [6, 0, 0, 0]),
             ("assert_bound", [0, 0, 0, 1]),
+            ("cap_plane_orientation", [0, 0, 0, 4]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
             ("carrier_endpoint_end", [20, 0, 4, 0]),

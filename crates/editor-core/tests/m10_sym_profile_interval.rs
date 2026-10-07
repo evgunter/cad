@@ -274,11 +274,12 @@ fn eps_row(eps: f64) -> usize {
 /// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
 /// `n1.cross(n2)`) in key order where the extrude reads it in builder
 /// order, and the cross product is symmetric in value up to sign but not
-/// in form, so mixed orientations build distinct hash-consed forms: the
-/// `*/Assertion` walks
-/// build 188 more forms (918 → 1106, 1958 → 2146) and the
-/// `Plain/*` and `Early/Assertion` digests move at every row; calls,
-/// frozen counts and `Early/Decision` hold.
+/// in form, so mixed orientations build distinct hash-consed forms.
+/// Measured composed with the cap orientation (`cap_plane_orientation`,
+/// [`PLATE_LEDGER`]'s note: +4 `Assertion` calls per walk here): the
+/// `*/Assertion` walks build 188 more forms (998 → 1186, 2041 → 2229)
+/// and the `Plain/*` and `Early/Assertion` digests move at every row;
+/// calls, frozen counts and `Early/Decision` hold.
 ///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
 /// edges' mid-parameter points are the lever — the witness an edge is
@@ -289,19 +290,19 @@ fn eps_row(eps: f64) -> usize {
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 980 forms 9426 frozen 0 digest f453938c3049c0c4f2216c8726d2d139\n\
-     Plain/Assertion calls 510 forms 1106 frozen 0 digest a207af454b281bd5ccb26d3c5228b97e\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest 6cc3925553d39ab11afdd6f49e2e95fc\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 2146 frozen 0 digest f2557981f6130da73916dc67906099e1",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest c1a337dfb3fddea52f0b602dee5ce284",
     "\
      Plain/Decision calls 980 forms 9426 frozen 0 digest 2019bf563b9e25ce5e73c2683c3d06cb\n\
-     Plain/Assertion calls 510 forms 1106 frozen 0 digest ed7718916a15c8ec5e0df8fc439be275\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest e01dd6ba526d880e783c1591e8ec918d\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 2146 frozen 0 digest 219ab8d2b177a81f9d82cf41b3c88724",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 07d7408b59196363c53b96cbc8093e55",
     "\
      Plain/Decision calls 980 forms 9426 frozen 0 digest e14807ef580704d932f297bb166d80ae\n\
-     Plain/Assertion calls 510 forms 1106 frozen 0 digest 03587d17710d499a1b8142485605cb03\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest ed52a22cbba70cd084174fda0dd6d15c\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 2146 frozen 0 digest 6e7780cf1f71c61d6bf593341cbb61fc",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 567124dbedb7c16baa8e3ed1ec024203",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -487,23 +488,35 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   continuity margins come: `Assertion` calls +14 on every walk and
 ///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
 ///   −31. Every digest moves; the freezes hold.
+/// - **The cap orientation (CARVE).** Each extruded cap decides
+///   `cap_plane_orientation` once: `Assertion` calls +6 on both walks
+///   and `Door` +4 on each line here, +4 per walk on the slab at every
+///   ε row. `Decision` calls hold; the plate's `Plain` and `Early`
+///   `Decision` forms fall 10 and 56, every digest of a line that
+///   builds forms moves, and the freezes hold. `Door/Decision`'s forms
+///   rise 6768 → 7465 with it alone, and to 7393 once composed with the
+///   one-segment loop (#4169): measured with this change applied at
+///   that merge's first parent and at the merge, where #4169 alone
+///   leaves the line at 6768.
 ///
 /// Re-captured when an intrinsic edge description's surfaces became a
 /// set (`geom_brep::SurfacePair`) and the certificate began reading the
 /// transversality wedge's `n1.cross(n2)` in key order, a form distinct
-/// from the extrude's builder-order one: `Plain/Assertion` +176 forms and +29 frozen
-/// (3915/360 → 4091/389), `Early/Assertion` +176 forms, `Door/Decision`
-/// +82 forms; calls and every decision tally hold
-/// (`m10_10_pins_interval` reads the pair's sum unchanged).
+/// from the extrude's builder-order one. Measured composed with the cap
+/// orientation above: `Plain/Assertion` 4173/360 → 4349/389 (+176
+/// forms, +29 frozen), `Early/Assertion` 5136 → 5312 (+176),
+/// `Door/Decision` 7393 → 7475 (+82); calls, `*/Decision` forms and
+/// every decision tally hold (`m10_10_pins_interval` reads the pair's
+/// sum unchanged).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16228 frozen 252 digest 11b75d97472285bd38ed97b13d58c6f8\n\
-     Plain/Assertion calls 664 forms 4091 frozen 389 digest b4e12eeaa1c7ed79cbcf5f9c16500b70\n\
+     Plain/Decision calls 1143 forms 16218 frozen 252 digest 632eb75a679ee6e7c4bada6b0ea04aba\n\
+     Plain/Assertion calls 670 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 432 forms 9117 frozen 0 digest 84844d34fed01841331e528b1fbacc61\n\
-     Early/Assertion calls 664 forms 5007 frozen 0 digest 5bbcef3abf080757c1c3fb7ba0742832\n\
+     Early/Decision calls 432 forms 9061 frozen 0 digest a06648dc655a1f290a036c37395fd0ad\n\
+     Early/Assertion calls 670 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
      Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 448 forms 6850 frozen 0 digest 5377e110634342bbe62308f48ba4ea5f\n\
-     Door/Assertion calls 408 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Door/Decision calls 452 forms 7475 frozen 0 digest 99f0789fc39a3a11bc76c463e0241bf1\n\
+     Door/Assertion calls 412 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
