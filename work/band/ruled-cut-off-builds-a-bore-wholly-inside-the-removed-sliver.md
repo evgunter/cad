@@ -1,11 +1,13 @@
 ---
 id: ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver
 kind: issue
-title: "blend: a bore wholly inside a ruled cut-off's sliver refuses RingClearance; may a blend delete an authored through-feature?"
+title: blend: a bore wholly inside a ruled cut-off's sliver refuses RingClearance; may a blend delete an authored through-feature?
 status: open
 opened: 2026-09-25
 priority: P2
 cost: H
+needs_ev: true
+design: true
 ---
 
 
