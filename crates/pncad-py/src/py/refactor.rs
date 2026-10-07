@@ -332,6 +332,16 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
+        E::DefinitionStraddlesCut { var, .. } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&var.to_string()),
+            none(),
+            none(),
+        ),
         E::UnresolvedVarCrossesCut { var, node: n } => (
             id(n),
             none(),

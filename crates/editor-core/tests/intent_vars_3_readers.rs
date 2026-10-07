@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use crate::corpus::{body_of, failures};
 use crate::fixture::resolver::PartStore;
+use crate::fixture::round_trip::{composed, same_up_to_ids};
 use crate::fixture::{desc, insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
@@ -849,6 +850,164 @@ fn split_and_inline_carry_readers_by_id() {
             .expect("the host holds it")
             .bit_eq(part.var(source).expect("the part")),
         "its definition crosses bit for bit"
+    );
+}
+
+// ---- A variable moves with its readers (FORK-6) ----
+
+/// `doc` with `name` declared as `def`.
+fn declare_as(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc {
+    step(doc, DocEdit::DeclareVar { name: n(name), def }).doc
+}
+
+/// `doc` split at `cut` into a part, the part published to a store.
+fn split_into_store(
+    doc: &ProfileDoc,
+    cut: [RecipeNodeId; 3],
+    seed: &str,
+) -> (
+    editor_core::SplitOutcome,
+    Arc<dyn editor_core::PartResolver>,
+) {
+    let out = split(
+        doc,
+        &BTreeSet::from(cut),
+        DocumentId::derive(seed),
+        Tol::witness(),
+        None,
+    )
+    .unwrap_or_else(|e| panic!("the split admits the cut: {e}"));
+    let mut store = PartStore::default();
+    store.insert(out.part.clone(), Tol::witness());
+    (out, Arc::new(store))
+}
+
+/// A named variable only the cut reads leaves the remainder and lives
+/// in the part: one recorded `DeleteVar`, which strands nothing.
+#[test]
+fn a_cut_only_named_variable_moves_into_the_part() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-moves"), Tol::witness());
+    let doc = declare(&doc, "w", 1.5);
+    let (doc, cut) = block(doc, 0.0, named("w"));
+    let (doc, _) = block(doc, 10.0, len(1.0));
+    let (out, _) = split_into_store(&doc, cut, "fork6-moves-part");
+    assert_eq!(out.remainder.var_named("w"), None, "w left the remainder");
+    assert!(
+        out.part
+            .var(id(&out.part, "w"))
+            .expect("held")
+            .bit_eq(doc.var(id(&doc, "w")).expect("held")),
+        "and the part holds it, bit for bit"
+    );
+    assert!(
+        out.remainder_edits
+            .iter()
+            .any(|edit| matches!(edit, DocEdit::DeleteVar { var } if *var == id(&doc, "w").into())),
+        "the move is a recorded DeleteVar: {:?}",
+        out.remainder_edits
+    );
+    assert!(
+        !out.remainder_maintenance
+            .iter()
+            .any(|m| matches!(m, Maintenance::Strand { .. })),
+        "the move strands nothing: {:?}",
+        out.remainder_maintenance
+    );
+}
+
+/// `w` read only by the cut, and `k = w + 1 mm` read by nothing: `k`
+/// follows its one read, both move, and inlining the part back gives
+/// the document split was given, up to minted ids.
+#[test]
+fn an_unread_definition_moves_with_what_it_reads_and_comes_back() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-follows"), Tol::witness());
+    let doc = declare(&doc, "w", 1.5);
+    let doc = declare_as(
+        &doc,
+        "k",
+        VarDecl::defined(Formula::add(named("w"), len(0.001)).expect("lengths add")),
+    );
+    let (doc, cut) = block(doc, 0.0, named("w"));
+    let (doc, _) = block(doc, 10.0, len(1.0));
+    let (out, store) = split_into_store(&doc, cut, "fork6-follows-part");
+    for name in ["w", "k"] {
+        assert_eq!(out.remainder.var_named(name), None, "{name} left");
+        assert!(out.part.var_named(name).is_some(), "{name} is the part's");
+    }
+    let back = inline(&out.remainder, out.instance, &store, Tol::witness())
+        .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
+    let (nodes, steps) = composed(&doc, &out, &back);
+    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
+        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+}
+
+/// `k = w + j`, read by nothing, with `w` read only by the cut and `j`
+/// by a kept node: `k` is tied to both sides and refuses, named.
+#[test]
+fn a_definition_reading_both_sides_refuses() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-mixed"), Tol::witness());
+    let doc = declare(&doc, "w", 1.5);
+    let doc = declare(&doc, "j", 0.5);
+    let doc = declare_as(
+        &doc,
+        "k",
+        VarDecl::defined(Formula::add(named("w"), named("j")).expect("lengths add")),
+    );
+    let (doc, cut) = block(doc, 0.0, named("w"));
+    let (doc, _) = block(doc, 10.0, named("j"));
+    match split(
+        &doc,
+        &BTreeSet::from(cut),
+        DocumentId::derive("fork6-mixed-part"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(SplitError::DefinitionStraddlesCut {
+            var,
+            moving,
+            staying,
+        }) => {
+            assert_eq!(var.name(), Some(&n("k")), "the tied definition");
+            assert_eq!(moving.name(), Some(&n("w")), "what moves");
+            assert_eq!(staying.name(), Some(&n("j")), "what stays");
+        }
+        other => panic!("expected DefinitionStraddlesCut on k, got {other:?}"),
+    }
+}
+
+/// A name declared in the remainder between the split and the inline
+/// is a second variable under the part's name: the inline refuses.
+#[test]
+fn a_name_redeclared_after_the_split_refuses_the_inline() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-redeclared"), Tol::witness());
+    let doc = declare(&doc, "w", 1.5);
+    let (doc, cut) = block(doc, 0.0, named("w"));
+    let (out, store) = split_into_store(&doc, cut, "fork6-redeclared-part");
+    let remainder = declare(&out.remainder, "w", 1.5);
+    match inline(&remainder, out.instance, &store, Tol::witness()) {
+        Err(InlineError::VarNameConflict { name }) => assert_eq!(name, n("w")),
+        other => panic!("expected VarNameConflict on w, got {other:?}"),
+    }
+}
+
+/// An unread free named variable has no reader to follow and stays in
+/// the remainder (VR7); the part does not hold it.
+#[test]
+fn an_unread_free_variable_stays() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-stays"), Tol::witness());
+    let doc = declare(&doc, "spare", 2.0);
+    let doc = declare(&doc, "w", 1.5);
+    let (doc, cut) = block(doc, 0.0, named("w"));
+    let (out, _) = split_into_store(&doc, cut, "fork6-stays-part");
+    assert_eq!(
+        out.remainder.var_named("spare"),
+        doc.var_named("spare"),
+        "spare stays, same id"
+    );
+    assert_eq!(
+        out.part.var_named("spare"),
+        None,
+        "the part does not take it"
     );
 }
 

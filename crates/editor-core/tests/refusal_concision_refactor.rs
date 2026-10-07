@@ -53,7 +53,7 @@ test_utils::f6_variants! {
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
-        UncutVarReference, UnresolvedVarCrossesCut,
+        UncutVarReference, DefinitionStraddlesCut, UnresolvedVarCrossesCut,
         PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
@@ -143,6 +143,17 @@ fn split_refusals() -> Vec<SplitError> {
             cut_node: s(4, "InstantiatePart"),
             kept_node: s(6, "Gauge"),
             promote: true,
+        },
+        SplitError::DefinitionStraddlesCut {
+            var: var(),
+            moving: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(7)),
+                Some(VarName::from_static("depth")),
+            ),
+            staying: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(6)),
+                None,
+            ),
         },
         SplitError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(

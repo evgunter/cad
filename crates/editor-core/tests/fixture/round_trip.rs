@@ -1,7 +1,8 @@
 //! **The round-trip comparator** (A4: "inline-of-split returns the
-//! document split was given, up to node ids and that one regrouping").
+//! document split was given, up to minted ids and that one
+//! regrouping").
 //!
-//! Two documents are the same up to node ids under a node map and a
+//! Two documents are the same up to minted ids under a node map and a
 //! step map when:
 //! - **the map is a bijection** of the live nodes: injective, every
 //!   live node of the first has a live image, and every live node of
@@ -15,7 +16,9 @@
 //!   alignments and heads, and a profile's step ids are all fields;
 //! - **the root lists agree** through the map, in order — the order is
 //!   the product's solid order, semantic and in the content pin
-//!   (`roots.rs`) — and the parameters, labels and ε agree. By A10's
+//!   (`roots.rs`) — and the named variables, labels and ε agree, a
+//!   named variable matched by its name and a definition read with the
+//!   named ids it reads as their images. By A10's
 //!   replacement rule split's instance goes where the first cut root
 //!   was and inline splices the part's roots there, so a round trip
 //!   agrees in order exactly when the cut's roots are adjacent in the
@@ -271,20 +274,24 @@ pub fn same_up_to_ids(
             ));
         }
     }
-    // Variables are compared by name: the two documents mint their own
+    // Variables are compared by name, a definition with the ids it
+    // reads read as their images: the two documents mint their own
     // ids, and a name is what a reader reads.
-    let vars = |d: &ProfileDoc| {
+    let vars = |d: &ProfileDoc, through: Option<&BTreeMap<u64, u64>>| {
         d.var_names()
             .iter()
-            .filter_map(|(id, name)| Some((name.clone(), d.var(*id)?.clone())))
+            .filter_map(|(id, name)| {
+                let shown = format!("{:?}", d.var(*id)?);
+                let shown = match through {
+                    Some(vars) => renamed(&shown, &ids, &step_ids, vars),
+                    None => shown,
+                };
+                Some((name.clone(), shown))
+            })
             .collect::<BTreeMap<_, _>>()
     };
-    let (va, vb) = (vars(a), vars(b));
-    if va.keys().ne(vb.keys())
-        || va
-            .iter()
-            .any(|(k, v)| !vb.get(k).is_some_and(|w| v.bit_eq(w)))
-    {
+    let (va, vb) = (vars(a, Some(&var_ids)), vars(b, None));
+    if va != vb {
         problems.push(format!("variables: {va:?} vs {vb:?}"));
     }
     if a.epsilon().to_bits() != b.epsilon().to_bits() {

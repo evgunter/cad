@@ -64,9 +64,27 @@
 //! so by A10's replacement rule it goes where the first of them was:
 //! split brings the cut's roots together there, and keeps the root
 //! order exactly when they are adjacent in it. Inline splices the
-//! part's roots, in the part's root order, at the instance's position,
-//! so `inline(split(d))` is `d` up to node ids and that one regrouping
-//! (A4).
+//! part's roots, in the part's root order, at the instance's position.
+//!
+//! # Variables go where their readers go
+//!
+//! A variable's side is the union of its readers' — a node, or the
+//! definition of another variable — and one with no reader follows
+//! what it reads. Split moves a variable every reader of which is cut,
+//! or which has none and reads only what moves: the part declares it,
+//! under its name if it has one, and the remainder records its
+//! `DeleteVar`. One with readers or reads on both sides refuses
+//! ([`SplitError::UncutVarReference`],
+//! [`SplitError::DefinitionStraddlesCut`]); any other stays, an unread
+//! free variable among them. Inline carries every variable of the part
+//! under an id the host mints, and refuses a name the host already
+//! holds ([`InlineError::VarNameConflict`]): two variables are never
+//! one because their values agree (VR1).
+//!
+//! So `inline(split(d))` is `d` up to minted ids — node, step and
+//! variable — and that one regrouping, on every cut split admits (A4).
+//! `split(inline(h))` is not promised: an unread free named variable
+//! the part held has no reader to follow back, and stays in the host.
 //!
 //! # Labels follow their nodes
 //!
@@ -624,6 +642,17 @@ pub enum SplitError {
         /// parameter stays in this document.
         promote: bool,
     },
+    /// A variable no node reads is tied by definitions both to a
+    /// variable the cut moves and to one that stays, so it can go with
+    /// neither document — refused naming one of each.
+    DefinitionStraddlesCut {
+        /// The tied variable: one whose definition reads `staying`.
+        var: SpokenVar,
+        /// A variable the cut moves that the definitions read.
+        moving: SpokenVar,
+        /// A variable that stays that the definitions read.
+        staying: SpokenVar,
+    },
     /// A cut node reads a variable this document no longer holds (a
     /// deleted one: VR7 leaves its readers unresolved, which is legal
     /// document state). The part could not hold the reader either way:
@@ -901,6 +930,20 @@ impl core::fmt::Display for SplitError {
                          them a variable of its own (DeclareVar, SetParam)"
                     )
                 })
+            ),
+            Self::DefinitionStraddlesCut {
+                var,
+                moving,
+                staying,
+            } => write!(
+                f,
+                "split: no node reads {var}, and definitions tie it both to {moving}, which \
+                 moves with the cut, and to {staying}, which stays, so it can go with neither \
+                 document. {}",
+                Recourse(&format!(
+                    "define {var} over variables of one side (DefineVar), or delete it \
+                     (DeleteVar), then split"
+                ))
             ),
             Self::UnresolvedVarCrossesCut { var, node } => write!(
                 f,
@@ -2418,6 +2461,85 @@ fn placeholder(kind: crate::var::VarKind) -> FreeVar {
     }
 }
 
+/// **The variables a split moves** (A4): each variable a cut node
+/// reads, and each a node never reads that its definitions tie only
+/// to those.
+///
+/// A variable's side is the union of its readers' — a node, or the
+/// definition of another variable. One no node reaches, directly or
+/// through definitions, sits in a group of such variables tied by
+/// definition reads; the group reads variables a node reaches (or one
+/// the document no longer holds, which moves nowhere). It moves when
+/// every one of those moves, stays when none does — an unread free
+/// variable reads none, and stays (VR7) — and refuses
+/// [`SplitError::DefinitionStraddlesCut`] when some move and some
+/// stay.
+fn moving_vars(
+    doc: &ProfileDoc,
+    cut_refs: &BTreeMap<VarId, RecipeNodeId>,
+    kept_refs: &BTreeMap<VarId, RecipeNodeId>,
+) -> Result<BTreeSet<VarId>, SplitError> {
+    let order = doc.definition_order();
+    let unreached: BTreeSet<VarId> = order
+        .iter()
+        .copied()
+        .filter(|var| !cut_refs.contains_key(var) && !kept_refs.contains_key(var))
+        .collect();
+    let mut ties: BTreeMap<VarId, Vec<VarId>> = BTreeMap::new();
+    for &var in &unreached {
+        for read in doc.definition_reads(var) {
+            if unreached.contains(&read) {
+                ties.entry(var).or_default().push(read);
+                ties.entry(read).or_default().push(var);
+            }
+        }
+    }
+    let mut moving: BTreeSet<VarId> = cut_refs.keys().copied().collect();
+    let mut grouped: BTreeSet<VarId> = BTreeSet::new();
+    for &seed in &order {
+        if !unreached.contains(&seed) || !grouped.insert(seed) {
+            continue;
+        }
+        let mut group = vec![seed];
+        let mut frontier = vec![seed];
+        while let Some(var) = frontier.pop() {
+            for &tied in ties.get(&var).into_iter().flatten() {
+                if grouped.insert(tied) {
+                    group.push(tied);
+                    frontier.push(tied);
+                }
+            }
+        }
+        let members: BTreeSet<VarId> = group.iter().copied().collect();
+        let (mut moves, mut stays) = (None, None);
+        for &member in order.iter().filter(|var| members.contains(var)) {
+            for read in doc.definition_reads(member) {
+                if members.contains(&read) {
+                    continue;
+                }
+                let side = if cut_refs.contains_key(&read) {
+                    &mut moves
+                } else {
+                    &mut stays
+                };
+                side.get_or_insert((member, read));
+            }
+        }
+        match (moves, stays) {
+            (Some((_, moved)), Some((member, stayed))) => {
+                return Err(SplitError::DefinitionStraddlesCut {
+                    var: doc.spoken_var(member),
+                    moving: doc.spoken_var(moved),
+                    staying: doc.spoken_var(stayed),
+                });
+            }
+            (Some(_), None) => moving.extend(members),
+            (None, _) => {}
+        }
+    }
+    Ok(moving)
+}
+
 // ---- Split ----
 
 /// **Whether a node, as a root, denotes a body** — what a product
@@ -2811,10 +2933,8 @@ pub fn split(
             }
         }
     }
-    // Variables: read by cut nodes → declared in the part; read by BOTH
-    // sides → refused (no silent sharing). The remainder keeps its
-    // table either way: a named variable nothing reads is legal
-    // document state.
+    // Variables go where their readers go: read by cut nodes → moved
+    // into the part; read by BOTH sides → refused (no silent sharing).
     let mut cut_refs: BTreeMap<VarId, RecipeNodeId> = BTreeMap::new();
     let mut kept_refs: BTreeMap<VarId, RecipeNodeId> = BTreeMap::new();
     for &id in doc.order() {
@@ -2845,6 +2965,7 @@ pub fn split(
             });
         }
     }
+    let moving = moving_vars(doc, &cut_refs, &kept_refs)?;
     // Cut-side name references must lie wholly within the cut: the
     // part document cannot name the remainder's entities. Read off
     // the document's name-carrier enumeration, so a carrier added to
@@ -2946,15 +3067,16 @@ pub fn split(
             node: doc.spoken(node),
         });
     }
-    // The named variables, declared in the PARENT's definition order —
-    // its declaration order, a definition after what it reads — so the
-    // part lists them as the parent's author did. An anonymous one
-    // crosses with the first carried edit that reads it (`VarCarry`).
+    // The named variables that move, declared in the PARENT's
+    // definition order — its declaration order, a definition after what
+    // it reads — so the part lists them as the parent's author did. An
+    // anonymous one crosses with the first carried edit that reads it
+    // (`VarCarry`).
     let mut vars = VarCarry::new(doc);
     for id in doc
         .definition_order()
         .into_iter()
-        .filter(|id| cut_refs.contains_key(id))
+        .filter(|id| moving.contains(id))
     {
         if let Some(name) = doc.var_name(id) {
             vars.declare(&mut part, id, name.clone())
@@ -3165,6 +3287,13 @@ pub fn split(
     for &old in doc.order().iter().rev() {
         if cut.contains(&old) {
             rem_apply(&mut remainder, DocEdit::DeleteNode { id: old })?;
+        }
+    }
+    // A moved named variable leaves with its readers, a reader before
+    // what it reads; an anonymous one already left with its last.
+    for &var in doc.definition_order().iter().rev() {
+        if moving.contains(&var) && doc.var_name(var).is_some() {
+            rem_apply(&mut remainder, DocEdit::DeleteVar { var: var.into() })?;
         }
     }
     // A10 on the remainder: the instance takes the FIRST cut root's
