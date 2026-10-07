@@ -96,23 +96,34 @@ The reviewers report the box cases under every op
 A sphere face's ring lane winds its island without a chart,
 `chord_join::sphere_island_winding`, closed by the chord's arc (so
 `boolean::join::choose_roles` waits on the segment's curve for a
-sphere, `RoleLane::SphereRing`, as the planar lane does). The run lies
-in one closed cap of the section plane (the side its edges' midpoints
-decide, or, for a run on the section circle, the side the arc leans
-to); its left region is the inner one when the arc's left normal
-points into that cap; and an outer-loop point decides which region is
-the island: one on the far side directly, one on the run's side by the
-parity of the great-circle path to the far cap's pole
-(`chord_join::sphere_path_parity`). Ring re-homing on a sphere,
-`chord_join::sphere_ring_side`, reads the same parity from a ring
-vertex to an outer-loop vertex of the old face; a path ending on the
-run reads nothing and the next pair is asked, so a ring on the run at
-every vertex refuses there as on a wall's chart
+sphere, `RoleLane::SphereRing`, as the planar lane does).
+
+- The run lies in one closed cap of the section plane: the side its
+  arcs' ends, midpoints and in-span extremes decide
+  (`chord_join::arc_probes`), or, for a run on the section circle, the
+  side the arc leans to.
+- Its left region is the inner one when the arc's left normal points
+  into that cap.
+- An outer-loop reference (a vertex, or an edge midpoint) decides which
+  region is the island: one on the far side directly, one on the run's
+  side by the crossing parity of the great-circle path to the far cap's
+  pole (`chord_join::sphere_path_parity`).
+
+Ring re-homing on a sphere, `chord_join::sphere_ring_side`, reads the
+same parity from a ring vertex to a reference of the old face's outer
+loop: a vertex, or the midpoint of an edge the run does not share. A
+path with a zero-band reading says nothing and the next pair is asked,
+so a ring on the run at every vertex refuses there as on a wall's chart
 (`a-chorded-ring-on-the-run-at-every-vertex-has-no-homing-reading`).
+
+`RingOffCylinderChart` is renamed `RingIslandUnread`. A sphere reaches
+it where a ring run reaches both sides of its section plane or is
+bounded by an edge that is not a circle.
 
 The probe pose builds ∩ in both orders and slab ∖ ball at the slice
 integral; ∪ in both orders and ball ∖ slab keep the ring as a hole of
 the ball's face and refuse at the result gate
 (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`). The rows
-are `crates/sweep/tests/a_ring_on_a_sphere_face.rs`. Filed: the cone and
-torus kinds, `a-ring-on-a-cone-or-torus-face-has-no-island-winding`.
+are `crates/sweep/tests/a_ring_on_a_sphere_face.rs`, the review's
+far-pole, bar and edge-midpoint poses among them. Filed: the cone kind,
+`a-ring-on-a-cone-or-torus-face-has-no-island-winding`.

@@ -550,7 +550,8 @@ which is what actually moves the number.
 | chord_join.rs (`chart_v_du`) | split_chart_azimuth_linear | harmonic azimuth amplitude `\|pa.x\| + \|pb.x\|` (rad), levered at the radius | m | OK (a precondition: the cylinder chart writes the azimuth linear; TANG, PR 3851) |
 | chord_join.rs (`chart_island_winding`) | split_ring_closure_ruling | `n·â` (cosine), levered at the radius | m | OK |
 | chord_join.rs (`chart_island_winding`) | bool_ring_run_winding (wall chart) | `2·R·A_chart / P`, `P` an upper bound in metres (`R·\|Δu\|` plus axial variation per piece) | m | OK (the planar arm's F4 comparand on the wall's chart) |
-| chord_join.rs (`sphere_island_winding`) | split_sphere_ring_side | a run edge's midpoint, or an outer-loop vertex, against the section plane, `n̂·(p − o)` | m | OK (TANG) |
+| chord_join.rs (`sphere_island_winding`) | split_sphere_ring_side | a run arc's ends, midpoint and in-span extremes, or an outer-loop reference, against the section plane, `n̂·(p − o)` | m | OK (TANG) |
+| chord_join.rs (`arc_probes`) | split_sphere_ring_extreme_in_span | an extreme of `n̂·x` along a run arc less the arc's span end (rad), levered at the arc's radius | m | OK (TANG) |
 | chord_join.rs (`sphere_island_winding`) | split_sphere_ring_arc_lean | `n̂·(N × t)/‖N × t‖` (the cosine of the arc's left normal against the plane normal), levered at the sphere's radius | m | OK (TANG) |
 | chord_join.rs (`sphere_path_parity`) | split_sphere_path_span | `‖â × b̂‖` (the sine between the path's ends), levered at the sphere's radius | m | OK (TANG) |
 | chord_join.rs (`sphere_path_parity`) | split_sphere_path_meets_circle | `r·√(A² + B²) − \|D\|`: an arc's reach across the path's plane less its centre's offset from it | m | OK (TANG) |

@@ -657,3 +657,15 @@ and box ∖ ball at their slice integrals in both orders, at tiers 3 and
 3′; the ball's side of ∪ and ball ∖ box stop at FLUX's ringed-sphere
 volume. The lens union against a crease ball builds every op. Filed:
 `a-ring-on-a-cone-or-torus-face-has-no-island-winding` (P2).
+
+## 2026-10-07 — the sphere ring lane's review fix pass (TANG implementer)
+
+PR 4211's FULL review (APPROVE-WITH-FIXES, 0 MAJOR). The fixes:
+- re-homing and the winding read outer-loop edge midpoints as
+  references, so a loop whose every vertex is on the run still decides;
+- the cap of the run is read at every arc's ends, midpoint and in-span
+  extremes;
+- `RingOffCylinderChart` is renamed `RingIslandUnread`.
+
+The review's far-pole, bar and edge-midpoint poses are rows, and so are
+two far-pole notches whose outer-point paths run through a run vertex.
