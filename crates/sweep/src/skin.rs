@@ -468,10 +468,6 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
 /// for sections that did not come out of [`make_compatible`], and
 /// [`SkinError::NoParameterStep`] where the parameters do not strictly
 /// ascend.
-// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
-// geom-core::spline::algebra note): a poisoned coordinate must take
-// the refusal arm, not slip through a negated comparison.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinError> {
     let k = sections.len();
     if k < 2 {
@@ -492,36 +488,68 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
             });
         }
     }
-    let mut totals = vec![0.0f64; k];
-    let mut rows = 0usize;
-    for i in 0..n {
-        let mut chords = vec![0.0f64; k];
-        let mut total = 0.0f64;
-        for j in 1..k {
-            let a = sections[j - 1].control()[i];
-            let b = sections[j].control()[i];
-            chords[j] = a.distance(b);
-            total += chords[j];
-        }
+    chord_length_parameters(k, (0..n).map(|i| control_row(sections, i)))
+}
+
+/// Control row `i` of compatible `sections`: the `i`-th control point
+/// of each section, in section order.
+fn control_row(sections: &[NurbsCurve3<f64>], i: usize) -> Vec<Point3<f64>> {
+    sections.iter().map(|c| c.control()[i]).collect()
+}
+
+/// Book Eq. 10.8 over `rows`, each one control row of `k` points: the
+/// chord lengths accumulated down the row, normalised to `[0, 1]`,
+/// averaged across the rows. Each section's per-row shares are SORTED
+/// before they are summed, so the answer is a function of the multiset
+/// of rows, bit for bit — the order the rows arrive in cannot move it.
+///
+/// # Errors
+///
+/// [`SkinError::NoParameterStep`] when every row is pinned or the
+/// parameters do not strictly ascend.
+// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
+// geom-core::spline::algebra note): a poisoned coordinate must take
+// the refusal arm, not slip through a negated comparison.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+fn chord_length_parameters(
+    k: usize,
+    rows: impl IntoIterator<Item = Vec<Point3<f64>>>,
+) -> Result<Vec<f64>, SkinError> {
+    let mut shares = vec![Vec::new(); k];
+    let mut counted = 0usize;
+    for row in rows {
+        let chords: Vec<f64> = row.windows(2).map(|w| w[0].distance(w[1])).collect();
+        let total: f64 = chords.iter().sum();
         // A row that never moves (a corner pinned across every
         // section) carries no parameterization information — it is not
         // an error, it simply abstains from the average.
         if !(total > 0.0) {
             continue;
         }
-        rows += 1;
+        counted += 1;
         let mut acc = 0.0f64;
-        for j in 1..k {
-            acc += chords[j];
-            totals[j] += acc / total;
+        for (j, chord) in chords.iter().enumerate() {
+            acc += chord;
+            shares[j + 1].push(acc / total);
         }
     }
-    if rows == 0 {
+    if counted == 0 {
         return Err(SkinError::NoParameterStep { section: 1 });
     }
     #[allow(clippy::cast_precision_loss)]
-    let denom = rows as f64;
-    let mut params: Vec<f64> = totals.iter().map(|t| t / denom).collect();
+    let denom = counted as f64;
+    // Each section's mean is taken as `min + Σ (sᵢ − min) / m` over its
+    // sorted shares: a function of the multiset, and EXACT when the
+    // rows agree (evenly stacked identical sections give every row the
+    // same share, and the mean must not round it to a neighbour).
+    let mut params: Vec<f64> = shares
+        .iter_mut()
+        .map(|s| {
+            s.sort_by(f64::total_cmp);
+            let lo = s.first().copied().unwrap_or(0.0);
+            lo + s.iter().map(|x| x - lo).sum::<f64>() / denom
+        })
+        .collect();
     // The averaged accumulation pins 0 and 1 in exact arithmetic; make
     // the ends EXACT so the averaged-knot construction's clamped
     // `0 → 1` precondition holds bit-for-bit (D9 structure selection).
@@ -854,14 +882,22 @@ fn validate_sections<L: SectionLoop>(
 }
 
 /// Builds the definitional walls of a loft (§10.3) from profile-loop
-/// sections and their placements.
+/// sections, their placements, and the v-parameter each section sits
+/// at.
 ///
 /// `sections[k][l]` is section `k`, loop `l` (a [`ProfileLoop`]) in
 /// the section's own sketch coordinates; `places[k]` is that
-/// section's rigid placement. Each section passes
-/// [`Profile::validate`] at the door (fail loud — a section that would
-/// not extrude does not skin either), and the canonical loops are what
-/// get skinned.
+/// section's rigid placement; `params[k]` is its v-parameter, shared
+/// by every wall — as [`skin_on`] takes it one layer down, and checked
+/// there (clamped `0 → 1`, strictly ascending, one per section). Each
+/// section passes [`Profile::validate`] at the door (fail loud — a
+/// section that would not extrude does not skin either), and the
+/// canonical loops are what get skinned.
+///
+/// The walls interpolate their sections, so section `k` is the body's
+/// cross-section at `v = params[k]` for any parameters: the parameters
+/// shape only the surface between sections. A loft body's, and a path
+/// sweep's ([`sweep_geometry`]), are [`loft_parameters`].
 ///
 /// # The correspondence is the author's
 ///
@@ -888,8 +924,23 @@ fn validate_sections<L: SectionLoop>(
 /// naming the disagreeing section and count,
 /// [`SkinError::SectionProfile`] for a section the profile door
 /// refuses, [`SkinError::BadDegree`], and every refusal
-/// [`segment_curve`], [`make_compatible`] and [`skin`] carry.
+/// [`segment_curve`], [`make_compatible`] and [`skin_on`] carry.
 pub fn loft_geometry<L: SectionLoop>(
+    sections: &[Section<L>],
+    places: &[Affine3<f64>],
+    v_degree: usize,
+    params: &[f64],
+    tol: Tol,
+) -> Result<LoftGeometry, SkinError> {
+    let validated = validate_loft(sections, places, v_degree, tol)?;
+    let compat = compatible_strips(&validated, places)?;
+    skin_strips(validated, compat, v_degree, params)
+}
+
+/// [`loft_geometry`] at [`loft_parameters`]' answer — the loft body's
+/// construction, sharing the validated sections and compatible strips
+/// between the parameters and the walls.
+pub(crate) fn loft_geometry_by_chord_length<L: SectionLoop>(
     sections: &[Section<L>],
     places: &[Affine3<f64>],
     v_degree: usize,
@@ -958,75 +1009,105 @@ pub(crate) fn validate_loft<L: SectionLoop>(
     Ok(validated)
 }
 
+/// The compatible section curves of every strip, `[loop][segment]`,
+/// each strip one curve per section.
+fn compatible_strips(
+    validated: &[ValidatedProfile<f64>],
+    places: &[Affine3<f64>],
+) -> Result<Vec<Vec<Vec<NurbsCurve3<f64>>>>, SkinError> {
+    (0..validated[0].loops().len())
+        .map(|l| {
+            (0..validated[0].loops()[l].vertices().len())
+                .map(|j| {
+                    let raw: Vec<NurbsCurve3<f64>> = validated
+                        .iter()
+                        .zip(places)
+                        .enumerate()
+                        .map(|(i, (s, place))| {
+                            segment_curve(i, vertex_segment(&s.loops()[l], j), *place)
+                        })
+                        .collect::<Result<_, _>>()?;
+                    make_compatible(&raw)
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// A loft's v-parameters: Book Eq. 10.8 over every compatible control
+/// row of the OUTER loop's strips; every hole is interpolated at those
+/// parameters. One vector per loop is forced — the seam at a vertex is
+/// one wall's `u = 0` iso and its neighbour's `u = 1` iso, one curve
+/// only if both walls interpolate at the same parameters — and taking
+/// it over the whole loop makes it a function of the section set: no
+/// strip, and so no authored start vertex, roll or sense, is singled
+/// out. The outer loop is the one whose role validation fixes, so
+/// reading it is still label-free; and a hole cannot move the outer
+/// walls, so a hole that is the outer loop scaled lofts to the outer
+/// surface scaled.
+fn strip_parameters(strips: &[Vec<Vec<NurbsCurve3<f64>>>]) -> Result<Vec<f64>, SkinError> {
+    let k = strips[0][0].len();
+    chord_length_parameters(
+        k,
+        strips[0]
+            .iter()
+            .flat_map(|strip| (0..strip[0].control().len()).map(move |i| control_row(strip, i))),
+    )
+}
+
+/// Skins every strip at `params` into the loft's geometry.
+fn skin_strips(
+    validated: Vec<ValidatedProfile<f64>>,
+    strips: Vec<Vec<Vec<NurbsCurve3<f64>>>>,
+    v_degree: usize,
+    params: &[f64],
+) -> Result<LoftGeometry, SkinError> {
+    let walls = strips
+        .iter()
+        .map(|lp| {
+            lp.iter()
+                .map(|strip| skin_on(strip, v_degree, params).map(Arc::new))
+                .collect()
+        })
+        .collect::<Result<_, _>>()?;
+    Ok(LoftGeometry {
+        walls,
+        section_params: params.to_vec(),
+        sections: strips,
+        canonical: validated,
+    })
+}
+
 /// [`loft_geometry`]'s second half: the walls skinned over sections
-/// [`validate_loft`] already accepted.
+/// [`validate_loft`] already accepted, at [`loft_parameters`]' answer —
+/// one pass over the compatible strips serves both the parameters and
+/// the walls.
 pub(crate) fn skin_validated(
     validated: Vec<ValidatedProfile<f64>>,
     places: &[Affine3<f64>],
     v_degree: usize,
 ) -> Result<LoftGeometry, SkinError> {
-    let Some(loops) = validated.first().map(|s| s.loops().len()) else {
-        return Err(SkinError::TooFewSections { have: 0, need: 2 });
-    };
-    // The v-parameterization is the SURFACE's, not one strip's: taken
-    // from the first strip and reused, so every wall of the body
-    // agrees on where its sections sit. (Book §10.3 averages across
-    // control rows for exactly this reason; averaging across strips
-    // too would make the sections planar cross-sections of nothing in
-    // particular.) It is computed through the same helper
-    // [`loft_parameters`] answers with — ONE code path, so the query
-    // can never drift from the construction it reports.
-    //
-    // WHICH strip is first is therefore load-bearing, and it is the
-    // caller's: the authored start of loop 0 picks it, so a section
-    // authored from a different starting vertex, or rolled about its
-    // own normal by one of the profile's own symmetries, leaves every
-    // station's ring the same set of points and still builds a
-    // measurably different solid, because a different strip sets v.
-    let params = first_strip_parameters(&validated, places)?;
-    let mut walls = Vec::with_capacity(loops);
-    let mut kept = Vec::with_capacity(loops);
-    for l in 0..loops {
-        let n_segments = validated[0].loops()[l].vertices().len();
-        let mut loop_walls = Vec::with_capacity(n_segments);
-        let mut loop_sections = Vec::with_capacity(n_segments);
-        for j in 0..n_segments {
-            let raw: Vec<NurbsCurve3<f64>> = validated
-                .iter()
-                .zip(places)
-                .enumerate()
-                .map(|(i, (s, place))| segment_curve(i, vertex_segment(&s.loops()[l], j), *place))
-                .collect::<Result<_, _>>()?;
-            let compat = make_compatible(&raw)?;
-            loop_walls.push(Arc::new(skin_on(&compat, v_degree, &params)?));
-            loop_sections.push(compat);
-        }
-        walls.push(loop_walls);
-        kept.push(loop_sections);
-    }
-    Ok(LoftGeometry {
-        walls,
-        section_params: params,
-        sections: kept,
-        canonical: validated,
-    })
+    let compat = compatible_strips(&validated, places)?;
+    let params = strip_parameters(&compat)?;
+    skin_strips(validated, compat, v_degree, &params)
 }
 
-/// **What v-parameters will the skin put my sections at?** — the
-/// read-back door for [`LoftGeometry::section_params`], answerable
-/// from what a section author already holds ([`Section`]s and their
-/// placements), before any surface is built.
+/// **What v-parameters will a loft put my sections at?** — the
+/// read-back door for [`LoftGeometry::section_params`] of a
+/// [`loft_body`](crate::loft_body), answerable from what a section
+/// author already holds ([`Section`]s and their placements), before
+/// any surface is built, and the parameters to hand [`loft_geometry`]
+/// for the loft body's walls.
 ///
-/// [`skin_parameters`] answers the same question one layer down, but
-/// only for COMPATIBLE `NurbsCurve3` sections — a caller holding
-/// [`ProfileLoop`]s cannot reach it without redoing `segment_curve` /
-/// [`make_compatible`] by hand. This door is that path, and it is
-/// literally the path [`loft_geometry`] takes (one shared helper), so
-/// the answer is the construction's, not a re-derivation of it.
-///
-/// Chord-length averaging (Book Eq. 10.8) is what makes this worth
-/// asking: the answer is NOT the z-spacing, and hand-deriving it is
-/// how demos and fixtures drifted.
+/// Book Eq. 10.8 over every compatible control row of the outer
+/// loop's walls (holes read the outer loop's parameters): chord
+/// lengths accumulated down each row, normalised, averaged. The
+/// answer is a function of the section SET — re-spelling a section
+/// from another vertex, or rolling it by one of its own symmetries,
+/// does not move it. It is literally the computation `loft_body` runs
+/// (one shared helper), so the answer is the construction's, not a
+/// re-derivation of it — and it is NOT the z-spacing, which is why
+/// it is worth asking rather than deriving by hand.
 ///
 /// `v_degree` is not used to place the sections; it is validated with
 /// everything else [`loft_geometry`] checks before skinning, so this
@@ -1076,12 +1157,13 @@ pub(crate) fn skin_validated(
 ///     .collect();
 ///
 /// let params = loft_parameters(&sections, &places, 2, tol).expect("the sections skin");
-/// // Ends pinned; the middle is the CHORD-length share, not the
-/// // z-share (which would be 1/3): the flare lengthens the first
-/// // chord, giving t = √73 / (√73 + √265).
+/// // Ends pinned; the middle is the CHORD-length share averaged over
+/// // every corner, not the z-share (which would be 1/3): the flare
+/// // lengthens the first chord at the two bottom corners, giving
+/// // t = (√73 / (√73 + √265) + 1/3) / 2.
 /// assert_eq!(params[0], 0.0);
 /// assert_eq!(params[2], 1.0);
-/// assert_eq!(params[1], 0.34419950074181277);
+/// assert_eq!(params[1], 0.33876641703757304);
 /// ```
 pub fn loft_parameters<L: SectionLoop>(
     sections: &[Section<L>],
@@ -1089,27 +1171,8 @@ pub fn loft_parameters<L: SectionLoop>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Vec<f64>, SkinError> {
-    first_strip_parameters(&validate_loft(sections, places, v_degree, tol)?, places)
-}
-
-/// The first strip's v-parameters — the whole loft's, by the
-/// construction rule above. Loop-less sections have no strip and so
-/// no parameterization: the empty list, exactly what the lazy form
-/// this replaced produced.
-fn first_strip_parameters(
-    validated: &[ValidatedProfile<f64>],
-    places: &[Affine3<f64>],
-) -> Result<Vec<f64>, SkinError> {
-    if validated.is_empty() || validated[0].loops().is_empty() {
-        return Ok(Vec::new());
-    }
-    let raw: Vec<NurbsCurve3<f64>> = validated
-        .iter()
-        .zip(places)
-        .enumerate()
-        .map(|(i, (s, place))| segment_curve(i, vertex_segment(&s.loops()[0], 0), *place))
-        .collect::<Result<_, _>>()?;
-    skin_parameters(&make_compatible(&raw)?)
+    let validated = validate_loft(sections, places, v_degree, tol)?;
+    strip_parameters(&compatible_strips(&validated, places)?)
 }
 
 // ---------------------------------------------------------------------
@@ -1179,7 +1242,12 @@ pub fn sweep_geometry<L: SectionLoop>(
 ) -> Result<LoftGeometry, SkinError> {
     let places = sweep_places(place, path, stations)?;
     let sections: Vec<Section<L>> = core::iter::repeat_n(profile.to_vec(), stations).collect();
-    loft_geometry(&sections, &places, v_degree, tol)
+    // v is the loft's chord-length rule ([`loft_parameters`]), not the
+    // path parameter: the frame spins the section about its tangent
+    // near anti-parallel to the start tangent, and chord-length v
+    // absorbs the spin
+    // (`work/carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent.md`).
+    loft_geometry_by_chord_length(&sections, &places, v_degree, tol)
 }
 
 /// A path derivative normalised to the unit tangent, or the station's
@@ -1228,14 +1296,14 @@ pub fn sweep_places(
             need: 2,
         });
     }
-    #[allow(clippy::cast_precision_loss)]
-    let last = (stations - 1) as f64;
     let (lo, hi) = path.domain();
     let origin = Point3::new(
         place.translation.x,
         place.translation.y,
         place.translation.z,
     );
+    #[allow(clippy::cast_precision_loss)]
+    let last = (stations - 1) as f64;
     let t_of = |i: usize| {
         #[allow(clippy::cast_precision_loss)]
         let s = i as f64 / last;
