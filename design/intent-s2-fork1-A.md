@@ -1,6 +1,31 @@
 # FORK-1 — the output signature of an operation (designer A)
 
-## For Ev
+## Round 2 — For Ev
+
+Both designers agree on the shape: fixed, named, typed ports per variant; `Profile` and one multi-body kind (`Instances` / `Bodies`, one name to pick) as new kinds; a split as two `Body` ports with DM3's split arm retired and its index pick kept; `Transform` taking its operand's kind; assertions, mates and gauges defining nothing; D10's "one or more" reworded. I adopt the other report's grouping of the kinds, which is better than mine: **value kinds** (free or defined: the scalars, the discrete kinds, `Point` … `Frame`), **product kinds** (defined only by an operation: `Body`, `Bodies`, `Profile`) and **selections of a product** (`Face`, `Edge`). Two differences remain.
+
+**1. The revolve's axis: a kind, or a check on the definition.** The other report types `Datum::AxisInPlane` as an `Axis` and keeps "written in the profile's frame" as a check that reads the axis variable's *definition*. Its strongest point is sharing: an in-plane axis is also a world line, and D10's coaxiality ("one `Axis` variable read twice") and a circular pattern about the revolve's axis need it to be readable as one. That moved me on the slot, not on the kind:
+
+- **Revised (likely): `AxisInPlane` stays a kind, and every `Axis` slot admits it**, reading it as the world line through its frame. A slot already states the set of kinds it admits (`Body | Bodies` at a placer), so this is the same mechanism, one-way: a revolve admits only `AxisInPlane`, an axis slot admits both. No lift operation, nothing to declare, and sharing works as the other report wants.
+- Why not the definition check: D10's operations read values; a reader that looks through a variable to how it was defined forks on provenance, not type, which is D3's silent-dispatch trap one level up. The failure it leaves representable is concrete: once stage 3 gives `Axis` a free arm, or a mate defines one, a well-kinded `Axis` sits in a revolve's slot and refuses only at evaluation, and FORK-4's re-pointing would have to re-run a definition walk at every write. With the kind, "in the profile's frame" is read off the value (the frame variable it carries), equal ids and no band, the shape the code has today.
+
+**2. An instance of a part: one folded `Body`, or the product mirrored.** The other report types `InstantiatePart` as one `Body`, as the evaluator folds it today, so the insert door needs no part resolver. Its strongest point is locality: a signature that depends on another document means a document's own variable table cannot be checked without that document in hand. What does not move me is the fold itself:
+
+- The fold hides a multiplicity in a value. An instance's `parts` count is value-dependent today (a pattern in the part's product makes it the count's value), a boolean fed an instance refuses `ProductOperand` only at evaluation, and no reader can take one body of a two-body part at all: an in-context cut through one instantiated bracket, the assembly feature D10's "an assembly is a recipe of the same formalism" invites, is unwritable. A `Bodies`-typed instance would allow it but makes the common one-body part pay an index pick at every read.
+- **Revised (likely): mirror the product, with the signature recorded on the node.** `InstantiatePart` carries its output signature as node data beside `interface.crossings`, written when the `DocRef` is minted (the caller holds the part then: the pin is a content hash of it) and verified against the resolved part on every evaluation, exactly as the crossings are. The mint and the load walk read the record; no door needs the resolver; a re-pin whose product shape differs refuses at evaluation as a crossing that no longer resolves does. That answers the locality point in the code's own existing shape. A one-body part is one `Body` port, so today's bare-id spelling still works for the common case, and `AmbiguousOutput` fires on a multi-body part as on a split.
+
+**On the FORK-3 coupling the other report raises** (if a selection becomes set-valued, `Bodies` and `Faces` should be one collection kind over an element kind): agreed, provided the collection is ordered and indexed, since a pattern's order is data (N1's instance index) and a fillet's selection is canonically sorted today, so it can be.
+
+Everything else in my round-1 text stands. Confidence: the shared shape, sure; `AxisInPlane` as a kind admitted by every `Axis` slot, likely; the instance mirroring its product with a recorded signature, likely; the folded `Body`, rejected, sure.
+
+## Round 2 — For the orchestrator
+
+- The two reports differ only on the two points above; neither needs a third round unless you want one on naming (`Instances` vs `Bodies`).
+- If mirroring is taken, the spec's PR A gains: `InstantiatePart { signature: Vec<(Role, VarKind)> }` as recorded node data (wire and preimage), the façade's instantiate door filling it from the part it pins, and an evaluation check `SignatureMismatch` beside `CrossingUnverified`. PR C's product then lists `Body | Bodies`, and an instance's `Bodies` port is the part's pattern root.
+- `written_against` (`eval/wire.rs`) compares node ids; with the kind it compares the `Frame` variables the profile and the axis read, as the other report also says. Test 3 of the spec should cover a world `Axis` at a revolve refusing `SlotVarKind` at the door.
+
+
+## Round 1 — For Ev
 
 **Recommendation (likely).** An operation's outputs are a **signature**: an ordered list of (role, kind), fixed when the node is inserted, each entry minting one variable of that kind. The signature is a function of the node's variant and, for two variants, of the kinds it reads. D10's kinds list gains `Profile`, `Instances` and `AxisInPlane`; the datum kinds are the ones already listed; a split's halves are two ports, so DM3's projection node narrows to instances. In full:
 
@@ -55,7 +80,7 @@ Definitions:
 
 Confidence: a signature per node fixed at insert, sure; `Instances` as a kind, sure; the split as two ports and DM3 narrowed, likely; `AxisInPlane` as a kind rather than folded in, likely; an instance mirroring its product, likely.
 
-## For the orchestrator
+## Round 1 — For the orchestrator
 
 - **Provenance.** The checkout is a graft at 2026-10-03, so `git log -S` on D10's sentences hits the graft; I used PR 3990's body and comments instead. Ev's verbatim transcripts (commits `5f7a1c71e3`, `3d70e5de72`, `fae23dbc71`, `c4158a079c`) are not in this checkout, so I could not check whether Ev said anything about multi-output nodes or patterns. PR 1860 (DM3) has no comments.
 - **Spec amendments if this is taken.** §1's static `outputs()` and §2's "a node's signature is fixed by its variant" need the two exceptions; Q5's `AmbiguousOutput` also covers an instance of a multi-body part; PR A needs the `PartResolver` at the insert and load doors. A re-pin of an instance's `doc_ref` that changes the product's shape must refuse or strand readers; that belongs to FORK-4's ruling on re-pointing. If the resolver at the insert door is judged infeasible for A, alternative 5 is the fallback for instances only, with a row filed to retype at stage 3; the PR should say which was taken.
