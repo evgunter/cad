@@ -136,8 +136,25 @@ fn cube_planes(f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
 /// its vertices are the planes' feasible triple meets, each face is
 /// the vertices on its plane fanned about their centroid, and the
 /// volume sums the pyramids over the faces from an interior point.
+/// Each distinct half-space is taken once, compared at unit normal, so
+/// two operands' half-spaces on one plane bound one face, not two.
 fn convex_volume(planes: &[([f64; 3], f64)]) -> f64 {
     const EPS: f64 = 1e-9;
+    let at_unit = |(n, d): ([f64; 3], f64)| {
+        let l = dot(n, n).sqrt();
+        (n.map(|c| c / l), d / l)
+    };
+    let mut distinct: Vec<([f64; 3], f64)> = Vec::new();
+    for &p in planes {
+        let (n, d) = at_unit(p);
+        if !distinct.iter().any(|&q| {
+            let (m, e) = at_unit(q);
+            (0..3).all(|t| (m[t] - n[t]).abs() < EPS) && (e - d).abs() < EPS
+        }) {
+            distinct.push(p);
+        }
+    }
+    let planes = &distinct[..];
     let mut pts: Vec<[f64; 3]> = Vec::new();
     let n = planes.len();
     for i in 0..n {
@@ -1315,9 +1332,13 @@ fn posed(c: &Corner, f: [[f64; 3]; 3], at: [f64; 3]) -> (AtRestBody<f64>, Vec<Ve
         tol(),
     );
     fixtures::describe_as_intersections(&mut b, tol());
+    (finished("a posed corner", b), posed_pieces(c, f, at))
+}
+
+/// [`posed`]'s pieces' half-spaces alone.
+fn posed_pieces(c: &Corner, f: [[f64; 3]; 3], at: [f64; 3]) -> Vec<Vec<HalfSpace>> {
     let turn = |n: [f64; 3]| [0, 1, 2].map(|t| f[0][t] * n[0] + f[1][t] * n[1] + f[2][t] * n[2]);
-    let pieces = c
-        .pieces
+    c.pieces
         .iter()
         .map(|p| {
             polygon_prism(p)
@@ -1325,21 +1346,15 @@ fn posed(c: &Corner, f: [[f64; 3]; 3], at: [f64; 3]) -> (AtRestBody<f64>, Vec<Ve
                 .map(|(n, d)| (turn(n), d - dot(n, c.v) + dot(turn(n), at)))
                 .collect()
         })
-        .collect();
-    (finished("a posed corner", b), pieces)
+        .collect()
 }
 
-/// `a` at rest and `b` posed by `f` with its corner on `a`'s: every op
-/// in both orders, against the two corners' pieces clipped pairwise.
-fn corner_pair_runs(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> Vec<Run> {
-    let x = finished(
-        "a corner",
-        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
-    );
-    let (y, bp) = posed(b, f, a.v);
+/// `a` at rest and `b` posed by `f` with its corner on `a`'s: each
+/// corner's volume and their common one, the pieces clipped pairwise.
+fn corner_pair_volumes(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> (f64, f64, f64) {
     let ap: Vec<_> = a.pieces.iter().map(|p| polygon_prism(p)).collect();
-    let vol = |ps: &[Vec<([f64; 3], f64)>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
-    let (va, vb) = (vol(&ap), vol(&bp));
+    let bp = posed_pieces(b, f, a.v);
+    let vol = |ps: &[Vec<HalfSpace>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
     let common: f64 = ap
         .iter()
         .flat_map(|p| {
@@ -1350,6 +1365,18 @@ fn corner_pair_runs(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> Vec<Run> {
             })
         })
         .sum();
+    (vol(&ap), vol(&bp), common)
+}
+
+/// `a` at rest and `b` posed by `f` with its corner on `a`'s: every op
+/// in both orders, against the two corners' pieces clipped pairwise.
+fn corner_pair_runs(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> Vec<Run> {
+    let x = finished(
+        "a corner",
+        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
+    );
+    let (y, _) = posed(b, f, a.v);
+    let (va, vb, common) = corner_pair_volumes(a, b, f);
     let decls = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, l, r, vl) in [("ab", &x, &y, va), ("ba", &y, &x, vb)] {
@@ -1558,6 +1585,113 @@ type CornerPair = (&'static str, fn() -> Corner, fn() -> Corner);
 #[test]
 #[ignore = "differential battery; run with --ignored --nocapture"]
 fn corner_pairs_battery() {
+    corner_pair_grid(|pose, a, b, f| {
+        let runs = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            corner_pair_runs(a, b, f)
+                .into_iter()
+                .map(|(tag, r, want)| format!("{tag}: {}", outcome(r, want, tol())))
+                .collect::<Vec<_>>()
+        }));
+        match runs {
+            Ok(lines) => {
+                for l in lines {
+                    println!("{pose} {l}");
+                }
+            }
+            Err(_) => println!("{pose} PANIC"),
+        }
+    });
+}
+
+/// **The corner-pair oracle agrees with a Monte Carlo of the same
+/// pieces** at every pose of [`corner_pairs_battery`]: the common
+/// volume to within 5σ of a uniform sample of `a`'s bounding box,
+/// σ = `box·√(p(1 − p)/N)`, and each corner's volume to its profile's
+/// shoelace area. The seed is fixed so that a run reproduces; at
+/// 2730 poses a 5σ miss by chance is about one in 600 runs. Red when
+/// `convex_volume` misreads a pose, such as counting one face twice
+/// where two operands' half-spaces lie on one plane.
+#[test]
+#[ignore = "oracle cross-check, kernel-free; run with --ignored --nocapture"]
+fn the_corner_pair_oracle_agrees_with_a_monte_carlo() {
+    const N: u32 = 40_000;
+    let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+    let mut uniform = move || {
+        state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D4_9BB1_3311_14EB);
+        (z ^ (z >> 31)) as f64 / u64::MAX as f64
+    };
+    let shoelace = |c: &Corner| {
+        let p = &c.profile;
+        (0..p.len())
+            .map(|i| {
+                let (a, b) = (p[i], p[(i + 1) % p.len()]);
+                a.0 * b.1 - b.0 * a.1
+            })
+            .sum::<f64>()
+            / 2.0
+    };
+    let inside = |ps: &[Vec<HalfSpace>], x: [f64; 3]| {
+        ps.iter().any(|p| p.iter().all(|&(n, d)| dot(n, x) <= d))
+    };
+    let (mut poses, mut worst) = (0, 0.0_f64);
+    corner_pair_grid(|pose, a, b, f| {
+        let (va, vb, common) = corner_pair_volumes(a, b, f);
+        for (what, c, v) in [("a", a, va), ("b", b, vb)] {
+            let want = shoelace(c);
+            assert!(
+                (v - want).abs() < 1e-9,
+                "{pose}: {what}'s volume {v} against its profile's {want}"
+            );
+        }
+        let (ap, bp): (Vec<_>, _) = (
+            a.pieces.iter().map(|p| polygon_prism(p)).collect(),
+            posed_pieces(b, f, a.v),
+        );
+        let lo = [0, 1].map(|t| {
+            a.profile
+                .iter()
+                .map(|p| [p.0, p.1][t])
+                .fold(f64::MAX, f64::min)
+        });
+        let hi = [0, 1].map(|t| {
+            a.profile
+                .iter()
+                .map(|p| [p.0, p.1][t])
+                .fold(f64::MIN, f64::max)
+        });
+        let span = [hi[0] - lo[0], hi[1] - lo[1], 1.0];
+        let space = span[0] * span[1];
+        let mut hits = 0u32;
+        for _ in 0..N {
+            let x = [
+                lo[0] + span[0] * uniform(),
+                lo[1] + span[1] * uniform(),
+                uniform(),
+            ];
+            if inside(&ap, x) && inside(&bp, x) {
+                hits += 1;
+            }
+        }
+        let p = f64::from(hits) / f64::from(N);
+        let (mc, sigma) = (space * p, space * (p * (1.0 - p) / f64::from(N)).sqrt());
+        let z = (common - mc).abs() / sigma.max(space / f64::from(N));
+        worst = worst.max(z);
+        poses += 1;
+        assert!(
+            z <= 5.0,
+            "{pose}: common {common} against Monte Carlo {mc} ± {sigma} (σ), {z:.1}σ off"
+        );
+    });
+    println!("{poses} poses, worst {worst:.2}σ at N = {N}");
+}
+
+/// Every pose of [`corner_pairs_battery`]: five corner pairs over the
+/// sweep's grid plus axis-aligned turns and exact-tie turns, `each`
+/// given its label, the two corners and `b`'s frame.
+fn corner_pair_grid(mut each: impl FnMut(&str, &Corner, &Corner, [[f64; 3]; 3])) {
     let pairs: [CornerPair; 5] = [
         ("n343-n343", notch343, notch343),
         ("w343-w330", || wedge(343.0), || wedge(330.0)),
@@ -1594,21 +1728,12 @@ fn corner_pairs_battery() {
         let (a, b) = (a(), b());
         for (dname, m) in &dirs {
             for psi in psis {
-                let f = frame(*m, psi);
-                let runs = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    corner_pair_runs(&a, &b, f)
-                        .into_iter()
-                        .map(|(tag, r, want)| format!("{tag}: {}", outcome(r, want, tol())))
-                        .collect::<Vec<_>>()
-                }));
-                match runs {
-                    Ok(lines) => {
-                        for l in lines {
-                            println!("{pname} {dname} psi={psi:.4} {l}");
-                        }
-                    }
-                    Err(_) => println!("{pname} {dname} psi={psi:.4} PANIC"),
-                }
+                each(
+                    &format!("{pname} {dname} psi={psi:.4}"),
+                    &a,
+                    &b,
+                    frame(*m, psi),
+                );
             }
         }
     }
