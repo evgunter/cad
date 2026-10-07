@@ -2643,8 +2643,7 @@ pub(crate) fn path_island_winding<T: Decide>(
     }
     let arrives_on = arcs.len();
     arcs.push(chord);
-    let chart = quadric.chart_normal(q);
-    let outward = if face_data.sense { chart } else { -chart };
+    let outward = quadric.outward(q, face_data.sense);
     let left = outward.cross(travel);
     let lever = quadric.lever(q);
     for w in outer_references(body, face, &[])? {

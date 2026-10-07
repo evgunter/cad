@@ -216,8 +216,8 @@ fn oracle_winding(
     let (t0, t1) = e.params;
     let m = e.carrier.mid_point(t0, t1);
     let travel = e.carrier.deriv(0.5 * (t0 + t1)) * (t1 - t0);
-    let chart = geom_brep::implicit_gradient(cone, m);
-    let outward = if sense { chart } else { -chart };
+    let outward =
+        geom_brep::OutwardNormal::from_chart(geom_brep::implicit_gradient(cone, m), sense).vec();
     let left = outward.cross(travel).normalize();
     if (island.inside)(m + left * step) {
         Sign::Positive
