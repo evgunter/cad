@@ -396,7 +396,7 @@ impl<T: Bounds> CapSliver<T> {
         // A divisor below this is read as zero: the quotient then lands
         // at a finite point of the segment, never a NaN.
         let tiny = T::from_f64(f64::MIN_POSITIVE);
-        let over = |x: T, y: T| x * y / (y * y).max(tiny);
+        let over = |x: T, y: T| x * y / y.powi(2).max(tiny);
         let pa = origin + dir * ta;
         let chord = origin + dir * tb - pa;
         // An edge has positive length, so `len` is no divisor of zero.
@@ -405,7 +405,7 @@ impl<T: Bounds> CapSliver<T> {
         let q0 = pa - self.center;
         let b = q0.dot(e);
         // The squared distance from `center` to the line: `‖q‖² = (s + b)² + d2`.
-        let d2 = (q0.dot(q0) - b * b).max(zero);
+        let d2 = (q0.dot(q0) - b.powi(2)).max(zero);
         let minor = self.inside.map(|s| s.minor);
         let affine: Vec<(T, T)> = self
             .floors
@@ -427,10 +427,10 @@ impl<T: Bounds> CapSliver<T> {
         // vanishes (`k² = 1`, or a root at `τ = 0`).
         let mut radial = |a: T, k: T| {
             let a1 = a - k * b;
-            let root = (a1 * a1 - (T::one() - k * k) * d2).max(zero).sqrt();
+            let root = (a1.powi(2) - (T::one() - k.powi(2)) * d2).max(zero).sqrt();
             for r in [root, zero - root] {
-                at.push(over(a1 * k + r, T::one() - k * k) - b);
-                at.push(over(d2 - a1 * a1, a1 * k - r) - b);
+                at.push(over(a1 * k + r, T::one() - k.powi(2)) - b);
+                at.push(over(d2 - a1.powi(2), a1 * k - r) - b);
             }
         };
         for &(a, k) in &affine {
@@ -441,7 +441,7 @@ impl<T: Bounds> CapSliver<T> {
         }
         if let Some(m) = minor {
             let mid = (m + self.reach) / two;
-            let h = (mid * mid - d2).max(zero).sqrt();
+            let h = (mid.powi(2) - d2).max(zero).sqrt();
             at.extend([h - b, zero - h - b]);
         }
         for (i, &(ai, ki)) in affine.iter().enumerate() {
