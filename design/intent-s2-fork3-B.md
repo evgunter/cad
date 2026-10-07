@@ -2,140 +2,100 @@
 
 ## For Ev
 
-**Recommendation (likely).** A selection is a **variable definition**, not a recipe node:
-`VarDef::Select { body, names }`, beside `Free`, `Defined` and `Output`. Its arity is in the
-kind: `Face`/`Edge` hold exactly one name, and new set kinds `Faces`/`Edges` hold an ordered,
-duplicate-free list. A fillet reads **one** `Edges` variable and loses its `target` field,
-because the body is the selection's. A selection authored at two sites is **two variables**,
-and passing the variable is how two readers share one, as VR8 rules for scalars. `Rebind`
-stays addressed by name and rewrites every selection that lists the name; changing one
-selection is the ordinary define edit.
+### Round 2 (supersedes round 1 where they differ)
 
-### Premise check
-- *The three sub-questions are not independent* (sure). Asked separately, "many variables
-  or one set" looks like a count question. What it actually decides is **where the body is
-  stated**. Today `Fillet { target, selection: Vec<StableName> }` resolves names against
-  `target`. If every edge is its own `Edge` variable, and each carries its own body read (as
-  D10 says a selection does), then the body is stated N+1 times: once in `target`, once per
-  edge. Nothing ties those copies together, so a fillet of body X that targets body Y can
-  be represented, and it has to be refused at the door and again at evaluation. With one
-  set-valued variable the body is stated once, and the mismatch cannot be represented.
-- *The empty case settles it* (sure). `Shell.open` may be empty: that is the sealed hollow,
-  which is legal by the node's own contract. As a list of singleton selections, an empty
-  shell has no selection left to carry the body, so `target` must stay as a field, and the
-  duplication comes back for every non-empty shell. A set selection with no names still
-  carries its body.
-- *Node versus definition is mostly settled by what a node is* (likely). In this design a
-  node mints geometry and names: `RecipeNodeId` is the D5 naming substrate. It is also
-  memoized by content key, because it is expensive. A selection mints nothing. It is a
-  table lookup on a body that is already built. That makes it a pure function of a variable
-  and stored data, which is exactly what a definition is.
+**Recommendation (likely): a selection is a variable definition,
+`VarDef::Select { body, name }`, holding ONE name.**
+- **Interned.** The document holds at most one select per `(body, name)`. Authoring a
+  selection that already exists returns the existing variable.
+- **Many singletons.** A fillet's edges are many `Edge` variables in a list slot. There are
+  no set kinds.
+- **Repaired by variable.** `Rebind { var, to }` redefines the one select. When `(body, to)`
+  already exists, the two are merged.
+- **`target` stays.** The blends and the shell keep their `target`. Each edge's body is
+  checked against it at the door (`SelectionOffTarget`).
+- **Definition, not node.** Both designers agree on this.
 
-### Ratified text I would change
-- **D10, Variables.** "defined, by an `Expr` over other variables or as an output of an
-  operation" becomes "…, by an `Expr`, by a selection of a `Body` variable, or as an output
-  of an operation". **D10, Operations:** "A `Face` or `Edge` variable (or a set of them) is
-  a selection…". Both are completions, not reversals. The D10 sentence was ratified on PR
-  #3990. I could not open Ev's transcript commit in this checkout, so I cannot tell whether
-  the selection wording is Ev's own or agent text approved in passing.
-- **SELECT-DESIGN §4, the one-type rule, restated:** "A GUI selection is the same value as
-  the names a selection definition stores: `Vec<StableName>`." The rule survives almost
-  word for word under this design. A GUI pick set is committed by writing it into a select
-  definition, with kinds filtered at the door and a mixed set refused. The GUI selection
-  itself stays heterogeneous and outside the document, as §4 already says.
-- **No other ratified text moves.** The materializer doctrine stands: what is stored is a
-  name, never a query, and `select_where` returns the `Vec` the caller writes.
+Round 1 recommended one set-valued variable per fillet, distinct-by-authoring, and a
+name-addressed `Rebind`. Three things moved me.
 
-### The answers as final states
-**A (recommended): a definition, with set kinds.**
-- **The variable.** `Var { kind: Edges, def: Select { body: VarId, names: Vec<StableName> } }`.
-  `Face`/`Edge` admit exactly one name, checked at the door like any kind check.
-- **The ladder.** It runs once per name, inside the select's evaluation, and nowhere else.
-  One vanished name fails the select, and every reader refuses with that diagnosis, as a
-  fillet does today.
-- **Who reads which kind.**
+1. **Name-addressed repair is wrong, and the set kind needed it (sure).**
+   - **What `Rebind { from, to }` does today.** It rewrites every site naming `from` in
+     every node, whatever body that site resolves in (`edit.rs`, the `Rebind` arm).
+   - **How that strands a reader.** Say a boolean trims edge N into pieces. A reader
+     downstream of the boolean loses N; a reader upstream still resolves N. Repairing the
+     downstream reader to a piece rewrites the upstream one too, and strands it.
+   - **Why round 1 cannot fix it.** A repair is a fact about a *denotation*: "what N means
+     in this body". Round 1's set selections are authored per site, so they cannot be
+     interned, and a repair has no single home. It has to fall back to rewriting names,
+     which is the defective form.
+   - **Why singletons can.** A singleton select is exactly a denotation. Interned, it has
+     one address, and the repair is one edit that is true for every reader.
+2. **Interning does not break VR1/VR8 (likely).**
+   - **What round 1 relied on.** Round 1's argument was VR8's: two typed `5 mm` are
+     distinct, so that editing one cannot move the other.
+   - **Why that does not carry over.** VR8 protects *free* variables, whose values diverge
+     by later edits. A select has no free arm. Changing which edge a fillet blends is a
+     slot edit (point the slot at another select). It is never a redefinition.
+   - **What remains.** The only redefinition is the repair, which should move every reader.
+     Identity is still minted (VR1); the door finds rather than re-mints.
+   - **The cost.** Interning is a load-door uniqueness check, like VR2's names.
+   - **Reversibility.** It relaxes to the offer model by deleting that check.
+3. **Sharing a single edge is not narrow (likely).** A measure, a datum face frame or a
+   mate naming an edge or face a fillet also blends is ordinary. Under interning they share
+   one variable, one name ("mouth") and one repair, for free. A set kind forbids that.
 
-  | Reader | Kind it reads |
-  |---|---|
-  | `Fillet` / `Chamfer` | `{ edges: Edges, size }` |
-  | `Shell` | `{ open: Faces, thickness }` (empty = sealed) |
-  | `Measure`, `FaceFrame`, a mate side | one `Face`/`Edge` each |
+**Where round 1 still stands, and what it costs.** One argument from round 1 still holds:
+the body is stated N+1 times, so a fillet whose edges belong to a different body than its
+`target` can be represented. That needs a door refusal. I accept it, because:
+- **It refuses loudly.** It can never act silently.
+- **It is one rule for all three verbs.** A shell that opens no face still needs `target`,
+  so dropping `target` from the blends would give the blends and the shell different rules.
+- **Order and the content key.** `Shell.open`'s designation order is the slot's own fact.
+  A fillet's canonical form is "sorted by its selects' names", so its content key is
+  unchanged.
 
-  The multi-entity readers are exactly the ones that need their body to agree with their
-  selection, so they are the ones the set kind serves.
-- **Tree.** A select has no row. `Doc::upstream` expands through its definition to the
-  body's operation, so a fillet's tree edge goes to the body it blends, as today.
-- **Panel.** The selection is shown at its reader: "edges (8) of the body of Extrude
-  'base'". A select the user names (say "mounting faces") also appears in the variables
-  panel, like any named variable.
-- **Count.** A typical part with four fillets of eight edges holds four selection
-  variables, not thirty-two.
-- **Order.** The list is ordered because `Shell` reads designation order: the rim inherits
-  its first face's identity. A blend ignores order.
-- **Reversibility.** Easy to extend: a set built from `Edge` variables can be added later as
-  one more definition.
+**Ratified text.**
+- **D10.** Name the selection as a definition arm: "…, by an `Expr`, by a selection of a
+  `Body` variable by `StableName`, or as an output of an operation".
+- **SELECT-DESIGN §4.** Restate the one-type rule: the GUI's `Vec<StableName>` pick set is
+  the *authored* form of a list of selects, as a `Formula` is of an `Expr` (VR6).
+  Committing it finds or mints one select per name.
+- **Wording provenance.** Per the other report's check, D10's selection wording is
+  agent-drafted on #3990, and Ev's transcripts are silent on it.
 
-**B: a node per selection, a tree row.**
-- **Gains.** A select gets memoization and the node machinery for free.
-- **Costs.**
-  - It mints a `RecipeNodeId`, from the naming substrate, for something that names nothing.
-  - It adds tree rows that are noise: one fillet becomes one row plus its picks.
-  - It puts something that is not an operation into the operation graph, which D10 reserves
-    for things that build.
-  - Memoization is wasted on a lookup.
-- **Reversibility.** Harder to undo, because node ids reach the pinned hashes.
+**Confidence.**
 
-**C: one `Edge` variable per entity, list slots `Vec<S>`.** This is the spec's lean.
-- **Gains.**
-  - Each entity is individually addressable.
-  - Sharing an edge between a fillet and a measure is free.
-- **Costs.**
-  - The body is duplicated N+1 times.
-  - A mismatch is representable and has to be refused.
-  - An empty shell needs `target` back.
-  - The variable count scales with picks.
-  - SELECT-DESIGN's `Vec<StableName>` stops being any stored value.
-- **What it is still good for.** Its one real gain (sharing a single edge across a fillet
-  and a measure) is a narrow need. A, extended later, covers it.
+| Claim | Confidence |
+|---|---|
+| Definition over node | likely |
+| Singletons over sets | likely |
+| Interning | likely |
+| Repair by variable, merge on collision | sure, given interning |
+| Keep `target` with the off-target check | unsure (close call; dropping it for the blends only is the alternative) |
 
-### The shared/distinct sub-question (sure)
-- **Authored apart means distinct.** A select authored at two sites is two variables. The
-  argument is VR1/VR8's: identity is minted, never deduplicated by value. Deduplicating
-  would make a definition edit at one site silently move the other.
-- **The GUI offers the match.** It offers an existing selection of equal value (same body,
-  same names), as D10 does for a typed value. Declining is what makes the two distinct.
-- **Distinctness never affects geometry.** Coincidence reads a select as its definition,
-  so two equal selections are one construction for D10's structural test.
-- **The one edit that crosses sites is `Rebind`.** Its job is to repair a name that
-  topology broke, so it rewrites the name in every selection that lists it, plus the
-  declared pairs and appearance keys, as today. Changing what one fillet picks is
-  `SetSelection { var, names }`, the reference kinds' "define" door from VR7. Picks
-  become edits of that door.
+### Round 1 (record; full text in this branch's first commit)
 
-### Confidence
-- The body-stated-once argument: sure.
-- Definition over node: likely.
-- The set kinds (`Faces`/`Edges`) over a single kind with a runtime arity check: likely.
-- Distinct-by-authoring: sure.
-- `Rebind` stays name-addressed: likely.
+Round 1 recommended:
+- a definition `Select { body, names: Vec<StableName> }`;
+- set kinds `Faces`/`Edges`, so that a blend reads one variable and drops `target`;
+- distinct-by-authoring identity;
+- a name-addressed `Rebind`.
+
+Its sole decisive argument was the N+1 body statements. Round 2 keeps that as the cost
+above and drops the rest.
 
 ## For the orchestrator
-- **Brief.** It was adequate. The spec's §1 already removes `at` from
-  `Datum::FaceFrame` "because the body is the select's". That is the same argument I make,
-  and it should be applied to `Fillet.target`, `Chamfer.target` and `Shell.target` too. The
-  spec's test 13 ("rebinding mints no selects; the fillet's slot ids are unchanged") holds
-  under A. Its sugar (`Vec<StableName>` given to a slot) lowers to one set select instead of
-  N singleton selects.
-- **Unchecked.**
-  - Ev's #3990 transcript (commit `5f7a1c71e3`): this shallow checkout does not hold that commit.
-  - Whether a single name can legitimately land on several entities. `Tied` is refused
-    today, and `Fragment` paths name the pieces individually. I assumed one name means one
-    entity.
-- **For the spec.**
-  - **Canonical order.** A fillet's selection is stored sorted today, so that its content
-  key is stable; a shell's is ordered. Under A the select stores the authored order. The
-  fillet's content-key preimage should spell its select's names sorted, so a reorder is not
-  a memo miss. Only `Shell` reads the order.
-  - **Empty sets.** An empty `Edges` read by a blend refuses at the door, as today ("a blend
-    of nothing is an unfinished recipe").
-- **Defects off the question.** None found.
+
+- **Round 2 checks.**
+  - **Latent defect.** Confirmed by reading `edit.rs`'s `Rebind` arm: it loops over every
+    node's `rebind_payload_names` with no body test, so a site where `from` still resolves
+    is rewritten too. The defect is today's (declared pairs and the appearance store).
+    E retires it for selects. It stays live for declared pairs until stage 4: worth an issue
+    file if E slips, as A says.
+  - **A's empty-shell question.** `Node::Shell` docs: "Empty `open` is the sealed hollow —
+    Legal, and not a refusal". A's lean does not flip.
+- **Agreed with A.** E needs D's mid-evaluation binding whatever FORK-5 rules: selects are
+  a third customer of it.
+- **Round 1 orchestrator notes** (canonical order, empty blend refuses) carry over: the
+  fillet's key is over the selects' names, sorted.
