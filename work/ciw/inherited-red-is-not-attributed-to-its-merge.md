@@ -103,14 +103,15 @@ downstream crate inherits the red with no attribution.
 for attribution: GitHub MCP `get_job_logs` with `return_content=false`
 returns a signed URL that `curl` fetches.
 
-## A fourth, through a whole-tree gate (EMIT, 2026-10-07)
+## A fourth: merged before its gate (EMIT, 2026-10-07)
 
-#4234 added a payload rung (`SectorRead`). `payload-rung-sweep.py --check`
-reads the whole tree, but it runs only inside the `lint` job. On main's
-next push, a work-only render, `lint` was skipped. So the red first showed
-on #4228, an EMIT PR that had merged main. `--check` on `origin/main`
-reproduced it, and #4241 fixed it.
+#4234 added a payload rung (`SectorRead`). Its own `lint` run failed on
+it: `payload-rung-sweep.py --check`. It merged at 07:33 with `lint` red
+and `test` still running, so before any `gate ok`. Main's next run was a
+work-only render, which skips `lint`, so main read green. The red first
+showed on #4228, an EMIT PR that had merged main. `--check` on
+`origin/main` reproduced it, and #4241 fixed it.
 
-The skip that hides it is a different one from the latency cut. A
-whole-tree gate is green or red for the tree, not for the diff, so the
-diff decides only whether anyone sees it.
+This one is not the latency cut. The PR's own checks saw the failure; the
+merge did not wait for them. Main's skipped `lint` then hid it. Branch
+protection that requires `gate ok` would have stopped it at the merge.
