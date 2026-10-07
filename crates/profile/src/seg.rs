@@ -1022,11 +1022,17 @@ enum Joint {
     Boundary,
 }
 
-fn joint(m1: Sign, m2: Sign) -> Option<Joint> {
+/// A point definitely outside either span is no contact, whatever the
+/// other span reads; only then does an indeterminate reading escalate.
+fn joint(
+    m1: Result<Sign, Indeterminate>,
+    m2: Result<Sign, Indeterminate>,
+) -> Result<Option<Joint>, Indeterminate> {
     match (m1, m2) {
-        (Sign::Negative, _) | (_, Sign::Negative) => None,
-        (Sign::Positive, Sign::Positive) => Some(Joint::Interior),
-        _ => Some(Joint::Boundary),
+        (Ok(Sign::Negative), _) | (_, Ok(Sign::Negative)) => Ok(None),
+        (Err(source), _) | (_, Err(source)) => Err(source),
+        (Ok(Sign::Positive), Ok(Sign::Positive)) => Ok(Some(Joint::Interior)),
+        _ => Ok(Some(Joint::Boundary)),
     }
 }
 
@@ -1144,7 +1150,7 @@ fn line_arc<T: Decide>(
     match carriers {
         Sign::Negative => {}
         Sign::Zero => {
-            if let Some(j) = joint(line_span(line, foot, band)?, arc_span(g, foot, band)?) {
+            if let Some(j) = joint(line_span(line, foot, band), arc_span(g, foot, band))? {
                 contacts.push(Contact {
                     point: foot,
                     kind: match j {
@@ -1159,7 +1165,7 @@ fn line_arc<T: Decide>(
             let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
             for t in [tc - half, tc + half] {
                 let q = line.a + line.unit * t;
-                if let Some(j) = joint(line_span(line, q, band)?, arc_span(g, q, band)?) {
+                if let Some(j) = joint(line_span(line, q, band), arc_span(g, q, band))? {
                     contacts.push(Contact {
                         point: q,
                         kind: match j {
@@ -1316,7 +1322,7 @@ fn push_arc_arc_contact<T: Decide>(
     tangent: bool,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    if let Some(j) = joint(arc_span(g1, q, band)?, arc_span(g2, q, band)?) {
+    if let Some(j) = joint(arc_span(g1, q, band), arc_span(g2, q, band))? {
         contacts.push(Contact {
             point: q,
             kind: match (j, tangent) {

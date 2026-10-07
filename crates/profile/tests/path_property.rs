@@ -1519,6 +1519,28 @@ fn a_closing_chord_grazing_the_fillet_carrier_off_its_arc_validates() {
     validate_ok(&lowered);
 }
 
+/// At `h` just under 4 the arrival side's carrier crosses the radius-5
+/// circle just past the side's far end `(-3, h)`, in band of the side's
+/// span, but near 126.9° on the circle, where the departure arc (0° to
+/// about 53°) is not. A crossing definitely off one segment is no
+/// contact, so the loop validates. The proptest's draw puts the
+/// crossing 1.94e-6 past the end (in band at ε = 1e-6); the second
+/// height puts it in band at the running ε.
+#[test]
+fn an_arrival_whose_carrier_crosses_the_departure_circle_off_its_arc_validates() {
+    let t = Tol::witness().get();
+    let past = 3.0 + t.eps * ((1.0 + t.k) / 2.0);
+    for h in [3.9999985436786116, (25.0 - past * past).sqrt()] {
+        let lowered = straight_arrival_off_an_arc_departure(h, 0.1);
+        assert_eq!(
+            lowered.vertices().len(),
+            4,
+            "entry, t1, t2, far end at h = {h}"
+        );
+        validate_ok(&lowered);
+    }
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
