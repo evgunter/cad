@@ -1050,3 +1050,26 @@ which now carries the evidence.
   Its declared rows need contact records naming both copies.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07 — PR 4207 landed; three units in review
+
+- **PR 4207** merged. A pinch's cone vertices now share one point key, by
+  descent through the seam records (FULL review, fixes in). It took three
+  main merges to land. One carried main's red `payload-rung-sweep`
+  (`SectorRead`, TANG's `9dea3c25`). Main fixed it in #4241 first, so my
+  PR 4242 closed as superseded.
+- **PR 4240** (tier-3 corner slice and check 9 on every ring pair) is
+  under a FULL review. Its batteries are byte-identical to main over
+  66k lines.
+- **PR 4249** (`hang_in_turned`: the 217 In/Out lines build) is under a
+  DUAL review, adjudication byte 147, parity 1, so A = R2. The 102 `ba`
+  nested-plan lines are filed as
+  `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`.
+- **PR 4250** (near-tangent): the premise was false, and I accepted that
+  on an orchestrator read. The exact link holds two cones at a 1e-7 tilt,
+  and the kernel's two solids are right. The test counter stepped over
+  the sliver at its fixed 1e-5 step. `round_vertex` now shrinks the step
+  until each sample is provably in its cell. The row closes when 4250
+  lands.
+
+Signed (JOIN orchestrator).
