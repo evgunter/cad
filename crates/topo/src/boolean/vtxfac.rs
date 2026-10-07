@@ -198,7 +198,7 @@ fn held(class: SideCode, met: bool) -> bool {
 /// rows alone. An edge on one partner's boundary is on the solid's,
 /// whatever depth that boundary lies at; one on two, or beside a
 /// partner that read no rows, is not decided here.
-fn layered<'a, T: geom_core::Real + 'a>(
+fn layered<'a, T: geom_core::Real>(
     base: SideCode,
     he: HalfEdgeKey,
     partners: impl Iterator<Item = &'a PairRead<T>>,
