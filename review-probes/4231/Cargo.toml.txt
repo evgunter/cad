@@ -1,0 +1,11 @@
+[package]
+name = "probe"
+version = "0.1.0"
+edition = "2024"
+[workspace]
+[dependencies]
+geom-brep = { path = "/home/user/rv/crates/geom-brep" }
+geom = { path = "/home/user/rv/crates/geom" }
+geom-core = { path = "/home/user/rv/crates/geom-core" }
+[profile.dev]
+opt-level = 1

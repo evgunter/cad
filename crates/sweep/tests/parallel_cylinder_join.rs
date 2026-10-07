@@ -362,3 +362,62 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
     let bad = unsound(&[parallel]);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
+
+/// REVIEW PROBE (PR 4231, mutant R3): a rod of radius `r` about
+/// `(x, y)` extruded from `z = −far` to `far`, so its wall's origin is
+/// stored on the profile at `z = −far`; cut to `[z0, z1]` by a box (the
+/// wall keeps its stored origin, now `far` metres off its faces), then
+/// turned `k·zero` about `x` through its own centre.
+fn tilted_rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64), far: f64, k: f64) -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let zero = geom_core::Band::linear(tol).unwrap().zero();
+    let long = rod(r, (x, y), (-far, far));
+    let cutter = finished(
+        "the cutter",
+        sweep::test_support::brick((x - 1.0, x + 1.0), (y - 1.0, y + 1.0), (z0, z1), tol),
+        tol,
+    );
+    let cut = topo::intersect(&long, &cutter, tol).expect("the cut rod");
+    let cut = cut.body().expect("a body").clone();
+    for (_, s) in cut.body.surfaces() {
+        if let geom::Surface::Cylinder { origin, .. } = s {
+            eprintln!("PROBE far {far}: the cut wall's stored origin {origin:?}");
+        }
+    }
+    let cut = cut.body.clone();
+    let m = Affine3::rotation_about_axis(
+        Point3::new(x, y, 0.5 * (z0 + z1)),
+        if std::env::var("PROBE_AX").is_ok() { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) },
+        k * zero,
+    );
+    finished(
+        "the tilted rod",
+        topo::transform_rigid(&cut, &m, tol).unwrap(),
+        tol,
+    )
+}
+
+/// **REVIEW PROBE (PR 4231)**: pose 0 with the rod's wall tilted in the
+/// band and its origin stored 1000 m along: the join reads its radical
+/// plane at the germ sites, so every op builds sound wherever the
+/// origin is stored.
+#[test]
+fn review_4231_a_tilted_rod_stored_far_joins_along_its_rulings() {
+    const R: f64 = 0.5;
+    let (r, c, span) = (0.2, (0.5, 0.0), (-0.5, 0.5));
+    let (area, _) = lens((0.0, 0.0), R, c, r);
+    let mut bad = Vec::new();
+    let k: f64 = std::env::var("PROBE_K").map(|v| v.parse().unwrap()).unwrap_or(0.2);
+    for far in [2.0, 1000.0, 1.0e5] {
+        let pose = Pose {
+            label: format!("rod cut from ±{far} m, tilted {k}·zero"),
+            a: rod(R, (0.0, 0.0), (-1.0, 1.0)),
+            b: tilted_rod(r, c, span, far, k),
+            va: PI * R * R * 2.0,
+            vb: PI * r * r * (span.1 - span.0),
+            shared: area * (span.1 - span.0),
+        };
+        bad.extend(unsound(&[pose]));
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}

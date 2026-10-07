@@ -1321,6 +1321,24 @@ mod tests {
         }
     }
 
+    /// REVIEW PROBE (PR 4231): `carrier_cyl_reach` runs on an
+    /// UNDECLARED pair at the face-pair door.
+    #[test]
+    fn review_4231_carrier_cyl_reach_reads_undeclared_pairs() {
+        let e = band().zero();
+        let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 2.0, true);
+        let b = cyl([0.6 * e, 0.0, 0.0], [0.0, 0.0, 1.0], 2.0 + 0.6 * e, true);
+        for (x, y) in [(&a, &b), (&b, &a)] {
+            match pair_door_verdict(x, y, PlaneIdentity::NONE, &at(1.0), band()) {
+                Err(CarrierEqError::Undeclared {
+                    coincidence: CoincidenceMeasure::Undecided(diag),
+                    ..
+                }) => assert_eq!(diag.predicate, Some("carrier_cyl_reach"), "{diag:?}"),
+                other => panic!("the pair door: {other:?}"),
+            }
+        }
+    }
+
     /// **A witness bounds the reading from below whatever ball it is
     /// read over.** Two planes through the origin, one tilted `90·Kε`
     /// per metre about the x-axis, read over a 1 cm ball about the
