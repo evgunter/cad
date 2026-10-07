@@ -660,3 +660,12 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Rejected:** a fitted Hermite image for every band-close torus circle. It certifies at the fallback grade a curve that has a closed form, and it is conditional on the fitted door.
 - **Folded in:** the cone lane's schedule `Record::Verdict` is brought in line with C4's witness-lane cross-check.
 - **Implementer:** session_01Jf5pbwHG7dwojg183pt2vs, branch `pcert/torus-villarceau-route` from 9645b375. It is an H unit, so it gets a dual review.
+
+## 2026-10-07 — PR 4227 dual review (frozen head 64b7def7)
+
+- **The review pair:** two Opus reviewers ran concurrently. Both returned APPROVE-WITH-FIXES. The pre-note's tally candidates are none.
+- **The one MAJOR is in both reports:** the torus incidence test decides "off the torus" from an *upper* bound on the distance. So circles within band of a Villarceau circle get refused as `CarrierOffChart`.
+  - **Class finding:** the same one-sided idiom is in the cone's `pcurve_cone_chart_incident`. The sphere's test is to be checked.
+  - The fix pass decides Off only from a lower bound, and sweeps all three.
+- **Test gaps** (demonstrated by surviving mutants): five envelope terms and every Villarceau gate.
+- **Fix pass** is with the implementer: session_01Jf5pbwHG7dwojg183pt2vs.
