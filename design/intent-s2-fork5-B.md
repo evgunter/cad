@@ -1,6 +1,42 @@
 # FORK-5 — may a geometric slot read a measured value? (designer B)
 
-## For Ev
+## For Ev — round 2 (after reading the other report)
+
+**Revised recommendation: refuse, for stage 2.** A measured value, and any definition that reads one, may be read by an assertion and by nothing else. I now agree with the other report's rule and with its one-sentence D10 revision: "a `Measure` defines an observed variable … read only by an assertion. A construction reads what was written." Confidence: **likely**.
+
+**The strongest point, and why it moves me.** A measured scalar is geometry with its construction projected away. Every case I named has a spelling that keeps the construction, and that spelling is the one the `unproven-coincidence` lint would send the person to anyway:
+- a pin in the same document: one variable read twice;
+- a part in another document: AQ4's per-instance arguments, where the assembly owns `d`, passes it into the part and reads it for the bore;
+- an imported body or an emergent face: a construction over the face reference, such as "up to" that face or an offset of its carrier.
+
+So admission does not add expressiveness. It adds a second spelling, and the person is pushed toward the weaker one. It is the weaker one because the fit then holds only at the current values, and the lint flags a coincidence that is in fact true. My round-1 framing missed this: I compared a measure against copying a number by hand, when the real alternative is a construction over the face.
+
+**The exclusions are real, and they undo my "no special rule" claim.** I checked each in the code:
+1. **Mate offsets.** The mate solve runs once, before the node walk (`evaluate_at_descent` → `solve_with_env`). A measure across two instances already depends on that solve, so an offset that reads such a measure is a cycle the node schedule cannot see. *(sure)*
+2. **Readers pinned to f64.** An authored frame's placement, a section's program resolution and the pinned lift all read `LaneEnv::nominal`, which is built before the walk. In the Interval or Dual lanes, such a reader of a measured value would need an f64 evaluation run inside the lane's run. This is the only place the brief's "bind per lane" cost is real. *(sure)*
+3. **`min_clearance` has no f64 value.** `MinClearanceLane` returns `None` at f64, Dual, Probe and the symbolic scalar, so a body built from it never builds. *(sure)*
+
+Admission would therefore carry three refusals that come from how evaluation is built, not from what the user means. The assertion-only rule is one refusal, stated by meaning, and it stays stable across stages.
+
+**What still stands from round 1.**
+- **One binding mechanism.** The binding is one generic change inside `evaluate`, serving assertions. No lane needs its own. Outside a run, an observed variable reads as typed "measured at evaluation", and its value is taken from the `Evaluation`. *(sure)*
+- **"Observed" is derived, not stored.** It is a walk over the definition graph, like acyclicity, and it is not a second kind. *(likely)*
+
+**What I do not take from the other report.** It argues that "a check could then break a build". That is not a reason for this rule. A measure read by a body would be an input to a construction, not a check. A rename already refuses a fillet through its select after stage 2's PR E. And under admission an assertion still gates nothing, so `a-failed-requirement-refuses-the-whole-product` stays closed either way. The rule rests on intent and on the three exclusions.
+
+**The cost you should see.** The intensional spellings for the cross-document and imported cases do not exist yet:
+- AQ4 is "not implemented";
+- the "up to a face" and offset-of-a-face constructions are stage 6's.
+
+Until they land, those cases cannot be expressed. A person will type the number, which is a stale copy with no link to its source. I accept that cost, for two reasons:
+- Lifting the rule later is additive. Admitting now and narrowing later breaks documents.
+- The right fix for the gap is to build those constructions sooner, not to add a measured spelling.
+
+Some cases may have no construction spelling at all, such as a quantity used away from its own feature whose source is not a variable. Those would be the evidence for lifting the rule then.
+
+## Round 1 (superseded where round 2 differs)
+
+### For Ev (round 1)
 
 **Recommendation: admit it, with no special rule.** A scalar variable is a scalar variable: any slot of its kind may read one whose definition reaches a `Measure`'s output. Two terms come with it, and neither is a refusal:
 
@@ -65,6 +101,8 @@ A geometric slot, or any slot outside an assertion, refuses `SlotReadsMeasuredVa
 "Admit only into definitions read by assertions" is A′ under another name, because an assertion already reads any scalar.
 
 ## For the orchestrator
+
+- **Round 2:** I converged on the other report's rule. I verified its three exclusions in the code: `solve_with_env` before the walk, the `LaneEnv::nominal` readers, and the `MinClearanceLane` impls. I also checked AQ4 in `ASSEMBLY.md`. It is per-instance arguments *into* a part, "not implemented", and it serves a part that exposes `d` as an argument; a pinned vendor part that does not expose `d` falls back to "up to" or offset constructions. The remaining disagreement is small: I drop "a check could break a build" as a ground.
 
 - **Assumed:** every lane goes through `evaluate<T>`. I checked `mc.rs`, `stackup.rs`, `drive.rs` and the `EvalScalar` bound, and the symbolic scalar implements `Decide`. I did not check that every measure arm is generic at the symbolic scalar; if one is not, it refuses typed there today already.
 - **What admission adds to D's spec:**
