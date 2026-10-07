@@ -58,13 +58,12 @@ needs nothing a node offers.
 three shapes: a single entity (`FaceFrame`, `Measure`, a mate), an ordered
 list (`Shell.open`, whose first face carries the rim) and a set
 (`Fillet`/`Chamfer`, canonical sorted). Singletons in `Vec` slots serve all
-three with arity and order as the slot's own fact, which is where they are
-today. A set-valued kind would be a fourth variable kind serving one consumer
-family, would still need an ordered twin for the shell, and would make "this
-one edge" unshareable with a measure. The fillet's canonical form becomes
-"sorted and deduplicated by the selects' definitions", asserted at the door
-as today (`SelectionNotCanonical`), so two recipes selecting the same edges
-stay bit-identical in their content keys.
+three with arity and order as the slot's own fact, as today. A set-valued kind
+would be a fourth kind serving one consumer family, would still need an
+ordered twin for the shell, and would make "this one edge" unshareable with a
+measure. The fillet's canonical form becomes "sorted and deduplicated by the
+selects' definitions", asserted at the door as today, so two recipes selecting
+the same edges stay bit-identical in their content keys.
 
 **Why one variable per `(body, name)`.** A select has no free arm: two selects
 with the same definition are the same function of the same variables, and
@@ -143,9 +142,8 @@ binding regardless of FORK-5: *sure*.
 - **Canonical form of a `Vec<Edge>` slot** is over the selects' definitions,
   not their ids (mint order). The door check and the content key read through
   `Doc::vars`; `feed_scalar_join` hashes names today, so the key is unchanged.
-- **Not checked:** whether `Shell` with an empty `open` is admitted today (no
-  refusal found by grep; the variant docs imply a closed cavity is legal).
-  If it is refused, the "drop `target`" alternative gains and the lean flips.
+- **Not checked:** whether `Shell` admits an empty `open` today (no refusal
+  found; the docs imply a closed cavity is legal). If refused, the lean flips.
 - **Ev's verbatim transcripts** (commits 5f7a1c71e3, 3d70e5de72, fae23dbc71,
   c4158a079c) say nothing on selections, tree rows or sharing; the premise
   check rests on that absence and on PR 3990's drafting commit 84404cdbf8.
