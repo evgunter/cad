@@ -42,8 +42,8 @@ fn t() -> Tol {
 /// order and asserts each result (module docs).
 fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
     let rest = Pose::rest();
-    let mut members = vec![posed_box("the plate", PLATE, &rest)];
-    members.extend(holes.iter().map(|h| posed_prism(h, &rest)));
+    let mut members = vec![posed_box("the plate", PLATE, &rest, t())];
+    members.extend(holes.iter().map(|h| posed_prism(h, &rest, t())));
     let volume = 6.0 + holes.iter().map(Hole::above).sum::<f64>();
     let c = at(Point3::new(MEET[0], MEET[1], MEET[2]));
     let mut first = None;
@@ -153,6 +153,7 @@ fn sound(what: &str, r: &topo::BooleanBody<f64>, want: f64, pose: &Pose) {
         "a block across the meeting point",
         [(1.21, 1.77), (0.68, 1.31), (0.86, 1.52)],
         pose,
+        t(),
     );
     body(&format!("{what}, then ∪ a block"), union(b, &block, t()));
 }
@@ -181,10 +182,10 @@ fn the_plate_against_the_holes_union_builds_sound_in_every_op() {
     use topo::{intersect, subtract};
     let inner = inner_rows().len();
     for pose in poses() {
-        let p = posed_box("the plate", PLATE, &pose);
+        let p = posed_box("the plate", PLATE, &pose, t());
         for (r, (fixture, holes)) in inner_rows().into_iter().chain(notch_rows()).enumerate() {
             let label = format!("{fixture}, {}", pose.label);
-            let prisms: Vec<_> = holes.iter().map(|h| posed_prism(h, &pose)).collect();
+            let prisms: Vec<_> = holes.iter().map(|h| posed_prism(h, &pose, t())).collect();
             let u = prisms[1..].iter().fold(prisms[0].clone(), |u, q| {
                 body(&format!("{label}: the prisms' union"), union(&u, q, t()))
             });
@@ -261,7 +262,7 @@ fn grid(k: usize) {
     let mut combos = Vec::new();
     slots(1, k, &mut vec![0], &mut combos);
     let rest = Pose::rest();
-    let p = posed_box("the plate", PLATE, &rest);
+    let p = posed_box("the plate", PLATE, &rest, t());
     for c in combos {
         for mask in 0..1u32 << k {
             let label = format!("slots {c:?}, notches {mask:0k$b}");
@@ -277,7 +278,7 @@ fn grid(k: usize) {
                     }
                 })
                 .collect();
-            let prisms: Vec<_> = holes.iter().map(|h| posed_prism(h, &rest)).collect();
+            let prisms: Vec<_> = holes.iter().map(|h| posed_prism(h, &rest, t())).collect();
             let u = prisms[1..].iter().fold(prisms[0].clone(), |u, q| {
                 body(&format!("{label}: the prisms' union"), union(&u, q, t()))
             });
@@ -333,8 +334,8 @@ fn every_four_hole_grid_configuration_builds_p_minus_u_sound() {
 fn holes_whose_runs_nest_at_their_vertex_refuse_typed_in_every_op() {
     use topo::{intersect, subtract};
     let rest = Pose::rest();
-    let p = posed_box("the plate", PLATE, &rest);
-    let prisms: Vec<_> = arch().iter().map(|h| posed_prism(h, &rest)).collect();
+    let p = posed_box("the plate", PLATE, &rest, t());
+    let prisms: Vec<_> = arch().iter().map(|h| posed_prism(h, &rest, t())).collect();
     let u = prisms[1..].iter().fold(prisms[0].clone(), |u, q| {
         body("the arch's prisms' union", union(&u, q, t()))
     });
