@@ -550,26 +550,32 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
-/// Where the section table reads a wall's pose, and the lever: the base
-/// vertex `at`'s point, and how far `face` reaches from it. A cylinder's
-/// tilt pinned at the vertex's foot moves the section by the tilt times
-/// a consumed point's AXIAL distance from that foot, so its lever is the
-/// face's axial extent from the vertex ([`face_axial_extent`]): the
-/// curved edges' bulge included, the radial reach round the wall
-/// excluded. A cone's lever is [`face_extent`].
+/// Where the section table reads a wall's pose, and how far `face`
+/// reaches from there: the base vertex `at`'s point, the lever, and the
+/// reach across the wall. A cylinder's tilt pinned at the vertex's foot
+/// moves the section by the tilt times a consumed point's AXIAL distance
+/// from that foot, so its lever is the face's axial extent from the
+/// vertex ([`face_axial_extent`]), the curved edges' bulge included. Its
+/// second-order turn about the plane's hinge moves a point by how far it
+/// stands across the wall from the hinge; the vertex lies on the plane
+/// and on the hinge's line across the wall, so that is at most the
+/// face's distance from the vertex, [`face_extent`]. A cone's lever is
+/// [`face_extent`], and it reads no reach across.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
     wall: &geom::Surface<T>,
-) -> Result<(Point3<T>, T), SplitJoinError> {
+) -> Result<(Point3<T>, T, T), SplitJoinError> {
     let p = body.resolve_vertex_point(at, Proven);
-    let extent = match wall {
-        geom::Surface::Cylinder { axis, .. } => face_axial_extent(body, face, p, *axis),
-        _ => face_extent(body, at, face),
+    let extent = face_extent(body, at, face).map_err(unbounded)?;
+    match wall {
+        geom::Surface::Cylinder { axis, .. } => {
+            let along = face_axial_extent(body, face, p, *axis).map_err(unbounded)?;
+            Ok((p, along, extent))
+        }
+        _ => Ok((p, extent, T::zero())),
     }
-    .map_err(unbounded)?;
-    Ok((p, extent))
 }
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
@@ -872,7 +878,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    (at, extent): (Point3<T>, T),
+    (at, extent, across): (Point3<T>, T, T),
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -969,7 +975,11 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let reach = geom_brep::Reach::Measured { at, lever: extent };
+    let reach = geom_brep::Reach::Face {
+        at,
+        along: extent,
+        across,
+    };
     let sec = geom_brep::plane_cylinder_section(plane_s, wall, &reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
@@ -4425,8 +4435,8 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    fn reach() -> (Point3<f64>, f64) {
-        (Point3::origin(), 4.0)
+    fn reach() -> (Point3<f64>, f64, f64) {
+        (Point3::origin(), 4.0, 4.0)
     }
 
     fn plane() -> geom::Surface<f64> {

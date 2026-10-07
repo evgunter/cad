@@ -1490,7 +1490,7 @@ fn germ_section_frame<T: Decide>(
         span,
     )
     .map_err(desync)?;
-    pair_section_frame(&sa, &sb, evidence, at, extent, band)
+    pair_section_frame_at(&sa, &sb, evidence, at, extent, band)
         .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
 }
 
@@ -1500,7 +1500,7 @@ fn germ_section_frame<T: Decide>(
 /// at, so the gap is read where the section is and not where a
 /// carrier's origin is stored; and, for the cylinder pair, the span of
 /// both walls' boundary vertices (the diameter of their ball), which a
-/// wall's axial extent ends at. [`pair_section_frame`] levers the
+/// wall's axial extent ends at. [`pair_section_frame_at`] levers the
 /// cylinder pair at the longer of the larger radius and this span, and
 /// the plane×cylinder pair at its wall's axial extent from the reading
 /// point ([`frame_extent`]). No lever is a ball chosen around the faces
@@ -1538,14 +1538,38 @@ fn frame_reading<T: Decide>(
     Ok((at, span))
 }
 
-/// **The consumed region's measure [`pair_section_frame`] levers at**,
-/// taken from the reading point `at`: for a plane×cylinder pair, how far
-/// the wall reaches along its axis from `at`
-/// ([`face_axial_extent`](crate::splitting::rules::face_axial_extent),
-/// its curved edges included), since the section lies on the wall and a
-/// tilt pinned at `at`'s foot moves it by the tilt times a point's axial
-/// distance from there; for every other pair, the walls' `span`
-/// ([`frame_reading`]).
+/// **What [`pair_section_frame_at`] levers a pair at**: the consumed
+/// region's measure, taken from the reading point `at`.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum FrameExtent<T> {
+    /// Nothing measured: the pair is levered by its radii.
+    Radii,
+    /// A cylinder pair's walls' span ([`frame_reading`]).
+    Span(T),
+    /// A plane×cylinder pair's wall face: how far it reaches along its
+    /// axis from `at`, and across the wall.
+    Wall {
+        /// The face's farthest axial distance from `at`.
+        along: T,
+        /// The face's reach across the wall from the plane's hinge.
+        across: T,
+    },
+}
+
+/// **The consumed region's measure [`pair_section_frame_at`] levers at**,
+/// taken from the reading point `at`. For a plane×cylinder pair the
+/// section lies on the wall face:
+/// - a tilt pinned at `at`'s foot moves it by the tilt times a point's
+///   axial distance from there, so the lever is the face's axial extent
+///   ([`face_axial_extent`](crate::splitting::rules::face_axial_extent),
+///   its curved edges included);
+/// - the tilt's second-order turn about the plane's hinge moves a point
+///   by how far it stands across the wall from the hinge. The section
+///   meets the face on the plane, so that is at most the face's
+///   diameter, which twice its farthest distance from `at` bounds
+///   ([`face_reach_from`](crate::splitting::rules::face_reach_from)).
+///
+/// Every other pair takes the walls' `span`.
 ///
 /// # Errors
 ///
@@ -1555,20 +1579,23 @@ fn frame_extent<T: Decide>(
     (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
     at: geom_core::Point3<T>,
     span: Option<T>,
-) -> Result<Option<T>, &'static str> {
-    let wall = match (sa, sb) {
+) -> Result<FrameExtent<T>, &'static str> {
+    let (body, face, axis) = match (sa, sb) {
         (geom::Surface::Plane { .. }, geom::Surface::Cylinder { axis, .. }) => {
             (body_b, face_b, *axis)
         }
         (geom::Surface::Cylinder { axis, .. }, geom::Surface::Plane { .. }) => {
             (body_a, face_a, *axis)
         }
-        _ => return Ok(span),
+        _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
     };
-    let (body, face, axis) = wall;
-    crate::splitting::rules::face_axial_extent(body, face, at, axis)
-        .map(Some)
-        .map_err(|_| "a germ wall's outer loop is a lone vertex")
+    let lone = |_| "a germ wall's outer loop is a lone vertex";
+    let along = crate::splitting::rules::face_axial_extent(body, face, at, axis).map_err(lone)?;
+    let far = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
+    Ok(FrameExtent::Wall {
+        along,
+        across: far + far,
+    })
 }
 
 /// **The rulings lane's chords are rulings**: each wall's split lane,
@@ -1726,7 +1753,7 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
     }
 }
 
-/// Why [`pair_section_frame`] could not name a frame. The keys and
+/// Why [`pair_section_frame_at`] could not name a frame. The keys and
 /// bodies live at the call site, so this carries none of them: the
 /// dispatch is a statement about the kind pair and the DECLARED
 /// evidence it was handed, never about the arenas.
@@ -1779,22 +1806,40 @@ pub(super) enum FrameError {
 /// reads `None` as "run the straight-chord facing test" and would mint
 /// a wrong chord from it.
 ///
-/// The plane×cylinder and cylinder pairs read their axis rows at the
-/// foot of `at` on each axis ([`germ_section_frame`]: a point the
-/// section is consumed at), levered at `extent`, the consumed region's
-/// measure the caller took from `at`. The plane×cylinder pair is levered
-/// at its wall's axial extent from `at` ([`frame_extent`]), the exact
-/// distance a tilt moves the section by; the cylinder pair at the length
-/// its walls run together or the larger radius, whichever is longer —
-/// two axes a sine θ apart drift θ·span apart over the walls. `None`, a
-/// pair handed without its faces, levers by the radii alone.
+/// [`pair_section_frame_at`] for a pair handed without its faces: the
+/// cylinder pair levered at `span` where it is given, every pair
+/// otherwise at its radii.
+#[cfg(test)]
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn pair_section_frame<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     evidence: geom_brep::RadiusEvidence,
     at: geom_core::Point3<T>,
-    extent: Option<T>,
+    span: Option<T>,
+    band: Band,
+) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
+    let extent = span.map_or(FrameExtent::Radii, FrameExtent::Span);
+    pair_section_frame_at(sa, sb, evidence, at, extent, band)
+}
+
+/// The plane×cylinder and cylinder pairs read their axis rows at the
+/// foot of `at` on each axis ([`germ_section_frame`]: a point the
+/// section is consumed at), levered at `extent`, the consumed region's
+/// measure the caller took from `at` ([`frame_extent`]). The
+/// plane×cylinder pair is levered at its wall face's axial extent from
+/// `at` and its reach across the wall ([`geom_brep::Reach::Face`]); the
+/// cylinder pair at the length its walls run together or the larger
+/// radius, whichever is longer — two axes a sine θ apart drift θ·span
+/// apart over the walls. [`FrameExtent::Radii`], a pair handed without
+/// its faces, levers by the radii alone.
+#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
+pub(super) fn pair_section_frame_at<T: Decide>(
+    sa: &geom::Surface<T>,
+    sb: &geom::Surface<T>,
+    evidence: geom_brep::RadiusEvidence,
+    at: geom_core::Point3<T>,
+    extent: FrameExtent<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
     use geom::Surface as Sf;
@@ -1911,7 +1956,10 @@ pub(super) fn pair_section_frame<T: Decide>(
                 ..
             },
         ) => {
-            let lever = extent.map_or(r1.max(*r2), |l| l.max(r1.max(*r2)));
+            let lever = match extent {
+                FrameExtent::Span(l) => l.max(r1.max(*r2)),
+                FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(*r2),
+            };
             let reach = geom_brep::Reach::Measured { at, lever };
             match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
                 Ok(Sign::Zero) => return Ok(None),
@@ -1943,9 +1991,11 @@ pub(super) fn pair_section_frame<T: Decide>(
         }
         _ => return Err(FrameError::NoArm),
     };
-    let reach = geom_brep::Reach::Measured {
-        at,
-        lever: extent.unwrap_or(radius),
+    let reach = match extent {
+        FrameExtent::Wall { along, across } => geom_brep::Reach::Face { at, along, across },
+        FrameExtent::Radii | FrameExtent::Span(_) => {
+            geom_brep::Reach::Measured { at, lever: radius }
+        }
     };
     match geom_brep::plane_cylinder_section(plane_s, cyl_s, &reach, band) {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
@@ -3273,7 +3323,14 @@ mod frame_dispatch_tests {
             };
             let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
             let extent = super::frame_extent((a, body, face), (b, body, face), at, span).unwrap();
-            let got = pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, extent, band());
+            let got = super::pair_section_frame_at(
+                a,
+                b,
+                geom_brep::RadiusEvidence::None,
+                at,
+                extent,
+                band(),
+            );
             (label, got)
         })
         .collect()
