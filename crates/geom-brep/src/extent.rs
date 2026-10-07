@@ -256,6 +256,70 @@ impl<T: Real> Reach<T> {
         }
     }
 
+    /// The lever a tilt of the unit `axis` pinned at `pivot` is metered
+    /// at where the reading moves only ALONG that axis: an upper bound on
+    /// `|(x − pivot)·axis|` over the consumed points `x`. The
+    /// plane×cylinder row moves its section by the tilt times that axial
+    /// distance alone, so its callers measure a face with this, one
+    /// [`Self::Span`] per boundary edge.
+    ///
+    /// - [`Self::Ball`]: the centre's axial distance plus the radius.
+    /// - [`Self::Measured`]: the caller's length.
+    /// - [`Self::Span`], per carrier, exact for the whole carrier and
+    ///   never an underestimate for a span of it:
+    ///   - a **line** segment or a **NURBS** carrier: its endpoints or
+    ///     control points (a linear function attains its maximum over a
+    ///     segment or a convex hull at a vertex of it);
+    ///   - a **circle** or **ellipse**: the centre's axial distance plus
+    ///     the conic's support along the axis, `R·|axis × k|` or
+    ///     `√((major·u·axis)² + (minor·v·axis)²)` with `v = k × u`,
+    ///     whatever the parameter span;
+    ///   - a **spiric**: the centre's axial distance plus its torus's
+    ///     support along the axis, `R·|axis × k| + r`.
+    #[must_use]
+    pub fn axial_lever_from(&self, pivot: Point3<T>, axis: Vec3<T>) -> T {
+        let along = |p: Point3<T>| (p - pivot).dot(axis).abs();
+        match self {
+            Self::Ball(ball) => along(ball.center()) + ball.radius(),
+            Self::Measured { lever, .. } => *lever,
+            Self::Span { carrier, .. } => match carrier {
+                Curve3::Circle {
+                    center,
+                    axis: k,
+                    radius,
+                    ..
+                } => along(*center) + radius.abs() * axis.cross(*k).norm(),
+                Curve3::Ellipse {
+                    center,
+                    axis: k,
+                    major,
+                    minor,
+                    u_ref,
+                } => {
+                    let v = k.cross(*u_ref);
+                    along(*center)
+                        + ((*major * u_ref.dot(axis)).powi(2) + (*minor * v.dot(axis)).powi(2))
+                            .sqrt()
+                }
+                Curve3::Spiric {
+                    center,
+                    axis: k,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => {
+                    along(*center)
+                        + major_radius.abs() * axis.cross(*k).norm()
+                        + minor_radius.abs()
+                }
+                Curve3::Line { .. } | Curve3::Nurbs(_) => self
+                    .span_points()
+                    .iter()
+                    .fold(T::zero(), |m, &p| m.max(along(p))),
+            },
+        }
+    }
+
     /// The pivot on the line `origin + s·axis` (`axis` unit) the reach
     /// is read at.
     ///

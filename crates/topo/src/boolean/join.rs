@@ -1481,7 +1481,14 @@ fn germ_section_frame<T: Decide>(
         witnesses(&red.b, germ.b_face),
     )
     .map_err(desync)?;
-    pair_section_frame(&sa, &sb, evidence, at, span, band)
+    let extent = frame_extent(
+        (&sa, &red.a, germ.a_face),
+        (&sb, &red.b, germ.b_face),
+        at,
+        span,
+    )
+    .map_err(desync)?;
+    pair_section_frame(&sa, &sb, evidence, at, extent, band)
         .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
 }
 
@@ -1492,11 +1499,10 @@ fn germ_section_frame<T: Decide>(
 /// carrier's origin is stored; and, for the cylinder pair, the span of
 /// both walls' boundary vertices (the diameter of their ball), which a
 /// wall's axial extent ends at. [`pair_section_frame`] levers the
-/// plane×cylinder pair at the radius and the cylinder pair at the longer
-/// of the larger radius and this span. No lever is a ball chosen around
-/// the faces (`geom_brep::Reach`'s module docs); the radius under-states
-/// a long wall's, filed as
-/// `germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`.
+/// cylinder pair at the longer of the larger radius and this span, and
+/// the plane×cylinder pair at its wall's axial extent from the reading
+/// point ([`frame_extent`]). No lever is a ball chosen around the faces
+/// (`geom_brep::Reach`'s module docs).
 ///
 /// # Errors
 ///
@@ -1528,6 +1534,39 @@ fn frame_reading<T: Decide>(
         _ => None,
     };
     Ok((at, span))
+}
+
+/// **The consumed region's measure [`pair_section_frame`] levers at**,
+/// taken from the reading point `at`: for a plane×cylinder pair, how far
+/// the wall reaches along its axis from `at`
+/// ([`face_axial_extent`](crate::splitting::rules::face_axial_extent),
+/// its curved edges included), since the section lies on the wall and a
+/// tilt pinned at `at`'s foot moves it by the tilt times a point's axial
+/// distance from there; for every other pair, the walls' `span`
+/// ([`frame_reading`]).
+///
+/// # Errors
+///
+/// A wall whose outer loop is a lone vertex, which has no extent.
+fn frame_extent<T: Decide>(
+    (sa, body_a, face_a): (&geom::Surface<T>, &Body<T>, FaceKey),
+    (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
+    at: geom_core::Point3<T>,
+    span: Option<T>,
+) -> Result<Option<T>, &'static str> {
+    let wall = match (sa, sb) {
+        (geom::Surface::Plane { .. }, geom::Surface::Cylinder { axis, .. }) => {
+            (body_b, face_b, *axis)
+        }
+        (geom::Surface::Cylinder { axis, .. }, geom::Surface::Plane { .. }) => {
+            (body_a, face_a, *axis)
+        }
+        _ => return Ok(span),
+    };
+    let (body, face, axis) = wall;
+    crate::splitting::rules::face_axial_extent(body, face, at, axis)
+        .map(Some)
+        .map_err(|_| "a germ wall's outer loop is a lone vertex")
 }
 
 /// **The rulings lane's chords are rulings**: each wall's split lane,
@@ -1730,18 +1769,20 @@ pub(super) enum FrameError {
 ///
 /// The plane×cylinder and cylinder pairs read their axis rows at the
 /// foot of `at` on each axis ([`germ_section_frame`]: a point the
-/// section is consumed at). The plane×cylinder pair is levered at its
-/// radius; the cylinder pair at `span` (the length its walls run
-/// together, where the caller knows it) or the larger radius, whichever
-/// is longer — two axes a sine θ apart drift θ·span apart over the
-/// walls. `None` levers by the radii alone.
+/// section is consumed at), levered at `extent`, the consumed region's
+/// measure the caller took from `at`. The plane×cylinder pair is levered
+/// at its wall's axial extent from `at` ([`frame_extent`]), the exact
+/// distance a tilt moves the section by; the cylinder pair at the length
+/// its walls run together or the larger radius, whichever is longer —
+/// two axes a sine θ apart drift θ·span apart over the walls. `None`, a
+/// pair handed without its faces, levers by the radii alone.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn pair_section_frame<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     evidence: geom_brep::RadiusEvidence,
     at: geom_core::Point3<T>,
-    span: Option<T>,
+    extent: Option<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
     use geom::Surface as Sf;
@@ -1858,7 +1899,7 @@ pub(super) fn pair_section_frame<T: Decide>(
                 ..
             },
         ) => {
-            let lever = span.map_or(r1.max(*r2), |l| l.max(r1.max(*r2)));
+            let lever = extent.map_or(r1.max(*r2), |l| l.max(r1.max(*r2)));
             let reach = geom_brep::Reach::Measured { at, lever };
             match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
                 Ok(Sign::Zero) => return Ok(None),
@@ -1890,7 +1931,10 @@ pub(super) fn pair_section_frame<T: Decide>(
         }
         _ => return Err(FrameError::NoArm),
     };
-    let reach = geom_brep::Reach::Measured { at, lever: radius };
+    let reach = geom_brep::Reach::Measured {
+        at,
+        lever: extent.unwrap_or(radius),
+    };
     match geom_brep::plane_cylinder_section(plane_s, cyl_s, &reach, band) {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
         | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse {
@@ -3176,8 +3220,153 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **A coin on edge on a table is levered at its radius, not its
-    /// box** (row B). The plane `z = 0` and a coin of radius 0.01 on
+    /// The frame of the plane through `base` of normal `(cos β, 0, sin β)`,
+    /// `sin β = k·ε/lever`, and the unit wall about `z` that `face` of
+    /// `body` lies on, in both face orders, read and levered as
+    /// [`super::germ_section_frame`] reads them: at the wall's boundary
+    /// vertices' centre ([`super::frame_reading`]), levered at the wall's
+    /// axial extent from there ([`super::frame_extent`]).
+    fn wall_frames(
+        body: &crate::Body<f64>,
+        face: crate::entity::FaceKey,
+        base: Point3<f64>,
+        k: f64,
+        lever: f64,
+    ) -> Vec<(&'static str, Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>)> {
+        let sin_beta = k * Tol::witness().eps() / lever;
+        let plane = geom::Surface::Plane {
+            origin: base,
+            normal: Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let wall = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .cloned()
+            .unwrap();
+        let on = super::super::rest::face_witnesses(body, face).unwrap();
+        [("plane, wall", &plane, &wall), ("wall, plane", &wall, &plane)]
+            .into_iter()
+            .map(|(label, a, b)| {
+                let (on_a, on_b) = if matches!(a, geom::Surface::Plane { .. }) {
+                    (Vec::new(), on.clone())
+                } else {
+                    (on.clone(), Vec::new())
+                };
+                let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
+                let extent =
+                    super::frame_extent((a, body, face), (b, body, face), at, span).unwrap();
+                let got =
+                    pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, extent, band());
+                (label, got)
+            })
+            .collect()
+    }
+
+    /// A unit wall about `z` whose face is the ruling `(1, 0, z0)` to
+    /// `(1, 0, z1)`.
+    fn ruling_wall(z0: f64, z1: f64) -> (crate::Body<f64>, crate::entity::FaceKey) {
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(1.0, 0.0, z0), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: cylinder_at(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), 1.0),
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(1.0, 0.0, z1),
+            Tol::witness(),
+        )
+        .unwrap();
+        (body, seed.face)
+    }
+
+    /// The escalation's predicate, `"served"` or `"a refusal"`.
+    fn verdict(got: &Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>) -> &'static str {
+        match got {
+            Ok(_) => "served",
+            Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
+            Err(_) => "a refusal",
+        }
+    }
+
+    /// **The germ frame levers a plane×cylinder tilt at the wall's
+    /// length, not its radius.** A unit wall about `z` whose face is the
+    /// ruling 10 m long through `(1, 0, 0)`, and the plane through that
+    /// point tilted so the axis meets it at `sin β = k·ε/5`. The wall
+    /// reaches 5 m along the axis either side of its vertices' centre, so
+    /// `pc_axis_plane_parallel` reads `k·ε` and escalates at every `k` in
+    /// the band. Levered at the radius it read `k·ε/5`, Zero below
+    /// `k = 5`, and named the tangent ruling's frame for a section that
+    /// leaves the plane across the wall.
+    #[test]
+    fn a_long_walls_tilt_is_levered_at_its_length_not_its_radius() {
+        let (body, face) = ruling_wall(-5.0, 5.0);
+        for frac in [0.12, 0.3, 0.45, 0.6, 0.99] {
+            let k = frac * Tol::witness().k();
+            for (label, got) in wall_frames(&body, face, Point3::new(1.0, 0.0, 0.0), k, 5.0) {
+                assert_eq!(
+                    verdict(&got),
+                    "pc_axis_plane_parallel",
+                    "k = {k} ({label}): an in-band tilt over the wall must escalate"
+                );
+            }
+        }
+    }
+
+    /// **A wall shorter than its radius is levered at its axial extent,
+    /// not the radius.** The ruling `(1, 0, 0)` to `(1, 0, 0.2)`, read at
+    /// its centre, reaches 0.1 along the axis; the plane through the
+    /// centre tilted so `sin β = k·ε/0.1` reads `k·ε`, in the band, and
+    /// escalates. Levered at the radius it read `10·k·ε`, definite from
+    /// `k = K/10`, and served a tilted ellipse's frame.
+    #[test]
+    fn a_short_walls_tilt_is_levered_at_its_axial_extent_not_its_radius() {
+        let (body, face) = ruling_wall(0.0, 0.2);
+        for frac in [0.12, 0.5, 0.99] {
+            let k = frac * Tol::witness().k();
+            for (label, got) in wall_frames(&body, face, Point3::new(1.0, 0.0, 0.1), k, 0.1) {
+                assert_eq!(
+                    verdict(&got),
+                    "pc_axis_plane_parallel",
+                    "k = {k} ({label}): an in-band tilt over the wall must escalate"
+                );
+            }
+        }
+    }
+
+    /// **A rim's bulge levers the germ frame's tilt.** The unit wall
+    /// about `z` trimmed at 45°, its rim one closed ellipse on the seam
+    /// vertex `(1, 0, 1)` (`oblique_rim_wall`): read at that vertex, the
+    /// rim reaches 2 along the axis, so the plane through it tilted to
+    /// `sin β = k·ε/2` reads `k·ε` and escalates at every `k` in the band.
+    /// The vertex alone levers nothing, and the radius reads `k·ε/2`:
+    /// both read Zero at `k = 1.2` and name the tangent ruling's frame.
+    #[test]
+    fn a_rims_bulge_levers_the_germ_frames_tilt() {
+        let (body, face, _) =
+            crate::test_support_fixtures::oblique_rim_wall(core::f64::consts::FRAC_PI_4);
+        let base = super::super::rest::face_witnesses(&body, face).unwrap()[0];
+        for frac in [0.12, 0.5, 0.99] {
+            let k = frac * Tol::witness().k();
+            for (label, got) in wall_frames(&body, face, base, k, 2.0) {
+                assert_eq!(
+                    verdict(&got),
+                    "pc_axis_plane_parallel",
+                    "k = {k} ({label}): an in-band tilt over the rim must escalate"
+                );
+            }
+        }
+    }
+
+    /// **A plane×cylinder pair handed without its faces is levered at
+    /// its radius, not its box** (row B). The plane `z = 0` and a coin of radius 0.01 on
     /// edge along `x`, its face 2 mm long, resting on the table at the
     /// origin and tilted so that `pc_axis_plane_parallel` levered at the
     /// radius reads `k·ε`: in the band, so the frame escalates at every

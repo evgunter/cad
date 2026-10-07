@@ -545,25 +545,77 @@ pub(crate) fn face_extent<T: Decide>(
     face: FaceKey,
 ) -> Result<T, UnboundedFace> {
     let p_base = body.resolve_vertex_point(vertex, Proven);
+    boundary_reach(
+        body,
+        face,
+        |p| (p - p_base).norm(),
+        |curve| edge_reach(curve.carrier(), p_base),
+    )
+}
+
+/// **A face's axial extent from `at`**: the farthest any point of
+/// `face`'s boundary stands from `at` along the unit `axis`,
+/// `max |(x − at)·axis|`: its vertices, and each certified edge's
+/// carrier ([`geom_brep::Reach::axial_lever_from`] of its
+/// [`geom_brep::Reach::Span`]), so a curved edge's bulge past every
+/// vertex is reached. A coordinate along an axis has no interior
+/// extremum on a plane or a cylinder about that axis, so the boundary's
+/// bound is the face's. It is the exact lever of a tilt of `axis` read
+/// at `at`'s foot on it, whose reading moves by the tilt times the
+/// axial distance: never shorter than the face, and never longer than
+/// [`face_extent`] from the same point.
+///
+/// The refusal is [`face_extent`]'s, on the same loop shapes.
+pub(crate) fn face_axial_extent<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    axis: geom_core::Vec3<T>,
+) -> Result<T, UnboundedFace> {
+    boundary_reach(
+        body,
+        face,
+        |p| (p - at).dot(axis).abs(),
+        |curve| {
+            let (t0, t1) = curve.params();
+            geom_brep::Reach::Span {
+                carrier: curve.carrier().clone(),
+                t0,
+                t1,
+            }
+            .axial_lever_from(at, axis)
+        },
+    )
+}
+
+/// The farthest `face`'s boundary reaches by a measure: `point` of each
+/// boundary vertex, `edge` of each certified edge, refusing a face whose
+/// outer loop is a lone vertex ([`face_extent`]'s docs).
+fn boundary_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    point: impl Fn(Point3<T>) -> T,
+    edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
+) -> Result<T, UnboundedFace> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = T::zero();
     let outer = face_data.outer;
     for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
         for member in members {
             let p = match member {
-                // An unbounded face has no finite lever arm (docs above).
+                // An unbounded face has no finite lever arm.
                 BoundaryMember::Isolated { vertex: lone, .. } if loop_key == outer => {
                     return Err(UnboundedFace { face, vertex: lone });
                 }
                 BoundaryMember::Isolated { point, .. } => point,
-                BoundaryMember::Edge { he, half, ek, edge } => {
-                    if let Some(curve) = body.edge_curve_linked(ek, edge).certified() {
-                        extent = extent.max(edge_reach(curve.carrier(), p_base));
+                BoundaryMember::Edge { he, half, ek, edge: data } => {
+                    if let Some(curve) = body.edge_curve_linked(ek, data).certified() {
+                        extent = extent.max(edge(curve));
                     }
                     body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
             };
-            extent = extent.max((p - p_base).norm());
+            extent = extent.max(point(p));
         }
     }
     Ok(extent)

@@ -113,7 +113,7 @@ use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
-use crate::splitting::rules::face_extent;
+use crate::splitting::rules::{face_axial_extent, face_extent};
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -551,19 +551,25 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
 }
 
 /// Where the section table reads a wall's pose, and the lever: the base
-/// vertex `at`'s point, and [`face_extent`], the farthest boundary vertex
-/// of `face` from it, which bounds how far along the axis a tilt pinned
-/// at the vertex's foot moves the section. No ball around the vertex is
-/// a lever ([`geom_brep::Reach`]'s module docs): levered at one, a vertex
-/// on a wall `r` from the axis read `r + face_extent` from the foot, and
-/// an in-band tilt decided as an ellipse.
+/// vertex `at`'s point, and how far `face` reaches from it. A cylinder's
+/// tilt pinned at the vertex's foot moves the section by the tilt times
+/// a consumed point's AXIAL distance from that foot, so its lever is the
+/// face's axial extent from the vertex ([`face_axial_extent`]): the
+/// curved edges' bulge included, the radial reach round the wall
+/// excluded. A cone's lever is [`face_extent`].
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
+    wall: &geom::Surface<T>,
 ) -> Result<(Point3<T>, T), SplitJoinError> {
-    let extent = face_extent(body, at, face).map_err(unbounded)?;
-    Ok((body.resolve_vertex_point(at, Proven), extent))
+    let p = body.resolve_vertex_point(at, Proven);
+    let extent = match wall {
+        geom::Surface::Cylinder { axis, .. } => face_axial_extent(body, face, p, *axis),
+        _ => face_extent(body, at, face),
+    }
+    .map_err(unbounded)?;
+    Ok((p, extent))
 }
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
@@ -1422,7 +1428,7 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let case = section_case(face, band, &plane_s, &wall, section_reach(body, at, face)?)?;
+    let case = section_case(face, band, &plane_s, &wall, section_reach(body, at, face, &wall)?)?;
     Ok(Some(WallSection { wall, case }))
 }
 
@@ -1534,7 +1540,7 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let conic = match section_case(face, band, &plane_s, wall, section_reach(body, u1, face)?)? {
+    let conic = match section_case(face, band, &plane_s, wall, section_reach(body, u1, face, wall)?)? {
         // A two-ruling section's chords are straight on the plane too.
         SectionCase::Straight(_) => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING
@@ -4074,6 +4080,49 @@ mod tests {
                         if diag.predicate == Some("pc_axis_plane_parallel")
                 ),
                 "k = {k}: an in-band tilt must escalate, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
+    /// **A wall's pose is levered at its axial extent, its rim's bulge
+    /// included, not the distance round it.** A unit wall about `z`
+    /// trimmed at `φ = 45°`, its rim one closed ellipse on the seam vertex
+    /// `(1, 0, 1)` (`oblique_rim_wall`), and the plane through the vertex
+    /// tilted so the axis meets it at `sin β = k·ε/2`. The rim reaches
+    /// `2·tan φ = 2` along the axis from the vertex's foot, so
+    /// `pc_axis_plane_parallel` reads `k·ε` and escalates at every `k` in
+    /// the band. The vertex alone levers nothing and reads Zero (the
+    /// tangent ruling); the rim's Euclidean reach from the vertex,
+    /// `2/cos φ`, reads `√2·k·ε`, definite from `k = K/√2`, and serves a
+    /// tilted ellipse.
+    #[test]
+    fn a_rims_bulge_levers_the_pose_along_the_axis() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let (body, face, vertex) =
+            crate::test_support_fixtures::oblique_rim_wall(core::f64::consts::FRAC_PI_4);
+        let base = body.resolve_vertex_point(vertex, Proven);
+        for frac in [0.12, 0.8, 0.9, 0.99] {
+            let k = frac * Tol::witness().k();
+            let sin_beta: f64 = k * band.zero() / 2.0;
+            let normal = UnitVec3::new(
+                Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
+                "rim row",
+                band,
+            )
+            .unwrap();
+            let got = wall_section(&body, band, base, normal, face, vertex);
+            assert!(
+                matches!(
+                    got,
+                    Err(SplitJoinError::Escalated { ref diag, .. })
+                        if diag.predicate == Some("pc_axis_plane_parallel")
+                ),
+                "k = {k}: an in-band tilt over the rim must escalate, got {:?}",
                 got.map(|w| w.map(|w| match w.case {
                     SectionCase::Straight(_) => "straight",
                     SectionCase::Tangent(_) => "tangent",
