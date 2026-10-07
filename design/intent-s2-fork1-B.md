@@ -12,33 +12,23 @@ make them:
 
 `Face` and `Edge` stay what D10 says: selections of a product.
 
-The four cases:
-
-| Today | Typed as |
-|---|---|
-| a profile | one `Profile` output (new kind) |
-| a datum | one output of D10's own geometric kind: `Plane`, `Axis` (`AxisInPlane` too), `Point`, `Frame` (`FaceFrame` too). No new kind. Stage 3 adds the free arm |
-| a pattern's `Instances` | one `Bodies` output (new kind: an ordered list of bodies whose length is a `Count`) |
-| a split's two halves | **two `Body` ports**, `above` and `below`. DM3's `SplitHalf` arm retires |
-
-The full signature table:
-
 | Operation | Outputs |
 |---|---|
-| `Extrude`, `Revolve`, the tubes, `Loft`, `Sweep`, the blends, `Shell`, `Boolean`, `Union`, `PlacedUnion`, `InstantiatePart` | `Body` |
-| `Split` | `above: Body`, `below: Body` |
-| `Pattern` (reads a `Body` or a `Bodies`) | `Bodies` |
+| `Profile` | one `Profile` (new kind) |
+| `Datum` | one of D10's own kinds: `Plane`, `Axis` (`AxisInPlane` too), `Point`, `Frame` (`FaceFrame` too). No new kind; stage 3 adds the free arm |
+| `Split` | **two `Body` ports**, `above` and `below`. DM3's `SplitHalf` arm retires |
+| `Pattern` (reads a `Body` or a `Bodies`) | one `Bodies` (new kind: an ordered list of bodies whose length is a `Count`) |
+| picking one body of a `Bodies` by a `Count` index (DM3's `Instance` arm) | `Body` |
 | `Transform` | the kind it reads: `Body` → `Body`, `Bodies` → `Bodies` |
-| picking one body out of a `Bodies` (DM3's `Instance` arm), by a `Count` index | `Body` |
+| `Extrude`, `Revolve`, the tubes, `Loft`, `Sweep`, the blends, `Shell`, `Boolean`, `Union`, `PlacedUnion`, `InstantiatePart` | `Body` |
 | `Measure` | one `Length` or `Angle`, set by its primitive |
 | `Assertion`, `Mate`, `Gauge` | nothing |
 
 - **A `Body` may be empty** (a boolean's ∅, F8; a split's empty side).
   Emptiness depends on values, so it cannot be a kind. A seat that needs
   material refuses at evaluation, as it does today.
-- **The product** (stage 2's PR C) lists `Body` and `Bodies` variables.
-  A pattern of bolts is listed whole, as the gather takes `Instances`
-  today.
+- **The product** (PR C) lists `Body` and `Bodies` variables; a
+  pattern is listed whole, as the gather takes `Instances` today.
 
 ### Premise check
 
@@ -51,22 +41,17 @@ The full signature table:
    it. D10's own text treats an assertion and a mate as something other
    than an operation. The sentence should say "an operation defines one
    or more; an assertion or a mate defines none". (sure)
-3. **The brief misses a fifth case.** `Transform`'s value takes its
-   input's shape: one body gives a body, `Instances` give `Instances`.
-   No static per-variant signature can type it. Its output kind is fixed
-   when the node is inserted, from what it reads; kinds are fixed at
-   minting (VR3). Re-pointing it at a different kind refuses at the door
-   (`SlotVarKind`) rather than changing the kind of a variable that has
-   readers. Stage 3 retires `Transform`-as-placement, so this exception
-   is temporary. (likely)
-4. **What the list is missing.** D10's list mixes two things: kinds a
-   person can type, and kinds only construction produces. Its
-   "references" group holds `Body`, but a body is not a reference to
-   anything: it is what an operation makes. A profile and a pattern's
-   bodies are in the same position. Naming that group ("product kinds:
-   no free arm, no unit, no distribution, never an analysis axis") gives
-   the new kinds an obvious place, and it is the rule stage 2's spec
-   already states for reference kinds. (likely)
+3. **A fifth case the brief misses.** `Transform`'s value takes its
+   input's shape, so no per-variant signature types it. Its output kind
+   is fixed at insert from what it reads (kinds are fixed at minting,
+   VR3); re-pointing it at another kind refuses (`SlotVarKind`). Stage 3
+   retires `Transform`-as-placement, so this is temporary. (likely)
+4. **What the list is missing.** It mixes kinds a person can type with
+   kinds only construction makes. A `Body` is not a reference to
+   anything; it is what an operation makes, and so are a profile and a
+   pattern's bodies. Naming that group (no free arm, no unit, no
+   distribution, never an analysis axis — the spec's rule for reference
+   kinds) gives the new kinds their place. (likely)
 
 ### Ratified text this changes
 
@@ -93,44 +78,32 @@ The full signature table:
   - a body seat cannot be given a profile, a datum or a pattern: the
     door refuses it by kind, where today `WrongOperand` refuses it at
     evaluation.
-- What stays possible: an index past a pattern's count, which is a
-  value, so it refuses at evaluation as DM3 says today.
-- Worked example: six bolts patterned, then subtracted from a plate.
-  - The pattern defines one `Bodies`. The product lists it whole.
-  - `Boolean { b: <the pattern's output> }` refuses by kind. The person
-    unions the bolts (a `Union` over `Bodies` is a separate decision,
-    not taken here) or picks one by index.
-  - Change the count from 6 to 4: no variable appears or disappears.
-    A pick at index 5 refuses at evaluation, typed.
+- Still possible: an index past the count (a value), refused at
+  evaluation as today.
+- Worked example: six bolts patterned (one `Bodies`, listed whole in
+  the product). `Boolean { b: <pattern> }` refuses by kind; the person
+  picks one by index or unions them (a `Union` over `Bodies` is not
+  decided here). Count 6 → 4 mints and deletes nothing; a pick at
+  index 5 refuses at evaluation, typed.
 - Reversible: kinds and ports are enum arms plus a persisted port index.
 
-**B: one port per pattern instance**, so a pattern of N defines N `Body`
-variables.
-- The variable table would depend on a value. Editing the count mints or
-  deletes variables and strands their readers, and a parameter sweep
-  over the count changes the document's set of identities. This breaks
-  D9 and VR1 (an id is a function of the edit sequence).
-- Rejected. (sure)
+**B: one port per pattern instance** (N `Body` variables). The variable
+table would depend on a value: a count edit mints or deletes variables,
+and a sweep over the count changes the document's identities (breaks D9,
+VR1). Rejected. (sure)
 
-**C: a split defines one value of a new `SplitPair` kind, projected by
-DM3's `Part` node.**
-- This is a fixed list of ports written as a type. It keeps a tree row
-  whose only job is projection, and a refusal that ports make
-  unrepresentable.
-- Rejected. (likely)
+**C: a split defines one `SplitPair` value, projected by DM3's `Part`.**
+A fixed port list written as a type; it keeps a projection-only tree row
+and a refusal that ports make unrepresentable. Rejected. (likely)
 
-**D: a profile as a sheet `Body`, or as a `Face`.**
-- A profile carries step identity, its frame and each edge's authored
-  radius, none of which a body or a face has.
-- `Face` is a selection of a body by name (D10), which a profile is not.
-- Every body seat would have to refuse sheets by value.
-- Rejected. (likely)
+**D: a profile as a sheet `Body` or a `Face`.** A profile carries step
+identity, its frame and each edge's authored radius; a `Face` is a
+selection by name (D10); every body seat would refuse sheets by value.
+Rejected. (likely)
 
-**E: a pattern as one multi-lump `Body`.**
-- Its copies may overlap, so the result is not a valid body.
-- D3 says a pattern does not fuse. The fused form already exists:
-  `PlacedUnion`.
-- Rejected. (sure)
+**E: a pattern as one multi-lump `Body`.** Copies may overlap; D3 says
+a pattern does not fuse, and the fused form is `PlacedUnion`. Rejected.
+(sure)
 
 ### Coherence with the other forks
 
@@ -150,39 +123,28 @@ DM3's `Part` node.**
   with two ports, so the spec's `AmbiguousOutput` refusal fires there
   and nowhere else. (sure)
 
-Confidence:
-- on the recommendation: likely;
-- on rejecting B and E: sure;
-- on `Profile` being a kind of its own rather than a body: likely.
+Confidence: recommendation likely; rejecting B and E sure; `Profile` as
+its own kind rather than a body likely.
 
 ## For the orchestrator
 
-- **Signatures.** The spec's `Node::outputs() -> &'static [(port, VarKind)]`
-  cannot type `Transform`. It needs either an output kind of "the kind of
-  slot `input`", resolved at insert, or a `&self` signature. Ports should
-  be named in the table (`above`/`below`), with the index as the wire and
+- **Signatures.** The spec's `&'static [(port, VarKind)]` cannot type
+  `Transform`: it needs an output kind "same as slot `input`", resolved
+  at insert. Ports are named (`above`/`below`); the index is the wire and
   preimage form.
 - **Revolve's same-frame rule** (`wire.rs` `written_against`) compares
-  node ids today. After B it compares the `Frame` variable the profile
-  reads with the one the `AxisInPlane` reads. The axis slot is kind
-  `Axis`, and in-plane-ness stays a check on the axis's definition.
-  Nothing new is needed, but test 3 should cover a world `Axis` given to
-  a revolve.
-- **Sweep's `path` is a `Profile`** ("a profile whose first loop's chain
-  is the trajectory"). It is typed `Profile` here. Whether a path is a
-  kind of its own is off-question, and worth a row if anyone wants one.
-- **`MeasureUnavailable`** (a measure with no value at this scalar) gives
-  a scalar output a "no value" state. PR D has to give that state a home
-  in the variable's value domain. It is not FORK-1's.
+  node ids; after B it compares the `Frame` variables the profile and the
+  `AxisInPlane` read. The slot is `Axis`; in-plane-ness stays a check on
+  the axis's definition. Test 3 should cover a world `Axis` at a revolve.
+- **Sweep's `path` is a `Profile`** (its first loop's chain). Typed so
+  here; whether a path is its own kind is off-question.
+- **`MeasureUnavailable`** gives a scalar output a "no value" state; PR D
+  must give it a home in the value domain. Not FORK-1's.
 - **`InstantiatePart`** folds a multi-body part product into one `Body`
-  at the seam (`wire_instantiate_part`, `place(&part.body, …)`), so it
-  is typed `Body`. I did not check whether a part product listing a
-  `Bodies` still folds the same way. PR C should confirm it.
-- **Provenance.**
-  - DM3 is "Built: DOCM-2 (PR 1860)". I could not trace who wrote it:
-    the history is shallow, and `-S` finds only merges.
-  - D10 is treated as ratified per the brief. Its "one or more" also
-    reaches only merge commits here.
-- **Assumption.** `PlacedUnion` takes one body, not a `Bodies` (the
-  `ValuePayload::Instances` doc says the prototype "takes ONE body"),
-  which matches today's operand door.
+  (`wire_instantiate_part`), so it is typed `Body`. Unchecked: that a
+  part whose product lists a `Bodies` folds the same way (PR C).
+- **Provenance.** DM3 ("Built: DOCM-2, PR 1860") and D10's "one or
+  more" trace only to merge commits in this shallow history; D10 taken
+  as ratified per the brief.
+- **Assumed** `PlacedUnion` takes one body (the `Instances` doc says its
+  prototype "takes ONE body").
