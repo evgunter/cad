@@ -127,7 +127,15 @@ fn holds(
     }
     // One rim edge per run (maximal edges): a station inside a run has
     // no entity on any cap, line run or arc run.
-    assert_eq!(joinable_vertices(b), vec![], "{label}: a joinable vertex");
+    assert_eq!(
+        joinable_vertices(
+            b,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![],
+        "{label}: a joinable vertex"
+    );
     assert_eq!(station_vertices(b), vec![], "{label}: a station vertex");
     validate_closed(b).unwrap_or_else(|e| panic!("{label}: tier 2: {e:?}"));
     validate_geometric(b, t).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));

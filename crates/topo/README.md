@@ -283,7 +283,7 @@ sphere inside the edge is read again on the edge's fragments once both
 sweep directions have run: where the other operand has a vertex at the
 touch, whether it builds does not depend on which operand is A, and with
 no vertex there it refuses in both orders. A covered arc, and a covered
-line against a torus, keep the refusal where the touch is inside the
+line against a torus or a cone, keep the refusal where the touch is inside the
 edge: their residual is not convex, so a fragment's ends need not see
 every touch.
 

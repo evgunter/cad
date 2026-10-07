@@ -1361,6 +1361,22 @@ pub enum RoleSeg {
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
     },
+    /// **The mitre where two blend bands meet at a turn**: two of a
+    /// source vertex's three edges blended in one call, the bands meeting
+    /// along their intersection. Keyed by the vertex alone: a trivalent
+    /// vertex has at most one turn, and the request fixes its two edges.
+    Mitre {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
+    /// **Where a turn's unrequested edge now ends**: the mitre's lower
+    /// end, on that edge. One name whether the trihedron is isosceles or
+    /// not; the trimlines' crossing on the shared face is the turn's
+    /// [`RoleSeg::FootVertex`] on that face.
+    TurnFoot {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
     /// The one blend face a chain of several source edges is carved
     /// into — a CLOSED chain's torus band, or an open fillet's cylinder
     /// or chamfer's flat strip carved across joints where consecutive
@@ -1607,6 +1623,8 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -2353,6 +2371,12 @@ impl RoleSeg {
                 vertex: rewrite_ref(vertex, w)?,
                 edge: rewrite_ref(edge, w)?,
             },
+            R::Mitre { vertex } => R::Mitre {
+                vertex: rewrite_ref(vertex, w)?,
+            },
+            R::TurnFoot { vertex } => R::TurnFoot {
+                vertex: rewrite_ref(vertex, w)?,
+            },
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
                 edge: rewrite_ref(edge, w)?,
@@ -2564,6 +2588,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::TrimEdge { .. }
             | $crate::names::RoleSeg::FootVertex { .. }
             | $crate::names::RoleSeg::EndArc { .. }
+            | $crate::names::RoleSeg::Mitre { .. }
+            | $crate::names::RoleSeg::TurnFoot { .. }
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)

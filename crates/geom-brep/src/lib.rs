@@ -110,12 +110,13 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 pub use geom::ring_torus;
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
-    HARMONIC_NOISE_ULPS, circle_arc_residual_range, circle_residual_curvature_bound,
+    HARMONIC_NOISE_ULPS, SurfaceSide, circle_arc_residual_range, circle_residual_curvature_bound,
     circle_residual_extremes, circle_sphere_harmonic, cone_elevation, conic_arc_residual_range,
-    conic_cylinder_harmonics, conic_residual_extremes, conic_sphere_harmonics,
-    conic_torus_harmonics, conic_torus_residual, curvature_lever_arm, implicit_gradient,
-    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
-    implicit_residual, min_radius_of_curvature, rounding_charge,
+    conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_residual_extremes,
+    conic_sphere_harmonics, conic_torus_harmonics, conic_torus_residual, curvature_lever_arm,
+    implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature,
+    implicit_outward_normal, implicit_residual, min_radius_of_curvature,
+    min_radius_of_curvature_toward, rounding_charge,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
@@ -145,10 +146,11 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, MAX_BRANCH_PERIODS,
-    NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
-    PcurveKind, SpiricImage, UncoveredClass, chart_pcurve, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, whole_period_count, whole_periods,
+    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, IsoFamily,
+    IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve, PcurveCache, PcurveCertificate,
+    PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage, UncoveredClass, chart_iso_family,
+    chart_pcurve, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v, whole_period_count,
+    whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

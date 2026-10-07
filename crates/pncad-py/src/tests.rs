@@ -3537,6 +3537,8 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::CapTransverse,
         BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
+        BlendDecision::TurnIsosceles,
+        BlendDecision::MitreSection,
     ] {
         let refused = BlendError::Escalated {
             site: BlendSite::Link {
@@ -4768,12 +4770,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "containment",
             "continuation_contradicted",
             "coplanar_neighbours",
+            "crossing_at_cone_apex",
             "crossing_carrier_unsupported",
             "crossing_insertion",
             "curved_boolean_unsupported",
             "curved_edge_unsupported",
             "curved_pair_unsupported",
             "curved_pierce_unsupported",
+            "curved_rest_unrecorded",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
@@ -4787,7 +4791,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inside_out_operand",
             "invalid_declaration",
             "join",
+            "join_carrier_unsupported",
             "join_desync",
+            "join_undecided",
             "merge",
             "non_finite_sector_chord",
             "non_manifold_result",
@@ -4816,6 +4822,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "underflowed_sector_chord",
             "unrepresentable_result",
             "unsupported_declaration_class",
+            "vertex_read_twice",
             "volume_corrupt",
             "volume_undecided",
             "volume_unmeasured",
@@ -5352,6 +5359,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "closed_carrier_unread",
+            "conventional_vertex",
             "duplicate",
             "emission",
             "escalated",
