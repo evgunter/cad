@@ -2,20 +2,15 @@
 
 **Verdict: APPROVE-WITH-FIXES** · MAJOR 1 · MINOR 2 · NOTE 4
 
-Method: release builds of head and of main at the merge base `517b81a2`, each in its own
-target dir, plus a third build of head with env-switched mutants and a holder trace
-(`R1_MUT`, `R1_TRACE`; not pushed). The new probe row is
-`review_r1_depth_two_at_a_shared_vertex_probe` at
-`crates/sweep/tests/join_pierce_runs_sweep.rs:2566` (ignored, prints lines).
-- **The probe.** It takes the two eight-crossing poses of
-  `eight_crossing_corners_nest_two_deep_and_build_every_op`, `notch343×notch343 r2` and
-  `wedge343×wedge330 r1`. A side-4 cube is pinched onto the posed corner at the shared
-  corner. Its octant sits above the posed corner's top face, tilted 0/0.3/0.55/0.61 rad
-  (0.6155 rad is tangent), at 4 azimuths × 3 spins.
-- **The lines.** That gives 48 cube poses × 2 orders × 3 ops = 576 lines. Each line is read
-  through `differential::outcome` plus `pierce_point_finding` (one key, `cones_at`
-  count, `check_mesh`).
-- **Lane isolation:** nothing read from any other review branch or session.
+Method: release builds of head and of main (merge base `517b81a2`) in separate target dirs,
+plus a head build with env-switched mutants and a holder trace (`R1_MUT`, `R1_TRACE`; not
+pushed). New probe row: `review_r1_depth_two_at_a_shared_vertex_probe`
+(`crates/sweep/tests/join_pierce_runs_sweep.rs:2566`, ignored). It pinches a side-4 cube
+onto the posed corner of the two eight-crossing poses (`notch343×notch343 r2`,
+`wedge343×wedge330 r1`), above its top face, tilted 0/0.3/0.55/0.61 rad (0.6155 is tangent)
+× 4 azimuths × 3 spins: 576 lines, each read by `differential::outcome` plus
+`pierce_point_finding` (one key, `cones_at` count, `check_mesh`). Lane isolation: nothing
+read from any other review branch or session.
 
 ## Battery reproduction (executed, main vs head)
 | battery | moved | moves |
@@ -33,18 +28,15 @@ they are pre-existing and not moved.
 
 **M1. The PR routes a legal pose that main refused typed into the In/Out-end invariant.
 Demonstrated by execution.**
-- **Where:** `wedge343×wedge330 r1` + cube, `ba` U and `ba` S, at 42 of 48 cube poses
-  (every tilt, including t=0).
-- **Main:** `SharedVertexCrossings` (the up-front guard).
-- **Head:** `ClassificationInvariant { "a vertex at a shared point is the In end of one null
-  edge and the Out end of another" }`. That is the exact symptom `hang_at_shared`
-  (`insert.rs:1021`) exists to prevent, and the PR's mutant 2 names it.
+- **Where:** `wedge343×wedge330 r1` + cube, `ba` U and S, 42 of 48 cube poses (every tilt,
+  t=0 included). Main: `SharedVertexCrossings`. Head: `ClassificationInvariant { "a vertex
+  at a shared point is the In end of one null edge and the Out end of another" }`, the
+  symptom `hang_at_shared` (`insert.rs:1021`) exists to prevent (the PR's mutant 2).
 - **Trace of B's plan** (n=8, after the reconcile): arcs `[[6,1],[7,0],[3,4],[2,5]]`, struts
   `[F,F,T,T]`, holders `[None, Some(0), Some(3), None]`.
-  - The reconcile turned **two** runs of one plan: the outer fan `[0,7]`→`[7,0]` and the
-    inner fan `[1,6]`→`[6,1]`.
-  - That leaves the strut chain `[2,5]⊃[3,4]` outside every fan. The inner strut is held
-    by a strut with `fan: None`, so it mints at the shared vertex itself.
+  The reconcile turned **two** runs of one plan (`[0,7]`→`[7,0]`, `[1,6]`→`[6,1]`), which
+  leaves the strut chain `[2,5]⊃[3,4]` outside every fan: the inner strut is held by a
+  strut with `fan: None`, so it mints at the shared vertex itself.
 - **Same holders, different outcome.** The notch pose reaches the identical laminar
   family (`[[2,5],[6,1],[7,0],[3,4]]`) in `ba` U/S and builds SOUND on one key. The arc
   reading alone therefore does not decide buildability here.
@@ -53,11 +45,9 @@ Demonstrated by execution.**
   "its holders, which the reconcile cleared of every other pair's cut, so its strut nests
   none of theirs") is unverified for a strut-only chain left at a shared vertex. I suspect
   it, but have not root-caused it.
-- **Severity.** No wrong body ships; the invariant catches it. But this is a refusal
-  downgraded from typed to an internal-invariant error on legal input, which this PR newly
-  reaches.
-- **Fix wanted:** either root-cause it, or refuse it typed (for example, a strut-only chain
-  outside every fan after a turn). Add the probe's wedge `ba` pose as a row.
+- **Severity.** No wrong body ships, but a typed refusal on legal input is downgraded to an
+  internal-invariant error. **Fix wanted:** root-cause it or refuse it typed (e.g. a
+  strut-only chain outside every fan after a turn), and add the wedge `ba` pose as a row.
 
 ## MINOR
 
@@ -67,28 +57,19 @@ innermost holder, `by_strut`). Mutants executed.**
   holder (`arc_holders`, `insert.rs:607`). Each goes red on only two things: the unit test,
   and `eight_crossing_corners_nest_two_deep_and_build_every_op`, which is a **non-shared**
   vertex.
-- `pinch_runs_battery`, `four_pairs_battery` and every shared-vertex row are byte-identical
-  under all three.
-- With `R1_TRACE`, four_pairs never exceeds depth 1 (840 plans at depth 1, 14 297 with no
-  holder).
-- My probe does catch them, as SOUND→`ClassificationInvariant`:
-  - depth1: 60 lines, incl. the 12 depth-3 `wedge ba` lines;
-  - nostrut: 108;
-  - outer: 164.
-- So claim 3 holds by execution: a depth-3 chain `[0,7]⊃[1,6]⊃[2,5]⊃[3,4]` (fan, fan,
-  strut, strut) at the shared vertex builds SOUND on one key in `wedge ba` U/S at 6 poses.
-  But no committed row protects it.
+- pinch, four_pairs and every shared-vertex row are byte-identical under all three;
+  `R1_TRACE` shows four_pairs never exceeds depth 1 (840 plans at 1, 14 297 unheld).
+- My probe catches them as SOUND→`ClassificationInvariant` (depth1 60, incl. the 12 depth-3
+  `wedge ba` lines; nostrut 108; outer 164). So claim 3 holds by execution: a depth-3 chain
+  `[0,7]⊃[1,6]⊃[2,5]⊃[3,4]` (fan, fan, strut, strut) at the shared vertex builds SOUND on
+  one key in `wedge ba` U/S at 6 poses. No committed row protects it.
 
 **m2. The cover arm is reached by no pose I or the PR could find. Executed.**
-- Replacing the cover refusal with acceptance (`R1_MUT=cover`) moves 0 lines in pinch,
-  four_pairs and the probe. Only the unit test goes red.
-- `hang_at_shared` never returned `None` (cover or crossing) in four_pairs or the probe
-  (trace: 0 `holders=None`).
-- The 5 remaining `SharedVertexCrossings` come from the reconcile arm, as the PR says.
-- So the claim "pinned by the unit test" is literally true, but it is unexercised by any
-  geometry.
-- The arm is right to refuse: two arcs that each hold the other's ends cannot both be
-  minted at nested copies.
+- Accepting a cover (`R1_MUT=cover`) moves 0 lines in pinch, four_pairs and the probe; only
+  the unit test goes red. `hang_at_shared` never returned `None` there (0 `holders=None`);
+  the 5 remaining `SharedVertexCrossings` are the reconcile arm's, as the PR says. "Pinned
+  by the unit test" is true but unexercised by geometry. The arm is right to refuse: two
+  arcs each holding the other's ends cannot both mint at nested copies.
 
 ## NOTES
 
@@ -104,12 +85,9 @@ innermost holder, `by_strut`). Mutants executed.**
   walk position (`walk_order` refuses a tie).
   Two turned runs in one plan **are** reachable (M1's trace and the notch probe), and the
   reading handles them laminarly.
-- **N2 (claim 2; holds).**
-  - By inspection: for B's non-wrapping intervals plus length-1 wrap arcs, `arc_holders`
-    gives main's holders exactly, and a cover is impossible there.
-  - Executed: pierce, corner_pairs and reflex are byte-identical, and the eight-crossing
-    depth-two row passes.
-  - Not run: rc_wide shards (budget).
+- **N2 (claim 2; holds).** Inspection: for B's non-wrapping intervals and length-1 wrap
+  arcs, `arc_holders` gives main's holders exactly and no cover. Executed: pierce,
+  corner_pairs and reflex byte-identical; the eight-crossing row passes. rc_wide not run.
 - **N3 (claim 5; holds, likely).** All 120 lines are `ba U`/`ba S` at 60 poses. At those
   same 60 poses, `ab U` already refuses `PinchConesOnSeparateKeys` on main, and
   `ab S`/`ba I` build SOUND. The refusal lands exactly on the ops that keep the pinch
