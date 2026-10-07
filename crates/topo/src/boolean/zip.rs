@@ -337,6 +337,15 @@ pub(super) fn share_points<T: geom_core::Real>(
             continue;
         };
         let vertices: Vec<VertexKey> = keys.iter().flat_map(|k| on_key[k].clone()).collect();
+        #[cfg(feature = "sweep-testing")]
+        {
+            let at: Vec<[String; 3]> = keys
+                .iter()
+                .filter_map(|&k| body.points.get(k))
+                .map(|p| [p.x, p.y, p.z].map(|c| format!("{c:?}")))
+                .collect();
+            SHARED.with(|s| s.borrow_mut().push(at));
+        }
         // Unreachable: `on_key` holds live vertices and live keys only.
         body.share_point(&vertices, onto)
             .ok_or(BooleanError::ZipCorrespondence {
@@ -344,6 +353,30 @@ pub(super) fn share_points<T: geom_core::Real>(
             })?;
     }
     Ok(())
+}
+
+#[cfg(feature = "sweep-testing")]
+thread_local! {
+    /// The stored points of the keys each [`share_points`] class rebinds,
+    /// in call order ([`take_shared_points`]).
+    static SHARED: core::cell::RefCell<Vec<Vec<[String; 3]>>> =
+        const { core::cell::RefCell::new(Vec::new()) };
+}
+
+/// Drains the stored points of every class [`share_points`] rebound on
+/// this thread since the last drain: one list per class, each key's
+/// point before the rebind, each coordinate as its `{:?}` rendering.
+/// `share_points` reads no position, so its premise (the seams tie only
+/// keys that hold one point) is pinned here, in test builds: a row
+/// parses the coordinates back and asserts each list is one point, bit
+/// for bit. At `f64` the rendering is the shortest string that parses
+/// back to the same value, so the parse is exact. Rendered, not typed,
+/// because `T` reaches its bits only through the fenced bit-identity
+/// seam (`geom_core::bit_identity`), which a test witness has no claim
+/// on. `sweep-testing` only.
+#[cfg(feature = "sweep-testing")]
+pub fn take_shared_points() -> Vec<Vec<[String; 3]>> {
+    SHARED.with(|s| core::mem::take(&mut *s.borrow_mut()))
 }
 
 /// Each vertex's section corners, as pair indices in orbit order.

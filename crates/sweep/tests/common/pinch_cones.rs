@@ -342,3 +342,18 @@ pub fn shared_point_finding(body: &Body<f64>, at: V3) -> Option<String> {
         .any(|&k| point(k) != point(at_v[0]))
         .then(|| format!("the vertices at {at:?} do not share one point: {at_v:?}"))
 }
+
+/// Where a class `zip::share_points` rebound on this thread since the
+/// last drain held keys at different points, the finding, else `None`;
+/// with the number of classes drained. The rebind reads no position, so
+/// this pins its premise: the seams tie only keys holding one point,
+/// bit for bit.
+pub fn shared_point_spread_finding() -> (usize, Option<String>) {
+    let classes = topo::take_shared_points();
+    let bits = |p: &[String; 3]| p.clone().map(|c| c.parse::<f64>().unwrap().to_bits());
+    let finding = classes
+        .iter()
+        .find(|c| c.iter().any(|p| bits(p) != bits(&c[0])))
+        .map(|c| format!("a rebound class holds keys at different points: {c:?}"));
+    (classes.len(), finding)
+}

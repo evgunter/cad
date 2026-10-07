@@ -21,7 +21,7 @@ use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, m
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
     Op as Cones, Pieces, Plane, cone_finding, faces_through_two_vertices_at, point_key_finding,
-    shared_point_finding, vertices_at,
+    shared_point_finding, shared_point_spread_finding, vertices_at,
 };
 
 const PROFILE: [(f64, f64); 6] = [
@@ -392,7 +392,10 @@ fn pierce_point_finding(
     at: [f64; 3],
     cones: (&[Vec<Plane>], &[Vec<Plane>], Cones),
 ) -> Option<String> {
-    if let Some(finding) = shared_point_finding(body, at).or_else(|| cone_finding(body, at, cones))
+    if let Some(finding) = shared_point_spread_finding()
+        .1
+        .or_else(|| shared_point_finding(body, at))
+        .or_else(|| cone_finding(body, at, cones))
     {
         return Some(finding);
     }
@@ -1837,8 +1840,13 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
 /// refuses `UndeclaredContact { VertexVertex }` at `v`, and the output
 /// stage's join, which reads the pinch from its keys, kills a cone's
 /// vertex (one vertex for two cones; the mesher refuses or panics).
+/// The unions rebind at least one class (a union whose zips already
+/// leave its cones on one key rebinds none), and every class rebound
+/// held one point, bit for bit (`topo::take_shared_points`): the
+/// rebind reads no position, so this is its premise's pin.
 #[test]
 fn a_pinchs_cones_share_one_point_key() {
+    let mut rebound = 0;
     for (names, (a, b), seed, fib) in [
         ("Ltop asym", (ltop(), asym()), 2296, 21),
         ("Ltop asym", (ltop(), asym()), 2296, 3),
@@ -1853,7 +1861,11 @@ fn a_pinchs_cones_share_one_point_key() {
         let want = d.volume + SIDE.powi(3) - d.common;
         let cube_pieces = vec![d.planes.clone()];
         for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+            shared_point_spread_finding();
             let r = topo::union_with(x, y, &BooleanDeclarations::default(), tol());
+            let (classes, spread) = shared_point_spread_finding();
+            rebound += classes;
+            assert_eq!(spread, None, "{pose} {order} U");
             let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
                 point_key_finding(&bb.body, v)
                     .or_else(|| cone_finding(&bb.body, v, (&d.pieces, &cube_pieces, Cones::Union)))
@@ -1871,4 +1883,5 @@ fn a_pinchs_cones_share_one_point_key() {
             assert_eq!(finding, Some(None), "{pose} {order} U");
         }
     }
+    assert!(rebound > 0, "no union rebound a class");
 }
