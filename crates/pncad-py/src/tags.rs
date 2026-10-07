@@ -1760,6 +1760,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
         NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
+        NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",

@@ -2699,6 +2699,7 @@ test_utils::f6_variants! {
         MergedChordOffRim,
         MergedChordConstituents,
         MemberEdgeTied,
+        ConventionalVertex,
         Band,
         Escalated,
     ];
@@ -2836,6 +2837,17 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 several: 2,
             },
             vec!["merged face", "holds 2 faces", "no rule picks"],
+        ),
+        (
+            NamingError::ConventionalVertex {
+                vertex: topo::VertexKey::default(),
+                body: 3,
+            },
+            vec![
+                "conventional vertex",
+                "output body 3",
+                "a-conventional-vertex",
+            ],
         ),
         (
             NamingError::MemberEdgeTied {

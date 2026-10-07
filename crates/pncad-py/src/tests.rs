@@ -5343,6 +5343,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "conventional_vertex",
             "duplicate",
             "emission",
             "escalated",
