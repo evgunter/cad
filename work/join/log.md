@@ -1157,3 +1157,15 @@ Signed (JOIN orchestrator).
   - The M arm byte was drawn at the implementer's dispatch (81, mod 3 = 0), so it gets a HOLDOUT, a concurrent pair. That pair goes out once the PR is re-merged onto main.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07: PR 4272 landed (roof-cross valley); 4274 under a holdout pair
+
+- **PR 4272 merged** after a FULL review and one fix pass.
+  - The outer lane's `best_arc` reads a partner on another ring of the face as re-homed, preferring Clean.
+  - The forced-order lanes read `capture_rank` and accept only Clean, as on main. Relaxing them is filed as P3 without a witness.
+  - An exact-tie corner-pair row guards the tier.
+  - 174 refusals moved to SOUND, and no other line moved.
+  - `a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc` is closed.
+- **PR 4274** is frozen at `4d985b57` for its concurrent HOLDOUT pair. The arm byte was 81, drawn at implementer dispatch. The A/B byte is 57, parity 1, so A = R2.
+
+Signed (JOIN orchestrator).

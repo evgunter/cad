@@ -2,12 +2,13 @@
 id: a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc
 kind: issue
 title: A roof-cross valley corner on a cube's edge refuses JoinDesync 'every chord arc separates a loose scaffolding pair' every op
-status: review
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
 branch: join/roof-cross-valley
 pr: 4272
+closed: 2026-10-07
 ---
 
 
