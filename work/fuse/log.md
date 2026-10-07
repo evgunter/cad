@@ -563,7 +563,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   would change ratified text, so the orchestrator treats it as a fork,
   not a unit.
 - 2026-10-06 — The curved-join key is put to Ev as PR 4198 (`[ev]`,
-  fork-log row 77, `needs_ev: true` on
+  fork-log row 78, `needs_ev: true` on
   `curved-joinable-vertices-are-left-unjoined`). After three rounds the
   designers converged on these points:
   - the shared vertex decides the branch, with no new key;
