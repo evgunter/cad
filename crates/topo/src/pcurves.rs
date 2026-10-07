@@ -199,10 +199,11 @@
 //! to the child's sub-interval. The op re-certifies both restrictions
 //! before it mutates ([`split_cache`]) and writes them onto the parent
 //! halves and the two new halves, deriving nothing and minting nothing
-//! where there was nothing. Two frontiers ride with it, both stated at
-//! [`split_cache`]: a `Fitted`/`General` row is left exactly as found
-//! (its certification doors take the fitted door,
-//! [`crate::AtRestPolicy::fitted_lane`]), and
+//! where there was nothing; a sphere's general circle's `Fitted` row,
+//! which certifies over its own knot domain only, is derived afresh for
+//! each child and pinned onto the parent's branch. Two frontiers ride
+//! with it, both stated at [`split_cache`]: any other `Fitted` row, and
+//! a `General` one, is left exactly as found, and
 //! on a SPLINE chart the carry is exact but [`mint_pcurves`] — the
 //! recovery step this module's caveats name for a face left rowless —
 //! refuses on the split body, because [`nurbs_iso_derive`]'s rim arms
@@ -546,7 +547,8 @@ pub enum PcurveMintError {
     ///   [`crate::Body::kev_describing`] that lists it), or the band kill
     ///   of the edge ([`crate::Body::plan_released_rows`]) — mints it
     ///   whole, except on a spline chart;
-    /// - `split_edge`'s `Fitted`/`General` frontier ([`split_cache`]);
+    /// - `split_edge`'s `Fitted`/`General` frontier ([`split_cache`]),
+    ///   past the sphere's general circle;
     /// - a caller's own [`crate::Body::detach_pcurve`];
     ///
     /// and a face that arrives half-minted any of these ways, but for a
@@ -2357,13 +2359,12 @@ pub(crate) enum SplitRefusal {
 /// [`geom_brep::EdgeCurve`]'s carrier does: the children of a split at
 /// `t` have the parent's chart image, restricted to `[t₀, t]` and
 /// `[t, t₁]`. So this re-certifies the parent's own image over each
-/// sub-interval rather than deriving anything — and that one sentence
-/// is the whole bound argument: a restriction re-certifies through
-/// [`PcurveCache::certify`], which `geom-brep` declares in an
-/// `impl<T: Decide>` block, so `split_edge` keeps the `Decide` bound it
-/// has and no caller's bound moves. The fitted door
-/// ([`crate::AtRestPolicy::fitted_lane`]) is the DERIVATION lanes', and
-/// nothing here derives.
+/// sub-interval, through the image's own door ([`restate`]), rather than
+/// deriving anything. The exception is a sphere's general circle: its
+/// `Fitted` image certifies over its own knot domain only, so each
+/// child's is derived afresh through the fitted door (`fitted`, the
+/// scalar's [`crate::AtRestPolicy::fitted_lane`]) and pinned onto the
+/// parent's branch where the child starts.
 ///
 /// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
 /// carrier through [`half_edge_carrier`] — the same interval
@@ -2382,14 +2383,11 @@ pub(crate) enum SplitRefusal {
 /// - `half_edge` carries no row (an all-planar body, a face of an
 ///   uncovered class, or one a door has left rowless for its
 ///   producer's closing mint);
-/// - the row's image is [`Pcurve::Fitted`] or [`Pcurve::General`],
-///   whose certification doors are the fitted door's
-///   ([`PcurveCache::certify_fitted`] / [`PcurveCache::certify_general`],
-///   which need the mate operand and the fitted machinery). Widening
-///   `split_edge` to reach them is the bound ripple banked at
-///   [`mint_faces`]; until it lands, a split of an edge carrying a
-///   `General` row leaves that face exactly as it found it — the
-///   pre-existing behaviour, tracked on TOPO's slate as
+/// - the row's image is [`Pcurve::General`], or [`Pcurve::Fitted`] on
+///   anything but a sphere's general circle: neither restricts (each
+///   certifies over its own knot domain) and no route derives the
+///   child's afresh, so a split leaves that face exactly as it found
+///   it — tracked on PCERT's slate as
 ///   `split-edge-cannot-carry-a-fitted-or-general-pcurve-row`.
 ///
 /// In both cases the caller writes nothing, so the map is left exactly
@@ -2433,55 +2431,91 @@ pub(crate) fn split_cache<T: Decide>(
     halves: [HalfEdgeKey; 2],
     t: T,
     band: Band,
+    fitted: Option<geom_brep::FittedLane<T>>,
 ) -> Result<[Option<CarriedRows<T>>; 2], SplitRowError> {
     let mut rows = [None, None];
     for (slot, half_edge) in halves.into_iter().enumerate() {
         let Some(cache) = body.pcurve(half_edge) else {
             continue;
         };
-        if matches!(cache.pcurve(), Pcurve::Fitted(_) | Pcurve::General(_)) {
-            continue;
-        }
         let (carrier, t0, t1) = half_edge_carrier(body, half_edge).unwrap_or_else(|e| {
             unreachable!("split_edge resolved the curve of {half_edge:?}'s edge Certified: {e}")
         });
         let surface = half_edge_surface(body, half_edge);
         let image = cache.pcurve().clone();
-        let certify = |a: T, b: T, image: Pcurve<T>| {
-            PcurveCache::certify(image, a, b, &carrier, &surface, band).map_err(|error| {
-                SplitRowError {
-                    half_edge,
-                    refusal: SplitRefusal::Certify(error),
-                }
-            })
+        let mate = mate_surface(body, half_edge);
+        let refused = |error| SplitRowError {
+            half_edge,
+            refusal: SplitRefusal::Certify(error),
         };
-        // The children meet at the image's own point at `t`, so the gap
-        // is exactly zero; the joint is decided as every joint is, which
-        // reads whether the split point is on the chart's singular set.
+        let certify = |a: T, b: T, image: Pcurve<T>| {
+            restate(
+                &image,
+                (a, b),
+                &carrier,
+                &surface,
+                mate.as_ref(),
+                band,
+                fitted,
+            )
+            .map_err(refused)
+        };
         let Some(chart) = DescribedChart::of(&surface) else {
             unreachable!(
                 "{half_edge:?} stores a row, and rows are minted only on a described chart \
                  (`DescribedChart::minting`)"
             )
         };
-        let at = image.eval(t);
-        let vertex = carrier.eval(t);
         let period = chart_u_period(&surface, band);
-        let joint = match decide_joint(chart, &image, t, at, vertex, period, band) {
-            Ok(element) => element,
-            Err(miss) => {
-                return Err(SplitRowError {
+        let pin = |image: &Pcurve<T>, at: T, onto: geom_core::Point2<T>| {
+            decide_joint(chart, image, at, onto, carrier.eval(at), period, band).map_err(|miss| {
+                SplitRowError {
                     half_edge,
                     refusal: SplitRefusal::Joint(match miss {
                         PinMiss::Escalated(cause) => Some(cause),
                         PinMiss::Discontinuity | PinMiss::OutOfReach => None,
                     }),
-                });
-            }
+                }
+            })
         };
+        // A sphere's general circle's image certifies over its own knot
+        // domain only, so each child's is derived afresh and pinned onto
+        // the parent's branch where the child starts. Every other image
+        // is a function of the carrier's parameter, and each child's is
+        // the parent's restricted.
+        let (first, second) = match (&image, fitted, &carrier, &surface) {
+            (
+                Pcurve::Fitted(_),
+                Some(lane),
+                geom::Curve3::Circle { .. },
+                Surface::Sphere { .. },
+            ) => {
+                let child = |a: T, b: T| -> Result<Pcurve<T>, SplitRowError> {
+                    let fresh = Pcurve::Fitted(std::sync::Arc::new(
+                        lane.sphere_circle_image(&carrier, a, b, &surface, band)
+                            .map_err(refused)?,
+                    ));
+                    pin(&fresh, a, image.eval(a))?
+                        .deck()
+                        .apply(&fresh, &surface)
+                        .ok_or(refused(PcurveCertifyError::FittedCertificate {
+                            limb: None,
+                            what: "a split child's fresh image pins onto no branch of its parent's",
+                            magnitude: None,
+                        }))
+                };
+                (child(t0, t)?, child(t, t1)?)
+            }
+            (Pcurve::Fitted(_) | Pcurve::General(_), ..) => continue,
+            _ => (image.clone(), image.clone()),
+        };
+        // The children meet at the first's point at `t`, so the joint is
+        // decided there as every joint is, which reads whether the split
+        // point is on the chart's singular set.
+        let joint = pin(&second, t, first.eval(t))?;
         rows[slot] = Some(CarriedRows {
-            parent_half: certify(t0, t, image.clone())?,
-            new_half: certify(t, t1, image)?,
+            parent_half: certify(t0, t, first)?,
+            new_half: certify(t, t1, second)?,
             joint,
         });
     }
@@ -2668,32 +2702,15 @@ fn carry_rows<T: AtRestPolicy>(
         row_interval(body, he, row, &carrier, band)?;
         let (t0, t1) = row.params();
         let mate = mate_surface(body, he);
-        let restated = match row.pcurve() {
-            Pcurve::Fitted(image) => match T::fitted_lane() {
-                Some(lane) => PcurveCache::certify_fitted(
-                    std::sync::Arc::clone(image),
-                    t0,
-                    t1,
-                    &carrier,
-                    surface,
-                    mate.as_ref(),
-                    band,
-                    lane,
-                ),
-                None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
-            },
-            Pcurve::General(image) => PcurveCache::certify_general(
-                std::sync::Arc::clone(image),
-                t0,
-                t1,
-                &carrier,
-                surface,
-                mate.as_ref(),
-                band,
-                T::fitted_lane(),
-            ),
-            image => PcurveCache::certify(image.clone(), t0, t1, &carrier, surface, band),
-        }
+        let restated = restate(
+            row.pcurve(),
+            (t0, t1),
+            &carrier,
+            surface,
+            mate.as_ref(),
+            band,
+            T::fitted_lane(),
+        )
         .map_err(|error| PcurveMintError::Certify {
             half_edge: he,
             error,
@@ -2701,6 +2718,47 @@ fn carry_rows<T: AtRestPolicy>(
         carried.push((he, restated, body.joint(he)));
     }
     Ok(carried)
+}
+
+/// A stored chart image re-certified over `[t0, t1]` through its own
+/// door: the closed-form door for every image it covers, the fitted
+/// door (`fitted`, the scalar's [`crate::AtRestPolicy::fitted_lane`])
+/// for a `Fitted` or `General` one, which also reads the mate surface.
+fn restate<T: Decide>(
+    image: &Pcurve<T>,
+    (t0, t1): (T, T),
+    carrier: &geom::Curve3<T>,
+    surface: &Surface<T>,
+    mate: Option<&Surface<T>>,
+    band: Band,
+    fitted: Option<geom_brep::FittedLane<T>>,
+) -> Result<PcurveCache<T>, PcurveCertifyError> {
+    match image {
+        Pcurve::Fitted(image) => match fitted {
+            Some(lane) => PcurveCache::certify_fitted(
+                std::sync::Arc::clone(image),
+                t0,
+                t1,
+                carrier,
+                surface,
+                mate,
+                band,
+                lane,
+            ),
+            None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+        },
+        Pcurve::General(image) => PcurveCache::certify_general(
+            std::sync::Arc::clone(image),
+            t0,
+            t1,
+            carrier,
+            surface,
+            mate,
+            band,
+            fitted,
+        ),
+        image => PcurveCache::certify(image.clone(), t0, t1, carrier, surface, band),
+    }
 }
 
 /// **Whether a face's refusal means its rows are not owed**: the one
