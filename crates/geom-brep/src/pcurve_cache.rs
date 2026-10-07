@@ -9250,7 +9250,7 @@ mod tests {
         // Near the tube's top an off-axis centre `δ` leaves the torus
         // only by `δ²/2r`, so a circle ⊥ the axis centred off it — past
         // the centring band — is not shown off the chart: it grazes it.
-        let delta = 20.0 * Tol::witness().k() * Tol::witness().eps();
+        let delta = 2.0 * Tol::witness().k() * Tol::witness().eps();
         let crest = circle(
             Point3::new(delta, 0.0, minor),
             Vec3::unit_z(),

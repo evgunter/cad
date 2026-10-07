@@ -93,10 +93,10 @@ fn oblique_circle_through(p: Point3<f64>) -> Curve3<f64> {
 }
 
 /// A circle ⊥ the torus's axis through `p` on its crest, centred
-/// `20·K·ε` off the axis: past the centring band, while it leaves the
+/// `2·K·ε` off the axis: past the centring band, while it leaves the
 /// crest by only the square of that.
 fn crest_circle_through(p: Point3<f64>) -> Curve3<f64> {
-    let delta = 20.0 * tol().k() * tol().eps();
+    let delta = 2.0 * tol().k() * tol().eps();
     let center = Point3::new(0.0, p.y, delta);
     let radius = p.distance(center);
     Curve3::Circle {

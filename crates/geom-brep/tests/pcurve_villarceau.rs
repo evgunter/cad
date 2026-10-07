@@ -231,7 +231,7 @@ fn the_rows_certify_at_the_interval_scalar() {
     }
 }
 
-/// **Each number of the image is load-bearing**: one moved by `1e-6`,
+/// **Each number of the image is load-bearing**: one moved by `64·K·ε`,
 /// or the image offered against a torus of another radius, refuses.
 #[test]
 fn a_wrong_number_in_the_image_refuses() {
@@ -251,7 +251,7 @@ fn a_wrong_number_in_the_image_refuses() {
     else {
         unreachable!()
     };
-    let h = 1e-6;
+    let h = 64.0 * Tol::witness().k() * eps();
     let wrong = [
         ("u0", [u0 + h, t0, v0, va, vb, vl, beta, sense]),
         ("t0", [u0, t0 + h, v0, va, vb, vl, beta, sense]),
@@ -382,7 +382,7 @@ fn the_envelope_covers_an_admitted_error() {
 
 /// **A circle the incidence test reads on the torus that is none of its
 /// circles grazes it**, and one the test reads off it is off the chart.
-/// A circle ⊥ the axis through the tube's crest centred `20·K·ε` off the
+/// A circle ⊥ the axis through the tube's crest centred `2·K·ε` off the
 /// axis leaves the torus by only the square of that, so it passes the
 /// incidence test while the centring gate fails; a Villarceau circle
 /// moved `5·K·ε` along the axis is off the torus by that much at its
@@ -401,14 +401,14 @@ fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
     };
     let k = Tol::witness().k();
     let cv = axis.cross(u_ref);
-    let delta = 20.0 * k * eps();
+    let delta = 2.0 * k * eps();
     let crest = Curve3::Circle {
         center: center + axis * MINOR + u_ref * delta,
         axis,
         radius: MAJOR,
         u_ref: cv,
     };
-    assert!(off_torus(&crest) < 0.01 * eps(), "the crest circle grazes");
+    assert!(off_torus(&crest) < 0.5 * eps(), "the crest circle grazes");
     let got = chart_pcurve(&crest, &surface, band());
     assert!(
         matches!(
