@@ -86,6 +86,11 @@ pub enum Walk {
     RetryEarly,
     /// A RETRY attempt's door walk, in that attempt's own memo.
     RetryDoor,
+    /// The decision path's early walk with every value read shut
+    /// (`sym::rungs`), any attempt, in its own memo.
+    EarlyShut,
+    /// The decision path's door walk with every value read shut.
+    DoorShut,
 }
 
 impl Walk {
@@ -97,16 +102,16 @@ impl Walk {
         }
     }
 
-    /// The bucket this walk is CHARGED to — itself on the first
-    /// attempt, its retry twin inside one ([`set_attempt`]).
+    /// The bucket this walk is CHARGED to — its shut twin inside a
+    /// walk with the reads shut ([`set_shut`]), else itself on the first
+    /// attempt and its retry twin inside one ([`set_attempt`]).
     fn charged(self) -> Self {
-        if ATTEMPT.get() == 0 {
-            return self;
-        }
-        match self {
-            Self::Early => Self::RetryEarly,
-            Self::Door => Self::RetryDoor,
-            other => other,
+        match (self, SHUT.get(), ATTEMPT.get()) {
+            (Self::Early, true, _) => Self::EarlyShut,
+            (Self::Door, true, _) => Self::DoorShut,
+            (Self::Early, false, 1..) => Self::RetryEarly,
+            (Self::Door, false, 1..) => Self::RetryDoor,
+            (other, _, _) => other,
         }
     }
 }
@@ -637,6 +642,10 @@ thread_local! {
     /// and the first attempt's rows are what they were.
     static ATTEMPT: Cell<u8> = const { Cell::new(0) };
 
+    /// Whether the walk running has every value read shut
+    /// ([`set_shut`]); read by [`Walk::charged`].
+    static SHUT: Cell<bool> = const { Cell::new(false) };
+
     /// **What this session has already seen, by digest**, one set per
     /// [`Seen`] kind, emptied together as a session starts
     /// ([`seen_before`]).
@@ -726,6 +735,13 @@ pub(super) fn set_origin(origin: Origin) -> Origin {
 #[inline]
 pub(super) fn set_attempt(attempt: u8) -> u8 {
     ATTEMPT.replace(attempt)
+}
+
+/// Sets whether the next walks have every value read shut, answering
+/// the setting it replaces so the caller restores it.
+#[inline]
+pub(super) fn set_shut(shut: bool) -> bool {
+    SHUT.replace(shut)
 }
 
 /// **Opens a DECISION's record**, answering the mark the freezes it

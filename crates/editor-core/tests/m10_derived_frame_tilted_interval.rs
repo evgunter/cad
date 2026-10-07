@@ -1108,13 +1108,16 @@ fn sym8_phase1_the_tilt_u_ladder() {
 ///   a `sqrt` over a FROZEN
 ///   `Powi ^2` whose kid is 440 terms at degree 27 and `440² >
 ///   MAX_TERMS`;
-/// - on the shipped tier that square is built and, with the decision
-///   read settling the frame's conditioning comparisons,
-///   `carrier_endpoint_end` is 32/16/0/0 — nothing numeric — and the
-///   document CERTIFIES: the `newell_plane_residual` straddle that
-///   used to be the next wall
+/// - on the shipped tier that square is built, `carrier_endpoint_end`
+///   is 48/0/0/0 — every one a theorem, nothing resting on the read —
+///   and the document CERTIFIES: the `newell_plane_residual` straddle
+///   that used to be the next wall
 ///   (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`) is
-///   proved once the frame is no longer opaque.
+///   proved once the frame is no longer opaque, twenty of its 48 by the
+///   decision read (28/20/0/0);
+/// - with the read shut and every other rule as shipped
+///   (`SymRules::without_the_reads`) the document refuses at
+///   `newell_plane_residual`: the read is what certifies it.
 ///
 /// The contrast is three rules, not rule F alone: with rule F alone shut
 /// (`SymRules::without_rule_f`) the document reads what the shipped
@@ -1126,17 +1129,31 @@ fn sym8_phase1_the_tilt_u_ladder() {
 /// in release and about four seconds in the test profile — the split
 /// is read from the shape report, which is what the second of those
 /// pays for.
+/// The walks with the reads shut the boss's shipped evaluation asks
+/// (`geom_core::sym`'s `rungs`): one per decision whose early form is
+/// gated, measured. The row reads it from the cost profile, because a
+/// count is deterministic where the seconds it stands for are not.
+const SHUT_WALKS: u64 = 400;
+
 #[test]
 fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
+    use geom_core::sym::profile::{Walk, start_profile, take_profile};
     use geom_core::sym::report::{start_shape_report, take_shape_report};
     let doc = r2_document(1.0e-3, Base::TiltU, Place::Derived(1));
     let mut seen = Vec::new();
+    let mut shut_walks = 0;
     for (label, rules) in [
         ("SYM-5 tier", SymRules::without_rules_f_g_and_the_read()),
         ("shipped", shipped_with_rule_f()),
+        ("read shut", SymRules::without_the_reads()),
     ] {
         start_shape_report();
+        start_profile();
         let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+        let profile = take_profile();
+        if label == "shipped" {
+            shut_walks = profile.walk(Walk::EarlyShut).calls + profile.walk(Walk::DoorShut).calls;
+        }
         let shapes = take_shape_report();
         let split = crate::m10_8_harness::split(&shapes);
         let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 4]);
@@ -1148,10 +1165,15 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
             fails.len(),
             head(fails.first().map_or("", String::as_str), 200)
         );
-        seen.push((row("carrier_endpoint_end"), fails));
+        seen.push((
+            row("carrier_endpoint_end"),
+            row("newell_plane_residual"),
+            fails,
+        ));
     }
-    let (off_split, off_fails) = &seen[0];
-    let (on_split, on_fails) = &seen[1];
+    let (off_split, _, off_fails) = &seen[0];
+    let (on_split, on_newell, on_fails) = &seen[1];
+    let (_, _, shut_fails) = &seen[2];
     assert_eq!(
         *off_split,
         [24, 0, 0, 1],
@@ -1169,10 +1191,26 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
     );
     assert_eq!(
         *on_split,
-        [32, 16, 0, 0],
-        "the shipped tier's theorems and the decision read take the whole predicate between them: nothing here \
-         is numeric, and the sixteen the read answers are the frame's conditioning \
-         comparisons, which no form settles"
+        [48, 0, 0, 0],
+        "the shipped tier's theorems take the whole predicate: nothing here is numeric, and \
+         a form with the reads shut settles every one, so none rests on the read"
+    );
+    assert_eq!(
+        *on_newell,
+        [28, 20, 0, 0],
+        "the frame's conditioning comparisons no form settles are the read's: twenty of \
+         the plane residual's 48"
+    );
+    assert!(
+        shut_walks <= SHUT_WALKS,
+        "the decision path's walks with the reads shut are the cost of settling the \
+         read's class first: {shut_walks} on the shipped tier, past the {SHUT_WALKS} \
+         measured (one per gated decision); a trigger that widened is a cost to measure"
+    );
+    assert!(
+        shut_fails.len() == 1 && shut_fails[0].contains("newell_plane_residual"),
+        "with the read shut the document refuses at the plane residual, so the read is \
+         what certifies it: {shut_fails:?}"
     );
     assert!(
         on_fails.is_empty(),
@@ -1304,8 +1342,9 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 ///
 /// - under the shipped tier the start cap and `FlipZ` certify, and
 ///   their `carrier_endpoint_end` and `newell_plane_residual` splits
-///   and whole receipts are the END cap's — computed here, not pinned
-///   as literals, so the row reads the documents against each other;
+///   and whole receipts discharge what the END cap's do and leave the
+///   same decisions numeric — computed here, not pinned as literals, so
+///   the row reads the documents against each other;
 /// - with rule F's two arms shut and every other rule as shipped, each
 ///   of the three documents reads exactly what it reads with them on.
 ///   `Vec3::orthonormal_basis` crosses the normal with a world axis and
@@ -1313,13 +1352,18 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 ///   to fold. A frame construction that minted one again would make
 ///   the arm load-bearing here, and this half reds.
 ///
-/// Measured at the merge of `main` into `props/sign-hull` (1e-9): all
-/// three read `572 / 400 sign_gated / 510` with `carrier_endpoint_end`
-/// `[32, 16, 0, 0]` and `newell_plane_residual` `[24, 24, 0, 0]`, at
-/// both dials.
+/// "Costs nothing" is counted in decisions, not labels. The decision
+/// path counts a read's zero only where no form with the reads shut
+/// settles it, and on the start cap that walk settles every one:
+/// 972 / 0 sign_gated / 510 — exactly the read-shut tier's receipt, which
+/// the row asserts,
+/// `carrier_endpoint_end` and `newell_plane_residual` each `[48, 0, 0,
+/// 0]`. The end cap and `FlipZ` read `692 / 280 sign_gated / 510`,
+/// `[48, 0, 0, 0]` and `[28, 20, 0, 0]`. Measured at 1e-9, at both
+/// dials.
 ///
-/// Cost: six evaluations of three small documents with the shape
-/// report installed.
+/// Cost: seven evaluations of three small documents with the shape
+/// report installed, the seventh the start cap with the reads shut.
 #[test]
 fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert() {
     use geom_core::sym::report::{start_shape_report, take_shape_report};
@@ -1333,6 +1377,12 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
         (
             fails,
             format!("{counts:?}"),
+            [
+                counts.symbolic_zero + counts.sign_gated,
+                counts.registered,
+                counts.numeric,
+                counts.frozen,
+            ],
             row("carrier_endpoint_end"),
             row("newell_plane_residual"),
         )
@@ -1346,7 +1396,7 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
         end.0
     );
     assert!(
-        end.2.iter().sum::<u64>() > 0 && end.3.iter().sum::<u64>() > 0,
+        end.3.iter().sum::<u64>() > 0 && end.4.iter().sum::<u64>() > 0,
         "the end cap asks both predicates, so equality below is not two empty rows: {end:?}"
     );
     for (name, base, place) in [
@@ -1357,17 +1407,28 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
         let doc = doc_of(base, place);
         let on = read(&doc, shipped_with_rule_f());
         let off = read(&doc, f_shut);
+        if matches!(place, Place::DerivedStartCap) {
+            let shut = read(&doc, SymRules::without_the_reads());
+            assert_eq!(
+                (&on.1, on.3, on.4),
+                (&shut.1, shut.3, shut.4),
+                "{name}: a form with the reads shut settles every decision the read \
+                 answered, so the shipped receipt is the read-shut tier's, label for label"
+            );
+        }
         println!("{name} shipped: {on:?}\n{name} rule F shut: {off:?}");
         assert!(
             on.0.is_empty(),
             "{name}: certifies under the shipped tier as the end cap does: {:?}",
             on.0
         );
+        let decided = |r: [u64; 4]| [r[0] + r[1], r[2], r[3]];
         assert_eq!(
-            (&on.1, on.2, on.3),
-            (&end.1, end.2, end.3),
-            "{name}: its receipt, `carrier_endpoint_end` and `newell_plane_residual` are the \
-             end cap's — the sign of n.z costs the tier nothing"
+            (on.2, decided(on.3), decided(on.4)),
+            (end.2, decided(end.3), decided(end.4)),
+            "{name}: its receipt, `carrier_endpoint_end` and `newell_plane_residual` \
+             discharge what the end cap's do and leave the same ones numeric — the sign of \
+             n.z costs the tier nothing"
         );
         assert_eq!(
             on, off,
