@@ -14,7 +14,12 @@
 //! - **`On`**: the curve lies within the band of the plane. The margin
 //!   is the curve's certified sup distance from the plane, `max |dᵢ|`
 //!   (the rational hull: `φ` is a convex combination of the `dᵢ`), and
-//!   it is `On` where that margin is not decided positive.
+//!   it is `On` where that margin is not decided positive. Its sign along
+//!   the curve is read on a refined hull ([`refined_sign`]): a piece
+//!   whose `h` coefficients straddle zero is halved until they are
+//!   one-signed; opposite signs, or a halving that does not narrow a
+//!   piece's hull, read no sign, and a side whose halvings pass
+//!   [`SIDE_SIGN_HALVINGS`] refuses ([`SsiError::SideSignBudget`]).
 //! - **Roots**: otherwise, each root isolated to the floor, the curve's
 //!   accounting floor in metres minted over its parameter domain at its
 //!   speed. A root away from the curve's ends is decided transversal
@@ -25,8 +30,10 @@
 //!   that end is (a corner of a wall, a vertex of a face).
 //!
 //! The SSI's boundary pass calls this on the four sides of a wall's
-//! knot rectangle (`super::boundary`); the boolean's NURBS crossing
-//! layer is its second caller once it is wired.
+//! knot rectangle (`super::boundary`). Limb 3's side arm reads any
+//! stretch of a side through [`SectionReader`]: the same pieces cut to
+//! the stretch ([`Stretch`]), its distance and its refined sign read as
+//! the whole side's are.
 
 use geom::NurbsCurve3;
 use geom_core::Bounds;
@@ -50,8 +57,9 @@ pub enum BoundarySection {
     On {
         /// The certified sup of `|φ|` over the curve, in metres.
         sup: f64,
-        /// The sign of `φ` along the whole curve, where its enclosure is
-        /// one-signed: `Some(true)` for the plane's positive side.
+        /// The sign of `φ` along the whole curve, where its hull, refined
+        /// where it straddles zero, is certified one-signed: `Some(true)`
+        /// for the plane's positive side.
         side_of_plane: Option<bool>,
     },
     /// The curve meets the plane at isolated roots, or not at all.
@@ -222,35 +230,53 @@ impl Pieces {
         ratio_hull(self.pieces.iter().map(|(_, hc, wc)| (hc, wc)))
     }
 
-    /// The plane distance over `[a, b]`, enclosed as [`Pieces::distance`]
-    /// encloses the whole curve's, from the pieces cut to it.
-    fn distance_over(&self, a: f64, b: f64) -> Interval {
-        ratio_hull(self.over(a, b).iter().map(|(hc, wc, _)| (hc, wc)))
+    /// The sign of `φ` along the whole curve ([`refined_sign`]).
+    fn sign(&self, budget: &mut usize) -> Result<Option<bool>, SignBudget> {
+        refined_sign(
+            self.pieces.iter().map(|(_, hc, _)| hc.clone()).collect(),
+            budget,
+        )
     }
 
-    /// For each piece overlapping `[a, b]`: the Bernstein coefficients
-    /// of `h` and `W` over the overlap, and of `dh/dt` there.
-    fn over(&self, a: f64, b: f64) -> Vec<(Vec<Interval>, Vec<Interval>, Vec<Interval>)> {
+    /// Each piece overlapping `[a, b]`, with the overlap's ends as
+    /// fractions of the piece and the piece's span.
+    fn cuts(&self, a: f64, b: f64) -> Vec<(&Piece, Interval, Interval, Interval)> {
         let mut out = Vec::new();
-        for ((k0, k1), hc, wc) in &self.pieces {
-            let (lo, hi) = (a.max(*k0), b.min(*k1));
+        for piece in &self.pieces {
+            let (k0, k1) = piece.0;
+            let (lo, hi) = (a.max(k0), b.min(k1));
             if lo > hi || (lo == hi && a != b) {
                 continue;
             }
-            let span = Interval::point(*k1) - Interval::point(*k0);
-            let ra = (Interval::point(lo) - Interval::point(*k0)) / span;
-            let rb = (Interval::point(hi) - Interval::point(*k0)) / span;
-            let p = hc.len() - 1;
-            #[allow(clippy::cast_precision_loss)]
-            let pf = Interval::point(p as f64);
-            let dh: Vec<Interval> = hc.windows(2).map(|c| pf * (c[1] - c[0]) / span).collect();
-            out.push((
-                sub_piece(hc, ra, rb),
-                sub_piece(wc, ra, rb),
-                sub_piece(&dh, ra, rb),
-            ));
+            let span = Interval::point(k1) - Interval::point(k0);
+            let ra = (Interval::point(lo) - Interval::point(k0)) / span;
+            let rb = (Interval::point(hi) - Interval::point(k0)) / span;
+            out.push((piece, ra, rb, span));
         }
         out
+    }
+
+    /// For each piece overlapping `[a, b]`: the Bernstein coefficients
+    /// of `h` and `W` over the overlap.
+    fn over(&self, a: f64, b: f64) -> Vec<(Vec<Interval>, Vec<Interval>)> {
+        self.cuts(a, b)
+            .into_iter()
+            .map(|((_, hc, wc), ra, rb, _)| (sub_piece(hc, ra, rb), sub_piece(wc, ra, rb)))
+            .collect()
+    }
+
+    /// For each piece overlapping `[a, b]`: the Bernstein coefficients
+    /// of `dh/dt` over the overlap.
+    fn slope_over(&self, a: f64, b: f64) -> Vec<Vec<Interval>> {
+        self.cuts(a, b)
+            .into_iter()
+            .map(|((_, hc, _), ra, rb, span)| {
+                #[allow(clippy::cast_precision_loss)]
+                let pf = Interval::point((hc.len() - 1) as f64);
+                let dh: Vec<Interval> = hc.windows(2).map(|c| pf * (c[1] - c[0]) / span).collect();
+                sub_piece(&dh, ra, rb)
+            })
+            .collect()
     }
 }
 
@@ -263,6 +289,79 @@ fn ratio_hull<'a>(
         .flat_map(|(hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
         .reduce(Interval::hull)
         .unwrap_or_else(Interval::refused)
+}
+
+/// How many halvings one read of a side's sign may spend
+/// ([`refined_sign`]): a named resource wall (D9), the size of the cell
+/// budget.
+pub(crate) const SIDE_SIGN_HALVINGS: usize = 200_000;
+
+/// A side's sign was not resolved within its halvings
+/// ([`SIDE_SIGN_HALVINGS`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SignBudget;
+
+/// **The sign of `φ` over pieces, read on a refined hull.** `φ` shares
+/// its sign with `h` (the weights are positive), so each piece's `h`
+/// coefficients are read. A piece whose hull straddles zero is halved
+/// ([`sub_piece`]), spending one of `budget`, and its halves are read.
+///
+/// - `Some`: every piece reads one-signed, all of one sign.
+/// - `None` (in band): two pieces read opposite signs, a hull is
+///   refused, or a straddling piece's halves' hull is no narrower than
+///   its own (the arithmetic's floor there).
+///
+/// The pieces as given are all read before any is halved, so two of
+/// opposite sign read `None` in any order.
+///
+/// # Errors
+///
+/// [`SignBudget`] where a halving is due with `budget` spent.
+fn refined_sign(
+    pieces: Vec<Vec<Interval>>,
+    budget: &mut usize,
+) -> Result<Option<bool>, SignBudget> {
+    let signs: Vec<Option<bool>> = pieces.iter().map(|c| sign(hull(c))).collect();
+    if signs.contains(&Some(true)) && signs.contains(&Some(false)) {
+        return Ok(None);
+    }
+    let mut found = signs.iter().find_map(|s| *s);
+    let (zero, half, one) = (
+        Interval::point(0.0),
+        Interval::point(0.5),
+        Interval::point(1.0),
+    );
+    for (piece, read) in pieces.into_iter().zip(signs) {
+        if read.is_some() {
+            continue;
+        }
+        let mut stack = vec![piece];
+        while let Some(c) = stack.pop() {
+            let h = hull(&c);
+            if let Some(s) = sign(h) {
+                if found.is_some_and(|f| f != s) {
+                    return Ok(None);
+                }
+                found = Some(s);
+                continue;
+            }
+            let before = Certification::width(h);
+            if before.is_nan() {
+                return Ok(None);
+            }
+            if *budget == 0 {
+                return Err(SignBudget);
+            }
+            *budget -= 1;
+            let (left, right) = (sub_piece(&c, zero, half), sub_piece(&c, half, one));
+            if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
+                return Ok(None);
+            }
+            stack.push(right);
+            stack.push(left);
+        }
+    }
+    Ok(found)
 }
 
 /// **A side's plane distance, read as [`boundary_section`] reads it**,
@@ -287,10 +386,45 @@ impl SectionReader {
         Pieces::enclosed(knots, control, weights, (origin, normal)).map(|pieces| Self { pieces })
     }
 
+    /// The stretch `[a, b]` of the curve: its pieces cut to it.
+    pub(crate) fn stretch(&self, (a, b): (f64, f64)) -> Stretch {
+        Stretch {
+            pieces: self.pieces.over(a, b),
+        }
+    }
+
     /// The plane distance `φ` over the stretch `[a, b]` of the curve,
     /// enclosed.
-    pub(crate) fn over(&self, (a, b): (f64, f64)) -> Interval {
-        self.pieces.distance_over(a, b)
+    pub(crate) fn over(&self, t: (f64, f64)) -> Interval {
+        self.stretch(t).distance()
+    }
+}
+
+/// A stretch of a curve, as the Bernstein coefficients of `h` and `W`
+/// over its pieces cut to it ([`SectionReader::stretch`]).
+pub(crate) struct Stretch {
+    pieces: Vec<(Vec<Interval>, Vec<Interval>)>,
+}
+
+impl Stretch {
+    /// The plane distance `φ` over the stretch, enclosed as
+    /// [`Pieces::distance`] encloses the whole curve's.
+    pub(crate) fn distance(&self) -> Interval {
+        ratio_hull(self.pieces.iter().map(|(hc, wc)| (hc, wc)))
+    }
+
+    /// The sign of `φ` over the stretch, read on its refined hull as
+    /// [`boundary_section`] reads a whole side's, spending `budget`'s
+    /// halvings.
+    ///
+    /// # Errors
+    ///
+    /// As [`refined_sign`].
+    pub(crate) fn sign(&self, budget: &mut usize) -> Result<Option<bool>, SignBudget> {
+        refined_sign(
+            self.pieces.iter().map(|(hc, _)| hc.clone()).collect(),
+            budget,
+        )
     }
 }
 
@@ -323,7 +457,7 @@ fn hull(c: &[Interval]) -> Interval {
 }
 
 /// Whether an enclosure is certified and one-signed.
-fn one_signed(i: Interval) -> bool {
+pub(crate) fn one_signed(i: Interval) -> bool {
     sign(i).is_some()
 }
 
@@ -361,7 +495,9 @@ pub(crate) fn magnitude(i: Interval) -> f64 {
 /// [`super::TraceDecision::BoundarySection`] where the sup distance is
 /// poisoned; [`SsiError::UnsupportedCertificate`] for a curve whose
 /// Bernstein form the knot algebra refuses (unreachable for a validated
-/// curve); [`SsiError::CellBudget`].
+/// curve); [`SsiError::CellBudget`] for the roots' cells;
+/// [`SsiError::SideSignBudget`] (with no side named) where the curve's
+/// sign along it is not resolved within its halvings.
 pub fn boundary_section(
     curve: &NurbsCurve3<f64>,
     origin: Point3<f64>,
@@ -371,6 +507,21 @@ pub fn boundary_section(
     arm: f64,
     band: Band,
 ) -> Result<BoundarySection, SsiError> {
+    section_within(
+        (curve, origin, normal),
+        speed,
+        (floor_meters, arm, band),
+        SIDE_SIGN_HALVINGS,
+    )
+}
+
+/// [`boundary_section`], its sign read within `halvings`.
+fn section_within(
+    (curve, origin, normal): (&NurbsCurve3<f64>, Point3<f64>, Vec3<f64>),
+    speed: SupSpeed<f64>,
+    (floor_meters, arm, band): (f64, f64, Band),
+    halvings: usize,
+) -> Result<BoundarySection, SsiError> {
     let unsupported = SsiError::UnsupportedCertificate {
         what: "a boundary curve's Bernstein form was refused by the knot algebra",
     };
@@ -378,19 +529,26 @@ pub fn boundary_section(
     // ---- On: the curve's sup distance from the plane ----
     let d = pieces.distance();
     let sup = magnitude(d);
-    let on = BoundarySection::On {
-        sup,
-        side_of_plane: sign(d),
+    let on = || -> Result<BoundarySection, SsiError> {
+        Ok(BoundarySection::On {
+            sup,
+            side_of_plane: pieces.sign(&mut { halvings }).map_err(|SignBudget| {
+                SsiError::SideSignBudget {
+                    side: None,
+                    halvings,
+                }
+            })?,
+        })
     };
     match decide("ssi_boundary_on_plane", Margin::of(sup), band) {
         Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => return Ok(on),
+        Ok(Sign::Zero | Sign::Negative) => return on(),
         Err(cause) if cause.margin.is_invalid() => {
             return Err(super::TraceDecision::BoundarySection.escalated(cause));
         }
         // In band: the curve lies within the band's reach of the plane,
         // and the caller reports it as a region, not a crossing.
-        Err(_) => return Ok(on),
+        Err(_) => return on(),
     }
 
     roots(curve, &pieces, speed, floor_meters, arm, band)
@@ -434,7 +592,7 @@ fn roots(
     let floor = SweepFloor::section(root, floor_meters, speed)?;
     let cells = isolate_section(floor, |cell| {
         let over = pieces.over(cell.t.0, cell.t.1);
-        Ok(!over.is_empty() && over.iter().all(|(h, _, _)| one_signed(hull(h))))
+        Ok(!over.is_empty() && over.iter().all(|(h, _)| one_signed(hull(h))))
     })?;
     // Contiguous survivors are one cluster: a root on a cell's end
     // survives in both cells beside it.
@@ -448,19 +606,20 @@ fn roots(
     let (mut interior, mut at_start, mut at_end) = (Vec::new(), None, None);
     for (a, b) in clusters {
         let over = pieces.over(a, b);
-        let dh = over
+        let dh = pieces
+            .slope_over(a, b)
             .iter()
-            .map(|(_, _, d)| hull(d))
+            .map(|d| hull(d))
             .reduce(Interval::hull)
             .unwrap_or_else(Interval::refused);
         let w_hi = over
             .iter()
-            .map(|(_, w, _)| magnitude(hull(w)))
+            .map(|(_, w)| magnitude(hull(w)))
             .fold(0.0, max_bound);
         // `h` at the cluster's two ends: the first and last Bernstein
         // coefficients of the overlaps there.
-        let h_a = over.first().and_then(|(h, _, _)| h.first().copied());
-        let h_b = over.last().and_then(|(h, _, _)| h.last().copied());
+        let h_a = over.first().and_then(|(h, _)| h.first().copied());
+        let h_b = over.last().and_then(|(h, _)| h.last().copied());
         let rising = sign(dh);
         // At a root `h = 0`, so `dφ/dt = h′/W` there and
         // `|dφ/ds| ≥ inf|h′| / (sup W · sup‖C′‖)`.
@@ -575,3 +734,186 @@ pub(crate) fn settle_root(
 /// The fixed iteration count of [`settle_root`] (D9): enough bisections
 /// to cut any `f64` bracket to adjacent floats.
 const SECTION_SETTLE_ITERS: usize = 128;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use geom::NurbsCurve3;
+    use geom_core::interval::certification::Certification as _;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Interval, Point3, SupSpeed, Vec3};
+
+    use super::{BoundarySection, SIDE_SIGN_HALVINGS, SignBudget, SsiError, refined_sign};
+
+    /// One Bézier piece of `h`.
+    fn piece(c: &[f64]) -> Vec<Interval> {
+        c.iter().map(|&x| Interval::from_certified(x)).collect()
+    }
+
+    fn read(pieces: Vec<Vec<Interval>>) -> Result<Option<bool>, SignBudget> {
+        refined_sign(pieces, &mut SIDE_SIGN_HALVINGS.clone())
+    }
+
+    /// `(P, −N, P)` with `P > N`: its hull holds `−N`, but `φ ≥ (P − N)/2`
+    /// and one halving makes both halves one-signed.
+    const P: f64 = 0.6e-9;
+    const N: f64 = 0.2e-9;
+
+    /// **A loose hull clear of zero reads its sign.** `m` pieces each
+    /// `(P, −N, P)`, and mirrored. Red under no subdivision (`None`) and
+    /// under the stop on one-signed removed (the budget refuses).
+    #[test]
+    fn a_loose_hull_clear_of_zero_reads_its_sign() {
+        for (p, n) in [(P, N), (0.9e-9, 0.5e-9)] {
+            for m in [1, 64, 1024] {
+                let up = read(vec![piece(&[p, -n, p]); m]);
+                assert_eq!(up, Ok(Some(true)), "(P, −N, P) = ({p:e}, {n:e}) × {m}");
+                let down = read(vec![piece(&[-p, n, -p]); m]);
+                assert_eq!(down, Ok(Some(false)), "(−P, N, −P) × {m}");
+            }
+        }
+    }
+
+    /// **A hull holding a zero of `φ` reads in band, not signed.** A
+    /// linear piece through zero, a quadratic with two zeros, and a flush
+    /// piece `h ≡ 0`: each reads `None` once a piece's halves stop
+    /// narrowing it. Red under that stop removed: the pieces about the
+    /// zero never turn one-signed, and the budget refuses.
+    #[test]
+    fn a_hull_holding_a_zero_of_phi_reads_in_band() {
+        let e = 1e-9;
+        for c in [
+            vec![-0.5 * e, 0.5 * e],
+            vec![0.3 * e, -0.5 * e, 0.3 * e],
+            vec![0.0; 3],
+        ] {
+            assert_eq!(read(vec![piece(&c)]), Ok(None), "{c:?}");
+        }
+    }
+
+    /// **A refused hull reads in band.** A piece one of whose
+    /// coefficients is refused has no sign to read and no width to halve.
+    /// Red under the refused stop removed: the halves stay refused, and
+    /// the budget refuses.
+    #[test]
+    fn a_refused_hull_reads_in_band() {
+        let c = vec![
+            Interval::from_certified(P),
+            Interval::refused(),
+            Interval::from_certified(P),
+        ];
+        assert_eq!(read(vec![c]), Ok(None));
+    }
+
+    /// **Pieces of two signs read no sign, in either order**, whether
+    /// they read one-signed as given or only once halved. Red under the
+    /// opposite-sign stop removed (the last sign read wins) and, for the
+    /// pieces as given, under it read only as they are reached: a piece
+    /// that would spend the budget before the opposite one then refuses
+    /// in one order and not the other.
+    #[test]
+    fn pieces_of_two_signs_read_no_sign_in_either_order() {
+        let e = 1e-9;
+        let rows = [
+            ("as given", piece(&[e, e]), piece(&[-e, -e])),
+            ("once halved", piece(&[P, -N, P]), piece(&[-P, N, -P])),
+        ];
+        for (at, a, b) in rows {
+            assert_eq!(read(vec![a.clone(), b.clone()]), Ok(None), "{at}");
+            assert_eq!(read(vec![b, a]), Ok(None), "{at}, reversed");
+        }
+        let costly = vec![piece(&[P, -N, P]); 4];
+        let mut forward = costly.clone();
+        forward.push(piece(&[-e, -e]));
+        let mut reversed = vec![piece(&[-e, -e])];
+        reversed.extend(costly);
+        for (at, pieces) in [("forward", forward), ("reversed", reversed)] {
+            assert_eq!(
+                refined_sign(pieces, &mut 2),
+                Ok(None),
+                "{at}, budget 2 of 4"
+            );
+        }
+    }
+
+    /// **The budget counts halvings, and only halvings.** `m` loose
+    /// pieces spend one halving each: a budget of `m` reads their sign,
+    /// `m − 1` refuses. Pieces one-signed as given spend none, however
+    /// many. Red under the budget check removed, or charged per piece
+    /// read.
+    #[test]
+    fn the_sign_spends_one_halving_per_piece_halved() {
+        let m = 64;
+        let loose = vec![piece(&[P, -N, P]); m];
+        assert_eq!(refined_sign(loose.clone(), &mut { m }), Ok(Some(true)));
+        assert_eq!(refined_sign(loose, &mut (m - 1)), Err(SignBudget));
+        let tight = vec![piece(&[P, P, P]); 4 * m];
+        assert_eq!(refined_sign(tight, &mut 0), Ok(Some(true)));
+    }
+
+    /// `(0, y, h(y))` over `m` C0 quadratic spans of `y ∈ [0, 1]`, each
+    /// `(P, −N, P)` in `h`: the side of a loose wall, against `z = 0`.
+    fn loose_side(m: u32) -> NurbsCurve3<f64> {
+        let mut kv = vec![0.0, 0.0, 0.0];
+        for i in 1..m {
+            let t = f64::from(i) / f64::from(m);
+            kv.extend([t, t]);
+        }
+        kv.extend([1.0, 1.0, 1.0]);
+        let n = 2 * m + 1;
+        let control = (0..n)
+            .map(|j| {
+                let h = if j % 2 == 0 { P } else { -N };
+                Point3::new(0.0, f64::from(j) / f64::from(n - 1), h)
+            })
+            .collect();
+        NurbsCurve3::new(
+            KnotVector::clamped(kv, 2).unwrap(),
+            control,
+            vec![1.0; n as usize],
+        )
+        .unwrap()
+    }
+
+    /// **The boundary section reads a loose side's sign, and refuses one
+    /// it cannot resolve within its halvings.** The side spends one
+    /// halving per span: with as many it is `On` above the plane; with one
+    /// fewer it refuses [`SsiError::SideSignBudget`]. Red under the
+    /// refusal swallowed (read as no sign).
+    #[test]
+    fn the_boundary_section_refuses_a_sign_past_its_halvings() {
+        let m = 16;
+        let side = loose_side(m);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |halvings| {
+            super::section_within(
+                (&side, Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+                SupSpeed::new(1.0),
+                (1e-9, 1.0, band),
+                halvings,
+            )
+        };
+        assert!(
+            matches!(
+                read(m as usize),
+                Ok(BoundarySection::On {
+                    side_of_plane: Some(true),
+                    ..
+                })
+            ),
+            "{:?}",
+            read(m as usize)
+        );
+        assert!(
+            matches!(
+                read(m as usize - 1),
+                Err(SsiError::SideSignBudget {
+                    side: None,
+                    halvings
+                }) if halvings == m as usize - 1
+            ),
+            "{:?}",
+            read(m as usize - 1)
+        );
+    }
+}

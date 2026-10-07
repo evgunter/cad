@@ -5,7 +5,8 @@ title: A crossing cites its crossed edge by the edge's full name, which holds th
 status: open
 opened: 2026-10-06
 priority: P1
-design: true
+pr: 4212
+branch: emit/ev-cite-the-line
 refs: [a-second-crossing-by-one-face-renames-the-first-and-its-pieces, edge-pieces-are-named-by-their-ends]
 ---
 
@@ -83,3 +84,28 @@ The names README's N2 *Edge pieces* bullet (ratified on PR 4134, commit
 on its side of a cut included". The code does not do this yet: PR 4203
 reverted it pending this item. Until this item lands, the ratified text
 states the intended invariant ahead of the code, on purpose.
+
+## Ruled (Ev, PR 4212, 2026-10-07)
+
+Ev approved the line ("lol. sounds good"). The names README states it
+(N2 *Keeps*, *Edge pieces*, *Vertices*, the ranking and group-size
+bullets; N5 *A cited line*); fork-log row 77 records it.
+
+**What to build:**
+- **`edge_line`**: a recursive helper that removes every piece qualifier
+  at every depth. Call it wherever a name cites an edge it lies on or
+  descends from: the boolean `Crossing` and `EdgeCrossing`, the Split's
+  `CrossingVertex`, the base in `name_edge_pieces`, the union's crossing
+  and `WholeMemberEdges`, and `Keeps`.
+- **The reading rule**: an index from each line to its rows, per table.
+  N5's `Cascade` rung, the offers for a vanished piece, the union's
+  `member_edge` read and the ranking all read a cited line through it.
+- **`Ends` on every piece**: re-apply `825b42df32` on top, re-baseline the
+  goldens, and lower the `NAME_WORDS` ratchet.
+- **A gate on size against depth** on the 20×2×1 trim fixture: the
+  longest name's words are constant in the number of trims, and its bytes
+  grow at most linearly.
+- Unpark `a-second-crossing-by-one-face-renames-the-first-and-its-pieces`
+  once `Ends` on every piece lands.
+
+The PR 4212 body holds the fork's measurements.
