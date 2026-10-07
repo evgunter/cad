@@ -975,3 +975,48 @@ fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
         }
     }
 }
+
+/// **Where two leaning wedges' legs meet at the plate's top, their union
+/// names the vertex a seam of the two legs, in either member order**:
+/// each leg lies outside the other wedge on both sides of the vertex,
+/// so neither enters or leaves the other and the vertex is no crossing.
+/// The fold reaches one wedge's copy of the vertex only through two
+/// fusions (`names::emit_topo::fused_partners`).
+#[test]
+fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
+    let mut first: Option<Vec<String>> = None;
+    for order in [[1, 2], [2, 1]] {
+        let (doc, m) = tilted_holes(
+            ProfileDoc::empty_derived("union_pinch", Tol::witness()),
+            &two_wedges(),
+        );
+        let (doc, u) = crate::fixture::union_over(doc, &[m[order[0]], m[order[1]]], Vec::new());
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("member order {order:?}: refused: {e:?}");
+        }
+        let names = names_at(&ev, u, top());
+        assert_eq!(
+            names.len(),
+            1,
+            "member order {order:?}: the meeting point's names"
+        );
+        let n = &names[0];
+        assert!(
+            n.contains("path: [Seam {") && !n.contains("Crossing"),
+            "member order {order:?}: the meeting point is a seam, no crossing: {n}"
+        );
+        assert_eq!(
+            n.matches("role: Leg").count(),
+            2,
+            "member order {order:?}: the seam is of the two legs: {n}"
+        );
+        match &first {
+            None => first = Some(names),
+            Some(f) => assert_eq!(
+                &names, f,
+                "member order {order:?}: the meeting point's name"
+            ),
+        }
+    }
+}

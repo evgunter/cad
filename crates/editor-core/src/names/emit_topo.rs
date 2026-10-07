@@ -1118,7 +1118,7 @@ fn name_boolean_edges<T: Decide>(
     bnd: geom_core::Band,
 ) -> Result<Vec<EdgeGroup>, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let fused = fused_partners(naming);
+    let fused = Fused::of(naming);
 
     // ---- Seam edges (zip-listed AND derived — see below), grouped
     // by their (fA, fB) operand pair. A derived chord between two
@@ -1694,7 +1694,7 @@ fn name_boolean_vertices<T: Decide>(
     // owe): kept key → dead partners (a fused vertex may owe
     // its operand identity to a DEAD partner's key — e.g. a B corner
     // vertex fused into an A-side crossing key on a shared plane).
-    let fused = fused_partners(naming);
+    let fused = Fused::of(naming);
     // An operand vertex's upstream name, if that operand's table names
     // it. A key the table does not name (a vertex the reduction minted)
     // yields nothing; a table that names a key and then fails to resolve
@@ -1727,14 +1727,15 @@ fn name_boolean_vertices<T: Decide>(
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // Operand pass-downs: the kept key itself, then its dead
-        // fusion partners (deterministic order: KEPT-KEY identity
-        // wins when both operands fused here — `operand_identity`
-        // checks the graft destination first, and the kept key is
-        // A's exactly because `zip_seam` keeps the outer cycle's
-        // vertex).
+        // fusion partners nearest first (`fused_partners`). The KEPT
+        // key's identity wins when both operands fused here, and
+        // along a chain of fusions the key nearest the survivor does:
+        // `operand_identity` checks the graft destination first, and
+        // the kept key is A's exactly because `zip_seam` keeps the
+        // outer cycle's vertex.
         let mut identity = operand_identity(v)?;
         if identity.is_none() {
-            for &dead in fused.get(&v).into_iter().flatten() {
+            for &dead in fused.partners.get(&v).into_iter().flatten() {
                 identity = operand_identity(dead)?;
                 if identity.is_some() {
                     break;
@@ -2082,23 +2083,72 @@ enum Along {
     Either(NameRef, NameRef),
 }
 
-/// Each result vertex the zips and A-side welds fused → every dead
-/// vertex fused into it through any number of fusions, in the order
-/// they died (`BooleanNaming::vertex_merges`).
-fn fused_partners(naming: &topo::BooleanNaming) -> BTreeMap<VertexKey, Vec<VertexKey>> {
-    let mut fused: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
-    let rows = naming.vertex_merges.rows();
-    for &(dead, _) in rows {
-        fused.entry(survivor(rows, dead)).or_default().push(dead);
-    }
-    fused
+/// What a boolean fused, read once per boolean: each result vertex's
+/// fusion partners ([`fused_partners`]) and every pair of operand keys
+/// a B-side weld (`BooleanNaming::weld_merges_b`) or a null edge
+/// (`BooleanNaming::null_copies`) leaves at one point, both ways round.
+struct Fused {
+    partners: BTreeMap<VertexKey, Vec<VertexKey>>,
+    one_point: Vec<((topo::Operand, VertexKey), (topo::Operand, VertexKey))>,
 }
 
-/// The vertex `v` survives as through every fusion `(dead, kept)` of
-/// `rows`, which are in the order they were made.
-fn survivor(rows: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
-    rows.iter()
-        .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
+impl Fused {
+    fn of(naming: &topo::BooleanNaming) -> Self {
+        Self::from_rows(
+            naming.vertex_merges.rows(),
+            naming.weld_merges_b.rows(),
+            &naming.null_copies,
+        )
+    }
+
+    /// From the zips' and A-side welds' fusions `(dead, kept)`, the
+    /// B-side welds' and the null copies, each in the order made.
+    fn from_rows(
+        merges: &[(VertexKey, VertexKey)],
+        welds_b: &[(VertexKey, VertexKey)],
+        null_copies: &[(topo::Operand, VertexKey, VertexKey)],
+    ) -> Self {
+        let one_point = welds_b
+            .iter()
+            .map(|&(dead, kept)| (topo::Operand::B, dead, kept))
+            .chain(null_copies.iter().copied())
+            .flat_map(|(side, x, y)| [((side, x), (side, y)), ((side, y), (side, x))])
+            .collect();
+        Self {
+            partners: fused_partners(merges),
+            one_point,
+        }
+    }
+}
+
+/// Each vertex the fusions `merges` (`(dead, kept)`, in the order
+/// made) leave alive → every dead vertex fused into it through any
+/// number of them, nearest first: the keys fused straight into it, then
+/// those fused into one of them, each hop in the order they died. A
+/// vertex's operand identity is the first of them its operand names, so
+/// a key one fusion from the survivor wins over a key it absorbed
+/// earlier, as when no chain formed.
+fn fused_partners(merges: &[(VertexKey, VertexKey)]) -> BTreeMap<VertexKey, Vec<VertexKey>> {
+    let mut into: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
+    for &(dead, kept) in merges {
+        into.entry(kept).or_default().push(dead);
+    }
+    let dead: BTreeSet<VertexKey> = merges.iter().map(|&(d, _)| d).collect();
+    into.keys()
+        .filter(|k| !dead.contains(k))
+        .map(|&survivor| {
+            let mut order = Vec::new();
+            let mut hop = vec![survivor];
+            while !hop.is_empty() {
+                hop = hop
+                    .iter()
+                    .flat_map(|k| into.get(k).into_iter().flatten().copied())
+                    .collect();
+                order.extend(&hop);
+            }
+            (survivor, order)
+        })
+        .collect()
 }
 
 /// **Every operand vertex result vertex `v` is**, `(operand, key)` in
@@ -2110,23 +2160,16 @@ fn survivor(rows: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
 fn operand_vertex_keys(
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
-    fused: &BTreeMap<VertexKey, Vec<VertexKey>>,
+    fused: &Fused,
     v: VertexKey,
 ) -> Result<BTreeSet<(topo::Operand, VertexKey)>, NamingError> {
     let mut keys = BTreeSet::new();
-    for &k in core::iter::once(&v).chain(fused.get(&v).into_iter().flatten()) {
+    for &k in core::iter::once(&v).chain(fused.partners.get(&v).into_iter().flatten()) {
         keys.insert(operand_key(naming, inv_vertices, k)?.0.of_operand());
     }
-    let one_point: Vec<_> = naming
-        .weld_merges_b
-        .rows()
-        .iter()
-        .map(|&(dead, kept)| (topo::Operand::B, dead, kept))
-        .chain(naming.null_copies.iter().copied())
-        .flat_map(|(side, x, y)| [((side, x), (side, y)), ((side, y), (side, x))])
-        .collect();
     loop {
-        let new: Vec<_> = one_point
+        let new: Vec<_> = fused
+            .one_point
             .iter()
             .filter(|(from, to)| keys.contains(from) && !keys.contains(to))
             .map(|&(_, to)| to)
@@ -2172,7 +2215,7 @@ struct EdgeSense {
 fn senses_at<T: Decide>(
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
-    fused: &BTreeMap<VertexKey, Vec<VertexKey>>,
+    fused: &Fused,
     v: VertexKey,
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
@@ -2274,6 +2317,75 @@ mod side_tests {
         assert!(side_in_body(&BTreeSet::from([true]), false).unwrap());
         assert!(!side_in_body(&BTreeSet::from([false]), true).unwrap());
         assert!(side_in_body(&BTreeSet::from([true, false]), false).is_err());
+    }
+}
+
+#[cfg(test)]
+mod fused_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::{BTreeMap, Fused, VertexKey, fused_partners, operand_vertex_keys};
+    use topo::Operand::B;
+
+    fn vk(i: u64) -> VertexKey {
+        VertexKey::from(slotmap::KeyData::from_ffi((1 << 32) | i))
+    }
+
+    /// **A survivor's partners are every key fused into it, nearest
+    /// first** (`fused_partners`): `b` died into `a1` before `a1` died
+    /// into `a2`, so `b` reaches `a2` only through a chain, and comes
+    /// after both keys `a2` absorbed directly, which keep the order
+    /// they died in.
+    #[test]
+    fn a_chain_of_fusions_reaches_the_survivor_nearest_first() {
+        let (b, c, a1, a2) = (vk(1), vk(2), vk(3), vk(4));
+        let partners = fused_partners(&[(b, a1), (c, a2), (a1, a2)]);
+        assert_eq!(
+            partners,
+            BTreeMap::from([(a2, vec![c, a1, b])]),
+            "the survivor's partners, nearest first"
+        );
+    }
+
+    /// The operand keys of result vertex `r`, the graft of B's `kb`,
+    /// under `fused`.
+    fn b_keys_of(fused: &Fused, r: VertexKey, kb: VertexKey) -> Vec<VertexKey> {
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Grafted,
+            ..topo::BooleanNaming::default()
+        };
+        let inv = BTreeMap::from([(r, kb)]);
+        operand_vertex_keys(&naming, &inv, fused, r)
+            .unwrap()
+            .into_iter()
+            .map(|(side, k)| {
+                assert_eq!(side, B, "a B vertex's keys are B's");
+                k
+            })
+            .collect()
+    }
+
+    /// **A vertex is every B key a chain of B-side welds fused into its
+    /// own**: `w0` welded into `w1`, then `w1` into the grafted `kb`.
+    #[test]
+    fn a_chain_of_b_welds_reaches_the_grafted_key() {
+        let (r, w0, w1, kb) = (vk(10), vk(1), vk(2), vk(3));
+        let fused = Fused::from_rows(&[], &[(w0, w1), (w1, kb)], &[]);
+        let mut want = vec![w0, w1, kb];
+        want.sort_unstable();
+        assert_eq!(b_keys_of(&fused, r, kb), want, "the welded keys");
+    }
+
+    /// **A weld into a null copy of the vertex is the vertex too**: the
+    /// null edge leaves `kb` a copy `kc`, and `w` was welded into `kc`.
+    #[test]
+    fn a_weld_into_a_null_copy_is_the_vertex() {
+        let (r, kb, kc, w) = (vk(10), vk(1), vk(2), vk(3));
+        let fused = Fused::from_rows(&[], &[(w, kc)], &[(B, kb, kc)]);
+        let mut want = vec![kb, kc, w];
+        want.sort_unstable();
+        assert_eq!(b_keys_of(&fused, r, kb), want, "the copy and its weld");
     }
 }
 
