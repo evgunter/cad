@@ -1672,6 +1672,100 @@ fn unite_all(bodies: Vec<Body<f64>>) -> Option<AtRestBody<f64>> {
     Some(acc)
 }
 
+/// A right-handed frame whose cube corner diagonal runs along `d`: its
+/// three edges at the corner make equal angles with `d`, turned `psi`
+/// about it.
+fn corner_diagonal_frame(d: [f64; 3], psi: f64) -> Frame {
+    let [u, w, m] = frame(d, psi);
+    let (s6, s2, s3) = (6f64.sqrt(), 2f64.sqrt(), 3f64.sqrt());
+    [
+        [(2.0f64 / 3.0).sqrt(), 0.0, 1.0 / s3],
+        [-1.0 / s6, 1.0 / s2, 1.0 / s3],
+        [-1.0 / s6, -1.0 / s2, 1.0 / s3],
+    ]
+    .map(|l| [0, 1, 2].map(|x| l[0] * u[x] + l[1] * w[x] + l[2] * m[x]))
+}
+
+/// Whether the octants of frames `f` and `g` overlap: a direction on a
+/// sampled sphere strictly inside both.
+fn octants_overlap(f: Frame, g: Frame) -> bool {
+    let inside = |f: Frame, s: [f64; 3]| f.iter().all(|a| dot(*a, s) > 1e-3);
+    let n = 60;
+    (0..n).any(|p| {
+        (0..2 * n).any(|q| {
+            let th = std::f64::consts::PI * (f64::from(p) + 0.5) / f64::from(n);
+            let ph = std::f64::consts::PI * f64::from(q) / f64::from(n);
+            let s = [th.sin() * ph.cos(), th.sin() * ph.sin(), th.cos()];
+            inside(f, s) && inside(g, s)
+        })
+    })
+}
+
+/// **Four pairs at one vertex**: [`notch343`]'s corner against four
+/// side-4 cubes whose corners touch only there, three tilted round the
+/// grid direction and one along it (PR 4249's second review's probe),
+/// every op in both orders. One [`outcome`] line per run, with the
+/// built body's [`pierce_point_finding`] at the corner, for a diff
+/// between two trees.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn four_pairs_battery() {
+    let v = notch343().v;
+    for i in 0..12 {
+        for j in 0..7 {
+            let n = unit(direction(i, j));
+            let [p, q, _] = frame(n, 0.0);
+            for (t, tilt) in [-0.36, -0.2, -0.5].into_iter().enumerate() {
+                for k in 0..4 {
+                    let spin = f64::from(k) * 0.7 + 0.1;
+                    let mut fs: Vec<Frame> = (0..3)
+                        .map(|c| {
+                            let a = std::f64::consts::TAU * f64::from(c) / 3.0 + 0.3 * f64::from(k);
+                            let d =
+                                [0, 1, 2].map(|x| a.cos() * p[x] + a.sin() * q[x] + tilt * n[x]);
+                            corner_diagonal_frame(d, spin + 1.3 * f64::from(c))
+                        })
+                        .collect();
+                    fs.push(corner_diagonal_frame(n, spin + 0.5));
+                    let pose = format!("four i={i} j={j} t={t} k={k}");
+                    if (0..4).any(|x| (x + 1..4).any(|y| octants_overlap(fs[x], fs[y]))) {
+                        println!("{pose}: SKIP overlap");
+                        continue;
+                    }
+                    let pinch = unite_all(
+                        fs.iter()
+                            .map(|&f| cube_sized(v, f, [0.0; 3], SIDE))
+                            .collect(),
+                    )
+                    .filter(|b| {
+                        (mass_properties(b, tol()).unwrap().volume - 4.0 * SIDE.powi(3)).abs()
+                            < 1e-9
+                    });
+                    let Some(pinch) = pinch else {
+                        println!("{pose}: SKIP the cubes do not unite at the corner alone");
+                        continue;
+                    };
+                    let pinch_pieces: Pieces = fs
+                        .iter()
+                        .map(|&f| cube_planes_sized(v, f, [0.0; 3], SIDE))
+                        .collect();
+                    let (runs, notch_pieces) = notch_against(&pinch, &pinch_pieces);
+                    for (tag, r, want) in runs {
+                        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                            pierce_point_finding(
+                                &bb.body,
+                                v,
+                                tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)),
+                            )
+                        });
+                        println!("{pose} {tag}: {} {finding:?}", outcome(r, want, tol()));
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// **Three pairs whose hang leaves the point on two keys refuse typed.**
 /// [`notch343`]'s corner against three cubes whose corners touch only
 /// there, two poses (PR 4249's review probes): `three i=4 j=3 k=1`
@@ -1681,14 +1775,16 @@ fn unite_all(bodies: Vec<Body<f64>>) -> Option<AtRestBody<f64>> {
 /// siblings hang at its copy (`insert::hang_in_turned`), and the pinched
 /// operand's own cones sit on keys no seam links
 /// (`work/join/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`):
-/// the union refuses `SharedVertexCrossings`, and the intersection and
-/// difference build `SOUND`, one vertex per cone on one key, meshing.
+/// the notch-first union refuses `PinchConesOnSeparateKeys`, and at
+/// `three` the cubes-first union and difference too; with the notch
+/// first the intersection and difference build `SOUND`, one vertex per
+/// cone on one key, meshing.
 /// Red as `OK BAD` (tier 3′ `CensusUndecidable`, the cones on two keys)
 /// without `zip::refuse_split_hung_points`.
 #[test]
 fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
     let v = notch343().v;
-    let mut poses: Vec<(&str, Vec<Frame>, f64)> = Vec::new();
+    let mut poses: Vec<(&str, Vec<Frame>, f64, &[&str])> = Vec::new();
     // `three`: each cube's corner diagonal along `d`, twisted by `psi`.
     let [p, q, _] = frame(direction(4, 3), 0.3 + 0.9);
     let three = (0..3)
@@ -1709,7 +1805,7 @@ fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
             }
         })
         .collect();
-    poses.push(("three i=4 j=3 k=1", three, 2.0));
+    poses.push(("three i=4 j=3 k=1", three, 2.0, &["ab U", "ba U", "ba S"]));
     // `tripod`: each cube's corner diagonal along `d`, its frame turned.
     let n = unit(direction(0, 4));
     let [p, q, _] = frame(n, 0.0);
@@ -1717,18 +1813,11 @@ fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
         .map(|c| {
             let a = std::f64::consts::TAU * f64::from(c) / 3.0;
             let d = [0, 1, 2].map(|x| a.cos() * p[x] + a.sin() * q[x] + 0.25 * n[x]);
-            let [u, w, m] = frame(d, 0.3 + f64::from(c));
-            let (s6, s2, s3) = (6f64.sqrt(), 2f64.sqrt(), 3f64.sqrt());
-            [
-                [(2.0f64 / 3.0).sqrt(), 0.0, 1.0 / s3],
-                [-1.0 / s6, 1.0 / s2, 1.0 / s3],
-                [-1.0 / s6, -1.0 / s2, 1.0 / s3],
-            ]
-            .map(|l| [0, 1, 2].map(|x| l[0] * u[x] + l[1] * w[x] + l[2] * m[x]))
+            corner_diagonal_frame(d, 0.3 + f64::from(c))
         })
         .collect();
-    poses.push(("tripod i=0 j=4 t=1 k=0", tripod, SIDE));
-    for (pose, frames, side) in poses {
+    poses.push(("tripod i=0 j=4 t=1 k=0", tripod, SIDE, &["ab U"]));
+    for (pose, frames, side, guarded) in poses {
         let pinch = unite_all(
             frames
                 .iter()
@@ -1741,13 +1830,16 @@ fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
             .map(|&f| cube_planes_sized(v, f, [0.0; 3], side))
             .collect();
         let (runs, notch_pieces) = notch_against(&pinch, &pinch_pieces);
-        for (tag, r, want) in runs.into_iter().filter(|(tag, ..)| tag.starts_with("ab")) {
-            if tag == "ab U" {
+        for (tag, r, want) in runs {
+            if guarded.contains(&tag.as_str()) {
                 assert!(
-                    matches!(r, Err(BooleanError::SharedVertexCrossings { .. })),
+                    matches!(r, Err(BooleanError::PinchConesOnSeparateKeys { .. })),
                     "{pose} {tag}: {}",
                     outcome(r, want, tol())
                 );
+                continue;
+            }
+            if tag.starts_with("ba") {
                 continue;
             }
             let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {

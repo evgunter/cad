@@ -175,7 +175,7 @@ refusal → `OK BAD`: the cones on two point keys, and tier 3′
 `CensusUndecidable`. That is the parked class
 `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`.
 - The insertion now returns each hang. `zip::refuse_split_hung_points`,
-  run after `share_points`, refuses `SharedVertexCrossings` where a
+  run after `share_points`, refuses `PinchConesOnSeparateKeys` where a
   hung point's live vertices sit on several keys.
 - The point is read structurally: the vertex-vertex contacts' component
   through the hung vertex gives the keys (in result keys through
@@ -190,8 +190,9 @@ reviews' probes ported). Moves from base, none to `BAD`:
 | probe | refusal → SOUND | refusal → refusal | → BAD |
 |---|---|---|---|
 | `pinch_runs_battery` | 217 | 0 | 0 |
-| r1 three cubes | 101 | 33 (`SharedVertexCrossings`) | 0 |
-| r2 tripod | 321 | 55 (`SharedVertexCrossings`) | 0 |
+| r1 three cubes | 101 | 33 (`PinchConesOnSeparateKeys`) | 0 |
+| r2 tripod | 321 | 55 (`PinchConesOnSeparateKeys`) | 0 |
+| four pairs (second review's count) | 353 | 167 (`PinchConesOnSeparateKeys`) | 0 |
 | r1 wedge pinches | 261 | 0 | 0 |
 | r2 skew | 386 | 0 | 0 |
 | r2 fine (72 spins) | 2 586 | 0 | 0 |
@@ -202,7 +203,9 @@ reviews' probes ported). Moves from base, none to `BAD`:
   and meshes.
 - **The 98 curved lines** fail only the census (`CensusUndecidable`),
   the reuse union (`VolumeUncertified`) or the mesher (`Triangulation`,
-  2). Their volume is exact, t2 and the certificate pass, and they have
+  2). Their volume matches the oracle (4 lines off by 1.98e-7, the
+  oracle's: `ab I` at that pose is off by as much on main), t2 and the
+  certificate pass, and they have
   one key. That is main's own population of 873 curved `BAD` lines;
   none is a definite tier-3′ failure. Filed as
   `a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse`.

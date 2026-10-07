@@ -2316,7 +2316,10 @@ pub enum BooleanError {
     /// It also refuses where the shared vertex is B's and B's walk order
     /// nests one of its pairs' runs inside another's: the reconcile turns
     /// runs to clear the other pairs' cuts, and a nested run turned would
-    /// hold the rest of its own plan.
+    /// hold the rest of its own plan. And where a run a shared vertex
+    /// turned holds its own pair's runs in no way they can hang from
+    /// (`insert::sibling_holders`). Emitted by the insertion only:
+    /// `insert::reconcile_pass` and `insert::hang_in_turned`.
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
@@ -2328,6 +2331,20 @@ pub enum BooleanError {
         /// it crosses into more. Keys of the other operand's working
         /// copy, as `vertex` is.
         partners: [VertexKey; 2],
+    },
+    /// A pinch the result would hold with its cones on separate point
+    /// keys: an operand's own pinch, which an earlier op left on several
+    /// keys, met where the insertion hung runs at a turned run's copy
+    /// (`insert::hang_in_turned`), and whose keys no seam links, so the
+    /// census cannot read the point
+    /// (`work/join/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`).
+    /// Read after the zips off point keys alone
+    /// (`zip::refuse_split_hung_points`).
+    PinchConesOnSeparateKeys {
+        /// The operand whose vertex the insertion hung runs at.
+        operand: Operand,
+        /// That vertex: a key of the operand's working copy.
+        vertex: VertexKey,
     },
     /// A vertex of `operand` pierces a face of the other solid with
     /// `runs` Out runs (three or more) whose order round the vertex, read
@@ -2962,6 +2979,8 @@ pub enum BooleanErrorKind {
     PairingMismatch,
     /// [`BooleanError::SharedVertexCrossings`].
     SharedVertexCrossings,
+    /// [`BooleanError::PinchConesOnSeparateKeys`].
+    PinchConesOnSeparateKeys,
     /// [`BooleanError::PierceRunsNested`].
     PierceRunsNested,
     /// [`BooleanError::VertexReadTwice`].
@@ -3176,6 +3195,7 @@ impl BooleanError {
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
+            Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
             Self::PierceRunsNested { .. } => BooleanErrorKind::PierceRunsNested,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
@@ -3662,6 +3682,14 @@ impl core::fmt::Display for BooleanError {
                  several corners that only touch each other, and \
                  cuts into more than one of them in a way the Boolean cannot yet join. \
                  There is no way through this in the kernel yet",
+                operand_word(*operand)
+            ),
+            Self::PinchConesOnSeparateKeys { operand, .. } => write!(
+                f,
+                "a corner of the {} solid meets a point where the other solid holds \
+                 several corners that only touch each other, and the result would keep \
+                 them apart in a way its checks cannot read. There is no way through this \
+                 in the kernel yet",
                 operand_word(*operand)
             ),
             Self::PierceRunsNested { operand, runs, .. } => write!(
@@ -4573,33 +4601,28 @@ pub(crate) struct HungPoint {
 }
 
 /// Each of `hangs` with the point keys `vv` ties to its vertex: the
-/// contact graph's component through it, read in the clones `bodies`.
+/// contact graph's component through it ([`zip::Roots`]), read in the
+/// clones `bodies`.
 fn hung_points<T: Real>(
     hangs: &[insert::Hang],
     vv: &[VvContact],
     bodies: [&Body<T>; 2],
 ) -> Result<Vec<HungPoint>, BooleanError> {
+    let mut contacts = zip::Roots::new();
+    for c in vv {
+        contacts.union((Operand::A, c.a), (Operand::B, c.b));
+    }
     let mut out = Vec::with_capacity(hangs.len());
     for &hang in hangs {
-        let slot = usize::from(hang.operand == Operand::B);
+        let root = contacts.find((hang.operand, hang.vertex));
         let mut at: [Vec<VertexKey>; 2] = [Vec::new(), Vec::new()];
-        at[slot].push(hang.vertex);
-        loop {
-            let mut grew = false;
-            for c in vv {
-                let (x, y) = (at[0].contains(&c.a), at[1].contains(&c.b));
-                if x != y {
-                    if x {
-                        at[1].push(c.b);
-                    } else {
-                        at[0].push(c.a);
-                    }
-                    grew = true;
-                }
-            }
-            if !grew {
-                break;
-            }
+        at[usize::from(hang.operand == Operand::B)].push(hang.vertex);
+        for c in vv
+            .iter()
+            .filter(|c| contacts.find((Operand::A, c.a)) == root)
+        {
+            at[0].push(c.a);
+            at[1].push(c.b);
         }
         let mut keys: [Vec<crate::geometry::PointKey>; 2] = [Vec::new(), Vec::new()];
         for s in 0..2 {
@@ -6405,6 +6428,10 @@ mod tests {
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
             },
+            BooleanError::PinchConesOnSeparateKeys {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+            },
             BooleanError::PierceRunsNested {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -6586,6 +6613,7 @@ mod tests {
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
+                BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
                 BooleanErrorKind::PierceRunsNested => "PierceRunsNested",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",

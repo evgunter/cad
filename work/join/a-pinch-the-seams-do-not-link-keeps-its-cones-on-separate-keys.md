@@ -88,7 +88,7 @@ where they touch". It is the same on PR 4249's head.
 
 **Refused typed by PR 4249.** Where the insertion hangs runs at a
 turned run's copy (`insert::hang_in_turned`) and the point's cones then
-sit on several keys, the op refuses `SharedVertexCrossings`
+sit on several keys, the op refuses `PinchConesOnSeparateKeys`
 (`zip::refuse_split_hung_points`, read off point keys and the seams'
 classes). On main these lines refused `ClassificationInvariant`
 (tripod: 3 refused `Euler`). Without the guard they built: 22 + 18
@@ -101,3 +101,23 @@ Pinned by
 (`three i=4 j=3 k=1` and `tripod i=0 j=4 t=1 k=0`). Once the keys link,
 these lines should build, and the guard and that row's `ab U` assertion
 go.
+
+## Measured (PR 4249's second review, four pairs at one vertex)
+
+The second review's probe sets `notch343`'s corner against four side-4
+cubes whose corners touch only there: three tilted round the grid
+direction, one along it, 916 poses past the overlap filter. It is
+`rf_four_pairs_at_one_vertex` on
+`join/pinch-cones-split-at-insertion-review-fix`, ported to PR 4249 as
+`join_pierce_runs_sweep::four_pairs_battery`.
+- **Already shipping on main `875e049a`**, the reviewer's count,
+  unchanged on PR 4249's head: 24 lines `OK BAD t3p=false`, the
+  signature above. They are `ab U` and `ba U` at:
+  - `i=4 j=2 t=2 k=0`, `i=4 j=6 t=1 k=0`;
+  - `i=5 j=1 t=2 k=2`, `i=5 j=6 t=0 k=0`, `i=5 j=6 t=1 k=0`;
+  - `i=6 j=1 t=2 k=2`, `i=6 j=6 t=0 k=0`, `i=6 j=6 t=1 k=0`;
+  - `i=7 j=6 t=0 k=0`, `i=7 j=6 t=0 k=3`, `i=7 j=6 t=1 k=0`;
+  - `i=8 j=6 t=1 k=0`.
+- **Refused typed by PR 4249:** 167 lines `PinchConesOnSeparateKeys`.
+  Without the guard they are 112 `OK BAD` and 55 two-key `SOUND`
+  bodies.

@@ -668,21 +668,15 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let hung = red.hung.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The hung points in result keys: A's clone is the result's own, B's
-    // comes through the graft.
+    // comes through the graft. The graft maps the points B's kept part
+    // holds, so a key it lacks held only vertices B discarded, and no
+    // vertex of the result sits on it.
     let hung: Vec<_> = hung
         .iter()
         .map(|h| {
             let [a_keys, b_keys] = &h.keys;
-            let keys = a_keys
-                .iter()
-                .copied()
-                .chain(
-                    b_keys
-                        .iter()
-                        .filter_map(|&k| fin.graft.points.get(k).copied()),
-                )
-                .collect();
-            (h.hang, keys)
+            let kept_b = b_keys.iter().filter_map(|&k| fin.graft.points.get(k));
+            (h.hang, a_keys.iter().chain(kept_b).copied().collect())
         })
         .collect();
     // The zip, the merge, the re-description and the closing mint are
@@ -709,7 +703,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
     super::zip::share_points(&mut body, &points)?;
-    super::zip::refuse_split_hung_points(&body, &points, &hung)?;
+    super::zip::refuse_split_hung_points(&body, &hung)?;
     // A pinch keeps one vertex per cone, so lumps that met only there
     // share no edge: each connected piece of a shell becomes a shell.
     let shells: Vec<crate::entity::ShellKey> = body

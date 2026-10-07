@@ -33,7 +33,10 @@ other", and 33 refuse to mesh at δ = 0.05 (`Triangulation`, or one
 **PR 4249 adds 98 refusals to that population.** Its hang
 (`insert::hang_in_turned`) builds the shared corner where main refused
 `ClassificationInvariant`. All 98 have:
-- exact volume, t2 and the certificate passing;
+- volume matching the oracle (4 lines, `i=0 j=4 k=4 ab U/S, ba U/S`,
+  off by 1.98e-7: the oracle's, as main's `ab I` there is off by as
+  much and `U + I` sums to `vA + vB` at 9 decimals), and t2 and the
+  certificate passing;
 - one vertex per cone at `v`, on one point key;
 - no face through two vertices at `v`.
 
