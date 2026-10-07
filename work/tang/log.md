@@ -706,3 +706,19 @@ matrix (21 scenes × 5 poses × 6 ops) builds sound or refuses typed, with
 each result's material and classes at `MEET` checked against
 `point_in_solid`. Filed on CONTACT:
 `a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone`.
+
+## 2026-10-07 — measured levers reach the consumed region (TANG implementer)
+
+chord_join's cylinder lane and the germ frame's plane×cylinder pair
+lever the axis tilt at the wall face's axial extent from the reading
+point (`face_axial_range`, `Reach::range_along` per edge, a
+conic arc over its span), and `pc_axis_plane_parallel` reads the
+rulings' hinge station and the face's own reach across the wall
+(`Reach::Face`), so a finite tilt is never read parallel over a short
+axial lever and a short face is never turned definite by its wall's
+size. Closes `chord-join-face-reach-misses-a-curved-edges-bulge` and
+`germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`; filed
+`chord-join-cone-lane-levers-from-the-base-vertex-not-the-apex`,
+`germ-cylinder-pair-span-misses-a-curved-edges-bulge`,
+`spiric-and-spline-axial-levers-read-past-the-span` and
+`whole-turn-conic-reach-over-states-a-rim-faces-lever`.

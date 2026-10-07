@@ -2141,6 +2141,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::InvalidDeclaration
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
+        | BooleanErrorKind::PinchConesOnSeparateKeys
         | BooleanErrorKind::PierceRunsNested
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
