@@ -1945,3 +1945,6 @@ fn a_pinchs_cones_share_one_point_key() {
     }
     assert!(rebound > 0, "no union rebound a class");
 }
+
+#[path = "join_pierce_runs_sweep/review_r1_4249.rs"]
+mod review_r1_4249;
