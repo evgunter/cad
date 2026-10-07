@@ -39,16 +39,19 @@ fn bare_merge_through_wrappers(n: &StableName) -> bool {
     }
 }
 
-/// Every order of both unions: the order's label and the outer union's
-/// signature, with the member ids `[a, b, c, g]` and the inner union.
-/// `c` and `g` are made after the inner union, so its member-keyed names
-/// order before theirs and a set's reader meets its constituents first.
-fn orders() -> Vec<(
+/// One order's label, the outer union's signature, the member ids and
+/// the inner union.
+type Order = (
     String,
     BTreeMap<StableName, String>,
     Vec<RecipeNodeId>,
     RecipeNodeId,
-)> {
+);
+
+/// Every order of both unions, the member ids being `[a, b, c, g]`.
+/// `c` and `g` are made after the inner union, so its member-keyed names
+/// order before theirs and a set's reader meets its constituents first.
+fn orders() -> Vec<Order> {
     let (doc, ab) = document(&[A, B], &[0, 1]);
     let mut out = Vec::new();
     for inner in permutations(&[0, 1]) {
