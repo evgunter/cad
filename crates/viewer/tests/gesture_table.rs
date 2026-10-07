@@ -175,7 +175,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
     let param = VarName::from_static("thickness");
     // A variable no fixture holds: every op carrying it is refused
     // before it looks, or refused by the door for the absence.
-    let var = VarId(0x7468_6963_6b6e);
+    let var = VarId::new(0, 0x7468_6963_6b6e);
     vec![
         SessionOp::Select(Selection::Node(node)),
         SessionOp::Hover(Some(Hovered::Face(FaceSelection {
@@ -552,7 +552,7 @@ fn every_op_behaves_as_the_table_says() {
 fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
-    let undeclared = VarId(0x6e6f_7375_6368);
+    let undeclared = VarId::new(0, 0x6e6f_7375_6368);
 
     // The second extrude's distance becomes a computed slot, which is
     // what `begin_gesture`'s own check refuses.
@@ -967,20 +967,20 @@ fn family(name: &GestureName) -> usize {
 fn sample_names() -> Vec<GestureName> {
     let names = vec![
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             slot: SlotId::Distance,
         }),
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(4),
+            node: RecipeNodeId::new(0, 4),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(VarId(0x68))),
-        GestureName::Value(ValueGestureName::Param(VarId(0x77))),
+        GestureName::Value(ValueGestureName::Param(VarId::new(0, 0x68))),
+        GestureName::Value(ValueGestureName::Param(VarId::new(0, 0x77))),
         GestureName::FreeMove(FreeMoveName {
-            instance: RecipeNodeId(3),
+            instance: RecipeNodeId::new(0, 3),
         }),
         GestureName::FreeMove(FreeMoveName {
-            instance: RecipeNodeId(4),
+            instance: RecipeNodeId::new(0, 4),
         }),
     ];
     let covered: BTreeSet<usize> = names.iter().map(family).collect();
@@ -1135,10 +1135,10 @@ fn a_name_is_the_payload_it_was_read_off() {
 fn a_names_cancel_is_its_own_drags() {
     for name in [
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(VarId(0x68))),
+        GestureName::Value(ValueGestureName::Param(VarId::new(0, 0x68))),
     ] {
         assert!(
             matches!(name.cancel(), SessionOp::CancelGesture),
@@ -1148,7 +1148,7 @@ fn a_names_cancel_is_its_own_drags() {
     assert!(
         matches!(
             GestureName::FreeMove(FreeMoveName {
-                instance: RecipeNodeId(3)
+                instance: RecipeNodeId::new(0, 3)
             })
             .cancel(),
             SessionOp::CancelFreeMove

@@ -491,7 +491,7 @@ pub use topo::{
 // `DeclaredContact` — the payload of `ValidationError::
 // ContactContradicted` — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
-// refusal and left its siblings a module hop away. These four are
+// refusal and left its siblings a module hop away. These are
 // that inconsistency closed, not a new policy:
 //
 // - `CensusContact` is `UndeclaredContact`'s: which coincidence the
@@ -505,9 +505,11 @@ pub use topo::{
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
 //   vertex-on-edge (either loop's vertex), edge-along-edge, two edges
 //   meeting at a point, or two whole circles crossing or touching.
+//   `RingPairContact` is `RingMeetsRing`'s: the same shapes between
+//   two rings of one face.
 // - `CensusSubject` is what `CensusUnsupported` and
 //   `CensusLaneUnsupported` are ABOUT, and it is the sharpest of the
-//   four because both of its payload types are already on this list.
+//   list because both of its payload types are already on it.
 //   `Entity(EntityId)` and `FacePair(FaceKey, FaceKey)` are not two
 //   spellings of one site: an entity subject is one carrier outside
 //   the certifiable inventory, and the recourse is that carrier's —
@@ -548,8 +550,8 @@ pub use topo::{
 // one on this surface: `validate*` is the one door that reports many
 // refusals at once, and `failure_count` says so.
 pub use topo::{
-    CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
-    validate_closed, validate_geometric, validate_pseudomanifold,
+    CensusContact, CensusSubject, RingContact, RingPairContact, StaleDeclaration, ValidationError,
+    validate, validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 // --- 6. Mass properties ---------------------------------------

@@ -203,7 +203,7 @@ pub(crate) fn check<P: crate::ProfilePayload>(
         walk_strict_ancestors(doc, root, &mut seen, |_| Ok(()))?;
         covered.extend(seen);
     }
-    if let Some(&node) = doc.order.iter().find(|id| !covered.contains(id)) {
+    if let Some(&node) = doc.nodes.keys().find(|id| !covered.contains(id)) {
         return Err(RootFault::Uncovered { node: speak(node) });
     }
     Ok(())
@@ -241,12 +241,12 @@ pub(crate) fn on_insert<P: crate::ProfilePayload>(
 /// plus ancestor-freedom leave no other set possible, since a sink can
 /// be covered only by itself and a non-sink is an ancestor of the sink
 /// below it). Existing roots keep their order, and nodes the rewrite
-/// orphaned join at the end in document order — the edit vacates no
+/// orphaned join at the end in id order — the edit vacates no
 /// position for them to take.
 pub(crate) fn on_set_members<P: crate::ProfilePayload>(doc: &mut Doc<P>) {
     let sinks: Vec<RecipeNodeId> = doc
-        .order
-        .iter()
+        .nodes
+        .keys()
         .copied()
         .filter(|x| is_sink(doc, *x))
         .collect();
@@ -276,8 +276,8 @@ pub(crate) fn on_delete<P: crate::ProfilePayload>(
         return;
     };
     let orphans: Vec<RecipeNodeId> = doc
-        .order
-        .iter()
+        .nodes
+        .keys()
         .copied()
         .filter(|x| inputs.contains(x))
         .filter(|x| is_sink(doc, *x))
@@ -296,10 +296,8 @@ pub(crate) fn on_delete<P: crate::ProfilePayload>(
 /// spelled it its own way could disagree with the root set about
 /// what a live consumer is without anything noticing.
 ///
-/// The walk is [`Doc::order`], so the answer is the document's FIRST
-/// consumer rather than its lowest-id one — the same choice the save
-/// validator's name pass makes, and the order the maintainers below
-/// splice in. A node is not its own consumer: the DAG is acyclic, so
+/// The walk is id order, so the answer is the document's FIRST
+/// consumer — the order the maintainers below splice in. A node is not its own consumer: the DAG is acyclic, so
 /// the guard is a statement rather than a filter.
 ///
 /// Linear in the document per call, so the recomputing maintainer is
@@ -310,8 +308,8 @@ pub(crate) fn consumer<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
 ) -> Option<RecipeNodeId> {
-    doc.order
-        .iter()
+    doc.nodes
+        .keys()
         .copied()
         .find(|&by| by != id && doc.node(by).is_some_and(|n| n.inputs().contains(&id)))
 }

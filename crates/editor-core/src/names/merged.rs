@@ -321,7 +321,7 @@ mod tests {
     fn face(node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path,
         }
     }
@@ -397,7 +397,7 @@ mod tests {
                     steps
                         .iter()
                         .map(|&s| ProfileEdgeRef::Piece {
-                            step: crate::node::StepId(s),
+                            step: crate::node::StepId::new(0, s),
                             role: crate::names::PieceRole::Leg,
                         })
                         .collect(),
@@ -451,7 +451,7 @@ mod tests {
                 steps
                     .iter()
                     .map(|&s| ProfileEdgeRef::Piece {
-                        step: crate::node::StepId(s),
+                        step: crate::node::StepId::new(0, s),
                         role: crate::names::PieceRole::Leg,
                     })
                     .collect(),
@@ -459,7 +459,7 @@ mod tests {
             .unwrap();
             StableName {
                 kind: EntityKind::Edge,
-                node: RecipeNodeId(3),
+                node: RecipeNodeId::new(0, 3),
                 path: vec![RoleSeg::RimEdge(end, run)],
             }
         };
@@ -509,7 +509,7 @@ mod tests {
             PieceRun::new(
                 ks.iter()
                     .map(|&k| ProfileEdgeRef::Piece {
-                        step: crate::node::StepId(k),
+                        step: crate::node::StepId::new(0, k),
                         role: crate::names::PieceRole::Leg,
                     })
                     .collect(),
@@ -518,7 +518,7 @@ mod tests {
         };
         let meridian = |end: MeridianEnd, ks: &[u64]| StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             path: vec![RoleSeg::Meridian(end, pieces(ks))],
         };
         let run = meridian(MeridianEnd::Seam, &[7, 8]);
@@ -546,11 +546,11 @@ mod tests {
             3,
             vec![RoleSeg::LoftWall(vec![
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(1),
+                    step: crate::node::StepId::new(0, 1),
                     role: crate::names::PieceRole::Leg,
                 },
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(2),
+                    step: crate::node::StepId::new(0, 2),
                     role: crate::names::PieceRole::Leg,
                 },
             ])],

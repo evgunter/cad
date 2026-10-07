@@ -476,7 +476,7 @@ fn the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node() {
         refusal.to_string().starts_with(&format!(
             "Measure \"neck gap\" ({}) is a `min_clearance`, whose engine has no lane at \
              the symbolic identity tier",
-            test_utils::refusal::tag(f.measure.0)
+            test_utils::refusal::tag(f.measure.0.digest())
         )),
         "{refusal}"
     );

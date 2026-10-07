@@ -45,7 +45,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use editor_core::{InlineOutcome, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap};
+use editor_core::{
+    InlineOutcome, MintId, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap,
+};
 
 /// **The split document's ids carried through split then inline**: a
 /// kept node keeps its id (the remainder is the document edited), and a
@@ -62,7 +64,7 @@ pub fn composed(
 ) -> (NodeMap, StepMap) {
     let mut nodes = NodeMap::new();
     let mut steps = StepMap::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let to = match split.node_map.get(&id) {
             Some(in_part) => *inline
                 .node_map
@@ -92,7 +94,7 @@ pub fn composed(
 pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
     let mut nodes = NodeMap::new();
     let mut steps = StepMap::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(node) = doc.node(id) else { continue };
         nodes.insert(id, id);
         if let Node::Profile(p) = node {
@@ -107,13 +109,13 @@ pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
 /// among them — by its place among that definition's reads, followed
 /// to a fixed point. The two documents mint their own ids; a name or a
 /// definition is what a reader reads.
-fn var_images(a: &ProfileDoc, b: &ProfileDoc) -> BTreeMap<u64, u64> {
-    let mut images: BTreeMap<u64, u64> = a
+fn var_images(a: &ProfileDoc, b: &ProfileDoc) -> BTreeMap<MintId, MintId> {
+    let mut images: BTreeMap<MintId, MintId> = a
         .var_names()
         .iter()
         .filter_map(|(id, name)| Some((id.0, b.var_named(name.as_str())?.0)))
         .collect();
-    let reads = |d: &ProfileDoc, id: u64| {
+    let reads = |d: &ProfileDoc, id: MintId| {
         let mut out = Vec::new();
         if let Some(expr) = d
             .var(editor_core::VarId(id))
@@ -144,38 +146,49 @@ fn var_images(a: &ProfileDoc, b: &ProfileDoc) -> BTreeMap<u64, u64> {
     }
 }
 
-/// `text` with every `RecipeNodeId(n)` the map holds read as its image,
-/// every `StepId(n)` the step map holds as its image, and every
-/// `VarId(n)` the variable map holds as its image.
+/// `text` with every `RecipeNodeId(id)` the map holds read as its image,
+/// every `StepId(id)` the step map holds as its image, and every
+/// `VarId(id)` the variable map holds as its image.
 fn renamed(
     text: &str,
-    ids: &BTreeMap<u64, u64>,
-    steps: &BTreeMap<u64, u64>,
-    vars: &BTreeMap<u64, u64>,
+    ids: &BTreeMap<MintId, MintId>,
+    steps: &BTreeMap<MintId, MintId>,
+    vars: &BTreeMap<MintId, MintId>,
 ) -> String {
+    const OPEN: &str = "Id(MintId { ordinal: ";
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(at) = rest.find("Id(") {
-        let (head, tail) = rest.split_at(at + 3);
-        out.push_str(head);
-        let digits = tail.bytes().take_while(u8::is_ascii_digit).count();
-        let number = tail[..digits].parse::<u64>().ok();
-        let table = if head.ends_with("RecipeNodeId(") {
+    while let Some(at) = rest.find(OPEN) {
+        let (head, tail) = rest.split_at(at + OPEN.len());
+        let table = if head.ends_with(&format!("RecipeNode{OPEN}")) {
             Some(ids)
-        } else if head.ends_with("StepId(") {
+        } else if head.ends_with(&format!("Step{OPEN}")) {
             Some(steps)
-        } else if head.ends_with("VarId(") {
+        } else if head.ends_with(&format!("Var{OPEN}")) {
             Some(vars)
         } else {
             None
         };
-        match (number, table) {
-            (Some(n), Some(table)) if tail[digits..].starts_with(')') => {
-                out.push_str(&table.get(&n).copied().unwrap_or(n).to_string());
+        let Some(end) = tail.find(" })") else {
+            out.push_str(head);
+            rest = tail;
+            continue;
+        };
+        let read = tail[..end]
+            .split_once(", digest: ")
+            .and_then(|(o, d)| Some(MintId::new(o.parse().ok()?, d.parse().ok()?)));
+        match (read, table) {
+            (Some(id), Some(table)) => {
+                let to = table.get(&id).copied().unwrap_or(id);
+                out.push_str(&head[..head.len() - "MintId { ordinal: ".len()]);
+                out.push_str(&format!("{to:?}"));
+                rest = &tail[end + " }".len()..];
             }
-            _ => out.push_str(&tail[..digits]),
+            _ => {
+                out.push_str(head);
+                rest = tail;
+            }
         }
-        rest = &tail[digits..];
     }
     out.push_str(rest);
     out
@@ -191,9 +204,9 @@ fn renamed(
 fn same_payload(
     a: &editor_core::AuthoredNode,
     b: &editor_core::AuthoredNode,
-    ids: &BTreeMap<u64, u64>,
-    steps: &BTreeMap<u64, u64>,
-    vars: &BTreeMap<u64, u64>,
+    ids: &BTreeMap<MintId, MintId>,
+    steps: &BTreeMap<MintId, MintId>,
+    vars: &BTreeMap<MintId, MintId>,
     out: &mut Vec<String>,
 ) {
     let want = renamed(&format!("{a:?}"), ids, steps, vars);
@@ -234,7 +247,7 @@ pub fn same_up_to_ids(
 ) -> Result<(), String> {
     let mut problems = Vec::new();
     let live = |d: &ProfileDoc| -> Vec<RecipeNodeId> {
-        d.order()
+        d.ids()
             .iter()
             .copied()
             .filter(|&id| d.node(id).is_some())
@@ -248,8 +261,8 @@ pub fn same_up_to_ids(
             ));
         }
     }
-    let ids: BTreeMap<u64, u64> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
-    let step_ids: BTreeMap<u64, u64> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
+    let ids: BTreeMap<MintId, MintId> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
+    let step_ids: BTreeMap<MintId, MintId> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
     let var_ids = var_images(a, b);
     let mut covered = BTreeSet::new();
     for id in live(a) {
@@ -294,12 +307,8 @@ pub fn same_up_to_ids(
     if roots_a != roots_b {
         problems.push(format!("roots: {roots_a:?} vs {roots_b:?}"));
     }
-    let position: BTreeMap<RecipeNodeId, usize> = b
-        .order()
-        .iter()
-        .enumerate()
-        .map(|(i, &id)| (id, i))
-        .collect();
+    let position: BTreeMap<RecipeNodeId, usize> =
+        b.ids().iter().enumerate().map(|(i, &id)| (id, i)).collect();
     for group in editor_core::groups(a) {
         let at: Vec<Option<usize>> = group
             .iter()
@@ -314,7 +323,7 @@ pub fn same_up_to_ids(
     // Variables are compared by name, a definition with the ids it
     // reads read as their images: the two documents mint their own
     // ids, and a name is what a reader reads.
-    let vars = |d: &ProfileDoc, through: Option<&BTreeMap<u64, u64>>| {
+    let vars = |d: &ProfileDoc, through: Option<&BTreeMap<MintId, MintId>>| {
         d.var_names()
             .iter()
             .filter_map(|(id, name)| {

@@ -13,7 +13,7 @@ use editor_core::{
 use geom_core::Tol;
 
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))

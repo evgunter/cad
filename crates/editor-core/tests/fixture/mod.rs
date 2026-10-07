@@ -88,7 +88,7 @@ pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
         evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
     });
     if doc
-        .order()
+        .ids()
         .iter()
         .any(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
     {
@@ -139,7 +139,7 @@ pub fn solve_decisions_have_one_home(
     let mut escalations: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
     let mut verdicts: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
     let mut every_mate_ok = true;
-    for &id in doc.order() {
+    for id in doc.ids() {
         if !matches!(doc.node(id), Some(Node::Mate { .. })) {
             continue;
         }
@@ -233,7 +233,7 @@ pub fn offsets_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
     let poses = solve(&doc, o, Tol::witness());
     let mut doc = doc;
     let placed: Vec<(RecipeNodeId, editor_core::Frame)> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| {
@@ -434,7 +434,7 @@ pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Opti
 /// apart by their sentences relabels one of them.
 pub fn label_every_node(doc: ProfileDoc, text: &str) -> ProfileDoc {
     let label = editor_core::Label::new(text).expect("a valid label");
-    let order = doc.order().to_vec();
+    let order = doc.ids().to_vec();
     order.into_iter().fold(doc, |doc, node| {
         step(
             doc,
@@ -472,7 +472,7 @@ pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
 ///
 /// If `doc` holds no live node.
 pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
-    *doc.order().last().expect("the document holds a node")
+    *doc.ids().last().expect("the document holds a node")
 }
 
 pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -510,10 +510,8 @@ pub fn union_over(
     members: &[RecipeNodeId],
     declare: Vec<editor_core::DeclaredPair>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let positions = doc.positions();
-    let at = |id: &RecipeNodeId| positions.get(id).copied();
     let mut inserted = members.to_vec();
-    inserted.sort_by_key(at);
+    inserted.sort();
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -544,6 +542,9 @@ pub fn union_over(
 /// face side and a rider need the store's reach, since both read the
 /// parts; everything else decides on the datum alone, so
 /// [`RefusingReach`] serves.
+// The pair is matched by value at every call site; a test's refusal
+// path is no hot `Err`.
+#[allow(clippy::result_large_err)]
 pub fn at_the_door(
     doc: &ProfileDoc,
     reach: &dyn MateReach,
@@ -1482,7 +1483,7 @@ pub fn vpiece(
 /// row whose names are compared, sorted or carried and never resolved.
 pub fn leg(step: u64) -> ProfileEdgeRef {
     ProfileEdgeRef::Piece {
-        step: editor_core::StepId(step),
+        step: editor_core::StepId::new(0, step),
         role: editor_core::PieceRole::Leg,
     }
 }
@@ -1507,7 +1508,7 @@ pub fn as_authored(doc: &ProfileDoc, node: &Node<editor_core::ProfileProgram>) -
 /// which spells a step the document minted.
 pub fn no_piece() -> ProfileEdgeRef {
     ProfileEdgeRef::Piece {
-        step: editor_core::StepId(0),
+        step: editor_core::StepId::new(0, 0),
         role: editor_core::PieceRole::Piece(7),
     }
 }
@@ -1652,7 +1653,9 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
                     editor_core::Relation::Declined => "carried_declined",
                 },
             ),
-            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
+            editor_core::Attribution::Unattributed => {
+                (RecipeNodeId::new(0, u64::MAX), "unattributed")
+            }
         })
         .collect()
 }
@@ -1877,8 +1880,8 @@ pub fn same_as_written(a: &ProfileDoc, b: &ProfileDoc) -> bool {
             .map(|(id, name)| (*id, name.clone(), doc.var(*id).cloned()))
             .collect()
     };
-    a.order() == b.order()
-        && a.order()
+    a.ids() == b.ids()
+        && a.ids()
             .iter()
             .all(|&id| a.node(id).map(|n| n.written(a)) == b.node(id).map(|n| n.written(b)))
         && named(a) == named(b)

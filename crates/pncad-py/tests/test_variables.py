@@ -44,7 +44,9 @@ class TestAVarIsAnIdentity(unittest.TestCase):
         doc, box = driven()
         var = doc.var(VarName("height"))
         self.assertIsInstance(var, Var)
-        self.assertEqual(len(var.hex), 16)
+        ordinal, digest = var.hex.split(":")
+        self.assertTrue(ordinal.isdigit(), var.hex)
+        self.assertEqual(len(digest), 16)
         before = volume(doc, box)
 
         doc.apply(DocEdit.rename_var(var, VarName("tall")))

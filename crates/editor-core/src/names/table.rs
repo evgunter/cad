@@ -739,13 +739,13 @@ mod tests {
     fn chain(depth: usize, leaf: u64) -> StableName {
         let mut n = StableName {
             kind: EntityKind::Body,
-            node: RecipeNodeId(leaf),
+            node: RecipeNodeId::new(0, leaf),
             path: vec![RoleSeg::OutputBody],
         };
         for _ in 0..depth {
             n = StableName {
                 kind: EntityKind::Body,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::FromA(NameRef::new(n))],
             };
         }
@@ -938,7 +938,7 @@ mod carrying_door {
     fn name() -> NameRef {
         NameRef::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             path: vec![RoleSeg::OutputBody],
         })
     }

@@ -273,7 +273,7 @@ pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<Recip
     set.insert(root);
     // `order` is insertion order and inputs must pre-exist, so one
     // forward sweep suffices.
-    for &id in doc.order() {
+    for id in doc.ids() {
         let node = doc.node(id).expect("ordered node exists");
         if node.inputs().iter().any(|i| set.contains(i)) {
             set.insert(id);
@@ -669,7 +669,7 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
             seen_n.insert(node_kind(n));
             seen_s.extend(sub_kinds(n));
         };
-        for &id in d.doc.order() {
+        for id in d.doc.ids() {
             note(
                 d.doc.node(id).expect("ordered node exists"),
                 &mut seen_n,

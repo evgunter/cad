@@ -682,3 +682,13 @@ coincidence is now a margined verdict (no declarations), checked by the
   - A single confirming review followed the fix pass: 0 MAJOR, 3 MINOR.
   - The row was renumbered twice at merge (DR-100, then DR-101), because main took both numbers while CI ran.
 - **Next P1, the spline-carrier route:** an Opus/Fable designer pair is running. The byte, 122, is on `analysis/design-fork/pcert-spline-carrier-route-2026-10-07`. Sessions: session_01QrKCiRg8fQ31Qwsdm8FQ2c and session_012cb8vsD3QyGVpV4oCTU2cZ.
+
+## 2026-10-07 — spline-carrier route: designers converge, [ev] PR 4261
+
+- **Round 1:** A recommended a Hermite fit on the curved charts and the affine net on the plane. B recommended the *projected image*, `ψ(C(t))`, exact on every analytic chart.
+- **Reconciliation:** each designer was shown the other's report. A moved to B's route. B adopted A's routed-verdict point and its reach correction.
+  - The orchestrator asked B to check its nearest-point claim on the cone. B found it false there by exactly 1/cos α (the cone's `v` was height), and moved the cone's `v` to the foot's coordinate on the generator.
+  - Converged, not crossed.
+- **Why it goes to Ev:** the route rewrites C4's `OnLocusHull` sentence, which Ev worded on PR 3781, and the sphere circle's Hermite sentence, which landed with 3733 without an `[ev]` review. PR 4261 carries the diff and fork-log row 85.
+- **Still Ev's:** A versus A′ (whether the sphere's general circle leaves the Hermite route); both designers lean A. The P1/P2 question is in the PR body.
+- **Off-question findings, filed:** `no-fitted-class-misuse-is-excused-by-not-owed`, `site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm` and `on-locus-hull-is-named-for-charts-whose-metres-composite-refuses`. The excusal-fixture row's `m6_2` claim is corrected.
