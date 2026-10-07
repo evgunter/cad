@@ -337,6 +337,84 @@ fn an_in_band_line_circle_clearance_escalates_only_where_the_arc_holds_the_graze
         .expect("the arc off the graze is clear of the line");
 }
 
+/// Two holes in a square, one touching the other at a vertex that both
+/// of its segments leave nearly tangent to the other's edge. Hole 1
+/// runs down the unit circle centred (0, 1) to `E = (−s, s²/2)`, which
+/// stands within ε of the line y = 0, `s = 3Kε` short of the circle's
+/// tangency point with it; it leaves `E` on the circle of radius ½
+/// tangent to y = 0 a further `s/√2` to the left, so each of its arcs
+/// misses its own tangency point with y = 0 by more than Kε. Its last
+/// side closes along y = 1, tangent to the small circle at its top.
+/// Hole 2 lies under y = 0: the rectangle below it, or (`under = Some(R)`)
+/// a region capped by an arc of the circle of radius `R` tangent to
+/// y = 0 at the origin from below.
+fn holes_touching_between_tangent_arcs(under: Option<f64>) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let t = tol().get();
+    let s = 3.0 * t.k * t.eps;
+    let touch = Point2::new(-s, s * s / 2.0);
+    let small = Point2::new(-s - (touch.y - touch.y * touch.y).sqrt(), 0.5);
+    let top = Point2::new(small.x, 1.0);
+    let angle = |c: Point2<f64>, p: Point2<f64>| (p.y - c.y).atan2(p.x - c.x);
+    let big = Point2::new(0.0, 1.0);
+    let down = (angle(big, touch) - std::f64::consts::PI).rem_euclid(std::f64::consts::TAU);
+    let up = (angle(small, top) - angle(small, touch)).rem_euclid(std::f64::consts::TAU);
+    let arc = |centre, radius, sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius,
+            sweep,
+        })
+    };
+    let hole = ProfileLoop::new([
+        (Point2::new(-1.0, 1.0), arc(big, 1.0, down)),
+        (touch, arc(small, 0.5, up)),
+        (top, Segment::Line),
+    ])
+    .with_tangent_joints(vec![1, 2]);
+    let under = match under {
+        None => rect(-1.0, -1.0, 2.0, 1.0),
+        Some(r) => {
+            let y = (r * r - 1.0).sqrt() - r;
+            let cap = arc(Point2::new(0.0, -r), r, 2.0 * (1.0 / r).asin());
+            ProfileLoop::new([
+                (Point2::new(1.0, y), cap),
+                (Point2::new(-1.0, y), Segment::Line),
+                (Point2::new(-1.0, -3.0), Segment::Line),
+                (Point2::new(1.0, -3.0), Segment::Line),
+            ])
+        }
+    };
+    profile(vec![rect(-5.0, -5.0, 10.0, 10.0), hole, under])
+}
+
+/// **A touch between two holes, at a vertex whose two segments each
+/// miss their tangency with the other hole's edge, is refused** at
+/// `f64` and at `Interval`, against a line (the rectangle's top) and
+/// against an arc (a cap tangent to y = 0 from below). The touching
+/// vertex stands 4.5·K²ε² off the other edge.
+#[test]
+fn holes_touching_at_a_vertex_between_two_tangent_arcs_are_non_simple() {
+    for (under, edge) in [(None, 2), (Some(2.0), 0)] {
+        let p = holes_touching_between_tangent_arcs(under);
+        let want = ProfileError::NonSimple {
+            first: sref(1, 0),
+            second: sref(2, edge),
+            kind: ContactKind::Touch,
+        };
+        assert_eq!(err(&p), want, "f64, under {under:?}");
+        assert_eq!(
+            common::lift::<geom_core::Interval>(&p)
+                .validate(tol())
+                .map(|_| ())
+                .expect_err("the Interval profile must be rejected"),
+            want,
+            "Interval, under {under:?}"
+        );
+    }
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {

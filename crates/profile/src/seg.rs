@@ -1514,8 +1514,8 @@ mod pair_contact_tests {
         }
     }
 
-    /// Every row at one scalar: (name, what `line_arc` must read, what
-    /// it read). Offsets are in the run's ε and K: `mid` is inside the
+    /// Every row at one scalar: (name, what the pair must read, what it
+    /// read). Offsets are in the run's ε and K: `mid` is inside the
     /// band, `2·Kε` and `3·Kε` past it.
     fn rows<T: Decide>() -> Vec<(&'static str, Read, Read)> {
         let t = Tol::witness().get();
@@ -1527,47 +1527,135 @@ mod pair_contact_tests {
         // The circle tangent to y = 0 at the origin, where its carrier
         // clearance is decided Zero; the arc runs down its left side.
         let tangent = |sweep| arc::<T>((0.0, 1.0), 1.0, pi, sweep, band);
+        // The circle under y = 0, externally tangent to it there; the
+        // arc runs clockwise over its top from its left end.
+        let below = |sweep: f64| arc::<T>((0.0, -1.0), 1.0, pi, -sweep, band);
+        // The circle of radius 2 internally tangent to it there.
+        let around = |sweep| arc::<T>((0.0, 2.0), 2.0, pi, sweep, band);
+        // How far short of the tangency point an arc of the unit
+        // circle stops for its end to stand 3Kε off the other carrier:
+        // past the reach.
+        let past = (1.0 - 3.0 * k * eps).acos();
         // The same carrier secant to y = 0 by an in-band clearance.
         let secant = arc::<T>((0.0, 1.0), 1.0 + mid, pi, quarter - 3.0 * k * eps, band);
         // The unit circle, cut by y = 0 at (±1, 0), its arc ending an
         // in-band distance past (1, 0).
         let unit = arc::<T>((0.0, 0.0), 1.0, quarter, -(quarter + mid), band);
+        let kk = k * eps;
         vec![
+            // The tangency point one segment misses and the other holds:
+            // the missing segment's end stands within ε of the other,
+            // which holds its foot, so the pair touches there.
+            (
+                "tangent: the line holds the foot, the arc stops 2Kε short of it",
+                Ok(1),
+                read(
+                    &line((-1.0, 0.0), (1.0, 0.0), band),
+                    &tangent(quarter - 2.0 * kk),
+                    band,
+                ),
+            ),
             (
                 "tangent: the line holds the foot in band, the arc stops 2Kε short of it",
-                Err(Some("line_span")),
+                Ok(1),
                 read(
                     &line((-1.0, 0.0), (mid, 0.0), band),
-                    &tangent(quarter - 2.0 * k * eps),
+                    &tangent(quarter - 2.0 * kk),
+                    band,
+                ),
+            ),
+            (
+                "tangent: the line stops 2Kε short of the foot, the arc holds it",
+                Ok(1),
+                read(
+                    &line((-1.0, 0.0), (-2.0 * kk, 0.0), band),
+                    &tangent(quarter + 2.0 * kk),
                     band,
                 ),
             ),
             (
                 "tangent: the line stops 2Kε short of the foot, the arc holds it in band",
-                Err(Some("arc_span")),
+                Ok(1),
                 read(
-                    &line((-1.0, 0.0), (-2.0 * k * eps, 0.0), band),
+                    &line((-1.0, 0.0), (-2.0 * kk, 0.0), band),
                     &tangent(quarter + mid),
                     band,
                 ),
             ),
             (
-                "external tangency: one arc stops 2Kε short of it, the other holds it in band",
-                Err(Some("arc_span")),
-                read_arcs(
-                    &tangent(quarter - 2.0 * k * eps),
-                    &arc::<T>((0.0, -1.0), 1.0, pi, -(quarter + mid), band),
+                "tangent: both stop short of the foot on one side, the arc's end over the line",
+                Ok(1),
+                read(
+                    &line((-1.0, 0.0), (-2.0 * kk, 0.0), band),
+                    &tangent(quarter - 4.0 * kk),
                     band,
                 ),
             ),
             (
-                "internal tangency: one arc stops 2Kε short of it, the other holds it in band",
-                Err(Some("arc_span")),
+                "external tangency: one arc stops 2Kε short of it, the other holds it",
+                Ok(1),
                 read_arcs(
-                    &tangent(quarter - 2.0 * k * eps),
-                    &arc::<T>((0.0, 2.0), 2.0, pi, quarter + mid / 2.0, band),
+                    &tangent(quarter - 2.0 * kk),
+                    &below(quarter + 2.0 * kk),
                     band,
                 ),
+            ),
+            (
+                "external tangency: one arc stops 2Kε short of it, the other holds it in band",
+                Ok(1),
+                read_arcs(&tangent(quarter - 2.0 * kk), &below(quarter + mid), band),
+            ),
+            (
+                "internal tangency: one arc stops 2Kε short of it, the other holds it in band",
+                Ok(1),
+                read_arcs(
+                    &tangent(quarter - 2.0 * kk),
+                    &around(quarter + mid / 2.0),
+                    band,
+                ),
+            ),
+            // Separated: the miss is past the reach, or the two stop
+            // short on opposite sides of the tangency point.
+            (
+                "tangent: the line holds the foot, the arc stops past the reach",
+                Ok(0),
+                read(
+                    &line((-1.0, 0.0), (1.0, 0.0), band),
+                    &tangent(quarter - past),
+                    band,
+                ),
+            ),
+            (
+                "tangent: the line stops past the reach, the arc holds the foot",
+                Ok(0),
+                read(
+                    &line(
+                        (-1.0, 0.0),
+                        (-((1.0 + 3.0 * kk).powi(2) - 1.0).sqrt(), 0.0),
+                        band,
+                    ),
+                    &tangent(quarter + 0.1),
+                    band,
+                ),
+            ),
+            (
+                "tangent: the line and the arc stop 2Kε short of the foot on opposite sides",
+                Ok(0),
+                read(
+                    &line((-1.0, 0.0), (-2.0 * kk, 0.0), band),
+                    &arc::<T>((0.0, 1.0), 1.0, 0.0, -(quarter - 2.0 * kk), band),
+                    band,
+                ),
+            ),
+            (
+                "external tangency: one arc stops past the reach, the other holds it",
+                Ok(0),
+                read_arcs(&tangent(quarter - past), &below(quarter + 0.1), band),
+            ),
+            (
+                "internal tangency: one arc stops past the reach, the other holds it",
+                Ok(0),
+                read_arcs(&tangent(quarter - past), &around(quarter + 0.1), band),
             ),
             (
                 "in-band secant: the arc skips the facing point but ends across the line",
@@ -1590,14 +1678,14 @@ mod pair_contact_tests {
     }
 
     /// **A pair reads no contact only where its segments are apart**,
-    /// at `f64` and at `Interval`: decided-tangent carriers whose
-    /// tangency point one span misses and the other holds in band
-    /// escalate (the curves stay within ε for ≈ √(2rε) along the
-    /// carriers, so that point is not the only candidate), line × arc
-    /// and arc × arc; an in-band secant whose arc skips the facing
-    /// point but ends across the line is not certified clear; and a
-    /// definite line miss of a secant crossing is no contact whatever
-    /// the arc reads there.
+    /// at `f64` and at `Interval`. Decided-tangent carriers stay within
+    /// ε of each other for ≈ √(2rε) along them, so where one span misses
+    /// the tangency point the pair touches at an end that stands within
+    /// ε of the other segment, line × arc and arc × arc, and reads no
+    /// contact where every end is past that reach or off the other
+    /// span. An in-band secant whose arc skips the facing point but ends
+    /// across the line is not certified clear, and a definite line miss
+    /// of a secant crossing is no contact whatever the arc reads there.
     #[test]
     fn a_pair_reads_no_contact_only_off_both_segments() {
         let mut wrong_rows = wrong("f64", rows::<f64>());
