@@ -237,7 +237,8 @@ fn the_load_door_refuses_a_blank_or_direction_setting_label_and_a_label_on_a_dea
 }
 
 /// The load door speaks a node from the document it judges: a file
-/// whose `order` runs backwards refuses with its nodes' kinds and
+/// whose profile is drawn on the extrude after it refuses with its
+/// nodes' kinds and
 /// labels, read off the parsed document, and an id that document does
 /// not hold reads as a node.
 #[test]
@@ -250,10 +251,9 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
     let text = save(&doc, &[], tol).expect("saves");
     let (header, body) = text.split_once('\n').expect("a header line, then the body");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
-    v["snapshot"]["order"]
-        .as_array_mut()
-        .expect("the file carries its order")
-        .reverse();
+    let plane = &mut v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["plane"];
+    assert!(plane.is_string(), "the profile carries its plane");
+    *plane = serde_json::json!(extrude.0);
     match load(&format!("{header}\n{v}\n"), tol) {
         Err(PersistError::Snapshot(SnapshotError::ForwardInput { node, input })) => {
             assert!(
@@ -274,7 +274,7 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
                 "the sentence speaks the node with its label: {sentence}"
             );
         }
-        other => panic!("a backwards order refuses ForwardInput, got {other:?}"),
+        other => panic!("a forward input refuses ForwardInput, got {other:?}"),
     }
 }
 
@@ -586,14 +586,14 @@ fn a_load_root_refusal_speaks_the_labelled_node_from_the_file() {
         .fold(doc, |doc, &id| set_label(doc, id, Some("stranded")));
     let text = save(&doc, &[], tol).expect("the honest document saves");
     let honest = format!(
-        "\"roots\": [\n      {},\n      {}\n    ]",
+        "\"roots\": [\n      \"{}\",\n      \"{}\"\n    ]",
         kept.0, lost[2].0
     );
     assert!(
         text.contains(&honest),
         "the save's root list is the two tips"
     );
-    let crafted = text.replace(&honest, &format!("\"roots\": [\n      {}\n    ]", kept.0));
+    let crafted = text.replace(&honest, &format!("\"roots\": [\n      \"{}\"\n    ]", kept.0));
     let refused = match load(&crafted, tol) {
         Err(PersistError::Snapshot(SnapshotError::Roots(fault))) => fault,
         other => panic!("a crafted uncovered document refuses, got {other:?}"),

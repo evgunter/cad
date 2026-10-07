@@ -1060,13 +1060,13 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     let [frame, _, extrude, measure] = doc.ids()[..4] else {
         panic!("a slab and its measure");
     };
-    let target = format!("\"measure\": {}", measure.0);
+    let target = format!("\"measure\": \"{}\"", measure.0);
     assert_eq!(
         text.matches(&target).count(),
         1,
         "{target:?} must be unique"
     );
-    let corrupt = text.replace(&target, &format!("\"measure\": {}", frame.0));
+    let corrupt = text.replace(&target, &format!("\"measure\": \"{}\"", frame.0));
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionTarget { .. })) => {}
         other => panic!("a non-measure target must refuse AssertionTarget, got {other:?}"),
@@ -1074,10 +1074,10 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
 
     // (c) A reference whose minting node does not exist. The refs are
     // minted by the extrude.
-    let target = format!("\"node\": {},", extrude.0);
+    let target = format!("\"node\": \"{}\",", extrude.0);
     let n = text.matches(&target).count();
     assert!(n >= 1, "the measure's refs name the extrude");
-    let corrupt = text.replacen(&target, "\"node\": 77,", 1);
+    let corrupt = text.replacen(&target, "\"node\": \"0:000000000000004d\",", 1);
     match load(&corrupt, Tol::witness()) {
         // Two typed gates can own this corruption: the mint-log
         // check (77 was never minted) or the dangling-input walk.

@@ -255,7 +255,10 @@ fn a_delete_leaves_its_readers_unresolved() {
     assert!(loaded.bit_eq(&doc), "the round trip is exact");
 
     // A reader of an id the document never minted is a file fault.
-    let forged = text.replace(&format!("\"var\": {}", old.0), "\"var\": 1");
+    let forged = text.replace(
+        &format!("\"var\": \"{}\"", old.0),
+        "\"var\": \"0:0000000000000001\"",
+    );
     assert_ne!(forged, text, "the surgery is aimed at the reader");
     match load(&forged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
@@ -863,19 +866,19 @@ fn inline_repoints_readers_at_the_hosts_ids() {
 
 /// Split declares in the PARENT's declaration order and inline in the
 /// PART's, so each document lists its variables as its author did, not
-/// in id order (ids are digest output).
+/// in digest order.
 #[test]
 fn split_and_inline_declare_in_declaration_order() {
     let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-order"), Tol::witness());
     let doc = ["p", "q", "r", "s"]
         .into_iter()
         .fold(doc, |doc, name| declare(&doc, name, 0.25));
-    let mut by_id = doc.var_ids().to_vec();
-    by_id.sort_unstable();
+    let mut by_digest = doc.var_ids();
+    by_digest.sort_unstable_by_key(|id| id.0.digest());
     assert_ne!(
         doc.var_ids(),
-        by_id.as_slice(),
-        "the fixture's premise: declaration order is not id order"
+        by_digest,
+        "the fixture's premise: declaration order is not digest order"
     );
     let sum = ["q", "r", "s"].into_iter().fold(named("p"), |sum, name| {
         Formula::add(sum, named(name)).expect("lengths add")
@@ -906,11 +909,11 @@ fn split_and_inline_declare_in_declaration_order() {
         Tol::witness(),
     )
     .expect("the part inlines");
-    let mut part_by_id = out.part.var_ids().to_vec();
-    part_by_id.sort_unstable();
+    let mut part_by_digest = out.part.var_ids();
+    part_by_digest.sort_unstable_by_key(|id| id.0.digest());
     assert_ne!(
         out.part.var_ids(),
-        part_by_id.as_slice(),
+        part_by_digest,
         "the premise again"
     );
     assert_eq!(declared_names(&inlined.doc), declared_names(&out.part));

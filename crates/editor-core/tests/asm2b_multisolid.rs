@@ -381,7 +381,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// the mint gives the part's nodes or steps other ids; the VOLUME bits
 /// and the solid count beside it are id-free, which is the half of this
 /// row that is about geometry.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 255_888_501_987_147_043;
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 5_696_894_641_922_186_103;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

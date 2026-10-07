@@ -314,7 +314,7 @@ fn the_table_round_trips_with_its_var_mint_arm() {
     let doc = twins();
     let text = save(&doc, &[], Tol::witness()).unwrap();
     for name in ["w", "v"] {
-        let tag = format!("\"var\": {}", id(&doc, name).0);
+        let tag = format!("\"var\": \"{}\"", id(&doc, name).0);
         assert_eq!(text.matches(&tag).count(), 1, "{name}'s mint entry");
     }
     let back = load(&text, Tol::witness()).unwrap().doc;
@@ -438,7 +438,7 @@ fn a_variable_the_mint_never_minted_refuses_at_load() {
 #[test]
 fn a_name_on_no_variable_refuses_at_load() {
     let err = load_doctored(|snap, _, _| {
-        snap["var_names"]["99"] = serde_json::json!("ghost");
+        snap["var_names"]["0:0000000000000063"] = serde_json::json!("ghost");
     });
     assert_eq!(
         err,

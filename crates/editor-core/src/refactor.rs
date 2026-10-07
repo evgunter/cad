@@ -2721,7 +2721,7 @@ pub fn split(
                 let outside = derivation_nodes(name)
                     .into_iter()
                     .filter(|id| !cut.contains(id))
-                    .min();
+                    .min_by_key(|id| (doc.node(*id).is_none(), *id));
                 if let Some(missing) = outside {
                     return Err(SplitError::PartNameReachesRemainder {
                         node: doc.spoken(node),

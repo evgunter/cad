@@ -280,7 +280,7 @@ impl Formula {
     /// a RENDERING, not the caller's original string — whitespace and
     /// redundant parentheses are the parser's to normalise. A name is
     /// written as authored; a reader of a variable by id has no name
-    /// here and writes its full id, `#<16 hex>`, which the parser does
+    /// here and writes its full id, `#<ordinal>:<16 hex>`, which the parser does
     /// not read.
     #[getter]
     fn text(&self) -> String {
@@ -362,7 +362,7 @@ impl Expr {
     }
 
     /// The source text this expression reads back as (`unparse`), a
-    /// variable written as its full id, `#<16 hex>`; `Doc.unparse`
+    /// variable written as its full id, `#<ordinal>:<16 hex>`; `Doc.unparse`
     /// writes the names a document holds.
     #[getter]
     fn text(&self) -> String {

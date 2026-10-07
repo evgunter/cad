@@ -599,8 +599,8 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         serde_json::json!({
             "Mate": {
                 "class": "rest",
-                "outer": { "kind": "Face", "node": 3, "path": [{ "Cap": "Start" }] },
-                "inner": { "kind": "Face", "node": 5, "path": [{ "Cap": "Start" }] },
+                "outer": { "kind": "Face", "node": "0:0000000000000003", "path": [{ "Cap": "Start" }] },
+                "inner": { "kind": "Face", "node": "0:0000000000000005", "path": [{ "Cap": "Start" }] },
             }
         })
     );

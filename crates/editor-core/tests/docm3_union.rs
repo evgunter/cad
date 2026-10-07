@@ -305,7 +305,10 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         editor_core::persist::load(&tampered, tol)
     };
     // A repeated member in the union's list.
-    let err = corrupt(format!("{},{},{}", boxes[0].0, boxes[1].0, boxes[0].0))
+    let err = corrupt(format!(
+        "\"{}\",\"{}\",\"{}\"",
+        boxes[0].0, boxes[1].0, boxes[0].0
+    ))
         .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
     let editor_core::PersistError::Snapshot(editor_core::SnapshotError::DuplicateInput {
@@ -323,7 +326,7 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         "{said}"
     );
     // And a list left under two.
-    let err = corrupt(format!("{}", boxes[0].0)).expect_err("a one-member union must refuse");
+    let err = corrupt(format!("\"{}\"", boxes[0].0)).expect_err("a one-member union must refuse");
     let said = format!("{err}");
     assert!(said.contains("two or more"), "{said}");
 }

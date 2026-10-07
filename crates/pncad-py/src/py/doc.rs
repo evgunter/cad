@@ -1570,7 +1570,7 @@ impl Doc {
 
     /// **The text of `expr`**, each variable it reads written by the
     /// name this document holds for it (`Doc::unparse`); one with no
-    /// name here writes its full id, `#<16 hex>`.
+    /// name here writes its full id, `#<ordinal>:<16 hex>`.
     fn unparse(&self, expr: super::expr::EitherForm) -> String {
         match expr {
             super::expr::EitherForm::Formula(formula) => self.inner.unparse(&formula.0),
@@ -3375,7 +3375,8 @@ pub(crate) struct Var(pub(crate) d::VarId);
 
 #[pymethods]
 impl Var {
-    /// The id with every bit shown: sixteen lowercase hex digits.
+    /// The whole id: its mint ordinal, a colon, and its digest as sixteen
+    /// lowercase hex digits.
     #[getter]
     fn hex(&self) -> String {
         self.0.full().to_string()
@@ -4561,9 +4562,8 @@ impl DocEdit {
     /// is not a step of its loop's new program. Refuses
     /// `step_ids_refused` before the program is replayed —
     /// `inner_variant` says which way the ids are wrong (`loop_count`,
-    /// `shape`, `not_this_profiles`, `repeated`, or `collides` for a new
-    /// id the document's mint log already holds; `not_minted`, an id the
-    /// log lacks, is the load door's word for the same family) —
+    /// `shape`, `not_this_profiles`, or `repeated`; `not_minted`, an id
+    /// the log lacks, is the load door's word for the same family) —
     /// `set_program_on_non_profile`
     /// for a node holding no program, and then everything an insert
     /// refuses of a profile: `slot_unknown_var_name` and its siblings

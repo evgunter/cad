@@ -902,7 +902,7 @@ fn row7_the_validator_refuses_gauge_states_the_edits_cannot_produce() {
 
     // Point the instance's gauge at the profile node — a state no edit
     // door can produce.
-    let corrupt = text.replacen("\"gauge\": null", &format!("\"gauge\": {}", other.0), 1);
+    let corrupt = text.replacen("\"gauge\": null", &format!("\"gauge\": \"{}\"", other.0), 1);
     assert_ne!(corrupt, text, "the corruption really landed");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::NotAGauge { node, gauge })) => {

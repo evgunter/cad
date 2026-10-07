@@ -2193,7 +2193,7 @@ class TestMateFrameFromFace(BenchWorkspace):
                     yield from inner_names(child, depth + 1)
 
         (local,) = list(inner_names(spelled))
-        local["node"] = 99
+        local["node"] = "0:0000000000000063"
         with self.assertRaises(pncad.EditError) as caught:
             self.seated(
                 "from-face-vanished",

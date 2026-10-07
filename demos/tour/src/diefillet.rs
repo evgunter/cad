@@ -496,7 +496,7 @@ pub fn corpus_text(tol: Tol) -> String {
     let empty: Doc<ProfileProgram> = Doc::empty_derived(DOC_LABEL, tol);
     let mut edits: Vec<DocEdit<ProfileProgram>> = die
         .doc
-        .order()
+        .ids()
         .iter()
         .map(|id| {
             let mut node = die
@@ -525,7 +525,7 @@ pub fn corpus_text(tol: Tol) -> String {
     // them again in the same order; that precondition is checked
     // profile by profile, so a `build` that mints a step any other way
     // fails here by name.
-    for id in die.doc.order() {
+    for id in &die.doc.ids() {
         if let (Some(Node::Profile(built)), Some(Node::Profile(replayed))) =
             (die.doc.node(*id), replay.node(*id))
         {

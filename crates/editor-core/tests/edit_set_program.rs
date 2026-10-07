@@ -998,7 +998,7 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     let wire = serde_json::to_string(&edit).expect("serializes");
     assert_eq!(
         wire,
-        r#"{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
+        r#"{"SetProgram":{"node":"0:0000000000000001","loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
     );
 
     let r = rod("set-program-old-file", &[CREASE]);
@@ -1028,6 +1028,13 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     );
     let no_ids = format!("{header}\n{v}\n");
     unreadable(&no_ids, "ids");
+    // A step id spelled as one integer, as a file from before ids were
+    // a pair spells it.
+    let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let step = &mut v["snapshot"]["nodes"][r.profile.0.to_string()]["Profile"]["ids"][0][0];
+    assert!(step.is_string(), "a step id is spelled as a string: {step}");
+    *step = serde_json::json!(5);
+    unreadable(&format!("{header}\n{v}\n"), "an id: its mint ordinal");
     // A positional locator in a name, written compact so the piece is
     // one run of bytes.
     let compact: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");

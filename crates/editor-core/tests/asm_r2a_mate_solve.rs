@@ -1457,7 +1457,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
             serde_json::json!(ids[2].0),
             "the probe is aimed at the `b` head"
         );
-        head["node"] = serde_json::json!(99);
+        head["node"] = serde_json::json!(RecipeNodeId::new(0, 99).0);
     });
     match load(&corrupt, Tol::witness()) {
         Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::NodeNotMinted {

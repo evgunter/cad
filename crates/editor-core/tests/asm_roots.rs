@@ -261,12 +261,15 @@ fn row2b_coverage_refuses_on_a_crafted_save() {
     );
     let (doc, _, b) = block(doc, 5.0);
     let text = save(&doc, &[], Tol::witness()).expect("the honest document saves");
-    let honest = format!("\"roots\": [\n      {},\n      {}\n    ]", a.0, b.0);
+    let honest = format!(
+        "\"roots\": [\n      \"{}\",\n      \"{}\"\n    ]",
+        a.0, b.0
+    );
     assert!(
         text.contains(&honest),
         "the save's root list must be the two tips, in order"
     );
-    let crafted = text.replace(&honest, &format!("\"roots\": [\n      {}\n    ]", a.0));
+    let crafted = text.replace(&honest, &format!("\"roots\": [\n      \"{}\"\n    ]", a.0));
     match load(&crafted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::Roots(RootFault::Uncovered { node }))) => {
             assert!(

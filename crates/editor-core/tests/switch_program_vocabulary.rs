@@ -1341,6 +1341,8 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
                     walk(item, out);
                 }
             }
+            // An id is data, as a number is, not vocabulary.
+            serde_json::Value::String(s) if editor_core::MintId::parse(s).is_some() => {}
             serde_json::Value::String(s) => {
                 out.insert(s.clone());
             }

@@ -514,7 +514,7 @@ fn run_status_round_trips_its_json_and_keeps_its_key_bytes() {
     }
     .key();
     assert_eq!(
-        key.0, 70_071_079_698_853_325_673_526_678_003_706_389_063,
+        key.0, 178_193_576_661_365_722_920_786_752_962_532_883_911,
         "the four outcomes' key bytes"
     );
 }

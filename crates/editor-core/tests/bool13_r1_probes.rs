@@ -390,39 +390,33 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 /// than the break is the additive half, so this exemplar is written by
 /// today's writer and kept minimal: its node vocabulary is
 /// {Datum, Profile, Extrude} and nothing newer, so the row still says
-/// that a document lacking every later arm loads. Re-frozen again when
-/// a profile's steps gained minted ids (the program's `ids` and the
-/// document's step counter), the same kind of break, and again when the
-/// counter became the step mint's chain and log, again when node
-/// ids moved onto that mint, and again when an extrude's side became
-/// a required field.
+/// that a document lacking every later arm loads. It is re-frozen, by
+/// today's writer, at each such break.
 const OLDER_SHAPED: &str = concat!(
     "id: 5705d8de0c4b9f14e73725e6a1030c11\n",
-    "{\"snapshot\":{\"id\":\"5705d8de0c4b9f14e73725e6a1030c11\",\"mint\":{\"chain\":\"cc6dde98e4",
-    "3cf05e54e95e58154e9db51456fc7826937bf8e98225949f7f68c4\",\"log\":[{\"step\":543127547",
-    "1832655693},{\"step\":6158057670549142566},{\"node\":11240919837605776152},{\"step\":1",
-    "2112871840740167342},{\"node\":14730674704444354654},{\"node\":16481222604345390933}",
-    ",{\"step\":17213631338936430399},{\"step\":17841264794356394216}]},\"nodes\":{\"1124091",
-    "9837605776152\":{\"Profile\":{\"plane\":16481222604345390933,\"loops\":[{\"Chain\":[{\"At\"",
-    ":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"d",
-    "im\":\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"L",
-    "ength\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"Lin",
-    "eTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"",
-    "value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value",
-    "\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
-    "\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[17841264794356394216,12112871840740167342",
-    ",5431275471832655693,17213631338936430399,6158057670549142566]]}},\"1473067470444",
-    "4354654\":{\"Extrude\":{\"profile\":11240919837605776152,\"distance\":{\"Literal\":{\"valu",
-    "e\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},\"side\":\"along\"}},\"16481222604345390933\":{\"Dat",
-    "um\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Li",
-    "teral\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"L",
-    "ength\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"L",
-    "iteral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"S",
-    "calar\",\"unit\":\"\"}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Li",
-    "teral\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Sc",
-    "alar\",\"unit\":\"\"}}]}}}},\"order\":[16481222604345390933,11240919837605776152,147306",
-    "74704444354654],\"roots\":[14730674704444354654],\"vars\":{},\"epsilon\":1e-09,\"witne",
-    "sses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "{\"snapshot\":{\"id\":\"5705d8de0c4b9f14e73725e6a1030c11\",\"mint\":{\"chain\":\"fd808fec05a615",
+    "c1986db8006fc68b17988b1f7472447112ef718a12aef2f55f\",\"log\":[{\"node\":\"1:e4b910a32c2537",
+    "55\"},{\"node\":\"2:07acb0c44b483e8b\"},{\"step\":\"3:b1be4336edd66bef\"},{\"step\":\"4:3d7e1d49",
+    "15191807\"},{\"step\":\"5:a189d512c0a89c5a\"},{\"step\":\"6:2cf3fbf714849f07\"},{\"step\":\"7:ac",
+    "aa935fd3561592\"},{\"node\":\"8:fd808fec05a615c1\"}]},\"nodes\":{\"1:e4b910a32c253755\":{\"Dat",
+    "um\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Litera",
+    "l\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"",
+    "unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"va",
+    "lue\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"",
+    "}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":1.0,",
+    "\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}}]}}},\"2",
+    ":07acb0c44b483e8b\":{\"Profile\":{\"plane\":\"1:e4b910a32c253755\",\"loops\":[{\"Chain\":[{\"At\"",
+    ":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":",
+    "\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"",
+    "unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{\"Point",
+    "\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\"",
+    ":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\"",
+    ",\"unit\":\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Star",
+    "t\"}]}],\"ids\":[[\"3:b1be4336edd66bef\",\"4:3d7e1d4915191807\",\"5:a189d512c0a89c5a\",\"6:2cf",
+    "3fbf714849f07\",\"7:acaa935fd3561592\"]]}},\"8:fd808fec05a615c1\":{\"Extrude\":{\"profile\":\"",
+    "2:07acb0c44b483e8b\",\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},\"",
+    "side\":\"along\"}}},\"roots\":[\"8:fd808fec05a615c1\"],\"vars\":{},\"epsilon\":1e-09,\"witnesses",
+    "\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -438,16 +432,17 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
     let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
     assert_ne!(text, OLDER_SHAPED);
     let v: serde_json::Value = serde_json::from_str(text.split_once('\n').unwrap().1).unwrap();
-    // In document order: the node map is keyed by minted id.
+    // In document order: the node map is keyed by minted id, which
+    // orders as the nodes were inserted.
     let nodes = v["snapshot"]["nodes"].as_object().unwrap();
-    let tags: Vec<&String> = v["snapshot"]["order"]
-        .as_array()
-        .unwrap()
+    let mut keyed: Vec<(editor_core::MintId, &serde_json::Value)> = nodes
         .iter()
-        .map(|id| {
-            let node = &nodes[&id.as_u64().unwrap().to_string()];
-            node.as_object().unwrap().keys().next().unwrap()
-        })
+        .map(|(id, node)| (editor_core::MintId::parse(id).unwrap(), node))
+        .collect();
+    keyed.sort_by_key(|&(id, _)| id);
+    let tags: Vec<&String> = keyed
+        .iter()
+        .map(|(_, node)| node.as_object().unwrap().keys().next().unwrap())
         .collect();
     assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
     let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");

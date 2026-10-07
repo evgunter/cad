@@ -2182,8 +2182,10 @@ fn the_persist_doors_nested_arms_carry_their_own_word() {
     };
     assert_eq!(distribution_fault_tag(&distribution), "non_finite");
 
-    let snapshot = SnapshotError::OrderMismatch;
-    assert_eq!(snapshot_error_tag(&snapshot), "order_mismatch");
+    let snapshot = SnapshotError::NodeNotMinted {
+        id: pncad::document::SpokenNode::absent(RecipeNodeId(7)),
+    };
+    assert_eq!(snapshot_error_tag(&snapshot), "node_not_minted");
 
     let replayed = EditError::UnknownNode {
         id: pncad::document::SpokenNode::absent(RecipeNodeId(7)),
@@ -3014,12 +3016,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             holder: spv(),
         },
         &["param"],
-    );
-    carries(
-        &E::VarIdCollides {
-            id: pncad::document::VarId(9),
-        },
-        &[],
     );
     carries(
         &E::VarKindFixed {
@@ -4979,7 +4975,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_unversioned",
             "name_step_never_minted",
             "name_unresolved_in_evaluation",
-            "node_id_collides",
             "non_finite_alignment",
             "non_finite_placement",
             "non_finite_var",
@@ -5028,7 +5023,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "update_on_non_instance",
             "var_count_has_no_distribution",
             "var_count_has_no_unit",
-            "var_id_collides",
             "var_kind_fixed",
             "var_name_taken",
             "var_name_unchanged",
@@ -6001,7 +5995,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_step_not_minted",
             "node_not_minted",
             "not_a_gauge",
-            "order_mismatch",
             "payload_var_kind",
             "placement_improper",
             "placement_non_finite",
@@ -6014,7 +6007,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "var_kind",
             "var_name_twice",
             "var_not_minted",
-            "var_order_mismatch",
             "witness_on_missing_node",
             "witness_site",
         ],
@@ -6086,7 +6078,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "step_id_fault_tag",
         values: &[
-            "collides",
             "loop_count",
             "not_minted",
             "not_this_profiles",

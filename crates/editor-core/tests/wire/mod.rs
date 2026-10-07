@@ -99,31 +99,29 @@ pub fn wire_undeclare(wire: &mut serde_json::Value, name: &str) {
         .as_object_mut()
         .expect("the variables are a map");
     assert!(vars.remove(&id).is_some(), "and the variable");
-    let order = wire["snapshot"]["var_order"]
-        .as_array_mut()
-        .expect("the declaration order is a list");
-    let before = order.len();
-    order.retain(|listed| *listed != serde_json::json!(id.parse::<u64>().expect("an id key")));
-    assert_eq!(order.len(), before - 1, "and its place in the order");
 }
 
 /// The variable `name` removed from a saved snapshot AND from its mint
-/// log, so its readers read an id the document never minted — the
-/// file-only fault ([`wire_undeclare`] alone leaves them a deleted
-/// variable's readers, which is legal).
+/// log as a variable's, so its readers read an id the document never
+/// minted as a variable — the file-only fault ([`wire_undeclare`] alone
+/// leaves them a deleted variable's readers, which is legal). The log
+/// entry is retagged a node's rather than dropped, so the log still
+/// counts up from one.
 ///
 /// # Panics
 ///
 /// As [`wire_undeclare`]'s, and when the log does not hold the id.
 pub fn wire_unmint(wire: &mut serde_json::Value, name: &str) {
-    let id: u64 = wire_var_key(wire, name).parse().expect("an id key");
+    let id = serde_json::Value::from(wire_var_key(wire, name));
     wire_undeclare(wire, name);
     let log = wire["snapshot"]["mint"]["log"]
         .as_array_mut()
         .expect("the mint log is a list");
-    let before = log.len();
-    log.retain(|entry| *entry != serde_json::json!({ "var": id }));
-    assert_eq!(log.len(), before - 1, "and its mint log entry");
+    let entry = log
+        .iter_mut()
+        .find(|entry| entry["var"] == id)
+        .expect("its mint log entry");
+    *entry = serde_json::json!({ "node": id });
 }
 
 /// The continuous variable `name` retyped in a saved snapshot, from

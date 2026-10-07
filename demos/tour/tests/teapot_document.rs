@@ -695,7 +695,7 @@ fn a_split_carries_a_held_slits_band() {
     );
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =
-        doc.order().iter().copied().filter(|&n| n != lead).collect();
+        doc.ids().iter().copied().filter(|&n| n != lead).collect();
     let out = split(&doc, &cut, DocumentId::derive("teapot-lid-part"), tol, None)
         .expect("the lid splits out whole");
     let (part_rolled, part_holder) = (out.node_map[&rolled], out.node_map[&holder]);

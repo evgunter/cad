@@ -2697,7 +2697,7 @@ mod tests {
         }
         assert_eq!(
             serde_json::to_string(&edges()[0]).expect("serializes"),
-            r#"{"Piece":{"step":3,"role":"RunOut"}}"#
+            r#"{"Piece":{"step":"0:0000000000000003","role":"RunOut"}}"#
         );
         assert_eq!(
             serde_json::to_string(&edges()[1]).expect("serializes"),

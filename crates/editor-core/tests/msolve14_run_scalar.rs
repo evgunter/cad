@@ -893,7 +893,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// pose against the `f64` solve at the box's corners, each tangent
 /// against its central difference) are what say so.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xf48f_16a4_8637_1664),
+    (1e-9, 0x4700_d001_e19c_2048),
     (1e-6, 0x0ac7_65d7_0799_cca4),
     (1e-12, 0x9fb4_cf13_44e6_9ea8),
 ];

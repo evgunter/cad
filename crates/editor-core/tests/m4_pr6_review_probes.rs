@@ -764,13 +764,13 @@ fn duplicate_keys_refuse_in_every_map() {
 /// duplicate keys too (same strict-map door).
 #[test]
 fn duplicate_keys_refuse_in_verdict_summaries() {
-    let json = r#"{"nodes":{"0":{"status":"Ok","populations":{"p":[1,0,0],"p":[0,1,0]}}}}"#;
+    let json = r#"{"nodes":{"0:0000000000000000":{"status":"Ok","populations":{"p":[1,0,0],"p":[0,1,0]}}}}"#;
     let r: Result<editor_core::VerdictSummary, _> = serde_json::from_str(json);
     let e = r
         .expect_err("duplicate population key must refuse")
         .to_string();
     assert!(e.contains("duplicate verdict population key"), "{e}");
-    let json = r#"{"nodes":{"0":{"status":"Ok","populations":{}},"0":{"status":"Failed","populations":{}}}}"#;
+    let json = r#"{"nodes":{"0:0000000000000000":{"status":"Ok","populations":{}},"0:0000000000000000":{"status":"Failed","populations":{}}}}"#;
     let r: Result<editor_core::VerdictSummary, _> = serde_json::from_str(json);
     let e = r
         .expect_err("duplicate summary node key must refuse")

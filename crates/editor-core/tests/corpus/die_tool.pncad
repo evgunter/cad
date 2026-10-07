@@ -3,65 +3,368 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
     "mint": {
-      "chain": "e1c01505299f6bc37b3579616cdceca4350d0691e0a02be7db63ca2571784334",
+      "chain": "eec87d442132bf9edb5fe0df804194226016948e396a7eba0c801e0a00046a87",
       "log": [
         {
-          "step": 801867572576754274
+          "node": "1:e4b910a32c253755"
         },
         {
-          "step": 3132562389371768467
+          "node": "2:07acb0c44b483e8b"
         },
         {
-          "node": 3889727528728888197
+          "step": "3:b1be4336edd66bef"
         },
         {
-          "step": 5431275471832655693
+          "step": "4:3d7e1d4915191807"
         },
         {
-          "step": 6158057670549142566
+          "step": "5:a189d512c0a89c5a"
         },
         {
-          "step": 9154064997254977567
+          "step": "6:2cf3fbf714849f07"
         },
         {
-          "node": 11240919837605776152
+          "step": "7:acaa935fd3561592"
         },
         {
-          "node": 11463835266186813179
+          "node": "8:fd808fec05a615c1"
         },
         {
-          "step": 12112871840740167342
+          "node": "9:c25d3b1315273c13"
         },
         {
-          "node": 13663044880076011334
+          "node": "10:6f0ec9f412fce907"
         },
         {
-          "node": 14730674704444354654
+          "node": "11:a2c3f70eb150ba71"
         },
         {
-          "node": 16267024965979564995
+          "step": "12:1dc2dcdb597a583c"
         },
         {
-          "node": 16481222604345390933
+          "step": "13:fc7bb804f3f19664"
         },
         {
-          "node": 16710801548317513817
+          "step": "14:073b0b4d5091625d"
         },
         {
-          "step": 17213631338936430399
+          "node": "15:0ac5f3a8cf8cc582"
         },
         {
-          "step": 17841264794356394216
+          "node": "16:7c199f04d9a43653"
         },
         {
-          "node": 17901332500841477899
+          "node": "17:eec87d442132bf9e"
         }
       ]
     },
     "nodes": {
-      "3889727528728888197": {
+      "1:e4b910a32c253755": {
+        "Datum": {
+          "Frame": {
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "2:07acb0c44b483e8b": {
         "Profile": {
-          "plane": 11463835266186813179,
+          "plane": "1:e4b910a32c253755",
+          "loops": [
+            {
+              "Chain": [
+                {
+                  "At": [
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": "Start"
+                }
+              ]
+            }
+          ],
+          "ids": [
+            [
+              "3:b1be4336edd66bef",
+              "4:3d7e1d4915191807",
+              "5:a189d512c0a89c5a",
+              "6:2cf3fbf714849f07",
+              "7:acaa935fd3561592"
+            ]
+          ]
+        }
+      },
+      "8:fd808fec05a615c1": {
+        "Extrude": {
+          "profile": "2:07acb0c44b483e8b",
+          "distance": {
+            "Literal": {
+              "value": 1.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          },
+          "side": "along"
+        }
+      },
+      "9:c25d3b1315273c13": {
+        "Datum": {
+          "Frame": {
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "10:6f0ec9f412fce907": {
+        "Datum": {
+          "AxisInPlane": {
+            "plane": "9:c25d3b1315273c13",
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "direction": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "11:a2c3f70eb150ba71": {
+        "Profile": {
+          "plane": "9:c25d3b1315273c13",
           "loops": [
             {
               "Chain": [
@@ -122,193 +425,17 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ],
           "ids": [
             [
-              9154064997254977567,
-              3132562389371768467,
-              801867572576754274
+              "12:1dc2dcdb597a583c",
+              "13:fc7bb804f3f19664",
+              "14:073b0b4d5091625d"
             ]
           ]
         }
       },
-      "11240919837605776152": {
-        "Profile": {
-          "plane": 16481222604345390933,
-          "loops": [
-            {
-              "Chain": [
-                {
-                  "At": [
-                    {
-                      "Literal": {
-                        "value": 0.0,
-                        "dim": "Length",
-                        "unit": "m"
-                      }
-                    },
-                    {
-                      "Literal": {
-                        "value": 0.0,
-                        "dim": "Length",
-                        "unit": "m"
-                      }
-                    }
-                  ]
-                },
-                {
-                  "LineTo": {
-                    "Point": [
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 0.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "LineTo": {
-                    "Point": [
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "LineTo": {
-                    "Point": [
-                      {
-                        "Literal": {
-                          "value": 0.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "LineTo": "Start"
-                }
-              ]
-            }
-          ],
-          "ids": [
-            [
-              17841264794356394216,
-              12112871840740167342,
-              5431275471832655693,
-              17213631338936430399,
-              6158057670549142566
-            ]
-          ]
-        }
-      },
-      "11463835266186813179": {
-        "Datum": {
-          "Frame": {
-            "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
-            ],
-            "u": [
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ],
-            "v": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ]
-          }
-        }
-      },
-      "13663044880076011334": {
+      "15:0ac5f3a8cf8cc582": {
         "Revolve": {
-          "profile": 3889727528728888197,
-          "axis": 16710801548317513817,
+          "profile": "11:a2c3f70eb150ba71",
+          "axis": "10:6f0ec9f412fce907",
           "angle": {
             "Literal": {
               "value": 6.283185307179586,
@@ -318,144 +445,9 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "14730674704444354654": {
-        "Extrude": {
-          "profile": 11240919837605776152,
-          "distance": {
-            "Literal": {
-              "value": 1.0,
-              "dim": "Length",
-              "unit": "m"
-            }
-          },
-          "side": "along"
-        }
-      },
-      "16267024965979564995": {
-        "Boolean": {
-          "op": "Subtract",
-          "a": 14730674704444354654,
-          "b": 17901332500841477899,
-          "declare": []
-        }
-      },
-      "16481222604345390933": {
-        "Datum": {
-          "Frame": {
-            "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
-            ],
-            "u": [
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ],
-            "v": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ]
-          }
-        }
-      },
-      "16710801548317513817": {
-        "Datum": {
-          "AxisInPlane": {
-            "plane": 11463835266186813179,
-            "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
-            ],
-            "direction": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ]
-          }
-        }
-      },
-      "17901332500841477899": {
+      "16:7c199f04d9a43653": {
         "PlacedUnion": {
-          "input": 13663044880076011334,
+          "input": "15:0ac5f3a8cf8cc582",
           "count": null,
           "kind": {
             "Explicit": [
@@ -606,21 +598,18 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
             ]
           }
         }
+      },
+      "17:eec87d442132bf9e": {
+        "Boolean": {
+          "op": "Subtract",
+          "a": "8:fd808fec05a615c1",
+          "b": "16:7c199f04d9a43653",
+          "declare": []
+        }
       }
     },
-    "order": [
-      16481222604345390933,
-      11240919837605776152,
-      14730674704444354654,
-      11463835266186813179,
-      16710801548317513817,
-      3889727528728888197,
-      13663044880076011334,
-      17901332500841477899,
-      16267024965979564995
-    ],
     "roots": [
-      16267024965979564995
+      "17:eec87d442132bf9e"
     ],
     "vars": {},
     "epsilon": 1e-9,

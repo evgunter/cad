@@ -1194,7 +1194,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             },
             vec![
                 "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
-                "does not precede it",
+                "was not inserted before it",
             ],
         ),
         (
@@ -1231,7 +1231,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
             },
             vec![
-                "#0000000000070000 is not in the document's mint log",
+                "#0:0000000000070000 is not in the document's mint log",
                 "never minted",
             ],
         ),
@@ -1240,7 +1240,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
             },
             vec![
-                "#0000000000070000 has no name and nothing reads it",
+                "#0:0000000000070000 has no name and nothing reads it",
                 "one something reads",
             ],
         ),
@@ -1253,7 +1253,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 read: editor_core::VarId::new(0, tagged(8)),
             },
             vec![
-                "the definition of h reads variable #0000000000080000",
+                "the definition of h reads variable #0:0000000000080000",
                 "never minted",
             ],
         ),
@@ -1310,7 +1310,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 name: VarName::from_static("width"),
             },
             vec![
-                "the name width is attached to variable #0000000000070000",
+                "the name width is attached to variable #0:0000000000070000",
                 "not live",
             ],
         ),
@@ -1320,7 +1320,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 a: editor_core::VarId::new(0, tagged(7)),
                 b: editor_core::VarId::new(0, tagged(8)),
             },
-            vec!["width is held by two variables, #0000000000070000 and #0000000000080000"],
+            vec!["width is held by two variables, #0:0000000000070000 and #0:0000000000080000"],
         ),
         (
             SnapshotError::SlotDimension {
@@ -1340,7 +1340,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::VarId::new(0, tagged(7)),
             },
             vec![
-                "Extrude \"base plate\" (000000000005) reads variable #0000000000070000",
+                "Extrude \"base plate\" (000000000005) reads variable #0:0000000000070000",
                 "never minted",
             ],
         ),
@@ -3087,7 +3087,7 @@ fn maintenance_display_says_what_the_edit_did() {
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
             },
             vec![
-                "nothing reading #0000000000070000",
+                "nothing reading #0:0000000000070000",
                 "went with its last reader",
             ],
         ),
@@ -3754,7 +3754,7 @@ fn a_clearance_selection_payload_prints_the_full_id_and_its_words_the_tag() {
     let refusal = ClearanceRefusal::Selection(SelectionRefusal::NoSuchBody { node, index: 2 });
     assert_eq!(
         refusal.payload(),
-        "no_such_body node=3fa9c1d2a0b10042 index=2"
+        "no_such_body node=0:3fa9c1d2a0b10042 index=2"
     );
     let ClearanceRefusal::Selection(selection) = &refusal else {
         unreachable!("built above");
@@ -3769,6 +3769,6 @@ fn a_clearance_selection_payload_prints_the_full_id_and_its_words_the_tag() {
     });
     assert_eq!(
         standing.payload(),
-        "node_did_not_build poisoned node=3fa9c1d2a0b10042 through=0000000000000007"
+        "node_did_not_build poisoned node=0:3fa9c1d2a0b10042 through=0:0000000000000007"
     );
 }

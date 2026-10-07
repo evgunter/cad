@@ -744,7 +744,7 @@ mod tests {
     const ALPHABET: &[(&str, u8, Shape)] = &[
         ("T_LITERAL", T_LITERAL, Shape::Leaf(9)),
         ("T_COUNT_LITERAL", T_COUNT_LITERAL, Shape::Leaf(8)),
-        ("T_VAR", T_VAR, Shape::Leaf(8)),
+        ("T_VAR", T_VAR, Shape::Leaf(12)),
         ("T_ADD", T_ADD, Shape::Binary),
         ("T_SUB", T_SUB, Shape::Binary),
         ("T_NEG", T_NEG, Shape::Unary),
