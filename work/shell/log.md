@@ -1271,3 +1271,24 @@ Correspondence pre-note:
 - **Tally candidate:** R1's document-path MAJOR (unilateral, contract/API, demonstrated by a red probe, fair pair). Blinded coding is pending.
 
 A ten-item fix list has been sent to the lane, and both reviewers are archived.
+
+## 2026-10-07 03:20 — unit 7 MERGED; the 2026-10-06 cut is complete
+
+PR 4191 merged at `8e4dd542`.
+- **CI:** green on `906f806c`. The branch's last two pushes had triggered no CI run, and the merge of main restarted it.
+- **Review log:** the dual-review row is DR-97, renumbered because main took DR-95 (PCERT) and DR-96 (BAND) first. Tally 26 (R1's document-path MAJOR); fair pairs that found a MAJOR, 47.
+- **Item:** `shell-open-refuses-a-curved-designated-face` is closed. The lane session is archived.
+- **Merge conflict:** `pcurves.rs`'s `chart_boundary` takes main's `chart_u_period`. Shell's own `chart_period` keeps the kind rule for its one reader. The local shell/chart/pcurve suites ran 700/700 on the merged tree.
+
+DR-91 (unit 6, PR 4151) recorded protocol `713b017b7`. That was a shallow-clone misread: the last commit touching `docs/DUAL-REVIEW-PROTOCOL.md` is `7cb05367ef`, and this tracker PR corrects the cell. DR-97 carries the right hash.
+
+All seven units of the cut are merged:
+- 4111, pole ball;
+- 4112, AtRestBody operand;
+- 4115, planar gate;
+- 4117, lofted wall seam;
+- 4163, refusal text;
+- 4151, klein lift;
+- 4191, curved designated face.
+
+`plan.md` now carries the next cut as units 8–12. Two items are P1: the tilted planar walls (a silent wrong body) and the lofted oblique corner.
