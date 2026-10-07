@@ -281,17 +281,17 @@ fn eps_row(eps: f64) -> usize {
 /// the anonymous definition a slot's formula lowers to.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest ebd5dc4da3bdeaa10c0afd94b42b2d87\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest c5a152514b522899526a41668175a0de\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest 5206c920343d6282631593785c59fd94\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest 3db9ed51fb47a298354b2832b038c78a",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 8494d680ab698df2f3469e823fc87b98\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest e7826bcc06fc0e40f560d482194172fe\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest bcfbe11c2bdeed2409771fd302947d91\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest e17861a58d5e7b4a5b43d4001d4bce08",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 22f0ef9b79cc104cbde46fca27614b59\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest bcfbe11bda9c90c6b10f188ca7b67066\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest 88893d9f9257c4f96979ed9188e3ff26\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest 4265056406dca4880d3caf74f355b9cb",
@@ -497,7 +497,7 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   other line holds; the untoleranced variables bind as constants
 ///   (VR8), as the literals did.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16218 frozen 252 digest d1fe4c827d6e4234e575f397f26d102b\n\
+     Plain/Decision calls 1144 forms 16218 frozen 252 digest bd9749ef30223b01504dad8525914580\n\
      Plain/Assertion calls 670 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 432 forms 9061 frozen 0 digest e7dbcea0ef62fc2fc894a3fe531ba637\n\

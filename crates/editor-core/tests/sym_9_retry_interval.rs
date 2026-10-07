@@ -541,16 +541,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [1103, 0, 0, 710], [1103, 0, 0, 710], 0),
-        ("r1_annulus", [588, 32, 0, 455], [588, 32, 0, 455], 0),
-        ("r1_segment_boss", [533, 26, 28, 418], [533, 26, 28, 418], 0),
+        ("two_hole_plate", [1104, 0, 0, 710], [1104, 0, 0, 710], 0),
+        ("r1_annulus", [590, 32, 0, 455], [590, 32, 0, 455], 0),
+        ("r1_segment_boss", [537, 26, 28, 418], [537, 26, 28, 418], 0),
         (
             "r2_filleted_bracket",
-            [1401, 45, 49, 1056],
-            [1401, 45, 49, 1056],
+            [1404, 45, 49, 1056],
+            [1404, 45, 49, 1056],
             0,
         ),
-        ("r2_link", [824, 0, 52, 683], [824, 0, 52, 683], 0),
+        ("r2_link", [826, 0, 52, 683], [826, 0, 52, 683], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {

@@ -1775,7 +1775,9 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
             .expect("the reshaping keeps the leg's step"),
     );
     assert_ne!(new[was], old[4], "the leg's old row is another step's now");
-    for row in &applied.maintenance {
+    // The rows that say a name: the anonymous variables the reshaping
+    // retired say none.
+    for row in &crate::fixture::without_anonymous(&applied.maintenance) {
         let row = row.to_string();
         assert!(
             row.contains(&format!("loop 0 step {is} "))
