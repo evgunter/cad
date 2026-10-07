@@ -404,6 +404,8 @@ mod radius_headroom_sides;
 mod ray_wall_margin_twins;
 #[path = "reach_aligned_half_rods.rs"]
 mod reach_aligned_half_rods;
+#[path = "reach_cone_root_lane.rs"]
+mod reach_cone_root_lane;
 #[path = "reach_cone_split.rs"]
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]
@@ -726,6 +728,8 @@ mod pierce_tangent_off_face;
 mod snowman;
 #[path = "tang_circle_cylinder.rs"]
 mod tang_circle_cylinder;
+#[path = "torus_touch_off_faces.rs"]
+mod torus_touch_off_faces;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
