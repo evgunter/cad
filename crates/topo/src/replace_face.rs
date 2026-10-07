@@ -1972,17 +1972,16 @@ fn plan_edge<T: Decide>(
     };
 
     let new_description = match description {
-        // A seam names a surface and nothing else — its image is
-        // DERIVED from the transported carrier against the new chart,
-        // exactly as it was derived from the old one, so there is no
-        // parameter to shift. Stated rather than left to the
-        // fall-through so the contrast with the line below is on the
-        // page.
-        EdgeDescription::Chart(ref c) if c.surface == old_key && c.seam => {
+        // A wrap edge on the moved chart is stated anew there: its
+        // image is DERIVED from the transported carrier against the
+        // new chart (`image: None`), as a construction states one,
+        // rather than shifted, and the flag travels: its two halves
+        // still bound the one face.
+        EdgeDescription::Chart(ref c) if c.surface == old_key && c.wrap => {
             EdgeDescriptionSpec::Chart {
                 surface: old_key,
                 image: None,
-                seam: true,
+                wrap: true,
                 declared: carried_declaration()?,
             }
         }
@@ -1998,7 +1997,7 @@ fn plan_edge<T: Decide>(
                            exact shift for it",
                 },
             )?),
-            seam: false,
+            wrap: false,
             declared: carried_declaration()?,
         },
         EdgeDescription::Intersection { s1, s2, .. }
@@ -2122,8 +2121,8 @@ fn plan_edge<T: Decide>(
 /// not bend the curve drawn in it. `None` for a fitted image, whose
 /// `v` channel is a control net rather than a closed form — refused
 /// rather than shifted point-by-point, which would author a fit this
-/// door has no certificate for — and for a cone-section image, whose
-/// offset is no plane section of the offset cone.
+/// door has no certificate for — and for a focal-section image, whose
+/// offset is no section of the offset chart.
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
@@ -2179,11 +2178,11 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                 },
             },
         },
-        // A cone section's image is tied to its cone through `β`, the
+        // A focal section's image is tied to its chart through `β`, the
         // projected ellipse's eccentricity: the offset moves the curve
-        // off the plane section it was, so no image of the same form
-        // is shifted out of this one.
-        Pcurve::ConeSection { .. } | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
+        // off the section it was, so no image of the same form is
+        // shifted out of this one.
+        Pcurve::FocalSection(_) | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
 
@@ -2314,12 +2313,12 @@ pub(crate) fn remap_description<T: Real>(
         EdgeDescriptionSpec::Chart {
             surface,
             image,
-            seam,
+            wrap,
             declared,
         } => EdgeDescriptionSpec::Chart {
             surface: map(surface),
             image,
-            seam,
+            wrap,
             declared,
         },
         EdgeDescriptionSpec::Scaffold(m) => EdgeDescriptionSpec::Scaffold(m),
@@ -2540,12 +2539,12 @@ fn plan_reanchors<T: Decide>(
                 EdgeDescriptionSpec::Chart {
                     surface,
                     image,
-                    seam,
+                    wrap,
                     declared: Some(mc),
                 } => EdgeDescriptionSpec::Chart {
                     surface,
                     image,
-                    seam,
+                    wrap,
                     declared: Some(restate(mc)?),
                 },
                 other => other,
@@ -2702,24 +2701,26 @@ mod offset_fit_door_rows {
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod shift_chart_v_rows {
-    use geom_brep::Pcurve;
+    use geom_brep::{FocalImage, Pcurve};
     use geom_core::{Point2, Vec2};
 
     use super::shift_chart_v;
 
     /// The offset's `v` shift moves a harmonic image's constant term and
-    /// refuses a cone-section image, whose offset is no plane section of
+    /// refuses a focal-section image, whose offset is no plane section of
     /// the offset cone.
     #[test]
     fn a_cone_section_image_has_no_shift() {
-        let section = Pcurve::ConeSection {
+        let section = Pcurve::FocalSection(FocalImage {
             u0: 0.1,
+            t0: 0.0,
             v0: 2.0,
             va: -0.4,
             vb: 0.0,
+            vl: 0.0,
             beta: 0.2,
             sense: 1.0,
-        };
+        });
         assert!(shift_chart_v(&section, 0.3).is_none());
         let harmonic = Pcurve::Harmonic {
             p0: Point2::new(0.0, 1.0),

@@ -43,15 +43,16 @@
 //!   polar nor meridian) has no closed form and takes the fitted lane:
 //!   its image from [`geom_brep::FittedLane::sphere_circle_image`],
 //!   certified by [`geom_brep::PcurveCache::certify_fitted`]'s Circle
-//!   arm (`analytic_derive`). Any other carrier outside the closed-form
-//!   classes that can still lie on the chart refuses
+//!   arm (`analytic_derive`). A cone's tilted section and a torus's
+//!   Villarceau circle take their exact focal-section image
+//!   ([`geom_brep::Pcurve::FocalSection`]). Any other carrier outside
+//!   the closed-form classes that can still lie on the chart refuses
 //!   [`PcurveCertifyError::UnsupportedCarrier`] with the class named,
 //!   and its face stays uncached, excused by C4's exemption
-//!   ([`not_owed`]) until the class's route lands — the cone/torus
-//!   oblique classes have no honest route yet (no ring-computable
-//!   meters composite). A carrier
-//!   that cannot lie on its face
-//!   ([`PcurveCertifyError::CarrierOffChart`]) is a defect, and the
+//!   ([`not_owed`]) until the class's route lands. A carrier that
+//!   cannot lie on its face ([`PcurveCertifyError::CarrierOffChart`]),
+//!   or that grazes a cone or torus as none of its circles
+//!   ([`PcurveCertifyError::CarrierGrazesChart`]), is a defect, and the
 //!   pass refuses with it.
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
@@ -2640,13 +2641,14 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
 /// refusal, or a panic on a torn record, leaves the body as found.
 ///
 /// A face whose rows are not owed ([`not_owed`]: a pair the chart can
-/// hold but no route covers yet — an oblique torus circle, a tilted
-/// cone section, a spline carrier on an analytic chart — or a fitted
-/// face at a scalar with no fitted door; the at-rest pass excuses
-/// exactly these, by the same predicate) contributes the rows it held,
-/// carried ([`carry_rows`]), so the mint never drops a certificate it
-/// cannot re-derive. Every OTHER refusal — a carrier off its face, an
-/// image that is not its carrier's, a general sphere circle its fitted
+/// hold but no route covers yet — a spline carrier on an analytic
+/// chart, a mirror-torus spiric, a line, ellipse or spiric offered a
+/// fitted image — or a fitted face at a scalar with no fitted door; the
+/// at-rest pass excuses exactly these, by the same predicate)
+/// contributes the rows it held, carried ([`carry_rows`]), so the mint
+/// never drops a certificate it cannot re-derive. Every OTHER refusal
+/// — a carrier off its face or grazing it, an image that is not its
+/// carrier's, a general sphere circle its fitted
 /// route refuses, a covered class whose residuals, envelope, continuity
 /// or closure refuse — is a genuine defect and propagates.
 fn mint_rows<T: AtRestPolicy>(
@@ -4500,9 +4502,9 @@ fn chart_edge<T: Decide>(
         // `_` arm there already answers from `eval` over the span
         // hull.
         Pcurve::Spiric { .. } => false,
-        // A cone section's image is curved in both channels, and takes
+        // A focal section's image is curved in both channels, and takes
         // the same envelope door.
-        Pcurve::ConeSection { .. } => false,
+        Pcurve::FocalSection(_) => false,
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
     if straight {
@@ -7121,5 +7123,95 @@ mod room_fence_tests {
         let at = |d: f64| Point3::new(d, 0.0, (1.0 - d * d).sqrt());
         assert!(!room(&sphere, at(4.5 * EPS)), "4.5ε from the axis: no room");
         assert!(room(&sphere, at(8.0 * EPS)), "8ε from the axis: room");
+    }
+}
+
+/// A closed Villarceau edge's joint with itself, at the unit level, over
+/// every pose and branch: the end-to-end row, a whole circle closing one
+/// edge on a torus face through `mvfs` and `mef`, is
+/// `tests/a_whole_villarceau_circle_bounds_a_torus_face.rs`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod villarceau_joint_tests {
+    use super::*;
+    use core::f64::consts::TAU;
+    use geom_core::{Point3, Tol, Vec3};
+
+    /// **A whole turn of a Villarceau row is one period on each channel**
+    /// (the reviewers' probe, PR 4227): on either family and traversal,
+    /// from four centres and two starts, and with its image moved by
+    /// `k` azimuth periods and `−k` tube periods, the joint carrying the
+    /// row's exit onto its own entry decides
+    /// `Shift(Deck { u: sense, v: vl, twin: false })` — the `(±1, ±1)`
+    /// winding the loop invariant admits.
+    #[test]
+    fn a_whole_turn_decides_one_period_on_each_channel() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (big, r) = (2.0_f64, 0.7_f64);
+        let axis = Vec3::new(0.1, 0.2, 1.0).normalize();
+        let u_ref = (Vec3::unit_x() - axis * axis.x).normalize();
+        let center = Point3::new(0.3, -0.2, 0.5);
+        let surface = Surface::Torus {
+            center,
+            axis,
+            major_radius: big,
+            minor_radius: r,
+            u_ref,
+        };
+        let chart = DescribedChart::of(&surface).unwrap();
+        let tilt = (r / big).asin();
+        let mut cases = 0;
+        for phi in [0.0_f64, 1.0, 2.5, -2.0] {
+            let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
+            for family in [1.0_f64, -1.0] {
+                let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
+                for traversal in [1.0_f64, -1.0] {
+                    for psi in [0.0_f64, 2.0] {
+                        let carrier = geom::Curve3::Circle {
+                            center: center + d * r,
+                            axis: d.cross(lean) * traversal,
+                            radius: big,
+                            u_ref: d * psi.cos() + lean * psi.sin(),
+                        };
+                        for k in [-1.0_f64, 0.0, 2.0] {
+                            let image = geom_brep::chart_pcurve(&carrier, &surface, band)
+                                .unwrap()
+                                .shift_branch(k, TAU);
+                            let image = shift_polar_branch(&image, -k, TAU);
+                            let (t0, t1) = (0.3, 0.3 + TAU);
+                            let row = geom_brep::PcurveCache::certify(
+                                image, t0, t1, &carrier, &surface, band,
+                            )
+                            .unwrap();
+                            let Pcurve::FocalSection(focal) = *row.pcurve() else {
+                                panic!("a Villarceau row is a focal section")
+                            };
+                            let joint = decide_joint(
+                                chart,
+                                row.pcurve(),
+                                t0,
+                                row.pcurve().eval(t1),
+                                carrier.eval(t0),
+                                Some(TAU),
+                                band,
+                            );
+                            let periods = (focal.sense, focal.vl);
+                            assert!(
+                                matches!(
+                                    joint,
+                                    Ok(JointElement::Shift(Deck { u, v, twin: false }))
+                                        if (f64::from(u), f64::from(v)) == periods
+                                ),
+                                "phi {phi}, family {family}, traversal {traversal}, psi {psi}, \
+                                 k {k}: {:?}, not a shift by {periods:?} periods",
+                                joint.as_ref().ok()
+                            );
+                            cases += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(cases, 96);
     }
 }

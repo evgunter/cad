@@ -1821,7 +1821,7 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// channel that is exactly `α + β·t` (it writes `pa.x = pb.x = 0` and
 /// `pl.x = β ∈ {−1, 0, +1}` in both of its arms), so the two endpoint
 /// evaluations ARE the range — this is closed-form structure, not a
-/// sampled bound. A cone-section ellipse's azimuth is strictly
+/// sampled bound. A focal section's azimuth is strictly
 /// monotone, so its endpoints are its range too. It is read off
 /// [`Pcurve::closed_form_span_box`], whose trigonometric widening is
 /// exactly zero for every pcurve this lane derives and keeps the

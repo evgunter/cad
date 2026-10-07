@@ -2347,10 +2347,10 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     // A chart image cites ONE adjacent surface (its
                     // residual chart); stale iff neither side is it
                     // (the attach-door adjacency rule, M6-3) — except
-                    // a SEAM image, whose two sides are one surface by
-                    // what a seam is.
-                    geom_brep::EdgeDescription::Chart(c) if c.seam => {
-                        !(c.surface == s1 && c.surface == s2)
+                    // a wrap edge, whose two halves bound one face by
+                    // what a wrap edge is (D1).
+                    geom_brep::EdgeDescription::Chart(c) if c.wrap => {
+                        !(c.surface == s1 && sides.plus.face == sides.minus.face)
                     }
                     geom_brep::EdgeDescription::Chart(c) => !(c.surface == s1 || c.surface == s2),
                     // A scaffold comes to rest here only between the two
