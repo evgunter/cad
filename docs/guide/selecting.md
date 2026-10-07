@@ -239,7 +239,7 @@ let node = RecipeNodeId(7);
 let rim = |end| StableName {
     kind: EntityKind::Edge,
     node,
-    path: vec![RoleSeg::RimEdge(end, ProfileEdgeRef::Piece { step: StepId(3), role: PieceRole::Leg })],
+    path: vec![RoleSeg::RimEdge(end, ProfileEdgeRef::Piece { step: StepId(3), role: PieceRole::Leg }.into())],
 };
 
 // `SegPat::tag` — the variant, arguments free.
