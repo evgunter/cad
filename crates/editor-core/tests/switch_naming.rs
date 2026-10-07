@@ -28,8 +28,8 @@ use geom_core::Tol;
 /// nose.
 ///
 /// Every document here is a sketch frame, the profile drawn on it, and
-/// the extrude over that: `doc.order()[1]` is the profile and
-/// `doc.order()[2]` the body.
+/// the extrude over that: `doc.ids()[1]` is the profile and
+/// `doc.ids()[2]` the body.
 fn param_rect_doc(x0: f64) -> ProfileDoc {
     let x0e = || Formula::named(VarName::from_static("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())

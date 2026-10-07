@@ -1477,9 +1477,10 @@ impl Doc {
         self.inner.len()
     }
 
-    /// The document's evaluation order.
+    /// The document's nodes in id order, which is the order they were
+    /// inserted in.
     fn order(&self) -> Vec<NodeId> {
-        self.inner.ids().iter().copied().map(NodeId).collect()
+        self.inner.ids().into_iter().map(NodeId).collect()
     }
 
     /// **The document's named free parameters**, by name, in

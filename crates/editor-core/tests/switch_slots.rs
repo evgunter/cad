@@ -26,7 +26,7 @@ use fixture::{ang, len, scl};
 use geom_core::Tol;
 
 // Every document below is a frame and then the profile drawn on it,
-// in that order: `doc.order()[0]` and `doc.order()[1]`.
+// in that order: `doc.ids()[0]` and `doc.ids()[1]`.
 
 fn circle_doc(r: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())

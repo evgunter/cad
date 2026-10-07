@@ -451,7 +451,7 @@ mod tests {
                 steps
                     .iter()
                     .map(|&s| ProfileEdgeRef::Piece {
-                        step: crate::node::StepId(s),
+                        step: crate::node::StepId::new(0, s),
                         role: crate::names::PieceRole::Leg,
                     })
                     .collect(),
@@ -459,7 +459,7 @@ mod tests {
             .unwrap();
             StableName {
                 kind: EntityKind::Edge,
-                node: RecipeNodeId(3),
+                node: RecipeNodeId::new(0, 3),
                 path: vec![RoleSeg::RimEdge(end, run)],
             }
         };
