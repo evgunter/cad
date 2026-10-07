@@ -116,17 +116,11 @@ so the `follow` rule can be revised later without moving any saved document.
 Moving to the door rule would be a one-line change of where `follow` is
 applied. The reverse move would need every edit to grow a clause.
 
-**Worked example.**
-1. `a = box`. The product is `[a]`.
-2. `b = cyl`. The product is `[a, b]`.
-3. `c = cut(a, b)`. The product is `[c]`.
-4. `m = measure(c)` and `assert(m)`. The product is still `[c]` (today:
-   `c` stops being a sink).
-5. `f = fillet(c, append)`. The product is `[c, f]`.
-6. `SetProduct [f]`. The product is `[f]`.
-7. Delete `f` with `follow`. `c` is an orphan again, so the product is `[c]`.
-8. Delete `c` with `leave`. The product is `[c†]`, where `†` marks an
-   unresolved entry. The gather refuses, naming `c` and the recourse.
+**Worked example.** `a = box` → `[a]`; `b = cyl` → `[a, b]`;
+`c = cut(a, b)` → `[c]`; `m = measure(c)`, `assert(m)` → `[c]` (today `c`
+stops being a sink); `f = fillet(c, append)` → `[c, f]`; `SetProduct [f]` →
+`[f]`; delete `f` (follow) → `[c]`, since `c` is an orphan again; delete `c`
+(leave) → `[c†]`, `†` unresolved, and the gather refuses naming `c`.
 
 **Confidence.**
 - Where the rule lives: likely.
@@ -160,5 +154,4 @@ applied. The reverse move would need every edit to grow a clause.
   goes. Under this answer Promote needs no product code at all, which agrees.
 - **Test 6 (migration preserves the product).** It is compatible: the
   migration writes today's root bodies as the list.
-- **New consequence for tests.** Mates no longer appear in the list, and the
-  guide's root-count rows shift by the mate count.
+- **Tests.** Mates leave the list; the root-count rows shift by the mate count.
