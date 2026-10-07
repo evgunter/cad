@@ -416,5 +416,41 @@ meaning. CLEAVE's `CrossingInsertion` and `BlendError::Op` now box their
 The merge with #4187 (`cap_plane_orientation`) was re-measured under
 both changes rather than summed. The sym11, m10_9, m10_sym_profile and
 m10_bulge ledgers each state the combined cause at their site.
+## 2026-10-07 — `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body` closed (PR 4193)
+
+A loft's v is now a function of its whole section set: Eq. 10.8 chord
+length over the outer loop's control rows, with per-section shares
+sorted. Rolling a section about its own normal, or relabelling its
+vertices, no longer changes the body. `loft_body`, `loft_parameters`,
+`sweep_body` and `sweep_geometry` share the one helper.
+
+Three rulings during the unit:
+
+- **The tube: holes read the outer loop's parameters (option B).** The
+  outer loop is structurally unique, so the rule stays label-free. A
+  hole cannot move the outer walls. The tour's scaled-hole tube holds
+  its identity to 1.9e-16; averaging the holes in left it 5.1e-5 off.
+- **The coil: sweeps take the loft's rule for now.** The designers'
+  path parameter was built, and it refused the square coil at
+  assembly. The root cause is the frame law: the sweep frame is a
+  minimal rotation from the START tangent, not a rotation-minimizing
+  frame, so it spins the section where the path runs back
+  anti-parallel. The path parameter is deferred to the frame-law row
+  `sweep-frame-is-a-minimal-rotation-from-the-start-tangent` (P1, H,
+  design). It is deferred, not dropped.
+- **`lily_leaf_b`: a tour wall pinned to QUAD (lily wall 17, default ε
+  only).** Under the new v, its volume escalates on QUAD's in-band
+  convergence arm (margin −2.7e-9). That is
+  `quadrature-convergence-test-escalates-instead-of-refining`, and the
+  evidence is added there. QUAD has no orchestrator, and the fix needs
+  the C3 factoring, so the wall is the honest interim. `finding_13`
+  skips only its Pappus containment, and says so.
+
+Wall 15 was retired and then restored across the merges; it ends as on
+main. The cap-plane order row
+`a-loft-caps-plane-is-summed-in-the-authored-vertex-order` was measured
+at P2. Frames: the nonuniform loft bulges as derived (1.646 at 32.6% →
+1.853 at 38.5%); the tube's bend shifts slightly; everything else moves
+at pixel level. The gate is ok on the head that carries main through #4215.
 
 Signed: (CARVE orchestrator)
