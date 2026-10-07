@@ -564,12 +564,10 @@ fn mint_band(
             reversed: false,
         },
     );
-    // The mint's whole point is D1's spatial statement — this edge IS
-    // the u_ref half-plane seam — so adoption must certify it as
-    // the seam chart image or refuse; a silent downgrade to the
-    // conventional mapped-curve rung would import a body whose "seam"
-    // is off the half-plane (R1 fix pass, m2). Recorded here, enforced
-    // in [`crate::adopt`].
+    // The mint's whole point is D1's statement that this edge is the
+    // band face's wrap edge, so adoption must certify it as one or
+    // refuse; it is not offered the conventional mapped-curve rung.
+    // Recorded here, enforced in [`crate::adopt`].
     solid.band_seams.insert(gen_id);
     // ---- The single loop: [rim_s…, seam⁺, rim_e…, seam⁻] ----------
     //

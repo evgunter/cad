@@ -151,9 +151,10 @@
 //!
 //! Periodic charts are
 //! unwrapped by continuity along the walk (chord steps are capped at
-//! π/4, so branch choice is unambiguous); a full-2π patch traverses its
-//! seam meridian twice, at u = 0 and u = 2π, with both traversals
-//! consuming the same 3-D chord points, which welds the seam. Sphere
+//! π/4, so branch choice is unambiguous); a patch closed across a wrap
+//! edge traverses it twice, a period apart in the direction it wraps
+//! (`u` for a meridian, `v` for a torus parallel), with both traversals
+//! consuming the same 3-D chord points, which welds the wrap. Sphere
 //! poles and the cone apex are chart singularities handled from the
 //! loop structure — they enter the CDT as duplicated UV corner points
 //! whose triangles collapse-and-drop into a fan around the single pole
@@ -163,17 +164,14 @@
 //! (issue #678 — at `nu == 2` a single equidistant column gives both
 //! corners a fan over it and the identified edge is used four times).
 //! The `debug_assert` that re-derives the conclusion runs over each
-//! patch whose walk IDENTIFIES a vertex — a pole corner or a seam
-//! double-traversal, one set rather than two cases
+//! patch whose walk IDENTIFIES a vertex — a pole corner or a wrap
+//! edge's double traversal, one set rather than two cases
 //! (`curved::identified_ids`, issue 897) — and a second re-derivation
 //! at the end of `tessellate` counts each chord segment's uses across
 //! the whole mesh, which is the CROSS-FACE half no per-patch census
-//! can see. **What that made mechanical is the FULL-2π SEAM half of
-//! the pole-fan argument**: before issue 897 the seam was held off by
-//! an arithmetic claim in `pole_columns`' prose (a `2π` span sizes to
-//! `nu >= 8`, so the two seam entries never share one interior column)
-//! and by no check at all, while the pole half was re-derived on every
-//! patch. The seam half is now re-derived on the same footing.
+//! can see. **That makes the WRAP half of the pole-fan argument
+//! mechanical**, on the same footing as the pole half: the two entries
+//! of a wrap edge never share one interior column.
 //! Both censuses are `#[cfg(debug_assertions)]`, which cargo's release
 //! default would drop — so whether a release build carries more than
 //! the floor is a manifest setting, and the root `Cargo.toml`

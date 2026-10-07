@@ -587,8 +587,9 @@ mod tests {
 
     /// **A one-segment loop's revolve and loft are named whole**: the
     /// one meridian chain of a part turn is one self-loop at the loop's
-    /// one vertex (`resolve_chain_opt`'s one-segment arm), so each wedge
-    /// cap's copy of that vertex is named; the full turn and the loft
+    /// one vertex (`name_revolve` reads the rim end that self-loop
+    /// shares, through `common_vertex`), so each wedge cap's copy of
+    /// that vertex is named; the full turn and the loft
     /// name their one wall, its wrap edge and its vertices. Every table
     /// is total over its body (`check_total`).
     #[test]

@@ -41,7 +41,8 @@ pub enum TravKind {
     },
     /// A u = const boundary; carries the raw column azimuth.
     Meridian {
-        /// Raw u ∈ (−π, π] (exactly 0.0 for `Seam` edges).
+        /// Raw u ∈ (−π, π], from the chart inversion at the edge's
+        /// mid-point.
         u_raw: f64,
     },
 }

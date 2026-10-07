@@ -1972,12 +1972,11 @@ fn plan_edge<T: Decide>(
     };
 
     let new_description = match description {
-        // A seam names a surface and nothing else — its image is
-        // DERIVED from the transported carrier against the new chart,
-        // exactly as it was derived from the old one, so there is no
-        // parameter to shift. Stated rather than left to the
-        // fall-through so the contrast with the line below is on the
-        // page.
+        // A wrap edge on the moved chart is stated anew there: its
+        // image is DERIVED from the transported carrier against the
+        // new chart (`image: None`), as a construction states one,
+        // rather than shifted, and the flag travels: its two halves
+        // still bound the one face.
         EdgeDescription::Chart(ref c) if c.surface == old_key && c.wrap => {
             EdgeDescriptionSpec::Chart {
                 surface: old_key,

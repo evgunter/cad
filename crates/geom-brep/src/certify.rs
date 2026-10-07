@@ -340,14 +340,14 @@ pub enum CertifyError {
     /// own refusal. It is raised before any other check of the edge
     /// runs, so it says nothing about the edge's geometry.
     NurbsLaneNotSupplied,
-    /// An `Intersection` description names one surface twice — a
-    /// same-surface locus is a `Seam`, never an intersection.
+    /// An `Intersection` description names one surface twice — a locus
+    /// on one surface is an image in its chart, never an intersection.
     IntersectionSameSurface {
         /// The doubly-named key.
         key: SurfaceKey,
     },
-    /// A `Seam` description on a non-periodic surface (a plane) — no
-    /// seam exists.
+    /// A wrap flag on a chart image of a non-periodic surface (a
+    /// plane): its chart closes in no direction, so nothing wraps.
     WrapOnNonPeriodic,
     /// The stored parameter interval is not forward: t₁ − t₀, metered
     /// as arc length, did not classify positive. The ratified
@@ -493,8 +493,8 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
-                "Intersection names surface {key:?} twice (a same-surface \
-                 locus is a Seam)"
+                "Intersection names surface {key:?} twice (a locus on one \
+                 surface is an image in its chart)"
             ),
             Self::WrapOnNonPeriodic => write!(
                 f,
@@ -1715,9 +1715,12 @@ impl<T: Real> EdgeCurve<T> {
     /// a spec from a certified edge goes through (a transplant, a
     /// re-anchor, a re-certification at rest).
     ///
-    /// A chart image travels EXACTLY, a wrap edge's included: restating
-    /// a description must re-meter the image the edge already carries,
-    /// never derive a second one and meter that.
+    /// Restated in its own chart, a chart image travels EXACTLY, a wrap
+    /// edge's included: restating a description must re-meter the image
+    /// the edge already carries, never derive a second one and meter
+    /// that. A door that MOVES the chart states the image anew instead
+    /// (`topo`'s face replacement shifts an image with its chart, and
+    /// derives a wrap edge's against the moved one).
     #[must_use]
     pub fn restated_description(&self) -> EdgeDescriptionSpec<T> {
         let declared = match self.authority {
@@ -2666,8 +2669,9 @@ fn run_checks<T: Decide>(
             // in `(ε·cos α, ε]` certified before this unit and now
             // refuses or escalates. `d2_bit_diff` and the cone
             // re-baseline row measure it; the live minting class
-            // (`sweep/src/revolve/upgrade.rs:219`) mints exact seams
-            // and is unaffected, which the whole-body batteries show.
+            // (`sweep::revolve::upgrade`'s `describe_wrap_edge` call)
+            // mints exact wrap edges and is unaffected, which the
+            // whole-body batteries show.
             Resolved::Chart {
                 surface, declared, ..
             } => {

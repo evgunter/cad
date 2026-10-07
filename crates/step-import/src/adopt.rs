@@ -551,7 +551,7 @@ fn adopt_edges(
             // edge, which takes the conventional rung below.
             let (f_plus, f_minus) = sides.faces();
             if periodic && f_plus == f_minus {
-                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::wrap(fs_plus)));
+                candidates.push((AdoptionCandidate::Wrap, EdgeDescriptionSpec::wrap(fs_plus)));
             }
         }
         if conventional
@@ -597,15 +597,13 @@ fn adopt_edges(
             ));
         }
 
-        // A band-minted seam generator (M7-5, R1 fix pass m2): the
-        // mint's D1 statement is that this edge IS the surface's
-        // u_ref half-plane seam, so the only honest description is
-        // `Seam` — the conventional mapped-curve rung is withheld,
-        // and a seam that cannot certify refuses with the ladder's
-        // own typed report instead of silently downgrading to a
-        // certified body whose "seam" is off the half-plane.
+        // A band-minted generator: the mint's D1 statement is that
+        // this edge is the band face's wrap edge, so the only honest
+        // description is a wrap — the conventional mapped-curve rung
+        // is withheld, and a generator that cannot certify as one
+        // refuses with the ladder's own typed report.
         if solid.band_seams.contains(&edge_id) {
-            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Seam));
+            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Wrap));
         }
 
         let mut attempts = Vec::new();
