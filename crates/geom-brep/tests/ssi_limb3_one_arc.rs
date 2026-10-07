@@ -791,3 +791,102 @@ fn a_side_whose_slope_across_it_dips_refuses_by_its_cover() {
         declared(&wall, (0.0, 1.0)),
     );
 }
+
+/// `m` C0 quadratic spans with Bernstein coefficients `(P, −N, P)` on
+/// each: `P, −N, P, …, P`.
+fn loose(m: usize, p: f64, n: f64) -> Vec<f64> {
+    (0..=2 * m)
+        .map(|j| if j % 2 == 0 { p } else { -n })
+        .collect()
+}
+
+/// The loose-side rows ([`a_side_whose_hull_is_loose_reads_clear_at_both_doors`]):
+/// `z = k·x + h(y)`, `h` over `m` C0 spans each `(P, −N, P)` in units of
+/// ε, then the control's `m`s.
+fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
+    let e = eps();
+    let (plane, _) = ground();
+    let domain = SsiDomain {
+        center: Point3::new(0.5, 0.5, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let low_u = ssi::ChartSide {
+        fixed: ChartAxis::U,
+        end: ChartEnd::Low,
+    };
+    let answer = |wall: &NurbsSurface<f64>, at: &str| {
+        let out = ssi::plane_nurbs_ssi(&plane, wall, domain, band())
+            .unwrap_or_else(|err| panic!("{at}: the search refused: {err}"));
+        let region = out
+            .boundary
+            .iter()
+            .any(|c| matches!(c, ssi::SsiBoundaryContact::Side { side, .. } if *side == low_u));
+        (out.branches.len(), out.boundary.len(), region)
+    };
+    for &((pk, nk), k, m) in grid {
+        let at = format!("P {pk}ε, N {nk}ε, k {k}, m {m}, ε {e:e}");
+        let wall = c0_wall(k, &loose(m, pk * e, nk * e));
+        assert_eq!(
+            answer(&wall, &at),
+            (0, 0, false),
+            "{at}: the search's answer (branches, contacts, a region along the side)"
+        );
+        let got = declared(&wall, (0.0, 1.0));
+        assert!(
+            matches!(
+                got,
+                Err(geom_brep::PlaneNurbsRefusal::Limb {
+                    limb: ssi::SsiLimb::HullSup,
+                    ..
+                })
+            ),
+            "{at}: the carrier along the side refuses on limb 2 first: {got:?}"
+        );
+    }
+    for &m in controls {
+        let at = format!("the control, m {m}, ε {e:e}");
+        let wall = c0_wall(10.0, &loose(m, 0.3 * e, 0.5 * e));
+        assert_eq!(
+            answer(&wall, &at),
+            (0, 1, true),
+            "{at}: the search's answer (branches, contacts, a region along the side)"
+        );
+    }
+}
+
+/// **A side whose Bernstein hull is loose reads clear, at the search and
+/// at rest.** `z = k·x + h(y)`, `h` over `m` C0 spans each `(P, −N, P)`,
+/// `P > N`: along the side `x = 0`, `φ = h ≥ (P − N)/2 > 0` and the wall
+/// rises inward, so the locus is empty, but every span's hull holds `−N`.
+/// The search answers no branch and no region, and the carrier along the
+/// side refuses, on limb 2 first. Red under the side's sign read on its
+/// unrefined hull: the search then reports a `Side` region on the empty
+/// locus.
+///
+/// The control, `(0.3ε, −0.5ε, 0.3ε)` on each span, holds two zeros of
+/// `φ` on every span: its hulls straddle because `φ` does, and the side
+/// is a `Side` region, as the locus within ε of it is. One row of the
+/// grid and one control; the whole grid is
+/// [`a_side_whose_hull_is_loose_reads_clear_over_the_grid`].
+#[test]
+fn a_side_whose_hull_is_loose_reads_clear_at_both_doors() {
+    loose_side_rows(&[((0.6, 0.2), 10.0, 64)], &[64]);
+}
+
+/// [`a_side_whose_hull_is_loose_reads_clear_at_both_doors`] over the
+/// reported grid: `P/N ∈ {0.6/0.2, 0.9/0.5}`, `k ∈ {10, 100}`,
+/// `m ∈ {64, 256, 1024}`, and the control at `m = 1024` too.
+#[test]
+fn a_side_whose_hull_is_loose_reads_clear_over_the_grid() {
+    let mut grid = Vec::new();
+    for pn in [(0.6, 0.2), (0.9, 0.5)] {
+        for k in [10.0, 100.0] {
+            for m in [64, 256, 1024] {
+                grid.push((pn, k, m));
+            }
+        }
+    }
+    loose_side_rows(&grid, &[64, 1024]);
+}
