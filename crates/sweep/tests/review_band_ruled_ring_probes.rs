@@ -104,7 +104,7 @@ fn keyhole_cut(r: f64) -> f64 {
 /// so the band REMOVES `A` per unit length at each, `ΔV = −2·A·L`.
 #[test]
 fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
-    let body = keyhole_block();
+    let body = sweep::test_support::finished("body", keyhole_block(), tol());
     validate_geometric(&body, tol()).expect("the keyholed block is tier-3 valid");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
@@ -130,7 +130,7 @@ fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
 /// form.
 #[test]
 fn a_keyhole_crease_at_the_discs_radius_carves_at_the_closed_form() {
-    let body = keyhole_block();
+    let body = sweep::test_support::finished("body", keyhole_block(), tol());
     let creases = rod_creases(&body);
     let vol0 = volume(&body);
     for r in [BR, 1.1 * BR] {
@@ -169,7 +169,13 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
     validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
-    match fillet_edges(&body, &creases, 0.1, tol()).map_err(|e| {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &creases,
+        0.1,
+        tol(),
+    )
+    .map_err(|e| {
         let text = e.error.to_string();
         (e.error, text)
     }) {
@@ -218,8 +224,13 @@ fn a_bore_clear_of_a_keyhole_creases_sliver_carves_at_the_closed_form() {
     validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
     let creases = rod_creases(&body);
     let vol0 = volume(&body);
-    let out = fillet_edges(&body, &creases, 0.1, tol())
-        .unwrap_or_else(|e| panic!("a clear bore carves, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &creases,
+        0.1,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("a clear bore carves, got {e}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, {e:?}"));
     let dv = volume(&out.body) - vol0;
     let want = -2.0 * keyhole_cut(0.1);

@@ -1132,3 +1132,28 @@ Signed (JOIN orchestrator).
   (filed by PR 4249) follows when 4249 lands.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07: PR 4249 landed (the 217 In/Out lines build)
+
+- **PR 4249 merged.** `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` is closed.
+  - `insert::hang_in_turned` hangs a turned run's siblings at its copy. The 217 `pinch_runs_battery` lines build `SOUND`, one vertex per cone on one key.
+  - Where the hang leaves an operand's own pinch on several point keys, the boolean refuses `PinchConesOnSeparateKeys` instead of shipping a body the census cannot read. That covers three or four pairs at one vertex.
+- **Reviews.** It had a dual review (DR-101, excluded), then a second FULL review on the fix head: 0/2/4, with every prior finding confirmed fixed. The last pass dropped a dead class extension and moved `hung_points` onto `zip::Roots`.
+- **Filed by the unit.** A curved shared vertex builds bodies the census and the reuse check refuse: none definite, filed P2. "Holds whole" is spelled three ways, filed P3.
+- **Dispatched next:** `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings` (P1 M; 102 `ba` lines). Branch `join/nested-pairing-shared-vertex`.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: 4270 landed; 4272 in its fix pass; 4274 to a holdout pair
+
+- **PR 4270 merged.** The sweep oracle's `convex_volume` took a half-space twice when two lay on one plane at different scales.
+  - Fixing it moves exactly the 154 `corner_pairs_battery` lines `OK BAD` → `SOUND`, and moves no line `SOUND` → BAD, so the old oracle certified no wrong body.
+  - A Monte Carlo row now checks all 2 730 poses.
+  - `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses` is closed.
+- **PR 4272 (roof-cross valley).** `clean_dir` reads a partner on another ring of the face as re-homed, not separated, using a tier that prefers Clean. 174 refusals move to SOUND.
+  - The FULL review gave 0/3/5. Its fix pass: the forced-order lanes keep main's Clean-only rule, which is filed for later; a fast row guards the tier; the row is corrected.
+- **PR 4274 (nested pairing).** One laminar reading of a plan's holders. 102 refusals move to SOUND, with 0 refusal→BAD.
+  - Triage put it in the DUAL tier on its merits: it rewrites insertion's holder reading for every nested plan.
+  - The M arm byte was drawn at the implementer's dispatch (81, mod 3 = 0), so it gets a HOLDOUT, a concurrent pair. That pair goes out once the PR is re-merged onto main.
+
+Signed (JOIN orchestrator).
