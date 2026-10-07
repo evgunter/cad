@@ -308,3 +308,50 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
         ),
     }
 }
+
+/// A rectangular hole `[x0, x1] × [y0, y1]` through the D-rod.
+fn rect_holed_d_rod(x0: f64, y0: f64, x1: f64, y1: f64) -> Body<f64> {
+    let hole = poly(&[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]);
+    extruded(SketchPlane::xy(), vec![d_loop(), hole], ROD_L, tol())
+}
+
+/// **A straight edge that misses the sliver by leaving its enclosure
+/// through two faces carves.** Each hole has an edge running from inside
+/// the ball's section (`‖p − c‖ < r`, kept material) out to where the
+/// sliver's half-planes put it out of reach, so no one face of the
+/// enclosure clears the whole edge, while every point of it is clear
+/// of one face or another. The top edge of the first, at
+/// `y = c_y + 0.05`, is inside the section from `x = 0.1134` on and
+/// runs left to `x = 0.1`; its nearest point to the sliver, the corner
+/// `(0.275, 0.3964)`, is `≈ 0.0099` short of the arc. The second and
+/// third reach out of the section on the far side of `c` from `V` and
+/// below the upper foot. All three were refused when the meter read an
+/// edge term by term; a straight edge is now read point by point, and
+/// `ΔV = −2·A·L` exactly.
+#[test]
+fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_the_closed_form() {
+    for (x0, y0, x1, y1, what) in [
+        (0.1, 0.35, 0.275, 0.3964, "a hole level with the corner"),
+        (0.12, 0.37, 0.27, 0.41, "a hole above the ball centre"),
+        (
+            0.24,
+            0.27,
+            0.28,
+            0.39,
+            "a hole beside the flat, below the foot",
+        ),
+    ] {
+        assert_carves_at_the_closed_form(&rect_holed_d_rod(x0, y0, x1, y1), what);
+    }
+}
+
+/// **A straight edge that enters the sliver still refuses**: the same
+/// kind of hole with its corner `(0.296, 0.398)` in the sliver,
+/// `≈ 0.109` from `c`, beyond the arc and short of `V`.
+#[test]
+fn a_hole_with_a_corner_in_the_d_rods_removed_sliver_refuses_ring_clearance() {
+    assert_cap_ring_refusal(
+        &rect_holed_d_rod(0.2, 0.35, 0.296, 0.398),
+        "hole cornered in the sliver",
+    );
+}

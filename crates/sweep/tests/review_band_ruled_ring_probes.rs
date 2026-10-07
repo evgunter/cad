@@ -122,38 +122,29 @@ fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
 /// **The disc's curvature does not limit a keyhole crease's radius**:
 /// the ball rolls in the material OUTSIDE the hole's wall, its centre at
 /// `BR + r` from the axis, where the wall turns away from it. At
-/// `r = BR` and past it predicate 1 passes and the closed form is still
-/// defined (the foot on the slot wall, `x = √((BR + r)² − (W + r)²)`,
-/// lies short of the slot's end `XS`); what refuses is the cap meter,
-/// whose onset lies below `BR`.
+/// `r = BR` and past it predicate 1 passes, the foot on the slot wall
+/// (`x = √((BR + r)² − (W + r)²)`) lies short of the slot's end `XS`,
+/// and the cap meter reads the plate's side `x = 1` — which runs
+/// through the ball's section and out of it below, clear of the sliver
+/// all the way — point by point, so both creases carve at the closed
+/// form.
 #[test]
-fn a_keyhole_crease_at_the_discs_radius_meets_the_cap_meter_not_the_headroom() {
+fn a_keyhole_crease_at_the_discs_radius_carves_at_the_closed_form() {
     let body = keyhole_block();
     let creases = rod_creases(&body);
+    let vol0 = volume(&body);
     for r in [BR, 1.1 * BR] {
         let foot = ((BR + r).powi(2) - (W + r).powi(2)).sqrt();
         assert!(
             foot < XS,
             "r {r}: the ball's foot {foot} lies on the slot wall"
         );
-        assert!(
-            keyhole_cut(r).is_finite(),
-            "r {r}: the closed form is defined"
-        );
-        match fillet_edges(&body, &creases, r, tol()) {
-            Err(e) => assert!(
-                matches!(
-                    e.error,
-                    BlendError::RingClearance {
-                        chain: Convexity::Convex,
-                        ..
-                    }
-                ),
-                "r {r}: the cap meter refuses, not the wall's curvature: {:?}",
-                e.error
-            ),
-            Ok(_) => panic!("r {r}: the cap meter's over-reach refuses this today"),
-        }
+        let out = fillet_edges(&body, &creases, r, tol())
+            .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("r {r}: tier 3, {e:?}"));
+        let dv = volume(&out.body) - vol0;
+        let want = -2.0 * keyhole_cut(r);
+        assert!((dv - want).abs() < 1e-12, "r {r}: ΔV {dv} vs {want}");
     }
 }
 

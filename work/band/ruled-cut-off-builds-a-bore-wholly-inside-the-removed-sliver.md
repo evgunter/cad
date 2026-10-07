@@ -91,3 +91,78 @@ closed forms past `r* = 0.3097` (asserted at 0.31 and 0.49 in
 wall 2 is retired. `R_CREASE` stays at `R_EYE` until a `[render]`
 pass re-baselines the scene at a larger radius. Finding 1, the bore
 wholly inside the sliver, stands.
+
+## Findings (2026-10-07)
+
+Measured on `origin/main` at `f857d98de` (the branch point of
+`band/a-bore-inside-the-cut-off-sliver-vanishes-with-it`).
+
+**Claim 1 holds.** Both named rows still exist and still refuse
+`RingClearance` definitely:
+`band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_refuses_ring_clearance`
+and
+`review_band_ruled_ring_probes::a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance`.
+
+**Claim 2, in its two parts.**
+
+- *The `V − c` half-plane leaves a wedge near each foot*: it does not
+  bite on main. Bores straddling the ball's boundary just past each
+  foot of the D-rod (past the flat's foot along the flat, and 0.5° to
+  20° past the wall's foot along the wall, radii down to 5e-6) all
+  carve. The floors on the section's own axes (PR 4173) close the wedge
+  there. No witness was found, so nothing was built for it.
+- *An edge that leaves the enclosure through different faces refuses*:
+  this held for straight edges. Witnesses on main:
+  - three rectangular holes through the D-rod, each with an edge that
+    runs from inside the ball's section out past the sliver's box or
+    half-plane. The first refuses with margin `−0.0047` while it is
+    about `0.0099` clear of the arc;
+  - the keyhole at `r = BR` and `1.1·BR`, which refused on the
+    plate's side `x = 1`. That side runs through the ball's section and
+    out of it below, clear of the sliver. The row
+    `a_keyhole_crease_at_the_discs_radius_meets_the_cap_meter_not_the_headroom`
+    pinned this as "the cap meter's over-reach".
+
+  On a grid of 326 rectangular holes clear of the sliver by ≥ 0.003, 2
+  refused on main. Of 1371 such bores (circles), none refused
+  `RingClearance`, and one refused the reach meter's `FaceClearance`
+  (filed: `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver`).
+
+  Built: `CapSliver::line_clearance` reads a straight edge point by
+  point, exactly against the enclosure (with an elliptic section read
+  through its minor disc). All the witnesses carve at their closed
+  forms, and the grid's straight-edge refusals go to 0. Curved edges
+  remain term by term (filed:
+  `cap-sliver-meter-reads-a-curved-edge-term-by-term`).
+
+**Claim 1 is a design fork, so it was not built.** "The bore dies with
+the sliver" is a blend deleting an authored through-feature: its two
+rings, its walls, and their names. No blend does that today, and four
+things turn on it:
+
+1. **Intent (D10).** The author placed the bore. A fillet that erases
+   it without a word is the silent outcome fail-loud exists to
+   prevent, unless something reports it. D10 routes known-answer
+   complaints to lints, so a third answer is to carve and report a
+   finding ("the blend consumed the bore").
+2. **Naming.** N5 already resolves a gone name to `Vanished`, so
+   nothing dangles silently. But it is a new way for a name to
+   vanish: a later step reading the bore's wall would break on an
+   upstream radius edit, not on an edit to the bore.
+3. **Predicate 2.** The reach meter meters the band's volume against
+   every non-support face, and the bore's walls lie inside that
+   volume. It would have to learn which faces die with the sliver,
+   which is a change to what predicate 2 certifies.
+4. **The README clause.** `crates/sweep/README.md`'s ruled-band clause
+   ("every other edge of the cap stays where it was … an edge not
+   definitely clear of the region refuses `RingClearance`") came from
+   a BAND fix pass, not from Ev (`git log -S`), so it binds nothing
+   here. It would still be re-worded.
+
+**Recommendation:** keep the refusal. An author who wants the bore gone
+can delete it in one edit, and the refusal's sentence already says the
+edge lies in the material the blend removes. If Ev wants the carve, it
+should come with the finding in (1) and with predicate 2 exempting the
+dying faces. It also needs an exact membership test for the sliver
+itself. The enclosure `Ω` is not one: it contains the sliver, so a
+ring inside `Ω` may still cross kept material.
