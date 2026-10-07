@@ -1988,8 +1988,14 @@ mod recourse_tests {
     /// `blend_recourse_followability::a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
     /// and
     /// `blend_recourse_followability::a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
-    /// execute both requests. Reading this row as "no advice" is what
-    /// made an inventory keyed on the constants miss them.
+    /// execute both requests. `ScaffoldingOperand` and
+    /// `InsideOutOperand` route here too and end in `topo::Unfinished`'s
+    /// shared refusal, whose advice
+    /// `pole_slit_window::a_slit_operand_refuses_at_both_blend_doors_at_a_dual`
+    /// and
+    /// `blend_operand_gate::the_counterclockwise_wedge_blends_outward_at_both_doors`
+    /// follow. Reading this row as "no advice" is what made an
+    /// inventory keyed on the constants miss them.
     ///
     /// **What the match enforces, and what it does not.** The match is
     /// exhaustive, so a new variant is a compile error here: no

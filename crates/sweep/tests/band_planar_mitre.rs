@@ -26,10 +26,11 @@ use sweep::blend::{
     run_battery_for,
 };
 use sweep::test_support::{
-    assert_naming_totality, block, pocket_die, prism, prism_on, realized, sketch_from_axes,
+    assert_naming_totality, block, finished, pocket_die, prism, prism_on, realized,
+    sketch_from_axes,
 };
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{AtRestBody, Body, EdgeKey, mass_properties, validate_geometric};
 
 use crate::band_planar_cut_off::{
     D, Verb, carve, edge, midpoint_tol, pad_ceiling, the_box, tol, volume, volume_enclosure,
@@ -639,9 +640,9 @@ fn half_space(q: Point3<f64>, n: Vec3<f64>) -> Body<f64> {
 /// [`carve`]'s checks — tier 3, naming totality, `ΔV` against the
 /// closed form — on a body with a feature the bands leave alone, which
 /// may be a second shell.
-fn carve_beside(body: &Body<f64>, edges: &[EdgeKey], verb: Verb, removed: f64, what: &str) {
+fn carve_beside(body: &AtRestBody<f64>, edges: &[EdgeKey], verb: Verb, removed: f64, what: &str) {
     let out = verb
-        .run(body, edges)
+        .run_finished(body, edges)
         .unwrap_or_else(|e| panic!("{what} ({verb:?}): builds, got {e}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what} ({verb:?}): tier 3, got {e:?}"));
@@ -654,21 +655,20 @@ fn carve_beside(body: &Body<f64>, edges: &[EdgeKey], verb: Verb, removed: f64, w
     );
 }
 
-fn fuse(what: &str, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    let a = sweep::test_support::finished(&format!("{what}: the first operand"), a.clone(), tol());
+/// The union of a finished `a` and the fixture `b`, finished.
+fn fuse(what: &str, a: &AtRestBody<f64>, b: &Body<f64>) -> AtRestBody<f64> {
     let b = sweep::test_support::finished(&format!("{what}: the second operand"), b.clone(), tol());
-    topo::union(&a, &b, tol())
+    topo::union(a, &b, tol())
         .unwrap_or_else(|e| panic!("{what}: the union succeeds: {e:?}"))
         .body()
         .unwrap_or_else(|| panic!("{what}: the union leaves material"))
         .body
         .clone()
-        .into_body()
 }
 
 /// Whether `verb` refuses `edges` of `body` on predicate 2's reach.
-fn refuses_on_reach(body: &Body<f64>, edges: &[EdgeKey], verb: Verb, what: &str) {
-    match verb.run(body, edges) {
+fn refuses_on_reach(body: &AtRestBody<f64>, edges: &[EdgeKey], verb: Verb, what: &str) {
+    match verb.run_finished(body, edges) {
         Err(BlendError::FaceClearance { bounded: false, .. }) => {}
         Err(e) => panic!("{what} ({verb:?}): refuses FaceClearance, got {e}"),
         Ok(out) => panic!(
@@ -689,11 +689,12 @@ fn refuses_on_reach(body: &Body<f64>, edges: &[EdgeKey], verb: Verb, what: &str)
 #[test]
 fn a_mitre_over_a_void_refuses_where_its_bands_reach_it() {
     let with_void = |top: f64| {
-        cut(
+        let body = cut(
             "void",
             &the_box(),
             &brick(Point3::new(0.05, 0.05, 0.5), Point3::new(0.3, 0.3, top)),
-        )
+        );
+        finished("the voided box", body, tol())
     };
     let turn = |body: &Body<f64>| {
         [
@@ -732,7 +733,8 @@ fn concave_mitres_beside_an_island_refuse_where_their_bands_reach_it() {
             Point3::new(3.0 - gap, 3.0 - gap, 2.4),
         );
         let stem = rod(Point2::new(2.0, 2.0), 0.1, 0.9, lo + 0.05);
-        fuse("island", &fuse("stem", &vented_cavity(), &stem), &island)
+        let cavity = finished("the cavity", vented_cavity(), tol());
+        fuse("island", &fuse("stem", &cavity, &stem), &island)
     };
     let floor = |body: &Body<f64>| {
         edges_with_corners(body, |p| cavity_corner(p) && (p.z - 1.0).abs() < 1e-12)
@@ -835,6 +837,7 @@ fn a_void_behind_an_oblique_turns_station_refuses_where_its_band_reaches_it() {
             Point3::new(0.298, 0.284, 0.925),
         ),
     );
+    let body = finished("the sliver-voided box", body, tol());
     let v = [s, s, 1.0];
     let turn = |b: &Body<f64>| [edge(b, v, [2.0 + s, s, 1.0]), edge(b, v, [s, 1.5 + s, 1.0])];
     refuses_on_reach(&body, &turn(&body), Verb::Chamfer, "a sliver void behind v");

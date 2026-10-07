@@ -325,10 +325,20 @@ fn a_slit_operand_refuses_at_the_split_door_at_a_dual() {
 /// slit, filleted and chamfered: each refusal is the door's own tier-2
 /// read, carrying `validate_closed`'s verdict. Red without that read:
 /// the doors refused with reasons about the edge (a valence-2 corner,
-/// tangential supports, a chart-seam vertex).
+/// tangential supports, a chart-seam vertex). The control follows the
+/// refusal's recourse: the dome with its edit not left half-way (no
+/// slit) passes the same read, and the fillet blends its base rim.
 #[test]
 fn a_slit_operand_refuses_at_both_blend_doors_at_a_dual() {
     let tol = Tol::witness();
+    let whole = dome::<Dual64>();
+    let rim = sweep::test_support::rim_arcs_at(&whole, 1.0, 0.0);
+    let whole = Dual64::gate_at_rest_kept(whole, tol).expect("a dual gate runs nothing");
+    let filleted = sweep::blend::fillet_edges(&whole, &rim, f(0.05), tol).map(|_| ());
+    assert!(
+        filleted.is_ok(),
+        "the unslit dome's rim fillets: {filleted:?}"
+    );
     for (i, slit) in slits::<Dual64>().iter().enumerate() {
         let operand =
             Dual64::gate_at_rest_kept(slit.clone(), tol).expect("a dual gate runs nothing");

@@ -430,7 +430,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         };
         topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
             .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
-        let body = sweep::test_support::finished("body", bb.body.into_body(), tol());
+        let body = bb.body;
         validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
         let got = topo::mass_properties(&body, tol()).unwrap().volume;
         assert!(
@@ -482,7 +482,7 @@ mod interval_lane {
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, finished, prism};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{Body, BooleanDeclarations, EdgeKey};
+    use topo::{AtRestBody, BooleanDeclarations, EdgeKey};
 
     fn t() -> Tol {
         Tol::witness()
@@ -502,7 +502,7 @@ mod interval_lane {
         );
         let diamond =
             topo::transform_rigid(&diamond, &Affine3::translation(v3(0.0, 0.0, 0.8)), t()).unwrap();
-        let body: Body<Interval> = boolean_op_with(
+        let body: AtRestBody<Interval> = boolean_op_with(
             BooleanOp::Subtract,
             &finished("the cube", cube(1.0, t()), t()),
             &finished("the diamond", diamond, t()),
@@ -514,8 +514,7 @@ mod interval_lane {
         .body()
         .expect("a body")
         .body
-        .clone()
-        .into_body();
+        .clone();
         let on = |c: Interval| c.lo().abs() < 1e-9 || (c.lo() - 1.0).abs() < 1e-9;
         let outer: Vec<EdgeKey> = body
             .edges()
@@ -531,25 +530,14 @@ mod interval_lane {
             .collect();
         assert_eq!(outer.len(), 12, "the outer box's twelve edges");
 
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&body, t()),
-            &outer,
-            iv(0.15),
-            t(),
-        )
-        .expect("r = 0.15 builds");
+        let out = fillet_edges(&body, &outer, iv(0.15), t()).expect("r = 0.15 builds");
         topo::validate_geometric(&out.body, t()).expect("r = 0.15 is tier-3 valid");
 
         let eps = t().get().eps;
         for r in [0.2 - 5.0 * eps, 0.2 + 5.0 * eps] {
-            let err = fillet_edges(
-                &sweep::test_support::at_rest(&body, t()),
-                &outer,
-                iv(r),
-                t(),
-            )
-            .expect_err("refuses")
-            .error;
+            let err = fillet_edges(&body, &outer, iv(r), t())
+                .expect_err("refuses")
+                .error;
             assert!(
                 matches!(&err, BlendError::Escalated { source, .. }
                     if source.predicate == Some("fillet3_ring_clearance")
@@ -558,14 +546,9 @@ mod interval_lane {
             );
         }
 
-        let err = fillet_edges(
-            &sweep::test_support::at_rest(&body, t()),
-            &outer,
-            iv(0.201),
-            t(),
-        )
-        .expect_err("refuses")
-        .error;
+        let err = fillet_edges(&body, &outer, iv(0.201), t())
+            .expect_err("refuses")
+            .error;
         let BlendError::RingClearance { margin, .. } = &err else {
             panic!("r = 0.201 refuses RingClearance, got {err:?}")
         };

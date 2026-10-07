@@ -241,10 +241,13 @@ pub use topo::test_support::finished;
 ///
 /// # Panics
 ///
-/// As [`finished`], where the gate refuses the body.
+/// As [`finished`], where the gate refuses the body, naming the
+/// caller's line.
 #[must_use]
+#[track_caller]
 pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestBody<T> {
-    finished("the blend operand", body.clone(), tol)
+    let caller = core::panic::Location::caller();
+    finished(&format!("the blend operand at {caller}"), body.clone(), tol)
 }
 
 /// The square of side `l` with a corner at the origin, counter-clockwise

@@ -1,11 +1,13 @@
 ---
 id: blend-scaffolding-arms-behind-the-operand-gate
 kind: issue
-title: blend: the host gate and the screen's strut and lone-vertex arms read operand scaffolding the door's at-rest gate now refuses
-status: open
+title: "blend: the host gate is reached by a finished pinched host; the screen's strut and lone-vertex arms are unreachable through the doors"
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: E
+closed: 2026-10-07
+pr: 4252
 ---
 
 
@@ -16,30 +18,25 @@ cost: E
 read `AtRestBody::gate_unverdicted` at the door where no verdict rides
 (a dual). So tier 2 refuses every scaffolding state at every scalar
 before the battery runs. Three arms were reached only by rows that
-built scaffolding operands, and those rows now pin that the operand
-does not finish:
+built scaffolding operands; each is now settled:
 
-- **The face-clearance screen's lone-vertex arm** (`battery.rs`,
-  `screened_loop`, "a support face carries a lone-vertex cycle") —
-  tier 2's `ScaffoldingEmptyLoop`.
-- **The screen's uncertified-carrier arm** (`battery.rs`, same
-  function, "a support face's boundary edge carries no certified
-  carrier") — reached by a null strut, tier 2's `ScaffoldingStrutVertex`
-  and `NullEdgeAtRest`. Rows:
-  `scaffolding_on_a_blend_support_face_does_not_finish::*`.
 - **The hostless host gate** (`surgery.rs`, "a hostless-crossing rim's
   host face carries edges outside the requested chain in its outer
-  cycle") — reached by a strut spur in the cap's outer cycle. Row:
-  `fillet_h5_r2_probes::a_host_with_a_strut_spur_in_its_outer_cycle_does_not_finish`.
+  cycle") — reached by a finished operand: a coplanar triangle cut into
+  the repaired cylinder's base disc at a rim vertex pinches the disc's
+  outer cycle, and that body finishes. Row:
+  `fillet_h5_r2_probes::a_finished_pinched_host_refuses_at_the_hostless_gate`.
+- **The face-clearance screen's lone-vertex arm** and **its
+  uncertified-carrier arm** (`battery.rs`, `screened_loop`) —
+  unreachable through the doors: `LoopBoundary` and `CurveGeom` have
+  two variants each, and tier 2's check 1 refuses every `Empty` loop and
+  check 4 every `NullScaffold` curve, at every scalar, before the
+  battery runs. Kept as defence for direct `run_battery` callers, which
+  read a raw body, and said so at the site. Rows pinning that the
+  scaffolding operands do not finish:
+  `scaffolding_on_a_blend_support_face_does_not_finish::*`.
 
-The half-band gate's curved single host is not on this list: a
+The half-band gate's curved single host was never on this list: a
 cylinder wall merged into one face over its wrap edge
-(`kef_describing`) finishes and reaches it
+(`kef_describing`, either meridian) finishes and reaches it
 (`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
-
-The other uncertified-carrier reads in `surgery.rs` may be reached by
-the surgery's own mid-construction bodies, so they are not listed here.
-
-Owed: for each arm, find a finished operand (or a mid-surgery body)
-that reaches it, and row it; or retire it as unreachable and say so at
-the site.

@@ -2452,10 +2452,7 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::UnfinishedOperand { input, errors } => write!(
                 f,
-                "{} is not a finished body: the at-rest gate refuses it ({}), and this op \
-                 takes finished bodies. The node that built it shipped a body that does not \
-                 finish, which is a defect of that node's operation, not of anything set on \
-                 either node",
+                "{} shipped a body that does not finish: {}",
                 by.node_as(*input, "input"),
                 errors
                     .first()

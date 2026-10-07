@@ -2786,6 +2786,11 @@ const _: () = assert!(
 /// boundary edge, in cycle order. Whatever the screen cannot read
 /// refuses here, typed — a feature left out of the pair sweep would
 /// let the screen report a face clear having metered nothing for it.
+///
+/// The lone-vertex and uncertified-carrier arms are unreachable through
+/// the blend doors: tier 2 (check 1, check 4), which both doors run at
+/// every scalar, refuses every `Empty` loop and `NullScaffold` curve.
+/// They stand for direct [`run_battery`] callers, which read a raw body.
 fn screened_loop<T: Decide>(
     body: &Body<T>,
     lp: topo::LoopKey,

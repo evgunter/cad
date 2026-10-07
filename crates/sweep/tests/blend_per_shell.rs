@@ -18,7 +18,7 @@ use topo::{AtRestBody, Body, EdgeKey, FaceKey, ShellKey};
 const R: f64 = 0.1;
 
 /// Two unit boxes a unit apart along `x`, unioned: two solids.
-fn two_boxes() -> Body<f64> {
+fn two_boxes() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let a = finished(
         "box a",
@@ -36,7 +36,6 @@ fn two_boxes() -> Body<f64> {
         .expect("the union keeps material")
         .body
         .clone()
-        .into_body()
 }
 
 /// The shell of edge `e`'s `plus` side.
@@ -136,13 +135,7 @@ fn one_box_of_a_disjoint_union_fillets_and_the_other_rides_through() {
     let (a, a_edges) = box_at(&body, true);
     let (b, _) = box_at(&body, false);
     assert_eq!(a_edges.len(), 12, "box a's twelve edges");
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &a_edges,
-        R,
-        Tol::witness(),
-    )
-    .expect("box a fillets");
+    let out = fillet_edges(&body, &a_edges, R, Tol::witness()).expect("box a fillets");
     assert_eq!(out.shells, vec![a], "box a's shell is the one carved");
     carried_through("fillet", &body, &out, b);
     assert_volume(
@@ -160,13 +153,7 @@ fn both_boxes_of_a_disjoint_union_fillet_in_one_request() {
     let (a, mut edges) = box_at(&body, true);
     let (b, b_edges) = box_at(&body, false);
     edges.extend(b_edges);
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &edges,
-        R,
-        Tol::witness(),
-    )
-    .expect("both boxes fillet");
+    let out = fillet_edges(&body, &edges, R, Tol::witness()).expect("both boxes fillet");
     let mut want = vec![a, b];
     want.sort_unstable();
     assert_eq!(out.shells, want, "both shells are carved");
@@ -183,13 +170,7 @@ fn one_box_of_a_disjoint_union_chamfers_and_the_other_rides_through() {
     let body = two_boxes();
     let (_, a_edges) = box_at(&body, true);
     let (b, _) = box_at(&body, false);
-    let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &a_edges,
-        R,
-        Tol::witness(),
-    )
-    .expect("box a chamfers");
+    let out = chamfer_edges(&body, &a_edges, R, Tol::witness()).expect("box a chamfers");
     carried_through("chamfer", &body, &out, b);
     assert_volume(
         "a chamfered box beside a unit box",
@@ -215,17 +196,12 @@ fn a_sealed_void_blends_inside_its_own_shell() {
         brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0)),
         tol,
     );
-    let body = sweep::test_support::finished(
-        "body",
-        topo::subtract(&block, &void, tol)
-            .expect("the cut succeeds")
-            .body()
-            .expect("the cut keeps material")
-            .body
-            .clone()
-            .into_body(),
-        tol,
-    );
+    let body = topo::subtract(&block, &void, tol)
+        .expect("the cut succeeds")
+        .body()
+        .expect("the cut keeps material")
+        .body
+        .clone();
     assert_eq!(body.solids().count(), 1, "a sealed cavity is one solid");
     assert_eq!(body.shells().count(), 2, "of an outer and a void shell");
     let inner = |p: Point3<f64>| p.to_array().iter().all(|c| (1.0..=3.0).contains(c));

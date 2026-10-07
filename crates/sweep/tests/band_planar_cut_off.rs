@@ -154,13 +154,18 @@ impl Verb {
         body: &Body<f64>,
         edges: &[EdgeKey],
     ) -> Result<Blended<f64>, BlendError> {
+        self.run_finished(&sweep::test_support::at_rest(body, tol()), edges)
+    }
+
+    /// [`Self::run`] on an operand already finished.
+    pub(crate) fn run_finished(
+        self,
+        body: &topo::AtRestBody<f64>,
+        edges: &[EdgeKey],
+    ) -> Result<Blended<f64>, BlendError> {
         match self {
-            Self::Chamfer => {
-                chamfer_edges(&sweep::test_support::at_rest(body, tol()), edges, D, tol())
-            }
-            Self::Fillet => {
-                fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, D, tol())
-            }
+            Self::Chamfer => chamfer_edges(body, edges, D, tol()),
+            Self::Fillet => fillet_edges(body, edges, D, tol()),
         }
         .map_err(|r| r.error)
     }

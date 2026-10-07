@@ -276,9 +276,9 @@ pub(super) fn face_cycle_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> Opti
 /// whose axis `n_a × n_b` the THIRD support's normal is parallel to,
 /// so the pick minimizes `|n_c × axis|` over the incident requested
 /// links, ORDER-FREE — it finds the admitting edge whenever one
-/// exists and degrades to "no chart admits this trihedron" (the
-/// genuinely oblique case, tier-3 `VolumeUncomputable`) only when
-/// none does. Returns `(u_ref, axis)`.
+/// exists and falls back to the best-scoring link (the genuinely
+/// oblique trihedron, whose octant is no iso rectangle and still
+/// passes tier 3) only when none does. Returns `(u_ref, axis)`.
 ///
 /// **The chart follows the corner's convexity, and the invariant it
 /// keeps is about the EQUATOR**: the seam meridian (`u_ref`) and its

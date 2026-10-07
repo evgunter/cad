@@ -5,10 +5,14 @@
 //! - a host face carrying a strut spur in its outer cycle, and a CURVED
 //!   single face carrying both arcs over a slit, are scaffolding: the
 //!   operand does not finish, so neither reaches a blend door;
+//! - a finished host whose outer cycle is pinched at a rim vertex (a
+//!   coplanar triangle cut into the disc) refuses at the hostless host
+//!   gate, and the chamfer refuses its arm; the mirrored triangle does
+//!   not finish;
 //! - a finished CURVED single face carrying both arcs (a cylinder wall
-//!   merged into one face over its wrap edge, touching no pole), the
-//!   plane side repaired or not, refuses at the half-band gate, and the
-//!   chamfer refuses its arm;
+//!   merged into one face over its wrap edge, on either meridian,
+//!   touching no pole), the plane side repaired or not, refuses at the
+//!   half-band gate, and the chamfer refuses its arm;
 //! - two compositions the #935 row does not cover: two hostless rims
 //!   of one body on a SHARED mate wall in one call, and two hostless
 //!   rims sharing no wall — both against both sequential orders;
@@ -23,15 +27,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_brep::EdgeDescriptionSpec;
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_full_revolve_rim, bowl, lantern, revolved_about_y, rim_arcs_at};
 use topo::{
-    AtRestBody, Body, EdgeKey, FaceKey, MevSite, ValidationError, mass_properties,
-    validate_geometric,
+    AtRestBody, Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite, ValidationError,
+    mass_properties, validate_geometric,
 };
 
 fn tol() -> Tol {
@@ -231,6 +235,104 @@ fn a_host_with_a_strut_spur_in_its_outer_cycle_does_not_finish() {
     );
 }
 
+/// **A finished host pinched at a rim vertex refuses at the hostless
+/// host gate.** A coplanar triangle is cut into the repaired cylinder's
+/// base disc at a rim vertex (`mev`, `mev`, `mef`, each edge resting in
+/// the disc's chart), so the disc's one outer cycle is both rim arcs
+/// plus the triangle's path, visiting the vertex twice. That body
+/// finishes, and the fillet refuses at the gate while the chamfer
+/// refuses its arm. The mirrored triangle winds against the plane.
+#[test]
+fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
+    for mirrored in [false, true] {
+        let mut body = repaired(pole_cylinder());
+        let arcs = rim_arcs_at(&body, 1.0, 0.0);
+        assert_full_revolve_rim(&arcs, "the repaired cylinder base");
+        let (fa, fb) = faces_of(&body, arcs[0]);
+        let host = if is_plane(&body, fa) { fa } else { fb };
+        let plane = body.get_face(host).unwrap().surface;
+        let ed = body.get_edge(arcs[0]).unwrap();
+        let he = [ed.he_plus, ed.he_minus]
+            .into_iter()
+            .find(|&h| {
+                body.get_loop(body.get_half_edge(h).unwrap().parent_loop)
+                    .unwrap()
+                    .face
+                    == host
+            })
+            .unwrap();
+        let v0 = body.get_half_edge(he).unwrap().start;
+        let p0 = *body.get_point(body.get_vertex(v0).unwrap().point).unwrap();
+        let inward = Point3::new(p0.x * 0.5, p0.y, p0.z * 0.5);
+        let side = Point3::new(-p0.z, 0.0, p0.x);
+        let s = if mirrored { -0.2 } else { 0.2 };
+        let w1 = Point3::new(inward.x + s * side.x, p0.y, inward.z + s * side.z);
+        let w2 = Point3::new(inward.x - s * side.x, p0.y, inward.z - s * side.z);
+        let seg = |a, b| EdgeCurveSpec::line_between(a, b).at_rest_in_chart(plane, false);
+        let a = body
+            .mev(MevSite::Fan { he1: he, he2: he }, w1, seg(p0, w1), tol())
+            .expect("the first side cuts in");
+        let b = body
+            .mev(
+                MevSite::Fan {
+                    he1: a.he_minus,
+                    he2: a.he_minus,
+                },
+                w2,
+                seg(w1, w2),
+                tol(),
+            )
+            .expect("the second side cuts in");
+        body.mef(
+            MefSite::Chords {
+                he1: b.he_minus,
+                he2: a.he_plus,
+            },
+            seg(w2, p0),
+            FaceSurface::Inherit,
+            tol(),
+        )
+        .expect("the third side closes the triangle");
+        assert!(
+            body.get_face(host).unwrap().rings.is_empty(),
+            "the disc stays ring-free"
+        );
+
+        let verdict = AtRestBody::validate(body, tol());
+        if mirrored {
+            let errors = verdict
+                .map(drop)
+                .expect_err("the mirrored pinch does not finish");
+            assert!(
+                !errors.is_empty()
+                    && errors
+                        .iter()
+                        .all(|e| matches!(e, ValidationError::LoopRoleInverted { .. })),
+                "the mirrored triangle winds against the plane: {errors:?}"
+            );
+            continue;
+        }
+        let operand = verdict.unwrap_or_else(|e| panic!("the pinched disc finishes, got {e:?}"));
+        let fillet = fillet_edges(&operand, &arcs, 0.05, tol()).map(drop);
+        assert!(
+            matches!(
+                &fillet,
+                Err(r) if matches!(&r.error, BlendError::UnsupportedChain { detail, .. }
+                    if detail.contains("host face carries edges outside the requested chain"))
+            ),
+            "the hostless host gate fires on the fillet: {fillet:?}"
+        );
+        let chamfer = chamfer_edges(&operand, &arcs, 0.05, tol()).map(drop);
+        assert!(
+            matches!(
+                &chamfer,
+                Err(r) if matches!(r.error, BlendError::ChamferArmUnsupported { .. })
+            ),
+            "the chamfer refuses its arm: {chamfer:?}"
+        );
+    }
+}
+
 // ------------------------------------------------------------------
 // The curved single host — the `HostSide`-passed argument's shape.
 // ------------------------------------------------------------------
@@ -279,23 +381,26 @@ fn wall_meridians(body: &Body<f64>) -> [EdgeKey; 2] {
 
 /// **A finished CURVED single face carrying both arcs refuses at the
 /// half-band gate.** One of a cylinder wall's two seam meridians is
-/// killed and the other restated as the wall's wrap edge
+/// killed and the other, either one, restated as the wall's wrap edge
 /// (`kef_describing`), which merges the wall into ONE face that
-/// finishes: the wall touches no pole, so no strut tip is left. The base
+/// finishes: the wall touches no pole, so no strut tip is left. A wrap
+/// edge sits wherever the construction cut the wall, so either meridian
+/// carries the wrap flag and meters the cylinder's volume, π. The base
 /// rim's arcs then rest on a support that does not carry exactly its own
 /// rim arc, so the fillet refuses there whether or not the plane side
 /// has been repaired, and the chamfer refuses its arm. The same kill
 /// through plain `kef` leaves the survivor a slit, which tier 3 refuses.
 #[test]
 fn a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate() {
-    for repair in [false, true] {
+    for (repair, order) in [(false, 0), (false, 1), (true, 0), (true, 1)] {
         let mut body = pole_cylinder();
         if repair {
             body = repaired(body);
         }
         let arcs = rim_arcs_at(&body, 1.0, 0.0);
         assert_full_revolve_rim(&arcs, "the cylinder base");
-        let [dies, wraps] = wall_meridians(&body);
+        let meridians = wall_meridians(&body);
+        let (dies, wraps) = (meridians[order], meridians[1 - order]);
         let (wall, _) = faces_of(&body, wraps);
         let wall = body.get_face(wall).unwrap().surface;
         let dying = body.get_edge(dies).unwrap().he_plus;
@@ -317,8 +422,27 @@ fn a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gat
             1,
             "repair = {repair}: ONE cylinder face carries both arcs"
         );
-        let operand = AtRestBody::validate(body, tol())
-            .unwrap_or_else(|e| panic!("repair = {repair}: the merged wall finishes, got {e:?}"));
+        let image = body
+            .get_curve_geom(body.get_edge(wraps).unwrap().curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .description()
+            .chart()
+            .expect("the wrap edge carries a chart image")
+            .wrap;
+        assert!(
+            image,
+            "repair = {repair}, order = {order}: the survivor wraps"
+        );
+        let volume = mass_properties(&body, tol()).unwrap().volume;
+        assert!(
+            (volume - core::f64::consts::PI).abs() < 1e-9,
+            "repair = {repair}, order = {order}: the wall meters π, got {volume}"
+        );
+        let operand = AtRestBody::validate(body, tol()).unwrap_or_else(|e| {
+            panic!("repair = {repair}, order = {order}: the merged wall finishes, got {e:?}")
+        });
         let fillet = fillet_edges(&operand, &arcs, 0.05, tol()).map(drop);
         assert!(
             matches!(
@@ -326,7 +450,7 @@ fn a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gat
                 Err(r) if matches!(&r.error, BlendError::UnsupportedChain { detail, .. }
                     if detail.contains("does not carry exactly its own rim arc"))
             ),
-            "repair = {repair}: the half-band gate fires on the fillet: {fillet:?}"
+            "repair = {repair}, order = {order}: the half-band gate fires on the fillet: {fillet:?}"
         );
         let chamfer = chamfer_edges(&operand, &arcs, 0.05, tol()).map(drop);
         assert!(
@@ -334,7 +458,7 @@ fn a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gat
                 &chamfer,
                 Err(r) if matches!(r.error, BlendError::ChamferArmUnsupported { .. })
             ),
-            "repair = {repair}: the chamfer refuses its arm: {chamfer:?}"
+            "repair = {repair}, order = {order}: the chamfer refuses its arm: {chamfer:?}"
         );
     }
 }
