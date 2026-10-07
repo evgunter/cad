@@ -1212,9 +1212,9 @@ intent.
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the geometric values (`Point`, `Direction`, `Axis`, `Plane`,
-`Frame`), which may be free or defined; the products (`Body`, `Bodies`,
+`Frame`), which may be free or defined; the shapes (`Body`, `Bodies`,
 an ordered list of bodies whose length is a `Count`, and `Profile`),
-which only an operation defines; and the selections of a product
+which only an operation defines; and the selections of a shape
 (`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
 — or **defined**, by an `Expr` over other variables, by a selection of a
@@ -1228,7 +1228,7 @@ makes the two distinct.
 **Operations.** A node is an operation: it reads variables and defines
 the variables its signature states, a fixed list of named, typed ports
 set by its variant (a split defines two bodies; an instance of a part
-defines one variable per entry of the part's product), possibly none:
+defines one `Body` variable per world placement of the part), possibly none:
 an assertion or a mate defines none. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
 product is an explicit list of `Body` variables. A `Face` or `Edge`
