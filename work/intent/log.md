@@ -282,3 +282,12 @@ and A10's regrouping; split(inline(h)) keeps an unread free named part
 variable in the host. Not sent to Ev: no ratified decision moves. A4's
 acceptance is kept and re-worded as VR1 forces ("minted ids"), and A4
 Split and VR9 each gain a descriptive line, landing with the lane's PR.
+
+## 2026-10-07 — stage 2 spec updated to the FORK-2b, FORK-4 and FORK-5 rulings (PR 4216)
+
+- **C is now "the product is the world"** (FORK-2b, #4220). It lands `PlaceInWorld { body, pose }` and a derived product. The audit's C-side retirements ride C rather than B, because each is stated over world placements: D-2's narrowed closure, `InstanceConsumed`, `PlacedUnderTwoRoots` and N4. The product is checked once, at the migration.
+- **B builds the one slot door for operands** (FORK-4, #4221).
+- **D refuses a construction reading an observed variable** (FORK-5, #4218).
+- **F retires A5's minting lift.**
+- **A and E stay pending FORK-1 and FORK-3** (#4222).
+- The consuming-model audit's 14 hits are mapped in spec §11.

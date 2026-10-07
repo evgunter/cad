@@ -20,3 +20,12 @@ them. Nothing reads them yet.
 
 `design: true`: FORK-1 (the output signature of an operation) is open and blocks this row.
 Parked on stage 1's last unit.
+
+## FORK-1 pending (2026-10-07, #4222)
+
+FORK-1 is with Ev on #4222 (`operations-state-their-outputs`). The recommendation there:
+- the shapes `Body`, `Bodies` and `Profile`;
+- a split defines two ports;
+- an instance defines one `Body` per world placement of its part.
+
+Spec §1 and §2 follow it, pending the ruling.

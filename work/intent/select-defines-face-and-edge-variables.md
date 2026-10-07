@@ -19,3 +19,7 @@ selections, shell open faces, face-frame datums and measure refs read selects.
 
 `design: true`: FORK-3 (what a selection is: node or definition, one entity or a set,
 shared or distinct; SELECT-DESIGN §4) blocks this row.
+
+## FORK-3 pending (2026-10-07, #4222)
+
+FORK-3 is with Ev on #4222 (`a-selection-is-a-definition-of-a-body-s-faces-or-edges`). The recommendation there: a selection is a definition, not a node; sets (`Faces`/`Edges`) or singletons; distinct by authoring; `Rebind { body, from, to }`. Spec §1 and §6 follow it, pending the ruling.

@@ -6,9 +6,8 @@ status: parked
 opened: 2026-10-07
 priority: P0
 cost: H
-design: true
 blocked_on: [operations-define-output-variables]
-refs: [d10-one-way-to-say-intent-is-unbuilt]
+refs: [d10-one-way-to-say-intent-is-unbuilt, an-operand-slot-is-re-pointed-by-the-slot-door, set-members-admits-a-forward-member-the-save-validator-refuses]
 ---
 
 INTENT stage 2, PR B. Spec: `docs/INTENT-STAGE2-SPEC.md` §3.
@@ -20,5 +19,6 @@ readers unresolved and typed, reported as `Maintenance::Strand` (D10; Q1), and
 `DeleteWouldDangle` retires. The roots are byte-equal before and after, which is the PR's check.
 Gauges and mate sides are not converted here (Q3; PR F).
 
-`design: true`: FORK-4 (re-pointing an operand against REFERENCES DM6). B keeps DM6
-until it is ruled.
+## FORK-4 ruled (2026-10-07, #4221)
+
+DM6 now reads "no edit infers a re-point". B builds the one slot door for operand slots, under kind, liveness, acyclicity and DM5. `SetMembers` becomes that door on a list slot, and strands are reported, never refused. The design flag is cleared.
