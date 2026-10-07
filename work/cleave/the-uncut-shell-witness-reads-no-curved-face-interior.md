@@ -76,3 +76,16 @@ on_boundary: 4, in_band: 0 }` for each loop).
 - the cylinder of `review_ring_clearance_r1_probes.rs`
   `r1_diag_cylinder_pierces` against a `y`-poled ball(0.16) on its top
   cap (recorded, not asserted, there).
+
+## Evidence (2026-10-07, TANG `tang/sphere-ring-island-winding`): a well under a ball
+
+The slab `[0, 4]² × [0, 1]` with a well `[0.1, 0.4] × [1.8, 2.2] ×
+[0.5, 1]` cut into it, against the `y`-poled ball(0.5) at
+`(0.3, 2, 1.2)`: the slab's top edge pierces the ball's face, and the
+well's walls cut it in a ring inside that island, which the sphere
+ring re-homing moves in. Every op in both member orders then stops at
+the role read, `Join(SectionLoopUndecided)`: the section loop about the
+well flanks only patches of the sphere, every vertex and edge of which
+lies on the slab (`crates/sweep/tests/a_ring_on_a_sphere_face.rs`,
+`a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read`). A
+through hole stops the same way.

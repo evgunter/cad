@@ -82,6 +82,7 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_brep::SurfaceSide;
 use geom_core::{Point3, Real, Vec3};
 
 use super::battery::{Convexity, sided};
@@ -391,7 +392,7 @@ pub fn plane_plane_blend<T: Real>(
 /// side of each on a CONCAVE one, where the ball rolls in the void.
 /// That is ONE fold, [`Convexity::signed`] (`±r`), homed on the verdict
 /// type and shared with [`plane_plane_blend`], `open::planar::corner_plan`
-/// and — as the side bit [`Convexity::ball_side`] — the shared sheet
+/// and — as the side [`Convexity::ball_side`] — the shared sheet
 /// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
 /// NEGATIVE, the rest depth. Which side of the
 /// SPHERE its material is on is the pair's own second configuration
@@ -470,9 +471,9 @@ pub fn plane_sphere_blend<T: Real>(
     // The same fold read against the sphere's stored sense: the ball
     // rests on the sphere's MATERIAL side — inside it — exactly when
     // that sense agrees with the chain's convexity.
-    let inside = convexity.ball_side(sphere_convex);
+    let side = convexity.ball_side(sphere_convex);
     // The offset sphere the ball centre rides, selected STRUCTURALLY.
-    let offset = sphere_r - sided(inside, radius);
+    let offset = sphere_r - sided(side, radius);
     let s2 = offset.powi(2) - h.powi(2);
     // No gate here (see the two degenerate cases in the doc above):
     // `s² < 0` yields poison and escalates at predicate 3, `0 < s ≤ r`
@@ -517,7 +518,7 @@ pub fn plane_sphere_blend<T: Real>(
             // inner offset, `s > rim` on the outer — function docs),
             // spelled by the bit rather than as `|s − rim|` so a wrong
             // fold reads as a negative length instead of hiding.
-            sided(inside, rim - s),
+            sided(side, rim - s),
         ),
         trim_b: (
             Curve3::Circle {
@@ -547,14 +548,15 @@ pub fn plane_sphere_blend<T: Real>(
 /// cross-section normal to a ruling.
 ///
 /// **`side` is the ball's side of the support as the support's chart
-/// sees it, and it is the only place one enters an arm.** It is `true`
-/// when the ball's centre lies on the side the support's chart normal
-/// points AWAY from — the support's material side on a `sense: true`
-/// face — and `false` when it lies on the side the chart normal points
-/// into; [`Convexity::ball_side`] is where it is read, from stored
-/// structure and never from a sampled normal (S10/S11). It selects the
-/// `R ∓ r` fold: every consumer spells it as [`sided`], a conditional
-/// negation of the radius, so it is a bit here and never a `±1`.
+/// sees it, and it is the only place one enters an arm.** It is
+/// [`SurfaceSide::Inner`] when the ball's centre lies on the side the
+/// support's chart normal points AWAY from — the support's material side
+/// on a `sense: true` face — and [`SurfaceSide::Outer`] when it lies on
+/// the side the chart normal points into; [`Convexity::ball_side`] is
+/// where it is read, from stored structure and never from a sampled
+/// normal (S10/S11). It selects the `R ∓ r` fold: every consumer spells
+/// it as [`sided`], a conditional negation of the radius, so it is a
+/// side here and never a `±1`.
 #[derive(Clone, Copy, Debug)]
 pub enum SupportTrace<T: Real> {
     /// A STRAIGHT trace: the line through the rim point whose unit
@@ -573,7 +575,7 @@ pub enum SupportTrace<T: Real> {
         /// sheet.
         normal: Vec3<T>,
         /// The ball's side of the support (type docs).
-        side: bool,
+        side: SurfaceSide,
     },
     /// A ROUND trace: the circle the support cuts in the sheet — a
     /// sphere centred on the axis in its meridian, a cylinder about the
@@ -584,7 +586,7 @@ pub enum SupportTrace<T: Real> {
         /// Its radius (positive by convention).
         radius: T,
         /// The ball's side of the support (type docs).
-        side: bool,
+        side: SurfaceSide,
     },
 }
 
@@ -614,7 +616,7 @@ impl<T: Real> SupportTrace<T> {
 /// arm answers by the meridian's `ρ ≥ 0` and never has to ask.
 ///
 /// The material sides enter as `σ = +1` where a trace's `side` is
-/// `true` and `−1` where it is `false`, spelled below as [`sided`].
+/// `Inner` and `−1` where it is `Outer`, spelled below as [`sided`].
 ///
 /// - **line × line**: `δ = −r[(σ_a − σ_b d)n̂_a + (σ_b − σ_a d)n̂_b]/(1 − d²)`
 ///   for `d = n̂_a·n̂_b` — [`plane_plane_blend`]'s own centre formula with
@@ -773,7 +775,7 @@ impl<T: Real> Meridian<T> {
     /// pair is not a coaxial one, so its spine is neither line nor
     /// circle — the canal family, refused.
     #[must_use]
-    pub fn trace(&self, s: &Surface<T>, side: bool) -> Option<(SupportTrace<T>, T)> {
+    pub fn trace(&self, s: &Surface<T>, side: SurfaceSide) -> Option<(SupportTrace<T>, T)> {
         let radial = self.radial();
         let lever = self.lever();
         match *s {
@@ -904,7 +906,7 @@ impl<T: Real> Ruling<T> {
     ///
     /// `None` for a surface kind this family does not cover.
     #[must_use]
-    pub fn trace(&self, s: &Surface<T>, side: bool) -> Option<(SupportTrace<T>, T)> {
+    pub fn trace(&self, s: &Surface<T>, side: SurfaceSide) -> Option<(SupportTrace<T>, T)> {
         match *s {
             // A plane containing the ruling: its chart normal is already
             // ⊥ the ruling, so it is the cross-section line's normal.

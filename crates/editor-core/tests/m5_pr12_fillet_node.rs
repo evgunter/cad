@@ -163,6 +163,7 @@ fn an_inadmissible_radius_fails_the_node_typed() {
             node: head,
             slot: SlotId::Radius,
             expr: fixture::len(0.625),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

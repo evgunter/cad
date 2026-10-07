@@ -108,6 +108,7 @@ fn place(doc: ProfileDoc, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
         DocEdit::SetOffset {
             instance: node,
             offset: Some(editor_core::Placement::literal(&Frame::translation(at))),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -671,6 +672,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
                     ContactClass::Rest,
                     frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1799,6 +1801,7 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
                 ContactClass::Rest,
                 frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -324,11 +324,13 @@ pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Formula) {
     for &node in doc.order().iter().rev() {
         match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {
-                let value = editor_core::eval(distance, &env).expect("a literal distance");
+                let value = editor_core::eval_var(*distance, editor_core::Dimension::Length, &env)
+                    .expect("a literal distance");
                 return (node, SlotId::Distance, super::len(value * 1.03125));
             }
             editor_core::Node::Revolve { angle, .. } => {
-                let value = editor_core::eval(angle, &env).expect("a literal angle");
+                let value = editor_core::eval_var(*angle, editor_core::Dimension::Angle, &env)
+                    .expect("a literal angle");
                 return (node, SlotId::RevolveAngle, super::ang(value * 0.96875));
             }
             _ => {}
@@ -379,7 +381,10 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
         landed("gallery_ring", "the first edit", &session);
     }
     for doc in corpus::documents() {
-        let DocEdit::SetParam { node, slot, expr } = doc.bump.clone() else {
+        let DocEdit::SetParam {
+            node, slot, expr, ..
+        } = doc.bump.clone()
+        else {
             continue;
         };
         let mut session = DocSession::inline(doc.doc.clone(), tol);

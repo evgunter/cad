@@ -156,6 +156,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     let refused = base.apply(
         &DocEdit::InsertNode {
             node: Box::new(boolean(decl)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -224,6 +225,7 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
         doc.apply(
             &DocEdit::InsertNode {
                 node: Box::new(boolean.clone()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

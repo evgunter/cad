@@ -88,3 +88,13 @@ off the true crossing — so the row is raised from P2 to P1 (a live
 wrong answer on unusual geometry; P0 is reserved for normal geometry).
 One of them moved in PR 3973 (ε 1e-12, ×1e3, inner graze: main
 certified roots 157,518 bands off; the PR answers `Uncertain`).
+
+## The plumbing exists (2026-10-06)
+
+`circle_roots::half_angle_roots` takes the subdivision's optional
+`RootSlack` meter (PR of `an-edge-crossing-a-cone-face-has-no-root-lane`).
+The conic × quadric door's cone arm hands it one
+(`bool_conic_cone_root_slack`, the residual read by
+`geom_brep::conic_cone_residual`); the door's sphere and wall ladder arm
+and `circle_torus::circle_torus_roots` still pass `None`, and what this
+row asks of them is unchanged.

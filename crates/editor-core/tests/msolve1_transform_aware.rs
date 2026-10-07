@@ -188,6 +188,7 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
                 crate::fixture::head_at(a_at, in_part(base, base_body, CapEnd::End)),
                 crate::fixture::head_at(b_at, in_part(top, top_body, CapEnd::Start)),
             )),
+            fresh: Vec::new(),
         },
     );
     Scene {
@@ -426,6 +427,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(pattern, b.clone()),
                 )),
+                fresh: Vec::new(),
             },
         );
         let mate = mate.unwrap();
@@ -493,6 +495,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(xf, b.clone()),
                 )),
+                fresh: Vec::new(),
             },
         );
         let mate = mate.unwrap();
@@ -651,6 +654,7 @@ fn a4_a_placed_root_group_seats_through_both_chains() {
                 )
                 .expect("a literal axis has a definite direction"),
             )),
+            fresh: Vec::new(),
         },
     );
     let placed = Scene { doc, ..s };
@@ -702,6 +706,7 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(x1, b.clone()),
             )),
+            fresh: Vec::new(),
         },
     );
     let far_corner = Node::Mate {
@@ -726,6 +731,7 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
         doc,
         DocEdit::InsertNode {
             node: Box::new(far_corner),
+            fresh: Vec::new(),
         },
     );
     (doc, opts, [m1.unwrap(), m2.unwrap()])
@@ -826,6 +832,7 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
                     MatePrimitive::Coaxial,
                     Some(0.0),
                 )),
+                fresh: Vec::new(),
             },
         );
         let o = EvalOptions {
@@ -928,6 +935,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
                     crate::fixture::head_at(ghost, in_part(s.base, s.base_body, CapEnd::End)),
                     crate::fixture::head(in_part(s.top, s.top_body, CapEnd::Start)),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1002,6 +1010,7 @@ fn a8c_the_content_key_separates_two_operands() {
                         in_part(top, top_body, CapEnd::Start),
                     ),
                 )),
+                fresh: Vec::new(),
             },
         );
         let ev = run(&doc, &opts);
@@ -1112,6 +1121,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, nested.clone()),
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1251,6 +1261,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
                 crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                 crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start)),
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1509,6 +1520,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, nested.clone()),
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1625,6 +1637,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let inserted = doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

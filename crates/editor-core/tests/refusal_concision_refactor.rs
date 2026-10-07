@@ -53,7 +53,7 @@ test_utils::f6_variants! {
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
-        UncutVarReference, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        UncutVarReference, UnresolvedVarCrossesCut,
         PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
@@ -63,7 +63,7 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
-        PartCarriesMetadata, VarNameConflict, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        PartCarriesMetadata, VarNameConflict, UnresolvedVarCrossesCut,
         UnplaceableFrame, MatePlaced, Unplaced,
         MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
@@ -144,13 +144,6 @@ fn split_refusals() -> Vec<SplitError> {
             kept_node: s(6, "Gauge"),
             promote: true,
         },
-        SplitError::AnonymousVarCrossesCut {
-            var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
-                None,
-            ),
-            node: s(4, "Extrude"),
-        },
         SplitError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
                 editor_core::VarId(test_utils::refusal::tagged(9)),
@@ -217,12 +210,6 @@ fn inline_refusals() -> Vec<InlineError> {
             key: "author".to_owned(),
         },
         InlineError::VarNameConflict { name: param() },
-        InlineError::AnonymousVarCrossesCut {
-            var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
-                None,
-            ),
-        },
         InlineError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
                 editor_core::VarId(test_utils::refusal::tagged(9)),

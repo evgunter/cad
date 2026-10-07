@@ -129,6 +129,7 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
             node: s.tr,
             slot: SlotId::Translation(axis),
             expr: len(to),
+            fresh: Vec::new(),
         },
     )
     .0

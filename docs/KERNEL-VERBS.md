@@ -167,9 +167,11 @@ the table.
   refuses). Curved support pairs
   whose supports miss the shared axis still refuse `SpineUnsupported`
   at `fillet3_support_coaxiality` (`battery.rs:781`); cone×cylinder
-  itself is an implemented arm now, and `klein::wall_probes` walls 1
-  and 2 have moved to `RadiusHeadroom` — the ball is bigger than the
-  neck wall's curvature allows, not a missing arm.
+  itself is an implemented arm now: `klein::wall_probes` rolls the
+  bulb's neck→flare blend on the full revolve (the ball rolls outside
+  the neck's cylinders and the flare's cone, so the curvature headroom
+  sets no limit), and wall 2, its partial-revolve twin, refuses at the
+  open rim's end corner (`UnsupportedCorner { Indeterminate }`).
 - **`mesh::planar`'s banked sub-floor case — met by a consumer, then
   CLOSED (issue 555).** That module's docs used to bank one uncovered
   class: a planar face whose boundary points carry off-plane noise ν,

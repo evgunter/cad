@@ -450,14 +450,14 @@ pub struct Pose {
 impl Pose {
     /// The turn by `angle` about `axis`, then the shift `t`.
     pub fn turn(label: &'static str, axis: [f64; 3], angle: f64, t: [f64; 3]) -> Self {
-        let l = axis.iter().map(|a| a * a).sum::<f64>().sqrt();
+        let l = axis.iter().map(|a| a.powi(2)).sum::<f64>().sqrt();
         let [x, y, z] = axis.map(|a| a / l);
         let (s, c) = angle.sin_cos();
         let d = 1.0 - c;
         let r = [
-            [c + x * x * d, x * y * d - z * s, x * z * d + y * s],
-            [y * x * d + z * s, c + y * y * d, y * z * d - x * s],
-            [z * x * d - y * s, z * y * d + x * s, c + z * z * d],
+            [c + x.powi(2) * d, x * y * d - z * s, x * z * d + y * s],
+            [y * x * d + z * s, c + y.powi(2) * d, y * z * d - x * s],
+            [z * x * d - y * s, z * y * d + x * s, c + z.powi(2) * d],
         ];
         Self { label, r, t }
     }
@@ -515,8 +515,8 @@ pub fn poses() -> Vec<Pose> {
     ]
 }
 
-/// A box `[x, y, z]` placed by `pose`.
-pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose) -> AtRestBody<f64> {
+/// A box `[x, y, z]` placed by `pose`, built under the caller's `tol`.
+pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     let [(x0, x1), (y0, y1), z] = b;
     let mut body = Body::<f64>::new();
     prism_ops(
@@ -525,14 +525,14 @@ pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose) -> AtRestBody<f64>
         z,
         |x, y, z| pose.at([x, y, z]),
         FaceGeometry::Certified,
-        Tol::witness(),
+        tol,
     );
-    describe_as_intersections(&mut body, Tol::witness());
-    finished(what, body, Tol::witness())
+    describe_as_intersections(&mut body, tol);
+    finished(what, body, tol)
 }
 
-/// A hole's prism placed by `pose`.
-pub fn posed_prism(h: &Hole, pose: &Pose) -> AtRestBody<f64> {
+/// A hole's prism placed by `pose`, built under the caller's `tol`.
+pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     let [o, u, v, n] = h.frame();
     let mut body = Body::<f64>::new();
     prism_ops(
@@ -541,10 +541,10 @@ pub fn posed_prism(h: &Hole, pose: &Pose) -> AtRestBody<f64> {
         (0.0, h.length),
         |x, y, z| pose.at([0, 1, 2].map(|i| o[i] + x * u[i] + y * v[i] + z * n[i])),
         FaceGeometry::Certified,
-        Tol::witness(),
+        tol,
     );
-    describe_as_intersections(&mut body, Tol::witness());
-    finished("a tilted prism", body, Tol::witness())
+    describe_as_intersections(&mut body, tol);
+    finished("a tilted prism", body, tol)
 }
 
 /// A pyramid placed by `pose`: its apex, and its base's corners

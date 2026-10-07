@@ -999,3 +999,20 @@ R2 0/3/4. Tally 1.
 - The cleave three-corners row now waits on FUSE's shared-vertex row.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07 — next units after the pinch ruling
+
+- Dispatched, each to a fresh implementer:
+  - `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`
+    (P1). Its design flag is dropped, because Ev's PR 4057 ruling is the
+    row's option 2. Branch `join/pinch-cones-split-at-insertion`.
+  - `a-corner-is-a-slice-of-its-face-tier-3-check` and
+    `check-9-refuses-only-a-ring-meeting-its-outer-loop` as one unit,
+    since both touch `validate.rs`. Branch `join/tier3-pinch-checks`.
+  - `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`, a
+    diagnosis. Branch `join/near-tangent-two-cones`.
+- Parked on D10:
+  `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`.
+  Its declared rows need contact records naming both copies.
+
+Signed (JOIN orchestrator).

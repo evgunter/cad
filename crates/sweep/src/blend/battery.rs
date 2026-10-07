@@ -36,6 +36,7 @@
 
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid};
+use geom_brep::SurfaceSide;
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
@@ -203,7 +204,7 @@ impl Convexity {
     /// there as `-signed(..)`, the one negation the fold keeps.
     #[must_use]
     pub fn signed<T: Real>(self, radius: T) -> T {
-        sided(self.blend_sense(), radius)
+        sided(self.ball_side(true), radius)
     }
 
     /// **The same fold as a SIDE.** A support's stored sense bit says
@@ -211,24 +212,34 @@ impl Convexity {
     /// that side exactly when the chain is convex, on the far side when
     /// it is concave — `sense == blend_sense()`, the identity on a
     /// convex chain. The shared sheet reduction hands each trace this
-    /// bit (`curved_arm`), and the plane–sphere arm reads it against the
+    /// bit (`curved_arm`), the curvature headroom predicate reads which
+    /// of a support's bends the ball is inside off it
+    /// ([`radius_headroom`]), and the plane–sphere arm reads it against the
     /// sphere's sense to pick the offset sphere (the ball centre is
     /// INSIDE the sphere exactly when it rests on the sphere's material
     /// side).
     #[must_use]
-    pub fn ball_side(self, sense: bool) -> bool {
-        sense == self.blend_sense()
+    pub fn ball_side(self, sense: bool) -> SurfaceSide {
+        if sense == self.blend_sense() {
+            SurfaceSide::Inner
+        } else {
+            SurfaceSide::Outer
+        }
     }
 }
 
 /// **The conditional negation every `R ∓ r` selector spells**: `x`
-/// where `side` holds, `−x` where it does not — exact in every
-/// backend. [`Convexity::signed`] is this on the chain's verdict, and
-/// the sheet arms spell it on the ball side [`Convexity::ball_side`]
-/// derives from that verdict, so the one home is beside the bit's
-/// provenance rather than inside either consumer.
-pub(super) fn sided<T: Real>(side: bool, x: T) -> T {
-    if side { x } else { -x }
+/// with the ball on the support's inner side, `−x` on its outer side —
+/// exact in every backend. The sheet arms spell it on the side
+/// [`Convexity::ball_side`] derives from the chain's verdict, and
+/// [`Convexity::signed`] is it on a support whose chart normal is the
+/// outward one, so the one home is beside the side's provenance rather
+/// than inside either consumer.
+pub(super) fn sided<T: Real>(side: SurfaceSide, x: T) -> T {
+    match side {
+        SurfaceSide::Inner => x,
+        SurfaceSide::Outer => -x,
+    }
 }
 
 /// The request the battery judges: a body, the edges to blend, and
@@ -510,17 +521,31 @@ fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
 /// **`fillet3_radius_headroom`** — is the rolling ball definitely
 /// small enough for both supports' normal curvature along the link?
 ///
-/// Margin: `(1 − r·κ_max)·r` in METERS, at lever arm `r`. `κ_max` is
-/// the reciprocal of `geom_brep::curvature_lever_arm`, the same
-/// curvature radius the dihedral classifier folds — a plane's is
-/// unbounded, so a plane contributes the saturated margin `r` and
-/// never limits. The quantity is C8's "r vs 1/κ_max of each support
-/// along the edge": the ball must not curve harder than the surface
-/// it rolls on, or the blend interferes with its own support (the
-/// survey's local-interference case; the too-large-ball GLOBAL
-/// interference is the same fact taken over the whole chain, which
-/// is why the predicate is evaluated at every sample and not only at
-/// the midpoint).
+/// Margin: `(1 − r·κ)·r` in METERS, at lever arm `r`, where `κ` is the
+/// hardest bend of the support TOWARD the ball's side of it — the
+/// reciprocal of [`geom_brep::min_radius_of_curvature_toward`]. A support
+/// whose material curves toward the ball (the ball inside its curvature:
+/// a rod, the ball's centre at `R − r`) limits `r` at `1/κ`; a bend that
+/// turns away from the ball (a hole's wall, the centre at `R + r`) cannot
+/// meet the ball near its foot at any `r` and sets no limit, so such a
+/// support contributes the saturated margin `r`, as a plane does. The
+/// quantity is C8's "r vs 1/κ_max of each support along the edge": the
+/// ball must not curve more gently than the surface it rolls on, or the
+/// blend interferes with its own support near the contact (the survey's
+/// local-interference case). It is evaluated at every sample, not only
+/// at the midpoint. A band that reaches past its supports, out through
+/// a thin support's far wall say, is predicate 2's: its reach meter
+/// (`blend::reach`) meters every band against every face that is not a
+/// support of its chain.
+///
+/// A torus support never reaches it: no arm takes one ([`arm_roster`]),
+/// and the link refuses when its arm is classified, before predicate 1.
+///
+/// The side is `convexity.ball_side(sense)` — the link's decided
+/// convexity verdict read against the face's stored sense bit, the same
+/// side every arm's `R ∓ r` fold reads — so it is never re-derived from a
+/// sampled normal: a dihedral too near flat to decide escalated or
+/// refused when the link resolved, before any side was read.
 ///
 /// # Errors
 ///
@@ -531,6 +556,7 @@ fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
 pub fn radius_headroom<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
+    convexity: Convexity,
     p: Point3<T>,
     radius: T,
     band: Band,
@@ -547,13 +573,10 @@ pub fn radius_headroom<T: Decide + Bounds>(
             detail: "a support face's stored surface, for the curvature headroom predicate",
         });
     };
-    // The ball must fit inside the TIGHTEST bend, so the arm is the
-    // smallest radius of curvature, not the chart's scale (they differ
-    // on a fat torus, and a horn or spindle one has no bound at all).
-    let arm = geom_brep::min_radius_of_curvature(s, p);
-    // `(1 − r/arm)·r`, written so a plane's unbounded arm saturates
-    // at `r` rather than dividing by an infinity.
-    let margin = radius - radius.powi(2) / arm;
+    let arm = geom_brep::min_radius_of_curvature_toward(s, p, convexity.ball_side(f.sense));
+    // An unbounded arm saturates at `r` rather than dividing by an
+    // infinity.
+    let margin = radius * (T::one() - radius / arm);
     match classify(
         BlendSite::Chain,
         BlendDecision::RadiusHeadroom,
@@ -1690,8 +1713,8 @@ pub fn run_battery_for<T: Decide + Bounds>(
                 };
                 for i in 0..CHAIN_SAMPLES {
                     let p = carrier.eval(chain_sample_at(t0, t1, i));
-                    radius_headroom(body, link.face_a, p, r, band)?;
-                    radius_headroom(body, link.face_b, p, r, band)?;
+                    radius_headroom(body, link.face_a, link.convexity, p, r, band)?;
+                    radius_headroom(body, link.face_b, link.convexity, p, r, band)?;
                 }
             }
         }

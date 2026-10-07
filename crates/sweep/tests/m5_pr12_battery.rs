@@ -19,7 +19,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
-use sweep::test_support::{ball_poled_y, block, realized};
+use sweep::test_support::{ball_poled_y, block, dome, one_edge_rim_at, realized};
 use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
@@ -162,12 +162,52 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
 // Predicate 1 — fillet3_radius_headroom.
 // ---------------------------------------------------------------------
 
-/// A pip ball of radius 0.5 cannot host a rolling ball of radius 0.9:
-/// `κ_max = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0` of headroom. The
-/// refusal names the SPHERE support face and arrives with no surface
-/// minted.
+/// A dome of radius 0.5 cannot host a rolling ball of radius 0.9 on
+/// its equator: the ball rolls INSIDE the sphere there (a convex rim on
+/// a convex sphere), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0` of
+/// headroom. The refusal names the SPHERE support face and arrives with
+/// no surface minted.
 #[test]
 fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
+    let body = dome(0.5, Tol::witness());
+    let req = BlendRequest {
+        body: &body,
+        edges: vec![one_edge_rim_at(&body, 0.5, 0.0)],
+        size: 0.9,
+    };
+    match run_battery(&req, band()) {
+        Err(BlendError::RadiusHeadroom {
+            face,
+            margin,
+            radius,
+        }) => {
+            assert_eq!(margin.predicate, "fillet3_radius_headroom");
+            assert_eq!(
+                query::face_surface_kind(&body, face),
+                Some(SurfaceKind::Sphere),
+                "the sphere's curvature ran out"
+            );
+            let m = margin
+                .reading
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("an f64 margin");
+            assert!(
+                (m - (0.9 - 0.81 / 0.5)).abs() < 1e-12,
+                "the headroom margin is (1 − r/R)·r, got {m}"
+            );
+            assert!((radius - 0.9).abs() < 1e-12);
+        }
+        other => panic!("expected a radius-headroom refusal, got {other:?}"),
+    }
+}
+
+/// The same radius against the same sphere radius on a PIP's rim does
+/// not meet predicate 1: the pip is bitten out, so the ball rolls
+/// OUTSIDE its sphere, whose curvature turns away from it at every
+/// radius. What stops it is the next ball fact, the spine.
+#[test]
+fn p1_a_ball_outside_a_pips_sphere_has_no_headroom_limit() {
     let body = pipped(0.5, 0.3);
     let req = BlendRequest {
         body: &body,
@@ -175,19 +215,8 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
         size: 0.9,
     };
     match run_battery(&req, band()) {
-        Err(BlendError::RadiusHeadroom { margin, radius, .. }) => {
-            assert_eq!(margin.predicate, "fillet3_radius_headroom");
-            assert!(
-                margin
-                    .reading
-                    .diagnostic_f64_for_error_text()
-                    .value()
-                    .is_some_and(|m| m < 0.0),
-                "the headroom margin is definitely negative"
-            );
-            assert!((radius - 0.9).abs() < 1e-12);
-        }
-        other => panic!("expected a radius-headroom refusal, got {other:?}"),
+        Err(BlendError::SpineIrregular { radius, .. }) => assert!((radius - 0.9).abs() < 1e-12),
+        other => panic!("expected the spine, not the headroom, to refuse, got {other:?}"),
     }
 }
 

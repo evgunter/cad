@@ -98,6 +98,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(fixture::xy_frame()),
+            fresh: Vec::new(),
         },
     );
     let plane = last(&doc);
@@ -119,6 +120,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(d)),
+            fresh: Vec::new(),
         },
     );
     let arc_profile = last(&doc);
@@ -130,6 +132,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let bulged = last(&doc);
@@ -168,6 +171,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 loops: vec![bracket],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     // v4: the constructed fillet authors as the chain fillet form
@@ -198,6 +202,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 loops: vec![fillet_loop],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     // v16's own wire shape, in the frozen bytes: a `Node::Chamfer`
@@ -222,6 +227,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(square)),
+            fresh: Vec::new(),
         },
     );
     let square = last(&doc);
@@ -233,6 +239,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 distance: len(0.5),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let prism = last(&doc);
@@ -244,6 +251,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 len(0.1),
                 fixture::prism_edges(&doc, prism, 4),
             )),
+            fresh: Vec::new(),
         },
     );
     doc = push(
@@ -313,6 +321,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 )
                 .expect("every index addresses a reference"),
             ),
+            fresh: Vec::new(),
         },
     );
     let measure = last(&doc);
@@ -325,6 +334,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 bound: len(0.1),
                 dir: editor_core::AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     // BOTH tube kinds, and both window spellings between them. Two
@@ -350,6 +360,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 origin: [len0(), len0(), len0()],
                 direction: [scl(0.0), scl(0.0), scl(1.0)],
             })),
+            fresh: Vec::new(),
         },
     );
     let spine = last(&doc);
@@ -363,6 +374,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 window: editor_core::TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     doc = push(
@@ -379,6 +391,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 minor_radius: len(0.5),
                 wall: len(0.125),
             }),
+            fresh: Vec::new(),
         },
     );
     // The shell's wire shape: an `open` list of face names in
@@ -397,6 +410,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 plane,
                 vec![vec![(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)]],
             ))),
+            fresh: Vec::new(),
         },
     );
     let box_profile = last(&doc);
@@ -408,6 +422,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 distance: len(0.5),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let block = last(&doc);
@@ -423,6 +438,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
                 }],
             )),
+            fresh: Vec::new(),
         },
     );
     // The committed EDIT LOG half: one trailing continuous edit —
@@ -434,6 +450,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         slot: editor_core::SlotId::Distance,
         expr: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
             .expect("golden unit literal"),
+        fresh: Vec::new(),
     }];
     (doc, edits)
 }

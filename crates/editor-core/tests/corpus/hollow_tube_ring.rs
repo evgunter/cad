@@ -86,6 +86,7 @@ pub fn document() -> CorpusDoc {
             node: ring,
             slot: SlotId::TubeWall,
             expr: len(WALL_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: ring,
     }

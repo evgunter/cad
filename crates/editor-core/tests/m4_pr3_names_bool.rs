@@ -334,6 +334,7 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, to: f64) -> ProfileDoc {
             node,
             slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
             expr: len(to),
+            fresh: Vec::new(),
         },
     )
     .0

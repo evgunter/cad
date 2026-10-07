@@ -21,7 +21,7 @@ use crate::fixture::{self, insert, tol};
 use editor_core::Formula;
 use editor_core::{
     AuthoredStep, DocEdit, EditError, LoopProgram, Node, PieceRole, ProfileDoc, ProfileEdgeRef,
-    ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, VarEnv, keep_grid,
+    ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, keep_grid,
 };
 use geom_core::{Point2, Tol};
 use profile::{Open, Start, Step, Verb};
@@ -128,7 +128,7 @@ fn a_handle_binds_to_the_id_its_placement_minted() {
             role: PieceRole::RunOut
         }
     );
-    let drawn = p.pieces(&VarEnv::default(), tol()).unwrap();
+    let drawn = p.pieces(&doc.var_env(), tol()).unwrap();
     assert!(
         drawn.edges[0].contains(&wall),
         "the run out is a drawn piece: {drawn:?}"
@@ -267,6 +267,7 @@ fn a_keep_map_lowers_to_the_grid_the_door_stores() {
         node: first,
         loops: loops.clone(),
         ids: grid,
+        fresh: Vec::new(),
     };
     let after = doc
         .apply(&edit, tol(), &editor_core::RefusingReach)
@@ -288,6 +289,7 @@ fn a_keep_map_lowers_to_the_grid_the_door_stores() {
             node: first,
             loops,
             ids: twice,
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
