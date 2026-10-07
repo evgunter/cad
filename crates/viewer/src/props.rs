@@ -971,7 +971,7 @@ pub struct DefinedRow {
 /// shows at the slot that reads it.
 pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
     let env = doc.var_env::<f64>();
-    doc.var_order()
+    doc.var_ids()
         .iter()
         .filter_map(|&var| {
             doc.var_name(var)?;

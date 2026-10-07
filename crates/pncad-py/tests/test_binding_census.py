@@ -2308,6 +2308,9 @@ NOT_BOUND = {
     # each door's message is spoken from the evaluated document, and a
     # `MateFault` an edit door refused carries the nodes it kept.
     "FullId": SHAPE,
+    # The pair an id is: Python reads it whole through the same repr,
+    # and orders nothing by it.
+    "MintId": SHAPE,
     "HeldNodes": SHAPE,
     "held_by": SHAPE,
     # The name tables a speaker says names within: the binding speaks
@@ -3597,7 +3600,6 @@ MEMBERS_BOUND_AS = {
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
-    "EditError::NodeIdCollides": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
@@ -3620,7 +3622,6 @@ MEMBERS_BOUND_AS = {
     "EditError::DeleteAnonymousVar": "EditError.variant",
     "EditError::SlotUnresolvedVar": "EditError.variant",
     "EditError::PayloadUnresolvedVar": "EditError.variant",
-    "EditError::VarIdCollides": "EditError.variant",
     "EditError::FreshUnheld": "EditError.variant",
     "EditError::FreshKind": "EditError.variant",
     "EditError::FreshUnread": "EditError.variant",

@@ -1360,7 +1360,7 @@ pub(crate) fn mint<P, T: Decide>(
     let space_of = |r: &crate::node::SitedFace| {
         crate::mate::member_of(doc, r).map(|m| evaluation.space(m.instance))
     };
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
         };
@@ -1534,7 +1534,7 @@ fn resolve_face<P, T: Decide>(
             }
             continue;
         }
-        for &consumer in doc.order() {
+        for consumer in doc.ids() {
             let Some(consumer_node) = doc.node(consumer) else {
                 continue;
             };
@@ -1950,11 +1950,11 @@ mod attribution {
         // naming one entity twice is a state `mint` cannot produce.
         let name = |node| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::OutputBody],
         };
         let minted = vec![MintedDeclaration {
-            mate: RecipeNodeId(7),
+            mate: RecipeNodeId::new(0, 7),
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2123,11 +2123,11 @@ mod attribution {
         let (a, b, odd, other) = (mint_face(), mint_face(), mint_face(), mint_face());
         let name = |node| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::OutputBody],
         };
         let minted = vec![MintedDeclaration {
-            mate: RecipeNodeId(7),
+            mate: RecipeNodeId::new(0, 7),
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2167,7 +2167,7 @@ mod attribution {
         for (x, y) in [(a, b), (b, a)] {
             assert!(matches!(
                 attribute(&contradicted(x, y), &minted),
-                Attribution::Refuted(m) if m.mate == RecipeNodeId(7)
+                Attribution::Refuted(m) if m.mate == RecipeNodeId::new(0, 7)
             ));
         }
         assert_eq!(
@@ -2274,11 +2274,11 @@ mod attribution {
         let (f, g, h) = (mint_face(), mint_face(), mint_face());
         let name = |node| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::OutputBody],
         };
         let declaration = |mate, faces| MintedDeclaration {
-            mate: RecipeNodeId(mate),
+            mate: RecipeNodeId::new(0, mate),
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2289,7 +2289,7 @@ mod attribution {
             assert!(
                 matches!(
                     attribute(&unsupported_pair(pair.0, pair.1), &minted),
-                    Attribution::Declined(m) if m.mate == RecipeNodeId(mate)
+                    Attribution::Declined(m) if m.mate == RecipeNodeId::new(0, mate)
                 ),
                 "the pair {pair:?} is mate {mate}'s declaration, in either order"
             );
@@ -2376,7 +2376,7 @@ mod attribution {
                     },
                     &minted
                 ),
-                Attribution::Refuted(m) if m.mate == RecipeNodeId(7)
+                Attribution::Refuted(m) if m.mate == RecipeNodeId::new(0, 7)
             ));
         }
     }

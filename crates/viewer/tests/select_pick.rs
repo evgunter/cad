@@ -217,7 +217,7 @@ fn distinct_patches_never_share_an_id_across_bodies() {
 #[test]
 fn nothing_is_reserved_and_a_repeated_patch_is_refused() {
     let key = PatchId {
-        node: RecipeNodeId(1),
+        node: RecipeNodeId::new(0, 1),
         body: 0,
         patch: 0,
     };

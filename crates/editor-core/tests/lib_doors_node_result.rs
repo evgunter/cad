@@ -149,7 +149,7 @@ fn ok_and_absent_nodes_answer_none() {
     assert!(ev.value(ok_node).is_some());
     assert!(matches!(ev.result(ok_node), Some(NodeResult::Ok(_))));
     assert!(ev.node_error(ok_node).is_none());
-    let absent = RecipeNodeId(u64::MAX);
+    let absent = RecipeNodeId::new(0, u64::MAX);
     assert!(ev.result(absent).is_none());
     assert!(ev.node_error(absent).is_none());
 }
@@ -167,7 +167,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
 
     let edit = EditError::UnknownNode {
-        id: editor_core::SpokenNode::absent(RecipeNodeId(tagged(7))),
+        id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
     };
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
@@ -205,7 +205,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     assert!(
         message.starts_with(&format!(
             "node {} failed: ",
-            test_utils::refusal::tag(cut.0)
+            test_utils::refusal::tag(cut.0.digest())
         )),
         "{message}"
     );
@@ -258,7 +258,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         let message = EditError::MetaUnversioned {
             name: editor_core::SpokenName::absent(editor_core::StableName {
                 kind: editor_core::EntityKind::Body,
-                node: RecipeNodeId(tagged(1)),
+                node: RecipeNodeId::new(0, tagged(1)),
                 path: vec![editor_core::RoleSeg::OutputBody],
             }),
             key: "provenance".to_string(),
@@ -283,7 +283,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
     use editor_core::NodeErrorKind as K;
     let name = |kind| editor_core::StableName {
         kind,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     vec![
@@ -296,7 +296,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             error: Box::new(editor_core::ResolveError::NodeGone {
                 name: name(editor_core::EntityKind::Face),
                 edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                 },
             }),
             reference: 0,
@@ -307,7 +307,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
                 tie: editor_core::TieWitness {
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                     at: name(editor_core::EntityKind::Edge),
                     width: 2,
                 },
@@ -517,17 +517,17 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
 
     let name = |kind| StableName {
         kind,
-        node: RecipeNodeId(tagged(5)),
+        node: RecipeNodeId::new(0, tagged(5)),
         path: vec![RoleSeg::OutputBody],
     };
     let cases: Vec<(String, &[&str])> = vec![
         (
             EvalError::UnresolvedVar {
-                var: editor_core::VarId(tagged(7)),
+                var: editor_core::VarId::new(0, tagged(7)),
             }
             .to_string(),
             &[
-                "variable #0000000000070000",
+                "variable #0:0000000000070000",
                 "has no binding",
                 "point the reader at a live variable",
             ],
@@ -558,7 +558,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::NodeGone {
                 name: name(EntityKind::Vertex),
                 edit: RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(tagged(5)),
+                    node: RecipeNodeId::new(0, tagged(5)),
                 },
             }
             .to_string(),

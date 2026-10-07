@@ -1039,7 +1039,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     fn node(n: u64) -> RecipeNodeId {
-        RecipeNodeId(n)
+        RecipeNodeId::new(0, n)
     }
 
     /// A flip evidence with the two node standings asked for.

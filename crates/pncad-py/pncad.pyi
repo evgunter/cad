@@ -2901,7 +2901,7 @@ class Expr:
     @property
     def text(self) -> str:
         """The source text this reads back as, a variable written as
-        its full id, `#<16 hex>`; `Doc.unparse` writes the names a
+        its full id, `#<ordinal>:<16 hex>`; `Doc.unparse` writes the names a
         document holds."""
     @property
     def literal_value(self) -> Optional[float]:
@@ -2935,7 +2935,10 @@ class Var:
 
     @property
     def hex(self) -> str:
-        """The id with every bit shown: sixteen lowercase hex digits."""
+        """The whole id: its mint ordinal, a colon, and its digest as
+        sixteen lowercase hex digits — the key a saved file's variable
+        table holds it under. (Named for when an id was its hex digest
+        alone.)"""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -3653,8 +3656,7 @@ class DocEdit:
 
         Refuses `step_ids_refused` before the program is replayed
         (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
-        `repeated`, or `collides` for a new id the document's mint log
-        already holds; `not_minted`, an id the log lacks, is the load
+        or `repeated`; `not_minted`, an id the log lacks, is the load
         door's word for the same family),
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_var_name` and its
@@ -4041,7 +4043,7 @@ class Doc:
     def unparse(self, expr: Formula | Expr) -> str:
         """The text of `expr`, each variable it reads written by the
         name this document holds for it; one with no name here writes
-        its full id, `#<16 hex>`."""
+        its full id, `#<ordinal>:<16 hex>`."""
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...

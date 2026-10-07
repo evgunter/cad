@@ -195,11 +195,10 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
 }
 
 /// **A tie a pass-through table carries is reported at the table that
-/// defined it**, whatever the ids: `at` is the first carrying table in
-/// evaluation order. The fixture moves the defining node's copy of the
-/// name downstream through transforms until one of them draws an id
-/// that sorts before the defining node's, so a walk in id order would
-/// report the transform.
+/// defined it**: `at` is the first carrying table in evaluation order.
+/// The fixture moves the defining node's copy of the name downstream
+/// through a transform, which carries the tie too, so a walk that took
+/// the last carrying table would report the transform.
 #[test]
 fn a_carried_tie_is_reported_at_its_defining_table() {
     let (doc, sub) = tie_fixture();
@@ -213,22 +212,8 @@ fn a_carried_tie_is_reported_at_its_defining_table() {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
         })
         .expect("the U-cutter fixture ties");
-    let mut doc = doc;
-    let mut sorts_first = None;
-    for dx in 1..=64u32 {
-        let lift = editor_core::Step::Literal(editor_core::Frame::translation([
-            f64::from(dx) * 4.0,
-            0.0,
-            0.0,
-        ]));
-        let (next, moved) = insert(doc, Node::transform(sub, lift));
-        doc = next;
-        if moved < sub {
-            sorts_first = Some(moved);
-            break;
-        }
-    }
-    let moved = sorts_first.expect("a transform whose id sorts before the tie's defining node");
+    let lift = editor_core::Step::Literal(editor_core::Frame::translation([4.0, 0.0, 0.0]));
+    let (doc, moved) = insert(doc, Node::transform(sub, lift));
     let doc = set(doc, tied.clone(), red());
     let ev = run(&doc);
     assert!(
