@@ -335,22 +335,6 @@ pub enum NormalizationKind {
     /// lateral half-faces, joined by a second generator half a turn
     /// round the cone's axis.
     DegenerateApexCone,
-    /// A **whole torus in one face**: the file's single face wraps the
-    /// full period in BOTH chart directions (the fundamental-polygon
-    /// square, two curves each used twice). The topology closes, but
-    /// the face is not a chart iso-rectangle and its closed-form
-    /// divergence contribution comes back with the wrong sign.
-    /// Re-minted as the kernel's own two half-faces — but only after
-    /// the face's **winding** is read out of its loop's cyclic order
-    /// (the fundamental polygon's flag multiset is reversal-invariant,
-    /// so the order is the only place the winding lives) and checked
-    /// against its `same_sense`. A torus whose two disagree describes
-    /// an inside-out ring and REFUSES typed: re-tessellating it
-    /// right-side-out would launder the inversion, and import returns
-    /// certified bodies — the kernel's tier-3 curved sense gate
-    /// (check 6, M6-6) refuses the inside-out face adoption would
-    /// build, so the refusal fires pre-body instead.
-    FullPeriodTorus,
     /// A **seamless periodic band** (M7-5): a cylinder or torus
     /// lateral face stated as its two full-period rim bounds with NO
     /// seam generator between them (Open CASCADE never splits a

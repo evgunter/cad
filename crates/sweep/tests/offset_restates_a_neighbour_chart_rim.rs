@@ -469,7 +469,7 @@ fn cube_with_a_spline_seam_on_the_top(bow: f64) -> (Body<f64>, EdgeKey, SurfaceK
         description: EdgeDescriptionSpec::Chart {
             surface: top,
             image: Some(Pcurve::Fitted(Arc::new(image))),
-            seam: false,
+            wrap: false,
             declared: None,
         },
         carrier: Curve3::Nurbs(Arc::new(
