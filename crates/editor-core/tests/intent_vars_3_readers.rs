@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use crate::corpus::{body_of, failures};
 use crate::fixture::resolver::PartStore;
-use crate::fixture::round_trip::{composed, same_up_to_ids};
+use crate::fixture::round_trip::{composed, identity, same_up_to_ids};
 use crate::fixture::{desc, insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
@@ -966,12 +966,208 @@ fn a_definition_reading_both_sides_refuses() {
             var,
             moving,
             staying,
+            staying_held,
         }) => {
             assert_eq!(var.name(), Some(&n("k")), "the tied definition");
             assert_eq!(moving.name(), Some(&n("w")), "what moves");
             assert_eq!(staying.name(), Some(&n("j")), "what stays");
+            assert!(staying_held, "j is held");
         }
         other => panic!("expected DefinitionStraddlesCut on k, got {other:?}"),
+    }
+}
+
+/// `w` read only by the cut, `k = w + 1 mm` and `m = k + k` read by
+/// nothing: the closure follows the chain to its end, all three move,
+/// and the round trip is exact.
+#[test]
+fn a_chain_of_definitions_moves_whole_and_comes_back() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-chain"), Tol::witness());
+    let doc = declare(&doc, "w", 1.5);
+    let doc = declare_as(
+        &doc,
+        "k",
+        VarDecl::defined(Formula::add(named("w"), len(0.001)).expect("lengths add")),
+    );
+    let doc = declare_as(
+        &doc,
+        "m",
+        VarDecl::defined(Formula::add(named("k"), named("k")).expect("lengths add")),
+    );
+    let (doc, cut) = block(doc, 0.0, named("w"));
+    let (doc, _) = block(doc, 10.0, len(1.0));
+    let (out, store) = split_into_store(&doc, cut, "fork6-chain-part");
+    for name in ["w", "k", "m"] {
+        assert_eq!(out.remainder.var_named(name), None, "{name} left");
+        assert!(out.part.var_named(name).is_some(), "{name} is the part's");
+    }
+    let back = inline(&out.remainder, out.instance, &store, Tol::witness())
+        .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
+    let (nodes, steps) = composed(&doc, &out, &back);
+    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
+        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+}
+
+/// `k = w + u` read by nothing, with `w` read only by the cut and `u`
+/// free and read by nothing else: the tie to `k` is `u`'s one reader,
+/// so `u` moves with the group, and the round trip is exact.
+#[test]
+fn a_free_variable_tied_to_a_moving_definition_moves_with_it() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-tied"), Tol::witness());
+    let doc = declare(&doc, "w", 1.5);
+    let doc = declare(&doc, "u", 0.25);
+    let doc = declare_as(
+        &doc,
+        "k",
+        VarDecl::defined(Formula::add(named("w"), named("u")).expect("lengths add")),
+    );
+    let (doc, cut) = block(doc, 0.0, named("w"));
+    let (doc, _) = block(doc, 10.0, len(1.0));
+    let (out, store) = split_into_store(&doc, cut, "fork6-tied-part");
+    for name in ["w", "u", "k"] {
+        assert_eq!(out.remainder.var_named(name), None, "{name} left");
+        assert!(out.part.var_named(name).is_some(), "{name} is the part's");
+    }
+    let back = inline(&out.remainder, out.instance, &store, Tol::witness())
+        .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
+    let (nodes, steps) = composed(&doc, &out, &back);
+    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
+        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+}
+
+/// `k = w + z` read by nothing, `w` read only by the cut and `z`
+/// deleted: the refusal says `z` is gone, by its id, rather than that
+/// it stays, and its recourse is to redefine `k` without it.
+#[test]
+fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-deleted"), Tol::witness());
+    let doc = declare(&doc, "w", 1.5);
+    let doc = declare(&doc, "z", 0.5);
+    let doc = declare_as(
+        &doc,
+        "k",
+        VarDecl::defined(Formula::add(named("w"), named("z")).expect("lengths add")),
+    );
+    let z = id(&doc, "z");
+    let doc = step(&doc, DocEdit::DeleteVar { var: z.into() }).doc;
+    let (doc, cut) = block(doc, 0.0, named("w"));
+    let refusal = split(
+        &doc,
+        &BTreeSet::from(cut),
+        DocumentId::derive("fork6-deleted-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect_err("k reads a variable the document no longer holds");
+    let SplitError::DefinitionStraddlesCut {
+        ref staying,
+        staying_held,
+        ..
+    } = refusal
+    else {
+        panic!("expected DefinitionStraddlesCut on k, got {refusal:?}")
+    };
+    assert!(!staying_held, "z is deleted");
+    assert_eq!(staying.name(), None, "a deleted variable has no name");
+    let said = refusal.to_string();
+    for words in [
+        format!("to {staying}, which this document no longer holds"),
+        format!("redefine k without {staying} (DefineVar)"),
+    ] {
+        assert!(said.contains(&words), "{words:?} not in {said:?}");
+    }
+    assert!(!said.contains("which stays"), "{said:?}");
+}
+
+/// A named definition reading the cut extrude's anonymous depth moves
+/// with it, and the round trip is exact: the comparator reads the
+/// anonymous id as its image, through the slot that holds it.
+#[test]
+fn a_named_definition_reading_an_anonymous_variable_comes_back() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-anon-read"), Tol::witness());
+    let (doc, cut) = block(doc, 0.0, len(0.5));
+    let depth = doc
+        .slot(cut[2], SlotId::Distance)
+        .expect("the extrude reads its depth");
+    assert_eq!(doc.var_name(depth), None, "the depth is anonymous");
+    let doc = declare_as(
+        &doc,
+        "k",
+        VarDecl::defined(
+            Formula::add(Formula::var(depth, Dimension::Length), len(0.001)).expect("lengths add"),
+        ),
+    );
+    let (doc, _) = block(doc, 10.0, len(1.0));
+    let (out, store) = split_into_store(&doc, cut, "fork6-anon-read-part");
+    assert_eq!(out.remainder.var_named("k"), None, "k left");
+    let back = inline(&out.remainder, out.instance, &store, Tol::witness())
+        .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
+    let (nodes, steps) = composed(&doc, &out, &back);
+    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
+        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+}
+
+/// The round-trip comparator is not blind to variables: a document
+/// agrees with itself, and not with one whose variable differs by one
+/// ulp of value, a distribution, a unit, a name or a definition.
+#[test]
+fn the_comparator_rejects_each_kind_of_variable_difference() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork6-comparator"), Tol::witness());
+    let doc = declare(&doc, "w", 1.5);
+    let doc = declare_as(
+        &doc,
+        "k",
+        VarDecl::defined(Formula::add(named("w"), len(0.001)).expect("lengths add")),
+    );
+    let (doc, _) = block(doc, 0.0, named("w"));
+    let (nodes, steps) = identity(&doc);
+    same_up_to_ids(&doc, &doc, &nodes, &steps)
+        .unwrap_or_else(|problems| panic!("a document is itself:\n{problems}"));
+    let (w, k) = (id(&doc, "w"), id(&doc, "k"));
+    let mm = editor_core::UnitSym::from_def(&quantity::MM.def());
+    for (what, edit) in [
+        (
+            "value",
+            DocEdit::SetVarValue {
+                var: w.into(),
+                value: editor_core::FreeValue::Continuous(1.5f64.next_up()),
+            },
+        ),
+        (
+            "distribution",
+            DocEdit::SetVarDistribution {
+                var: w.into(),
+                distribution: Some(Distribution::Normal { sigma: 0.001 }),
+            },
+        ),
+        (
+            "unit",
+            DocEdit::SetVarUnit {
+                var: w.into(),
+                unit: mm,
+            },
+        ),
+        (
+            "name",
+            DocEdit::RenameVar {
+                var: w.into(),
+                name: Some(n("w2")),
+            },
+        ),
+        (
+            "definition",
+            DocEdit::DefineVar {
+                var: k.into(),
+                def: VarDecl::defined(Formula::add(named("w"), len(0.002)).expect("lengths add")),
+                fresh: Vec::new(),
+            },
+        ),
+    ] {
+        let other = step(&doc, edit).doc;
+        assert!(
+            same_up_to_ids(&doc, &other, &nodes, &steps).is_err(),
+            "the comparator missed a {what} difference"
+        );
     }
 }
 

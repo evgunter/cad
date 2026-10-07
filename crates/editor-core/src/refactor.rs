@@ -68,12 +68,12 @@
 //!
 //! # Variables go where their readers go
 //!
-//! A variable's side is the union of its readers' — a node, or the
-//! definition of another variable — and one with no reader follows
-//! what it reads. Split moves a variable every reader of which is cut,
-//! or which has none and reads only what moves: the part declares it,
-//! under its name if it has one, and the remainder records its
-//! `DeleteVar`. One with readers or reads on both sides refuses
+//! A variable's side is the union of its readers' — a node slot, or
+//! the definition of another variable — and one with no reader follows
+//! what it reads. Split moves a variable whose side is the cut's: the
+//! part declares it, under its name if it has one, and the remainder
+//! records its `DeleteVar`. One with readers or reads on both sides
+//! refuses
 //! ([`SplitError::UncutVarReference`],
 //! [`SplitError::DefinitionStraddlesCut`]); any other stays, an unread
 //! free variable among them. Inline carries every variable of the part
@@ -652,6 +652,9 @@ pub enum SplitError {
         moving: SpokenVar,
         /// A variable that stays that the definitions read.
         staying: SpokenVar,
+        /// Whether this document holds `staying`: a deleted one (VR7)
+        /// stays too, since it moves nowhere.
+        staying_held: bool,
     },
     /// A cut node reads a variable this document no longer holds (a
     /// deleted one: VR7 leaves its readers unresolved, which is legal
@@ -935,6 +938,7 @@ impl core::fmt::Display for SplitError {
                 var,
                 moving,
                 staying,
+                staying_held: true,
             } => write!(
                 f,
                 "split: no node reads {var}, and definitions tie it both to {moving}, which \
@@ -943,6 +947,21 @@ impl core::fmt::Display for SplitError {
                 Recourse(&format!(
                     "define {var} over variables of one side (DefineVar), or delete it \
                      (DeleteVar), then split"
+                ))
+            ),
+            Self::DefinitionStraddlesCut {
+                var,
+                moving,
+                staying,
+                staying_held: false,
+            } => write!(
+                f,
+                "split: no node reads {var}, and definitions tie it both to {moving}, which \
+                 moves with the cut, and to {staying}, which this document no longer holds, so \
+                 the part has no variable to read. {}",
+                Recourse(&format!(
+                    "redefine {var} without {staying} (DefineVar), or delete it (DeleteVar), \
+                     then split"
                 ))
             ),
             Self::UnresolvedVarCrossesCut { var, node } => write!(
@@ -2461,19 +2480,13 @@ fn placeholder(kind: crate::var::VarKind) -> FreeVar {
     }
 }
 
-/// **The variables a split moves** (A4): each variable a cut node
-/// reads, and each a node never reads that its definitions tie only
-/// to those.
-///
-/// A variable's side is the union of its readers' — a node, or the
-/// definition of another variable. One no node reaches, directly or
-/// through definitions, sits in a group of such variables tied by
-/// definition reads; the group reads variables a node reaches (or one
-/// the document no longer holds, which moves nowhere). It moves when
-/// every one of those moves, stays when none does — an unread free
-/// variable reads none, and stays (VR7) — and refuses
-/// [`SplitError::DefinitionStraddlesCut`] when some move and some
-/// stay.
+/// **The variables a split moves** (A4, the module doc's rule): each
+/// a cut node reads, and each group of variables no node reaches —
+/// tied by definition reads, either way — whose reads outside the
+/// group all move. A group with no such read stays (an unread free
+/// variable, VR7); one with reads on both sides refuses
+/// [`SplitError::DefinitionStraddlesCut`]. A read of a variable the
+/// document no longer holds stays.
 fn moving_vars(
     doc: &ProfileDoc,
     cut_refs: &BTreeMap<VarId, RecipeNodeId>,
@@ -2494,49 +2507,71 @@ fn moving_vars(
             }
         }
     }
-    let mut moving: BTreeSet<VarId> = cut_refs.keys().copied().collect();
-    let mut grouped: BTreeSet<VarId> = BTreeSet::new();
+    // Each unreached variable's group, labelled by its first member in
+    // definition order.
+    let mut group_of: BTreeMap<VarId, VarId> = BTreeMap::new();
+    let mut seeds = Vec::new();
     for &seed in &order {
-        if !unreached.contains(&seed) || !grouped.insert(seed) {
+        if !unreached.contains(&seed) || group_of.contains_key(&seed) {
             continue;
         }
-        let mut group = vec![seed];
+        group_of.insert(seed, seed);
+        seeds.push(seed);
         let mut frontier = vec![seed];
         while let Some(var) = frontier.pop() {
             for &tied in ties.get(&var).into_iter().flatten() {
-                if grouped.insert(tied) {
-                    group.push(tied);
+                if !group_of.contains_key(&tied) {
+                    group_of.insert(tied, seed);
                     frontier.push(tied);
                 }
             }
         }
-        let members: BTreeSet<VarId> = group.iter().copied().collect();
-        let (mut moves, mut stays) = (None, None);
-        for &member in order.iter().filter(|var| members.contains(var)) {
-            for read in doc.definition_reads(member) {
-                if members.contains(&read) {
-                    continue;
-                }
-                let side = if cut_refs.contains_key(&read) {
-                    &mut moves
-                } else {
-                    &mut stays
-                };
-                side.get_or_insert((member, read));
+    }
+    // One pass in definition order: each group's first read of a
+    // moving variable and of a staying one, by the member that reads it.
+    type Read = Option<(VarId, VarId)>;
+    let mut sides: BTreeMap<VarId, (Read, Read)> = BTreeMap::new();
+    for &member in &order {
+        let Some(&seed) = group_of.get(&member) else {
+            continue;
+        };
+        let (moves, stays) = sides.entry(seed).or_default();
+        for read in doc.definition_reads(member) {
+            if group_of.get(&read) == Some(&seed) {
+                continue;
             }
+            let side = if cut_refs.contains_key(&read) {
+                &mut *moves
+            } else {
+                &mut *stays
+            };
+            side.get_or_insert((member, read));
         }
-        match (moves, stays) {
+    }
+    let mut moving: BTreeSet<VarId> = cut_refs.keys().copied().collect();
+    let mut joining = BTreeSet::new();
+    for seed in seeds {
+        match sides.get(&seed).copied().unwrap_or_default() {
             (Some((_, moved)), Some((member, stayed))) => {
                 return Err(SplitError::DefinitionStraddlesCut {
                     var: doc.spoken_var(member),
                     moving: doc.spoken_var(moved),
                     staying: doc.spoken_var(stayed),
+                    staying_held: doc.var(stayed).is_some(),
                 });
             }
-            (Some(_), None) => moving.extend(members),
+            (Some(_), None) => {
+                joining.insert(seed);
+            }
             (None, _) => {}
         }
     }
+    moving.extend(
+        group_of
+            .iter()
+            .filter(|(_, seed)| joining.contains(*seed))
+            .map(|(&var, _)| var),
+    );
     Ok(moving)
 }
 
@@ -3289,8 +3324,9 @@ pub fn split(
             rem_apply(&mut remainder, DocEdit::DeleteNode { id: old })?;
         }
     }
-    // A moved named variable leaves with its readers, a reader before
-    // what it reads; an anonymous one already left with its last.
+    // A moved named variable leaves with its readers; an anonymous one
+    // already left with its last. The door takes them in any order
+    // (VR7 leaves a reader unresolved).
     for &var in doc.definition_order().iter().rev() {
         if moving.contains(&var) && doc.var_name(var).is_some() {
             rem_apply(&mut remainder, DocEdit::DeleteVar { var: var.into() })?;

@@ -18,7 +18,8 @@
 //!   the product's solid order, semantic and in the content pin
 //!   (`roots.rs`) — and the named variables, labels and ε agree, a
 //!   named variable matched by its name and a definition read with the
-//!   named ids it reads as their images. By A10's
+//!   ids it reads as their images (a named variable's by its name, an
+//!   anonymous one's by its place in the definition that reads it). By A10's
 //!   replacement rule split's instance goes where the first cut root
 //!   was and inline splices the part's roots there, so a round trip
 //!   agrees in order exactly when the cut's roots are adjacent in the
@@ -99,6 +100,48 @@ pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
         }
     }
     (nodes, steps)
+}
+
+/// **Each variable of `a` matched to its image in `b`**: a named one
+/// by its name, and one a matched definition reads — anonymous ones
+/// among them — by its place among that definition's reads, followed
+/// to a fixed point. The two documents mint their own ids; a name or a
+/// definition is what a reader reads.
+fn var_images(a: &ProfileDoc, b: &ProfileDoc) -> BTreeMap<u64, u64> {
+    let mut images: BTreeMap<u64, u64> = a
+        .var_names()
+        .iter()
+        .filter_map(|(id, name)| Some((id.0, b.var_named(name.as_str())?.0)))
+        .collect();
+    let reads = |d: &ProfileDoc, id: u64| {
+        let mut out = Vec::new();
+        if let Some(expr) = d
+            .var(editor_core::VarId(id))
+            .and_then(|v| v.def().defined())
+        {
+            expr.var_reads(&mut out);
+        }
+        out.into_iter().map(|(read, _)| read.0).collect::<Vec<_>>()
+    };
+    loop {
+        let mut found = Vec::new();
+        for (&x, &y) in &images {
+            let (rx, ry) = (reads(a, x), reads(b, y));
+            if rx.len() == ry.len() {
+                found.extend(
+                    rx.into_iter()
+                        .zip(ry)
+                        .filter(|(rx, _)| !images.contains_key(rx)),
+                );
+            }
+        }
+        if found.is_empty() {
+            return images;
+        }
+        for (x, y) in found {
+            images.entry(x).or_insert(y);
+        }
+    }
 }
 
 /// `text` with every `RecipeNodeId(n)` the map holds read as its image,
@@ -207,13 +250,7 @@ pub fn same_up_to_ids(
     }
     let ids: BTreeMap<u64, u64> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
     let step_ids: BTreeMap<u64, u64> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
-    // A named variable is matched by its name: the two documents mint
-    // their own ids, and a name is what a reader reads.
-    let var_ids: BTreeMap<u64, u64> = a
-        .var_names()
-        .iter()
-        .filter_map(|(id, name)| Some((id.0, b.var_named(name.as_str())?.0)))
-        .collect();
+    let var_ids = var_images(a, b);
     let mut covered = BTreeSet::new();
     for id in live(a) {
         let Some(&to) = map.get(&id) else {

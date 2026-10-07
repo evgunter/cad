@@ -3403,6 +3403,17 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
                 var: spoken.clone(),
                 moving: editor_core::SpokenVar::new(editor_core::VarId(8), None),
                 staying: editor_core::SpokenVar::new(editor_core::VarId(9), None),
+                staying_held: true,
+            }
+            .to_string(),
+        ),
+        (
+            "SplitError::DefinitionStraddlesCut (deleted)",
+            SplitError::DefinitionStraddlesCut {
+                var: spoken.clone(),
+                moving: editor_core::SpokenVar::new(editor_core::VarId(8), None),
+                staying: editor_core::SpokenVar::new(editor_core::VarId(9), None),
+                staying_held: false,
             }
             .to_string(),
         ),

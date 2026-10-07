@@ -154,6 +154,19 @@ fn split_refusals() -> Vec<SplitError> {
                 editor_core::VarId(test_utils::refusal::tagged(6)),
                 None,
             ),
+            staying_held: true,
+        },
+        SplitError::DefinitionStraddlesCut {
+            var: var(),
+            moving: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(7)),
+                Some(VarName::from_static("depth")),
+            ),
+            staying: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(6)),
+                None,
+            ),
+            staying_held: false,
         },
         SplitError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
