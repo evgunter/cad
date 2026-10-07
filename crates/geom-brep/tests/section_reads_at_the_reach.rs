@@ -338,20 +338,22 @@ fn a_tilts_turn_across_the_wall_is_levered_at_the_faces_reach_across() {
 }
 
 /// **A tangent cut is levered from its rulings' hinge.** A wall of radius
-/// 1000 m read at `(1000, 0, 0)` over a face 10 µm long (its lone
-/// ruling), and the plane through that point tilted so the axis meets it
-/// at `sin β = k·ε/10 µm`. The face leaves the plane by at most `k·ε`, but
-/// the rulings the axis-in-plane lane mints stand on the hinge through
-/// the foot's projection along the plane's normal, `r·sin β` (5–9.5 cm)
-/// up the axis and `r·(1 − cos² β)` in from the wall: the cut there is
-/// not the face's ruling, and levered from the vertex's foot alone the
-/// lane read the gap at `r·cos β` and minted two rulings 5–9.5 cm off the
-/// face. Levered from the hinge's station the tilt reads `r·sin² β`,
-/// definite, and the cut is the exact ellipse. A tilt whose
-/// `r·sin² β` is `0.6·Kε` escalates.
+/// `r = 10¹²·ε` (1 km at the witness ε) read at `(r, 0, 0)` over a face
+/// `e = 10⁴·ε` long (its lone ruling, 10 µm), and the plane through that
+/// point tilted so the axis meets it at `sin β = k·ε/e`. The face leaves
+/// the plane by at most `k·ε`, but the rulings the axis-in-plane lane
+/// mints stand on the hinge through the foot's projection along the
+/// plane's normal, `r·sin β` up the axis and `r·(1 − cos² β)` in from the
+/// wall: the cut there is not the face's ruling, and levered from the
+/// vertex's foot alone the lane read the gap at `r·cos β` and minted two
+/// rulings `r·sin β` off the face (5–9.5 cm at the witness ε). Levered
+/// from the hinge's station the tilt reads `r·sin² β = 10⁴·k²·ε`,
+/// definite, and the cut is the exact ellipse. A tilt whose `r·sin² β`
+/// is `0.6·Kε` escalates.
 #[test]
 fn a_tangent_cut_is_levered_from_its_rulings_hinge() {
-    let (r, e) = (1000.0, 1e-5);
+    let eps = band().zero();
+    let (r, e) = (1e12 * eps, 1e4 * eps);
     let at = Point3::new(r, 0.0, 0.0);
     let reach = Reach::Face {
         at,
