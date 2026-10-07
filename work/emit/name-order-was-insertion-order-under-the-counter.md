@@ -8,6 +8,7 @@ priority: P2
 cost: M
 parent: sibling-branches-mint-one-node-id-for-different-nodes
 branch: emit/ordinal-ids
+pr: 4244
 ---
 
 
