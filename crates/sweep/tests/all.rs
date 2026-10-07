@@ -392,6 +392,8 @@ mod reach_aligned_half_rods;
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]
 mod reach_continuation;
+#[path = "reach_split_gate_azimuth.rs"]
+mod reach_split_gate_azimuth;
 #[path = "reach_split_gate_per_face.rs"]
 mod reach_split_gate_per_face;
 #[path = "reach_split_gate_pose.rs"]
@@ -537,8 +539,8 @@ mod split_edge_loft_charts;
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
 mod split_tangent_edge_curved;
-#[path = "split_through_a_seam_ruling.rs"]
-mod split_through_a_seam_ruling;
+#[path = "split_through_a_ruling.rs"]
+mod split_through_a_ruling;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]

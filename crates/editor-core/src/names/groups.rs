@@ -39,7 +39,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use super::role::StableName;
+use super::role::{Sense, StableName};
 use super::table::EntityRef;
 use crate::node::RecipeNodeId;
 
@@ -354,13 +354,28 @@ pub(crate) struct Emitted {
     pub(crate) table: Arc<super::NameTable>,
     /// The groups those names were minted from.
     pub(crate) groups: Arc<GroupRecord>,
+    /// A pair boolean's crossing senses, by result vertex.
+    pub(crate) senses: CrossingSenses,
 }
+
+/// **The senses a pair boolean read at its seam vertices** (N2), by
+/// result vertex: each operand edge that crosses there, by its name in
+/// its operand's table, with its sense. A union's fold carries them to
+/// the finished body for a vertex its fold names other than as a
+/// crossing (`names::emit_union`).
+pub(crate) type CrossingSenses = BTreeMap<topo::VertexKey, Vec<(StableName, Sense)>>;
 
 impl Emitted {
     pub(crate) fn new(table: super::NameTable, groups: GroupRecord) -> Self {
         Self {
             table: Arc::new(table),
             groups: Arc::new(groups),
+            senses: CrossingSenses::new(),
         }
+    }
+
+    /// The same, carrying a pair boolean's crossing senses.
+    pub(crate) fn with_senses(self, senses: CrossingSenses) -> Self {
+        Self { senses, ..self }
     }
 }

@@ -19,17 +19,8 @@ use geom_core::interval::certification::Certification;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
+use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
 use geom_core::{Point2, Point3, Vec2, Vec3};
-
-fn wide() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -10.0,
-        u_max: 10.0,
-        v_min: -10.0,
-        v_max: 10.0,
-    }
-}
 
 /// **Deliberately not `shared::surf::sphere`.** This sphere is placed
 /// OFF the origin, at `(0.3, -0.2, 1.1)`: these rows are about a chart
@@ -88,7 +79,7 @@ fn probe_pole_crossing_meridian_arc_certifies() {
     };
     assert!(p0.y.abs() < 1e-12, "delta should be 0, got {}", p0.y);
     assert_eq!(pl.y, 1.0, "sigma should be +1");
-    let cache = PcurveCache::certify(p, FRAC_PI_4, 3.0 * FRAC_PI_4, &carrier, &s, wide(), band())
+    let cache = PcurveCache::certify(p, FRAC_PI_4, 3.0 * FRAC_PI_4, &carrier, &s, band())
         .expect("a pole-crossing meridian arc is an exact harmonic and must certify");
     assert!(
         cache.certificate().envelope < 1e-12,
@@ -130,7 +121,7 @@ fn probe_mirror_nappe_cone_rim_certifies_at_azimuth_plus_pi() {
     );
     assert!(p0.y < 0.0, "mirror-nappe slant v0 must be negative");
     assert_eq!(pl.x, 1.0, "spatial CCW keeps beta = +1 on either nappe");
-    let cache = PcurveCache::certify(p, 0.0, 2.0, &carrier, &cone, wide(), band())
+    let cache = PcurveCache::certify(p, 0.0, 2.0, &carrier, &cone, band())
         .expect("mirror-nappe rim is in the closed-form class");
     assert!(cache.certificate().envelope < 1e-12);
 }
@@ -191,7 +182,7 @@ fn probe_torus_inner_equator_certifies_at_v_pi() {
         "inner equator v0 should be +-pi, got {}",
         p0.y
     );
-    let cache = PcurveCache::certify(p, 0.0, 3.0, &carrier, &torus, wide(), band())
+    let cache = PcurveCache::certify(p, 0.0, 3.0, &carrier, &torus, band())
         .expect("inner equator parallel certifies");
     assert!(cache.certificate().envelope < 1e-12);
 }
@@ -251,7 +242,7 @@ fn probe_sphere_envelope_dominates_a_corrupted_meridian() {
             "true sup {sup:e} beats the envelope bound {env:e} for ({ca},{cb},{cl},{c0})"
         );
         assert!(
-            PcurveCache::certify(bad, t0, t1, &carrier, &s, wide(), band()).is_err(),
+            PcurveCache::certify(bad, t0, t1, &carrier, &s, band()).is_err(),
             "an off-by-1e-4 sphere pcurve certified"
         );
     }

@@ -364,6 +364,10 @@ impl RoleSeg {
             | RoleSeg::InPart { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
+            | RoleSeg::Crossing {
+                edge: a, face: b, ..
+            }
+            | RoleSeg::EdgeCrossing { a, b, .. }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -412,6 +416,10 @@ impl RoleSeg {
             | RoleSeg::InPart { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
+            | RoleSeg::Crossing {
+                edge: a, face: b, ..
+            }
+            | RoleSeg::EdgeCrossing { a, b, .. }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -1804,7 +1812,7 @@ pub(super) mod tests {
                 R::OutputBody,
                 R::Cap(CapEnd::Start),
                 R::Lateral(e.into()),
-                R::RimEdge(CapEnd::End, e2),
+                R::RimEdge(CapEnd::End, e2.into()),
                 R::LateralEdge(v),
                 R::CapVertex(CapEnd::Start, v),
                 R::LoftWall(vec![e, e2]),
@@ -1819,10 +1827,12 @@ pub(super) mod tests {
                 R::Band(PieceRun::new(vec![e2, e]).unwrap()),
                 R::BandPi(PieceRun::new(vec![e, e2, e]).unwrap()),
                 R::Meridian(MeridianEnd::Pi, PieceRun::new(vec![e, e2]).unwrap()),
+                R::RimEdge(CapEnd::Start, PieceRun::new(vec![e2, e]).unwrap()),
+                R::AxisEdge(PieceRun::new(vec![e, e2]).unwrap()),
                 R::MeridianVertex(MeridianEnd::Pi, v),
                 R::RevolveCap(MeridianEnd::End),
                 R::Pole(v),
-                R::AxisEdge(e2),
+                R::AxisEdge(e2.into()),
                 R::FromA(r(a)),
                 R::FromB(r(b)),
                 R::FromMember {
@@ -1830,6 +1840,17 @@ pub(super) mod tests {
                     of: r(a),
                 },
                 R::Seam { a: r(a), b: r(b) },
+                R::Crossing {
+                    edge: r(a),
+                    face: r(b),
+                    sense: crate::names::Sense::Enters,
+                },
+                R::EdgeCrossing {
+                    a: r(a),
+                    a_sense: crate::names::Sense::Leaves,
+                    b: r(b),
+                    b_sense: crate::names::Sense::Enters,
+                },
                 R::Merged(vec![a.clone(), b.clone()]),
                 R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::Keeps(vec![a.clone(), b.clone()])),
@@ -1851,6 +1872,7 @@ pub(super) mod tests {
                 R::CrossingVertex {
                     side: SplitHalf::Below,
                     edge: r(a),
+                    sense: crate::names::Sense::Leaves,
                 },
                 R::OnToolVertex {
                     side: SplitHalf::Above,

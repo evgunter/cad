@@ -37,8 +37,9 @@
 //! from the pivot that makes that distance least on each axis. A face's
 //! caller ([`Reach::Measured`]) hands a length it measured; only the
 //! cylinder pair floors it ([`Reach::lever_between`]). Those lengths are
-//! not exact distances to the consumed points yet (filed on TANG's
-//! slate).
+//! not exact distances to the consumed points yet
+//! (`work/tang/chord-join-face-reach-misses-a-curved-edges-bulge.md`,
+//! `work/tang/germ-frame-levers-a-plane-cylinder-tilt-at-the-radius.md`).
 //!
 //! The tangent-locus witness reads a ball, [`Reach::Ball`]: the one its
 //! callers, the carrier doors, hand it.
@@ -267,9 +268,8 @@ impl<T: Real> Reach<T> {
     ///   farthest of finitely many points `pᵢ` (endpoints, control
     ///   points): the axis point `s*` where that farthest distance is
     ///   least (`minimax_on_axis`). Its lever is therefore no longer
-    ///   than from any other point of the axis — in particular no longer
-    ///   than from the cylinder's stored origin, which is where the
-    ///   classifiers levered an edge's span before they read at a foot.
+    ///   than from any other point of the axis, the cylinder's stored
+    ///   origin among them.
     #[must_use]
     pub fn foot_on(&self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
         match self {

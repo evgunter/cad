@@ -138,3 +138,15 @@ producer that grows one face by many operators is built or planned. A
 dispatch before then reopens this question rather than building (A) or
 (B). `split-edge-re-reads-the-faces-window-on-every-split` is decided
 with this row.
+
+## Since check 5 retired
+
+PCERT's `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`
+(ratified on [ev] PR 3919) retired check 5 and the certification
+window. `site_rows` certifies each new image against its carrier and
+chart alone, and `stored_rows` computes no chart box, so two of the
+four reads above are gone: the chart boxes and the window. What is left
+is the presence reads, the elements for the winding, and the null-held
+loops. The winding is a sum and the counts are counts, so the harder
+half of the question this row holds, a hull that has to shrink exactly
+under a split or a kill, no longer arises. Not re-measured.
