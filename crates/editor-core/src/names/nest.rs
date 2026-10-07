@@ -2261,7 +2261,11 @@ pub(super) mod tests {
             );
             let through = wrapped(edge, DEEP, 6, RoleSeg::FromA);
             let (a, b) = super::super::seam_pair::seam_line_pair(&through).expect("a seam pair");
-            assert_eq!((a.node.0.digest(), b.node.0.digest()), (1, 2), "the seam at the foot");
+            assert_eq!(
+                (a.node.0.digest(), b.node.0.digest()),
+                (1, 2),
+                "the seam at the foot"
+            );
             let face = wrapped(leaf(1), DEEP, 6, RoleSeg::FromB);
             assert!(
                 super::super::face_descends_from(&face, &leaf(1)),

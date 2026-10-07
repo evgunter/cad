@@ -98,7 +98,7 @@ const DIE_TABLE_DIGEST: u64 = 0xe02f_f785_6f9f_6537;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0x6e0b_9403_fad5_a406;
+const DIE_NAMES_DIGEST: u64 = 0x65a7_ca69_55e8_c313;
 
 #[test]
 fn die_name_tables_are_golden() {

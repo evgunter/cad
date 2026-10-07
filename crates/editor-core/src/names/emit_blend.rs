@@ -437,8 +437,14 @@ mod tie_tests {
         // same body, the same request, the untouched table — no tie
         // upstream, no tie downstream, and every row went through the
         // strict `insert`.
-        let clean = name_blend(RecipeNodeId::new(0, 2), RecipeNodeId::new(0, 1), &table, &blended.body, rec)
-            .expect("the untied table names as it always did");
+        let clean = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            &table,
+            &blended.body,
+            rec,
+        )
+        .expect("the untied table names as it always did");
         assert!(
             clean.iter().all(|(_, e)| matches!(e, Entry::Unique(_))),
             "an untied operand must produce no tied rows"

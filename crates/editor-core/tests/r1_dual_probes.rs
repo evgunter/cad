@@ -174,7 +174,7 @@ where
     let mut d = D::new();
     for &id in &ev.order {
         d.u64(u64::from(id.0.ordinal()));
-    d.u64(id.0.digest());
+        d.u64(id.0.digest());
         match ev.result(id) {
             None => d.u64(0),
             Some(NodeResult::Failed(e)) => {

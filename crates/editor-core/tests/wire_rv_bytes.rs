@@ -176,7 +176,10 @@ fn exprs() -> Exprs {
         // A stored reader and an authored name: a program in a
         // document holds the first, an edit log can hold the second.
         Formula::add(
-            Formula::var(editor_core::VarId::new(0, 0x3fa9_c1d2_a0b1_0001), Dimension::Length),
+            Formula::var(
+                editor_core::VarId::new(0, 0x3fa9_c1d2_a0b1_0001),
+                Dimension::Length,
+            ),
             Formula::named(VarName::from_static("width"), Dimension::Length),
         )
         .unwrap(),

@@ -1299,7 +1299,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
                 ..
             },
         ) => {
-            let DivergedAt::Replayed(spoken) = node else {
+            let DivergedAt::Replayed(spoken) = &**node else {
                 panic!("the edited document's replay holds the node: {node:?}");
             };
             assert_eq!(
@@ -1356,7 +1356,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
             // The record names a node of the document the drive ran
             // on; it is said by tag as the record's, never looked up
             // in the foreign document.
-            let DivergedAt::Recorded(id) = node else {
+            let DivergedAt::Recorded(id) = &**node else {
                 panic!("the foreign replay parts from the record at the record's node: {node:?}");
             };
             assert!(

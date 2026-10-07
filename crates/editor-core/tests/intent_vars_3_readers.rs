@@ -378,7 +378,8 @@ fn the_symbol_survives_a_rename() {
     });
     assert_eq!(sign, Ok(Sign::Zero));
     assert_eq!(counts.symbolic_zero, 1, "one symbol before and after");
-    let by_hand = Sym::<f64>::from_f64(R) + Sym::param_over(ParamSymbol::new(w.0.digest()), 0.0, 0.0, 0.0);
+    let by_hand =
+        Sym::<f64>::from_f64(R) + Sym::param_over(ParamSymbol::new(w.0.digest()), 0.0, 0.0, 0.0);
     let (_, counts) = session(|| {
         geom_core::k_stats::decide(
             "intent_vars_3",
@@ -911,11 +912,7 @@ fn split_and_inline_declare_in_declaration_order() {
     .expect("the part inlines");
     let mut part_by_digest = out.part.var_ids();
     part_by_digest.sort_unstable_by_key(|id| id.0.digest());
-    assert_ne!(
-        out.part.var_ids(),
-        part_by_digest,
-        "the premise again"
-    );
+    assert_ne!(out.part.var_ids(), part_by_digest, "the premise again");
     assert_eq!(declared_names(&inlined.doc), declared_names(&out.part));
 }
 

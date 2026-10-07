@@ -219,6 +219,7 @@ fn coincidence(
 /// clocking rider on a coincidence over the mated parts' extent, so a
 /// rider (a zero one included) needs the parts in hand where the mate
 /// is authored.
+#[allow(clippy::result_large_err)] // [`at_the_door`]'s pair, as it is
 fn at_the_store(
     doc: &ProfileDoc,
     opts: &EvalOptions,

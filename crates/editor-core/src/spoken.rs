@@ -68,7 +68,12 @@ const TAG_DIGITS: usize = 12;
 const TAG_SHIFT: u32 = 64 - 4 * TAG_DIGITS as u32;
 
 fn write_tag(f: &mut fmt::Formatter<'_>, id: MintId) -> fmt::Result {
-    write!(f, "{:0width$x}", id.digest() >> TAG_SHIFT, width = TAG_DIGITS)
+    write!(
+        f,
+        "{:0width$x}",
+        id.digest() >> TAG_SHIFT,
+        width = TAG_DIGITS
+    )
 }
 
 /// The bare tag: the digest's high 48 bits as 12 lowercase hex digits,
@@ -1210,17 +1215,27 @@ mod tests {
     #[test]
     fn the_tag_is_the_digests_twelve_high_hex_digits_and_the_full_id_all_of_it() {
         let wide = RecipeNodeId::new(41, 0x3fa9_c1d2_a0b1_0042);
-        assert_eq!(wide.to_string(), "3fa9c1d2a0b1", "the tag is the digest's prefix");
+        assert_eq!(
+            wide.to_string(),
+            "3fa9c1d2a0b1",
+            "the tag is the digest's prefix"
+        );
         assert_eq!(
             RecipeNodeId::new(42, 0x3fa9_c1d2_a0b1_0042).to_string(),
             "3fa9c1d2a0b1",
             "the ordinal is not in the tag"
         );
         assert_eq!(wide.full().to_string(), "41:3fa9c1d2a0b10042");
-        assert_eq!(StepId::new(0, 0x0000_0000_00ab_ffff).to_string(), "0000000000ab");
+        assert_eq!(
+            StepId::new(0, 0x0000_0000_00ab_ffff).to_string(),
+            "0000000000ab"
+        );
         assert_eq!(RecipeNodeId::new(0, 0xffff).to_string(), "000000000000");
         assert_eq!(StepId::new(3, 7).full(), FullId(crate::MintId::new(3, 7)));
-        assert_eq!(FullId(crate::MintId::new(3, 7)).to_string(), "3:0000000000000007");
+        assert_eq!(
+            FullId(crate::MintId::new(3, 7)).to_string(),
+            "3:0000000000000007"
+        );
     }
 
     /// A node the document holds is spoken by its kind noun and tag;

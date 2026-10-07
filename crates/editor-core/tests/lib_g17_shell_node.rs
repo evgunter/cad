@@ -471,8 +471,14 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
 /// list the same way.
 #[test]
 fn the_shell_door_keeps_designation_order_and_drops_repeats() {
-    let a = fixture::fname(RecipeNodeId::new(0, 1), RoleSeg::Lateral(fixture::leg(0).into()));
-    let b = fixture::fname(RecipeNodeId::new(0, 1), RoleSeg::Lateral(fixture::leg(1).into()));
+    let a = fixture::fname(
+        RecipeNodeId::new(0, 1),
+        RoleSeg::Lateral(fixture::leg(0).into()),
+    );
+    let b = fixture::fname(
+        RecipeNodeId::new(0, 1),
+        RoleSeg::Lateral(fixture::leg(1).into()),
+    );
     let node: AuthoredNode = Node::shell(
         RecipeNodeId::new(0, 1),
         fixture::len(0.1),

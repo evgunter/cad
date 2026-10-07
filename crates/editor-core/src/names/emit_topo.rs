@@ -3326,8 +3326,15 @@ mod tests {
             table: &b_table,
             body: &body,
         };
-        let err = name_boolean(RecipeNodeId::new(0, 9), &body, &naming, &a, &b, Tol::witness())
-            .expect_err("a lineage that leaves the graft rows must refuse");
+        let err = name_boolean(
+            RecipeNodeId::new(0, 9),
+            &body,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .expect_err("a lineage that leaves the graft rows must refuse");
         assert!(
             matches!(
                 err,

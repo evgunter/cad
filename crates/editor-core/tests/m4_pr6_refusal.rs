@@ -361,18 +361,18 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
     );
 
     match load(&tampered, tol) {
-        Err(PersistError::EditReplay {
-            index: 0,
-            error: EditError::Dimension(inner),
-        }) => assert_eq!(
-            inner,
-            DimensionError::Mismatch {
-                op: "add",
-                left: Dimension::Length,
-                right: Dimension::Angle,
-            },
-            "the replay refuses with the checker's own value, two levels deep"
-        ),
+        Err(PersistError::EditReplay { index: 0, error }) => match *error {
+            EditError::Dimension(inner) => assert_eq!(
+                inner,
+                DimensionError::Mismatch {
+                    op: "add",
+                    left: Dimension::Length,
+                    right: Dimension::Angle,
+                },
+                "the replay refuses with the checker's own value, two levels deep"
+            ),
+            other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
+        },
         other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
     }
 }
@@ -441,7 +441,10 @@ fn snapshot_invariant_violations_refuse_typed() {
             .as_array_mut()
             .expect("the file carries its mint log");
         let spelled = serde_json::Value::from(last.0.to_string());
-        let held = log.iter_mut().filter(|entry| entry["node"] == spelled).count();
+        let held = log
+            .iter_mut()
+            .filter(|entry| entry["node"] == spelled)
+            .count();
         assert_eq!(held, 1, "the log held the node once");
         for entry in log.iter_mut() {
             if entry["node"] == spelled {
@@ -774,7 +777,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     };
     match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index: 0, error }) => assert!(
-            matches!(error, editor_core::EditError::MetaUnversioned { .. }),
+            matches!(*error, editor_core::EditError::MetaUnversioned { .. }),
             "expected the apply door's refusal, got {error:?}"
         ),
         other => panic!("unreplayable log must refuse at save, got {other:?}"),

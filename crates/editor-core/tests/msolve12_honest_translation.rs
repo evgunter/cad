@@ -436,7 +436,9 @@ fn a_lever_inside_the_zero_band_decides_no_angle() {
     for arm in [0.0, 0.1 * zero, 0.5 * zero, zero] {
         for (held, added) in [(plane, axis), (axis, plane)] {
             match intersect(held, added, band, lever(arm)) {
-                Err(FoldStop::Unleverable(LeverRefusal::BelowZeroBand { arm: a, zero: z })) => {
+                Err(FoldStop::Unleverable(refusal))
+                    if let LeverRefusal::BelowZeroBand { arm: a, zero: z } = *refusal =>
+                {
                     assert_eq!((a.to_bits(), z.to_bits()), (arm.to_bits(), zero.to_bits()));
                 }
                 other => panic!("arm {arm:e}: {other:?}"),

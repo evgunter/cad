@@ -41,7 +41,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use editor_core::{InlineOutcome, MintId, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap};
+use editor_core::{
+    InlineOutcome, MintId, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap,
+};
 
 /// **The split document's ids carried through split then inline**: a
 /// kept node keeps its id (the remainder is the document edited), and a
@@ -119,9 +121,9 @@ fn renamed(text: &str, ids: &BTreeMap<MintId, MintId>, steps: &BTreeMap<MintId, 
             rest = tail;
             continue;
         };
-        let read = tail[..end].split_once(", digest: ").and_then(|(o, d)| {
-            Some(MintId::new(o.parse().ok()?, d.parse().ok()?))
-        });
+        let read = tail[..end]
+            .split_once(", digest: ")
+            .and_then(|(o, d)| Some(MintId::new(o.parse().ok()?, d.parse().ok()?)));
         match (read, table) {
             (Some(id), Some(table)) => {
                 let to = table.get(&id).copied().unwrap_or(id);
@@ -240,12 +242,8 @@ pub fn same_up_to_ids(
     if roots_a != roots_b {
         problems.push(format!("roots: {roots_a:?} vs {roots_b:?}"));
     }
-    let position: BTreeMap<RecipeNodeId, usize> = b
-        .ids()
-        .iter()
-        .enumerate()
-        .map(|(i, &id)| (id, i))
-        .collect();
+    let position: BTreeMap<RecipeNodeId, usize> =
+        b.ids().iter().enumerate().map(|(i, &id)| (id, i)).collect();
     for group in editor_core::groups(a) {
         let at: Vec<Option<usize>> = group
             .iter()

@@ -2547,7 +2547,10 @@ mod tests {
                 },
             ]
         );
-        assert_eq!(windows.name_in(RecipeNodeId::new(0, 3), 0, 0), Ok(&name(300)));
+        assert_eq!(
+            windows.name_in(RecipeNodeId::new(0, 3), 0, 0),
+            Ok(&name(300))
+        );
     }
 
     /// **The #1098 shape, at the structure.** The entity one past the
@@ -2574,7 +2577,10 @@ mod tests {
             Err(WindowFault::OutOfRange { drawn: 2 }),
             "and the window refuses it"
         );
-        assert_eq!(windows.name_in(RecipeNodeId::new(0, 1), 1, 0), Ok(&name(200)));
+        assert_eq!(
+            windows.name_in(RecipeNodeId::new(0, 1), 1, 0),
+            Ok(&name(200))
+        );
     }
 
     /// **A window that runs past the names it was laid out with is a
@@ -2612,7 +2618,10 @@ mod tests {
             2,
             "the refused part changed nothing"
         );
-        assert_eq!(windows.name_in(RecipeNodeId::new(0, 1), 0, 0), Ok(&name(100)));
+        assert_eq!(
+            windows.name_in(RecipeNodeId::new(0, 1), 0, 0),
+            Ok(&name(100))
+        );
     }
 
     /// **A segment whose projection is not a measurement does not win

@@ -89,12 +89,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                     .get(id)
                     .is_some_and(|theirs| ours.is_some_and(|var| theirs.bit_eq(var)))
             })
-            .chain(
-                other
-                    .vars
-                    .keys()
-                    .filter(|id| !self.vars.contains_key(id)),
-            )
+            .chain(other.vars.keys().filter(|id| !self.vars.contains_key(id)))
             .copied()
             .collect();
         // Closed over definitions: a defined variable whose definition

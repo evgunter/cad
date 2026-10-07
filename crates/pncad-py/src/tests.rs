@@ -1673,8 +1673,13 @@ fn declare_error_tags_are_stable() {
     use pncad::select::declare_all;
 
     let doc = pncad::document::ProfileDoc::empty_derived("declare-error-tags", Tol::witness());
-    let empty = declare_all(&doc, pncad::document::RecipeNodeId::new(0, 1), &[], Tol::witness())
-        .expect_err("declaring no findings refuses");
+    let empty = declare_all(
+        &doc,
+        pncad::document::RecipeNodeId::new(0, 1),
+        &[],
+        Tol::witness(),
+    )
+    .expect_err("declaring no findings refuses");
     assert_eq!(declare_error_tag(&empty), "no_findings");
 }
 
@@ -2192,7 +2197,7 @@ fn the_persist_doors_nested_arms_carry_their_own_word() {
     };
     let carrier = PersistError::EditReplay {
         index: 3,
-        error: replayed.clone(),
+        error: Box::new(replayed.clone()),
     };
     assert_eq!(persist_error_tag(&carrier), "edit_replay");
     assert_eq!(edit_error_tag(&replayed), "unknown_node");
@@ -2764,7 +2769,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::StepIdsRefused {
             node: sp(1),
-            fault: StepIdFault::Repeated { step: StepId::new(0, 2) },
+            fault: StepIdFault::Repeated {
+                step: StepId::new(0, 2),
+            },
         },
         &["node"],
     );
@@ -2987,7 +2994,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::SlotVarKind {
-            var: spv(),
+            var: Box::new(spv()),
             node: sp(1),
             slot: SlotId::Count,
             declared: Dimension::Count,
@@ -4541,7 +4548,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
             "slot",
             "kind",
             EditError::SlotVarKind {
-                var: var(),
+                var: Box::new(var()),
                 node: spoken.clone(),
                 slot: SlotId::Radius,
                 declared: Dimension::Length,

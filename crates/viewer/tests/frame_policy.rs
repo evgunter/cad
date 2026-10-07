@@ -2303,7 +2303,11 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         assert_eq!(key.node, right);
     }
     assert!(!index.ids_in(right, hit.body).is_empty());
-    assert!(index.ids_in(RecipeNodeId::new(0, tagged(9999)), 0).is_empty());
+    assert!(
+        index
+            .ids_in(RecipeNodeId::new(0, tagged(9999)), 0)
+            .is_empty()
+    );
 }
 
 // --- the rebuild loop, across the index seam -------------------------

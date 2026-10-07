@@ -809,9 +809,13 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             );
             let rendered = AssemblyError::Mint { refusals }.to_string();
             assert!(
-                rendered.contains(&format!("mate {}", test_utils::refusal::tag(first_bad.0.digest())))
-                    && rendered
-                        .contains(&format!("mate {}", test_utils::refusal::tag(second_bad.0.digest()))),
+                rendered.contains(&format!(
+                    "mate {}",
+                    test_utils::refusal::tag(first_bad.0.digest())
+                )) && rendered.contains(&format!(
+                    "mate {}",
+                    test_utils::refusal::tag(second_bad.0.digest())
+                )),
                 "and both are in the one message: {rendered:?}"
             );
         }

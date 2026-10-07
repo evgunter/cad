@@ -1703,7 +1703,10 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(0)),
                 Some("InstantiatePart"),
             ),
-            root: spoken(RecipeNodeId::new(0, test_utils::refusal::tagged(2)), Some("Union")),
+            root: spoken(
+                RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
+                Some("Union"),
+            ),
             others: vec![spoken(
                 RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 Some("InstantiatePart"),

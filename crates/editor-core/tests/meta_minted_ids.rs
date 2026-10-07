@@ -164,7 +164,12 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
 /// id's string alone, so an id spelled any other way would be refused.
 #[test]
 fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
-    for (ordinal, id) in [(1, 5), (2, i64::MAX as u64), (3, i64::MAX as u64 + 1), (u32::MAX, u64::MAX)] {
+    for (ordinal, id) in [
+        (1, 5),
+        (2, i64::MAX as u64),
+        (3, i64::MAX as u64 + 1),
+        (u32::MAX, u64::MAX),
+    ] {
         let program: ProfileProgram = ProfileProgram {
             plane: RecipeNodeId::new(ordinal, id),
             loops: Vec::new(),

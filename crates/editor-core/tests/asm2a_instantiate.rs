@@ -1189,7 +1189,10 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
         rendered.contains(&format!(
             "repair Extrude {}",
             test_utils::refusal::tag(extrude.0.digest())
-        )) && rendered.contains(&format!("Transform {}", test_utils::refusal::tag(moved.0.digest()))),
+        )) && rendered.contains(&format!(
+            "Transform {}",
+            test_utils::refusal::tag(moved.0.digest())
+        )),
         "the instance names the root and points at the failed node: {rendered}"
     );
     let levels: Vec<_> = failure(&ev, ids[0])

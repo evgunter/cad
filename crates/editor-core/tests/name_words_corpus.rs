@@ -772,7 +772,10 @@ fn each_boolean_join_says_its_operation() {
             .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
             .name_table;
         let by = Speaker::of(&r.doc);
-        let join = format!(", {verb} at {noun} {}", test_utils::refusal::tag(at.0.digest()));
+        let join = format!(
+            ", {verb} at {noun} {}",
+            test_utils::refusal::tag(at.0.digest())
+        );
         let through_b: Vec<String> = table
             .iter()
             .map(|(name, _)| name)

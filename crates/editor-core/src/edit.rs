@@ -890,7 +890,7 @@ fn read_refusal<P>(
                 referenced,
             },
         ) => EditError::SlotVarKind {
-            var: doc.spoken_var(var),
+            var: Box::new(doc.spoken_var(var)),
             node,
             slot,
             declared,
@@ -1304,8 +1304,8 @@ pub enum EditError {
     /// dimension than its kind — by a name, or by a reader whose cached
     /// kind disagrees with the table.
     SlotVarKind {
-        /// The variable.
-        var: SpokenVar,
+        /// The variable, boxed so the refusal stays a small `Err`.
+        var: Box<SpokenVar>,
         /// The reading node.
         node: SpokenNode,
         /// The reading slot.
@@ -2321,8 +2321,11 @@ impl EditError {
                 slot: _,
                 declared: _,
                 referenced: _,
+            } => {
+                *node = node.respoken(doc);
+                **var = var.respoken(doc);
             }
-            | Self::SlotUnresolvedVar { node, var, slot: _ }
+            Self::SlotUnresolvedVar { node, var, slot: _ }
             | Self::PayloadVarKind {
                 node,
                 var,
@@ -5668,14 +5671,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     .declared_pairs()
                     .iter()
                     .filter(|pair| !before.contains(pair));
-                check_declared_sides(
-                    doc,
-                    new,
-                    node,
-                    moved,
-                    || doc.spoken(id),
-                    Some(id),
-                )?;
+                check_declared_sides(doc, new, node, moved, || doc.spoken(id), Some(id))?;
             }
             // Appearance keys are rebind sites (the attribute rides
             // the name — PR 7's store; also the spec D9 banked

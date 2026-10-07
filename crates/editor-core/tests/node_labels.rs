@@ -263,7 +263,10 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
             assert_eq!(node, doc.spoken(node.id()), "the refused node");
             assert_eq!(input, doc.spoken(input.id()), "its input");
             let said = if node.id() == extrude {
-                format!("Extrude \"base \\\"plate\\\"\" ({})", tag(extrude.0.digest()))
+                format!(
+                    "Extrude \"base \\\"plate\\\"\" ({})",
+                    tag(extrude.0.digest())
+                )
             } else {
                 format!("Profile \"outline\" ({})", tag(profile.0.digest()))
             };
@@ -593,7 +596,10 @@ fn a_load_root_refusal_speaks_the_labelled_node_from_the_file() {
         text.contains(&honest),
         "the save's root list is the two tips"
     );
-    let crafted = text.replace(&honest, &format!("\"roots\": [\n      \"{}\"\n    ]", kept.0));
+    let crafted = text.replace(
+        &honest,
+        &format!("\"roots\": [\n      \"{}\"\n    ]", kept.0),
+    );
     let refused = match load(&crafted, tol) {
         Err(PersistError::Snapshot(SnapshotError::Roots(fault))) => fault,
         other => panic!("a crafted uncovered document refuses, got {other:?}"),
@@ -788,9 +794,10 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
         "the root is the part's, spoken from the part"
     );
     assert!(
-        refused
-            .to_string()
-            .contains(&format!("part root Extrude \"bracket\" ({})", tag(body.0.digest()))),
+        refused.to_string().contains(&format!(
+            "part root Extrude \"bracket\" ({})",
+            tag(body.0.digest())
+        )),
         "{refused}"
     );
 

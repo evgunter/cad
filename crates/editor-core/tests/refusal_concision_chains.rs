@@ -5085,8 +5085,10 @@ fn formula(text: &str) -> editor_core::Formula {
 fn stored(text: &str) -> editor_core::Expr {
     formula(text)
         .lower(&|name| {
-            (name.as_str() == "blades")
-                .then_some((editor_core::VarId::new(0, tagged(9)), editor_core::Dimension::Count))
+            (name.as_str() == "blades").then_some((
+                editor_core::VarId::new(0, tagged(9)),
+                editor_core::Dimension::Count,
+            ))
         })
         .expect("the formula lowers")
 }

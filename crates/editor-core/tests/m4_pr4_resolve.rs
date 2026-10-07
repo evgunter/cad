@@ -1076,7 +1076,10 @@ fn the_phantom_detector_sees_through_the_whole_vocabulary() {
     );
     // The same segment, carrying the needle structurally: a real
     // derivation, and the detector must not call it a phantom.
-    let derived = fixture::fname(RecipeNodeId::new(0, 3), RoleSeg::BlendFace(needle.clone().into()));
+    let derived = fixture::fname(
+        RecipeNodeId::new(0, 3),
+        RoleSeg::BlendFace(needle.clone().into()),
+    );
     assert!(
         !only_wall_mention(&derived, &needle),
         "a blend OF the name is a derivation, not a phantom"

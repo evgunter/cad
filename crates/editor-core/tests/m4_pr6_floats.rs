@@ -113,8 +113,7 @@ fn check_all_slots(value: f64) {
     // The frame the profile is drawn on: its origin x carries the
     // value, as a literal `Expr`, so the bits are asserted the way
     // every other expression literal's are.
-    let Some(Node::Datum(editor_core::Datum::Frame { origin, .. })) = doc.node(doc.ids()[0])
-    else {
+    let Some(Node::Datum(editor_core::Datum::Frame { origin, .. })) = doc.node(doc.ids()[0]) else {
         panic!("frame lost");
     };
     let mut frame_bits = Vec::new();

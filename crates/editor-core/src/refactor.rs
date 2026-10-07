@@ -510,10 +510,11 @@ pub enum SplitError {
         /// instance or gauge by its gauge reference, or a cut root that
         /// is no instance.
         node: SpokenNode,
-        /// The anchor the earlier votes name, `None` the world.
-        first: Option<SpokenNode>,
+        /// The anchor the earlier votes name, `None` the world; boxed
+        /// so the refusal stays a small `Err`.
+        first: Option<Box<SpokenNode>>,
         /// The one this node names, `None` the world.
-        second: Option<SpokenNode>,
+        second: Option<Box<SpokenNode>>,
     },
     /// **The cut holds a placed group and leaves its placing mate
     /// behind** (A4: a placing mate never crosses a cut): the mate would
@@ -596,8 +597,9 @@ pub enum SplitError {
     /// variables (D-2's "no silent sharing") — refused naming one
     /// reading node on each side.
     UncutVarReference {
-        /// The shared variable.
-        var: SpokenVar,
+        /// The shared variable, boxed so the refusal stays a small
+        /// `Err`.
+        var: Box<SpokenVar>,
         /// A cut node referencing it.
         cut_node: SpokenNode,
         /// A kept node referencing it.
@@ -748,8 +750,8 @@ impl core::fmt::Display for SplitError {
                 f,
                 "split: the cut's material sits on two anchors ({} and {}, at {}), and \
                  the instance the split leaves behind sits on one. {}",
-                anchor_name(first.as_ref()),
-                anchor_name(second.as_ref()),
+                anchor_name(first.as_deref()),
+                anchor_name(second.as_deref()),
                 node,
                 Recourse(&format!(
                     "leave {} out of the cut, or put the cut's instances on one gauge \
@@ -1141,8 +1143,9 @@ pub enum InlineError {
     MatePlaced {
         /// The instance.
         instance: SpokenNode,
-        /// Its group's root in the host.
-        host_root: SpokenNode,
+        /// Its group's root in the host, boxed so the refusal stays a
+        /// small `Err`.
+        host_root: Box<SpokenNode>,
         /// The placing mates that read it, in document order: deleting
         /// them leaves it a group of its own.
         mates: Vec<SpokenNode>,
@@ -2554,8 +2557,8 @@ pub fn split(
             Some(first) => {
                 return Err(SplitError::TwoAnchors {
                     node: doc.spoken(node),
-                    first: first.map(|g| doc.spoken(g)),
-                    second: vote.map(|g| doc.spoken(g)),
+                    first: first.map(|g| Box::new(doc.spoken(g))),
+                    second: vote.map(|g| Box::new(doc.spoken(g))),
                 });
             }
         }
@@ -2699,7 +2702,7 @@ pub fn split(
                 _ => false,
             };
             return Err(SplitError::UncutVarReference {
-                var: doc.spoken_var(var),
+                var: Box::new(doc.spoken_var(var)),
                 cut_node: doc.spoken(cut_node),
                 kept_node: doc.spoken(kept_node),
                 promote: offset_reads && promotable(cut_node),
@@ -3316,7 +3319,7 @@ pub fn inline(
         });
         return Err(InlineError::MatePlaced {
             instance: doc.spoken(instance),
-            host_root: doc.spoken(host_root),
+            host_root: Box::new(doc.spoken(host_root)),
             mates: mates.into_iter().map(|m| doc.spoken(m)).collect(),
             part_root: remedy.as_ref().map(|(r, _)| Box::new(part.spoken(*r))),
             part_gauges: remedy
@@ -4030,8 +4033,12 @@ mod remap_moves_the_step {
 
     #[test]
     fn a_piece_crosses_on_the_step_map_and_a_section_crosses_as_it_is() {
-        let nodes: NodeMap = [(RecipeNodeId::new(0, 2), RecipeNodeId::new(0, 0))].into_iter().collect();
-        let steps: StepMap = [(StepId::new(0, 7), StepId::new(0, 1))].into_iter().collect();
+        let nodes: NodeMap = [(RecipeNodeId::new(0, 2), RecipeNodeId::new(0, 0))]
+            .into_iter()
+            .collect();
+        let steps: StepMap = [(StepId::new(0, 7), StepId::new(0, 1))]
+            .into_iter()
+            .collect();
         assert_eq!(
             remap_name(&wall(2, piece(7)), &nodes, &steps).expect("covered"),
             wall(0, piece(1))

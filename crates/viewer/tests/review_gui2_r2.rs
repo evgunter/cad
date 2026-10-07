@@ -1423,9 +1423,7 @@ fn tree_rows_still_read_the_shown_doc_against_the_old_evaluation() {
         "EVIDENCE tree_rows while a run is outstanding: {before} rows before the edit, \
          {} after; landed_pair still names {} nodes",
         after.len(),
-        session
-            .landed_pair()
-            .map_or(0, |(doc, _)| doc.ids().len())
+        session.landed_pair().map_or(0, |(doc, _)| doc.ids().len())
     );
 }
 

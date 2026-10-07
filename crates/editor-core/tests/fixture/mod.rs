@@ -540,6 +540,9 @@ pub fn union_over(
 /// face side and a rider need the store's reach, since both read the
 /// parts; everything else decides on the datum alone, so
 /// [`RefusingReach`] serves.
+// The pair is matched by value at every call site; a test's refusal
+// path is no hot `Err`.
+#[allow(clippy::result_large_err)]
 pub fn at_the_door(
     doc: &ProfileDoc,
     reach: &dyn MateReach,
@@ -1646,7 +1649,9 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
                     editor_core::Relation::Declined => "carried_declined",
                 },
             ),
-            editor_core::Attribution::Unattributed => (RecipeNodeId::new(0, u64::MAX), "unattributed"),
+            editor_core::Attribution::Unattributed => {
+                (RecipeNodeId::new(0, u64::MAX), "unattributed")
+            }
         })
         .collect()
 }

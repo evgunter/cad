@@ -894,8 +894,8 @@ fn run_at<T: editor_core::EvalScalar>(
 /// against its central difference) are what say so.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0x4700_d001_e19c_2048),
-    (1e-6, 0x0ac7_65d7_0799_cca4),
-    (1e-12, 0x9fb4_cf13_44e6_9ea8),
+    (1e-6, 0x244e_445b_299f_dd6a),
+    (1e-12, 0x877f_4178_2880_4045),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and

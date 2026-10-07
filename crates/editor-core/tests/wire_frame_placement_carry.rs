@@ -89,7 +89,10 @@ fn assert_same_plane(
 /// The world points of a node's body, sorted by bits.
 fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64, u64, u64)> {
     let Some(ValuePayload::Body(b)) = ev.value(node).map(|v| &v.payload) else {
-        panic!("node {} has no body", test_utils::refusal::tag(node.0.digest()))
+        panic!(
+            "node {} has no body",
+            test_utils::refusal::tag(node.0.digest())
+        )
     };
     let mut out: Vec<(u64, u64, u64)> = b
         .vertex_points()

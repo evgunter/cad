@@ -1847,10 +1847,7 @@ fn fold_pair<P: crate::ProfilePayload, T: SolveScalar>(
                     }));
                 }
                 Err(FoldStop::Unleverable(refusal)) => {
-                    return Err(Box::new(MateFault::Unleverable {
-                        mate,
-                        refusal: Box::new(refusal),
-                    }));
+                    return Err(Box::new(MateFault::Unleverable { mate, refusal }));
                 }
                 Err(FoldStop::Clash { predicate, clash }) => {
                     return Err(Box::new(MateFault::Contradictory {
@@ -2491,7 +2488,7 @@ fn check_offsets<P: crate::ProfilePayload, T: SolveScalar>(
                     unchecked(instance, OffsetCheck::Indeterminate(diag))
                 }
                 FoldStop::Unleverable(refusal) => {
-                    unchecked(instance, OffsetCheck::Unleverable(refusal))
+                    unchecked(instance, OffsetCheck::Unleverable(*refusal))
                 }
                 FoldStop::OutOfRange => unchecked(instance, OffsetCheck::OutOfRange),
             })
@@ -2535,7 +2532,14 @@ mod tests {
         let fine = Band::linear_at(tol, 1e-3).expect("a band");
         let coarse = Band::linear_at(tol, 0.5).expect("a band");
         let compose = |offset: &crate::placement::Placement, band| {
-            compose_offset(RecipeNodeId::new(0, 1), MateSide::A, None, offset, &env, band)
+            compose_offset(
+                RecipeNodeId::new(0, 1),
+                MateSide::A,
+                None,
+                offset,
+                &env,
+                band,
+            )
         };
         assert!(
             compose(&frame.offset, fine).is_ok(),

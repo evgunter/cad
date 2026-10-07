@@ -442,9 +442,10 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
         "the repair's node rides the refusal"
     );
     assert!(
-        refusal
-            .to_string()
-            .contains(&format!("at node {}", test_utils::refusal::tag(s.failed.0.digest()))),
+        refusal.to_string().contains(&format!(
+            "at node {}",
+            test_utils::refusal::tag(s.failed.0.digest())
+        )),
         "{refusal}"
     );
 }

@@ -247,7 +247,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "SlotVarKind",
             EditError::SlotVarKind {
-                var: spoken_var(),
+                var: Box::new(spoken_var()),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
                 declared: Dimension::Angle,
@@ -257,7 +257,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "SlotUnresolvedVar",
             EditError::SlotUnresolvedVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId::new(0, tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
             },
@@ -281,7 +284,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "PayloadUnresolvedVar",
             EditError::PayloadUnresolvedVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId::new(0, tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
                 node: s(5, "Measure"),
             },
         ),
@@ -337,13 +343,19 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "AnonymousVarUnread",
             EditError::AnonymousVarUnread {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId::new(0, tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
             },
         ),
         (
             "DeleteAnonymousVar",
             EditError::DeleteAnonymousVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId::new(0, tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
             },
         ),
         (
@@ -392,7 +404,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "DefinitionUnresolvedVar",
             EditError::DefinitionUnresolvedVar {
                 var: spoken_var(),
-                read: pncad::document::SpokenVar::new(pncad::document::VarId::new(0, tagged(8)), None),
+                read: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(8)),
+                    None,
+                ),
             },
         ),
         (

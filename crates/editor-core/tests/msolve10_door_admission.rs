@@ -575,7 +575,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     assert_eq!(*index, 1, "the entry is named");
     assert!(
         matches!(
-            error,
+            &**error,
             EditError::MateRefused { fault, .. }
                 if matches!(**fault, MateFault::TableLacks { what, .. } if what.contains("planar rest"))
         ),

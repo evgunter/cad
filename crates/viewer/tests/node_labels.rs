@@ -469,7 +469,10 @@ fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
     };
     let before = failed(&session.tree_rows());
     assert!(
-        before.starts_with(&format!("Extrude \"pocket\" ({}) failed: ", tag(extrude.0.digest()))),
+        before.starts_with(&format!(
+            "Extrude \"pocket\" ({}) failed: ",
+            tag(extrude.0.digest())
+        )),
         "{before}"
     );
 
@@ -550,8 +553,12 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
             .map(|m| m.text().to_owned())
             .unwrap_or_default()
     };
-    let is_not_a_profile =
-        |text: &str| format!("Extrude \"{text}\" ({}) is not a profile", tag(extrude.0.digest()));
+    let is_not_a_profile = |text: &str| {
+        format!(
+            "Extrude \"{text}\" ({}) is not a profile",
+            tag(extrude.0.digest())
+        )
+    };
 
     let line = batch_line(&mut session, core::slice::from_ref(&refused));
     assert!(
@@ -731,7 +738,10 @@ fn the_path_editors_refusal_speaks_its_node() {
     let refused = viewer::sketch::held_loops(&doc, extrude).expect_err("an extrude is no profile");
     assert_eq!(
         refused.to_string(),
-        format!("Extrude \"plate\" ({}) is not a profile", tag(extrude.0.digest()))
+        format!(
+            "Extrude \"plate\" ({}) is not a profile",
+            tag(extrude.0.digest())
+        )
     );
 }
 

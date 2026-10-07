@@ -567,12 +567,10 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         let angle = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"][2]
             ["Rigid"]["angle"];
         let turn = doc.var_named("turn").expect("the fixture declares turn");
-        let text = angle
-            .to_string()
-            .replace(
-                &format!("\"var\":\"{}\"", turn.0),
-                "\"var\":\"0:0000000000000001\"",
-            );
+        let text = angle.to_string().replace(
+            &format!("\"var\":\"{}\"", turn.0),
+            "\"var\":\"0:0000000000000001\"",
+        );
         assert_ne!(text, angle.to_string(), "aimed at the variable");
         *angle = serde_json::from_str(&text).expect("still an expression");
     });

@@ -471,11 +471,7 @@ fn a_violated_assertion_changes_no_downstream_outcome() {
     );
     // Every node the two documents share evaluates identically, keys
     // included — the memo currency is what a gate would have to move.
-    for id in [
-        with_assertion.ids()[0],
-        with_assertion.ids()[1],
-        measure,
-    ] {
+    for id in [with_assertion.ids()[0], with_assertion.ids()[1], measure] {
         let (x, y) = (
             a.nodes.get(&id).expect("live"),
             b.nodes.get(&id).expect("live"),

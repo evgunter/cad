@@ -350,7 +350,11 @@ fn unsaid_nodes_erased(name: &StableName) -> StableName {
     );
     StableName {
         kind: name.kind,
-        node: if unsaid { RecipeNodeId::new(0, 0) } else { name.node },
+        node: if unsaid {
+            RecipeNodeId::new(0, 0)
+        } else {
+            name.node
+        },
         path,
     }
 }

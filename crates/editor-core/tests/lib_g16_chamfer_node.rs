@@ -171,7 +171,8 @@ fn the_selection_is_payload_names() {
         RecipeNodeId::new(0, 1),
         editor_core::RoleSeg::Lateral(fixture::leg(0).into()),
     );
-    let node: AuthoredNode = Node::chamfer(RecipeNodeId::new(0, 1), fixture::len(0.1), vec![a.clone()]);
+    let node: AuthoredNode =
+        Node::chamfer(RecipeNodeId::new(0, 1), fixture::len(0.1), vec![a.clone()]);
     let names: Vec<&StableName> = node.payload_names();
     assert_eq!(names, vec![&a]);
     assert_eq!(node.named_nodes(), vec![RecipeNodeId::new(0, 1)]);

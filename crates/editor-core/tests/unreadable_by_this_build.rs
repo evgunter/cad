@@ -276,4 +276,3 @@ fn a_document_from_before_the_extrude_side_refuses_unreadable() {
     );
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
 }
-

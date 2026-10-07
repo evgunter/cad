@@ -651,7 +651,10 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // only has the Display still learns which mate is wrong.
     let msg = err.to_string();
     assert!(
-        msg.contains(&format!("mate {}", test_utils::refusal::tag(mate.0.digest()))),
+        msg.contains(&format!(
+            "mate {}",
+            test_utils::refusal::tag(mate.0.digest())
+        )),
         "the rendering names the mate: {msg}"
     );
     // The other side of the split: a REFUTED declaration is a finding

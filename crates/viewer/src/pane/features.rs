@@ -553,7 +553,10 @@ mod tests {
     fn placer_refused_row(repair_at: Option<SpokenNode>) -> TreeRow {
         TreeRow {
             id: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
-            spoken: spoken(RecipeNodeId::new(0, test_utils::refusal::tagged(7)), Some("Mate")),
+            spoken: spoken(
+                RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
+                Some("Mate"),
+            ),
             pose: None,
             depth: 0,
             root: false,
@@ -913,7 +916,10 @@ mod tests {
 
         let row = |readout| TreeRow {
             id: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
-            spoken: spoken(RecipeNodeId::new(0, test_utils::refusal::tagged(4)), Some("Split")),
+            spoken: spoken(
+                RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
+                Some("Split"),
+            ),
             pose: None,
             depth: 0,
             root: false,
@@ -975,7 +981,10 @@ mod tests {
         assert_under(
             find(
                 &painted,
-                &format!("Measure {}", test_utils::refusal::tag(fixture.clearance.0.digest())),
+                &format!(
+                    "Measure {}",
+                    test_utils::refusal::tag(fixture.clearance.0.digest())
+                ),
             ),
             line,
         );
@@ -1001,7 +1010,10 @@ mod tests {
         assert_eq!(
             drawn,
             vec![
-                format!("Measure {}", test_utils::refusal::tag(fixture.failed.0.digest())),
+                format!(
+                    "Measure {}",
+                    test_utils::refusal::tag(fixture.failed.0.digest())
+                ),
                 "FAILED".to_owned(),
                 message.clone()
             ],

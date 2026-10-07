@@ -131,7 +131,9 @@ fn a_split_remaps_a_name_past_every_stack_on_the_smallest_stack() {
             node: RecipeNodeId::new(0, 1),
             path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
         };
-        let name = (0..depth).fold(leaf, |n, level| in_copy(RecipeNodeId::new(0, 2 + level % 3), 0, n));
+        let name = (0..depth).fold(leaf, |n, level| {
+            in_copy(RecipeNodeId::new(0, 2 + level % 3), 0, n)
+        });
         let map = (1..=4)
             .map(|n| (RecipeNodeId::new(0, n), RecipeNodeId::new(0, n + 100)))
             .collect();

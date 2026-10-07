@@ -1712,7 +1712,11 @@ mod tests {
         drafts.abandon_profile_edit_off(None);
         assert!(drafts.profile_edit.is_none(), "selection left, draft gone");
         // A node the editor cannot hold leaves nothing stale behind.
-        assert!(drafts.profile_edit(&before, RecipeNodeId::new(0, 0)).is_err());
+        assert!(
+            drafts
+                .profile_edit(&before, RecipeNodeId::new(0, 0))
+                .is_err()
+        );
         assert!(drafts.profile_edit.is_none());
     }
 

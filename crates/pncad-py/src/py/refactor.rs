@@ -269,9 +269,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             first,
             second,
         } => (
-            first.as_ref().map_or_else(none, id),
+            first.as_deref().map_or_else(none, id),
             none(),
-            second.as_ref().map_or_else(none, id),
+            second.as_deref().map_or_else(none, id),
             none(),
             id(node),
             none(),

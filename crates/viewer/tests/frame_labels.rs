@@ -241,7 +241,10 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     assert_eq!(point.pose, None);
     assert_eq!(
         tree::node_label(&doc, point.id, &PartFiles::Unscanned),
-        format!("Datum point {}", test_utils::refusal::tag(point.id.0.digest())),
+        format!(
+            "Datum point {}",
+            test_utils::refusal::tag(point.id.0.digest())
+        ),
         "a node with nothing more to say is named by its kind and tag"
     );
 }

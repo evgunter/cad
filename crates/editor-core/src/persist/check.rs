@@ -2197,13 +2197,19 @@ mod tests {
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Distance,
-                var: crate::SpokenVar::new(crate::VarId::new(0, 7), Some(VarName::from_static("depth"))),
+                var: crate::SpokenVar::new(
+                    crate::VarId::new(0, 7),
+                    Some(VarName::from_static("depth")),
+                ),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::PayloadVarKind {
                 node: node(),
-                var: crate::SpokenVar::new(crate::VarId::new(0, 7), Some(VarName::from_static("depth"))),
+                var: crate::SpokenVar::new(
+                    crate::VarId::new(0, 7),
+                    Some(VarName::from_static("depth")),
+                ),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },

@@ -177,7 +177,10 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
             carried(RoleSeg::FromA, operand(2, CapEnd::End)),
             carried(RoleSeg::FromB, operand(5, CapEnd::Start)),
         )),
-        at: (RecipeNodeId::new(0, tagged(9)), RecipeNodeId::new(0, tagged(9))),
+        at: (
+            RecipeNodeId::new(0, tagged(9)),
+            RecipeNodeId::new(0, tagged(9)),
+        ),
         predicate: "bool_plane_offset",
         source: in_band("bool_plane_offset"),
     };
@@ -654,7 +657,10 @@ fn select_refusal_display_names_its_content_not_its_struct() {
         (
             SelectRefusal::PairInBand {
                 pair: Box::new((face_name(), face_name())),
-                at: (RecipeNodeId::new(0, tagged(3)), RecipeNodeId::new(0, tagged(4))),
+                at: (
+                    RecipeNodeId::new(0, tagged(3)),
+                    RecipeNodeId::new(0, tagged(4)),
+                ),
                 predicate: "bool_plane_side_of",
                 source: in_band("bool_plane_side_of"),
             },
@@ -926,7 +932,10 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     );
     assert_f6(
         &EditError::SlotVarKind {
-            var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), Some(name.clone())),
+            var: Box::new(editor_core::SpokenVar::new(
+                editor_core::VarId::new(0, 7),
+                Some(name.clone()),
+            )),
             node: held(3, "Extrude"),
             slot: SlotId::Distance,
             declared: Dimension::Scalar,
@@ -1657,7 +1666,7 @@ fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_a
             slot: SlotId::Radius,
         }),
         arm(&EditError::SlotVarKind {
-            var: var(),
+            var: Box::new(var()),
             node: node(),
             slot: SlotId::Radius,
             declared: Dimension::Length,
@@ -3439,7 +3448,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         (
             "SplitError::UncutVarReference",
             SplitError::UncutVarReference {
-                var: spoken.clone(),
+                var: Box::new(spoken.clone()),
                 cut_node: held(1, "Extrude"),
                 kept_node: held(2, "Extrude"),
                 promote: false,

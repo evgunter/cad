@@ -821,7 +821,9 @@ fn a_definition_no_door_wrote_refuses_at_load() {
         matches!(&err, PersistError::Unreadable { detail, .. } if detail.contains("unknown variant `Name`")),
         "{err:?}"
     );
-    let err = load_doctored(&doc, |snap| def(snap, wire_var(VarId::new(0, 0x5eed), "Length")));
+    let err = load_doctored(&doc, |snap| {
+        def(snap, wire_var(VarId::new(0, 0x5eed), "Length"))
+    });
     assert!(
         matches!(&err, PersistError::Snapshot(SnapshotError::DefinitionReadsUnmintedVar { var, read })
             if var.id() == h && *read == VarId::new(0, 0x5eed)),

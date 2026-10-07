@@ -1240,9 +1240,7 @@ impl<U: Decide> Prior<'_, U> {
         flips: &FlipSet,
         nodes: &BTreeSet<RecipeNodeId>,
     ) -> Option<Evidence> {
-        if let Some((node, f)) =
-            in_id_order(flips.flips_on_nodes(nodes)).first()
-        {
+        if let Some((node, f)) = in_id_order(flips.flips_on_nodes(nodes)).first() {
             return Some(Evidence::Flip(*node, *f));
         }
         let ddiff = self.doc().diff(new.doc);
@@ -2801,7 +2799,9 @@ mod walk_tests {
     fn a_walk_visits_depth_first_in_path_order() {
         let name = over(over(leaf(1), 2), 3);
         let mut seen = Vec::new();
-        walk_names(&name, Partners::Include, &mut |n| seen.push(n.node.0.digest()));
+        walk_names(&name, Partners::Include, &mut |n| {
+            seen.push(n.node.0.digest())
+        });
         assert_eq!(seen, [2, 1, 1002, 1003], "partners included");
         seen.clear();
         walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));

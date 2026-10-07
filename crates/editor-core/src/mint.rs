@@ -142,7 +142,8 @@ impl<'de> Deserialize<'de> for MintId {
                 )
             }
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<MintId, E> {
-                MintId::parse(text).ok_or_else(|| E::invalid_value(serde::de::Unexpected::Str(text), &self))
+                MintId::parse(text)
+                    .ok_or_else(|| E::invalid_value(serde::de::Unexpected::Str(text), &self))
             }
         }
         de.deserialize_str(Spelled)
@@ -380,7 +381,11 @@ impl Mint {
     #[cfg(test)]
     pub(crate) fn logged(mut self, entries: impl IntoIterator<Item = Minted>) -> Self {
         self.log.extend(entries);
-        assert_eq!(self.out_of_order(), None, "a hand-built log counts up from one");
+        assert_eq!(
+            self.out_of_order(),
+            None,
+            "a hand-built log counts up from one"
+        );
         self
     }
 
@@ -422,7 +427,10 @@ impl Mint {
             .ok()
             .and_then(|minted| minted.checked_add(1))
         else {
-            panic!(
+            // One mint per edit's node, step or variable: a document
+            // reaches 2^32 of them only by an edit log no door replays
+            // in this process's lifetime.
+            unreachable!(
                 "a document has minted {} ids, the most a mint ordinal counts",
                 log.len()
             )
@@ -579,10 +587,7 @@ mod tests {
             second_b.0.ordinal(),
             "two edits from one mint draw one ordinal"
         );
-        assert_ne!(
-            second_a, second_b,
-            "and different ids: the digests part"
-        );
+        assert_ne!(second_a, second_b, "and different ids: the digests part");
         let again = a.insert(&extrude(1, 3.0));
         assert_ne!(
             again.0.digest(),
@@ -736,7 +741,11 @@ mod tests {
         let mut m = Mint::empty();
         let a = m.declare(LEN);
         let b = m.declare(LEN);
-        assert_ne!(a.0.digest(), b.0.digest(), "the second declare extends a different chain");
+        assert_ne!(
+            a.0.digest(),
+            b.0.digest(),
+            "the second declare extends a different chain"
+        );
         assert!(a < b, "and is the later id");
         assert_eq!(m.vars().collect::<Vec<_>>(), vec![a, b]);
         assert!(m.has_var(a) && m.has_var(b));
@@ -816,9 +825,15 @@ mod tests {
             "-1:3fa9c1d2a0b1c3d4",
         ] {
             assert_eq!(MintId::parse(bad), None, "{bad}");
-            assert!(serde_json::from_str::<MintId>(&format!("\"{bad}\"")).is_err(), "{bad}");
+            assert!(
+                serde_json::from_str::<MintId>(&format!("\"{bad}\"")).is_err(),
+                "{bad}"
+            );
         }
-        assert!(serde_json::from_str::<MintId>("12").is_err(), "a bare integer is no id");
+        assert!(
+            serde_json::from_str::<MintId>("12").is_err(),
+            "a bare integer is no id"
+        );
     }
 
     #[test]
@@ -836,6 +851,27 @@ mod tests {
         assert_eq!(m.out_of_order(), Some(b), "a gap");
         let twin = Minted::Step(StepId(a.id()));
         m.log = vec![a, twin];
-        assert_eq!(m.out_of_order(), Some(twin), "one ordinal twice, under either tag");
+        assert_eq!(
+            m.out_of_order(),
+            Some(twin),
+            "one ordinal twice, under either tag"
+        );
+    }
+}
+#[cfg(test)]
+mod zz_ord_sizes {
+    use crate::*;
+    #[test]
+    fn zz_ord_sizes() {
+        use core::mem::size_of as s;
+        eprintln!(
+            "ORDSIZES edit={} persist={} split={} snapshot={} inline={} mate={}",
+            s::<EditError>(),
+            s::<PersistError>(),
+            s::<SplitError>(),
+            s::<SnapshotError>(),
+            s::<InlineError>(),
+            s::<MateFault>()
+        );
     }
 }

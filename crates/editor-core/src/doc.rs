@@ -1113,12 +1113,7 @@ impl<P> Doc<P> {
         edges
             .position
             .get(&var)
-            .map(|&at| {
-                edges.definers[at]
-                    .iter()
-                    .map(|&d| edges.ids[d])
-                    .collect()
-            })
+            .map(|&at| edges.definers[at].iter().map(|&d| edges.ids[d]).collect())
             .unwrap_or_default()
     }
 

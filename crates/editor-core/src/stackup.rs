@@ -364,8 +364,8 @@ pub enum SensitivityRefusal {
         /// small `Err`.
         leaf: Box<ParamBox>,
         /// The first node whose key differs (or is missing on one
-        /// side), in evaluation order.
-        node: DivergedAt,
+        /// side), in evaluation order; boxed for the same reason.
+        node: Box<DivergedAt>,
         /// The drive's recorded key there, if the record has one.
         recorded: Option<ContentKey>,
         /// This document's replay key there, if the replay built it.
@@ -1162,7 +1162,7 @@ fn tie(
             };
             return Err(SensitivityRefusal::VerdictNotOfThisBuild {
                 leaf: Box::new(leaf.box_.clone()),
-                node,
+                node: Box::new(node),
                 recorded: r.map(|(_, k)| k),
                 replayed: p.map(|(_, k)| k),
             });
@@ -2144,7 +2144,8 @@ mod tests {
     /// weld, so an arm with no example here fails every row that reads
     /// this.
     fn every_arm(param: &'static str) -> Vec<Unavailable> {
-        let param = crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static(param)));
+        let param =
+            crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static(param)));
         let all = vec![
             Unavailable::TangentDegraded { var: param.clone() },
             Unavailable::MeasureRefused { var: param.clone() },
@@ -2210,7 +2211,10 @@ mod tests {
         let rendered = render_rss(
             &Rss::UnavailableBecause {
                 blockers: vec![Unavailable::Unliftable {
-                    var: crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static("w"))),
+                    var: crate::SpokenVar::new(
+                        crate::VarId::new(0, 1),
+                        Some(VarName::from_static("w")),
+                    ),
                 }],
             },
             &no_vars(),

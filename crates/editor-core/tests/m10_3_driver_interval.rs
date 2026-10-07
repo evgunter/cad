@@ -355,7 +355,10 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     axes.insert(VarId::new(0, 2), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
     let root = ParamBox::from_axes(axes.clone());
     axes.insert(VarId::new(0, 2), BoxAxis::Varying { lo: 0.0, hi: 0.1 });
-    assert_eq!(ParamBox::from_axes(axes).split_axis(&root), Some(VarId::new(0, 1)));
+    assert_eq!(
+        ParamBox::from_axes(axes).split_axis(&root),
+        Some(VarId::new(0, 1))
+    );
 
     // Relative vs absolute, separated: `wide`'s root axis is a hundred
     // times `narrow`'s, and the sub-box has already been bisected on

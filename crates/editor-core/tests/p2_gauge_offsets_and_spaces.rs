@@ -853,8 +853,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
     let (world_doc, x) = insert(doc, Node::instantiate_part(p.base));
     let gauged = set_gauge(world_doc.clone(), x, Some(g));
     let plain_cut = |doc: ProfileDoc| {
-        let before: std::collections::BTreeSet<RecipeNodeId> =
-            doc.ids().iter().copied().collect();
+        let before: std::collections::BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
         let (doc, prof) = on_frame(
             doc,
             [50.0, 0.0, 0.0],
