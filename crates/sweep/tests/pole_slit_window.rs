@@ -26,7 +26,9 @@
 //! bodies finish and reach a result. The split serves finished bodies
 //! too, so the same gate keeps the slit from it; a fourth row hands the
 //! slit to the split at a dual, whose gate runs nothing, and the split's
-//! door reads tier 2 itself.
+//! door reads tier 2 itself. The fifth does the same at both blend
+//! doors, edge by edge: each refuses the slit as unfinished, never with
+//! a reason about the edge it was asked to blend.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -314,6 +316,44 @@ fn a_slit_operand_refuses_at_the_split_door_at_a_dual() {
                     "slit {i}, {cut}: want the door's tier-2 refusal, got {:?}",
                     other.map(|_| ())
                 ),
+            }
+        }
+    }
+}
+
+/// **The blend doors read tier 2 at a dual too.** Every edge of every
+/// slit, filleted and chamfered: each refusal is the door's own tier-2
+/// read, carrying `validate_closed`'s verdict. Red without that read:
+/// the doors refused with reasons about the edge (a valence-2 corner,
+/// tangential supports, a chart-seam vertex).
+#[test]
+fn a_slit_operand_refuses_at_both_blend_doors_at_a_dual() {
+    let tol = Tol::witness();
+    for (i, slit) in slits::<Dual64>().iter().enumerate() {
+        let operand =
+            Dual64::gate_at_rest_kept(slit.clone(), tol).expect("a dual gate runs nothing");
+        let want = validate_closed(slit);
+        for (edge, _) in slit.edges() {
+            for (verb, refused) in [
+                (
+                    "fillet",
+                    sweep::blend::fillet_edges(&operand, &[edge], f(0.05), tol).map(|_| ()),
+                ),
+                (
+                    "chamfer",
+                    sweep::chamfer::chamfer_edges(&operand, &[edge], f(0.05), tol).map(|_| ()),
+                ),
+            ] {
+                match refused.map_err(|r| r.error) {
+                    Err(sweep::blend::BlendError::ScaffoldingOperand { errors }) => assert_eq!(
+                        Err(errors),
+                        want,
+                        "slit {i}, {verb} {edge:?}: the payload is tier 2's verdict"
+                    ),
+                    other => {
+                        panic!("slit {i}, {verb} {edge:?}: want the tier-2 refusal, got {other:?}")
+                    }
+                }
             }
         }
     }

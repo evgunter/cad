@@ -175,7 +175,7 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
     let body = sphere_zone_on_base(big_r);
     let rim = equator(&body);
     let m = contact_in_band_margin(
-        fillet_edges(&body, &[rim], r, tol()),
+        fillet_edges(&sweep::test_support::at_rest(&body), &[rim], r, tol()),
         "the zone's equator at R/r = 10, r = 2.1·Kε",
     );
     let predicted = sphere_side_margin(r, big_r);
@@ -186,7 +186,7 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
     // Clause one, on the sphere support: enlarge toward R/2.
     let r1 = 0.3 * big_r;
     assert!(sphere_side_margin(r1, big_r) > b.escalate());
-    let out = fillet_edges(&body, &[rim], r1, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body), &[rim], r1, tol())
         .unwrap_or_else(|e| panic!("the zone at r = 0.3·R builds: {e}"));
     assert_eq!(
         intrinsic_edges(&out.body),
@@ -196,7 +196,7 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
     // Clause two: twice the feature.
     let body = sphere_zone_on_base(2.0 * big_r);
     let rim = equator(&body);
-    let out = fillet_edges(&body, &[rim], 2.0 * r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body), &[rim], 2.0 * r, tol())
         .unwrap_or_else(|e| panic!("the zone at twice the scale builds: {e}"));
     assert_eq!(
         intrinsic_edges(&out.body),
@@ -231,7 +231,7 @@ fn r1_the_screened_ratio_scaled_into_the_band_is_refused_at_the_mill() {
             let crease = rod_upper_crease(&body);
             panic!(
                 "the rod mills at this scale; the door then says {:?}",
-                fillet_edges(&body, &[crease], r, tol()).err()
+                fillet_edges(&sweep::test_support::at_rest(&body), &[crease], r, tol()).err()
             );
         }
     }
@@ -309,7 +309,7 @@ fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
             "the crease's end {v:?} sits on a ring of its cap"
         );
     }
-    let out = fillet_edges(&body, &[crease], 0.1, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body), &[crease], 0.1, tol())
         .unwrap_or_else(|e| panic!("the D-bore's crease carves, got {e}"));
     assert_eq!(out.blend_faces.len(), 1, "one band");
     let census = |b: &Body<f64>| (b.vertices().count(), b.edges().count(), b.faces().count());
@@ -378,8 +378,13 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
     .body;
     let edges = query::all_edges(&die);
     k_stats::start_recording();
-    let out = fillet_edges(&die, &edges, Probe(0.15), tol())
-        .unwrap_or_else(|e| panic!("the die carves: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&die),
+        &edges,
+        Probe(0.15),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the die carves: {e}"));
     let spent = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")
@@ -435,7 +440,7 @@ fn r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts(
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
     let m = contact_in_band_margin(
-        fillet_edges(&body, &edges, r, tol()),
+        fillet_edges(&sweep::test_support::at_rest(&body), &edges, r, tol()),
         &format!("the skewed cavity at θ = {theta:e}, r = {r:e}"),
     );
     let predicted = 2.0 * r * (0.5 * theta).sin().powi(2);
@@ -446,7 +451,7 @@ fn r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts(
     // Under-determined: the same pose, slimmer.
     let theta = (b.zero() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
-    let out = fillet_edges(&body, &edges, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body), &edges, r, tol())
         .unwrap_or_else(|e| panic!("the slimmer skew at θ = {theta:e} builds: {e}"));
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),

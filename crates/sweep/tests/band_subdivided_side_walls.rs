@@ -460,7 +460,8 @@ fn split_rim_blends_as_one_band() {
         .collect();
     assert_eq!(joints.len(), 2, "the station's two rim vertices");
 
-    let f = sweep::fillet::fillet_edges(&merged, &req, R, t).expect("the merged prism fillets");
+    let f = sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&merged), &req, R, t)
+        .expect("the merged prism fillets");
     assert_eq!(validate_closed(&f.body), Ok(()), "fillet: tier 2");
     assert_eq!(
         topo::validate_geometric(&f.body, t),
@@ -517,7 +518,8 @@ fn split_rim_blends_as_one_band() {
         want + 1.0
     );
 
-    let c = sweep::chamfer::chamfer_edges(&merged, &req, R, t).expect("the merged prism chamfers");
+    let c = sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&merged), &req, R, t)
+        .expect("the merged prism chamfers");
     assert_eq!(validate_closed(&c.body), Ok(()), "chamfer: tier 2");
     assert_eq!(
         topo::validate_geometric(&c.body, t),
@@ -565,8 +567,10 @@ fn a_joined_band_is_cut_off_at_both_ends() {
         ("chamfer", R * R / 2.0),
     ] {
         let out = match verb {
-            "fillet" => sweep::fillet::fillet_edges(&body, &req, R, t),
-            _ => sweep::chamfer::chamfer_edges(&body, &req, R, t),
+            "fillet" => {
+                sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&body), &req, R, t)
+            }
+            _ => sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&body), &req, R, t),
         }
         .unwrap_or_else(|e| panic!("{verb}: the joined band builds, got {}", e.error));
         assert_eq!(
@@ -628,7 +632,8 @@ fn a_union_of_flush_cubes_is_a_box_that_fillets_edge_by_edge() {
     let req: Vec<_> = body.edges().map(|(k, _)| k).collect();
     assert_eq!(req.len(), 12, "the box's 12 edges, the long ones whole");
 
-    let f = sweep::fillet::fillet_edges(body, &req, R, t).expect("the union fillets");
+    let f = sweep::fillet::fillet_edges(&sweep::test_support::at_rest(body), &req, R, t)
+        .expect("the union fillets");
     assert_eq!(topo::validate_geometric(&f.body, t), Ok(()), "tier 3");
     assert_eq!(f.blend_faces.len(), 12, "one band per box edge");
     let rec = f.naming.as_ref().expect("birth records");

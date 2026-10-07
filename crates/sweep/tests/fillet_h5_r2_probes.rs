@@ -2,13 +2,11 @@
 //! does not carry, each written to falsify one claim of PR 1824 by
 //! execution rather than by reading.
 //!
-//! - the HOSTLESS host gate ("one face whose outer cycle is EXACTLY the
-//!   chain's arcs") is reached and refuses on a host face carrying one
-//!   unrequested edge in its outer cycle;
-//! - a CURVED single face carrying several arcs — the shape the
-//!   `HostSide`-passed-not-derived argument is about — refuses at the
-//!   half-band gate whether or not the plane side has been repaired,
-//!   and `Struts` never carves it;
+//! - a host face carrying a strut spur in its outer cycle, and a CURVED
+//!   single face carrying both arcs over a slit, are scaffolding: the
+//!   operand does not finish, so neither reaches a blend door;
+//! - a CURVED single face carrying several arcs, the plane side
+//!   repaired, refuses at the half-band gate;
 //! - two compositions the #935 row does not cover: two hostless rims
 //!   of one body on a SHARED mate wall in one call, and two hostless
 //!   rims sharing no wall — both against both sequential orders;
@@ -25,10 +23,12 @@
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
-use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{assert_full_revolve_rim, bowl, lantern, revolved_about_y, rim_arcs_at};
-use topo::{Body, EdgeKey, FaceKey, MevSite, mass_properties, validate_geometric};
+use topo::{
+    AtRestBody, Body, EdgeKey, FaceKey, MevSite, ValidationError, mass_properties,
+    validate_geometric,
+};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -57,19 +57,19 @@ fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
     )
 }
 
+/// What the at-rest gate says of a body that does not finish.
+fn unfinished(body: &Body<f64>) -> Vec<ValidationError> {
+    AtRestBody::validate(body.clone(), tol())
+        .map(drop)
+        .expect_err("a body carrying scaffolding does not finish")
+}
+
 fn census(b: &Body<f64>) -> (i64, i64, i64) {
     (
         b.vertices().count() as i64,
         b.edges().count() as i64,
         b.faces().count() as i64,
     )
-}
-
-fn detail_of(err: BlendError) -> String {
-    match err {
-        BlendError::UnsupportedChain { detail, .. } => detail.to_string(),
-        other => panic!("expected an UnsupportedChain refusal, got {other:?}"),
-    }
 }
 
 /// A pole-touching hemisphere of radius 1 on a flat base disc.
@@ -186,15 +186,13 @@ fn curved_supports(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<FaceKey> {
 // The host gate under `Struts`.
 // ------------------------------------------------------------------
 
-/// **A hostless host whose outer cycle carries one edge the request did
-/// not name refuses at the host gate, before any mutation.** A strut
-/// spur (`mev` with an empty fan run) is spliced into the repaired
-/// neck's cap loop at a crossing: the cap stays one ring-free plane
-/// face whose outer cycle is now the two arcs plus that spur, so the
-/// rim is still routed to the annulus with hostless crossings and the
-/// gate that asks for EXACTLY the chain's arcs is what fires.
+/// **A host whose outer cycle carries a strut spur does not finish.** A
+/// spur (`mev` with an empty fan run) spliced into the repaired neck's
+/// cap loop at a crossing leaves the cap one ring-free plane face whose
+/// outer cycle is the two arcs plus that spur; tier 2 names the spur's
+/// tip, so the operand never reaches the blend door.
 #[test]
-fn a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate() {
+fn a_host_with_a_strut_spur_in_its_outer_cycle_does_not_finish() {
     let mut body = repaired(lantern(tol()));
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
     assert_full_revolve_rim(&arcs, "the repaired lantern base");
@@ -215,34 +213,31 @@ fn a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate
     // A spur from the crossing halfway in toward the axis, in the cap's
     // own plane `y = 0`.
     let spur_end = Point3::new(p.x * 0.5, p.y, p.z * 0.5);
-    body.mev_line(MevSite::Fan { he1: he, he2: he }, spur_end, tol())
+    let spur = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, spur_end, tol())
         .expect("a spur into the cap face");
     let fd = body.get_face(host).unwrap();
     assert!(fd.rings.is_empty(), "the cap is still ring-free");
-    let before = census(&body);
-
-    let err = fillet_edges(&body, &arcs, 0.05, tol())
-        .expect_err("a host with an unrequested outer-cycle edge must refuse");
-    let detail = detail_of(err.error);
-    assert!(
-        detail.contains("outside the requested chain in its outer cycle"),
-        "the HOST gate is the one that fires: {detail}"
+    assert_eq!(
+        unfinished(&body),
+        vec![ValidationError::ScaffoldingStrutVertex {
+            vertex: spur.vertex
+        }],
+        "tier 2 names the spur's tip"
     );
-    assert_eq!(census(&body), before, "refused before any mutation");
 }
 
 // ------------------------------------------------------------------
 // The curved single host — the `HostSide`-passed argument's shape.
 // ------------------------------------------------------------------
 
-/// **A CURVED single face carrying both arcs refuses at the half-band
-/// gate, and `Struts` never carves it.** The plane×sphere hemisphere's
-/// two half-caps are merged into ONE sphere face by killing a seam
-/// meridian. The full revolve builds the plane side as one disc, so the
-/// rim takes the `Struts` route and the half-band gate fires on the
-/// mate.
+/// **A CURVED single face carrying both arcs over a slit does not
+/// finish.** The plane×sphere hemisphere's two half-caps are merged into
+/// ONE sphere face by killing a seam meridian, which leaves the pole a
+/// strut tip; tier 2 names it, so the operand never reaches the blend
+/// door.
 #[test]
-fn a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate() {
+fn a_curved_single_face_carrying_both_arcs_over_a_slit_does_not_finish() {
     let mut body = hemisphere_on_flat_base();
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
     assert_full_revolve_rim(&arcs, "the hemisphere base");
@@ -253,14 +248,10 @@ fn a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate() {
         1,
         "ONE sphere face carries both arcs"
     );
-    let detail = detail_of(
-        fillet_edges(&body, &arcs, 0.05, tol())
-            .expect_err("a curved single mate refuses (Struts route)")
-            .error,
-    );
+    let errors = unfinished(&body);
     assert!(
-        detail.contains("does not carry exactly its own rim arc"),
-        "Struts route: the half-band gate fires on the mate: {detail}"
+        errors.len() == 1 && matches!(errors[0], ValidationError::ScaffoldingStrutVertex { .. }),
+        "tier 2 names the slit's pole: {errors:?}"
     );
 }
 
@@ -277,7 +268,7 @@ fn compose_two_rims(
     let mut both = rim_arcs_at(source, rims[0].0, rims[0].1);
     both.extend(rim_arcs_at(source, rims[1].0, rims[1].1));
     assert_eq!(both.len(), 4, "{what}: two rims of two arcs each");
-    let one_call = fillet_edges(source, &both, r, tol())
+    let one_call = fillet_edges(&sweep::test_support::at_rest(source), &both, r, tol())
         .map_err(|e| format!("{what}: one call refused: {:?}", e.error))?;
     validate_geometric(&one_call.body, tol())
         .map_err(|e| format!("{what}: one-call result not tier-3 valid: {e:?}"))?;
@@ -288,7 +279,7 @@ fn compose_two_rims(
         let mut body = source.clone();
         for (rr, ry) in order {
             let arcs = rim_arcs_at(&body, rr, ry);
-            body = fillet_edges(&body, &arcs, r, tol())
+            body = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, r, tol())
                 .map_err(|e| format!("{what}: rim ({rr}, {ry}) refused alone: {:?}", e.error))?
                 .body;
         }
@@ -366,7 +357,7 @@ fn a_hostless_rim_beside_a_ladder_rim_and_a_ringed_host_measured() {
     for (r, y) in [(1.0, 0.0), (0.5, 1.5), (1.0, 1.0)] {
         let arcs = rim_arcs_at(&body, r, y);
         assert_eq!(arcs.len(), 2, "({r}, {y}) two arcs");
-        let out = fillet_edges(&body, &arcs, 0.05, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.05, tol())
             .unwrap_or_else(|e| panic!("the ({r}, {y}) rim carves, got {e:?}"));
         validate_geometric(&out.body, tol()).expect("tier-3 valid");
     }
@@ -374,7 +365,7 @@ fn a_hostless_rim_beside_a_ladder_rim_and_a_ringed_host_measured() {
     let mut both = rim_arcs_at(&body, 1.0, 0.0);
     both.extend(rim_arcs_at(&body, 0.5, 1.0));
     assert_eq!(both.len(), 4);
-    let out = fillet_edges(&body, &both, 0.05, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body), &both, 0.05, tol())
         .unwrap_or_else(|e| panic!("the ladder rim composes with the base rim, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 2, "one band per rim");
@@ -416,7 +407,7 @@ fn the_hostless_closed_forms_match_an_independent_derivation() {
     for (name, body, rim, want) in cases {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
         let before = mass_properties(&body, tol()).unwrap().volume;
-        let out = fillet_edges(&body, &arcs, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         let after = mass_properties(&out.body, tol()).unwrap().volume;
         let delta = after - before;

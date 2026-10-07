@@ -1,19 +1,17 @@
-//! **Predicate 2's screen reads every boundary feature of a support
-//! face, or refuses.**
+//! **A support face carrying scaffolding never reaches predicate 2's
+//! screen.**
 //!
-//! A feature the face-clearance screen leaves out of its pair sweep is
-//! metered against nothing, so the screen would report the face clear
-//! having never looked at it. Two scaffolding states a tier-1-valid
-//! body can carry on a support face are exactly the features the screen
-//! cannot read, and each refuses typed, the way the surgery's own
-//! closed-form meters refuse them:
+//! Two scaffolding states a tier-1-valid body can carry on a support
+//! face are features the face-clearance screen cannot read:
 //!
 //! - a null strut (`Body::mev_null`): an edge with no certified carrier;
 //! - a lone-vertex ring (`mev` into the face, then `kemr`): a loop with
 //!   no edges.
 //!
-//! Each row first passes the same request on the clean block, so the
-//! refusal is the scaffolding's and nothing else's.
+//! The blend doors take a finished body, so each body is refused where
+//! it would be finished, by tier 2, naming the scaffolding. Each row
+//! first passes the same request on the clean block, so the refusal is
+//! the scaffolding's and nothing else's.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -22,7 +20,7 @@ use geom_core::{Point3, Tol};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::block;
-use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary};
+use topo::{AtRestBody, Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ValidationError};
 
 /// The unit block, one of its faces, and that face's outer anchor
 /// half-edge, at whose start the rows put their scaffolding.
@@ -36,11 +34,23 @@ fn block_and_anchor() -> (Body<f64>, FaceKey, HalfEdgeKey) {
 }
 
 /// The fillet of every edge the block was built with, at a radius the
-/// clean block passes; the scaffolding edges are not requested.
+/// clean block passes.
 fn fillet(body: &Body<f64>, edges: &[EdgeKey]) -> Result<(), BlendError> {
-    fillet_edges(body, edges, 0.2, Tol::witness())
+    fillet_edges(
+        &sweep::test_support::at_rest(body),
+        edges,
+        0.2,
+        Tol::witness(),
+    )
+    .map(drop)
+    .map_err(|r| r.error)
+}
+
+/// What the at-rest gate says of a body that does not finish.
+fn unfinished(body: &Body<f64>) -> Vec<ValidationError> {
+    AtRestBody::validate(body.clone(), Tol::witness())
         .map(drop)
-        .map_err(|r| r.error)
+        .expect_err("a body carrying scaffolding does not finish")
 }
 
 fn block_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -50,7 +60,7 @@ fn block_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 }
 
 #[test]
-fn a_null_strut_on_a_support_face_refuses_as_an_uncertified_carrier() {
+fn a_null_strut_on_a_support_face_does_not_finish() {
     let (mut body, _face, anchor) = block_and_anchor();
     let edges = block_edges(&body);
     fillet(&body, &edges).expect("the clean block fillets every edge at 0.2");
@@ -65,26 +75,20 @@ fn a_null_strut_on_a_support_face_refuses_as_an_uncertified_carrier() {
         )
         .expect("a null strut at the anchor's start");
     assert_eq!(topo::validate(&body), Ok(()), "tier 1 holds with the strut");
-    let strut_edge = body.get_half_edge(strut.he_plus).unwrap().edge;
-
-    match fillet(&body, &edges) {
-        Err(BlendError::UnsupportedGeometry { at, detail }) => {
-            assert_eq!(
-                at,
-                EntityId::Edge(strut_edge),
-                "the refusal names the strut"
-            );
-            assert!(
-                detail.contains("no certified carrier"),
-                "the refusal says the carrier is what it cannot read: {detail}"
-            );
-        }
-        other => panic!("expected the screen to refuse the null strut, got {other:?}"),
-    }
+    assert_eq!(
+        unfinished(&body),
+        vec![
+            ValidationError::ScaffoldingStrutVertex {
+                vertex: strut.vertex,
+            },
+            ValidationError::NullEdgeAtRest { edge: strut.edge },
+        ],
+        "tier 2 names the strut's tip and its null edge"
+    );
 }
 
 #[test]
-fn a_lone_vertex_ring_on_a_support_face_refuses_as_a_lone_vertex_cycle() {
+fn a_lone_vertex_ring_on_a_support_face_does_not_finish() {
     let (mut body, face, anchor) = block_and_anchor();
     let edges = block_edges(&body);
     fillet(&body, &edges).expect("the clean block fillets every edge at 0.2");
@@ -136,14 +140,9 @@ fn a_lone_vertex_ring_on_a_support_face_refuses_as_a_lone_vertex_cycle() {
         "the ring sits on a support of the request"
     );
 
-    match fillet(&body, &edges) {
-        Err(BlendError::UnsupportedGeometry { at, detail }) => {
-            assert_eq!(at, EntityId::Loop(ring), "the refusal names the ring");
-            assert!(
-                detail.contains("lone-vertex cycle"),
-                "the refusal says the loop is what it cannot read: {detail}"
-            );
-        }
-        other => panic!("expected the screen to refuse the lone-vertex ring, got {other:?}"),
-    }
+    assert_eq!(
+        unfinished(&body),
+        vec![ValidationError::ScaffoldingEmptyLoop { loop_: ring }],
+        "tier 2 names the ring"
+    );
 }

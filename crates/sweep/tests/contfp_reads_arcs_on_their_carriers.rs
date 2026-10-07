@@ -94,9 +94,14 @@ fn filleted_bored_d_rod() -> Body<f64> {
     ];
     let source = extruded(SketchPlane::xy(), loops, ROD_L, tol());
     let creases = rod_creases(&source);
-    fillet_edges(&source, &creases, ROD_FILLET, tol())
-        .expect("the D-rod's creases fillet")
-        .body
+    fillet_edges(
+        &sweep::test_support::at_rest(&source),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .expect("the D-rod's creases fillet")
+    .body
 }
 
 /// The lune point: in the rod, out of the bore, and on the far side of

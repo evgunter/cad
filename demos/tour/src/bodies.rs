@@ -16,6 +16,7 @@ use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::chamfer::chamfer_edges;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
+use crate::booleans::finished;
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, polygon, v2, validated};
@@ -326,8 +327,13 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     .body;
     // "Every edge of it" — the kernel materializer.
     let edges = query::all_edges(&pad);
-    let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), tol)
-        .expect("every edge of a rectangular pad breaks at 0.15");
+    let broken = chamfer_edges(
+        &finished("pad", pad.clone(), tol),
+        &edges,
+        S::from_f64(setback),
+        tol,
+    )
+    .expect("every edge of a rectangular pad breaks at 0.15");
     let note = format!(
         "chamfer_edges over the plain body API: {} strips + {} corner patches, every face a \
          plane. `all twelve` is one call on this seat too (`query::all_edges`). Friction \
@@ -554,7 +560,12 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
         .expect("the bud carries a mouth arc of radius 0.8");
     let mouth = query::rim_of(&body, seed).expect("the mouth arc names one whole rim");
     assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
-    pncad::sweep::blend::fillet_edges(&body, &mouth, S::from_f64(0.05), tol)
-        .expect("the sphere-cone mouth rim fillets")
-        .body
+    pncad::sweep::blend::fillet_edges(
+        &finished("body", body.clone(), tol),
+        &mouth,
+        S::from_f64(0.05),
+        tol,
+    )
+    .expect("the sphere-cone mouth rim fillets")
+    .body
 }

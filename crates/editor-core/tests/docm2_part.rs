@@ -297,8 +297,13 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         let fused = kernel_union(side, body_of(&ev, other));
         assert_eq!(bits(body_of(&ev, joined)), bits(&fused), "{h:?}: boolean");
         let keys = edge_keys(&ev, p, &selection);
-        let filleted = sweep::blend::build::fillet_edges(side, &keys, RADIUS, Tol::witness())
-            .expect("the kernel fillet succeeds");
+        let filleted = sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(side),
+            &keys,
+            RADIUS,
+            Tol::witness(),
+        )
+        .expect("the kernel fillet succeeds");
         assert_eq!(
             bits(body_arc(&ev, rounded)),
             bits(&filleted.body),

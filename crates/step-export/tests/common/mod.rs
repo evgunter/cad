@@ -547,9 +547,14 @@ pub fn filleted_die() -> Body<f64> {
     .expect("the cube")
     .body;
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    sweep::blend::build::fillet_edges(&body, &edges, 0.12, Tol::witness())
-        .expect("the die blank")
-        .body
+    sweep::blend::build::fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        0.12,
+        Tol::witness(),
+    )
+    .expect("the die blank")
+    .body
 }
 
 /// The M5 PR 12 pipped die: a SHARP unit cube with 21 spherical
@@ -740,9 +745,14 @@ pub fn composed_die() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .collect();
-    let blanked = fillet_edges(&pipped, &box_edges, die_r, Tol::witness())
-        .expect("the box edges blend in place")
-        .body;
+    let blanked = fillet_edges(
+        &sweep::test_support::at_rest(&pipped),
+        &box_edges,
+        die_r,
+        Tol::witness(),
+    )
+    .expect("the box edges blend in place")
+    .body;
     let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
         b.get_face(f)
             .and_then(|fd| b.get_surface(fd.surface))
@@ -771,9 +781,14 @@ pub fn composed_die() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .collect();
-    fillet_edges(&blanked, &rims, rim_r, Tol::witness())
-        .expect("the rims blend to torus bands")
-        .body
+    fillet_edges(
+        &sweep::test_support::at_rest(&blanked),
+        &rims,
+        rim_r,
+        Tol::witness(),
+    )
+    .expect("the rims blend to torus bands")
+    .body
 }
 
 /// The M6-3 loft: R5 shape (iii)'s three-section polyline loft —

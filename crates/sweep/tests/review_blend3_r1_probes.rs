@@ -102,8 +102,13 @@ fn r1_a_square_vent_carves_past_the_ring_gate_and_both_convexity_doors() {
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     assert_eq!(edges.len(), 12, "the cavity's twelve edges");
 
-    let out = chamfer_edges(&body, &edges, D, Tol::witness())
-        .unwrap_or_else(|e| panic!("a square vent's ring is clear of the carve: {}", e.error));
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("a square vent's ring is clear of the carve: {}", e.error));
     assert_eq!(
         validate_closed(&out.body),
         Ok(()),
@@ -165,8 +170,13 @@ fn r1_a_pocket_cannot_supply_an_all_concave_component() {
         "four floor edges and four verticals — the pocket's concave set"
     );
 
-    let err = chamfer_edges(&body, &edges, D, Tol::witness())
-        .expect_err("a pocket's concave edges are not a closed component");
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect_err("a pocket's concave edges are not a closed component");
     assert!(
         matches!(
             err.error,
@@ -199,8 +209,13 @@ fn r1_an_unvented_cavity_chamfers_inside_its_own_shell() {
     ];
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     assert_eq!(edges.len(), 12, "the sealed cavity still has twelve edges");
-    let out = chamfer_edges(&body, &edges, D, Tol::witness())
-        .unwrap_or_else(|e| panic!("the sealed cavity chamfers: {e}"));
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the sealed cavity chamfers: {e}"));
     assert_eq!(out.shells.len(), 1, "only the void's shell is carved");
     assert_eq!(
         out.body.shells().count(),
@@ -246,8 +261,13 @@ fn r1_a_nine_edge_triangular_cavity_is_a_simpler_shape_of_the_same_class() {
         "three verticals and two triangles — nine edges, against the fixture's twelve"
     );
 
-    let out = chamfer_edges(&body, &edges, D, Tol::witness())
-        .expect("a triangular cavity's nine concave edges chamfer");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("a triangular cavity's nine concave edges chamfer");
     assert_eq!(out.blend_faces.len(), 9, "one strip per concave edge");
     assert_eq!(
         out.corner_faces.len(),
@@ -289,7 +309,13 @@ fn r1_the_ring_gate_still_meters_on_the_concave_side() {
         let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
         let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
         assert_eq!(edges.len(), 12, "twelve cavity edges at r = {r}");
-        chamfer_edges(&body, &edges, D, Tol::witness()).map(|o| o.body)
+        chamfer_edges(
+            &sweep::test_support::at_rest(&body),
+            &edges,
+            D,
+            Tol::witness(),
+        )
+        .map(|o| o.body)
     };
 
     // The fixture's own clearance: the ring at 2.5 against a trimline
@@ -328,9 +354,14 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     // (i) What the same chamfer REMOVES from a cube of side a.
     let cube_body = cube(a, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let chamfered_cube = chamfer_edges(&cube_body, &cube_edges, D, Tol::witness())
-        .expect("a cube chamfers")
-        .body;
+    let chamfered_cube = chamfer_edges(
+        &sweep::test_support::at_rest(&cube_body),
+        &cube_edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("a cube chamfers")
+    .body;
     let cube_vol = topo::mass_properties(&chamfered_cube, Tol::witness())
         .expect("closed-form props")
         .volume;
@@ -351,9 +382,14 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
         .expect("closed-form props")
         .volume;
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
-    let carved = chamfer_edges(&body, &edges, D, Tol::witness())
-        .expect("the cavity chamfers")
-        .body;
+    let carved = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("the cavity chamfers")
+    .body;
     let gained = topo::mass_properties(&carved, Tol::witness())
         .expect("closed-form props")
         .volume
@@ -448,8 +484,13 @@ fn r1_one_request_carries_both_convexity_signs() {
 
     let mut both = concave;
     both.extend(convex);
-    let out = chamfer_edges(&body, &both, D, Tol::witness())
-        .expect("one request may span both material sides");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &both,
+        D,
+        Tol::witness(),
+    )
+    .expect("one request may span both material sides");
 
     assert_eq!(out.blend_faces.len(), 24, "one strip per requested edge");
     assert_eq!(
@@ -514,8 +555,13 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
         .expect("closed-form props")
         .volume;
 
-    let out = sweep::blend::build::fillet_edges(&body, &both, D, Tol::witness())
-        .expect("one fillet request may span both material sides");
+    let out = sweep::blend::build::fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &both,
+        D,
+        Tol::witness(),
+    )
+    .expect("one fillet request may span both material sides");
     assert_eq!(out.blend_faces.len(), 24, "one band per requested edge");
     assert_eq!(
         out.corner_faces.len(),

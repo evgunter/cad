@@ -343,11 +343,23 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
 
         let full = neck_flare(r, half_angle, bore, Revolution::Full);
         let closed = pick_edge(&full, true, is_pair);
-        let closed_verdict = fillet_edges(&full, &[closed], r * 0.05, tol()).map_err(|r| r.error);
+        let closed_verdict = fillet_edges(
+            &sweep::test_support::at_rest(&full),
+            &[closed],
+            r * 0.05,
+            tol(),
+        )
+        .map_err(|r| r.error);
 
         let part = neck_flare(r, half_angle, bore, Revolution::Partial(1.0));
         let open = pick_edge(&part, false, is_pair);
-        let open_verdict = fillet_edges(&part, &[open], r * 0.05, tol()).map_err(|r| r.error);
+        let open_verdict = fillet_edges(
+            &sweep::test_support::at_rest(&part),
+            &[open],
+            r * 0.05,
+            tol(),
+        )
+        .map_err(|r| r.error);
 
         for (which, v) in [("closed", &closed_verdict), ("open", &open_verdict)] {
             assert!(
@@ -397,7 +409,14 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
             endpoint_chord(&ball, seam) > r,
             "the seam's own lever is definitely nonzero — the zero must come from the sine"
         );
-        match fillet_edges(&ball, &[seam], r * 0.05, tol()).map_err(|r| r.error) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&ball),
+            &[seam],
+            r * 0.05,
+            tol(),
+        )
+        .map_err(|r| r.error)
+        {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
                 (
                     margin.predicate,
@@ -597,7 +616,8 @@ fn the_tangential_refusal_prose_states_no_geometric_fact() {
         Revolution::Full,
     );
     let seam = pick_edge(&ball, false, |a, b| is_sphere(a) && is_sphere(b));
-    let err = fillet_edges(&ball, &[seam], 0.05, tol()).expect_err("the co-surface seam refuses");
+    let err = fillet_edges(&sweep::test_support::at_rest(&ball), &[seam], 0.05, tol())
+        .expect_err("the co-surface seam refuses");
     let text = format!("{err}");
     for forbidden in [
         "share a tangent plane",

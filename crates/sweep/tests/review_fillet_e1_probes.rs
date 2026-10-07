@@ -59,12 +59,14 @@ fn the_size_gate_runs_before_the_repeated_edge_gate_on_both_doors() {
     let mut edges = all_edges(&body);
     edges.push(edges[0]);
     for size in NONPOSITIVE {
-        let f = fillet_edges(&body, &edges, size, t).expect_err("nonpositive AND repeated");
+        let f = fillet_edges(&sweep::test_support::at_rest(&body), &edges, size, t)
+            .expect_err("nonpositive AND repeated");
         assert!(
             matches!(f.error, BlendError::NonpositiveSize { .. }),
             "fillet: the size gate must answer before the repeated-edge gate at {size}: {f:?}"
         );
-        let c = chamfer_edges(&body, &edges, size, t).expect_err("nonpositive AND repeated");
+        let c = chamfer_edges(&sweep::test_support::at_rest(&body), &edges, size, t)
+            .expect_err("nonpositive AND repeated");
         assert!(
             matches!(c.error, BlendError::NonpositiveSize { .. }),
             "chamfer: the size gate must answer before the repeated-edge gate at {size}: {c:?}"
@@ -73,7 +75,8 @@ fn the_size_gate_runs_before_the_repeated_edge_gate_on_both_doors() {
     // The control: the same repeated request at a positive size reads
     // the repeated edge, so the row above is about ORDER and not about
     // the repeated-edge gate having gone quiet.
-    let f = fillet_edges(&body, &edges, 0.1, t).expect_err("a repeated edge is malformed");
+    let f = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.1, t)
+        .expect_err("a repeated edge is malformed");
     assert!(
         matches!(f.error, BlendError::RepeatedEdge { .. }),
         "the repeated-edge gate still answers once the size is positive: {f:?}"
@@ -91,8 +94,10 @@ fn both_doors_mint_one_refusal_for_one_nonpositive_size() {
     let body = cube(1.0, t);
     let edges = all_edges(&body);
     for size in NONPOSITIVE {
-        let f = fillet_edges(&body, &edges, size, t).expect_err("a nonpositive radius refuses");
-        let c = chamfer_edges(&body, &edges, size, t).expect_err("a nonpositive setback refuses");
+        let f = fillet_edges(&sweep::test_support::at_rest(&body), &edges, size, t)
+            .expect_err("a nonpositive radius refuses");
+        let c = chamfer_edges(&sweep::test_support::at_rest(&body), &edges, size, t)
+            .expect_err("a nonpositive setback refuses");
         assert!(matches!(f.verb, BlendKind::Fillet), "{f:?}");
         assert!(matches!(c.verb, BlendKind::Chamfer), "{c:?}");
         match (&f.error, &c.error) {
@@ -141,7 +146,8 @@ fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
     let edges = all_edges(&body);
     let size = 1e-12;
 
-    let f = fillet_edges(&body, &edges, size, t).expect_err("today a sub-band radius refuses");
+    let f = fillet_edges(&sweep::test_support::at_rest(&body), &edges, size, t)
+        .expect_err("today a sub-band radius refuses");
     assert!(
         matches!(f.error, BlendError::RadiusHeadroom { radius, .. } if radius == size),
         "today the fillet meters predicate 1 at {size} m: {f:?}"
@@ -152,7 +158,8 @@ fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
         "and reads the headroom sentence a plane cannot owe: {ft}"
     );
 
-    let c = chamfer_edges(&body, &edges, size, t).expect_err("today a sub-band setback refuses");
+    let c = chamfer_edges(&sweep::test_support::at_rest(&body), &edges, size, t)
+        .expect_err("today a sub-band setback refuses");
     assert!(
         matches!(
             c.error,
@@ -195,8 +202,10 @@ mod certified {
             Interval::from_bounds(-2.0, -1.0),
         ];
         for size in sizes {
-            let f = fillet_edges(&body, &edges, size, t).expect_err("not definitely positive");
-            let c = chamfer_edges(&body, &edges, size, t).expect_err("not definitely positive");
+            let f = fillet_edges(&sweep::test_support::at_rest(&body), &edges, size, t)
+                .expect_err("not definitely positive");
+            let c = chamfer_edges(&sweep::test_support::at_rest(&body), &edges, size, t)
+                .expect_err("not definitely positive");
             for (door, e) in [("fillet", &f.error), ("chamfer", &c.error)] {
                 match e {
                     BlendError::NonpositiveSize { size: s } => assert!(
@@ -219,8 +228,14 @@ mod certified {
         let edges = all_edges(&body);
         let size = Interval::from_bounds(0.1 - 1e-9, 0.1 + 1e-9);
         for (door, r) in [
-            ("fillet", fillet_edges(&body, &edges, size, t).map(|_| ())),
-            ("chamfer", chamfer_edges(&body, &edges, size, t).map(|_| ())),
+            (
+                "fillet",
+                fillet_edges(&sweep::test_support::at_rest(&body), &edges, size, t).map(|_| ()),
+            ),
+            (
+                "chamfer",
+                chamfer_edges(&sweep::test_support::at_rest(&body), &edges, size, t).map(|_| ()),
+            ),
         ] {
             if let Err(e) = r {
                 assert!(
@@ -256,8 +271,14 @@ mod recorded {
             for door in ["fillet", "chamfer"] {
                 k_stats::start_recording();
                 let e = match door {
-                    "fillet" => fillet_edges(&body, &edges, Probe(size), t).map(|_| ()),
-                    _ => chamfer_edges(&body, &edges, Probe(size), t).map(|_| ()),
+                    "fillet" => {
+                        fillet_edges(&sweep::test_support::at_rest(&body), &edges, Probe(size), t)
+                            .map(|_| ())
+                    }
+                    _ => {
+                        chamfer_edges(&sweep::test_support::at_rest(&body), &edges, Probe(size), t)
+                            .map(|_| ())
+                    }
                 }
                 .expect_err("a nonpositive size refuses");
                 let samples = k_stats::take_samples();
@@ -276,7 +297,8 @@ mod recorded {
         // The control: the recorder is live, and a positive size does
         // meter the battery.
         k_stats::start_recording();
-        fillet_edges(&body, &edges, Probe(0.1), t).expect("the cube fillets");
+        fillet_edges(&sweep::test_support::at_rest(&body), &edges, Probe(0.1), t)
+            .expect("the cube fillets");
         assert!(
             !k_stats::take_samples().is_empty(),
             "the positive control must meter something, or the rows above prove nothing"

@@ -353,7 +353,7 @@ fn trio_hostless_annulus_ring_containment() {
     let refuse = |d: f64| -> BlendError {
         let body = sweep::test_support::bored_cylinder(0.16, d, phi, tol());
         let arcs = sweep::test_support::z_rim(&body, 1.0, 1.0, false);
-        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
+        sweep::blend::build::fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.1, tol())
             .expect_err("a ring the trim circle does not contain refuses")
             .error
     };
@@ -404,7 +404,7 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
         body.merge_coplanar_faces(tol())
             .expect("the pole-split caps repair");
         let arcs = sweep::test_support::rim_arcs_at(&body, 1.0, 1.0);
-        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
+        sweep::blend::build::fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.1, tol())
             .expect_err("a ring the trim circle does not contain refuses")
             .error
     };

@@ -135,7 +135,8 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             "{name}: the boss's dome rim is concave, the dimple's convex"
         );
         let before = mass_properties(&body, tol()).unwrap().volume;
-        let out = fillet_edges(&body, &arcs, 0.1, tol()).expect("carves");
+        let out =
+            fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.1, tol()).expect("carves");
         validate_geometric(&out.body, tol()).expect("tier-3 valid");
         let band = out.band_faces[0];
         assert_eq!(
@@ -207,7 +208,7 @@ fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     validate_geometric(&body, tol()).expect("the dimpled plate is tier-3 valid");
     let arcs = z_rim(&body, 0.15, 0.4, true);
     let before = mass_properties(&body, tol()).unwrap().volume;
-    let out = fillet_edges(&body, &arcs, 0.03, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.03, tol())
         .unwrap_or_else(|e| panic!("the ladder rim beside a convex corner arc carves, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1);
@@ -238,7 +239,7 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
     validate_geometric(&body, tol()).expect("the bored cylinder is tier-3 valid");
     let arcs = z_rim(&body, 1.0, 1.0, false);
     assert_eq!(arcs.len(), 2, "the top rim is two arcs");
-    let err = fillet_edges(&body, &arcs, 0.1, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.1, tol())
         .expect_err("a ring reaching into the excised strip refuses")
         .error;
     let (predicate, sign, read) = refusal(err);
@@ -253,7 +254,8 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
     );
     let wide = bored_cylinder(0.14, 0.75, phi, tol());
     let arcs = z_rim(&wide, 1.0, 1.0, false);
-    let out = fillet_edges(&wide, &arcs, 0.1, tol()).expect("a contained off-axis ring carves");
+    let out = fillet_edges(&sweep::test_support::at_rest(&wide), &arcs, 0.1, tol())
+        .expect("a contained off-axis ring carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(mass_properties(&out.body, tol()).unwrap().volume_pad, 0.0);
 }
@@ -277,7 +279,7 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
     validate_geometric(&body, tol()).expect("the bored cylinder is tier-3 valid");
     let arcs = z_rim(&body, a, 1.0, true);
     assert_eq!(arcs.len(), 2, "the bore's top rim is two arcs");
-    let err = fillet_edges(&body, &arcs, r, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, r, tol())
         .expect_err("a trim circle crossing its host's circular boundary refuses")
         .error;
     let (predicate, sign, read) = refusal(err);
@@ -293,7 +295,8 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
     );
     let wide = bored_cylinder(a, 0.80, phi, tol());
     let arcs = z_rim(&wide, a, 1.0, true);
-    let out = fillet_edges(&wide, &arcs, r, tol()).expect("a contained trim circle carves");
+    let out = fillet_edges(&sweep::test_support::at_rest(&wide), &arcs, r, tol())
+        .expect("a contained trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(mass_properties(&out.body, tol()).unwrap().volume_pad, 0.0);
 }
@@ -447,7 +450,7 @@ fn r1_print_the_coaxial_refusal_readings() {
     ] {
         let arcs = rim_arcs_at(body, rim.0, rim.1);
         let (p, s, v) = refusal(
-            fillet_edges(body, &arcs, 0.1, tol())
+            fillet_edges(&sweep::test_support::at_rest(body), &arcs, 0.1, tol())
                 .expect_err("refuses")
                 .error,
         );
@@ -523,7 +526,13 @@ mod recorded {
                 let body = boss();
                 let arcs = rim_arcs_at(&body, rim.0, rim.1);
                 k_stats::start_recording();
-                fillet_edges(&body, &arcs, Probe(0.1), Tol::witness()).expect("carves");
+                fillet_edges(
+                    &sweep::test_support::at_rest(&body),
+                    &arcs,
+                    Probe(0.1),
+                    Tol::witness(),
+                )
+                .expect("carves");
                 let mut margins: Vec<f64> = k_stats::take_samples()
                     .iter()
                     .filter(|s| s.predicate == "fillet3_ring_clearance")

@@ -40,14 +40,24 @@ fn blended<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     assert_eq!(edges.len(), 12, "a box has twelve edges");
     match verb {
         Verb::Fillet => {
-            fillet_edges(body, &edges, size, Tol::witness())
-                .expect("the filleted cube")
-                .body
+            fillet_edges(
+                &sweep::test_support::at_rest(body),
+                &edges,
+                size,
+                Tol::witness(),
+            )
+            .expect("the filleted cube")
+            .body
         }
         Verb::Chamfer => {
-            chamfer_edges(body, &edges, size, Tol::witness())
-                .expect("the chamfered cube")
-                .body
+            chamfer_edges(
+                &sweep::test_support::at_rest(body),
+                &edges,
+                size,
+                Tol::witness(),
+            )
+            .expect("the chamfered cube")
+            .body
         }
     }
 }

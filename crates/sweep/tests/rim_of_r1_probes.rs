@@ -185,7 +185,8 @@ fn the_refusals_own_text_names_the_door_and_following_it_carves() {
     let source = waisted(tol());
     let before = mass_properties(&source, tol()).unwrap().volume;
     let seed = arcs_at(&source, 1.0, 0.0)[0];
-    let Err(refusal) = fillet_edges(&source, &[seed], 0.05, tol()) else {
+    let Err(refusal) = fillet_edges(&sweep::test_support::at_rest(&source), &[seed], 0.05, tol())
+    else {
         panic!("one arc stops at the seam vertex")
     };
     let text = refusal.error.to_string();
@@ -199,7 +200,8 @@ fn the_refusals_own_text_names_the_door_and_following_it_carves() {
     );
     let rim = topo::query::rim_of(&source, seed).expect("the refusing arc names its rim");
     assert_eq!(rim.len(), 2);
-    let out = fillet_edges(&source, &rim, 0.05, tol()).expect("the door's answer carves");
+    let out = fillet_edges(&sweep::test_support::at_rest(&source), &rim, 0.05, tol())
+        .expect("the door's answer carves");
     assert_eq!(out.band_faces.len(), 1);
     validate_geometric(&out.body, tol()).unwrap();
     let after = mass_properties(&out.body, tol()).unwrap().volume;

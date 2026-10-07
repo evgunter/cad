@@ -103,7 +103,7 @@ fn rim_removed(big_r: f64, s: f64, r: f64) -> f64 {
 
 /// The fillet builds, tier-3 valid, at the volume `want`.
 fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, want: f64, what: &str) {
-    let out = fillet_edges(body, edges, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol())
         .unwrap_or_else(|e| panic!("{what}: r = {r} builds, got {:?}", e.error));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: r = {r} is tier-3 valid, got {e:?}"));
@@ -116,7 +116,7 @@ fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, want: f64, what: &str) {
 
 /// The fillet refuses `RingClearance` at the margin `want`.
 fn refuses_at(body: &Body<f64>, edges: &[EdgeKey], r: f64, want: f64, what: &str) {
-    let err = fillet_edges(body, edges, r, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol())
         .err()
         .unwrap_or_else(|| panic!("{what}: r = {r} refuses"))
         .error;
@@ -132,7 +132,7 @@ fn refuses_at(body: &Body<f64>, edges: &[EdgeKey], r: f64, want: f64, what: &str
 
 /// The fillet escalates in band, decided by `fillet3_ring_clearance`.
 fn escalates(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
-    let err = fillet_edges(body, edges, r, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol())
         .err()
         .unwrap_or_else(|| panic!("{what}: r = {r} escalates"))
         .error;
@@ -339,7 +339,7 @@ fn a_curved_mates_ring_refuses_at_the_ladder_gate() {
     let body = sub(&holed, &notch);
     validate_geometric(&body, tol()).expect("the notched hole is valid");
     let rim = rim_at(&body, 1.0, 0.3);
-    let err = fillet_edges(&body, &rim, 0.09, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(&body), &rim, 0.09, tol())
         .expect_err("refuses")
         .error;
     assert!(
@@ -360,7 +360,7 @@ fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
     validate_geometric(&body, tol()).expect("the twice-bored cube is valid");
     let rim = rim_at(&body, 1.0, 0.15);
     for r in [0.05, 0.1] {
-        let err = fillet_edges(&body, &rim, r, tol())
+        let err = fillet_edges(&sweep::test_support::at_rest(&body), &rim, r, tol())
             .expect_err("refuses")
             .error;
         assert!(
@@ -448,7 +448,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         );
         let rim = rim_at(&body, 1.0, 0.2);
         for r in [0.02, 0.05] {
-            let err = fillet_edges(&body, &rim, r, tol())
+            let err = fillet_edges(&sweep::test_support::at_rest(&body), &rim, r, tol())
                 .expect_err("refuses")
                 .error;
             assert!(
@@ -520,12 +520,13 @@ mod interval_lane {
             .collect();
         assert_eq!(outer.len(), 12, "the outer box's twelve edges");
 
-        let out = fillet_edges(&body, &outer, iv(0.15), t()).expect("r = 0.15 builds");
+        let out = fillet_edges(&sweep::test_support::at_rest(&body), &outer, iv(0.15), t())
+            .expect("r = 0.15 builds");
         topo::validate_geometric(&out.body, t()).expect("r = 0.15 is tier-3 valid");
 
         let eps = t().get().eps;
         for r in [0.2 - 5.0 * eps, 0.2 + 5.0 * eps] {
-            let err = fillet_edges(&body, &outer, iv(r), t())
+            let err = fillet_edges(&sweep::test_support::at_rest(&body), &outer, iv(r), t())
                 .expect_err("refuses")
                 .error;
             assert!(
@@ -536,7 +537,7 @@ mod interval_lane {
             );
         }
 
-        let err = fillet_edges(&body, &outer, iv(0.201), t())
+        let err = fillet_edges(&sweep::test_support::at_rest(&body), &outer, iv(0.201), t())
             .expect_err("refuses")
             .error;
         let BlendError::RingClearance { margin, .. } = &err else {

@@ -62,8 +62,13 @@ fn chamfered_cavity_volume(a: f64, d: f64) -> f64 {
 #[test]
 fn the_chamfered_cavity() {
     let body = vented_cavity();
-    let out = chamfer_edges(&body, &cavity_edges(&body), D, Tol::witness())
-        .expect("the cavity's twelve concave edges chamfer");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &cavity_edges(&body),
+        D,
+        Tol::witness(),
+    )
+    .expect("the cavity's twelve concave edges chamfer");
     let out_body = out.body;
 
     assert_eq!(validate(&out_body), Ok(()), "tier 1");
@@ -140,8 +145,13 @@ fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
 #[test]
 fn every_minted_face_of_a_concave_carve_faces_the_void() {
     let body = vented_cavity();
-    let out = chamfer_edges(&body, &cavity_edges(&body), D, Tol::witness())
-        .expect("the cavity's twelve concave edges chamfer");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &cavity_edges(&body),
+        D,
+        Tol::witness(),
+    )
+    .expect("the cavity's twelve concave edges chamfer");
     let centre = Point3::new(2.0, 2.0, 2.0);
     for face in out.blend_faces.iter().chain(out.corner_faces.iter()) {
         let n = outward(&out.body, *face);
@@ -159,8 +169,13 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
     // both.
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let cut = chamfer_edges(&cube_body, &cube_edges, D, Tol::witness())
-        .expect("a cube's twelve edges chamfer");
+    let cut = chamfer_edges(
+        &sweep::test_support::at_rest(&cube_body),
+        &cube_edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("a cube's twelve edges chamfer");
     let cube_centre = Point3::new(1.0, 1.0, 1.0);
     for face in cut.blend_faces.iter().chain(cut.corner_faces.iter()) {
         let n = outward(&cut.body, *face);
@@ -188,8 +203,18 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
 fn both_verbs_carve_the_cavity_the_fillet_once_refused() {
     let body = vented_cavity();
     let edges = cavity_edges(&body);
-    chamfer_edges(&body, &edges, D, Tol::witness())
-        .expect("the chamfer carves its twelve concave edges");
-    fillet_edges(&body, &edges, D, Tol::witness())
-        .expect("the fillet carves the same twelve, on its own arms");
+    chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("the chamfer carves its twelve concave edges");
+    fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("the fillet carves the same twelve, on its own arms");
 }

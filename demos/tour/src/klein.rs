@@ -732,14 +732,24 @@ fn roll_the_meridian_blends<S: Scalar>(
 ) -> Body<S> {
     let (inner, outer) = corners_by_wall(sharp, corners);
     let half = WALL / 2.0;
-    let once = fillet_edges(sharp, &[inner], S::from_f64(m.rf + half), tol)
-        .unwrap_or_else(|e| panic!("the inner corner rolls at RF + WALL/2: {e:?}"))
-        .body;
+    let once = fillet_edges(
+        &finished("sharp", sharp.clone(), tol),
+        &[inner],
+        S::from_f64(m.rf + half),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the inner corner rolls at RF + WALL/2: {e:?}"))
+    .body;
     // The outer corner's key survives the first roll: that blend's
     // surgery touches the inner wall's faces only.
-    fillet_edges(&once, &[outer], S::from_f64(m.rf - half), tol)
-        .unwrap_or_else(|e| panic!("the outer corner rolls at RF − WALL/2: {e:?}"))
-        .body
+    fillet_edges(
+        &finished("once", once.clone(), tol),
+        &[outer],
+        S::from_f64(m.rf - half),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the outer corner rolls at RF − WALL/2: {e:?}"))
+    .body
 }
 
 /// A sharp band's two neck→flare corners as `(inner wall's, outer
@@ -1088,12 +1098,22 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // deepest point, on the corner's bisector, crosses the outer wall,
     // and the reach meter refuses it against that face.
     let (inner, _) = corners_by_wall(&sharp_full, &full_edges);
-    let near = fillet_edges(&sharp_full, &[inner], S::from_f64(1.4), tol)
-        .unwrap_or_else(|e| panic!("the inner corner rolls at r = 1.4, inside the wall: {e:?}"));
+    let near = fillet_edges(
+        &finished("sharp_full", sharp_full.clone(), tol),
+        &[inner],
+        S::from_f64(1.4),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the inner corner rolls at r = 1.4, inside the wall: {e:?}"));
     pncad::topo::validate_geometric(&near.body, tol)
         .unwrap_or_else(|e| panic!("r = 1.4: tier 3, got {e:?}"));
     for r in [1.5, 1.6] {
-        match fillet_edges(&sharp_full, &[inner], S::from_f64(r), tol) {
+        match fillet_edges(
+            &finished("sharp_full", sharp_full.clone(), tol),
+            &[inner],
+            S::from_f64(r),
+            tol,
+        ) {
             Err(e)
                 if matches!(
                     e.error,
@@ -1109,7 +1129,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             ),
         }
     }
-    let far = fillet_edges(&sharp_full, &[inner], S::from_f64(2.0), tol);
+    let far = fillet_edges(
+        &finished("sharp_full", sharp_full.clone(), tol),
+        &[inner],
+        S::from_f64(2.0),
+        tol,
+    );
     assert!(
         matches!(&far, Err(e) if matches!(e.error, BlendError::FaceClearanceUncertified { .. })),
         "r = 2.0 refuses on clearance, got {:?}",
@@ -1124,7 +1149,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         2,
         "fillet the neck→flare corner on a partial revolve (open rim) at the radius the \
          band authors for that wall",
-        fillet_edges(&sharp_part, &[inner], S::from_f64(m.rf + WALL / 2.0), tol),
+        fillet_edges(
+            &finished("sharp_part", sharp_part.clone(), tol),
+            &[inner],
+            S::from_f64(m.rf + WALL / 2.0),
+            tol,
+        ),
         |e| {
             matches!(
                 e.error,

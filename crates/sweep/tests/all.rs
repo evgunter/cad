@@ -262,6 +262,8 @@ mod blend_bore_two_rims;
 mod blend_dual_tangent;
 #[path = "blend_margin_payload_interval.rs"]
 mod blend_margin_payload_interval;
+#[path = "blend_operand_gate.rs"]
+mod blend_operand_gate;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]

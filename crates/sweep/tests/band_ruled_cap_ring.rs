@@ -71,7 +71,13 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
     let creases = rod_creases(body);
     assert_eq!(creases.len(), 2, "{what}: the D's two creases");
-    match fillet_edges(body, &creases, ROD_FILLET, tol()).map_err(|e| {
+    match fillet_edges(
+        &sweep::test_support::at_rest(body),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .map_err(|e| {
         let text = e.error.to_string();
         (e.error, text)
     }) {
@@ -154,8 +160,13 @@ fn a_bore_clear_of_the_d_rods_sliver_carves_at_the_closed_form() {
         validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         let creases = rod_creases(&body);
         let vol0 = volume(&body);
-        let out = fillet_edges(&body, &creases, ROD_FILLET, tol())
-            .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body),
+            &creases,
+            ROD_FILLET,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         let dv = volume(&out.body) - vol0;
         let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
@@ -185,8 +196,13 @@ fn assert_carves_at_the_closed_form(body: &Body<f64>, what: &str) {
     let creases = rod_creases(body);
     assert_eq!(creases.len(), 2, "{what}: the D's two creases");
     let vol0 = volume(body);
-    let out = fillet_edges(body, &creases, ROD_FILLET, tol())
-        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(body),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     let dv = volume(&out.body) - vol0;
     let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
@@ -264,7 +280,13 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
     validate_geometric(&body, tol()).expect("source tier 3");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the D's two creases");
-    match fillet_edges(&body, &creases, ROD_FILLET, tol()).map_err(|e| {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .map_err(|e| {
         let text = e.error.to_string();
         (e.error, text)
     }) {

@@ -145,8 +145,8 @@ fn slab_with(op: BooleanOp, cz: f64) -> Body<f64> {
 }
 
 fn carve_total(name: &str, source: &Body<f64>, arcs: &[EdgeKey], r: f64) {
-    let out =
-        fillet_edges(source, arcs, r, tol()).unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+    let out = fillet_edges(&sweep::test_support::at_rest(source), arcs, r, tol())
+        .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{name} is tier-3 valid, got {e:?}"));
     assert_naming_totality(source, &out, arcs, name);

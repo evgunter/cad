@@ -93,7 +93,12 @@ fn probe_a_pipped_cube_all_edges() {
         }
         Err(e) => println!("PROBE A: battery refuses: {e}"),
     }
-    match fillet_edges(&pipped, &edges, 0.12, Tol::witness()) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&pipped),
+        &edges,
+        0.12,
+        Tol::witness(),
+    ) {
         Ok(_) => println!("PROBE A: fillet_edges SUCCEEDED (composition works!)"),
         Err(e) => println!("PROBE A: fillet_edges refuses: {e}"),
     }
@@ -118,7 +123,12 @@ fn probe_b_hexagonal_prism_over_refusal() {
     let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 18);
     for r in [0.30 * a, 0.45 * a, 0.499 * a, 0.51 * a, 0.6 * a, 0.8 * a] {
-        match fillet_edges(&body, &edges, r, Tol::witness()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body),
+            &edges,
+            r,
+            Tol::witness(),
+        ) {
             Ok(f) => {
                 let t3 = topo::validate_geometric(&f.body, Tol::witness()).is_ok();
                 println!("PROBE B: r={r:.3} builds, tier3 ok = {t3}");
@@ -191,7 +201,13 @@ fn probe_e_hexagon_tier3_error() {
         .collect();
     let body = prism(&pts, 4.0);
     let edges = query::all_edges(&body);
-    let f = fillet_edges(&body, &edges, 0.3, Tol::witness()).expect("builds");
+    let f = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        0.3,
+        Tol::witness(),
+    )
+    .expect("builds");
     println!(
         "PROBE E: tier3 = {:?}",
         topo::validate_geometric(&f.body, Tol::witness())
@@ -244,7 +260,14 @@ fn probe_g_door_a_fields() {
     let edges = query::all_edges(&c);
     let blank = finished(
         "the blank",
-        fillet_edges(&c, &edges, 0.12, Tol::witness()).unwrap().body,
+        fillet_edges(
+            &sweep::test_support::at_rest(&c),
+            &edges,
+            0.12,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body,
         Tol::witness(),
     );
     let blank_v = topo::mass_properties(&blank, Tol::witness())
@@ -280,7 +303,14 @@ fn probe_h_door_a_closed_tool() {
     let edges = query::all_edges(&c);
     let blank = finished(
         "the blank",
-        fillet_edges(&c, &edges, 0.12, Tol::witness()).unwrap().body,
+        fillet_edges(
+            &sweep::test_support::at_rest(&c),
+            &edges,
+            0.12,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body,
         Tol::witness(),
     );
     // Two pips on the top face (the diag pair of face value 2 layout,
@@ -329,7 +359,14 @@ fn probe_i_door_a_full_tool() {
     let edges = query::all_edges(&c);
     let blank = finished(
         "the blank",
-        fillet_edges(&c, &edges, 0.12, Tol::witness()).unwrap().body,
+        fillet_edges(
+            &sweep::test_support::at_rest(&c),
+            &edges,
+            0.12,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body,
         Tol::witness(),
     );
     let (pip_r, pip_h, pip_d, h) = (0.09, 0.05, 0.22, 0.5);
@@ -450,7 +487,12 @@ fn probe_f_skinny_triangle_refusal_boundary() {
     let body = prism(&[(0.0, 0.0), (1.0, 0.0), (0.5, 0.15)], 2.0);
     let edges = query::all_edges(&body);
     for r in [0.05, 0.06, 0.07, 0.072, 0.0735, 0.075, 0.08] {
-        match fillet_edges(&body, &edges, r, Tol::witness()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body),
+            &edges,
+            r,
+            Tol::witness(),
+        ) {
             Ok(f) => {
                 let t2 = topo::validate_closed(&f.body).is_ok();
                 let mesh_ok = mesh::tessellate(&f.body, 5e-3, Tol::witness())
@@ -508,7 +550,12 @@ fn probe_c_oblique_trihedron() {
         body.vertices().count()
     );
     let edges = query::all_edges(&body);
-    match fillet_edges(&body, &edges, 0.08, Tol::witness()) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        0.08,
+        Tol::witness(),
+    ) {
         Ok(f) => {
             println!(
                 "PROBE C: builds; tier1 {:?} tier2 {:?} tier3 {:?}",

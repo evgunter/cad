@@ -232,9 +232,14 @@ fn the_same_geometry_without_the_channel_refuses() {
         .expect("the kernel extrudes it")
         .body;
         let edges = topo::query::all_edges(&cube);
-        sweep::blend::build::fillet_edges(&cube, &edges, R, Tol::witness())
-            .expect("the kernel door blends the same cube")
-            .body
+        sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(&cube),
+            &edges,
+            R,
+            Tol::witness(),
+        )
+        .expect("the kernel door blends the same cube")
+        .body
     };
     assert_eq!(
         evidence(evaluated, &raw),

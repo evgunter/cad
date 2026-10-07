@@ -69,8 +69,13 @@ fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
 #[test]
 fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
     let (body, edge) = crate::common::operands::half_round_end();
-    let err = fillet_edges(&body, &[edge], R, Tol::witness())
-        .expect_err("an edge ending at a curved end face is a run-out");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &[edge],
+        R,
+        Tol::witness(),
+    )
+    .expect_err("an edge ending at a curved end face is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected a corner frontier, got {err:?}"
@@ -92,7 +97,13 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
     let edges = query::all_edges(&body);
     let mut req = edges.clone();
     req.push(edges[0]);
-    let err = fillet_edges(&body, &req, R, Tol::witness()).expect_err("a repeated edge");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &req,
+        R,
+        Tol::witness(),
+    )
+    .expect_err("a repeated edge");
     assert!(
         matches!(err.error, BlendError::RepeatedEdge { edge } if edge == edges[0]),
         "expected the repeated-edge refusal naming the key, got {err:?}"

@@ -46,8 +46,13 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 #[test]
 fn the_chamfered_cube() {
     let body = cube(L, Tol::witness());
-    let out = chamfer_edges(&body, &query::all_edges(&body), D, Tol::witness())
-        .expect("a cube's twelve edges chamfer");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &query::all_edges(&body),
+        D,
+        Tol::witness(),
+    )
+    .expect("a cube's twelve edges chamfer");
     let out_body = out.body;
 
     assert_eq!(topo::validate(&out_body), Ok(()), "tier 1");
@@ -107,7 +112,13 @@ fn the_chamfered_cube() {
 fn the_chamfer_records_every_birth_and_death() {
     let body = cube(L, Tol::witness());
     let source_edges = query::all_edges(&body);
-    let out = chamfer_edges(&body, &source_edges, D, Tol::witness()).expect("chamfers");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &source_edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("chamfers");
     let rec = out.naming.expect("the surgery is the only producer");
 
     assert_eq!(rec.blends.len(), 12, "a strip per source edge");
@@ -167,8 +178,20 @@ fn the_chamfer_records_every_birth_and_death() {
 fn fillet_and_chamfer_agree_on_a_right_corner() {
     let body = cube(L, Tol::witness());
     let edges = query::all_edges(&body);
-    let filleted = fillet_edges(&body, &edges, D, Tol::witness()).expect("fillets");
-    let chamfered = chamfer_edges(&body, &edges, D, Tol::witness()).expect("chamfers");
+    let filleted = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("fillets");
+    let chamfered = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect("chamfers");
 
     let want: Vec<(f64, f64, f64)> = {
         // Each of the 24 is a foot: one coordinate on a face of the
@@ -212,8 +235,13 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
 fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
     let body = cube(L, Tol::witness());
     let edges = query::all_edges(&body);
-    let out =
-        chamfer_edges(&body, &edges[..1], D, Tol::witness()).expect("one edge of a cube chamfers");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges[..1],
+        D,
+        Tol::witness(),
+    )
+    .expect("one edge of a cube chamfers");
     let removed = L.powi(3)
         - topo::mass_properties(&out.body, Tol::witness())
             .expect("closed-form props")
@@ -232,8 +260,13 @@ fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
 fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
     let cyl = cylinder(0.5, 1.0);
     let edges = query::all_edges(&cyl);
-    let err = chamfer_edges(&cyl, &edges, D, Tol::witness())
-        .expect_err("a plane–cylinder rim has no ruled strip");
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&cyl),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .expect_err("a plane–cylinder rim has no ruled strip");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the arm table is what refused: {err:?}"
@@ -257,8 +290,13 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
 fn an_l_brackets_inner_edge_refuses_on_its_corner_configuration() {
     let bracket = l_bracket();
     let inner = concave_edge(&bracket);
-    let err = chamfer_edges(&bracket, &[inner], D, Tol::witness())
-        .expect_err("v1 does not chamfer a concave edge");
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&bracket),
+        &[inner],
+        D,
+        Tol::witness(),
+    )
+    .expect_err("v1 does not chamfer a concave edge");
     match err.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },

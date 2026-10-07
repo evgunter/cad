@@ -41,6 +41,7 @@ use pncad::profile::{
 use pncad::sweep::{Extruded, Extrusion, extrude};
 use pncad::topo::readback::euler_counts;
 
+use crate::booleans::finished;
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::p2;
@@ -375,7 +376,7 @@ fn keyhole_creases<S: Scalar>(plate: &Extruded<S>) -> Vec<EdgeKey> {
 pub fn build<S: Scalar>(tol: Tol) -> (Extruded<S>, Body<S>) {
     let plate = plate::<S>(tol);
     let rounded = fillet_edges(
-        &plate.body,
+        &finished("plate.body", plate.body.clone(), tol),
         &keyhole_creases(&plate),
         S::from_f64(R_CREASE),
         tol,
@@ -496,7 +497,12 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
         8,
         "the description matches the keyhole's two creases and the outline's six tangent seams"
     );
-    let over = fillet_edges(&plate.body, &described, R_CREASE, tol);
+    let over = fillet_edges(
+        &finished("plate.body", plate.body.clone(), tol),
+        &described,
+        R_CREASE,
+        tol,
+    );
     assert!(
         matches!(&over, Err(e) if matches!(e.error, BlendError::TangentialEdge { .. })),
         "the description alone hands the door a tangent seam: {:?}",
@@ -512,8 +518,13 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     // foot `x = cx`, short of the slot's end, so the cap meter reads
     // the slot end's edge clear of it.
     for r in [0.31, 0.49, R_BLEND] {
-        let out = fillet_edges(&plate.body, &creases, r, tol)
-            .unwrap_or_else(|e| panic!("the creases carve at r = {r}, got {e:?}"));
+        let out = fillet_edges(
+            &finished("plate.body", plate.body.clone(), tol),
+            &creases,
+            r,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("the creases carve at r = {r}, got {e:?}"));
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("r = {r}: tier 3, got {e:?}"));
         let dv = volume(&out.body) - volume(&plate.body);
         let want = -2.0 * crease_cut(r) * DEPTH;

@@ -1572,6 +1572,30 @@ pub enum BlendError {
         /// What the plan was reading when the reference failed.
         detail: &'static str,
     },
+    /// **The operand is well-formed but not a closed solid at rest**:
+    /// it carries no tier-3 verdict (a dual's scalar runs no at-rest
+    /// gate), and tier 2 ([`topo::validate_closed`]) refuses it for
+    /// construction scaffolding an edit left behind — a strut's
+    /// valence-1 vertex, an empty loop, a null edge, a shell in pieces.
+    /// The blend serves finished solids only; no recourse is a blend
+    /// recourse.
+    ScaffoldingOperand {
+        /// The validator's tier-2 findings, each naming its entity.
+        errors: Vec<topo::ValidationError>,
+    },
+    /// **The operand holds material wound negative**, read where no
+    /// tier-3 verdict rides it: a solid whose signed volume check 7
+    /// decides definitely negative
+    /// ([`topo::ValidationError::NegativeVolume`]), or a shell check 10
+    /// finds bounding negative material inside a solid whose total is
+    /// positive ([`topo::ValidationError::ShellWinding`]). Its faces
+    /// bound the complement of the region they enclose, and the blend
+    /// would round that complement.
+    InsideOutOperand {
+        /// The validator's findings, each naming its solid (and, for a
+        /// shell, the shell).
+        errors: Vec<topo::ValidationError>,
+    },
     /// **The surgery's OWN invariant did not hold** (D2 addendum row 4,
     /// announced instead of panicked): a carve step reached a state its
     /// own earlier steps rule out.
@@ -1670,6 +1694,15 @@ pub enum BlendError {
 impl From<BandError> for BlendError {
     fn from(source: BandError) -> Self {
         Self::Band(source)
+    }
+}
+
+impl From<topo::Unfinished> for BlendError {
+    fn from(unfinished: topo::Unfinished) -> Self {
+        match unfinished {
+            topo::Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
+            topo::Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
+        }
     }
 }
 
@@ -1835,6 +1868,18 @@ impl fmt::Display for BlendError {
                 f,
                 "{detail} — {at} did not resolve, so the body is not intact there. There \
                  is no way through"
+            ),
+            Self::ScaffoldingOperand { .. } => write!(
+                f,
+                "the body is not a finished solid: it still carries what an edit left \
+                 behind, such as a strut or an empty loop, so it is refused. Recourse: \
+                 finish that edit first"
+            ),
+            Self::InsideOutOperand { .. } => write!(
+                f,
+                "the body is inside-out: its faces point into its material, so it encloses \
+                 negative volume and is refused. Recourse: build it with its faces pointing \
+                 outward, or revert it"
             ),
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
@@ -2002,6 +2047,8 @@ mod recourse_tests {
             BlendError::RepeatedEdge { .. } => Recourse::None,
             BlendError::NonpositiveSize { .. } => Recourse::None,
             BlendError::BodyNotIntact { .. } => Recourse::None,
+            BlendError::ScaffoldingOperand { .. } => Recourse::None,
+            BlendError::InsideOutOperand { .. } => Recourse::None,
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::Certify { .. } => Recourse::None,
@@ -2131,6 +2178,8 @@ mod recourse_tests {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a reference the plan followed",
             },
+            BlendError::ScaffoldingOperand { errors: Vec::new() },
+            BlendError::InsideOutOperand { errors: Vec::new() },
             BlendError::SurgeryInvariant {
                 at: EntityId::Face(FaceKey::default()),
                 detail: "an invariant this carve's own earlier steps establish",

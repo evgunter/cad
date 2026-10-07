@@ -326,7 +326,7 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
             body.edges().count(),
             body.faces().count(),
         );
-        let out = fillet_edges(body, &arcs, RHO, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(body), &arcs, RHO, tol())
             .unwrap_or_else(|e| panic!("{name}: the whole rim carves, got {e}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one band");
         validate_geometric(&out.body, tol())

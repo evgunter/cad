@@ -88,7 +88,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     let (v0, e0, f0) = census(source);
     let vol0 = volume(source);
 
-    let out = fillet_edges(source, &creases, R, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(source), &creases, R, tol())
         .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
     assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
     assert!(
@@ -331,7 +331,8 @@ fn one_crease_alone_carves_at_half_the_prism() {
     let creases = rod_creases(&source);
     let vol0 = volume(&source);
     for &e in &creases {
-        let out = fillet_edges(&source, &[e], R, tol()).expect("one crease carves");
+        let out = fillet_edges(&sweep::test_support::at_rest(&source), &[e], R, tol())
+            .expect("one crease carves");
         assert_eq!(census(&out.body), (8, 11, 5));
         validate_geometric(&out.body, tol()).expect("tier 3");
         let cut = rod_section_cut(ROD_R, ROD_FLAT, R) * ROD_L;
@@ -452,7 +453,7 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
             (vec![creases[1]], two),
             (creases.clone(), one + two),
         ] {
-            let out = fillet_edges(below, &request, R, tol())
+            let out = fillet_edges(&sweep::test_support::at_rest(below), &request, R, tol())
                 .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
@@ -702,7 +703,8 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
 
     let body = cube(1.0, tol());
     let e = query::all_edges(&body)[0];
-    fillet_edges(&body, &[e], R, tol()).expect("one box edge is cut off at its end faces");
+    fillet_edges(&sweep::test_support::at_rest(&body), &[e], R, tol())
+        .expect("one box edge is cut off at its end faces");
 }
 
 /// **The lever `corner_at` hands `fillet3_cap_transverse` is the link's
@@ -747,7 +749,12 @@ fn the_cap_lever_is_the_links_extent() {
         let creases = rod_creases(below);
         assert_eq!(creases.len(), 2, "L = {len}: two creases");
         for e in creases {
-            match fillet_edges(below, &[e], ROD_FILLET, tol()) {
+            match fillet_edges(
+                &sweep::test_support::at_rest(below),
+                &[e],
+                ROD_FILLET,
+                tol(),
+            ) {
                 Ok(out) if axes_apart > door.escalate() => {
                     validate_geometric(&out.body, tol()).expect("tier 3");
                 }
@@ -817,7 +824,13 @@ fn a_curved_end_face_refuses_typed_before_metering() {
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 4, "two walls × two wedge planes");
     for e in creases {
-        let err = fillet_edges(&body, &[e], ROD_FILLET, tol()).expect_err("a curved end");
+        let err = fillet_edges(
+            &sweep::test_support::at_rest(&body),
+            &[e],
+            ROD_FILLET,
+            tol(),
+        )
+        .expect_err("a curved end");
         let BlendError::UnsupportedRunOut { at, detail } = err.error else {
             panic!("the curved end is a run-out, got {:?}", err.error);
         };

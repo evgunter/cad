@@ -257,8 +257,13 @@ fn rim_fillet_extra(big_r: f64, h: f64, r: f64) -> f64 {
 #[test]
 fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
-        .expect("the surgery fillets the pipped cube");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped),
+        &box_edges,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the surgery fillets the pipped cube");
     let body = out.body;
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2");
@@ -348,13 +353,23 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
 /// in ONE further call.
 fn composed_die() -> Body<f64> {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
-        .expect("the box edges fillet in place")
-        .body;
+    let blanked = fillet_edges(
+        &sweep::test_support::at_rest(&pipped),
+        &box_edges,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the box edges fillet in place")
+    .body;
     let rims = rim_edges(&blanked);
     assert_eq!(rims.len(), 42, "21 rims of two arcs each");
-    let out =
-        fillet_edges(&blanked, &rims, RIM_R, Tol::witness()).expect("the rims fillet to tori");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&blanked),
+        &rims,
+        RIM_R,
+        Tol::witness(),
+    )
+    .expect("the rims fillet to tori");
     assert_eq!(out.band_faces.len(), 21, "one torus band per rim");
     out.body
 }
@@ -438,15 +453,25 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
     let (pipped, box_edges) = pipped_and_box_edges();
     // (a) An edge ending at a curved end face.
     let (round, edge) = crate::common::operands::half_round_end();
-    let err = fillet_edges(&round, &[edge], DIE_R, Tol::witness())
-        .expect_err("a curved end face is a run-out, not built");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&round),
+        &[edge],
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect_err("a curved end face is a run-out, not built");
     let text = format!("{err}");
     assert!(
         text.contains("not built") && text.contains("curved end face"),
         "the refusal names the run-out gap: {text}"
     );
-    fillet_edges(&pipped, &box_edges[..1], DIE_R, Tol::witness())
-        .expect("one box edge of the pipped die is cut off at its end faces");
+    fillet_edges(
+        &sweep::test_support::at_rest(&pipped),
+        &box_edges[..1],
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("one box edge of the pipped die is cut off at its end faces");
     // (b) One rim arc: an OPEN plane–sphere chain terminates at rim
     // vertices whose third edge is the cap's seam MERIDIAN — the
     // sphere's own chart cut, the plane carrying both arcs — so the
@@ -455,8 +480,13 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
     // door earlier than the surgery's own front door, and that is the
     // honest order: verdict before assembly.
     let rims = rim_edges(&pipped);
-    let err = fillet_edges(&pipped, &rims[..1], RIM_R, Tol::witness())
-        .expect_err("an open rim arc stops at a seam vertex");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&pipped),
+        &rims[..1],
+        RIM_R,
+        Tol::witness(),
+    )
+    .expect_err("an open rim arc stops at a seam vertex");
     let text = format!("{err}");
     assert!(
         text.contains("chart-seam vertex") && text.contains("request the rim whole"),
@@ -476,7 +506,13 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         .map(|(k, f)| (k, f.rings.len(), f.sense))
         .collect();
     assert_eq!(rings_before.len(), 6, "six pipped faces");
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness()).expect("the surgery");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped),
+        &box_edges,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the surgery");
     for (k, n, sense) in rings_before {
         let f = out.body.get_face(k).expect("the shrunk face keeps its key");
         assert_eq!(f.rings.len(), n, "ring count carried");

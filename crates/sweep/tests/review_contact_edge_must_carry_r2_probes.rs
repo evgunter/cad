@@ -197,7 +197,13 @@ fn refusal_kind(e: &BlendError) -> String {
 #[test]
 fn r2_the_die_and_the_rod_census_retaken() {
     let die = cube(1.0, tol());
-    let out = fillet_edges(&die, &query::all_edges(&die), 0.15, tol()).expect("the die carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&die),
+        &query::all_edges(&die),
+        0.15,
+        tol(),
+    )
+    .expect("the die carves");
     let rows = contacts(&out.body);
     assert_eq!(rows.len(), 48, "24 trimlines and 24 corner arcs");
     assert!(rows.iter().all(|r| r.in_lane));
@@ -217,7 +223,13 @@ fn r2_the_die_and_the_rod_census_retaken() {
     }
 
     let body = rod_with_flat(tol());
-    let out = fillet_edges(&body, &rod_creases(&body), ROD_FILLET, tol()).expect("the rod carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &rod_creases(&body),
+        ROD_FILLET,
+        tol(),
+    )
+    .expect("the rod carves");
     let rows = contacts(&out.body);
     assert_eq!(rows.len(), 4, "the rod's four trimlines");
     assert!(
@@ -259,7 +271,12 @@ fn r2_the_in_band_verdict_at_radii_derived_here() {
     for mult in [1.2, 1.9] {
         let r = mult * b.escalate();
         let (m, _) = in_band(
-            fillet_edges(&die, &query::all_edges(&die), r, tol()),
+            fillet_edges(
+                &sweep::test_support::at_rest(&die),
+                &query::all_edges(&die),
+                r,
+                tol(),
+            ),
             &format!("the die at r = {mult}·Kε"),
         );
         assert!(
@@ -277,7 +294,7 @@ fn r2_the_in_band_verdict_at_radii_derived_here() {
         .expect("the family member mills");
     let crease = rod_upper_crease(&body);
     let (m, shown) = in_band(
-        fillet_edges(&body, &[crease], r, tol()),
+        fillet_edges(&sweep::test_support::at_rest(&body), &[crease], r, tol()),
         "the rod at R/r = 1.75, margin 0.7·Kε",
     );
     assert!(
@@ -315,7 +332,7 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
     let body = rod_with_flat_at(big_r, r0, 10.0 * r0, 2.0 * big_r, tol()).expect("the rod mills");
     let crease = rod_upper_crease(&body);
     let (m0, shown) = in_band(
-        fillet_edges(&body, &[crease], r0, tol()),
+        fillet_edges(&sweep::test_support::at_rest(&body), &[crease], r0, tol()),
         "the rod at R/r = 1.5, margin 0.75·Kε",
     );
     assert!(
@@ -342,7 +359,7 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
             predicted < m0,
             "enlarging to {mult}·r₀ lowers the closed form: {predicted:e} against {m0:e}"
         );
-        let result = fillet_edges(&body, &[crease], r, tol());
+        let result = fillet_edges(&sweep::test_support::at_rest(&body), &[crease], r, tol());
         let _ = writeln!(
             table,
             "  enlarge to {mult}·r₀ (closed form {predicted:.4e}): {}",
@@ -360,7 +377,7 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
             "reducing to {mult}·r₀ raises the closed form: {:e} against {m0:e}",
             difference(r, big_r)
         );
-        let result = fillet_edges(&body, &[crease], r, tol());
+        let result = fillet_edges(&sweep::test_support::at_rest(&body), &[crease], r, tol());
         let _ = writeln!(
             table,
             "  reduce to {mult}·r₀ (closed form {:.4e}): {}",
@@ -372,8 +389,13 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
     let scaled = rod_with_flat_at(2.0 * big_r, 2.0 * r0, 20.0 * r0, 4.0 * big_r, tol())
         .expect("the scaled rod mills");
     let crease = rod_upper_crease(&scaled);
-    let out = fillet_edges(&scaled, &[crease], 2.0 * r0, tol())
-        .unwrap_or_else(|e| panic!("blending a larger feature is followable: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&scaled),
+        &[crease],
+        2.0 * r0,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("blending a larger feature is followable: {e}"));
     let rows = contacts(&out.body);
     assert!(
         !rows.is_empty()
@@ -408,7 +430,7 @@ fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
     let rim = one_edge_rim_at(&body, 1.0, 0.0);
     let mut table = String::from("dome (sphere support, R = 1), equator rim:\n");
     for r in [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99] {
-        let result = fillet_edges(&body, &[rim], r, tol());
+        let result = fillet_edges(&sweep::test_support::at_rest(&body), &[rim], r, tol());
         let _ = writeln!(
             table,
             "  r = {r}: closed form {:.4e} — {}",
@@ -460,8 +482,13 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
     let mut seen = Vec::new();
     for request in [&creases[..1], &creases[..]] {
         k_stats::start_recording();
-        let out = fillet_edges(&body, request, Probe(ROD_FILLET), tol())
-            .unwrap_or_else(|e| panic!("{} crease(s) carve: {e}", request.len()));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body),
+            request,
+            Probe(ROD_FILLET),
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{} crease(s) carve: {e}", request.len()));
         let spent = k_stats::take_samples()
             .iter()
             .filter(|s| s.predicate == "tangent_second_order")
@@ -500,7 +527,13 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
 #[test]
 fn r2_the_corner_balls_arcs_carry_the_rules_verdict() {
     let die = cube(1.0, tol());
-    let out = fillet_edges(&die, &query::all_edges(&die), 0.15, tol()).expect("the die carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&die),
+        &query::all_edges(&die),
+        0.15,
+        tol(),
+    )
+    .expect("the die carves");
     let rows = contacts(&out.body);
     let arcs: Vec<&Contact> = rows
         .iter()

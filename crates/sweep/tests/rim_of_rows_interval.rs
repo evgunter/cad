@@ -42,8 +42,13 @@ fn the_rim_door_answers_identically_at_the_certified_scalar_and_the_answer_carve
 
     let seed = arcs_at(&source, 0.5, 0.5)[0];
     let rim = rim_of(&source, seed).expect("the waist rim");
-    let out = fillet_edges(&source, &rim, Interval::from_f64(0.05), tol)
-        .unwrap_or_else(|e| panic!("the door's answer carves at Interval, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source),
+        &rim,
+        Interval::from_f64(0.05),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the door's answer carves at Interval, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
 }

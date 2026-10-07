@@ -73,7 +73,7 @@ fn the_spine_kind_sentence_refuses_the_coaxial_torus_rim_on_kind() {
             t_axis.cross(p_normal).norm() < 1e-12,
             "the torus axis and the plane normal are one axis: coaxial surfaces of revolution"
         );
-        let err = fillet_edges(&s, &[e], 0.05, tol())
+        let err = fillet_edges(&sweep::test_support::at_rest(&s), &[e], 0.05, tol())
             .map(|_| ())
             .expect_err("the torus–plane rim refuses");
         let BlendError::SpineUnsupported { supports, .. } = err.error else {
@@ -137,8 +137,13 @@ fn the_ruled_crease_carves_and_all_three_sentences_name_it() {
             "a cylinder–plane crease"
         );
     }
-    let out = fillet_edges(&rod, &creases, ROD_FILLET, tol())
-        .unwrap_or_else(|e| panic!("the ruled crease carves, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&rod),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the ruled crease carves, got {e}"));
     validate_geometric(&out.body, tol()).expect("tier 3");
     // The assembly sentence's OPEN clause — its first `;`-delimited
     // segment — must name this termination, not only the plane–plane

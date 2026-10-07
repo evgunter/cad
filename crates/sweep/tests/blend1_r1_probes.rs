@@ -133,7 +133,14 @@ fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
     ] {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
-        match fillet_edges(&body, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body),
+            &arcs[..1],
+            0.05,
+            tol(),
+        )
+        .map_err(|r| r.error)
+        {
             Err(BlendError::UnsupportedCorner { corner, .. }) => assert!(
                 matches!(corner, CornerConfig::SeamVertex),
                 "{name}: the classifier reads incidence and tags the seam vertex, \
@@ -169,7 +176,7 @@ fn p2_the_lip_rim_removal_matches_a_hand_pappus_closed_form() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, LIP_R, TOP);
     assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
-    let out = fillet_edges(&source, &arcs, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&source), &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the lip fillets whole, got {e:?}"));
     let removed = volume(&source) - volume(&out.body);
 
@@ -266,7 +273,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         })
         .collect();
     assert_eq!(edges.len(), 6, "the Petrie hexagon has six edges");
-    let out = fillet_edges(&body, &edges, 0.1, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.1, tol())
         .unwrap_or_else(|r| panic!("a sharp-cornered hexagon cycle mitres its turns, got {r}"));
     validate_geometric(&out.body, tol()).expect("the mitred hexagon is tier-3 valid");
     let rec = out.naming.as_ref().expect("births");
@@ -336,7 +343,14 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
 
     // ONE ARC: refused at the seam vertex, whose recourse names the
     // whole rim.
-    match fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&source),
+        &arcs[..1],
+        0.05,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
             assert!(
                 matches!(corner, CornerConfig::SeamVertex),
@@ -349,7 +363,7 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
     // THE WHOLE RIM CARVES — the recourse that subset refusal names,
     // followed here rather than read. One band over both arcs, tier-3
     // valid, closed-form mass properties.
-    let out = fillet_edges(&source, &arcs, 0.05, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&source), &arcs, 0.05, tol())
         .expect("the whole neck rim carves through the hostless-crossing annulus");
     validate_geometric(&out.body, tol()).expect("the neck carve is tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "ONE band over both arcs");
@@ -384,7 +398,8 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
         })
         .expect("a full revolve of a pole-touching profile has seam meridians");
     req.push(seam);
-    match fillet_edges(&body, &req, 0.05, tol()).map_err(|r| r.error) {
+    match fillet_edges(&sweep::test_support::at_rest(&body), &req, 0.05, tol()).map_err(|r| r.error)
+    {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, Sign::Zero);
@@ -416,7 +431,7 @@ fn p6_one_edge_rims_bit_dump_for_the_merge_base_differential() {
     for (name, r, y) in rims {
         let arcs = rim_arcs_at(&source, r, y);
         assert_eq!(arcs.len(), 1, "{name} is one closed edge on the twin");
-        let out = fillet_edges(&source, &arcs, 0.05, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&source), &arcs, 0.05, tol())
             .unwrap_or_else(|e| panic!("{name} carves on the twin, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));

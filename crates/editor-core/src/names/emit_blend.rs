@@ -420,8 +420,13 @@ mod tie_tests {
             ent(0, EntityKey::Edge(b)),
         );
 
-        let blended = sweep::blend::build::fillet_edges(&body, &edges, 0.125_f64, Tol::witness())
-            .expect("every edge of a cube blends");
+        let blended = sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(&body),
+            &edges,
+            0.125_f64,
+            Tol::witness(),
+        )
+        .expect("every edge of a cube blends");
         let rec = blended.naming.as_ref().expect("the surgery keeps records");
 
         let out = name_blend(
@@ -463,9 +468,13 @@ mod tie_tests {
         // The chamfer emitter is the same translation under a
         // different minting id, so the deferral reaches it by
         // construction — asserted, not assumed.
-        let chamfered =
-            sweep::blend::build::chamfer_edges(&body, &edges, 0.125_f64, Tol::witness())
-                .expect("every edge of a cube chamfers");
+        let chamfered = sweep::blend::build::chamfer_edges(
+            &sweep::test_support::at_rest(&body),
+            &edges,
+            0.125_f64,
+            Tol::witness(),
+        )
+        .expect("every edge of a cube chamfers");
         let crec = chamfered
             .naming
             .as_ref()

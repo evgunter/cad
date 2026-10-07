@@ -368,11 +368,23 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
         for (verb, got) in [
             (
                 "chamfer",
-                chamfer_edges(&built.body, &[strut], 0.05, tol()).map(|_| ()),
+                chamfer_edges(
+                    &sweep::test_support::at_rest(&built.body),
+                    &[strut],
+                    0.05,
+                    tol(),
+                )
+                .map(|_| ()),
             ),
             (
                 "fillet",
-                fillet_edges(&built.body, &[strut], 0.05, tol()).map(|_| ()),
+                fillet_edges(
+                    &sweep::test_support::at_rest(&built.body),
+                    &[strut],
+                    0.05,
+                    tol(),
+                )
+                .map(|_| ()),
             ),
         ] {
             match got {

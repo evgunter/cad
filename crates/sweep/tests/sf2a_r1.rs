@@ -253,9 +253,14 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
 fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let chamfered = sweep::chamfer::chamfer_edges(&body, &edges, 0.1, Tol::witness())
-        .expect("a cube chamfers")
-        .body;
+    let chamfered = sweep::chamfer::chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        0.1,
+        Tol::witness(),
+    )
+    .expect("a cube chamfers")
+    .body;
     println!(
         "[r1c] chamfered cube: V={} E={} F={}",
         chamfered.vertices().count(),

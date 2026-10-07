@@ -172,9 +172,9 @@ fn edges_at_first_vertex(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The refusal a request meets, or a panic naming what built instead.
 fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str, chamfer: bool) -> BlendError {
     let out = if chamfer {
-        chamfer_edges(body, edges, r, tol())
+        chamfer_edges(&sweep::test_support::at_rest(body), edges, r, tol())
     } else {
-        fillet_edges(body, edges, r, tol())
+        fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol())
     };
     match out {
         Err(e) => e.error,
@@ -185,7 +185,7 @@ fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str, chamfer: boo
 /// Execute the second request a recourse names and assert the outcome
 /// it promises: a body that builds and passes tier-3 validation.
 fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
-    let out = fillet_edges(body, edges, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol())
         .unwrap_or_else(|e| panic!("{what}: the recourse's own request must build, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: and the result must be tier-3 valid, got {e:?}"));
@@ -193,7 +193,7 @@ fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
 
 /// [`builds`] for the chamfer verb.
 fn chamfers(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
-    let out = chamfer_edges(body, edges, r, tol())
+    let out = chamfer_edges(&sweep::test_support::at_rest(body), edges, r, tol())
         .unwrap_or_else(|e| panic!("{what}: the recourse's own request must build, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: and the result must be tier-3 valid, got {e:?}"));
@@ -432,7 +432,13 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
             );
         }
     }
-    let mitred = fillet_edges(&body, &corner[..2], 0.1, tol()).expect("the mitre builds");
+    let mitred = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &corner[..2],
+        0.1,
+        tol(),
+    )
+    .expect("the mitre builds");
     let third = mitred
         .naming
         .as_ref()
@@ -687,7 +693,8 @@ fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
         .into_iter()
         .filter(|k| {
             matches!(
-                fillet_edges(&s, &[*k], 0.05, tol()).map_err(|r| r.error),
+                fillet_edges(&sweep::test_support::at_rest(&s), &[*k], 0.05, tol())
+                    .map_err(|r| r.error),
                 Err(BlendError::SpineUnsupported { .. })
             )
         })
@@ -870,7 +877,9 @@ fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_
     let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
     let (mut built, mut clearance) = (0, 0);
     for r in [0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7] {
-        match fillet_edges(&body, &rim, r, tol()).map_err(|e| e.error) {
+        match fillet_edges(&sweep::test_support::at_rest(&body), &rim, r, tol())
+            .map_err(|e| e.error)
+        {
             Ok(_) => built += 1,
             Err(BlendError::SpineIrregular { .. }) => panic!(
                 "r = {r} reaches the spine gate — {FILLET3_SPINE_RECOURSE} is followable now"
@@ -993,7 +1002,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
 
     // Followed: blend first, cut the bore second.
     let blended = fillet_edges(
-        &cube(1.0, tol()),
+        &sweep::test_support::at_rest(&cube(1.0, tol())),
         &outer_box_edges(&cube(1.0, tol())),
         0.1,
         tol(),

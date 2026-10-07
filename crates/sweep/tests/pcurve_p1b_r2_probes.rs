@@ -242,10 +242,20 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     // Chamfer and fillet of the cube — the two verbs built on the
     // strut surgery whose six conversion sites the unit reverted.
     let c = cube(1.0, Tol::witness());
-    if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &query::all_edges(&c), 0.1, Tol::witness()) {
+    if let Ok(f) = sweep::chamfer::chamfer_edges(
+        &sweep::test_support::at_rest(&c),
+        &query::all_edges(&c),
+        0.1,
+        Tol::witness(),
+    ) {
         bodies.push(("chamfer cube (all edges)", f.body));
     }
-    if let Ok(f) = fillet_edges(&c, &query::all_edges(&c), 0.15, Tol::witness()) {
+    if let Ok(f) = fillet_edges(
+        &sweep::test_support::at_rest(&c),
+        &query::all_edges(&c),
+        0.15,
+        Tol::witness(),
+    ) {
         bodies.push(("fillet cube (all edges)", f.body));
     }
     // A PARTIAL fillet: one face's four edges. Its struts run out onto
@@ -263,7 +273,12 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
             .map(|he| c.get_half_edge(he).unwrap().edge)
             .collect()
     };
-    match fillet_edges(&c, &one_face, 0.12, Tol::witness()) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&c),
+        &one_face,
+        0.12,
+        Tol::witness(),
+    ) {
         Ok(f) => bodies.push(("fillet cube (one face's four edges)", f.body)),
         Err(e) => println!("[R2-S1] the one-face fillet refused: {e:?}"),
     }

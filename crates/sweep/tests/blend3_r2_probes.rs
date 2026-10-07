@@ -65,8 +65,13 @@ fn p1_a_square_vent_passes_the_ring_clearance_door_and_both_convexity_ones() {
     let body = square_vented_cavity();
     let edges = edges_with_corners(&body, cavity_corner);
     assert_eq!(edges.len(), 12, "the square-vented cavity's twelve edges");
-    let out = chamfer_edges(&body, &edges, D, Tol::witness())
-        .unwrap_or_else(|e| panic!("the square vent's ring is clear of the carve: {}", e.error));
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the square vent's ring is clear of the carve: {}", e.error));
     assert_eq!(
         validate_closed(&out.body),
         Ok(()),
@@ -177,8 +182,13 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let floor = edges_with_corners(&body, floor_corner);
     assert_eq!(floor.len(), 4, "the pocket floor's four concave edges");
-    let floor_only = chamfer_edges(&body, &floor, D, Tol::witness())
-        .unwrap_or_else(|e| panic!("the floor alone mitres at its four corners, got {e}"));
+    let floor_only = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &floor,
+        D,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the floor alone mitres at its four corners, got {e}"));
     assert_eq!(
         floor_only.naming.as_ref().expect("births").mitres.len(),
         4,
@@ -187,8 +197,13 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let full = edges_with_corners(&body, on_pocket_vertical);
     assert_eq!(full.len(), 12, "floor, struts, and the pocket's convex rim");
-    let err = chamfer_edges(&body, &full, D, Tol::witness())
-        .expect_err("even the whole pocket component meets the rim's mixed corners");
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &full,
+        D,
+        Tol::witness(),
+    )
+    .expect_err("even the whole pocket component meets the rim's mixed corners");
     assert!(
         matches!(
             err.error,
@@ -234,8 +249,13 @@ fn p4_the_l_bracket_inner_edge_still_refuses_the_fillet_as_mixed() {
         (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12
     });
     assert_eq!(inner.len(), 1, "the bracket's one reflex vertical edge");
-    let err =
-        fillet_edges(&body, &inner, 0.1, Tol::witness()).expect_err("the mixed corner refuses");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &inner,
+        0.1,
+        Tol::witness(),
+    )
+    .expect_err("the mixed corner refuses");
     match err.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },

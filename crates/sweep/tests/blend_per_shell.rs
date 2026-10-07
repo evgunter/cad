@@ -136,7 +136,13 @@ fn one_box_of_a_disjoint_union_fillets_and_the_other_rides_through() {
     let (a, a_edges) = box_at(&body, true);
     let (b, _) = box_at(&body, false);
     assert_eq!(a_edges.len(), 12, "box a's twelve edges");
-    let out = fillet_edges(&body, &a_edges, R, Tol::witness()).expect("box a fillets");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &a_edges,
+        R,
+        Tol::witness(),
+    )
+    .expect("box a fillets");
     assert_eq!(out.shells, vec![a], "box a's shell is the one carved");
     carried_through("fillet", &body, &out, b);
     assert_volume(
@@ -154,7 +160,13 @@ fn both_boxes_of_a_disjoint_union_fillet_in_one_request() {
     let (a, mut edges) = box_at(&body, true);
     let (b, b_edges) = box_at(&body, false);
     edges.extend(b_edges);
-    let out = fillet_edges(&body, &edges, R, Tol::witness()).expect("both boxes fillet");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        R,
+        Tol::witness(),
+    )
+    .expect("both boxes fillet");
     let mut want = vec![a, b];
     want.sort_unstable();
     assert_eq!(out.shells, want, "both shells are carved");
@@ -171,7 +183,13 @@ fn one_box_of_a_disjoint_union_chamfers_and_the_other_rides_through() {
     let body = two_boxes();
     let (_, a_edges) = box_at(&body, true);
     let (b, _) = box_at(&body, false);
-    let out = chamfer_edges(&body, &a_edges, R, Tol::witness()).expect("box a chamfers");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &a_edges,
+        R,
+        Tol::witness(),
+    )
+    .expect("box a chamfers");
     carried_through("chamfer", &body, &out, b);
     assert_volume(
         "a chamfered box beside a unit box",
@@ -219,7 +237,8 @@ fn a_sealed_void_blends_inside_its_own_shell() {
     );
 
     let r = 0.25;
-    let out = fillet_edges(&body, &void_edges, r, tol).expect("the void fillets");
+    let out = fillet_edges(&sweep::test_support::at_rest(&body), &void_edges, r, tol)
+        .expect("the void fillets");
     carried_through("void fillet", &body, &out, outer);
     assert_volume(
         "a block with a filleted void",
@@ -227,7 +246,8 @@ fn a_sealed_void_blends_inside_its_own_shell() {
         64.0 - rounded_box_volume(2.0 - 2.0 * r, r),
     );
 
-    let out = chamfer_edges(&body, &void_edges, r, tol).expect("the void chamfers");
+    let out = chamfer_edges(&sweep::test_support::at_rest(&body), &void_edges, r, tol)
+        .expect("the void chamfers");
     carried_through("void chamfer", &body, &out, outer);
     assert_volume(
         "a block with a chamfered void",

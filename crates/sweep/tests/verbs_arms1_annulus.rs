@@ -86,7 +86,7 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
         "the dome is four walls, four latitude rims and its two curved walls' seams"
     );
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], 0.05, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&source), &[rim], 0.05, tol())
         .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the filleted dome must be tier-3 valid, got {e:?}"));
@@ -139,7 +139,7 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
 fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
+    let out = fillet_edges(&sweep::test_support::at_rest(&source), &[rim], 0.05, tol()).unwrap();
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     // The annulus's own shape, pinned: one band over one source edge,
@@ -222,7 +222,7 @@ fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
 fn the_annulus_band_carries_two_closed_circles_and_a_doubly_traversed_slit() {
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
+    let out = fillet_edges(&sweep::test_support::at_rest(&source), &[rim], 0.05, tol()).unwrap();
     let band_face = out.band_faces[0];
     let fd = out.body.get_face(band_face).unwrap();
     assert!(fd.rings.is_empty(), "a curved face carries no ring");
@@ -261,7 +261,7 @@ fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
     let r = 0.05f64;
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], r, tol()).unwrap();
+    let out = fillet_edges(&sweep::test_support::at_rest(&source), &[rim], r, tol()).unwrap();
     let props = mass_properties(&out.body, tol()).expect("mass properties must compute");
     assert_eq!(
         props.volume_pad, 0.0,
@@ -328,7 +328,14 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
         !arcs.is_empty(),
         "the partial revolve leaves open plane–sphere arcs"
     );
-    match fillet_edges(&body, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &arcs[..1],
+        0.05,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("expected the open plane–sphere arc's own refusal, got {other:?}"),
     }
@@ -343,7 +350,8 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
 fn a_planted_horn_torus_is_reported_by_tier_3() {
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let mut out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
+    let mut out =
+        fillet_edges(&sweep::test_support::at_rest(&source), &[rim], 0.05, tol()).unwrap();
     validate_geometric(&out.body, tol()).expect("the filleted dome is tier-3 valid");
     let band_face = out.band_faces[0];
     let surface = out

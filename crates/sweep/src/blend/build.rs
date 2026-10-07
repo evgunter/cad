@@ -5,14 +5,26 @@
 //! # The ordering contract, structurally
 //!
 //! [`fillet_edges`] runs [`run_battery`] before any construction and
-//! propagates its refusal unchanged: what precedes it is the request
-//! preamble ([`nonpositive_size_gate`], [`repeated_edge_gate`]), which
-//! reads the REQUEST and never the body. Nothing here mints a surface,
+//! propagates its refusal unchanged: what precedes it is the operand
+//! gate (below) and the request preamble ([`nonpositive_size_gate`],
+//! [`repeated_edge_gate`]), which reads the REQUEST and never the body.
+//! Nothing here mints a surface,
 //! a point, or a topology entity before a verdict exists, and the one
 //! predicate arm that answers after the battery (predicate 2's reach,
 //! which needs the plan's feet) answers in the surgery before any
 //! mutation — so every C8 predicate answers before anything is built,
 //! kept by construction order, not by hope.
+//!
+//! # The operand is at rest
+//!
+//! Both doors take a finished body ([`AtRestBody`]), the Boolean's,
+//! the split's and the shell's operand type. The blend answers for the
+//! material the operand bounds, so an inside-out solid (check 7) or
+//! shell (check 10) would be blended as its complement. A body tier 3
+//! passed has neither; one that carries no verdict (a dual's scalar
+//! runs no at-rest gate) is read at the door
+//! ([`AtRestBody::gate_unverdicted`]) before anything else, refusing
+//! [`BlendError::ScaffoldingOperand`] or [`BlendError::InsideOutOperand`].
 //!
 //! # The assembly front door
 //!
@@ -64,7 +76,7 @@
 use geom::Surface;
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Bounds, Decide, Real, Vec3};
-use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
+use topo::{AtRestBody, Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{BlendRequest, Link, run_battery};
@@ -126,6 +138,9 @@ pub struct Blended<T: Real> {
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
+/// [`BlendError::ScaffoldingOperand`] or
+/// [`BlendError::InsideOutOperand`] when the operand carries no
+/// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
 /// positive; any refusal the battery produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
@@ -143,7 +158,7 @@ pub struct Blended<T: Real> {
 /// [`BlendError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
 pub fn fillet_edges<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     edges: &[EdgeKey],
     radius: T,
     tol: Tol,
@@ -158,12 +173,14 @@ pub fn fillet_edges<T: Decide + Bounds + topo::AtRestPolicy>(
 /// through the shared verb-neutral vocabulary. The door above is the
 /// one place the fillet's verb is attached.
 fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     edges: &[EdgeKey],
     radius: T,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
     let band = Band::linear(tol)?;
+    body.gate_unverdicted("the fillet's operand", band, tol)?;
+    let body: &Body<T> = body;
     nonpositive_size_gate(radius)?;
     repeated_edge_gate(edges)?;
 
@@ -392,6 +409,9 @@ pub type Chamfered<T> = Blended<T>;
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
+/// [`BlendError::ScaffoldingOperand`] or
+/// [`BlendError::InsideOutOperand`] when the operand carries no
+/// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`BlendError::RepeatedEdge`] when the request names one
 /// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
@@ -408,7 +428,7 @@ pub type Chamfered<T> = Blended<T>;
 /// clear a trimline; [`BlendError::Op`] / [`BlendError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.
 pub fn chamfer_edges<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     edges: &[EdgeKey],
     distance: T,
     tol: Tol,
@@ -423,12 +443,14 @@ pub fn chamfer_edges<T: Decide + Bounds + topo::AtRestPolicy>(
 /// through the shared verb-neutral vocabulary. The door above is the
 /// one place the chamfer's verb is attached.
 fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     edges: &[EdgeKey],
     distance: T,
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendError> {
     let band = Band::linear(tol)?;
+    body.gate_unverdicted("the chamfer's operand", band, tol)?;
+    let body: &Body<T> = body;
     nonpositive_size_gate(distance)?;
     repeated_edge_gate(edges)?;
 

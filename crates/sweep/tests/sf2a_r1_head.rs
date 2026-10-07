@@ -18,9 +18,14 @@ use topo::{Body, ChartMove, FaceKey, ReplaceFaceError};
 fn chamfered_cube() -> Body<f64> {
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    sweep::chamfer::chamfer_edges(&body, &edges, 0.1, Tol::witness())
-        .expect("a cube chamfers")
-        .body
+    sweep::chamfer::chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &edges,
+        0.1,
+        Tol::witness(),
+    )
+    .expect("a cube chamfers")
+    .body
 }
 
 /// One chart as this file reads it: the faces wearing it, and the

@@ -396,8 +396,10 @@ fn the_mitre_carves_at_the_certified_scalar() {
     for verb in [Verb::Chamfer, Verb::Fillet] {
         let bracket = Bracket::open();
         let out = match verb {
-            Verb::Chamfer => chamfer_edges(&body, &edges, iv(D), tol),
-            Verb::Fillet => fillet_edges(&body, &edges, iv(D), tol),
+            Verb::Chamfer => {
+                chamfer_edges(&sweep::test_support::at_rest(&body), &edges, iv(D), tol)
+            }
+            Verb::Fillet => fillet_edges(&sweep::test_support::at_rest(&body), &edges, iv(D), tol),
         }
         .unwrap_or_else(|e| panic!("{verb:?}: carves at Interval, got {e:?}"));
         let turns: Vec<_> = bracket

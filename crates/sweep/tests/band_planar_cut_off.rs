@@ -155,8 +155,8 @@ impl Verb {
         edges: &[EdgeKey],
     ) -> Result<Blended<f64>, BlendError> {
         match self {
-            Self::Chamfer => chamfer_edges(body, edges, D, tol()),
-            Self::Fillet => fillet_edges(body, edges, D, tol()),
+            Self::Chamfer => chamfer_edges(&sweep::test_support::at_rest(body), edges, D, tol()),
+            Self::Fillet => fillet_edges(&sweep::test_support::at_rest(body), edges, D, tol()),
         }
         .map_err(|r| r.error)
     }
@@ -339,7 +339,13 @@ fn a_chamfered_box_edge_matches_the_boolean_less_its_prism() {
         &beyond(1.5, -1.0),
         tol(),
     );
-    let carved = chamfer_edges(&body, &[front, back], D, tol()).expect("both edges chamfer");
+    let carved = chamfer_edges(
+        &sweep::test_support::at_rest(&body),
+        &[front, back],
+        D,
+        tol(),
+    )
+    .expect("both edges chamfer");
     let (v_bool, v_carve) = (volume(&by_boolean), volume(&carved.body));
     assert!(
         (v_bool - v_carve).abs() < 1e-12,
@@ -510,9 +516,14 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     // Valence four: a chamfered cube's patch vertex, which a trimline of
     // the chamfer ends at.
     let cube_body = cube(1.0, tol());
-    let chamfered = chamfer_edges(&cube_body, &query::all_edges(&cube_body), D, tol())
-        .expect("the cube chamfers")
-        .body;
+    let chamfered = chamfer_edges(
+        &sweep::test_support::at_rest(&cube_body),
+        &query::all_edges(&cube_body),
+        D,
+        tol(),
+    )
+    .expect("the cube chamfers")
+    .body;
     let rec_edge = query::all_edges(&chamfered)
         .into_iter()
         .find(|&e| {

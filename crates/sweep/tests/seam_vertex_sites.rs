@@ -36,7 +36,14 @@ fn one_arc_of_a_whole_disc_rim_refuses_seam_vertex() {
         2,
         "the disc's rim is two arcs, split by the zone's seam"
     );
-    match fillet_edges(&body, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &arcs[..1],
+        0.05,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::SeamVertex,
             ..
@@ -111,8 +118,18 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
             .0
     };
     let (he1, he2) = (leaving(stations[0]), leaving(stations[1]));
-    body.mef_chord(topo::MefSite::Chords { he1, he2 }, tol())
-        .unwrap();
+    // The ruling rests between two faces of the wall, so it is described
+    // in the wall's chart rather than as a scaffold.
+    let at = |v: topo::VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let ruling = geom_brep::EdgeCurveSpec::line_between(at(stations[0]), at(stations[1]))
+        .at_rest_in_chart(body.get_face(wall).unwrap().surface, false);
+    body.mef(
+        topo::MefSite::Chords { he1, he2 },
+        ruling,
+        topo::FaceSurface::Inherit,
+        tol(),
+    )
+    .unwrap();
     let quarter: Vec<EdgeKey> = body
         .edges()
         .filter(|(_, e)| {
@@ -128,7 +145,12 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
         topo::query::rim_of(&body, quarter[0]).is_err(),
         "the D's round side is not a closed rim"
     );
-    if let Err(r) = fillet_edges(&body, &quarter[..1], 0.05, tol()) {
+    if let Err(r) = fillet_edges(
+        &sweep::test_support::at_rest(&body),
+        &quarter[..1],
+        0.05,
+        tol(),
+    ) {
         assert!(
             !matches!(
                 r.error,
