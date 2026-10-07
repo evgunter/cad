@@ -676,3 +676,8 @@ Signed: (CARVE orchestrator)
   - A candidate that a span definitely misses now leaves the pair's segment ends to read (`seg::end_touches`, new predicate `circle_side`). This applies in the tangent arms and in the secant arms; the widened sweep showed that a shallow crossing has the same hole.
   - D10's hold did not bind.
 
+
+- 2026-10-07 — The tangent-pair silent-miss P0 merged (#4276, `1e873f261`; DR-105, sequential arm, no MAJOR). In both the tangent and the secant arms, a span miss settles no-contact only through the segments' end reads. The internal-tangency foot false refusal is filed (P2).
+- 2026-10-07 — `arc-arc-shallow-corner-legs-escalate-arc-span` (P0, H) is dispatched on `claude/clever-bardeen-4itqb3`. Step one is re-measuring on main, since #4264 and #4276 changed the simplicity pass it escalates in.
+  - D10 check: it is the simplicity pass on leg arcs, not declared joints, so it may start under the hold.
+  - Review tier: dual (H), if code lands.
