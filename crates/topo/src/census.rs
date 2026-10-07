@@ -326,6 +326,9 @@ struct Geo<T: Real> {
     /// Key → the point the vertex sits on: two vertices on one point
     /// are structural sharing ([`Geo::same_point`]).
     vpoint: std::collections::BTreeMap<VertexKey, PointKey>,
+    /// Conventional vertex → its closed edge: a touch at the vertex is
+    /// a touch on that edge's interior ([`Declared::at_conventional`]).
+    conventional: std::collections::BTreeMap<VertexKey, EdgeKey>,
     /// Faces on non-`Plane` carriers — outside the exact planar
     /// sweeps, inside the conformal face-pair arm.
     curved_faces: Vec<FaceKey>,
@@ -899,6 +902,26 @@ impl Declared {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
 
+    /// The rung for a touch at a **conventional vertex**: it has no
+    /// identity of its own (`docs/DESIGN.md`, maximal edges), so every
+    /// op writes a record there as its closed edge's (`boolean::ops::
+    /// record`), and the touch is backed by that record — `b` at `a`
+    /// as `b` on `a`'s edge, two of them as their edges meeting, and an
+    /// edge `b` through one as the two edges meeting.
+    fn at_conventional<T: Real>(&self, geo: &Geo<T>, a: VertexKey, b: EntityId) -> bool {
+        let Some(&ea) = geo.conventional.get(&a) else {
+            return false;
+        };
+        match b {
+            EntityId::Vertex(b) => match geo.conventional.get(&b) {
+                Some(&eb) => self.ee_recorded(ea, eb),
+                None => self.ve_recorded(b, ea),
+            },
+            EntityId::Edge(e) => self.ee_recorded(ea, e),
+            _ => false,
+        }
+    }
+
     /// Whether an op recorded `v` resting on `e`'s interior: the
     /// coincidence it decided Zero (D10), as a `(vertex, edge)` record.
     fn ve_recorded(&self, v: VertexKey, e: EdgeKey) -> bool {
@@ -1132,13 +1155,16 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         .iter()
         .filter_map(|(k, v)| body.points.get(v.point).map(|p| (k, v.point, *p)))
         .collect();
-    // A conventional vertex has no identity of its own: a touch at its
-    // point is a touch on its closed edge's interior, which the
-    // vertex-granular sweeps do not read for a curved edge anywhere.
-    let verts: Vec<(VertexKey, Point3<T>)> = resolved
+    let verts: Vec<(VertexKey, Point3<T>)> = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
+    // A conventional vertex has no identity of its own: the sweeps
+    // still read its point, and a touch there is its edge's.
+    let conventional = resolved
         .iter()
-        .filter(|&&(k, _, _)| !crate::boolean::is_conventional_vertex(body, k))
-        .map(|&(k, _, p)| (k, p))
+        .filter(|&&(k, _, _)| crate::boolean::is_conventional_vertex(body, k))
+        .filter_map(|&(k, _, _)| {
+            let he = body.vertices.get(k)?.emanating?;
+            Some((k, body.half_edges.get(he)?.edge))
+        })
         .collect();
     let vmap = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
     let vpoint = resolved.iter().map(|&(k, point, _)| (k, point)).collect();
@@ -1231,6 +1257,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         faces,
         vmap,
         vpoint,
+        conventional,
         curved_faces,
         vertex_faces,
     }
@@ -1354,6 +1381,8 @@ fn pair_vertex_vertex<T: Decide>(
         && !geo.same_point(ka, kb)
         && !declared.vv.contains(&(ka, kb))
         && !declared.vv_face_backed(geo, ka, kb)
+        && !declared.at_conventional(geo, ka, EntityId::Vertex(kb))
+        && !declared.at_conventional(geo, kb, EntityId::Vertex(ka))
     {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexVertex { a: ka, b: kb },
@@ -1403,6 +1432,7 @@ fn pair_vertex_edge<T: Decide>(
     if on_edge_interior(q, e, band, errors) == Some(true)
         && !declared.ve_recorded(vk, e.key)
         && !declared.ve_face_backed(geo, vk, e)
+        && !declared.at_conventional(geo, vk, EntityId::Edge(e.key))
     {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexOnEdge {

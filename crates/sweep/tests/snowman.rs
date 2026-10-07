@@ -1453,7 +1453,10 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
 /// conventional vertex, and turned 40° along the circle from it, in
 /// both member orders: every union records the touch as the corner on
 /// the circle's interior, `(u, E)`, never `(u, v)`, and tier 3′ answers
-/// alike, its curved cross-solid reach the only finding.
+/// alike, its curved cross-solid reach the only finding. The census
+/// still sweeps the vertex's point: stripped of its record, the corner
+/// at the vertex is an undeclared contact, so the record is what backs
+/// it.
 #[test]
 fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
     use geom_core::{Affine3, Point3, Vec3};
@@ -1554,6 +1557,32 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
                 ),
                 "{label}: the record's edge is the cap circle"
             );
+            // Stripped of the record, the touch at the vertex is found:
+            // the sweeps still read a conventional vertex's point.
+            let mut bare = bb.contacts.clone();
+            bare.ve.clear();
+            let stripped: Vec<String> = topo::validate_pseudomanifold(&bb.body, &bare, tol)
+                .err()
+                .unwrap_or_default()
+                .iter()
+                .map(|e| format!("{e:?}"))
+                .filter(|e| !e.starts_with("CensusUndecidable"))
+                .collect();
+            if along == 0.0 {
+                assert!(
+                    matches!(stripped.as_slice(), [e] if e.starts_with(
+                        "UndeclaredContact { contact: VertexVertex"
+                    )),
+                    "{label}: without its record the corner at the vertex is undeclared: \
+                     {stripped:?}"
+                );
+            } else {
+                assert!(
+                    stripped.is_empty(),
+                    "{label}: off the vertex the touch is on a curved edge's interior, \
+                     outside the vertex sweeps: {stripped:?}"
+                );
+            }
             seen.push((label, records, verdict.len()));
         }
     }
