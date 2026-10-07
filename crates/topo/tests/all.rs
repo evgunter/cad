@@ -352,6 +352,8 @@ mod replace_face_band_probes;
 
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
 mod a_vertex_read_by_two_sector_passes;
+#[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
+mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
