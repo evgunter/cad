@@ -4783,11 +4783,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "face_clearance",
             "face_clearance_uncertified",
+            "inside_out_operand",
             "nonpositive_size",
             "op",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
+            "scaffolding_operand",
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",
@@ -6540,6 +6542,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // the ambiguity band exactly as a resolution or a profile's
     // structure does — the same verdict, undecided at this ε.
     ("indeterminate", 3),
+    // One fact for the boolean and the blends: the operand gate
+    // (`topo::Unfinished::InsideOut`) found material wound negative.
+    ("inside_out_operand", 2),
     ("instance", 2),
     ("io", 2),
     ("join", 2),
@@ -6584,6 +6589,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("poisoned", 2),
     ("profile", 2),
     ("revolve", 2),
+    // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
+    ("scaffolding_operand", 2),
     ("shell", 2),
     ("skin", 2),
     ("sliver_join", 2),
