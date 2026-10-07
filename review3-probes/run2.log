@@ -1,0 +1,4 @@
+SUMMARY built 0 tier3-fail 0 wrong 0 missing 0 doubled 0 panics 0 errs {}
+        PASS [   0.095s] (1/1) topo::all r3_topo_probe::r3_probe
+SUMMARY built 7355 tier3-fail 0 wrong 0 missing 4615 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 210, "VertexReadTwice": 1110}
+        PASS [ 111.486s] (1/1) topo::all r3_topo_probe::r3_probe

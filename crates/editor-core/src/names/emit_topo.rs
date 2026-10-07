@@ -5054,3 +5054,89 @@ mod touch_reread_rows {
         named
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::all, clippy::pedantic, clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code, unused, unreachable_pub)]
+mod r3_names {
+    use super::{NamingError, OperandCtx, name_boolean};
+    use crate::names::emit::{ent, name1};
+    use crate::names::role::{CapEnd, EntityKind, RoleSeg};
+    use crate::names::table::{EntityKey, NameTable};
+    use crate::names::{PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef};
+    use crate::node::{RecipeNodeId, StepId};
+    use geom_core::Tol;
+    use topo::test_support::meeting::{MEET, PLATE, Pose, posed_box, posed_pyramid, poses};
+    use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
+
+    include!("../../../../review3-probes/r3_scenes.rs");
+
+    fn table(body: &AtRestBody<f64>, node: RecipeNodeId) -> NameTable {
+        let piece = |k: usize| ProfileEdgeRef::Piece { step: StepId::new(0, k as u64), role: PieceRole::Leg };
+        let at = |k: usize| ProfileVertexRef::Piece { step: StepId::new(0, k as u64), role: PieceRole::Leg };
+        let mut t = NameTable::new();
+        t.insert(name1(EntityKind::Body, node, RoleSeg::OutputBody), ent(0, EntityKey::Body)).unwrap();
+        for (k, (f, _)) in body.faces().enumerate() {
+            t.insert(name1(EntityKind::Face, node, RoleSeg::Lateral(PieceRun::one(piece(k)))), ent(0, EntityKey::Face(f))).unwrap();
+        }
+        for (k, (e, _)) in body.edges().enumerate() {
+            t.insert(name1(EntityKind::Edge, node, RoleSeg::LateralEdge(at(k))), ent(0, EntityKey::Edge(e))).unwrap();
+        }
+        for (k, (v, _)) in body.vertices().enumerate() {
+            t.insert(name1(EntityKind::Vertex, node, RoleSeg::CapVertex(CapEnd::End, at(k))), ent(0, EntityKey::Vertex(v))).unwrap();
+        }
+        t
+    }
+
+    #[test]
+    #[ignore]
+    fn r3_names_probe() {
+        use std::io::Write;
+        let t = Tol::witness();
+        let random: usize = std::env::var("R3_RANDOM").ok().and_then(|s| s.parse().ok()).unwrap_or(6);
+        let path = std::env::var("R3_OUT").unwrap_or("/tmp/r3n.txt".into());
+        let mut f = std::io::BufWriter::new(std::fs::File::create(&path).unwrap());
+        let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
+        for pose in poses() {
+            let mut skipped = Vec::new();
+            let scenes = r3_scenes(&pose, t, random, &mut skipped);
+            for sc in &scenes {
+                for (pn, x, _) in &sc.probes {
+                    let y = &sc.y;
+                    let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
+                    let (xt, yt) = (table(x, xn), table(y, yn));
+                    for (what, (a, an, at), (b, bn, bt), k) in [
+                        ("x-y", (x, xn, &xt), (y, yn, &yt), 0), ("y-x", (y, yn, &yt), (x, xn, &xt), 1),
+                        ("xUy", (x, xn, &xt), (y, yn, &yt), 2), ("yUx", (y, yn, &yt), (x, xn, &xt), 3),
+                        ("xNy", (x, xn, &xt), (y, yn, &yt), 4), ("yNx", (y, yn, &yt), (x, xn, &xt), 5),
+                    ] {
+                        let cell = format!("{}|{}|{}|{}", sc.label, pn, pose.label, what);
+                        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match k {
+                            0 | 1 => subtract(a, b, t),
+                            2 | 3 => union(a, b, t),
+                            _ => intersect(a, b, t),
+                        }));
+                        let Ok(Ok(BooleanResult::Body(r))) = r else {
+                            continue;
+                        };
+                        let ca = OperandCtx { node: an, table: at, body: a };
+                        let cb = OperandCtx { node: bn, table: bt, body: b };
+                        let n = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &ca, &cb, t)));
+                        let o = match n {
+                            Err(_) => "PANIC".to_string(),
+                            Ok(Ok(_)) => "NAMED".to_string(),
+                            Ok(Err(NamingError::Emission { what })) => format!("Emission {what}"),
+                            Ok(Err(e)) => {
+                                let s = format!("{e:?}");
+                                s.split(|c: char| !c.is_alphanumeric()).next().unwrap().to_string()
+                            }
+                        };
+                        *tally.entry(o.chars().take(90).collect()).or_default() += 1;
+                        writeln!(f, "{cell}|{o}").unwrap();
+                    }
+                }
+            }
+        }
+        writeln!(f, "SUMMARY {tally:?}").unwrap();
+        eprintln!("SUMMARY {tally:?}");
+    }
+}

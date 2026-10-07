@@ -2320,3 +2320,35 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod r3_flat_unit {
+    use super::*;
+    use geom_core::Tol;
+    #[test]
+    fn r3_a_flat_three_face_corner() {
+        let b = Band::linear(Tol::witness()).unwrap();
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let dir = |deg: f64| { let (s, c) = deg.to_radians().sin_cos(); Vec3::new(c, s, 0.0) };
+        let chord = |d: Vec3<f64>| Reach::Chord { base: o, far: o + d };
+        let sec = |he: u64, f: u64, a: f64, z: f64| BoolSector {
+            he: HalfEdgeKey::from(key(he)),
+            start: dir(a + 120.0), end: dir(a),
+            start_reach: chord(dir(a + 120.0)), end_reach: chord(dir(a)),
+            face: FaceKey::from(key(f)),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, z), true),
+            arm: 1.0,
+        };
+        // the other body: a flat corner, three coplanar faces
+        let other = vec![sec(1, 11, 0.0, 1.0), sec(2, 12, 120.0, 1.0), sec(3, 13, 240.0, 1.0)];
+        // own: a corner with one edge straight down, one up
+        let down = Vec3::new(0.3, 0.2, -1.0);
+        let up = Vec3::new(-0.2, 0.3, 1.0);
+        let own = vec![
+            BoolSector { he: HalfEdgeKey::from(key(21)), start: up, end: down, start_reach: chord(up), end_reach: chord(down), face: FaceKey::from(key(31)), normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true), arm: 1.0 },
+            BoolSector { he: HalfEdgeKey::from(key(22)), start: down, end: up, start_reach: chord(down), end_reach: chord(up), face: FaceKey::from(key(32)), normal: OutwardNormal::from_chart(Vec3::new(-1.0, 0.0, 0.0), true), arm: 1.0 },
+        ];
+        eprintln!("R3FLAT {:?}", wedge_classes(&own, &other, b));
+    }
+}

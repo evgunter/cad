@@ -1,0 +1,91 @@
+WRONG bare arch and a bare dart, apart|nest0|at rest|x-y A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|x-y A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|x-y A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|y-x B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|y-x B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|y-x B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|xUy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|xUy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|xUy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|yUx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|yUx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|yUx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|xNy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|xNy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|xNy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|yNx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|yNx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|at rest|yNx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|x-y A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|x-y A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|x-y A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|y-x B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|y-x B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|y-x B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|xUy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|xUy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|xUy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|yUx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|yUx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|yUx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|xNy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|xNy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|xNy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|yNx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|yNx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned about z|yNx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|x-y A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|x-y A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|x-y A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|y-x B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|y-x B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|y-x B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|xUy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|xUy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|xUy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|yUx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|yUx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|yUx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|xNy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|xNy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|xNy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|yNx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|yNx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|turned|yNx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|x-y A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|x-y A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|x-y A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|y-x B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|y-x B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|y-x B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|xUy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|xUy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|xUy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|yUx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|yUx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|yUx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|xNy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|xNy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|xNy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|yNx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|yNx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped|yNx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|x-y A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|x-y A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|x-y A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|y-x B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|y-x B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|y-x B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|xUy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|xUy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|xUy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|yUx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|yUx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|yUx B EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|xNy A EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|xNy A EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|xNy A EdgeKey(6v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|yNx B EdgeKey(4v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|yNx B EdgeKey(5v1) got Out want In
+WRONG bare arch and a bare dart, apart|nest0|flipped and turned|yNx B EdgeKey(6v1) got Out want In
+SUMMARY built 740 tier3-fail 0 wrong 90 missing 1485 doubled 0 panics 0 errs {}

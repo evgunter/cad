@@ -1,0 +1,8 @@
+5130 identical | e.g. ['quad void in the plate|rnd0|at rest|x-y', 'quad void in the plate|rnd0|at rest|y-x']
+1715 ERR VertexReadTwice -> BODY | e.g. ['quad void in the plate|cone|at rest|x-y', 'quad void in the plate|cone|at rest|y-x']
+1710 rows differ main wrong | e.g. ['bare quad arch, quad void|over|at rest|x-y', 'bare quad arch, quad void|over|at rest|xUy']
+565 ERR VertexReadTwice -> EMPTY | e.g. ['quad void in the plate|cone|at rest|xNy', 'quad void in the plate|cone|at rest|yNx']
+300 rows differ | e.g. ['two voids apart, buried|cone|at rest|x-y', 'two voids apart, buried|cone|at rest|y-x']
+120 ERR VertexReadTwice -> ERR Escalated | e.g. ['near-flat quad void 1e-8 in the plate|nest0|at rest|x-y', 'near-flat quad void 1e-8 in the plate|nest0|at rest|y-x']
+--- rows differ, no main wrong:
+300 ('two voids apart, buried', 'main missing 3 head missing 0')

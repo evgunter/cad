@@ -1,0 +1,26 @@
+SKIP at rest flat 1e-6: pyramid not built
+SKIP at rest flat 1e-8: pyramid not built
+SKIP at rest flat 1e-10: pyramid not built
+SKIP at rest flat -1e-8: pyramid not built
+SKIP at rest two voids in one arch nest2: pyramid not built
+SKIP turned about z flat 1e-6: pyramid not built
+SKIP turned about z flat 1e-8: pyramid not built
+SKIP turned about z flat 1e-10: pyramid not built
+SKIP turned about z flat -1e-8: pyramid not built
+SKIP turned about z two voids in one arch nest2: pyramid not built
+SKIP turned flat 1e-6: pyramid not built
+SKIP turned flat 1e-8: pyramid not built
+SKIP turned flat 1e-10: pyramid not built
+SKIP turned flat -1e-8: pyramid not built
+SKIP turned two voids in one arch nest2: pyramid not built
+SKIP flipped flat 1e-6: pyramid not built
+SKIP flipped flat 1e-8: pyramid not built
+SKIP flipped flat 1e-10: pyramid not built
+SKIP flipped flat -1e-8: pyramid not built
+SKIP flipped two voids in one arch nest2: pyramid not built
+SKIP flipped and turned flat 1e-6: pyramid not built
+SKIP flipped and turned flat 1e-8: pyramid not built
+SKIP flipped and turned flat 1e-10: pyramid not built
+SKIP flipped and turned flat -1e-8: pyramid not built
+SKIP flipped and turned two voids in one arch nest2: pyramid not built
+SUMMARY built 7355 tier3-fail 0 wrong 0 missing 4615 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 210, "VertexReadTwice": 1110}

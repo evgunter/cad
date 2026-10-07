@@ -1,0 +1,4 @@
+SUMMARY {"Emission a crossing's edge has no piece the boolean classified at the crossing": 20, "Emission seam vertex parentage underdetermined from incident edges": 10, "NAMED": 8960, "SeamVertexParentage": 30}
+        PASS [ 113.418s] (1/1) editor-core names::emit_topo::r3_names::r3_names_probe
+SUMMARY {"Emission a crossing's edge has no piece the boolean classified at the crossing": 20, "Emission seam vertex parentage underdetermined from incident edges": 5, "NAMED": 4945, "SeamVertexParentage": 10}
+        PASS [  63.461s] (1/1) editor-core names::emit_topo::r3_names::r3_names_probe

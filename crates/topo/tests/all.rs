@@ -372,3 +372,5 @@ mod review_cleave_mint_doors;
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+mod r3_flat;
+mod r3_topo_probe;

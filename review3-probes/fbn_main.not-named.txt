@@ -1,0 +1,76 @@
+bare arch and a bare dart, apart|rnd1|at rest|x-y|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|at rest|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|at rest|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|at rest|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|at rest|yUx|Emission seam vertex parentage underdetermined from incident edges
+buried dart void, convex island|nest1|at rest|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+buried dart void, convex island|nest1|at rest|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|at rest|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|at rest|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd1|at rest|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|at rest|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd3|at rest|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|at rest|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|at rest|xNy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|at rest|yNx|SeamVertexParentage
+bare arch and a bare dart, apart|rnd1|turned about z|x-y|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|turned about z|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|turned about z|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|turned about z|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|turned about z|yUx|Emission seam vertex parentage underdetermined from incident edges
+buried dart void, convex island|nest1|turned about z|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+buried dart void, convex island|nest1|turned about z|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|turned about z|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|turned about z|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd1|turned about z|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|turned about z|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd3|turned about z|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|turned about z|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|turned about z|xNy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|turned about z|yNx|SeamVertexParentage
+bare arch and a bare dart, apart|rnd1|turned|x-y|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|turned|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|turned|yUx|Emission seam vertex parentage underdetermined from incident edges
+buried dart void, convex island|nest1|turned|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+buried dart void, convex island|nest1|turned|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|turned|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd1|turned|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|turned|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd3|turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|turned|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|turned|xNy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|turned|yNx|SeamVertexParentage
+bare arch and a bare dart, apart|rnd1|flipped|x-y|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|flipped|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|flipped|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|flipped|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|flipped|yUx|Emission seam vertex parentage underdetermined from incident edges
+buried dart void, convex island|nest1|flipped|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+buried dart void, convex island|nest1|flipped|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|flipped|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|flipped|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd1|flipped|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|flipped|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd3|flipped|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|flipped|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|flipped|xNy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|flipped|yNx|SeamVertexParentage
+bare arch and a bare dart, apart|rnd1|flipped and turned|x-y|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|flipped and turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd1|flipped and turned|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|flipped and turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare arch and a bare dart, apart|rnd3|flipped and turned|yUx|Emission seam vertex parentage underdetermined from incident edges
+buried dart void, convex island|nest1|flipped and turned|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+buried dart void, convex island|nest1|flipped and turned|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|flipped and turned|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd1|flipped and turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd1|flipped and turned|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|flipped and turned|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare dart arch, convex void|rnd3|flipped and turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|flipped and turned|yUx|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|flipped and turned|xNy|Emission seam vertex parentage underdetermined from incident edges
+bare dart arch, convex void|rnd3|flipped and turned|yNx|SeamVertexParentage
+SUMMARY {"Emission a crossing's edge has no piece the boolean classified at the crossing": 20, "Emission seam vertex parentage underdetermined from incident edges": 50, "NAMED": 665, "SeamVertexParentage": 5}

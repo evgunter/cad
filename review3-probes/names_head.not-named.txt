@@ -1,0 +1,61 @@
+depth 4 over the plate|over|at rest|yNx|SeamVertexParentage
+deep (depth 3)|over|at rest|yNx|SeamVertexParentage
+hollow|over|at rest|yNx|SeamVertexParentage
+quad void in a quad arch|over|at rest|xUy|Emission seam vertex parentage underdetermined from incident edges
+quad void in a quad arch|over|at rest|yNx|SeamVertexParentage
+bare quad arch, quad void|over|at rest|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare quad arch, quad void|over|at rest|yNx|SeamVertexParentage
+pentagonal void buried|hang|at rest|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+pentagonal void buried|hang_over|at rest|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|at rest|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|at rest|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare hollow|over|at rest|yNx|SeamVertexParentage
+depth 4 over the plate|over|turned about z|yNx|SeamVertexParentage
+deep (depth 3)|over|turned about z|yNx|SeamVertexParentage
+hollow|over|turned about z|yNx|SeamVertexParentage
+quad void in a quad arch|over|turned about z|xUy|Emission seam vertex parentage underdetermined from incident edges
+quad void in a quad arch|over|turned about z|yNx|SeamVertexParentage
+bare quad arch, quad void|over|turned about z|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare quad arch, quad void|over|turned about z|yNx|SeamVertexParentage
+pentagonal void buried|hang|turned about z|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+pentagonal void buried|hang_over|turned about z|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|turned about z|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|turned about z|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare hollow|over|turned about z|yNx|SeamVertexParentage
+depth 4 over the plate|over|turned|yNx|SeamVertexParentage
+deep (depth 3)|over|turned|yNx|SeamVertexParentage
+hollow|over|turned|yNx|SeamVertexParentage
+quad void in a quad arch|over|turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+quad void in a quad arch|over|turned|yNx|SeamVertexParentage
+bare quad arch, quad void|over|turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare quad arch, quad void|over|turned|yNx|SeamVertexParentage
+pentagonal void buried|hang|turned|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+pentagonal void buried|hang_over|turned|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|turned|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|turned|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare hollow|over|turned|yNx|SeamVertexParentage
+depth 4 over the plate|over|flipped|yNx|SeamVertexParentage
+deep (depth 3)|over|flipped|yNx|SeamVertexParentage
+hollow|over|flipped|yNx|SeamVertexParentage
+quad void in a quad arch|over|flipped|xUy|Emission seam vertex parentage underdetermined from incident edges
+quad void in a quad arch|over|flipped|yNx|SeamVertexParentage
+bare quad arch, quad void|over|flipped|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare quad arch, quad void|over|flipped|yNx|SeamVertexParentage
+pentagonal void buried|hang|flipped|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+pentagonal void buried|hang_over|flipped|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|flipped|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|flipped|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare hollow|over|flipped|yNx|SeamVertexParentage
+depth 4 over the plate|over|flipped and turned|yNx|SeamVertexParentage
+deep (depth 3)|over|flipped and turned|yNx|SeamVertexParentage
+hollow|over|flipped and turned|yNx|SeamVertexParentage
+quad void in a quad arch|over|flipped and turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+quad void in a quad arch|over|flipped and turned|yNx|SeamVertexParentage
+bare quad arch, quad void|over|flipped and turned|xUy|Emission seam vertex parentage underdetermined from incident edges
+bare quad arch, quad void|over|flipped and turned|yNx|SeamVertexParentage
+pentagonal void buried|hang|flipped and turned|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+pentagonal void buried|hang_over|flipped and turned|x-y|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|flipped and turned|xNy|Emission a crossing's edge has no piece the boolean classified at the crossing
+near-flat quad void -1e-3 buried, island|hang_over|flipped and turned|yNx|Emission a crossing's edge has no piece the boolean classified at the crossing
+bare hollow|over|flipped and turned|yNx|SeamVertexParentage
+SUMMARY {"Emission a crossing's edge has no piece the boolean classified at the crossing": 20, "Emission seam vertex parentage underdetermined from incident edges": 10, "NAMED": 8960, "SeamVertexParentage": 30}

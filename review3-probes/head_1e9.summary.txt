@@ -1,0 +1,21 @@
+SKIP at rest flat 1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(-4.43069655964301e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP at rest flat 1e-10: pyramid not built
+SKIP at rest flat -1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(4.430696504131859e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP at rest two voids in one arch nest2: pyramid not built
+SKIP turned about z flat 1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(-4.430696448620708e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP turned about z flat 1e-10: pyramid not built
+SKIP turned about z flat -1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(4.430696365353981e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP turned about z two voids in one arch nest2: pyramid not built
+SKIP turned flat 1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(-4.4306964763762835e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP turned flat 1e-10: pyramid not built
+SKIP turned flat -1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(4.430696420865132e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP turned two voids in one arch nest2: pyramid not built
+SKIP flipped flat 1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(-4.430696531887435e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP flipped flat 1e-10: pyramid not built
+SKIP flipped flat -1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(4.4306964763762835e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP flipped two voids in one arch nest2: pyramid not built
+SKIP flipped and turned flat 1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(-4.430696462498496e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP flipped and turned flat 1e-10: pyramid not built
+SKIP flipped and turned flat -1e-8 buried isle: Err(Escalated { decision: Coincidence(SectorSide, Moot), diag: Indeterminate { margin: MarginDiag(Value(4.4306964763762835e-9, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_chord_side") } })
+SKIP flipped and turned two voids in one arch nest2: pyramid not built
+SUMMARY built 9020 tier3-fail 0 wrong 0 missing 7080 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "Escalated": 180, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 240, "VertexReadTwice": 1320}

@@ -1,0 +1,28 @@
+applied G1_hollow_ignored
+== G1_hollow_ignored: SUMMARY built 4050 tier3-fail 0 wrong 3140 missing 5280 doubled 0 panics 0 errs {"ClassificationInvariant": 15, "Escalated": 180, "UndeclaredCoincidence": 120, "VertexReadTwice": 1800}
+           FAIL [   0.182s] (22/29) topo::all a_vertex_read_again_classes_every_edge::every_edge_a_vertex_read_again_reads_is_classed_against_the_germ
+           FAIL [   0.206s] (25/29) topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+           FAIL [   0.208s] (24/29) topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+           FAIL [   0.210s] (26/29) topo::all a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_refuses_typed_at_every_pose
+           FAIL [   0.217s] (23/29) topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+applied G2_hollow_nonconvex
+== G2_hollow_nonconvex: SUMMARY built 5920 tier3-fail 0 wrong 100 missing 4285 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "Escalated": 180, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 240, "VertexReadTwice": 780}
+           FAIL [   0.420s] (24/29) topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+           FAIL [   3.052s] (22/29) topo::all a_vertex_read_again_classes_every_edge::every_edge_a_vertex_read_again_reads_is_classed_against_the_germ
+           FAIL [   9.552s] (26/29) topo::all a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_refuses_typed_at_every_pose
+applied G3_nesting_reversed
+== G3_nesting_reversed: SUMMARY built 5710 tier3-fail 0 wrong 4260 missing 4680 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "Escalated": 180, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 240, "VertexReadTwice": 1020}
+           FAIL [   1.736s] (22/29) topo::all a_vertex_read_again_classes_every_edge::every_edge_a_vertex_read_again_reads_is_classed_against_the_germ
+           FAIL [   2.576s] (25/29) topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+           FAIL [   7.334s] (26/29) topo::all a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_refuses_typed_at_every_pose
+applied G4_fallback_skipped
+== G4_fallback_skipped: SUMMARY built 5710 tier3-fail 0 wrong 0 missing 4680 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "Escalated": 180, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 240, "VertexReadTwice": 1020}
+applied G5_single_keeps_hollow
+== G5_single_keeps_hollow: SUMMARY built 5710 tier3-fail 0 wrong 0 missing 2425 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "Escalated": 180, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 240, "VertexReadTwice": 1020}
+           FAIL [   0.131s] (20/29) topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+applied G6_either_side
+== G6_either_side: SUMMARY built 5530 tier3-fail 0 wrong 0 missing 4680 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "Escalated": 180, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 240, "VertexReadTwice": 1290}
+           FAIL [   0.129s] (20/29) topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+applied G7_outermost_any
+== G7_outermost_any: SUMMARY built 5710 tier3-fail 0 wrong 0 missing 4680 doubled 0 panics 0 errs {"ClassificationInvariant": 30, "Escalated": 180, "SharedVertexCrossings": 30, "UndeclaredCoincidence": 240, "VertexReadTwice": 1020}
+DONE
