@@ -160,8 +160,8 @@ use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, ShellError,
-    StaleDeclaration, TransformError, ValidationError,
+    BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, RingPairContact,
+    ShellError, StaleDeclaration, TransformError, ValidationError,
 };
 use pncad::topo::{CoherenceCondition, Unexaminable};
 // All three STL refusals are prelude-curated; the module path is the
@@ -568,7 +568,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
-        EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -589,7 +588,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ContinuousVarCannotBeCount { .. } => "continuous_var_cannot_be_count",
         EditError::UnknownVar { .. } => "unknown_var",
         EditError::VarNameTaken { .. } => "var_name_taken",
-        EditError::VarIdCollides { .. } => "var_id_collides",
         EditError::FreshUnheld { .. } => "fresh_unheld",
         EditError::FreshKind { .. } => "fresh_kind",
         EditError::FreshUnread { .. } => "fresh_unread",
@@ -1279,7 +1277,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetExtrudeSideOnNonExtrude { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
-        EditError::NodeIdCollides { .. } => None,
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1295,7 +1292,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::ContinuousVarCannotBeCount { .. } => None,
         EditError::UnknownVar { .. } => None,
         EditError::VarNameTaken { .. } => None,
-        EditError::VarIdCollides { .. } => None,
         EditError::FreshUnheld { .. } => None,
         EditError::FreshKind { .. } => None,
         EditError::FreshUnread { .. } => None,
@@ -1632,6 +1628,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
+        BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
         BooleanErrorKind::PierceRunsNested => "pierce_runs_nested",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
@@ -1997,7 +1994,6 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 /// pinned by `tests::the_edit_and_snapshot_maps_agree_on_the_var_read_words`.
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
-        SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
@@ -2012,7 +2008,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::VarKind { .. } => "var_kind",
         SnapshotError::VarNotMinted { .. } => "var_not_minted",
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
-        SnapshotError::VarOrderMismatch => "var_order_mismatch",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
         SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
@@ -3062,6 +3057,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",
         ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",
         ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
+        ValidationError::RingMeetsRing { .. } => "ring_meets_ring",
+        ValidationError::RingPairContactEscalated { .. } => "ring_pair_contact_escalated",
+        ValidationError::PinchCornerCrossed { .. } => "pinch_corner_crossed",
+        ValidationError::PinchCornerEscalated { .. } => "pinch_corner_escalated",
         ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
         ValidationError::ShellWinding { .. } => "shell_winding",
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
@@ -3260,6 +3259,21 @@ pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
     }
 }
 
+/// The stable tag for HOW two rings of one face meet: [`ring_contact_tag`]'s
+/// words, the other ring read where that function reads the outer
+/// loop, so one shape keeps one spelling. `vertex_on_ring_edge` is a
+/// vertex of the other ring on the interior of this ring's edge.
+pub fn ring_pair_contact_tag(contact: &RingPairContact) -> &'static str {
+    match contact {
+        RingPairContact::Vertex { .. } => "vertex_vertex",
+        RingPairContact::VertexOnEdge { .. } => "vertex_on_edge",
+        RingPairContact::Edge { .. } => "edge_along_edge",
+        RingPairContact::OtherVertexOnEdge { .. } => "vertex_on_ring_edge",
+        RingPairContact::EdgesMeet { .. } => "edge_edge_point",
+        RingPairContact::Circles { .. } => "circle_circle",
+    }
+}
+
 /// The stable tag for a mate PRIMITIVE — which alignment the authored
 /// mate asks for, before any solve.
 pub fn mate_primitive_tag(primitive: MatePrimitive) -> &'static str {
@@ -3335,7 +3349,6 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
-        StepIdFault::Collides { .. } => "collides",
     }
 }
 

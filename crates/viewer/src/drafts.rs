@@ -1149,7 +1149,7 @@ mod tests {
     /// this order.
     #[test]
     fn an_accepted_new_xy_leaves_the_form_on_the_frame_it_minted() {
-        let (frame, profile) = (RecipeNodeId(1), RecipeNodeId(2));
+        let (frame, profile) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
         let mut drafts = Drafts {
             profile_plane: Some(ProfilePlane::NewXy),
             profile_shape: Some(ShapeKind::Circle),
@@ -1176,7 +1176,7 @@ mod tests {
     /// A rename draft survives only while its own node's field shows.
     #[test]
     fn a_rename_draft_is_dropped_when_the_pane_moves_off_its_node() {
-        let (typed_for, other) = (RecipeNodeId(3), RecipeNodeId(4));
+        let (typed_for, other) = (RecipeNodeId::new(0, 3), RecipeNodeId::new(0, 4));
         let mut drafts = Drafts {
             label_text: Some((typed_for, "lid".to_owned())),
             ..Drafts::default()
@@ -1240,7 +1240,7 @@ mod tests {
     /// one id it minted is the profile.
     #[test]
     fn an_accepted_add_on_an_existing_frame_leaves_the_pick_alone() {
-        let (plane, profile) = (RecipeNodeId(4), RecipeNodeId(9));
+        let (plane, profile) = (RecipeNodeId::new(0, 4), RecipeNodeId::new(0, 9));
         let mut drafts = Drafts {
             profile_plane: Some(ProfilePlane::Existing(plane)),
             profile_shape: Some(ShapeKind::Circle),
@@ -1306,14 +1306,14 @@ mod tests {
     fn picked(datum_kind: DatumKindChoice) -> Drafts {
         Drafts {
             datum_kind,
-            datum_frame: Some(RecipeNodeId(0)),
+            datum_frame: Some(RecipeNodeId::new(0, 0)),
             datum_face: Some(FaceSelection {
                 name: StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId::new(0, 1),
                     path: vec![RoleSeg::Cap(CapEnd::End)],
                 },
-                node: RecipeNodeId(2),
+                node: RecipeNodeId::new(0, 2),
                 body: 0,
             }),
             ..Drafts::default()
@@ -1333,10 +1333,10 @@ mod tests {
     /// (`docm1_face_frame::at_is_the_node_the_ray_met_and_not_the_feature`).
     fn seated() -> (RecipeNodeId, StableName) {
         (
-            RecipeNodeId(3),
+            RecipeNodeId::new(0, 3),
             StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId::new(0, 1),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
         )
@@ -1722,7 +1722,11 @@ mod tests {
         drafts.abandon_profile_edit_off(None);
         assert!(drafts.profile_edit.is_none(), "selection left, draft gone");
         // A node the editor cannot hold leaves nothing stale behind.
-        assert!(drafts.profile_edit(&before, RecipeNodeId(0)).is_err());
+        assert!(
+            drafts
+                .profile_edit(&before, RecipeNodeId::new(0, 0))
+                .is_err()
+        );
         assert!(drafts.profile_edit.is_none());
     }
 

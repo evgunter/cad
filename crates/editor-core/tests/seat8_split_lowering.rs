@@ -189,9 +189,9 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x66cc_96b0_a9c3_a570u64),
-        ("part_select", 0x3717_6088_ddb9_4693),
-        ("kitchen_sink", 0x60c7_ea2e_6afc_e782),
+        ("cut_cylinder", 0x8588_4d29_fcc5_c898u64),
+        ("part_select", 0xe059_8478_66a9_a530),
+        ("kitchen_sink", 0x1774_0781_e388_7ee4),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -305,7 +305,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xec78_d2db_9d61_cc91,
+        got, 0x824c_5e6b_e34a_0851,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -375,7 +375,7 @@ fn minted_indices(body: &Body<f64>, node: RecipeNodeId) -> Vec<u32> {
         .chain(body.curves().map(|(k, _)| body.curve_source(k)))
         .chain(body.points().map(|(k, _)| body.point_source(k)));
     for source in sources.flatten() {
-        if source.node == node.0 {
+        if source.node == node.0.digest() {
             let SourceExpr::Minted { index } = source.expr else {
                 panic!("a split stamps minted sources only, found {source:?}");
             };

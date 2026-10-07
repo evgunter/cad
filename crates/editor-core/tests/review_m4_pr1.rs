@@ -156,7 +156,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     // The signed zero written by a value edit on the slot's own
     // variable, so the point keeps its id and its slot its variable.
     let x = pos
-        .slot(pos.order()[0], SlotId::Origin(editor_core::Axis3::X))
+        .slot(pos.ids()[0], SlotId::Origin(editor_core::Axis3::X))
         .expect("the point reads its x");
     let (neg, _) = apply_all(
         pos.clone(),
@@ -167,13 +167,13 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
-        &pos.slot_expansion(pos.order()[0], SlotId::Origin(editor_core::Axis3::X))
+        &pos.slot_expansion(pos.ids()[0], SlotId::Origin(editor_core::Axis3::X))
             .unwrap(),
         &pos.var_env(),
     )
     .unwrap();
     let vn = eval::<f64>(
-        &neg.slot_expansion(neg.order()[0], SlotId::Origin(editor_core::Axis3::X))
+        &neg.slot_expansion(neg.ids()[0], SlotId::Origin(editor_core::Axis3::X))
             .unwrap(),
         &neg.var_env(),
     )
@@ -265,7 +265,7 @@ fn r2_dimension_smuggling_probes() {
 fn r2_contradictory_param_dims_caught_downstream() {
     // mul(Scalar, Length) → Length: constructible with BOTH reads, by
     // id or by name.
-    let q = editor_core::VarId(1);
+    let q = editor_core::VarId::new(0, 1);
     let by_id = Formula::mul(
         Formula::var(q, Dimension::Scalar),
         Formula::var(q, Dimension::Length),
@@ -551,7 +551,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     }
     // (2) Declared pairs naming an id that never existed: REFUSED, at
     // the insert and at `SetDeclare` alike.
-    let phantom = RecipeNodeId(9999);
+    let phantom = RecipeNodeId::new(0, 9999);
     let inserting = doc.apply(
         &boolean(phantom),
         Tol::witness(),
@@ -763,7 +763,7 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     // build an extrude on a profile to get a refusal).
     let bad = doc.apply(
         &Edit::DeleteNode {
-            id: RecipeNodeId(424_242),
+            id: RecipeNodeId::new(0, 424_242),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1044,7 +1044,7 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     // The crate's own bit-semantic comparator must agree with the
     // independent walk below (fix pass: Doc::bit_eq landed).
     assert!(a.bit_eq(b), "Doc::bit_eq");
-    assert_eq!(a.order(), b.order(), "order");
+    assert_eq!(a.ids(), b.ids(), "order");
     assert_eq!(a.epsilon().to_bits(), b.epsilon().to_bits(), "epsilon");
     assert_eq!(a.metadata(), b.metadata(), "metadata");
     let (pa, pb) = (a.vars(), b.vars());
@@ -1068,7 +1068,7 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
             (x, y) => panic!("param kind mismatch {name:?}: {x:?} vs {y:?}"),
         }
     }
-    for &id in a.order() {
+    for id in a.ids() {
         let (na, nb) = (a.node(id).unwrap(), b.node(id).unwrap());
         assert_eq!(na.inputs(), nb.inputs(), "inputs of {id:?}");
         assert_eq!(na.slots(), nb.slots(), "slots of {id:?}");

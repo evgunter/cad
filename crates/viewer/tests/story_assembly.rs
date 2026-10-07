@@ -238,7 +238,7 @@ fn the_windmill_story() {
     assert_eq!(session.history().len(), 3, "root plus two adds");
     let undone = session.perform(SessionOp::Undo);
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
-    assert_eq!(session.doc().order().len(), 1, "the slip is off the path");
+    assert_eq!(session.doc().ids().len(), 1, "the slip is off the path");
     let abandoned = session
         .history()
         .entry(session.history().current())
@@ -261,14 +261,14 @@ fn the_windmill_story() {
         "the slip's branch is still a child"
     );
     assert_eq!(
-        history.entry(abandoned).doc().order().len(),
+        history.entry(abandoned).doc().ids().len(),
         2,
         "the abandoned two-tower document is intact"
     );
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
     session.perform(SessionOp::Undo);
-    assert_eq!(session.doc().order().len(), 1);
+    assert_eq!(session.doc().ids().len(), 1);
     session.perform(SessionOp::Redo);
     assert!(
         session.doc().node(hub_i).is_some(),
@@ -479,7 +479,7 @@ fn the_windmill_story() {
     session.pump();
     let seat_mate = *session
         .committed_doc()
-        .order()
+        .ids()
         .last()
         .expect("the mate landed");
 
@@ -812,7 +812,7 @@ fn the_windmill_story() {
         clocked.committed
     );
     assert_eq!(
-        session.doc().order().len(),
+        session.doc().ids().len(),
         7,
         "the history holds the four instances and three mates it held before"
     );

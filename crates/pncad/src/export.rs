@@ -243,7 +243,7 @@ pub fn export_document_step(
     tol: Tol,
 ) -> Result<String, ExportError> {
     let parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)> = evaluation
-        .unplaced_in_order(doc)
+        .unplaced_in_order()
         .filter(|&(node, _, _)| {
             matches!(
                 doc.node(node),

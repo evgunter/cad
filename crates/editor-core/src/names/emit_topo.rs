@@ -3267,11 +3267,11 @@ mod tests {
         Upstream {
             name: NameRef::new(name1(
                 EntityKind::Vertex,
-                RecipeNodeId(node),
+                RecipeNodeId::new(0, node),
                 RoleSeg::CapVertex(
                     super::super::role::CapEnd::End,
                     super::super::role::ProfileVertexRef::Piece {
-                        step: crate::node::StepId(0),
+                        step: crate::node::StepId::new(0, 0),
                         role: crate::names::PieceRole::Leg,
                     },
                 ),
@@ -3424,7 +3424,7 @@ mod tests {
     fn merged_lane_names_kept_face_with_sorted_deduped_constituents() {
         // A unit-cube extrusion: the "result body" stand-in.
         let built = unit_cube();
-        let ext_node = RecipeNodeId(1);
+        let ext_node = RecipeNodeId::new(0, 1);
         let a_table = name_extrude(
             ext_node,
             &built,
@@ -3455,14 +3455,14 @@ mod tests {
         };
         let result = absorbed_into(&built.body, built.top, lateral);
         let empty = NameTable::new();
-        let bool_node = RecipeNodeId(9);
+        let bool_node = RecipeNodeId::new(0, 9);
         let a = OperandCtx {
             node: ext_node,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             table: &empty,
             body: &built.body,
         };
@@ -3501,7 +3501,7 @@ mod tests {
     #[test]
     fn an_absorbed_face_still_live_beside_its_merge_refuses() {
         let built = unit_cube();
-        let ext_node = RecipeNodeId(1);
+        let ext_node = RecipeNodeId::new(0, 1);
         let a_table = name_extrude(
             ext_node,
             &built,
@@ -3533,12 +3533,12 @@ mod tests {
             body: &built.body,
         };
         let b = OperandCtx {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             table: &empty,
             body: &built.body,
         };
         let err = name_boolean(
-            RecipeNodeId(9),
+            RecipeNodeId::new(0, 9),
             &built.body,
             &naming,
             &a,
@@ -3579,7 +3579,7 @@ mod tests {
     #[test]
     fn a_cycling_fragment_map_refuses() {
         let built = unit_cube();
-        let ext_node = RecipeNodeId(1);
+        let ext_node = RecipeNodeId::new(0, 1);
         let a_table = name_extrude(
             ext_node,
             &built,
@@ -3603,12 +3603,12 @@ mod tests {
             body: &built.body,
         };
         let b = OperandCtx {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             table: &empty,
             body: &built.body,
         };
         let err = name_boolean(
-            RecipeNodeId(9),
+            RecipeNodeId::new(0, 9),
             &built.body,
             &naming,
             &a,
@@ -3643,7 +3643,7 @@ mod tests {
     #[test]
     fn a_b_lineage_leaving_the_graft_rows_refuses() {
         let built = unit_cube();
-        let ext_node = RecipeNodeId(1);
+        let ext_node = RecipeNodeId::new(0, 1);
         let b_table = name_extrude(
             ext_node,
             &built,
@@ -3679,7 +3679,7 @@ mod tests {
             ..topo::BooleanNaming::default()
         };
         let a = OperandCtx {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             table: &b_table,
             body: &body,
         };
@@ -3688,8 +3688,15 @@ mod tests {
             table: &b_table,
             body: &body,
         };
-        let err = name_boolean(RecipeNodeId(9), &body, &naming, &a, &b, Tol::witness())
-            .expect_err("a lineage that leaves the graft rows must refuse");
+        let err = name_boolean(
+            RecipeNodeId::new(0, 9),
+            &body,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .expect_err("a lineage that leaves the graft rows must refuse");
         assert!(
             matches!(
                 err,
@@ -3709,7 +3716,7 @@ mod tests {
     #[test]
     fn two_holders_of_one_merged_parent_with_nothing_between_them_refuse() {
         let built = unit_cube();
-        let ext_node = RecipeNodeId(1);
+        let ext_node = RecipeNodeId::new(0, 1);
         let a_table = name_extrude(
             ext_node,
             &built,
@@ -3750,12 +3757,12 @@ mod tests {
             body: &built.body,
         };
         let b = OperandCtx {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             table: &empty,
             body: &built.body,
         };
         let err = name_boolean(
-            RecipeNodeId(9),
+            RecipeNodeId::new(0, 9),
             &built.body,
             &naming,
             &a,
@@ -3782,7 +3789,7 @@ mod tests {
     #[test]
     fn two_merges_of_tied_faces_publish_one_tied_merged_row() {
         let built = unit_cube();
-        let ext_node = RecipeNodeId(1);
+        let ext_node = RecipeNodeId::new(0, 1);
         let own = name_extrude(
             ext_node,
             &built,
@@ -3824,12 +3831,12 @@ mod tests {
             body: &built.body,
         };
         let b = OperandCtx {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             table: &empty,
             body: &built.body,
         };
         let out = name_boolean(
-            RecipeNodeId(9),
+            RecipeNodeId::new(0, 9),
             &built.body,
             &naming,
             &a,
@@ -3861,7 +3868,7 @@ mod tests {
     #[test]
     fn a_merge_over_a_merged_face_lists_its_constituents_flat() {
         let built = unit_cube();
-        let ext_node = RecipeNodeId(1);
+        let ext_node = RecipeNodeId::new(0, 1);
         let ext_table = name_extrude(
             ext_node,
             &built,
@@ -3913,14 +3920,14 @@ mod tests {
         };
         let result = absorbed_into(&built.body, built.top, absorbed);
         let empty = NameTable::new();
-        let bool_node = RecipeNodeId(9);
+        let bool_node = RecipeNodeId::new(0, 9);
         let a = OperandCtx {
             node: ext_node,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             table: &empty,
             body: &built.body,
         };
@@ -3968,7 +3975,7 @@ mod tests {
     #[test]
     fn a_merge_over_a_nested_merged_face_refuses_at_the_mint() {
         let built = unit_cube();
-        let ext_node = RecipeNodeId(1);
+        let ext_node = RecipeNodeId::new(0, 1);
         let ext_table = name_extrude(
             ext_node,
             &built,
@@ -4024,12 +4031,12 @@ mod tests {
             body: &built.body,
         };
         let b = OperandCtx {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             table: &empty,
             body: &built.body,
         };
         let err = name_boolean(
-            RecipeNodeId(9),
+            RecipeNodeId::new(0, 9),
             &built.body,
             &naming,
             &a,

@@ -404,9 +404,7 @@ pub fn bracket_depth(text: &str) -> usize {
 pub fn first_node_id(node: &crate::AuthoredNode, tol: geom_core::Tol) -> RecipeNodeId {
     let mut doc = ProfileDoc::empty_derived("first_node_id", tol);
     let node = stored(&mut doc, node);
-    doc.mint
-        .insert(&node)
-        .expect("a log of variables holds no node id")
+    doc.mint.insert(&node)
 }
 
 /// **A spoken node built by hand**: what a document holding `id` as a

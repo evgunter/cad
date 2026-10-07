@@ -39,6 +39,9 @@
 //! [`share_points`] puts the cones of a pinch that still sit on several
 //! keys onto one: the keys the correspondence ties ([`point_classes`]),
 //! read before the split.
+//! Where the insertion hung runs at a turned run's copy, a point whose
+//! cones still sit on several keys after that refuses
+//! ([`refuse_split_hung_points`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -237,14 +240,14 @@ pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
 
 /// A union-find over keys, as a parent map: a key with no entry is its
 /// own root, and a class is rooted at its smallest key.
-struct Roots<K>(BTreeMap<K, K>);
+pub(super) struct Roots<K>(BTreeMap<K, K>);
 
 impl<K: Ord + Copy> Roots<K> {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self(BTreeMap::new())
     }
 
-    fn find(&self, mut k: K) -> K {
+    pub(super) fn find(&self, mut k: K) -> K {
         while let Some(&up) = self.0.get(&k) {
             k = up;
         }
@@ -252,7 +255,7 @@ impl<K: Ord + Copy> Roots<K> {
     }
 
     /// Joins the classes of `a` and `b`; `false` where they were one.
-    fn union(&mut self, a: K, b: K) -> bool {
+    pub(super) fn union(&mut self, a: K, b: K) -> bool {
         let (ra, rb) = (self.find(a), self.find(b));
         if ra != rb {
             self.0.insert(ra.max(rb), ra.min(rb));
@@ -351,6 +354,43 @@ pub(super) fn share_points<T: geom_core::Real>(
             .ok_or(BooleanError::ZipCorrespondence {
                 what: "a pinch vertex no longer resolves",
             })?;
+    }
+    Ok(())
+}
+
+/// **A hung point left on several keys refuses.** Where the insertion
+/// hung runs at a turned run's copy (`insert::hang_in_turned`), `hung`
+/// holds the point's keys: those of every vertex the vertex-vertex
+/// contacts tie to the hung one, in result keys. Those are all of the
+/// point's keys. Every vertex there either has a contact, or is a copy
+/// that keeps its original's key (a null edge's, a cone split's), and
+/// the seams' classes ([`point_classes`]) tie only keys of vertices the
+/// seams pair there, which the contacts already tie. So after
+/// [`share_points`], live vertices on more than one of them are a pinch
+/// whose cones the seams do not link: an operand's own pinch, left on
+/// several keys by an earlier op. The census cannot read it, and the op
+/// refuses [`BooleanError::PinchConesOnSeparateKeys`] rather than ship
+/// it. Only keys are read, no position.
+///
+/// # Errors
+///
+/// [`BooleanError::PinchConesOnSeparateKeys`] at such a point.
+pub(super) fn refuse_split_hung_points<T: geom_core::Real>(
+    body: &Body<T>,
+    hung: &[(super::insert::Hang, BTreeSet<PointKey>)],
+) -> Result<(), BooleanError> {
+    for (hang, keys) in hung {
+        let live: BTreeSet<PointKey> = body
+            .vertices()
+            .map(|(_, d)| d.point)
+            .filter(|k| keys.contains(k))
+            .collect();
+        if live.len() > 1 {
+            return Err(BooleanError::PinchConesOnSeparateKeys {
+                operand: hang.operand,
+                vertex: hang.vertex,
+            });
+        }
     }
     Ok(())
 }

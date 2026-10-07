@@ -644,6 +644,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "PinchConesOnSeparateKeys",
+            BooleanError::PinchConesOnSeparateKeys {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+            },
+        ),
+        (
             "PierceRunsNested",
             BooleanError::PierceRunsNested {
                 operand: Operand::A,
@@ -744,7 +751,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
 /// failed node's `NodeError` `Display`, wrapper included.
 fn as_the_viewer_shows_it(e: topo::BooleanError) -> String {
     editor_core::NodeError {
-        node: editor_core::RecipeNodeId(5),
+        node: editor_core::RecipeNodeId::new(0, 5),
         kind: editor_core::NodeErrorKind::Boolean(e),
         escalations: std::sync::Arc::new(Vec::new()),
     }

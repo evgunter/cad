@@ -959,7 +959,7 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     );
     // Edit one operand's extrude distance: the cone invalidates.
     let extrude_id = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
