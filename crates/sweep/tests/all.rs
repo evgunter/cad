@@ -163,6 +163,8 @@ mod rehome_rings_lune;
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
 mod review_sixx_r2_probes;
+#[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
+mod scaffolding_on_a_blend_support_face_does_not_finish;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -218,8 +220,6 @@ mod a_thin_wall_bounds_the_band;
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
-#[path = "band_clearance_screen_reads_every_feature.rs"]
-mod band_clearance_screen_reads_every_feature;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
 #[path = "band_planar_cut_off.rs"]
@@ -260,6 +260,8 @@ mod blend6_verb_vocab;
 mod blend_ball_side_bits;
 #[path = "blend_band_reach.rs"]
 mod blend_band_reach;
+#[path = "blend_band_reach_chain_ends.rs"]
+mod blend_band_reach_chain_ends;
 #[path = "blend_band_reach_oracle.rs"]
 mod blend_band_reach_oracle;
 #[path = "blend_band_reach_rows.rs"]
@@ -270,6 +272,8 @@ mod blend_bore_two_rims;
 mod blend_dual_tangent;
 #[path = "blend_margin_payload_interval.rs"]
 mod blend_margin_payload_interval;
+#[path = "blend_operand_gate.rs"]
+mod blend_operand_gate;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]

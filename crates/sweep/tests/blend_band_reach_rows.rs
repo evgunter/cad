@@ -16,8 +16,8 @@
 use geom_core::{Band, Interval, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::{BlendError, BlendRequest, fillet_edges};
-use sweep::test_support::{band_reach, corners, revolved_about_y_at, rim_arcs_at};
-use topo::{Body, EntityId, mass_properties, validate_geometric};
+use sweep::test_support::{band_reach, corners, finished, revolved_about_y_at, rim_arcs_at};
+use topo::{AtRestBody, Body, EntityId, mass_properties, validate_geometric};
 
 use crate::common::cavity::{brick, cut, edges_with_corners, rod};
 use crate::common::interval::iv;
@@ -30,21 +30,25 @@ fn band() -> Band {
     Band::linear(tol()).expect("the witness band")
 }
 
-fn fuse(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+/// The union of a finished `a` and the fixture `b`, finished.
+fn fuse(a: &AtRestBody<f64>, b: &Body<f64>) -> AtRestBody<f64> {
     let t = tol();
-    let a = sweep::test_support::finished("a", a.clone(), t);
     let b = sweep::test_support::finished("b", b.clone(), t);
-    topo::union(&a, &b, t)
+    topo::union(a, &b, t)
         .expect("the union succeeds")
         .body()
         .expect("the union leaves material")
         .body
         .clone()
-        .into_body()
 }
 
 /// The fillet's body, tier-3 valid, with its volume; or its refusal.
-fn built(what: &str, body: &Body<f64>, edges: &[topo::EdgeKey], r: f64) -> Result<f64, BlendError> {
+fn built(
+    what: &str,
+    body: &AtRestBody<f64>,
+    edges: &[topo::EdgeKey],
+    r: f64,
+) -> Result<f64, BlendError> {
     let f = fillet_edges(body, edges, r, tol()).map_err(|e| e.error)?;
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "{what}: tier 3");
     Ok(mass_properties(&f.body, tol()).expect("a volume").volume)
@@ -66,7 +70,7 @@ fn drum<T: geom_core::Decide + topo::AtRestPolicy>() -> Body<T> {
 fn subtract<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
     a: Body<T>,
     b: Body<T>,
-) -> Body<T> {
+) -> AtRestBody<T> {
     let t = tol();
     let a = topo::test_support::finished("drum", a, t);
     let b = topo::test_support::finished("void", b, t);
@@ -76,7 +80,6 @@ fn subtract<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .expect("the cut leaves material")
         .body
         .clone()
-        .into_body()
 }
 
 /// The drum with a sealed `0.1` box void at `x ∈ [x0, x0 + 0.1]`,
@@ -85,7 +88,7 @@ fn subtract<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
 fn drum_with_box_void<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
     x0: f64,
     y0: f64,
-) -> Body<T> {
+) -> AtRestBody<T> {
     let void =
         sweep::test_support::brick::<T>((x0, x0 + 0.1), (y0, y0 + 0.1), (-0.05, 0.05), tol());
     subtract(drum::<T>(), void)
@@ -242,6 +245,7 @@ fn a_concave_boss_foot_refuses_a_hovering_wall_in_its_reach() {
             Point3::new(0.5 + gap, -1.0, 1.05),
             Point3::new(0.9 + gap, 1.0, 2.5),
         );
+        let plate = finished("the plate", plate, tol());
         let body = fuse(&fuse(&plate, &boss), &wall);
         let foot = edges_with_corners(&body, |p| {
             (p.z - 1.0).abs() < 1e-9 && (p.x.hypot(p.y) - 0.5).abs() < 1e-9
@@ -340,6 +344,7 @@ fn a_spine_with_a_tangent_end_face_refuses_typed_not_with_an_unbounded_window() 
         2.0,
     );
     let post = brick(Point3::new(3.5, 0.8, 0.5), Point3::new(4.0, 1.2, 2.5));
+    let plate = finished("the plate", plate, tol());
     let boss = fuse(&fuse(&plate, &obround), &post);
     let rim = edges_with_corners(&boss, |q| (q.z - 2.0).abs() < 1e-9 && q.x.abs() < 2.5);
     let b = (std::f64::consts::PI / 8.0).tan();
@@ -359,7 +364,7 @@ fn a_spine_with_a_tangent_end_face_refuses_typed_not_with_an_unbounded_window() 
     );
     let block_rim = edges_with_corners(&block, |q| (q.z - 2.0).abs() < 1e-9);
     for (what, body, edges) in [
-        ("obround", &boss, rim),
+        ("obround", &*boss, rim),
         ("rounded block", &block, block_rim),
     ] {
         assert!(!edges.is_empty(), "{what}: its rim");
@@ -382,12 +387,14 @@ fn a_spine_with_a_tangent_end_face_refuses_typed_not_with_an_unbounded_window() 
     }
 }
 
-/// **An open arc link is read over its whole turn** (filed): a D-boss's
-/// arc, cut off at its flat `x = 0.5`, refuses a post past the flat on
-/// the arc's circle, and a 120° segment boss's arc refuses a post across
-/// its circle — both clear of the band itself. A post off the circle
-/// passes. Each refusal flips to a pass when an open arc's reach is
-/// bounded by its ends.
+/// **An open arc link is read over its whole turn** (filed): the reach
+/// has no ends, so nothing caps it at the boss's flat and the flat, the
+/// face the arc runs into, is metered and refuses — a D-boss's flat
+/// `x = 0.5` and a 120° segment boss's flat `y = −0.5`, wherever a post
+/// stands. A post across the segment's circle, clear of the band itself,
+/// refuses ahead of the flat. Each refusal flips when an open arc's
+/// reach is bounded by its ends, whose caps are what would excuse the
+/// flat.
 #[test]
 fn an_open_arc_link_s_reach_is_its_whole_turn() {
     let plate = || brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 1.0));
@@ -416,35 +423,41 @@ fn an_open_arc_link_s_reach_is_its_whole_turn() {
         &rod(Point2::new(0.0, 0.0), 1.0, 0.5, 2.0),
         &brick(Point3::new(-2.0, -0.5, 0.0), Point3::new(2.0, 2.0, 3.0)),
     );
-    for (what, boss, post, refuses) in [
+    // The flat of each boss, as `(axis, offset)` of its plane.
+    let (d_flat, segment_flat) = ((0, 0.5), (1, -0.5));
+    for (what, boss, flat, post, names_flat) in [
         (
             "D boss, post on the circle",
             &d_boss,
+            d_flat,
             ((0.85, -0.1), (1.15, 0.1)),
             true,
         ),
         (
             "D boss, post off the circle",
             &d_boss,
+            d_flat,
             ((1.3, -0.1), (1.6, 0.1)),
-            false,
+            true,
         ),
         (
             "segment, post across the circle",
             &segment,
+            segment_flat,
             ((-0.1, 0.85), (0.1, 1.15)),
-            true,
+            false,
         ),
         (
             "segment, post off the circle",
             &segment,
+            segment_flat,
             ((-0.1, 1.5), (0.1, 1.8)),
-            false,
+            true,
         ),
     ] {
         let ((x0, y0), (x1, y1)) = post;
         let body = fuse(
-            &fuse(&plate(), boss),
+            &fuse(&finished("the plate", plate(), tol()), boss),
             &brick(Point3::new(x0, y0, 0.5), Point3::new(x1, y1, 2.5)),
         );
         let req = BlendRequest {
@@ -453,10 +466,27 @@ fn an_open_arc_link_s_reach_is_its_whole_turn() {
             size: 0.2,
         };
         assert!(!req.edges.is_empty(), "{what}: the arc");
-        match (refuses, band_reach(&req, band())) {
-            (true, Err(e)) => assert!(is_reach(&e), "{what}: {e:?}"),
-            (false, Ok(())) => {}
-            (_, out) => panic!("{what}: refuses {refuses}, got {out:?}"),
-        }
+        let e = band_reach(&req, band()).expect_err("the whole turn takes in the flat");
+        let BlendError::FaceClearance {
+            at: EntityId::Face(f),
+            bounded: true,
+            ..
+        } = e
+        else {
+            panic!("{what}: a face refused uncertified, got {e:?}");
+        };
+        let surface = body.get_face(f).and_then(|x| body.get_surface(x.surface));
+        let Some(geom::Surface::Plane { origin, normal, .. }) = surface else {
+            panic!("{what}: a plane face, got {surface:?}");
+        };
+        let (k, offset) = flat;
+        let n = normal.normalize();
+        let along = |v: [f64; 3]| v[k];
+        let on_flat = (along([n.x, n.y, n.z]).abs() - 1.0).abs() < 1e-12
+            && (along([origin.x, origin.y, origin.z]) - offset).abs() < 1e-12;
+        assert_eq!(
+            on_flat, names_flat,
+            "{what}: the face named is the flat ({names_flat}), got {surface:?}"
+        );
     }
 }

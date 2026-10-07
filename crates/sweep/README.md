@@ -67,11 +67,12 @@ meridian sheet over its own extent along its trace (read off its
 boundary: the azimuth it winds, and on a sphere the sign of
 `∮ (z − z_c) dθ`, say which singular points it covers), every other face
 on cells of its box in space, and a face's margin is the least lower
-bound over its cells. It skips the
-chain's own supports, every face at a chain vertex (the faces the band
-runs into, which predicate 6 and the surgery judge), and any face on a
-support's own stored surface (which can touch the reach only on its
-boundary). Two bands of one request are read together: a support of
+bound over its cells. A link's reach skips its chain's supports, the
+faces at its own two vertices that its window ends in (the faces the
+band runs into, which predicate 6 and the surgery judge: a plane the
+window is capped by, or a corner patch's support; a face at another
+link's end is metered like any other), and any face on a support's own
+stored surface (which can touch the reach only on its boundary). Two bands of one request are read together: a support of
 the other chain is metered by what survives that chain's band, the other
 band's new surface is metered as a face (but a concave band's surface
 against a convex band's reach, whose removed material the concave region
@@ -224,9 +225,10 @@ outer cycle or, at an annulus's inner circle, its ring, whose trim then
 replaces that ring. Its one crossing takes the strut, and the trim is
 minted so the host keeps its key (`lone_host_trim`); both rims of such
 an annulus are annulus rims, and carve in one call. A CURVED single face
-carrying every arc is authorable through `topo`'s `kef` and refuses at
-the half-band gate on both routes
-(`work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`).
+carrying every arc is authorable through `topo`'s `kef_describing` (a
+cylinder wall merged over one seam meridian, the other restated as its
+wrap edge), finishes, and refuses at the half-band gate on both routes
+(`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no

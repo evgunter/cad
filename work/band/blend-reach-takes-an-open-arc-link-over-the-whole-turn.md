@@ -39,3 +39,11 @@ link's reach by the two half-planes through the axis at its ends (each
 widened by the cross-section's run along the end face, as
 `straight_reach` does for its window), so the posts on the circle pass
 and the row's two refusals flip.
+
+*Note (2026-10-07, PR 4254):* a link's reach now skips only the faces
+its window is capped by, and a circular reach has no caps, so an open
+arc's own end faces (the boss's flat) are metered too and refuse over
+the whole turn, wherever the post stands; the row's posts off the
+circle now refuse at the flat. The end half-planes above are the caps
+that would excuse the flat again: record them in the reach's `skip`
+as `straight_reach` does.

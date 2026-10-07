@@ -529,18 +529,12 @@ impl core::fmt::Display for SplitReduceError {
                  cut is not supported yet. Recourse: move the split plane off the tangency"
             ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
-            Self::ScaffoldingOperand { .. } => write!(
-                f,
-                "the body is not a finished solid: it still carries what an edit left \
-                 behind, such as a strut or an empty loop, so the split refuses it. \
-                 Recourse: finish that edit first"
-            ),
-            Self::InsideOutOperand { .. } => write!(
-                f,
-                "the body is inside-out: its faces point into its material, so it encloses \
-                 negative volume and the split refuses it. Recourse: build it with its \
-                 faces pointing outward, or revert it"
-            ),
+            Self::ScaffoldingOperand { .. } => {
+                write!(f, "the body {}", Unfinished::SCAFFOLDING_REFUSAL)
+            }
+            Self::InsideOutOperand { .. } => {
+                write!(f, "the body {}", Unfinished::INSIDE_OUT_REFUSAL)
+            }
             Self::SliverVertex { diag, .. } => write!(
                 f,
                 "a vertex lies within tolerance of the split plane ({}). Recourse: \
