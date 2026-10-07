@@ -191,6 +191,22 @@ pub(super) fn name_blend<T: geom_core::Real>(
             tied,
         )?;
     }
+    for (m, v) in &rec.mitres {
+        let v = up_v(*v)?;
+        put(
+            EntityKey::Edge(*m),
+            RoleSeg::Mitre { vertex: v.name },
+            v.tied,
+        )?;
+    }
+    for (foot, v) in &rec.turn_feet {
+        let v = up_v(*v)?;
+        put(
+            EntityKey::Vertex(*foot),
+            RoleSeg::TurnFoot { vertex: v.name },
+            v.tied,
+        )?;
+    }
     for (f, edges) in &rec.bands {
         let (names, tied) = band_set(edges)?;
         put(

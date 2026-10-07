@@ -319,8 +319,8 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
 /// Two ADJACENT box edges, requested alone: exactly two links meet at
 /// their shared vertex, so the walk makes it a JUNCTION — and a box
 /// corner is not G1, so predicate 4 reads a definite turn. Between two
-/// plane–plane links that breaks the chain, and predicate 6 refuses the
-/// vertex as the turn. Where a CURVED link meets another at a kink —
+/// plane–plane links that breaks the chain into two, and predicate 6
+/// reads the vertex as the turn, isosceles on a box. Where a CURVED link meets another at a kink —
 /// a prism's top edge and the half-round arc it runs into — predicate 4
 /// itself refuses, with its definite margin. (Request all twelve and
 /// the shared vertex has three links and becomes a corner instead: the
@@ -352,10 +352,10 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         size: 0.1,
     };
     match run_battery(&req, band()) {
-        Err(BlendError::UnsupportedCorner {
-            corner: sweep::blend::CornerConfig::Turn,
-            ..
-        }) => {}
+        Ok(verdict) => {
+            assert_eq!(verdict.chains.len(), 2, "the turn breaks the chain");
+            assert_eq!(verdict.turns.len(), 1, "one turn, at the shared vertex");
+        }
         other => panic!("expected the turn, got {other:?}"),
     }
     let (round, front) = crate::common::operands::half_round_end();
