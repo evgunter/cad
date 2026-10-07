@@ -562,25 +562,6 @@ where
         }
     }
 
-    /// Every embedded value leaf's float literal BITS, pre-order — the
-    /// bit-semantic comparison substrate (D7), delegating each leaf to
-    /// [`crate::expr::ExprTree::literal_bits`] rather than re-walking the tree.
-    pub fn literal_bits(&self, out: &mut Vec<u64>) {
-        match &self.kind {
-            MeasureKind::Primitive(_) => {}
-            MeasureKind::Value(e) => e.literal_bits(out),
-            MeasureKind::Neg(a) => a.literal_bits(out),
-            MeasureKind::Add(a, b)
-            | MeasureKind::Sub(a, b)
-            | MeasureKind::Mul(a, b)
-            | MeasureKind::Div(a, b)
-            | MeasureKind::Min(a, b)
-            | MeasureKind::Max(a, b) => {
-                a.literal_bits(out);
-                b.literal_bits(out);
-            }
-        }
-    }
 }
 
 impl MeasureExpr {

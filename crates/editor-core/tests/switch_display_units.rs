@@ -8,7 +8,7 @@
 //! only in display units are the same expression.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{Dimension, DimensionError, Formula, parse_formula};
+use editor_core::{Dimension, DimensionError, Formula, VarName, parse_formula};
 
 fn no_params() -> std::collections::BTreeMap<editor_core::VarName, Dimension> {
     std::collections::BTreeMap::new()
@@ -281,14 +281,21 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         // `1.0 == 1.0`. 2.5 distinguishes all three.
         let e = Formula::literal_with_unit(2.5, dim, row)
             .unwrap_or_else(|err| panic!("{} is a table row: {err:?}", row.symbol()));
-        // The dimensionless row names no notation to remember: 2.5 in it
-        // is the bare number 5/2, which persists as that constant and
-        // reads back from its digits.
+        // The dimensionless row's symbol is empty, so its text has no
+        // suffix: 2.5 in it is a written value on the wire, and its
+        // digits read back as the constant 5/2 they spell.
         if row.symbol().is_empty() {
-            assert_eq!(e.as_ratio(), editor_core::Ratio::new(5, 2).ok());
-            let bytes = serde_json::to_vec(&e).expect("a constant serializes");
+            assert_eq!(e.display_unit(), Some(row));
+            assert_eq!(e.literal_value(), Some(2.5));
+            let bytes = serde_json::to_vec(&e).expect("a written value serializes");
             assert_eq!(bytes, golden_wire_form("").as_bytes());
-            assert!(parse_formula("2.5", &no_params()).unwrap().bit_eq(&e));
+            assert_eq!(
+                parse_formula("w * 2.5", &[(VarName::from_static("w"), Dimension::Length)].into())
+                    .unwrap()
+                    .child(1)
+                    .and_then(Formula::as_ratio),
+                editor_core::Ratio::new(5, 2).ok()
+            );
             continue;
         }
         assert_eq!(
@@ -398,7 +405,7 @@ const UNIT_WIRE_GOLDEN: [(&str, &str); 8] = [
     ),
     // The dimensionless row: `2.5` in it is the bare number 5/2, and
     // persists as that exact constant.
-    ("", r#"{"Ratio":{"num":5,"den":2}}"#),
+    ("", r#"{"Quantity":{"value":2.5,"dim":"Scalar","unit":""}}"#),
 ];
 
 fn golden_wire_form(symbol: &str) -> &'static str {

@@ -33,15 +33,17 @@
         {
           "Toward": {
             "dx": {
-              "Ratio": {
-                "num": 1,
-                "den": 1
+              "Quantity": {
+                "value": 1.0,
+                "dim": "Scalar",
+                "unit": ""
               }
             },
             "dy": {
-              "Ratio": {
-                "num": 1,
-                "den": 2
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Scalar",
+                "unit": ""
               }
             }
           }
@@ -1049,9 +1051,10 @@
             "Bulge": {
               "target": "Start",
               "b": {
-                "Ratio": {
-                  "num": 3,
-                  "den": 10
+                "Quantity": {
+                  "value": 0.3,
+                  "dim": "Scalar",
+                  "unit": ""
                 }
               }
             }
@@ -1070,9 +1073,10 @@
               "Bulge": {
                 "target": "Start",
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -1085,9 +1089,10 @@
               "Bulge": {
                 "target": "Start",
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -1107,9 +1112,10 @@
               "Bulge": {
                 "target": "Start",
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -1125,9 +1131,10 @@
               "Bulge": {
                 "target": "Start",
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -1569,9 +1576,10 @@
             "Bulge": {
               "target": "StartArriving",
               "b": {
-                "Ratio": {
-                  "num": 3,
-                  "den": 10
+                "Quantity": {
+                  "value": 0.3,
+                  "dim": "Scalar",
+                  "unit": ""
                 }
               }
             }
@@ -1590,9 +1598,10 @@
               "Bulge": {
                 "target": "StartArriving",
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -1605,9 +1614,10 @@
               "Bulge": {
                 "target": "StartArriving",
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -1627,9 +1637,10 @@
               "Bulge": {
                 "target": "StartArriving",
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -1645,9 +1656,10 @@
               "Bulge": {
                 "target": "StartArriving",
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -2106,9 +2118,10 @@
                 ]
               },
               "b": {
-                "Ratio": {
-                  "num": 3,
-                  "den": 10
+                "Quantity": {
+                  "value": 0.3,
+                  "dim": "Scalar",
+                  "unit": ""
                 }
               }
             }
@@ -2144,9 +2157,10 @@
                   ]
                 },
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -2176,9 +2190,10 @@
                   ]
                 },
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -2215,9 +2230,10 @@
                   ]
                 },
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }
@@ -2250,9 +2266,10 @@
                   ]
                 },
                 "b": {
-                  "Ratio": {
-                    "num": 3,
-                    "den": 10
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
                   }
                 }
               }

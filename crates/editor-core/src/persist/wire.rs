@@ -346,8 +346,14 @@ wire_tree! {
                 None => Err(DimensionError::UnknownDisplayUnit {
                     symbol: unit.clone(),
                 }),
-                Some(u) => Formula::literal_with_unit(*value, *dim, u)
-                    .map(|q| q.carrying(*distribution)),
+                // Always a written quantity — a dimensionless one too,
+                // never the constant its value spells — so the
+                // distribution has its leaf.
+                Some(u) => Formula::literal_with_unit(*value, *dim, u).map(|q| {
+                    q.carrying(*distribution).unwrap_or_else(|_| {
+                        unreachable!("literal_with_unit builds one written quantity")
+                    })
+                }),
             }
         }
     }

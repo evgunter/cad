@@ -763,6 +763,17 @@ fn quantity_unminted(dim: Dimension) -> EditError {
 /// **The variables minted for `formula`'s written quantities**, one
 /// anonymous free variable each, in pre-order (VR6): what
 /// [`Formula::lower_with`] reads them as.
+///
+/// **Where they fall in the mint order is the one place two doors
+/// differ, and for one reason: an id is minted from what the door
+/// knows when it mints it.** An anonymous variable's id hashes what it
+/// holds ([`crate::mint::Held`]), and a definition holds its
+/// quantities' readers, so a slot's definition and a fresh entry's mint
+/// their quantities first and the variable they define after them. A
+/// declared variable's id hashes its kind alone, which the refusals of
+/// a declare speak before its definition lowers
+/// ([`crate::Doc::spoken_declare`]), so `DeclareVar` mints the declared
+/// id first and its definition's quantities after it.
 fn mint_quantities<P>(new: &mut Doc<P>, formula: &Formula) -> Result<Vec<VarId>, EditError> {
     formula
         .quantities()
@@ -6005,9 +6016,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 check_var_def(&spoken, &VarDef::Free(free.clone()))?;
             }
             let id = new.mint.declare(def.kind());
-            // The declared variable mints first, so the id a refusal
-            // speaks it by is the one it holds; its definition's
-            // written quantities mint after it.
+            // The declared variable mints first, its definition's
+            // written quantities after it (`mint_quantities` says why
+            // the slot door's order is the other way round).
             let def = lower_decl(new, &Lowering::none(), &spoken, def)?;
             new.vars.insert(id, Var::new(def.clone()));
             new.var_names.insert(id, name.clone());

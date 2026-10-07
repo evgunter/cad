@@ -265,15 +265,46 @@ impl Formula {
     /// The exact rational constant `num / den` (`Formula::ratio`):
     /// inside a formula a constant, at a slot's root a written
     /// dimensionless value. `LiteralError` with `kind`
-    /// `"constant_out_of_range"` for a zero denominator, or where the
-    /// reduced numerator or denominator exceeds 2^53.
+    /// `"constant_out_of_range"` for a denominator that is not
+    /// positive, or where the reduced numerator or denominator exceeds
+    /// 2^53 — any Python int, however wide; its `value` is the
+    /// quotient, or the numerator where there is none.
     #[staticmethod]
-    fn ratio(py: Python<'_>, num: i64, den: u64) -> PyResult<Self> {
+    fn ratio(py: Python<'_>, num: &Bound<'_, PyAny>, den: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let wide = |part: &Bound<'_, PyAny>| -> PyResult<Option<i128>> {
+            match part.extract::<i128>() {
+                Ok(n) => Ok(Some(n)),
+                Err(err) if err.is_instance_of::<pyo3::exceptions::PyOverflowError>(py) => {
+                    Ok(None)
+                }
+                Err(err) => Err(err),
+            }
+        };
+        let (n, q) = (wide(num)?, wide(den)?);
+        let out = || d::DimensionError::ConstantOutOfRange {
+            text: format!("{num}/{den}"),
+        };
         #[allow(clippy::cast_precision_loss)]
-        let value = num as f64 / den as f64;
-        d::Formula::ratio(num, den)
-            .map(Self)
-            .map_err(|err| literal_err(py, value, &err))
+        let value = match (n, q) {
+            (Some(n), Some(q)) if q > 0 => n as f64 / q as f64,
+            (Some(n), _) => n as f64,
+            (None, _) => num.extract::<f64>().unwrap_or(0.0),
+        };
+        let reduced = match (n, q) {
+            (Some(n), Some(q)) if q > 0 => {
+                let (mut a, mut b) = (n.unsigned_abs(), q.unsigned_abs());
+                while b != 0 {
+                    (a, b) = (b, a % b);
+                }
+                let g = a.max(1);
+                let (n, q) = (n / g.cast_signed(), q / g.cast_signed());
+                i64::try_from(n).ok().zip(u64::try_from(q).ok())
+            }
+            _ => None,
+        };
+        let refused = |err: d::DimensionError| literal_err(py, value, &err);
+        let (n, q) = reduced.ok_or_else(|| refused(out()))?;
+        d::Formula::ratio(n, q).map(Self).map_err(refused)
     }
 
     /// One full rotation, the exact angle constant (`Formula::turn`): a
@@ -614,7 +645,9 @@ pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
             none(),
             none(),
         ),
-        P::MalformedNumber { pos, text: t } | P::IntegerOverflow { pos, text: t } => (
+        P::MalformedNumber { pos, text: t }
+        | P::IntegerOverflow { pos, text: t }
+        | P::RatioPartNotInteger { pos, text: t } => (
             *pos,
             none(),
             none(),

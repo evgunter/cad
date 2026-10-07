@@ -731,6 +731,7 @@ test_utils::f6_variants! {
         TrailingInput,
         MalformedNumber,
         IntegerOverflow,
+        RatioPartNotInteger,
         UnknownUnit,
         UnknownFunction,
         WrongArity,
@@ -752,6 +753,13 @@ fn parse_error_display_names_its_content_not_its_struct() {
                 expected: "an operand",
             },
             vec!["byte 5", "an operand"],
+        ),
+        (
+            ParseError::RatioPartNotInteger {
+                pos: 0,
+                text: "2/3.5".to_string(),
+            },
+            vec!["byte 0", "\"2/3.5\"", "parts are integers", "write the decimal"],
         ),
         (
             ParseError::UnexpectedToken {
@@ -1012,6 +1020,18 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &["measures length", "literal is angle"],
         &dumps,
     );
+    assert_f6(
+        &DimensionError::ConstantOutOfRange {
+            text: "1e-20".to_string(),
+        },
+        &["the constant 1e-20 is out of range", "at most 2^53"],
+        &dumps,
+    );
+    assert_f6(
+        &DimensionError::RatioNotReduced { num: 2, den: 4 },
+        &["the constant 2/4 is not in lowest terms"],
+        &dumps,
+    );
 
     // The evaluator.
     assert_f6(
@@ -1028,6 +1048,16 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             found: Dimension::Length,
         },
         &["a length expression does not evaluate as a count"],
+        &dumps,
+    );
+    assert_f6(
+        &EvalError::Unlowered(editor_core::LowerFault::Quantity {
+            dim: Dimension::Length,
+        }),
+        &[
+            "a written length is a variable the edit door mints",
+            "only a document's edit door resolves it",
+        ],
         &dumps,
     );
     assert_f6(

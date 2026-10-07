@@ -2317,6 +2317,7 @@ pub fn parse_error_tag(err: &ParseError) -> &'static str {
         ParseError::TrailingInput { .. } => "trailing_input",
         ParseError::MalformedNumber { .. } => "malformed_number",
         ParseError::IntegerOverflow { .. } => "integer_overflow",
+        ParseError::RatioPartNotInteger { .. } => "ratio_part_not_integer",
         ParseError::UnknownUnit { .. } => "unknown_unit",
         ParseError::UnknownFunction { .. } => "unknown_function",
         ParseError::WrongArity { .. } => "wrong_arity",

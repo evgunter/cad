@@ -177,14 +177,6 @@ impl Formula {
         if !value.is_finite() {
             return Err(DimensionError::NonFiniteLiteral);
         }
-        // A dimensionless value has no notation to remember, so it is
-        // the bare number its text is ([`Formula::number`]).
-        if dim == Dimension::Scalar {
-            return Ok(match exact_ratio(value) {
-                Some(ratio) => Self::ratio_leaf(ratio),
-                None => Self::quantity_leaf(value, dim, unit),
-            });
-        }
         Ok(Self::quantity_leaf(value, dim, unit))
     }
 
@@ -200,31 +192,17 @@ impl Formula {
         )
     }
 
-    /// A dimensionless number ([`Formula::number`]).
+    /// A written dimensionless value: a `Scalar` quantity with the
+    /// dimensionless unit, which the edit door mints a variable for —
+    /// at a slot's root as any value, and inside a formula as any
+    /// written quantity (VR5, VR6). The exact constant is
+    /// [`Formula::ratio`].
     ///
     /// # Errors
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
     pub fn scalar(value: f64) -> Result<Self, DimensionError> {
         Self::literal(value, Dimension::Scalar)
-    }
-
-    /// **A bare number, as the text door reads one**: the exact
-    /// rational constant its shortest decimal spells, where that is one
-    /// in range whose value has `value`'s bits (`2.0`, `0.1`), and a
-    /// written dimensionless value otherwise (`0.30000000000000004`,
-    /// `-0.0`). Inside a formula the one is a constant and the other a
-    /// variable; at a slot's root either mints a free `Scalar` (VR6). A
-    /// dimensionless value has no notation to remember, so this is what
-    /// every door writing one stores ([`Formula::literal`] at
-    /// [`Dimension::Scalar`] included), and what its text reads back
-    /// as.
-    ///
-    /// # Errors
-    ///
-    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
-    pub fn number(value: f64) -> Result<Self, DimensionError> {
-        Self::scalar(value)
     }
 
     /// A written quantity from an AUTHORED length — the value and
@@ -300,8 +278,9 @@ impl Formula {
 
     /// This lone written quantity carrying `distribution` (ERROR-DESIGN
     /// E1/E2): the variable the door mints for it carries it. A lone
-    /// dimensionless number becomes the written value it equals, since
-    /// a toleranced number is a value and not a constant.
+    /// rational constant given a distribution becomes the written value
+    /// it equals, since a toleranced number is a value and not a
+    /// constant; given none, it stays the constant.
     ///
     /// # Errors
     ///
@@ -324,6 +303,7 @@ impl Formula {
                 q.distribution = distribution;
                 Ok(self)
             }
+            ExprKind::Ratio(_) if distribution.is_none() => Ok(self),
             // A toleranced number is a written value, not a constant.
             &mut ExprKind::Ratio(ratio) => {
                 let mut value = Self::quantity_leaf(
@@ -341,17 +321,34 @@ impl Formula {
         }
     }
 
-    /// This formula with a lone written quantity's distribution set to
+    /// This lone written quantity with its distribution set to
     /// `distribution`, unchecked: the door that mints its variable
     /// checks it.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::DistributionRefusal::NotAWrittenValue`] where this is
+    /// not one written quantity and `distribution` is one — there is
+    /// nothing to carry it.
     pub(crate) fn carrying(
         mut self,
         distribution: Option<crate::distribution::Distribution>,
-    ) -> Self {
-        if let ExprKind::Leaf(AuthoredLeaf::Quantity(q)) = self.kind_mut() {
-            q.distribution = distribution;
+    ) -> Result<Self, crate::DistributionRefusal> {
+        match self.kind_mut() {
+            ExprKind::Leaf(AuthoredLeaf::Quantity(q)) => q.distribution = distribution,
+            _ if distribution.is_some() => {
+                return Err(crate::DistributionRefusal::NotAWrittenValue);
+            }
+            _ => {}
         }
-        self
+        Ok(self)
+    }
+
+    /// Pushes the `f64` BITS of every written quantity's value, in
+    /// pre-order (children in [`Formula::child`] order): the
+    /// bit-semantic comparison substrate (spec D7).
+    pub fn literal_bits(&self, out: &mut Vec<u64>) {
+        self.own_bits(out);
     }
 
     /// The written quantity this formula is, where it is one alone.
@@ -556,14 +553,6 @@ impl Formula {
             other => leaf_fault(other, dim, scope, fresh).map(|var| Expr::var(var, dim)),
         })
     }
-}
-
-/// The exact rational constant whose value has `value`'s bits and whose
-/// text is `value`'s shortest decimal, where one is in range.
-pub(crate) fn exact_ratio(value: f64) -> Option<crate::expr::Ratio> {
-    crate::expr::Ratio::from_decimal(&format!("{value:?}"))
-        .ok()
-        .filter(|ratio| ratio.eval::<f64>().to_bits() == value.to_bits())
 }
 
 /// **The variable a name or fresh leaf lowers to**, read at `dim`, or

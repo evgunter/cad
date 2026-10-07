@@ -1819,6 +1819,7 @@ fn expression_text_door_tags_are_stable() {
     assert_eq!(tag(&refuse("(1 m 2 m)")), "unexpected_token");
     assert_eq!(tag(&refuse("1 m 2 m")), "trailing_input");
     assert_eq!(tag(&refuse("99999999999999999999999")), "integer_overflow");
+    assert_eq!(tag(&refuse("2/3.5")), "ratio_part_not_integer");
     assert_eq!(tag(&refuse("1 furlong")), "unknown_unit");
     assert_eq!(tag(&refuse("hypot(1, 2)")), "unknown_function");
     assert_eq!(tag(&refuse("sin(1 rad, 2 rad)")), "wrong_arity");
@@ -5640,6 +5641,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dimension",
             "integer_overflow",
             "malformed_number",
+            "ratio_part_not_integer",
             "trailing_input",
             "unexpected_char",
             "unexpected_end",

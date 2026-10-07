@@ -167,10 +167,10 @@ fn exprs() -> Exprs {
                     len(0.5),
                 )
                 .unwrap(),
-                Formula::mul(len(2.0), scl(1.5)).unwrap(),
+                Formula::mul(len(2.0), Formula::ratio(3, 2).unwrap()).unwrap(),
             )
             .unwrap(),
-            Formula::div(len(8.0), scl(4.0)).unwrap(),
+            Formula::div(len(8.0), Formula::ratio(4, 1).unwrap()).unwrap(),
         )
         .unwrap(),
         // A stored reader and an authored name: a program in a

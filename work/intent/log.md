@@ -249,17 +249,24 @@ tokens differ. Tokens carry `T_RATIO`, `T_INTEGER` and `T_TURN`;
 and the interval enclosures, of the whole corpus are byte-identical
 with ids masked; the id-bearing pins moved on `kitchen_sink` alone.
 
+Ruled at review (orchestrator, on the lane's spec-undecided rulings):
+- A bare number inside a formula is the exact `Ratio` its decimal
+  spells, and refuses `ConstantOutOfRange` where none in range does
+  (`1e-20`, `0.30000000000000004`): never a hidden variable (VR6). One
+  copy of the rule, `Ratio::from_decimal`. The whole text one such
+  decimal is a value, its written double. `Formula::scalar` is always
+  a written `Scalar` quantity (§1), so inside a definition it mints a
+  variable; `Formula::ratio` is the constant.
+- A count of integer constants beside an operand that is no count
+  reads as the scalar it equals, whichever side it folds on
+  (`turn/4`, `2*3*w`, `w*2*3`); a count reading a variable is promoted
+  only by `scalar(n)`.
+- `INT/INT` with no space is one ratio, except as the right operand of
+  `/`, so `w/2/3` is `(w/2)/3`; `unparse` brackets a `p/q` divisor. A
+  ratio's parts are integers (`2/3.5` refuses saying so).
+- `turn` is reserved (§1).
+
 Ruled by the lane:
-- A dimensionless value has no notation to remember, so it is the bare
-  number its text is: `Formula::literal` at `Scalar` (and
-  `Formula::scalar`, `Formula::number`) is the exact constant its
-  shortest decimal spells where one in range keeps its bits, and a
-  written value otherwise (`0.30000000000000004`, `-0.0`). The text
-  door reads digits the same way, so `unparse` round-trips with no
-  exception. A distribution on a lone number makes it the written value.
-- A bare integer beside an operand that is no count reads as the scalar
-  it equals (`turn/4`, `w * 2`); `INT/INT` with no space is one ratio,
-  the text `unparse` writes a non-terminating constant as.
 - A declared definition mints its own id before its quantities, so a
   refusal speaks the id it is minted at.
 - `Doc::unparse` writes an anonymous reader as what it holds; the bare
@@ -274,6 +281,7 @@ Closed: `no-dimensioned-literal-in-a-slot`,
 (its trigger fired). Re-parked: `operations-define-output-variables`
 (stage 2 A) on FORK-1's PR 4222, which still gates it once this
 row's trigger fires.
+
 ## 2026-10-07 — stage 2 sliced (`docs/INTENT-STAGE2-SPEC.md`)
 
 A spec lane sized stage 2 (operations and one dependency) at main

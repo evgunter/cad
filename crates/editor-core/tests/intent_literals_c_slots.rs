@@ -178,12 +178,12 @@ fn a_token_is_the_expansions_shape() {
         Tol::witness(),
     );
     let doc = declare(&doc, "w", length(0.0625));
-    let times = |k: f64| Formula::mul(named("w"), crate::fixture::scl(k)).unwrap();
-    let doc = declare(&doc, "h", VarDecl::defined(times(2.0)));
-    let (doc, _, a) = filleted(doc, 0.0, times(2.0));
-    let (doc, _, b) = filleted(doc, 4.0, times(2.0));
+    let times = |k: i64| Formula::mul(named("w"), Formula::ratio(k, 1).unwrap()).unwrap();
+    let doc = declare(&doc, "h", VarDecl::defined(times(2)));
+    let (doc, _, a) = filleted(doc, 0.0, times(2));
+    let (doc, _, b) = filleted(doc, 4.0, times(2));
     let (doc, _, c) = filleted(doc, 8.0, named("h"));
-    let (doc, _, d) = filleted(doc, 12.0, times(3.0));
+    let (doc, _, d) = filleted(doc, 12.0, times(3));
     assert_ne!(
         radius(&doc, a),
         radius(&doc, b),
@@ -626,7 +626,7 @@ fn an_entry_reads_the_entries_before_it() {
     let doc = empty("intent-literals-c-chain");
     let twice = Formula::mul(
         Formula::fresh(0, Dimension::Length),
-        crate::fixture::scl(2.0),
+        Formula::ratio(2, 1).unwrap(),
     )
     .unwrap();
     let applied = step(
@@ -677,7 +677,7 @@ fn retimes(node: RecipeNodeId) -> DocEdit<ProfileProgram> {
             slot: SlotId::Origin(editor_core::Axis3::X),
             path: vec![1],
         },
-        expr: crate::fixture::scl(3.0),
+        expr: Formula::ratio(3, 1).unwrap(),
     }
 }
 
@@ -695,7 +695,11 @@ fn an_edit_at_a_path_keeps_another_nodes_anonymous_read() {
     let x = SlotId::Origin(editor_core::Axis3::X);
     let v = applied.doc.slot(a, x).expect("a reads its x");
     let doc = toleranced(&applied.doc, v);
-    let twice = Formula::mul(Formula::var(v, Dimension::Length), crate::fixture::scl(2.0)).unwrap();
+    let twice = Formula::mul(
+        Formula::var(v, Dimension::Length),
+        Formula::ratio(2, 1).unwrap(),
+    )
+    .unwrap();
     let applied = step(&doc, point([twice, len(0.0), len(0.0)], Vec::new()));
     let b = applied.record.minted.expect("the second point");
     let before = applied.doc.slot(b, x).expect("b reads its x");
@@ -732,7 +736,7 @@ fn an_edit_at_a_path_keeps_a_fresh_entrys_read() {
     let doc = empty("intent-literals-c-path-fresh");
     let twice = Formula::mul(
         Formula::fresh(0, Dimension::Length),
-        crate::fixture::scl(2.0),
+        Formula::ratio(2, 1).unwrap(),
     )
     .unwrap();
     let spread = VarDecl::Free(

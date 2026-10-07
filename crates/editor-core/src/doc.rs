@@ -1202,13 +1202,6 @@ impl<P> Doc<P> {
         }
     }
 
-    /// **The anonymous variables nothing live reads** (VR7), in the
-    /// order a cascading removal reports them: a variable is live when
-    /// it is named, when a node reads it, or when the definition of a
-    /// live variable reads it. Each round takes, in declaration order,
-    /// the anonymous variables read by no node and by no definition of
-    /// a variable still standing — so a defined variable comes before
-    /// the variables only its definition read.
     /// **Whether `var` is a typed value**: an anonymous free variable,
     /// what a value written at a slot lowers to. A value gesture or a
     /// re-notation on a slot reading one moves it in place, keeping its
@@ -1221,9 +1214,8 @@ impl<P> Doc<P> {
     /// **The anonymous variables [`Node::written`] would not reproduce**:
     /// one read more than once — by two slots, as a fresh entry shared
     /// within one edit, or by a slot and a definition — which a written
-    /// re-insert splits into one per reader, and a bare number read by
-    /// a definition — a count, or an untoleranced scalar a constant
-    /// spells exactly — which written there reads back as that
+    /// re-insert splits into one per reader, and a count read by a
+    /// definition, which written there reads back as the integer
     /// constant.
     /// Rebuilding a document by re-inserting its nodes as written is
     /// the document only where this is empty and no anonymous variable
@@ -1259,20 +1251,18 @@ impl<P> Doc<P> {
             .filter(|var| {
                 reads.get(var).copied().unwrap_or(0) > 1
                     || (defining.contains(var)
-                        && match self.free(*var) {
-                            Some(FreeVar::Count { .. }) => true,
-                            Some(&FreeVar::Continuous {
-                                dim: Dimension::Scalar,
-                                value,
-                                distribution: None,
-                                ..
-                            }) => crate::formula::exact_ratio(value).is_some(),
-                            _ => false,
-                        })
+                        && matches!(self.free(*var), Some(FreeVar::Count { .. })))
             })
             .collect()
     }
 
+    /// **The anonymous variables nothing live reads** (VR7), in the
+    /// order a cascading removal reports them: a variable is live when
+    /// it is named, when a node reads it, or when the definition of a
+    /// live variable reads it. Each round takes, in declaration order,
+    /// the anonymous variables read by no node and by no definition of
+    /// a variable still standing — so a defined variable comes before
+    /// the variables only its definition read.
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,
@@ -1756,6 +1746,12 @@ impl<P> Doc<P> {
     /// **`expr` as written**: each anonymous variable it reaches
     /// replaced by what it holds ([`Self::slot_expansion`]); `expr`
     /// itself where that would nest past the bound.
+    ///
+    /// A free variable is written as the quantity it holds, its
+    /// correctly-rounded double, so a constant typed alone at a slot
+    /// reads back as that value and not as its spelling: `1/3` typed
+    /// at a `Scalar` slot mints a free variable holding
+    /// `0.3333333333333333` (Q1), and that is what it reads back as.
     pub fn written(&self, expr: &Expr) -> crate::Formula {
         self.written_formula(&crate::Formula::from(expr))
     }
@@ -1803,13 +1799,6 @@ impl<P> Doc<P> {
                 return None;
             }
             match self.vars.get(&var)?.def() {
-                // A bare number, as the text door reads its text back.
-                crate::VarDef::Free(FreeVar::Continuous {
-                    dim: Dimension::Scalar,
-                    value,
-                    distribution: None,
-                    ..
-                }) => crate::Formula::number(*value).ok(),
                 crate::VarDef::Free(FreeVar::Continuous {
                     dim,
                     value,

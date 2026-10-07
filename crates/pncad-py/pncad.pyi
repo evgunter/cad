@@ -2874,8 +2874,10 @@ class Formula:
     def ratio(num: int, den: int) -> Formula:
         """The exact rational constant `num / den`: a constant inside a
         formula, a written dimensionless value at a slot's root.
-        `LiteralError` (`kind` `"constant_out_of_range"`) for a zero
-        denominator, or a reduced numerator or denominator past 2^53."""
+        `LiteralError` (`kind` `"constant_out_of_range"`) for a
+        denominator that is not positive, or a reduced numerator or
+        denominator past 2^53, however wide the int; its `value` is the
+        quotient, or the numerator where there is none."""
     @staticmethod
     def turn() -> Formula:
         """One full rotation, the exact angle constant: a right angle is

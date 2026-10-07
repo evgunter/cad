@@ -163,11 +163,25 @@ class TestConstantsAreExact(unittest.TestCase):
         self.assertEqual(self.doc.eval(Formula.ratio(1, 10)), 0.1)
 
     def test_a_ratio_out_of_range_refuses(self):
-        for num, den in [(1, 0), (2**54, 1)]:
+        """Every int pair the constant cannot hold refuses typed, with a
+        finite `value` — a denominator that is not positive, and parts
+        past 2^53 however wide — never an `OverflowError`."""
+        for num, den in [
+            (1, 0),
+            (1, -3),
+            (2**54, 1),
+            (1, 2**70),
+            (2**100, 3),
+            (-(2**64), 1),
+        ]:
             with self.subTest(num=num, den=den):
                 with self.assertRaises(LiteralError) as caught:
                     Formula.ratio(num, den)
                 self.assertEqual(caught.exception.kind, "constant_out_of_range")
+                self.assertTrue(math.isfinite(caught.exception.value))
+
+    def test_a_wide_pair_that_reduces_into_range_is_its_constant(self):
+        self.assertEqual(Formula.ratio(2**60, 2**10), Formula.ratio(2**50, 1))
 
     def test_a_quarter_turn_is_a_right_angle(self):
         turn = Formula.turn()
@@ -202,6 +216,7 @@ class TestTheTextDoorRefusesTyped(unittest.TestCase):
             "sin(1 rad, 2 rad)",
             "height",
             "1 m + 1 rad",
+            "2/3.5",
         ]:
             with self.subTest(source=source):
                 err = self.refusal(source)

@@ -195,7 +195,7 @@ impl Ratio {
 
     /// The decimal text of this value where its denominator is a
     /// product of twos and fives and the text reads back to it.
-    fn decimal(self) -> Option<String> {
+    pub(crate) fn decimal(self) -> Option<String> {
         let mut den = self.den;
         for p in [2, 5] {
             while den.is_multiple_of(p) {

@@ -329,14 +329,19 @@ fn every_dimension_error_reaches_through_the_parser() {
             found: Dimension::Length,
         }
     );
-    // A lone integer beside a continuous operand reads as the scalar it
-    // equals (`2 * 5 mm`, `turn/4`); a count EXPRESSION there is still
-    // refused.
+    // A count of integer constants beside a continuous operand reads as
+    // the scalar it equals (`2 * 5 mm`, `turn/4`, `(2 + 1) * 5 mm`); a
+    // count reading a variable there is still refused.
     assert_eq!(p("2 * 5 mm").dim(), Dimension::Length);
     assert_eq!(p("turn/4").dim(), Dimension::Angle);
+    assert_eq!(ev(&p("(2 + 1) * 5 mm")), 0.015);
+    let count_param: BTreeMap<_, _> = [(VarName::from_static("n"), Dimension::Count)].into();
     assert_eq!(
-        dim_err("(2 + 1) * 5 mm"),
-        DimensionError::CountNeedsExplicitPromotion { op: "mul" }
+        parse_formula("n * 5 mm", &count_param),
+        Err(ParseError::Dimension {
+            pos: 2,
+            error: DimensionError::CountNeedsExplicitPromotion { op: "mul" },
+        })
     );
     assert_eq!(
         dim_err("5 / 2"),
@@ -422,6 +427,13 @@ fn arb_real_text() -> impl Strategy<Value = String> {
     (-1.0e6f64..1.0e6).prop_map(|v| format!("{v:?}"))
 }
 
+/// A bare decimal's text a constant spells exactly: six places keep
+/// its reduced numerator and denominator under 2^53, as a bare number
+/// inside a formula must be (`ConstantOutOfRange` otherwise).
+fn arb_constant_text() -> impl Strategy<Value = String> {
+    (-1.0e6f64..1.0e6).prop_map(|v| format!("{v:.6}"))
+}
+
 /// Random well-formed source of the given dimension, exercising every
 /// production the AST has (and only those): suffixed and bare
 /// literals, params, all operators, all calls, parens, unary minus.
@@ -433,7 +445,7 @@ fn arb_text_of(dim: Dimension, depth: u32) -> BoxedStrategy<String> {
         Dimension::Angle => (arb_real_text(), prop_oneof!["deg", "rad", "pi rad"])
             .prop_map(|(n, u)| format!("{n} {u}"))
             .boxed(),
-        Dimension::Scalar => prop_oneof![arb_real_text(), Just("S".to_string())].boxed(),
+        Dimension::Scalar => prop_oneof![arb_constant_text(), Just("S".to_string())].boxed(),
         Dimension::Count => prop_oneof![
             (-1000i64..1000).prop_map(|n| n.to_string()),
             Just("N".to_string()),
@@ -700,14 +712,15 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
     );
 
     // The dimensionless row is the one whose notation is the ABSENCE of
-    // a suffix, so a dimensionless value is the bare number its digits
-    // are — `2.0` rather than `2`, because a bare integer is a `Count`
-    // in this grammar — and the constant it equals where one spells it
-    // exactly. One that no constant in range spells is a written value,
-    // and its digits read back as one.
+    // a suffix, so a written dimensionless value is written as its bare
+    // digits — `2.0` rather than `2`, because a bare integer is a
+    // `Count` in this grammar. Those digits read back as the constant
+    // they spell exactly where one in range does (alone, either mints
+    // a free `Scalar`), and alone as the written value where none does.
     let scalar = Formula::literal(2.0, Dimension::Scalar).expect("finite scalar");
-    assert_eq!(scalar.as_ratio(), editor_core::Ratio::new(2, 1).ok());
-    assert_eq!(round_trip(&scalar), "2.0");
+    assert!(scalar.as_quantity().is_some());
+    assert_eq!(unparse(&scalar, &|_| None), "2.0");
+    assert_eq!(rp("2.0"), Formula::ratio(2, 1).unwrap());
     let inexact = Formula::literal(0.1 + 0.2, Dimension::Scalar).expect("finite scalar");
     assert_eq!(inexact.display_unit().map(|u| u.symbol()), Some(""));
     assert_eq!(round_trip(&inexact), "0.30000000000000004");
@@ -809,9 +822,9 @@ fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Formula {
             Formula::literal_with_unit(value, dim, unit(&["rad", "deg", "pi rad"], rng))
                 .expect("a finite angle")
         }
-        // A bare decimal is the constant it spells, where one is in
-        // range, and a written scalar otherwise.
-        (Dimension::Scalar, _) => p(&format!("{value:?}")),
+        // A bare decimal inside a formula is the constant it spells,
+        // so it is drawn with few enough places to be one in range.
+        (Dimension::Scalar, _) => p(&format!("{value:.6}")),
         (Dimension::Count, 1) => Formula::count(if rng.below(2) == 0 {
             i64::MIN
         } else {

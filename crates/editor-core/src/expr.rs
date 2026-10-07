@@ -370,7 +370,7 @@ pub trait LeafSet: Clone + core::fmt::Debug + PartialEq + sealed::Sealed {
     /// The text of one such leaf, read at `dim` ([`unparse`]).
     fn write(&self, dim: Dimension, out: &mut String);
     /// Pushes the bits of every float the leaf holds
-    /// ([`ExprTree::literal_bits`]).
+    /// ([`crate::Formula::literal_bits`]).
     fn bits(&self, out: &mut Vec<u64>);
     /// Whether the leaf's text opens with a minus sign, so it binds as
     /// a negation does ([`unparse`]).
@@ -696,7 +696,7 @@ pub(crate) fn nesting_over(below: u8) -> Result<u8, DimensionError> {
 ///
 /// The index carries **no compatibility contract**: it is never
 /// persisted, never enters a formula's identity, keys or
-/// [`ExprTree::literal_bits`] (D7), and is minted afresh at every
+/// [`crate::Formula::literal_bits`] (D7), and is minted afresh at every
 /// construction and load.
 ///
 /// **Serialization goes through the SYMBOL, never the index**, and the
@@ -1328,8 +1328,9 @@ impl<L: LeafSet> ExprTree<L> {
     /// hold, in pre-order (children in [`Expr::child`] order): the
     /// bit-semantic comparison substrate (spec D7: replay is
     /// bit-identical, so the comparators must not be bit-blind). A
-    /// stored expression holds no float, so it pushes nothing.
-    pub fn literal_bits(&self, out: &mut Vec<u64>) {
+    /// stored expression holds no float, so the public door is the
+    /// authored form's ([`crate::Formula::literal_bits`]).
+    pub(crate) fn own_bits(&self, out: &mut Vec<u64>) {
         self.visit_leaves(&mut |leaf, _| leaf.bits(out));
     }
 
@@ -1345,8 +1346,8 @@ impl<L: LeafSet> ExprTree<L> {
             return false;
         }
         let (mut a, mut b) = (Vec::new(), Vec::new());
-        self.literal_bits(&mut a);
-        other.literal_bits(&mut b);
+        self.own_bits(&mut a);
+        other.own_bits(&mut b);
         a == b
     }
 
@@ -2067,12 +2068,14 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
 /// to the canonical unit for the values that have no preimage in the
 /// asked-for one. A `Scalar` one takes no unit and is written with a
 /// decimal point or an exponent, because a BARE integer is this
-/// grammar's spelling of a `Count`; it is one no constant in range
-/// spells exactly ([`crate::Formula::number`]), so its digits read back
-/// as a written value. A rational constant is written as
-/// a decimal where its denominator is a product of twos and fives and
-/// as `p/q` otherwise ([`Ratio`]'s `Display`), and one full rotation
-/// as `turn`.
+/// grammar's spelling of a `Count`. The text has no spelling of a
+/// written dimensionless value inside a formula, so there its digits
+/// read back as the constant they spell, up to identity, and refuse
+/// [`DimensionError::ConstantOutOfRange`] where none in range does;
+/// alone, they read back as the written value. A rational constant is
+/// written as a decimal where its denominator is a product of twos and
+/// fives and as `p/q` otherwise ([`Ratio`]'s `Display`), bracketed as a
+/// divisor (`w / (1/3)`), and one full rotation as `turn`.
 ///
 /// A negative number is written with its sign (`-25 mm`), which the
 /// parser reads as the number's own; the negation of a non-negative
@@ -2166,7 +2169,18 @@ fn write_expr<L: LeafSet>(expr: &ExprTree<L>, names: Names<'_, '_>, out: &mut St
         K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, names, out),
         K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, names, out),
         K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, names, out),
-        K::Div(a, b) => write_infix(a, "/", b, PREC_PRODUCT, names, out),
+        // A ratio written `p/q` is bracketed as a divisor: the parser
+        // reads an unspaced pair after `/` as two divisions, left to
+        // right (`w/2/3` is `w/6`).
+        K::Div(a, b) => match &b.kind {
+            K::Ratio(r) if r.decimal().is_none() => {
+                write_nested(a, PREC_PRODUCT, names, out);
+                out.push_str(" / (");
+                out.push_str(&r.to_string());
+                out.push(')');
+            }
+            _ => write_infix(a, "/", b, PREC_PRODUCT, names, out),
+        },
         K::Neg(a) => {
             out.push('-');
             let numeric = match &a.kind {
@@ -2230,19 +2244,20 @@ fn write_quantity(value: f64, unit: UnitSym, dim: Dimension) -> String {
         // the same bits and always carries a `.` or an `e`, so it
         // settles the round trip and the dimension together.
         Dimension::Scalar => return format!("{value:?}"),
-        // Unconstructable (D2 addendum row 4): `Formula::literal` refuses
-        // `Count`, and `ExprKind::Literal` is minted nowhere else.
+        // Unconstructable (D2 addendum row 4): `Formula::literal` and
+        // `literal_with_unit` refuse `Count`, and a written quantity is
+        // built nowhere else.
         Dimension::Count => {
             unreachable!("a count is an integer constant (ExprKind::Integer), never a quantity")
         }
     };
     match formatted {
         Ok(text) => text,
-        // Same row: door 1 refuses a non-finite literal at
+        // Same row: door 1 refuses a non-finite quantity at
         // construction, and non-finiteness is the formatter's only
         // refusal.
         Err(error) => unreachable!(
-            "a stored literal is finite by construction, yet the display formatter refused: \
+            "a written quantity is finite by construction, yet the display formatter refused: \
              {error}"
         ),
     }
