@@ -1355,7 +1355,8 @@ impl Doc {
     /// `label=` labels the new node in the same call: the insert and a
     /// `DocEdit.set_label`, both applied or neither. A text that is not
     /// a label refuses before anything is applied (`label_blank`,
-    /// `label_line_break`, `label_control_character`).
+    /// `label_line_break`, `label_control_character`,
+    /// `label_direction_control`).
     #[pyo3(signature = (node, *, label=None, resolver=None))]
     fn insert(
         &mut self,
@@ -2768,15 +2769,17 @@ impl Node {
     /// unlike a blend's selection, IN THE ORDER GIVEN. The order is
     /// meaning: the kernel's record keeps a chart's designated faces
     /// in designation order, and the chart's rim is its FIRST
-    /// designated face (the chart's members merge onto it, and the
+    /// designated face (a plane chart's members merge onto it, and the
     /// rim's name is that face's), so name first the face you want to
-    /// carry the rim's identity. A repeated name keeps its first
+    /// carry the rim's identity. A curved chart that wraps round its
+    /// axis — a dome's cap — keeps every face as a branch of a seamed
+    /// band, each named for its own designation. A repeated name keeps its first
     /// occurrence. An EMPTY
     /// list is the SEALED hollow — every face offset inward, a cavity
     /// and no rim — which is legal and not a refusal.
     ///
     /// Every face of one solid on a chart must be named together:
-    /// naming only some of the faces one solid has on one plane refuses
+    /// naming only some of the faces one solid has on one chart refuses
     /// (`shell`, the kernel's `OpenFaceChartPartial`).
     /// Another solid's faces on that chart are its own, and opening one
     /// solid's never names them. The
@@ -2784,9 +2787,9 @@ impl Node {
     ///
     /// A name that resolves to nothing (`shell_open_resolve`), a name
     /// of the wrong kind (`shell_open_kind`), a non-positive wall or a
-    /// wall two facing faces cannot both afford, a curved designated
-    /// face (`shell`) — every one of those is the kernel's own typed
-    /// refusal at `evaluate`.
+    /// wall two facing faces cannot both afford, a rim the kernel cannot
+    /// build or read (`shell`) — every one of those is the kernel's own
+    /// typed refusal at `evaluate`.
     ///
     /// `thickness` is the node's `shell_thickness` slot, moved
     /// afterwards by `DocEdit.set_param`; a designated
@@ -3912,10 +3915,10 @@ impl DocEdit {
     /// pin, as a recolour does.
     ///
     /// Refuses at this call a text that is not a label (`EditError`:
-    /// `label_blank`, `label_line_break`, `label_control_character`),
-    /// and at `apply` a node the document does not hold
-    /// (`unknown_node`) or an edit that would leave the label as it is
-    /// (`label_unchanged`).
+    /// `label_blank`, `label_line_break`, `label_control_character`,
+    /// `label_direction_control`), and at `apply` a node the document
+    /// does not hold (`unknown_node`) or an edit that would leave the
+    /// label as it is (`label_unchanged`).
     #[staticmethod]
     #[pyo3(signature = (node, label))]
     fn set_label(py: Python<'_>, node: &NodeId, label: Option<&str>) -> PyResult<Self> {

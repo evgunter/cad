@@ -3532,6 +3532,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ContactSecondOrder,
         BlendDecision::CornerIndependence,
         BlendDecision::CapTransverse,
+        BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
     ] {
         let refused = BlendError::Escalated {
@@ -4735,6 +4736,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chamfer_arm_unsupported",
             "convexity_sign_flip",
             "escalated",
+            "face_clearance",
             "face_clearance_uncertified",
             "nonpositive_size",
             "op",
@@ -4792,7 +4794,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pcurves",
             "pieces",
             "pierce_runs_unordered",
-            "pinch_uncrossed",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
@@ -5240,7 +5241,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "label_fault_tag",
-        values: &["label_blank", "label_control_character", "label_line_break"],
+        values: &[
+            "label_blank",
+            "label_control_character",
+            "label_direction_control",
+            "label_line_break",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5255,6 +5261,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "degenerate_stacking",
             "euler",
+            "far_section_not_forward",
+            "far_stacking_escalated",
             "one_segment_loop",
             "pcurve",
             "reversed_stacking",
@@ -5887,7 +5895,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "open_face_chart_partial",
             "open_face_repeated",
             "open_face_rim_not_expressible",
-            "open_face_ring_unsupported",
             "open_face_stale",
             "open_faces_disconnect",
             "open_faces_exhaust_shell",
@@ -5910,6 +5917,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "domain_not_unit",
             "fit",
             "knot_algebra",
+            "no_parameter_step",
             "path_tangent_reversal",
             "section_profile",
             "section_shape_mismatch",

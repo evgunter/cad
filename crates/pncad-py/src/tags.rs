@@ -404,12 +404,13 @@ pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str
 }
 
 /// The stable tag for a text refused as a label — which of the label
-/// rule's three clauses it broke.
+/// rule's four clauses it broke.
 pub fn label_fault_tag(fault: &LabelFault) -> &'static str {
     match fault {
         LabelFault::Blank => "label_blank",
         LabelFault::LineBreak { .. } => "label_line_break",
         LabelFault::Control { .. } => "label_control_character",
+        LabelFault::Direction { .. } => "label_direction_control",
     }
 }
 
@@ -1546,6 +1547,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::ChainNotConnected { .. } => "chain_not_connected",
         BlendError::RadiusHeadroom { .. } => "radius_headroom",
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
+        BlendError::FaceClearance { .. } => "face_clearance",
         BlendError::TangentialEdge { .. } => "tangential_edge",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
@@ -1625,7 +1627,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PierceRunsUnordered => "pierce_runs_unordered",
-        BooleanErrorKind::PinchUncrossed => "pinch_uncrossed",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1687,6 +1688,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::DomainNotUnit { .. } => "domain_not_unit",
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",
+        SkinError::NoParameterStep { .. } => "no_parameter_step",
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
@@ -1708,6 +1710,8 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::OneSegmentLoop { .. } => "one_segment_loop",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
+        LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
+        LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
     }
 }
@@ -1789,7 +1793,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OpenFaceRepeated { .. } => "open_face_repeated",
         ShellError::OpenFacesExhaustShell { .. } => "open_faces_exhaust_shell",
         ShellError::OpenFacesDisconnect { .. } => "open_faces_disconnect",
-        ShellError::OpenFaceRingUnsupported { .. } => "open_face_ring_unsupported",
         ShellError::OpenFaceChartPartial { .. } => "open_face_chart_partial",
         ShellError::Lift { .. } => "lift",
         ShellError::Insert { .. } => "insert",

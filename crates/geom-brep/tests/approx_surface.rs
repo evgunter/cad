@@ -512,6 +512,13 @@ fn offsetting_an_approximating_surface_refuses_typed() {
         matches!(e, geom_brep::OffsetError::ApproxNesting),
         "got {e}"
     );
+    // Its inverse refuses the same way: no distance mints from it.
+    assert!(matches!(
+        geom_brep::offset_distance(&s, &s),
+        Err(geom_brep::OffsetDistanceError::Offset(
+            geom_brep::OffsetError::ApproxNesting
+        ))
+    ));
 }
 
 /// The implicit-form layer answers poison, as it does for a spline:

@@ -179,3 +179,32 @@ closed form:
 The built rods are not yet legal operands: their union with a far brick
 refuses, and why was not measured. The closed-form-only measurement is
 untouched.
+
+## Another witness (BAND, the oblique fillet's band)
+
+A plane–plane fillet cut off at an oblique end face ends in an arc of
+the end plane's elliptic section of its cylinder, so its band is a
+cylinder face trimmed by two ellipse arcs. The parallelogram prism of
+`crates/sweep/tests/band_planar_oblique_fillet.rs`, its top front edge
+filleted at r = 0.1, measures through the certified door and
+tessellates watertight. After the ray-walk above, a brick beside the
+band and one through it build in every op at the closed forms, but a
+brick wholly apart still refuses `Containment(VolumeUncertified)` in
+subtract and union — the far-brick shape this row's last paragraph
+names. Pinned by
+`the_ellipse_edges_pass_the_tessellator_and_the_boolean`. The ruled
+band's oblique cap and the tour bracket's filleted chords
+(`demos/tour/src/bracket.rs`) carry the same face shape.
+
+**At ε = 1e-12, through the elliptic end (PR 4173's review).** The
+same fillet on the parallelogram leaning `s = 3` (its walls 72° off
+square), with a brick crossing the band's end arc,
+`brick((-0.5, 0.15), (-0.5, 0.05), (0.92, 1.5))`: subtract and union
+refuse `VolumeUnmeasured` ("the quadrature could not decide whether
+its enclosure of a face's contribution had converged"), and intersect
+builds. All three build at ε = 1e-9 and 1e-6, consistent with each
+other. This is not the probe's closed-form gap but the quadrature's
+convergence escalation,
+`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`,
+met on the same face shape. Pinned by `band_planar_oblique_fillet.rs`
+`a_brick_through_a_steep_elliptic_end_builds_in_every_op`.

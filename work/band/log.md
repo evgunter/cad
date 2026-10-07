@@ -588,3 +588,46 @@ piece-by-piece ring readers. Filed: TESS
 `mesh-slit-annulus-rows-no-longer-build-a-slit`, CLEAVE
 `revolve-seam-split-volumes-miss-their-closed-form-at-eps-1e-6` (main's red,
 merged over); SHELL `offset-door-declared-transport-has-no-built-witness`.
+
+## 2026-10-06 — run-out step 3 landed (PR #4173): an oblique plane end face cuts a round band off in an ellipse
+
+A fillet whose plane end face is oblique to its edge ends in the end plane's
+elliptic section of its cylinder, for the planar and the ruled band on both
+convexities: built through `Curve3::ellipse`'s deciding door, the sliver
+enclosed exactly (the disc to the sliver's reach less the ellipse, cut to
+the half-plane and the section's box). `cap_transverse` picks the kind; the
+near-perpendicular window where the ellipse is not distinct from a circle
+escalates as its own `BlendDecision::CapEllipse` with a followable recourse.
+The bracket's fillet walls retired; the tour rocker's wall 2 (the same
+over-refusal on a circle end) retired into builds. Full review
+(APPROVE-WITH-FIXES; every arc on both faces to 1e-16) taken in full. Filed:
+`second-order-cap-window-escalates-small-drafts` (P3); witnesses on CONTACT's
+`at-infinity-probe-measures-in-closed-form-only` and QUAD's
+`quadrature-convergence-test-escalates-instead-of-refining`. The run-out row
+stays open for step 4 (the mitre) and the overrun.
+
+## 2026-10-07 — the P0 landed (PR #4143): every band is metered against every face it could reach
+
+Predicate 2's reach (`blend/reach.rs`) meters each band against every face
+of the body that is not a support of its chain, in any shell, and refuses
+before any mutation (`BlendError::FaceClearance { at, chain, margin,
+bounded }`). Each reach is an intersection of 1-Lipschitz bounds (straight
+links closed at their end faces, circular links in their meridian sheet,
+corner patches of their own). Faces are pruned on certified boxes
+(`topo::FaceBoxes`). Cells halve until they clear, reach `escalate`, or a
+per-face budget of 4096 runs out; a spent budget refuses and never passes.
+Two bands of one request are read against what each leaves. The reach arm
+runs in the surgery after predicate 6 and before any mutation; C8 and
+`run_battery` are re-worded to say so, since the arm needs the plan's feet.
+The class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally
+0) was taken in full:
+- every sign is now decided (a bound scaled by an undecided sign is
+  vacuous, never wrong);
+- an end face tangent to the spine refuses typed;
+- the corner skip-union is gone;
+- `replaces` is restricted to the edge's extent plus a slab;
+- the corner bounds are pinned against analytic oracles.
+
+The cost of the 42-link request fell from about 4 s to 0.3 s at
+`Interval`. Filed: `blend-reach-takes-an-open-arc-link-over-the-whole-turn`
+(P3), plus a second seed on VACUITY's pick-face guard. This unholds PR 4092.

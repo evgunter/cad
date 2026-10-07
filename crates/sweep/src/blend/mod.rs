@@ -30,14 +30,18 @@
 //! its units, and its lever arm:
 //!
 //! 1. [`battery::radius_headroom`] — `fillet3_radius_headroom`
-//! 2. [`battery::face_clearance`] — `fillet3_face_clearance`
+//! 2. [`battery::face_clearance`] — `fillet3_face_clearance`; its
+//!    reach arm (`reach`), every band against every face of the body,
+//!    needs the plan's feet and runs in the surgery after 6, before any
+//!    mutation
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
 //! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`; and,
 //!    at a RULED link's end, [`battery::cap_transverse`] —
 //!    `fillet3_cap_transverse`, the same predicate's classification of
-//!    the termination a ruled band has (a transverse cap, not a corner)
+//!    the termination a ruled band has (a plane cap, not a corner):
+//!    the picker of its section there, a circle or an ellipse
 //!
 //! **What "the offending margin as payload" means, exactly.** A
 //! definite refusal carries a [`ClassifiedMargin`]: the reading the
@@ -108,10 +112,11 @@
 //! the void with its ball, or the chamfer's flat patch); one, the
 //! CUT-OFF in the end face's plane section of the band
 //! ([`CornerConfig::EndFace`], [`RunOutPolicy::CutOffAtEndFace`]): a
-//! chord at any angle for a chamfer, a circle at a perpendicular end
-//! face for a fillet; and the RULED band — a straight edge between a
-//! cylinder and a plane or cylinder sharing its ruling — cut off at
-//! plane end faces perpendicular to the ruling, decided by
+//! chord at any angle for a chamfer, and for a fillet a circle at a
+//! perpendicular end face and an ellipse at an oblique one; and the
+//! RULED band — a straight edge between a cylinder and a plane or
+//! cylinder sharing its ruling — cut off at its plane end faces the
+//! same way, the circle or the ellipse picked by
 //! `fillet3_cap_transverse` at the link's own extent.
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
@@ -122,11 +127,10 @@
 //! ([`BlendError::SpineUnsupported`] — the canal-surface
 //! approximating-blend lane, banked as its own reviewed unit). An end
 //! whose configuration is the supported one but whose shape the cut-off
-//! does not build — an oblique end face under a fillet, a curved end
-//! face, a foot off its rim's span (landing inside a support), two
-//! cut-offs' feet crossing on the one rim they share — is a
-//! **run-out**, and refuses as [`BlendError::UnsupportedRunOut`] before
-//! any mutation.
+//! does not build — a curved end face, a foot off its rim's span
+//! (landing inside a support), two cut-offs' feet crossing on the one
+//! rim they share — is a **run-out**, and refuses as
+//! [`BlendError::UnsupportedRunOut`] before any mutation.
 
 mod admit;
 pub mod arms;
@@ -134,6 +138,7 @@ pub mod battery;
 pub mod build;
 pub mod naming;
 mod open;
+pub(crate) mod reach;
 pub mod surgery;
 
 use core::fmt;
@@ -258,10 +263,19 @@ pub enum BlendDecision {
     /// `fillet3_corner_independence`: a uniform trivalent corner's three
     /// support normals are independent.
     CornerIndependence,
-    /// `fillet3_cap_transverse`: a cylinder band's end face — a ruled
-    /// link's cap, or a plane–plane fillet's cut-off — is perpendicular
-    /// to its spine. Passes only at zero.
+    /// `fillet3_cap_transverse`: the kind a cylinder band's plane end
+    /// face — a ruled link's cap, or a plane–plane fillet's cut-off —
+    /// cuts from it: a circle at zero, where the face is perpendicular
+    /// to its spine, an ellipse at a definite departure. It escalates
+    /// in band.
     CapTransverse,
+    /// `ellipse_axes_distinct`: an oblique end face's ellipse, whose
+    /// semi-axes `r` and `r·sec θ` differ by `r·(sec θ − 1)`, is one the
+    /// ellipse door admits. Decided in `geom` (`Curve3::ellipse`), whose
+    /// verdict the cut-off takes as its own; a definite departure whose
+    /// axes that door reads as one circle, or in band, is reported as
+    /// this decision.
+    CapEllipse,
     /// `fillet3_cut_off_feet`: two cut-offs at the two ends of one rim
     /// put their feet on it in order and definitely apart, so the
     /// second split lands on the piece the first leaves.
@@ -271,7 +285,7 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -283,6 +297,7 @@ impl BlendDecision {
         Self::ContactSecondOrder,
         Self::CornerIndependence,
         Self::CapTransverse,
+        Self::CapEllipse,
         Self::CutOffFeet,
     ];
 
@@ -301,6 +316,7 @@ impl BlendDecision {
             Self::ContactSecondOrder => "tangent_second_order",
             Self::CornerIndependence => "fillet3_corner_independence",
             Self::CapTransverse => "fillet3_cap_transverse",
+            Self::CapEllipse => "ellipse_axes_distinct",
             Self::CutOffFeet => "fillet3_cut_off_feet",
         }
     }
@@ -326,7 +342,14 @@ impl BlendDecision {
                 "whether the three face normals at the corner are independent"
             }
             Self::CapTransverse => {
-                "whether a cylinder band's end face is a plane perpendicular to its spine"
+                "whether a cylinder band's plane end face is perpendicular to its spine, \
+                 cutting a circle from it, or tilted off it, cutting an ellipse (the margin is \
+                 the sine of the tilt, levered at the link's length)"
+            }
+            Self::CapEllipse => {
+                "whether a tilted plane end face cuts a cylinder band in an ellipse distinct \
+                 from a circle (the margin is how far its semi-axes differ: r·(sec θ − 1) for \
+                 radius r and tilt θ)"
             }
             Self::CutOffFeet => {
                 "whether two cut-offs' feet on the rim they share stand definitely apart"
@@ -352,7 +375,9 @@ impl BlendDecision {
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactSecondOrder => FILLET3_CONTACT_RECOURSE,
             Self::CornerIndependence => FILLET3_CORNER_INDEPENDENCE_RECOURSE,
-            Self::CapTransverse | Self::CutOffFeet => FILLET3_CORNER_RECOURSE,
+            Self::CapTransverse => FILLET3_CAP_TILT_RECOURSE,
+            Self::CapEllipse => FILLET3_CAP_ELLIPSE_RECOURSE,
+            Self::CutOffFeet => FILLET3_CORNER_RECOURSE,
         }
     }
 
@@ -368,6 +393,9 @@ impl BlendDecision {
             Self::FaceClearance | Self::RingClearance => Some(("clearance", SizedPass::Positive)),
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
             Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
+            Self::CapEllipse => {
+                Some(("difference of the ellipse's semi-axes", SizedPass::Positive))
+            }
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             Self::ChainG1 | Self::SupportCoaxiality | Self::CapTransverse => None,
@@ -713,8 +741,9 @@ pub enum CornerConfig {
     /// it ([`RunOutPolicy::CutOffAtEndFace`]).
     ///
     /// IN SCOPE for the plane–plane chamfer at any angle, and for a
-    /// cylinder band — the plane–plane fillet's, or a ruled arm's —
-    /// where the end face is perpendicular to the spine
+    /// cylinder band — the plane–plane fillet's, or a ruled arm's — at
+    /// any plane end face its spine crosses, in a circle where the face
+    /// is perpendicular to the spine and an ellipse where it is oblique
     /// (`fillet3_cap_transverse`, metered at the link's own extent).
     /// Not a corner in the trihedral sense — no ball rests there — and
     /// not a seam vertex: the surface is not smooth through it.
@@ -858,8 +887,8 @@ pub const FILLET3_CONTACT_RECOURSE: &str = "change the radius: larger on a plane
 /// cannot certify. Both verbs meter clearance (each on its own
 /// setbacks), so the sentence names the blend size, which is the
 /// fillet's radius or the chamfer's setback.
-pub const FILLET3_CLEARANCE_RECOURSE: &str =
-    "reduce the blend size, or enlarge the support face whose clearance is uncertified";
+pub const FILLET3_CLEARANCE_RECOURSE: &str = "reduce the blend size, or make room for the band: \
+     enlarge the support face it sets back on, or move a face it reaches clear of it";
 /// The clearance recourse when the two uncertified setbacks belong to
 /// two DIFFERENT requested chains — the request is then splittable:
 /// the screen meters both setbacks against the SOURCE face at once,
@@ -923,16 +952,28 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// The ends it names are true of either verb on either material side:
 /// the uniform trivalent vertex carves wherever the material lies (the
 /// rolling ball's octant rests inside the material or in the void with
-/// its ball; the flat patch and the cut-off never had a side), and the
-/// sentence conditions on the band only where the door does — a round
-/// band's cut-off needs a perpendicular end face, a flat one's does
-/// not. It names the band's shape rather than either verb, being the
-/// shared arm both doors render. Held to it by
+/// its ball; the flat patch and the cut-off never had a side), and of
+/// either band at any angle of its plane end face — a chord, a circle
+/// or an ellipse. It names the band's shape rather than either verb,
+/// being the shared arm both doors render. Held to it by
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end each chain at trivalent vertices of one convexity \
      between planes, whatever is requested: all three edges, or the chain's edge alone, cut off in \
-     a plane end face (perpendicular, for a round band); no mitre is built";
+     a plane end face; no mitre is built";
+/// The lever of `fillet3_cap_transverse`: its in-band arm is the one
+/// refusal, between the two kinds it builds, so the way out is either
+/// kind, plainly.
+pub const FILLET3_CAP_TILT_RECOURSE: &str = "square the end face to the edge, where the band ends \
+     in a circle, or tilt it clearly off square, where the band ends in an ellipse";
+/// The lever of the cut-off's ellipse ([`BlendDecision::CapEllipse`]):
+/// the ellipse's semi-axes differ by `r·(sec θ − 1) ≈ r·θ²/2`, so the
+/// tilt that clears the band's upper edge `e` is about `√(2e/r)`
+/// radians, and a larger radius clears it at a smaller tilt.
+pub const FILLET3_CAP_ELLIPSE_RECOURSE: &str = "tilt the end face further off square, until its \
+     ellipse's semi-axes r and r·sec θ differ by more than the band's upper edge e (a tilt θ past \
+     about √(2e/r) radians, which a larger radius lowers), or square it to the edge, where the \
+     band ends in a circle";
 /// The lever of `fillet3_corner_independence`, shared by its in-band
 /// arm and its decided-Zero one ([`CornerConfig::DependentNormals`]).
 ///
@@ -994,7 +1035,7 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// **And it names BOTH terminations the surgery carves.** A
 /// plane\u{2013}plane link ends at a uniform trivalent corner; a RULED link —
 /// a cylinder with a plane or another cylinder, along the ruling they
-/// share — ends at transverse caps, which is the OQ6 scope decision
+/// share — ends at plane caps, which is the OQ6 scope decision
 /// stated at the top of this module and what
 /// `sweep/tests/fillet_h7_transverse_cap.rs` carves on the rod with a
 /// flat. Naming only the first left the second endorsed by
@@ -1227,6 +1268,28 @@ pub enum BlendError {
         /// `blend_tworims::colliding_bands_on_a_shared_wall_refuse_upfront`).
         cross_chain: bool,
     },
+    /// **Predicate 2's reach**: a face that is not a support of the
+    /// chain lies in the band's material — what a convex band removes,
+    /// what a concave one adds — or could not be certified clear of it
+    /// (`blend::reach`).
+    FaceClearance {
+        /// The face the band reaches; or, where what it reaches is the
+        /// band of another chain of the request (which has no face yet),
+        /// that chain's first edge.
+        at: EntityId,
+        /// The convexity of the chain whose band reaches it: which of
+        /// the two things the band does to the material there.
+        chain: Convexity,
+        /// The clearance in meters, as `fillet3_face_clearance`
+        /// classified it: the depth of a point of the face's boundary
+        /// inside the band's material, or a lower bound on the face's
+        /// clearance from a region enclosing it, as `bounded` says.
+        margin: ClassifiedMargin,
+        /// Whether `margin` is a BOUND: the face could not be certified
+        /// clear, which says only that — not that it reaches the band's
+        /// material.
+        bounded: bool,
+    },
     /// **Predicate 5, the undecided wedge**: the dihedral's signed
     /// margin decided Zero, so there is no definite wedge side for a
     /// rolling ball at the metered lever. Genuine tangency — the two
@@ -1413,10 +1476,9 @@ pub enum BlendError {
     },
     /// **Frontier** (D2 addendum row 2): a chain ends at a
     /// configuration a band builds, but in a shape its end does not —
-    /// a run-out: an oblique end face under a fillet (the ellipse), a
-    /// curved end face, a foot off its rim's span (inside a face rather
-    /// than on the end face's rim), two cut-offs' feet that cross on one
-    /// shared rim.
+    /// a run-out: a curved end face, a foot off its rim's span (inside a
+    /// face rather than on the end face's rim), two cut-offs' feet that
+    /// cross on one shared rim.
     ///
     /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
     /// which is the OQ6 vocabulary for what a vertex's own
@@ -1487,8 +1549,8 @@ pub enum BlendError {
     /// (`fillet3_ring_clearance`): a ring of a support face sits
     /// within (or in band of) a blend trimline, so splitting the face
     /// along that trimline would consume the ring's feature instead
-    /// of carrying it through — or an edge of a transverse cap that a
-    /// convex ruled cut-off leaves on it (an edge of a ring, or of the
+    /// of carrying it through — or an edge of an end face that a
+    /// cut-off leaves on it (an edge of a ring, or of the
     /// cycle the cut runs in other than the two rims it shortens) is
     /// not definitely clear of a region enclosing the sliver the cut
     /// removes, so the cut would cross it or leave it outside the
@@ -1599,6 +1661,31 @@ impl fmt::Display for BlendError {
                      further than that; the screen is conservative by direction. {}",
                     Measured(*gap),
                     BlendDecision::FaceClearance.recourse_with(lever, margin.arm())
+                )
+            }
+            Self::FaceClearance {
+                at,
+                margin,
+                chain,
+                bounded,
+            } => {
+                let what = match chain {
+                    Convexity::Convex => "removes",
+                    Convexity::Concave => "adds",
+                };
+                let how = if *bounded {
+                    "cannot be certified clear of"
+                } else {
+                    "lies in"
+                };
+                let whom = match at {
+                    EntityId::Edge(_) => "the band of another chain of the request",
+                    _ => "a face the blend does not round",
+                };
+                write!(
+                    f,
+                    "{whom} {how} the material its band {what} ({margin}). {}",
+                    BlendDecision::FaceClearance.recourse(margin.arm())
                 )
             }
             Self::TangentialEdge { margin, .. } => write!(
@@ -1745,7 +1832,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 16] = [
+pub const ALL_RECOURSES: [(&str, &str); 18] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
@@ -1756,6 +1843,8 @@ pub const ALL_RECOURSES: [(&str, &str); 16] = [
     ("convexity", FILLET3_CONVEXITY_RECOURSE),
     ("corner", FILLET3_CORNER_RECOURSE),
     ("corner-independence", FILLET3_CORNER_INDEPENDENCE_RECOURSE),
+    ("cap-tilt", FILLET3_CAP_TILT_RECOURSE),
+    ("cap-ellipse", FILLET3_CAP_ELLIPSE_RECOURSE),
     ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
     ("assembly", FILLET3_ASSEMBLY_RECOURSE),
     ("geometry", FILLET3_GEOMETRY_RECOURSE),
@@ -1840,6 +1929,7 @@ mod recourse_tests {
                     FILLET3_CLEARANCE_RECOURSE
                 })
             }
+            BlendError::FaceClearance { .. } => Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE),
             BlendError::TangentialEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
             BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
             BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
@@ -1912,6 +2002,18 @@ mod recourse_tests {
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
                 gap: MarginDiag::value(0.2),
                 cross_chain: true,
+            },
+            BlendError::FaceClearance {
+                at: EntityId::Face(FaceKey::default()),
+                chain: Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: false,
+            },
+            BlendError::FaceClearance {
+                at: EntityId::Face(FaceKey::default()),
+                chain: Convexity::Concave,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: true,
             },
             BlendError::TangentialEdge {
                 edge: EdgeKey::default(),
