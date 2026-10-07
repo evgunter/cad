@@ -37,9 +37,10 @@
 //!
 //! # The meter
 //!
-//! A reach skips its chain's supports, every face at one of its
+//! A reach skips its chain's supports, every face at one of its own
 //! vertices (the face the band runs into, judged by predicate 6 and the
-//! surgery), and any face on a support's stored surface whose side
+//! surgery; a plane end face lies on the cap that ends the window, so
+//! it never meets the reach's inside), and any face on a support's stored surface whose side
 //! bounds it (that face lies on the side's zero set). A support of
 //! another chain of the request is metered by what survives that
 //! chain's band: a cell inside the strip the band replaces is clear.
@@ -683,9 +684,9 @@ struct Reach<T: Real> {
     /// a corner patch's vertex.
     chains: Vec<usize>,
     /// The faces this reach does not meter by key, sorted: a link's,
-    /// its chain's supports and every face at one of its vertices (the
-    /// face the band runs into there); a corner patch's, the faces at
-    /// its vertex.
+    /// its chain's supports and every face at one of its own two
+    /// vertices ([`excluded`]); a corner patch's, the faces at its
+    /// vertex.
     skip: Vec<FaceKey>,
     /// The cross-section's reach from its spine point: the scale a
     /// sheet bound's slack is weighed against ([`metered`]).
@@ -791,15 +792,20 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
     }
 }
 
-/// The faces a chain's reaches do not meter by key: its supports, and
-/// every face at one of its vertices.
-fn excluded<T: Decide>(body: &Body<T>, chain: &Chain<T>) -> Result<Vec<FaceKey>, BlendError> {
-    let mut out = Vec::new();
-    for l in chain.links() {
-        out.extend([l.face_a, l.face_b]);
-        out.extend(faces_at(body, l.start)?);
-        out.extend(faces_at(body, l.end)?);
-    }
+/// The faces a link's reach does not meter by key: its chain's supports,
+/// and every face at one of the link's own two vertices. A face at its
+/// own end is a plane (the battery refuses a curved end face) on a cap
+/// that bounds the reach, or a support of a corner patch's links there;
+/// a face at another link's end, which lies on no bound of this reach,
+/// is metered like any other.
+fn excluded<T: Decide>(
+    body: &Body<T>,
+    chain: &Chain<T>,
+    link: &Link<T>,
+) -> Result<Vec<FaceKey>, BlendError> {
+    let mut out: Vec<FaceKey> = chain.links().flat_map(|l| [l.face_a, l.face_b]).collect();
+    out.extend(faces_at(body, link.start)?);
+    out.extend(faces_at(body, link.end)?);
     out.sort_unstable();
     out.dedup();
     Ok(out)
@@ -1895,10 +1901,6 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             corners.push((v, anchors));
         }
     }
-    let skip: Vec<Vec<FaceKey>> = chains
-        .iter()
-        .map(|c| excluded(body, c))
-        .collect::<Result<_, _>>()?;
     for (ci, link) in &all {
         let st = station(body, link)?;
         let mut r = if link.arm.is_coaxial_torus() {
@@ -1906,7 +1908,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         } else {
             straight_reach(body, link, &st, &corners, *ci, band)?
         };
-        r.skip.clone_from(&skip[*ci]);
+        r.skip = excluded(body, &chains[*ci], link)?;
         for (f, strip) in &r.replaces {
             screened(body, &ends_all, *f, strip, band)?;
         }
