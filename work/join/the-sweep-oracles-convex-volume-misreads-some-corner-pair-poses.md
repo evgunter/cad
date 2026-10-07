@@ -2,11 +2,12 @@
 id: the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses
 kind: issue
 title: The pierce sweep's oracle convex_volume misreads some corner-pair poses, so a want can be wrong
-status: review
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
 branch: join/sweep-oracle-convex-volume
+closed: 2026-10-07
 ---
 
 
