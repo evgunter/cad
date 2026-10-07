@@ -1,50 +1,60 @@
 ---
 id: a-ring-on-a-cone-or-torus-face-has-no-island-winding
 kind: issue
-title: A ring on a cone face has no island winding or re-homing reading (a torus face's section is refused before the ring lane)
-status: open
+title: A ring on a torus face has no island winding: the plane×torus germ pair refuses before the ring lane
+status: parked
 opened: 2026-10-07
 priority: P2
 cost: M
-refs: [a-ring-on-a-sphere-face-has-no-island-winding]
+refs: [a-ring-on-a-sphere-face-has-no-island-winding, boolean-sector-algebra-has-no-cone-arm]
+blocked_on: [c5-plane-torus-cone-cylinder-arms]
 ---
 
 
 Found by the sweep of `a-ring-on-a-sphere-face-has-no-island-winding`
-(TANG), which gave a sphere face's ring lane a chart-free winding and
-re-homing reading.
+(TANG). The item first named a cone face too; that half closed on
+2026-10-07 (below), and what is left is the torus.
 
 ## What is left
 
-The island winding `boolean::join::choose_roles` asks for on
-`RingClosure::Wall` reads a cylinder wall's chart
-(`chord_join::chart_island_winding`) or a sphere's sections
-(`chord_join::sphere_island_winding`). A cone face's ring lane reaches
-`chart_island_winding` and refuses `Join(RingIslandUnread { kind:
-Cone })` there, through `chord_join::ring_island_unread`.
-
-Ring re-homing on a cone face never reaches `chord_join::chart_ring_side`:
-`ChordJoiner::rehome_rings` reads a chart only for a cylinder or a
-sphere, and sends every other kind to `face_plane_normal`, which
-refuses `SectionInvariant` ("ring re-homing reads the divided face's
-plane; this face's carrier is not a plane (arm not wired)"). So
-`chart_ring_side`'s own `ring_island_unread` arm is unreachable.
-
-A torus face is refused earlier, by `chord_join::wall_section`
-("a section through a face kind the gate refuses"): its ring lane is
-not reached at all.
-
-## Measured
-
-Nothing yet: no row reaches a ring on a cone or torus face. The first
-step is a pose (a box edge through a cone's wall, clear of its rims
-and apex) under every op.
+No op reaches a ring on a torus face. A box edge through the outer
+wall of the `R = 2, r = 1/2` donut (the box `x > 2.3, y > 0.2`, a slab
+of it, or a corner inside it) refuses every op as
+`GermFrameUnsupported { Torus, Plane }`, in both member orders, at the
+join's germ-pair frame dispatch (`boolean::join::pair_section_frame`).
+C5 has no plane×torus section arm (GERM,
+`c5-plane-torus-cone-cylinder-arms`), and that is what the dispatch
+refuses. Behind it, `chord_join::wall_section` refuses a torus as "a
+section through a face kind no section arm reads". It used to say "the
+gate refuses", which was wrong: the operand gate admits a torus face
+(`reduce::boolean_arm_exists`), and it is the section arms that have no
+torus.
 
 ## What a fix owes
 
-The sphere arm's statement leans on the section plane cutting the
-sphere in a circle that bounds two caps; a cone or torus section has no
-such pair, so it does not carry over. Candidates: the cylinder arm's
-chart reading on a cone's (apex-free) chart, or the sphere arm's
-great-circle parity carried to a path on the face whose crossings with
-the loop's carriers are closed-form.
+The sphere and cone ring lanes share one chart-free reading,
+`crate::ring_path`: a path parity from an outer-loop point to the
+closing chord's midpoint, built from pieces whose crossings with a
+plane-section arc are closed form. A torus could ride it:
+- its parallels (axis-normal circles) and meridians (circles in planes
+  through the axis) are both circle pieces;
+- a plane section is planar, so a piece meets it where it crosses the
+  section's plane, as on a cone.
+
+Two things are new:
+- the in-span reading of a `Curve3::Spiric` arc, which needs the
+  spiric's parameter at a point;
+- the parity's path-independence. A ring lies in a face's interior and
+  a face is cut by its seams, so the curve bounds a disc there. That has
+  to be checked against the torus faces the lanes mint.
+
+## Closed: the cone (2026-10-07, TANG `tang/cone-ring-island-winding`)
+
+A cone face's ring lane winds its island and re-homes its rings by the
+shared reading (`chord_join::path_island_winding`,
+`chord_join::path_ring_side`). The cone's path runs along a ruling and
+round a parallel, clear of the apex. Its rows are on a cone sheet,
+`topo`'s `chord_join::cone_ring_rows` and `ring_path::tests`. No op
+reaches a cone ring yet, because GERM's cone gate comes first
+(`boolean-sector-algebra-has-no-cone-arm`, where the doors are
+measured).

@@ -226,8 +226,9 @@ enum RingClosure<T: geom_core::Real> {
     /// A planar face: the island closes on the face's own plane, by the
     /// segment's curve.
     Planar,
-    /// A curved face: the island closes along this section plane, on
-    /// the face's chart.
+    /// A curved face: a cylinder's island closes along this section
+    /// plane, on the face's chart; a sphere's or a cone's by the
+    /// segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
     /// A segment along an edge of both solids (this solid the named
     /// operand) reads no section: a planar face's island closes on its
@@ -800,11 +801,11 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // the PR 5.5 discipline): cross-solid seam orientation is
         // carried by the sense attributes alone; role order only
         // decides the face partition of a same-loop split, which each
-        // solid resolves against its OWN geometry. A wall face's ring
-        // lane winds its island on the face's chart, closed along this
-        // solid's section plane, before the curve; a planar face's ring
-        // lane waits on the segment's curve, below; an along-edge
-        // segment reads no section.
+        // solid resolves against its OWN geometry. A cylinder face's
+        // ring lane winds its island on the face's chart, closed along
+        // this solid's section plane, before the curve; a planar, sphere
+        // or cone face's ring lane waits on the segment's curve, below;
+        // an along-edge segment reads no section.
         let (a_closure, b_closure) = lane.map_or(
             (
                 RingClosure::AlongEdge(Operand::A),

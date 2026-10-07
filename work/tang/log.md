@@ -680,3 +680,15 @@ PR 4211's FULL review (APPROVE-WITH-FIXES, 0 MAJOR). The fixes:
 
 The review's far-pole, bar and edge-midpoint poses are rows, and so are
 two far-pole notches whose outer-point paths run through a run vertex.
+
+2026-10-07 — `a-ring-on-a-cone-or-torus-face-has-no-island-winding`
+narrowed to the torus. The sphere and cone ring lanes now share one
+chart-free reading (`crates/topo/src/ring_path.rs`): a path parity
+from an outer-loop point to the closing chord's midpoint, with the
+arrival side giving the lean. The path is a great-circle arc on a
+sphere, and a ruling plus a parallel on a cone, clear of the apex.
+Re-homing reads the same paths (`chord_join::path_ring_side`). No op
+reaches a cone ring yet: GERM's cone gate comes first. So the cone rows
+are a cone sheet in `topo` (`chord_join::cone_ring_rows`) held to
+plane-inequality oracles, plus the sweep's crossings
+(`a_ring_on_a_cone_face`).

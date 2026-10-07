@@ -1411,7 +1411,8 @@ pub(crate) fn wall_section<T: Decide>(
         _ => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "a section through a face kind the gate refuses",
+                what: "a section through a face kind no section arm reads (C5 has no plane×torus or \
+                       plane×spline section)",
             });
         }
     }
