@@ -7616,3 +7616,15 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
   - Privacy is not forced to wait, if `_minting` gets a named unvouched token (Ev's call).
   - Tier 1 is forced to wait: the per-op scalpel reds on `_minting`'s mid-op strands.
 - Collisions: PR 4191 (shell, calls the deleted `rename_loop_surface`) and PR 3945 (pcert test file) will conflict after this merges.
+
+## 00:35 (2026-10-07)
+
+- **PR 4204 merged** (`b4f55e49`), on green CI at `b3ef2812`.
+- The fix pass:
+  - added the seven witnesses (each mutation reds exactly its row);
+  - gave real text to the `RechartDoor::strands` renders;
+  - made each door share one plan function with its restater (`kef_plan`, `kfmrh_move`, `KillMove::of`). I read the extraction: it is a verbatim move of the precondition blocks, and the chart decision stays in the plan phase. As a result, `kfmrh_carried_redescriptions` now refuses `CrossSolid` as its door does;
+  - fixed the band order and moved the `emit_topo` fixture onto `kef_minting`.
+- Fix lane archived; unsubscribed.
+- Heads-ups left on PR 4191 (shell: `rename_loop_surface` is gone; its curved-host rows are the first to reach `kfmrh_describing` on a curved host) and PR 3945 (pcert: test-file conflict).
+- The kef/kfmrh row stays `dispatched`. Series step 2 (chartless transients, plus moving `merge_group` and `rest.rs:2081` onto the describing doors) waits on Ev's answer: do step 2, or hand back now.
