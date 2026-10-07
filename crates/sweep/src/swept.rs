@@ -1072,6 +1072,18 @@ pub(crate) struct Collapsed<S> {
     pub(crate) members: Vec<Vec<usize>>,
 }
 
+impl<S> Collapsed<S> {
+    /// [`Collapsed::members`] with each swept position read through
+    /// `canonical` (a swept position's canonical segment): per
+    /// collapsed segment, the canonical segments its run holds.
+    pub(crate) fn canonical_members(&self, canonical: impl Fn(usize) -> usize) -> Vec<Vec<usize>> {
+        self.members
+            .iter()
+            .map(|run| run.iter().map(|&s| canonical(s)).collect())
+            .collect()
+    }
+}
+
 /// Collapses a swept loop's wall runs ([`Collapsed`]), from its
 /// [`Join`]s. `continued(seg, next)` is `seg` continued into `next` on
 /// one carrier ([`SweptSeg::continued`]); the cosurface verdict made

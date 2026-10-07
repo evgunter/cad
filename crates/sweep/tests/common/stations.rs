@@ -10,10 +10,10 @@ use geom::Curve3;
 use geom_core::{Point3, Tol};
 use topo::{Body, EdgeKey, VertexKey};
 
-/// `body` with the line edge `rim` cut at each of `points`, which lie
-/// on it: stations put back by hand, the shape a boolean's cut leaves.
-/// Each cut lands on the piece the previous one minted, so the pieces
-/// are in the edge's own order.
+/// `body` with the line or circle edge `rim` cut at each of `points`,
+/// which lie on it: stations put back by hand, the shape a boolean's
+/// cut leaves. Each cut lands on the piece the previous one minted, so
+/// the pieces are in the edge's own order.
 pub fn cut_stations(
     mut body: Body<f64>,
     rim: EdgeKey,
@@ -27,11 +27,36 @@ pub fn cut_stations(
         .certified()
         .unwrap()
         .clone();
-    let Curve3::Line { origin, dir } = *c.carrier() else {
-        panic!("cut_stations cuts a line edge")
+    let (t0, t1) = c.params();
+    let mut us: Vec<f64> = match *c.carrier() {
+        Curve3::Line { origin, dir } => points.iter().map(|&p| (p - origin).dot(dir)).collect(),
+        Curve3::Circle {
+            center,
+            axis,
+            u_ref,
+            ..
+        } => {
+            let v_ref = axis.cross(u_ref);
+            let (lo, hi) = (t0.min(t1), t0.max(t1));
+            points
+                .iter()
+                .map(|&p| {
+                    let d = p - center;
+                    let theta = d.dot(v_ref).atan2(d.dot(u_ref));
+                    // The turn of `theta` inside the edge's interval.
+                    let turns = ((lo - theta) / core::f64::consts::TAU).ceil();
+                    let u = theta + turns * core::f64::consts::TAU;
+                    assert!(u < hi, "the point lies inside the arc");
+                    u
+                })
+                .collect()
+        }
+        _ => panic!("cut_stations cuts a line or circle edge"),
     };
-    let mut us: Vec<f64> = points.iter().map(|&p| (p - origin).dot(dir)).collect();
     us.sort_by(f64::total_cmp);
+    if t1 < t0 {
+        us.reverse();
+    }
     let mut rest = rim;
     for u in us {
         rest = body.split_edge(rest, u, t).unwrap().new_edge;

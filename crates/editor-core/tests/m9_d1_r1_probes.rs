@@ -1,7 +1,8 @@
 //! M9-D1 review probes (R1), naming level: the narrowed refusal and
 //! the None-export honesty, attacked with profiles the shipped rows
 //! don't cover — a SUBDIVIDED axis run (interior on-axis vertex: the
-//! full case deletes it, the partial keeps it as a third pole) and a
+//! full case deletes it, the partial collapses the run to one axis
+//! edge, so neither has an entity there) and a
 //! MIXED on/off-axis dome. Every row stands on `check_total`: a
 //! silently mis-named or unnamed vertex cannot pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

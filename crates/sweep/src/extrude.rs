@@ -806,16 +806,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
             chord: seg.chord.continued(&next.chord),
             ..seg
         });
-        members.push(
-            col.members
-                .iter()
-                .map(|run| {
-                    run.iter()
-                        .map(|&s| segs[s].chord.canonical_segment)
-                        .collect()
-                })
-                .collect(),
-        );
+        members.push(col.canonical_members(|s| segs[s].chord.canonical_segment));
         loops.push(col.segs);
         joins.push(col.joins);
     }

@@ -313,6 +313,34 @@ fn revolved_runs_build_one_wall_each() {
             ],
         ),
         (
+            "axis rectangle, split on-axis run",
+            vec![pts(&[
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 2.0),
+                (0.0, 2.0),
+                (0.0, 1.0),
+            ])],
+            y_axis(),
+            4,
+            5,
+            vec![near(), cube(-0.5, 0.5, -0.5, 1.0, 1.0, 1.0)],
+        ),
+        (
+            "axis rectangle, split on-axis run across the start",
+            vec![pts(&[
+                (0.0, 1.0),
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 2.0),
+                (0.0, 2.0),
+            ])],
+            y_axis(),
+            4,
+            5,
+            vec![near(), cube(-0.5, 0.5, -0.5, 1.0, 1.0, 1.0)],
+        ),
+        (
             "axis rectangle started mid-run",
             vec![pts(&[
                 (1.0, 0.0),

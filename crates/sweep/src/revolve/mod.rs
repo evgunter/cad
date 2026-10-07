@@ -103,7 +103,7 @@
 //! the whole loop — including the wrap pair — before any wall is minted
 //! (the PR 4 SHOULD-1 lesson): a run of segments on one carrier is ONE
 //! wall (crate README, "Walls: one per run"): both cases collapse the
-//! run to one segment before they build (`partial::Collapsed`), so a
+//! run to one segment before they build (`runs::Collapsed`), so a
 //! station inside a run has no entity — a wedge cap carries the run as
 //! one meridian edge, and a run of on-axis segments is one axis edge.
 //!
@@ -117,6 +117,7 @@ mod axis;
 mod chain;
 mod full;
 mod partial;
+mod runs;
 mod surfaces;
 pub mod tube;
 mod upgrade;
@@ -209,8 +210,9 @@ pub struct Revolved<T: Real> {
     /// fixes it, so every meridian chain meets there). `None` at
     /// off-axis vertices — those have one copy per chain, addressed
     /// through `rims` and the meridian chains — at vertices strictly
-    /// INTERIOR to a full revolve's omitted axis run, which that case
-    /// deletes outright (no body entity exists to name), and at a full
+    /// INTERIOR to an axis run, which a full revolve deletes outright
+    /// and a partial revolve collapses into the run's one axis edge
+    /// (either way no body entity exists to name), and at a full
     /// revolve's tip where a plane wall meets the axis (the disc is
     /// built whole, its centre no vertex).
     /// A multi-segment axis run authors through the recipe layer as

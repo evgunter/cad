@@ -69,5 +69,7 @@ refusal does not arise. `CurvedRuns` is gone. Measured:
 `run_walls_built::partially_revolved_arc_runs_build_one_wall_each`
 (k = 1..4 arcs, three loop starts, both directions, sphere and torus)
 passes tiers 2 and 3 and meets the closed-form volume.
-`torax_axial`'s two-arc lune row did not move (it re-authors its
-equator seam by hand).
+`torax_axial`'s two-arc lune row moved: the revolve no longer mints
+the equator seam its split arc used to revolve into, so the row cuts
+it by hand (`common::latitude_seam::latitude_on_partial_wall`) before
+it re-authors it.

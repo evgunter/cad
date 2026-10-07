@@ -54,7 +54,7 @@ output holding station vertices would fail it.
 
 - **extrude** and **partial revolve** collapse each loop's runs before
   they build, as the full revolve did (`swept::collapse_runs`,
-  `revolve::partial::Collapsed`): one strut, one wall and one rim edge
+  `revolve::runs::Collapsed`): one strut, one wall and one rim edge
   per cap per run. `SideWall` carries `bottom_rim` / `top_rim`.
 - **The partial revolve's arc runs are direct construction**, no curved
   join: each wedge cap carries a cocircular run as one meridian edge,

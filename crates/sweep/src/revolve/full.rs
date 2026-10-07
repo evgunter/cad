@@ -33,7 +33,7 @@
 //!
 //! **Runs** (crate README, "Walls: one per run"): both cases build from
 //! the loop with each run of segments on one carrier collapsed to one
-//! (`partial::Collapsed`), so a station inside a run has no entity here; the
+//! (`runs::Collapsed`), so a station inside a run has no entity here; the
 //! handles map each run's wall and meridians back onto every canonical
 //! segment it holds.
 
@@ -44,7 +44,8 @@ use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses, WallClass, WallKind};
 use super::chain::build_chain;
-use super::partial::{Collapsed, collapse_runs, he_edge, sweep_loop};
+use super::partial::{he_edge, sweep_loop};
+use super::runs::{Collapsed, collapse_runs};
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
