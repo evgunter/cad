@@ -423,7 +423,7 @@ mod tests {
     fn body_name(node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind: EntityKind::Body,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path,
         }
     }
@@ -453,7 +453,7 @@ mod tests {
         let mut t = NameTable::new();
         t.insert(merged.clone(), ent(0)).unwrap();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(9), Ok(&t));
+        states.insert(RecipeNodeId::new(0, 9), Ok(&t));
         // Appearance rides constituent `a`, whose node (7) is live but
         // whose name is in no table.
         let mut appearance = AppearanceMap::new();
@@ -461,7 +461,7 @@ mod tests {
         // Node 7 evaluated Ok with an empty table (its face was
         // absorbed downstream).
         let empty = NameTable::new();
-        states.insert(RecipeNodeId(7), Ok(&empty));
+        states.insert(RecipeNodeId::new(0, 7), Ok(&empty));
         let r = resolve(
             &appearance,
             &states.keys().copied().collect::<Vec<_>>(),
@@ -489,7 +489,7 @@ mod tests {
         let merged = body_name(9, vec![RoleSeg::Merged(vec![a.clone(), b.clone()])]);
         let empty = NameTable::new();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(9), Ok(&empty));
+        states.insert(RecipeNodeId::new(0, 9), Ok(&empty));
         let mut appearance = AppearanceMap::new();
         appearance.insert(merged.clone(), color());
         let r = resolve(
@@ -512,7 +512,7 @@ mod tests {
         let mut t = NameTable::new();
         t.insert_tied(tied.clone(), vec![ent(0), ent(1)]).unwrap();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(3), Ok(&t));
+        states.insert(RecipeNodeId::new(0, 3), Ok(&t));
         let mut appearance = AppearanceMap::new();
         appearance.insert(tied.clone(), color());
         let r = resolve(
@@ -525,7 +525,7 @@ mod tests {
         assert_eq!(
             r.losses[0].cause,
             AppearanceLossCause::Ambiguous {
-                at: RecipeNodeId(3),
+                at: RecipeNodeId::new(0, 3),
                 width: 2
             }
         );

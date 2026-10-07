@@ -13,14 +13,25 @@ use crate::expr::{Dimension, Expr};
 
 /// **A variable's identity** (VR1): minted from the document's mint
 /// chain ([`crate::Mint`]) by `DeclareVar`, never reused (a deleted
-/// variable's id stays in the mint log), never positional.
+/// variable's id stays in the mint log), ordered as declared
+/// ([`crate::MintId`]).
 ///
-/// Its `Display` is `#` and every bit (`#3fa9c1d2a0b1c3d4`), the text
-/// a nameless reader unparses to; [`VarId::full`] gives the bits alone.
+/// Its `Display` is `#` and the whole id (`#3:3fa9c1d2a0b1c3d4`), the
+/// text a nameless reader unparses to; [`VarId::full`] gives the id
+/// alone.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct VarId(pub u64);
+pub struct VarId(pub crate::MintId);
+
+impl VarId {
+    /// The variable id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`crate::MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(crate::MintId::new(ordinal, digest))
+    }
+}
 
 /// **What a variable holds** (VR3), fixed at minting: a new kind is a
 /// new variable.

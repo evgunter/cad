@@ -584,6 +584,100 @@ pub(crate) fn fragment_tail_start(path: &[RoleSeg]) -> usize {
         .map_or(0, |i| i + 1)
 }
 
+/// **The line edge `name` lies on** (N2): the name with every piece
+/// qualifier (`Fragment(Ends)`) removed, at every depth of wrapping —
+/// through each segment that carries one entity of an earlier node
+/// ([`wrapped_edge`]). A name that is not an edge's is its own line,
+/// and so is an edge's that holds no piece qualifier: the same handle
+/// comes back.
+///
+/// Iterative, like the rest of a name's structural walks: a name nests
+/// as deep as its derivation, with no bound.
+#[must_use]
+pub(crate) fn edge_line(name: &NameRef) -> NameRef {
+    // Down the wrapper chain: each level's path with its piece
+    // qualifiers popped, and whether popping changed it.
+    let mut levels: Vec<(&NameRef, RolePath, bool)> = Vec::new();
+    let mut cur = name;
+    while cur.kind == EntityKind::Edge {
+        let mut path = cur.path.clone();
+        while matches!(path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))) {
+            path.pop();
+        }
+        let popped = path.len() != cur.path.len();
+        let inner = match (path.len(), cur.path.first()) {
+            (1, Some(seg)) => wrapped_edge(seg),
+            _ => None,
+        };
+        levels.push((cur, path, popped));
+        match inner {
+            Some(n) => cur = n,
+            None => break,
+        }
+    }
+    // Back up: a level is rebuilt where it popped a qualifier or the
+    // edge it wraps lies on a line other than itself.
+    let mut line: Option<NameRef> = None;
+    while let Some((orig, mut path, popped)) = levels.pop() {
+        let inner_moved = match (&line, path.as_mut_slice()) {
+            (Some(l), [seg]) => match wrapped_edge_mut(seg) {
+                Some(slot) if !Arc::ptr_eq(&slot.0, &l.0) => {
+                    *slot = l.clone();
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        line = Some(if popped || inner_moved {
+            NameRef::new(StableName {
+                kind: orig.kind,
+                node: orig.node,
+                path,
+            })
+        } else {
+            orig.clone()
+        });
+    }
+    line.unwrap_or_else(|| name.clone())
+}
+
+/// The segments [`edge_line`] reads through, as one match over `$seg`
+/// answering the earlier edge each carries: the one list behind
+/// [`wrapped_edge`] and its mutable twin, which match ergonomics give a
+/// shared or a mutable reference alike.
+///
+/// `InPart` is read through: its argument names another document's
+/// edge, and stripping a piece qualifier from it reads no id as local
+/// (the `resolve` walk does not descend into it because it reads ids),
+/// so a piece of a part's edge is a piece of that edge's line in the
+/// part as anywhere else.
+macro_rules! wrapped_edge_of {
+    ($seg:expr) => {
+        match $seg {
+            RoleSeg::FromA(n)
+            | RoleSeg::FromB(n)
+            | RoleSeg::FromMember { of: n, .. }
+            | RoleSeg::SplitFragment { parent: n, .. }
+            | RoleSeg::FromTarget(n)
+            | RoleSeg::InPart { of: n }
+            | RoleSeg::Instance { of: n, .. } => Some(n),
+            _ => None,
+        }
+    };
+}
+
+/// The one earlier edge an edge's single segment `seg` carries, where
+/// [`edge_line`] reads through it.
+pub(crate) fn wrapped_edge(seg: &RoleSeg) -> Option<&NameRef> {
+    wrapped_edge_of!(seg)
+}
+
+/// [`wrapped_edge`], mutably.
+fn wrapped_edge_mut(seg: &mut RoleSeg) -> Option<&mut NameRef> {
+    wrapped_edge_of!(seg)
+}
+
 /// A sequence of role segments (N1). Usually length 1; composition
 /// (`[FromA(..), Fragment(..)]`) grows it.
 pub type RolePath = Vec<RoleSeg>;
@@ -1061,8 +1155,9 @@ pub enum RoleSeg {
     /// A side-wall face swept from a run of profile pieces on one
     /// carrier (N1, "Swept walls over a run").
     Lateral(PieceRun),
-    /// A cap–wall rim edge (cap end × profile segment).
-    RimEdge(CapEnd, ProfileEdgeRef),
+    /// A cap–wall rim edge: the cap end, and the run of profile pieces
+    /// its wall sweeps (N1, "Swept walls over a run").
+    RimEdge(CapEnd, PieceRun),
     /// A strut (join) edge swept from a profile vertex.
     LateralEdge(ProfileVertexRef),
     /// A cap vertex over a profile vertex.
@@ -1090,8 +1185,7 @@ pub enum RoleSeg {
     /// Full, wire case: a CURVED wall's π…2π band face. A plane wall is
     /// built whole and named by [`RoleSeg::Band`] alone.
     BandPi(PieceRun),
-    /// A meridian edge (per meridian, per wall run: a partial revolve's
-    /// stations split its meridian chains, so there it is per piece).
+    /// A meridian edge (per meridian, per wall run).
     Meridian(MeridianEnd, PieceRun),
     /// A meridian vertex: the copy of a profile vertex on a wedge
     /// cap plane (partial) or the surviving meridian vertex (full).
@@ -1100,8 +1194,9 @@ pub enum RoleSeg {
     RevolveCap(MeridianEnd),
     /// An on-axis (pole) vertex at a profile vertex on the axis.
     Pole(ProfileVertexRef),
-    /// The shared axis edge of an on-axis profile segment (partial).
-    AxisEdge(ProfileEdgeRef),
+    /// The shared axis edge of a run of on-axis profile pieces
+    /// (partial).
+    AxisEdge(PieceRun),
 
     // ---- Booleans ----
     /// An entity surviving from operand A (argument: its name in the
@@ -1360,6 +1455,22 @@ pub enum RoleSeg {
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
     },
+    /// **The mitre where two blend bands meet at a turn**: two of a
+    /// source vertex's three edges blended in one call, the bands meeting
+    /// along their intersection. Keyed by the vertex alone: a trivalent
+    /// vertex has at most one turn, and the request fixes its two edges.
+    Mitre {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
+    /// **Where a turn's unrequested edge now ends**: the mitre's lower
+    /// end, on that edge. One name whether the trihedron is isosceles or
+    /// not; the trimlines' crossing on the shared face is the turn's
+    /// [`RoleSeg::FootVertex`] on that face.
+    TurnFoot {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
     /// The one blend face a chain of several source edges is carved
     /// into — a CLOSED chain's torus band, or an open fillet's cylinder
     /// or chamfer's flat strip carved across joints where consecutive
@@ -1606,6 +1717,8 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -2267,7 +2380,7 @@ impl RoleSeg {
             inert_seg!() => self.clone(),
             // The locators.
             R::Lateral(run) => R::Lateral(run.try_map(|e| w.edge(e))?),
-            R::RimEdge(c, e) => R::RimEdge(*c, w.edge(*e)?),
+            R::RimEdge(c, run) => R::RimEdge(*c, run.try_map(|e| w.edge(e))?),
             R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
             R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
             R::LoftWall(es) => {
@@ -2283,7 +2396,7 @@ impl RoleSeg {
             R::Meridian(m, run) => R::Meridian(*m, run.try_map(|e| w.edge(e))?),
             R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
             R::Pole(v) => R::Pole(w.vertex(*v)?),
-            R::AxisEdge(e) => R::AxisEdge(w.edge(*e)?),
+            R::AxisEdge(run) => R::AxisEdge(run.try_map(|e| w.edge(e))?),
             // The carried names.
             R::FromA(n) => R::FromA(rewrite_ref(n, w)?),
             R::FromB(n) => R::FromB(rewrite_ref(n, w)?),
@@ -2351,6 +2464,12 @@ impl RoleSeg {
             R::EndArc { vertex, edge } => R::EndArc {
                 vertex: rewrite_ref(vertex, w)?,
                 edge: rewrite_ref(edge, w)?,
+            },
+            R::Mitre { vertex } => R::Mitre {
+                vertex: rewrite_ref(vertex, w)?,
+            },
+            R::TurnFoot { vertex } => R::TurnFoot {
+                vertex: rewrite_ref(vertex, w)?,
             },
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
@@ -2563,6 +2682,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::TrimEdge { .. }
             | $crate::names::RoleSeg::FootVertex { .. }
             | $crate::names::RoleSeg::EndArc { .. }
+            | $crate::names::RoleSeg::Mitre { .. }
+            | $crate::names::RoleSeg::TurnFoot { .. }
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)
@@ -2588,14 +2709,14 @@ mod tests {
     use crate::node::{RecipeNodeId, StepId};
 
     /// The node every pin below mints against.
-    const N: RecipeNodeId = RecipeNodeId(7);
+    const N: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     /// The two locator forms every pin below is written at: an
     /// authored piece and a kernel-built section's piece.
     fn edges() -> [ProfileEdgeRef; 2] {
         [
             ProfileEdgeRef::Piece {
-                step: StepId(3),
+                step: StepId::new(0, 3),
                 role: PieceRole::RunOut,
             },
             ProfileEdgeRef::Section {
@@ -2697,7 +2818,7 @@ mod tests {
         }
         assert_eq!(
             serde_json::to_string(&edges()[0]).expect("serializes"),
-            r#"{"Piece":{"step":3,"role":"RunOut"}}"#
+            r#"{"Piece":{"step":"0:0000000000000003","role":"RunOut"}}"#
         );
         assert_eq!(
             serde_json::to_string(&edges()[1]).expect("serializes"),
@@ -2712,23 +2833,23 @@ mod tests {
     fn piece_steps_read_the_names_own_document_only() {
         let wall = |node: u64, step: u64| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: StepId(step),
+                    step: StepId::new(0, step),
                     role: PieceRole::Leg,
                 }
                 .into(),
             )],
         };
-        let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
+        let carried_wall = carried(RecipeNodeId::new(0, 9), wall(1, 4));
         assert_eq!(
             carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
-            vec![StepId(4)]
+            vec![StepId::new(0, 4)]
         );
         let foreign = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::InPart {
                 of: NameRef::new(wall(1, 5)),
             }],
@@ -2744,7 +2865,7 @@ mod tests {
     #[test]
     fn carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind() {
         let inner = band_rim(N, edges()[0].start());
-        let outer = RecipeNodeId(9);
+        let outer = RecipeNodeId::new(0, 9);
         assert_eq!(
             carried(outer, inner.clone()),
             StableName {

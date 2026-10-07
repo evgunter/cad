@@ -188,11 +188,13 @@ fn a_replayed_history_is_the_files_log_step_for_step() {
             node: extrude,
             slot: SlotId::Distance,
             expr: common::len(0.02),
+            fresh: Vec::new(),
         },
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
             expr: common::len(0.03),
+            fresh: Vec::new(),
         },
     ];
     let history = History::replayed(doc, &edits, tol).expect("the log replays");

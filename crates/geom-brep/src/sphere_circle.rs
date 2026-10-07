@@ -19,9 +19,10 @@
 //! `| |p − s| − R | = | |p − s|² − R² | / (|p − s| + R) ≤ | |p − s|² − R² | / R`,
 //! each coefficient over the lever `R` is a sound metre reading, inside
 //! the sphere and out, and `Σ|kᵢ| / R` bounds the circle's distance from
-//! the sphere over the whole circle ([`off_sphere_sup`]). Two readers:
-//! the chart door's incidence trilean (`pcurve_sphere_chart_incident`)
-//! and the certificate below.
+//! the sphere over the whole circle ([`off_sphere_sup`]): an upper
+//! bound, which the certificate below reads. (The chart door's incidence
+//! test decides `Off` from a lower bound instead, the sampled distance —
+//! `pcurve_cache::chart_incidence`.)
 //!
 //! # The image, and the bound on it
 //!

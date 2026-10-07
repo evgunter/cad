@@ -7,6 +7,7 @@ opened: 2026-10-06
 priority: P1
 cost: H
 refs: [a-pinch-no-kept-face-can-cross-refuses, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -69,3 +70,12 @@ wrong vertex count; pinned by
 (`crates/sweep/tests/join_pierce_runs_sweep.rs`). The shape to give
 above stands: minting the coincident pierces on one point key with
 their corners already per cone would need no nesting read at all.
+
+## 2026-10-07 — parked on D10
+
+The weld cannot retire without its declared rows (`union_flush_onto_edge_contact`)
+regressing to `UndeclaredContact`, and fixing those means contact records
+naming both copies: declared contact, held ground under D10. The per-cone
+minting itself is taken up undeclared by
+`a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`
+(a split per cone at insertion); this row resumes from there when D10 lifts.

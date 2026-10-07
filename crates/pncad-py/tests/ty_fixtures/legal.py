@@ -7,6 +7,7 @@ the guide's own executed blocks.
 """
 
 from pncad import (
+    Var,
     MeasurePrimitive,
     Placement,
     MeasureExpr,
@@ -1080,3 +1081,15 @@ _blended: NodeId = _names_doc.insert(
 _hollowed: NodeId = _names_doc.insert(
     Node.shell(_revolved, Formula.length_in(0.1, m), [minted_band, minted_half])
 )
+
+# INTENT-LITERALS Q9: a slot takes a variable, a formula, or a value of
+# the slot's own dimension — written, or bare in its canonical unit.
+q9_solid: NodeId = plate
+Node.extrude(q9_solid, 1 * m)
+Node.revolve(q9_solid, q9_solid, 90 * deg)
+Node.fillet(q9_solid, 1 * mm, [])
+Node.loft([], 2)
+DocEdit.set_param(q9_solid, "distance", 1 * m)
+held: Var | None = doc.slot(q9_solid, "distance")
+if held is not None:
+    Node.extrude(q9_solid, held)

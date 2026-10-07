@@ -44,7 +44,9 @@ class TestAVarIsAnIdentity(unittest.TestCase):
         doc, box = driven()
         var = doc.var(VarName("height"))
         self.assertIsInstance(var, Var)
-        self.assertEqual(len(var.hex), 16)
+        ordinal, digest = var.hex.split(":")
+        self.assertTrue(ordinal.isdigit(), var.hex)
+        self.assertEqual(len(digest), 16)
         before = volume(doc, box)
 
         doc.apply(DocEdit.rename_var(var, VarName("tall")))
@@ -52,7 +54,9 @@ class TestAVarIsAnIdentity(unittest.TestCase):
         self.assertEqual(doc.var_name(var), VarName("tall"))
         self.assertEqual(doc.var(VarName("tall")), var)
         self.assertIsNone(doc.var(VarName("height")))
-        self.assertEqual(list(doc.vars), [var])
+        # The one NAMED variable; the box's typed values are anonymous
+        # variables of their own.
+        self.assertEqual([v for v in doc.vars if doc.var_name(v) is not None], [var])
         # The slot reads the identity, so the new name is what reads
         # back and the geometry is the same bits.
         self.assertEqual(volume(doc, box), before)
@@ -77,7 +81,7 @@ class TestAVarIsAnIdentity(unittest.TestCase):
         doc.apply(DocEdit.delete_var(var))
 
         self.assertIsNone(doc.var_name(var))
-        self.assertEqual(doc.vars, {})
+        self.assertNotIn(var, doc.vars)
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(box)
         self.assertEqual(caught.exception.reason, "node_failed")

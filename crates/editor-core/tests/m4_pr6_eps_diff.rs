@@ -158,7 +158,7 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     );
     // The profile is the fixture's second node: the frame it is drawn
     // on goes in first. The children built the same document.
-    let profile = thin_profile_doc().order()[1];
+    let profile = thin_profile_doc().ids()[1];
     let delta = flips.nodes.get(&profile).expect("profile node delta");
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,

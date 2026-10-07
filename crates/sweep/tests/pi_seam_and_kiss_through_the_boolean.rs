@@ -311,11 +311,7 @@ fn the_sphere_capped_tube_builds_with_its_walls_declared_a_seam() {
             (5, 8, 5, 1),
             "{label}: two walls, two sphere faces, the floor disc"
         );
-        assert_eq!(
-            records,
-            [0, 0, 0, 0],
-            "{label}: no contact survives a union"
-        );
+        assert_eq!(records, [0; 6], "{label}: no contact survives a union");
         let rims = tangent_intersections(&body);
         assert_eq!(
             rims.len(),
@@ -598,7 +594,7 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
         {
             let label = format!("turned {angle}, order {order}");
             let (v, c, k) = built(&label, r);
-            assert_eq!(k, [0; 4], "{label}: no contact records");
+            assert_eq!(k, [0; 6], "{label}: no contact records");
             // Each dome's two rim vertices and pole: minimal.
             assert_eq!(c, (4, 8, 6, 1), "{label}: F, E, V, shells");
             assert!(
@@ -774,7 +770,7 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
             &format!("stacked, order {order}"),
             topo::union_with(x, y, &d, Tol::witness()),
         );
-        assert_eq!(k, [0; 4], "stacked, order {order}: no contact records");
+        assert_eq!(k, [0; 6], "stacked, order {order}: no contact records");
         let want = PI * R * R * (H + 1.0);
         assert!(
             (v - want).abs() <= 1e-12 * want,
@@ -1148,7 +1144,25 @@ fn a_puck_and_its_rounding_ring_build_with_the_top_declared_a_seam() {
             (v - want).abs() <= 1e-12 * want,
             "{label}: {v} vs Pappus {want}"
         );
-        assert_eq!(c, (3, 4, 3, 1), "{label}: top disc, torus, floor");
+        assert_eq!(c, (3, 3, 2, 1), "{label}: top disc, torus, floor");
+        // The join closes the torus's rim, and its survivor stays on the
+        // seam strut: a vertex of a closed edge, but not conventional.
+        let Ok(BooleanResult::Body(bb)) = topo::union_with(x, y, &d, tol) else {
+            panic!("{label}: builds")
+        };
+        let b = &bb.body;
+        let closed: Vec<_> = b
+            .edges()
+            .filter_map(|(_, e)| {
+                let v = b.get_half_edge(e.he_plus)?.start;
+                (b.get_half_edge(e.he_minus)?.start == v).then_some(v)
+            })
+            .collect();
+        assert!(!closed.is_empty(), "{label}: a closed edge");
+        assert!(
+            closed.iter().all(|&v| !topo::is_conventional_vertex(b, v)),
+            "{label}: every closed edge's vertex keeps a strut"
+        );
     }
 }
 
@@ -1367,7 +1381,7 @@ fn census(b: &Body<f64>) -> (usize, usize, usize, usize) {
 
 /// What a boolean that builds is: its volume, its census, and the
 /// contact records it carries as `[v-v, v-f, curve, patch]` counts.
-type Built = (f64, (usize, usize, usize, usize), [usize; 4]);
+type Built = (f64, (usize, usize, usize, usize), [usize; 6]);
 
 /// The body of a boolean that builds, at tier 3 and 3′.
 fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
@@ -1380,6 +1394,12 @@ fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
     topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
     topo::validate_pseudomanifold(b, &bb.contacts, tol)
         .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+    let band = geom_core::Band::linear(tol).unwrap();
+    assert_eq!(
+        topo::joinable_vertices(b, band).unwrap(),
+        vec![],
+        "{label}: maximal edges"
+    );
     let c = &bb.contacts;
     (
         topo::mass_properties(b, tol).unwrap().volume,
@@ -1387,6 +1407,8 @@ fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
         [
             c.vv.len(),
             c.a_on_b.len() + c.b_on_a.len(),
+            c.ve.len(),
+            c.ee.len(),
             c.curves.len(),
             c.patches.len(),
         ],
@@ -1422,15 +1444,12 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
         {
             let label = format!("dz = {dz}, order {order}");
             let (v, c, k) = built(&label, r);
-            assert_eq!(k, [0; 4], "{label}: no contact records");
+            assert_eq!(k, [0; 6], "{label}: no contact records");
             assert!(
                 (v - want).abs() <= 1e-12 * want,
                 "{label}: the tube and the cap above it: {v} vs {want}"
             );
-            // Two valence-2 vertices stay on the tube's seam rulings at
-            // the dissolved rims; minimal is (6, 10, 7)
-            // (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
-            assert_eq!(c, (6, 12, 9, 1), "{label}: F, E, V, shells");
+            assert_eq!(c, (6, 10, 7, 1), "{label}: F, E, V, shells");
         }
     }
 }
@@ -1488,10 +1507,8 @@ fn quartered_tube() -> AtRestBody<f64> {
 /// pocket the dome leaves meets the wall along the whole rim circle.
 /// The rim's vertices where it crosses a ruling are paired with the
 /// ruling's (v-v), and the dome's own rim vertices off a ruling lie
-/// inside a wall face (v-f). The rim's split vertices stay as valence-2
-/// vertices in the intersection and in `t ∖ d`, and on the rulings of
-/// the four-face tube's union
-/// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
+/// inside a wall face (v-f). The join takes the rim's split vertices, so
+/// a pair whose vertices it took is carried onto their edges (v-e, e-e).
 #[test]
 fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
     type Censuses = [(usize, usize, usize, usize); 4];
@@ -1499,18 +1516,18 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
     let none = BooleanDeclarations::none();
     let rho = 2.0_f64.sqrt() * R;
     let (tube, quartered) = (rod_z(R, 0.0, H), quartered_tube());
-    // `[∪, t ∖ d, d ∖ t, ∩]`, and `t ∖ d`'s `[v-v, v-f]` records.
-    let off: (Censuses, [usize; 2]) = (
-        [(6, 12, 9, 1), (7, 16, 12, 1), (3, 4, 3, 1), (4, 8, 6, 1)],
-        [2, 2],
+    // `[∪, t ∖ d, d ∖ t, ∩]`, and `t ∖ d`'s `[v-v, v-f, v-e, e-e]` records.
+    let off: (Censuses, [usize; 4]) = (
+        [(6, 10, 7, 1), (7, 12, 8, 1), (3, 4, 3, 1), (4, 6, 4, 1)],
+        [0, 2, 0, 2],
     );
-    let off4: (Censuses, [usize; 2]) = (
-        [(8, 20, 15, 1), (9, 26, 20, 1), (3, 4, 3, 1), (4, 10, 8, 1)],
-        [4, 2],
+    let off4: (Censuses, [usize; 4]) = (
+        [(8, 16, 11, 1), (9, 18, 12, 1), (3, 4, 3, 1), (4, 6, 4, 1)],
+        [0, 2, 0, 4],
     );
-    let on4: (Censuses, [usize; 2]) = (
-        [(8, 20, 15, 1), (9, 24, 18, 1), (3, 4, 3, 1), (4, 8, 6, 1)],
-        [4, 0],
+    let on4: (Censuses, [usize; 4]) = (
+        [(8, 16, 11, 1), (9, 18, 12, 1), (3, 4, 3, 1), (4, 6, 4, 1)],
+        [0, 0, 2, 2],
     );
     let rows = [
         ("two walls", &tube, 1.0 / 12.0, off),
@@ -1528,7 +1545,7 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
         let t = PI * R * R * H;
         let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
         let sunk = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
-        for (walls, tube, turn, (census, [vv, vf])) in rows {
+        for (walls, tube, turn, (census, [vv, vf, ve, ee])) in rows {
             let spin =
                 Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 2.0 * PI * turn);
             let d = finished(
@@ -1542,42 +1559,42 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
                     topo::union_with(tube, &d, &none, tol),
                     t + above,
                     census[0],
-                    [0; 4],
+                    [0; 6],
                 ),
                 (
                     "d ∪ t",
                     topo::union_with(&d, tube, &none, tol),
                     t + above,
                     census[0],
-                    [0; 4],
+                    [0; 6],
                 ),
                 (
                     "t ∖ d",
                     topo::subtract_with(tube, &d, &none, tol),
                     t - inside,
                     census[1],
-                    [vv, vf, 0, 0],
+                    [vv, vf, ve, ee, 0, 0],
                 ),
                 (
                     "d ∖ t",
                     topo::subtract_with(&d, tube, &none, tol),
                     above,
                     census[2],
-                    [0; 4],
+                    [0; 6],
                 ),
                 (
                     "t ∩ d",
                     topo::intersect_with(tube, &d, &none, tol),
                     inside,
                     census[3],
-                    [0; 4],
+                    [0; 6],
                 ),
                 (
                     "d ∩ t",
                     topo::intersect_with(&d, tube, &none, tol),
                     inside,
                     census[3],
-                    [0; 4],
+                    [0; 6],
                 ),
             ] {
                 let label = format!("{walls}, dz = {dz}, turn {turn}: {op}");
@@ -1587,7 +1604,10 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
                     "{label}: the closed form: {v} vs {want}"
                 );
                 assert_eq!(c, census, "{label}: F, E, V, shells");
-                assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
+                assert_eq!(
+                    k, contacts,
+                    "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+                );
             }
         }
     }
@@ -1601,9 +1621,9 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
 ///
 /// `t ∖ d` touches itself along the rim: the bowl the dome leaves in
 /// the tube meets the tube's wall along the whole rim circle. The result
-/// holds two vertices at each of the circle's vertices `(±1, 0, 2)` and
-/// records the touch as two v-v contacts, valid at tier 3′. The two unions keep valence-2 vertices on the seam rulings
-/// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
+/// holds the tube's rim vertices `(±1, 0, 2)` on the bowl's rim, which
+/// the join made one edge, and records the touch as two v-e contacts,
+/// valid at tier 3′.
 #[test]
 fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -1619,43 +1639,43 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
             "t ∪ d",
             topo::union_with(&tall, &dome, &none, tol),
             tube + above,
-            (6, 12, 9, 1),
-            [0; 4],
+            (6, 10, 7, 1),
+            [0; 6],
         ),
         (
             "d ∪ t",
             topo::union_with(&dome, &tall, &none, tol),
             tube + above,
-            (6, 12, 9, 1),
-            [0; 4],
+            (6, 10, 7, 1),
+            [0; 6],
         ),
         (
             "t ∖ d",
             topo::subtract_with(&tall, &dome, &none, tol),
             tube - inside,
-            (7, 14, 10, 1),
-            [2, 0, 0, 0],
+            (7, 12, 8, 1),
+            [0, 0, 2, 0, 0, 0],
         ),
         (
             "d ∖ t",
             topo::subtract_with(&dome, &tall, &none, tol),
             above,
             (3, 4, 3, 1),
-            [0; 4],
+            [0; 6],
         ),
         (
             "t ∩ d",
             topo::intersect_with(&tall, &dome, &none, tol),
             inside,
             (4, 6, 4, 1),
-            [0; 4],
+            [0; 6],
         ),
         (
             "d ∩ t",
             topo::intersect_with(&dome, &tall, &none, tol),
             inside,
             (4, 6, 4, 1),
-            [0; 4],
+            [0; 6],
         ),
     ] {
         let (v, c, k) = built(label, r);
@@ -1664,7 +1684,10 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
             "{label}: the closed form: {v} vs {want}"
         );
         assert_eq!(c, census, "{label}: F, E, V, shells");
-        assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
+        assert_eq!(
+            k, contacts,
+            "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+        );
     }
 }
 
@@ -2322,49 +2345,49 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                 topo::transform_rigid(&sunk, &spin, tol).unwrap(),
                 tol,
             );
-            let (whole, common) = ((6, 12, 9, 1), (4, 8, 6, 1));
+            let (whole, common) = ((6, 10, 7, 1), (4, 6, 4, 1));
             for (op, r, want, census, contacts) in [
                 (
                     "t ∪ d",
                     topo::union_with(&tube, &d, &none, tol),
                     t + above,
                     whole,
-                    [0; 4],
+                    [0; 6],
                 ),
                 (
                     "d ∪ t",
                     topo::union_with(&d, &tube, &none, tol),
                     t + above,
                     whole,
-                    [0; 4],
+                    [0; 6],
                 ),
                 (
                     "t ∖ d",
                     topo::subtract_with(&tube, &d, &none, tol),
                     t - inside,
-                    (7, 16, 12, 1),
-                    [2, 2, 0, 0],
+                    (7, 12, 8, 1),
+                    [0, 2, 0, 2, 0, 0],
                 ),
                 (
                     "d ∖ t",
                     topo::subtract_with(&d, &tube, &none, tol),
                     above,
                     (3, 4, 3, 1),
-                    [0; 4],
+                    [0; 6],
                 ),
                 (
                     "t ∩ d",
                     topo::intersect_with(&tube, &d, &none, tol),
                     inside,
                     common,
-                    [0; 4],
+                    [0; 6],
                 ),
                 (
                     "d ∩ t",
                     topo::intersect_with(&d, &tube, &none, tol),
                     inside,
                     common,
-                    [0; 4],
+                    [0; 6],
                 ),
             ] {
                 let label = format!("dz = {dz}, turn {turn}: {op}");
@@ -2380,7 +2403,10 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                     "{label}: the closed form: {v} ± {pad} vs {want}"
                 );
                 assert_eq!(c, census, "{label}: F, E, V, shells");
-                assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
+                assert_eq!(
+                    k, contacts,
+                    "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+                );
             }
         }
     }
@@ -2397,9 +2423,7 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
 /// top's distance from the centre. Every op in both member orders, at
 /// tiers 3 and 3′; the volumes are read to `max(1e-9, ε)`: the
 /// quadrature's reach on the tilted pieces, and at a coarse `ε` the
-/// band's positional slack over less than a unit of surface. The rim's split vertices stay valence-2
-/// in the intersections
-/// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
+/// band's positional slack over less than a unit of surface.
 #[test]
 fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -2411,10 +2435,13 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
     let vd = cap_volume(rho, rho - R);
     let va = PI * r * r * l;
     let reach = 1e-9_f64.max(tol.eps());
-    for (alpha, theta, own) in [
-        (15.0_f64, 31.0_f64, 0.0_f64),
-        (20.0, 20.0, 0.0),
-        (15.0, 20.0, 90.0),
+    // `ee`: `d ∖ a`'s edge-edge records. The rim crosses the meridian
+    // twice; where both crossings join onto one pair of edges they are
+    // one record.
+    for (alpha, theta, own, ee) in [
+        (15.0_f64, 31.0_f64, 0.0_f64, 1),
+        (20.0, 20.0, 0.0, 1),
+        (15.0, 20.0, 90.0, 2),
     ] {
         let mut rod = rod_z(r, h0 - l, l).into_body();
         for m in [
@@ -2432,43 +2459,43 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
                 "a ∪ d",
                 topo::union_with(&a, &dome, &none, tol),
                 va + vd - i,
-                (6, 12, 9, 1),
-                [0; 4],
+                (6, 10, 7, 1),
+                [0; 6],
             ),
             (
                 "d ∪ a",
                 topo::union_with(&dome, &a, &none, tol),
                 va + vd - i,
-                (6, 12, 9, 1),
-                [0; 4],
+                (6, 10, 7, 1),
+                [0; 6],
             ),
             (
                 "a ∖ d",
                 topo::subtract_with(&a, &dome, &none, tol),
                 va - i,
                 (4, 6, 4, 1),
-                [0; 4],
+                [0; 6],
             ),
             (
                 "d ∖ a",
                 topo::subtract_with(&dome, &a, &none, tol),
                 vd - i,
-                (6, 14, 11, 1),
-                [2, 2, 0, 0],
+                (6, 10, 7, 1),
+                [0, 2, 0, ee, 0, 0],
             ),
             (
                 "a ∩ d",
                 topo::intersect_with(&a, &dome, &none, tol),
                 i,
-                (4, 8, 6, 1),
-                [0; 4],
+                (4, 6, 4, 1),
+                [0; 6],
             ),
             (
                 "d ∩ a",
                 topo::intersect_with(&dome, &a, &none, tol),
                 i,
-                (4, 8, 6, 1),
-                [0; 4],
+                (4, 6, 4, 1),
+                [0; 6],
             ),
         ] {
             let label = format!("α {alpha}°, θ {theta}°, own {own}°: {op}");
@@ -2478,7 +2505,10 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
                 "{label}: the closed form: {v} vs {want}"
             );
             assert_eq!(c, census, "{label}: F, E, V, shells");
-            assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
+            assert_eq!(
+                k, contacts,
+                "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+            );
         }
     }
 }

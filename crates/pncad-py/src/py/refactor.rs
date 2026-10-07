@@ -269,9 +269,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             first,
             second,
         } => (
-            first.as_ref().map_or_else(none, id),
+            first.as_deref().map_or_else(none, id),
             none(),
-            second.as_ref().map_or_else(none, id),
+            second.as_deref().map_or_else(none, id),
             none(),
             id(node),
             none(),
@@ -332,8 +332,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::AnonymousVarCrossesCut { var, node: n } => (
-            id(n),
+        E::DefinitionStraddlesCut { var, .. } => (
+            none(),
             none(),
             none(),
             none(),
@@ -391,6 +391,15 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         | E::UnplaceableRoot { anchor: g, .. } => id(g),
         _ => none(),
     };
+    // A definition tied across the cut: the variable it reads that
+    // moves, and the one that stays (or that the document no longer
+    // holds), as `UncutVarReference` carries both of its nodes.
+    let (moving, staying) = match err {
+        E::DefinitionStraddlesCut {
+            moving, staying, ..
+        } => (text(&moving.to_string()), text(&staying.to_string())),
+        _ => (none(), none()),
+    };
     typed_err(
         py,
         ErrorClass::Split,
@@ -409,6 +418,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("name", name),
             ("id", doc_id),
             ("gauge", gauge),
+            ("moving", moving),
+            ("staying", staying),
         ],
     )
 }
@@ -665,16 +676,6 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::AnonymousVarCrossesCut { var } => (
-            none(),
-            none(),
-            none(),
-            text(&var.to_string()),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
         E::UnresolvedVarCrossesCut { var, node: n } => (
             id(n),
             none(),
@@ -868,7 +869,7 @@ impl InlineOutcome {
 
 /// A node map as the pairs Python reads ([`crate::node_map`]).
 fn pairs_in_order(map: &d::NodeMap, doc: &d::ProfileDoc) -> Vec<(NodeId, NodeId)> {
-    crate::node_map::in_document_order(map, doc)
+    crate::node_map::in_target_id_order(map, doc)
         .into_iter()
         .map(|(a, b)| (NodeId(a), NodeId(b)))
         .collect()

@@ -147,6 +147,7 @@ where
             node: tr,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(2.5),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run::<T>(&doc2, Some(&ev1));
@@ -168,6 +169,7 @@ where
             node: pat,
             slot: SlotId::Count,
             expr: editor_core::Formula::count(1),
+            fresh: Vec::new(),
         },
     );
     let ev3 = run::<T>(&doc3, Some(&ev1));

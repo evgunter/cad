@@ -17,17 +17,20 @@ use geom_core::Tol;
 // transparent local newtype carries the same test payloads.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 struct Fake(&'static str);
-impl editor_core::SlotPayload<editor_core::Expr> for Fake {}
+impl editor_core::SlotPayload<editor_core::VarId> for Fake {}
 impl editor_core::SlotPayload<editor_core::Formula> for Fake {}
 impl editor_core::ProfilePayload for Fake {
     type Authored = Self;
     fn lower<E>(
         authored: &Self,
-        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(*authored)
     }
-    fn authored(&self) -> Self {
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
         *self
     }
     fn drawn_pieces(
@@ -48,6 +51,7 @@ fn point_edit(x: Formula) -> Edit {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [x, len(0.0), len(0.0)],
         })),
+        fresh: Vec::new(),
     }
 }
 
@@ -149,29 +153,27 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[point_edit(len(0.0))],
     );
-    // The signed zero written by a value edit, so the point keeps its
-    // id (an insert of -0.0 mints another id: the mint reads bits).
+    // The signed zero written by a value edit on the slot's own
+    // variable, so the point keeps its id and its slot its variable.
+    let x = pos
+        .slot(pos.ids()[0], SlotId::Origin(editor_core::Axis3::X))
+        .expect("the point reads its x");
     let (neg, _) = apply_all(
         pos.clone(),
-        &[DocEdit::SetParam {
-            node: pos.order()[0],
-            slot: SlotId::Origin(editor_core::Axis3::X),
-            expr: len(-0.0),
+        &[DocEdit::SetVarValue {
+            var: x.into(),
+            value: editor_core::FreeValue::Continuous(-0.0),
         }],
     );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
-        pos.node(pos.order()[0])
-            .unwrap()
-            .expr(SlotId::Origin(editor_core::Axis3::X))
+        &pos.slot_expansion(pos.ids()[0], SlotId::Origin(editor_core::Axis3::X))
             .unwrap(),
         &pos.var_env(),
     )
     .unwrap();
     let vn = eval::<f64>(
-        neg.node(neg.order()[0])
-            .unwrap()
-            .expr(SlotId::Origin(editor_core::Axis3::X))
+        &neg.slot_expansion(neg.ids()[0], SlotId::Origin(editor_core::Axis3::X))
             .unwrap(),
         &neg.var_env(),
     )
@@ -180,14 +182,10 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     // PartialEq stays IEEE-semantic (documented)…
     assert_eq!(pos, neg, "PartialEq conflates -0.0/0.0 (by design)");
     // …but the fix pass made diff and bit_eq BIT-semantic: the
-    // 0.0→-0.0 payload change is DETECTED (diff is the future
+    // 0.0→-0.0 value change is DETECTED (diff is the future
     // SetTolerance-audit substrate and must not be bit-blind).
     let d = pos.diff(&neg);
-    assert_eq!(
-        d.nodes,
-        vec![editor_core::NodeChange::Changed(pos.order()[0])],
-        "diff detects the signed-zero change"
-    );
+    assert_eq!(d.vars, vec![x], "diff detects the signed-zero change");
     assert!(!pos.bit_eq(&neg), "bit_eq distinguishes -0.0/0.0");
     // NaN can no longer enter a document at all (door 1): the
     // conflation hazard for NaN is gone at the source.
@@ -267,7 +265,7 @@ fn r2_dimension_smuggling_probes() {
 fn r2_contradictory_param_dims_caught_downstream() {
     // mul(Scalar, Length) → Length: constructible with BOTH reads, by
     // id or by name.
-    let q = editor_core::VarId(1);
+    let q = editor_core::VarId::new(0, 1);
     let by_id = Formula::mul(
         Formula::var(q, Dimension::Scalar),
         Formula::var(q, Dimension::Length),
@@ -368,6 +366,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
         })),
+        fresh: Vec::new(),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&ins, Tol::witness(), &editor_core::RefusingReach)
@@ -378,7 +377,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
         slot: SlotId::Origin(Axis3::X),
         path: vec![1],
     };
-    let before = eval::<f64>(a.doc.expr_at(&path).unwrap(), &a.doc.var_env()).unwrap();
+    let before = eval::<f64>(&a.doc.expr_at(&path).unwrap(), &a.doc.var_env()).unwrap();
     assert_eq!(before, 2.0);
     // Replace the ANCESTOR (whole slot, path []) with 5.0 + 7.0.
     let replaced = a
@@ -398,7 +397,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
         .unwrap()
         .doc;
     // The old path still RESOLVES — to a different subexpression.
-    let after = eval::<f64>(replaced.expr_at(&path).unwrap(), &replaced.var_env()).unwrap();
+    let after = eval::<f64>(&replaced.expr_at(&path).unwrap(), &replaced.var_env()).unwrap();
     assert_eq!(after, 7.0, "silent re-point (witness): 2.0 became 7.0");
     // Arity-shrinking ancestor replace: old path now dangles as None
     // (detectable, but an Option, not a typed error).
@@ -432,6 +431,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
         })),
+        fresh: Vec::new(),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&ins, Tol::witness(), &editor_core::RefusingReach)
@@ -443,7 +443,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
         path: vec![0],
     };
     let check = |d: &Doc| {
-        let v = eval::<f64>(d.expr_at(&referent).unwrap(), &d.var_env()).unwrap();
+        let v = eval::<f64>(&d.expr_at(&referent).unwrap(), &d.var_env()).unwrap();
         assert_eq!(v.to_bits(), marker.to_bits(), "referent bits");
     };
     check(&a.doc);
@@ -474,6 +474,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
                 node: id,
                 slot: SlotId::Origin(Axis3::Z),
                 expr: len(6.0),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -523,6 +524,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
             b,
             declare: pairs(node),
         }),
+        fresh: Vec::new(),
     };
     let inserted = doc
         .apply(
@@ -549,7 +551,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     }
     // (2) Declared pairs naming an id that never existed: REFUSED, at
     // the insert and at `SetDeclare` alike.
-    let phantom = RecipeNodeId(9999);
+    let phantom = RecipeNodeId::new(0, 9999);
     let inserting = doc.apply(
         &boolean(phantom),
         Tol::witness(),
@@ -583,6 +585,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -603,6 +606,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[Edit::InsertNode {
             node: Box::new(Node::Profile(Fake("p"))),
+            fresh: Vec::new(),
         }],
     );
     let a = doc
@@ -613,6 +617,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                     distance: len(1.0),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -641,6 +646,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                 b: next_would_be,
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -681,6 +687,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         &Edit::DefineVar {
             var: name.clone().into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -694,6 +701,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         &Edit::DefineVar {
             var: name.clone().into(),
             def: editor_core::VarDecl::Free(FreeVar::Count { value: 2 }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -705,6 +713,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
             &Edit::DefineVar {
                 var: name.into(),
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -744,6 +753,7 @@ fn r5_apply_pure_and_deterministic_bitwise() {
         node: ids[0],
         slot: SlotId::Origin(editor_core::Axis3::Y),
         expr: len(f64::from_bits(0x3FF0000000000001)),
+        fresh: Vec::new(),
     };
     let a1 = doc
         .apply(&e, Tol::witness(), &editor_core::RefusingReach)
@@ -753,7 +763,7 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     // build an extrude on a profile to get a refusal).
     let bad = doc.apply(
         &Edit::DeleteNode {
-            id: RecipeNodeId(424_242),
+            id: RecipeNodeId::new(0, 424_242),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -942,6 +952,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
                 spacing: len(0.005),
             },
         }),
+        fresh: Vec::new(),
     };
     // Count slot referencing the Count doc param: accepted.
     let a = doc
@@ -964,6 +975,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
             node: pat_id,
             slot: SlotId::Count,
             expr: smuggle,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -975,7 +987,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // Declaring a continuous variable is flagged non-structural AND provably
     // cannot move the pattern count: value before == after.
     let n_before = eval_count(
-        doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
+        &doc.slot_expansion(pat_id, SlotId::Count).unwrap(),
         &doc.var_env::<f64>(),
     )
     .unwrap();
@@ -991,7 +1003,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .unwrap();
     assert!(!a2.record.structural);
     let n_after = eval_count(
-        a2.doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
+        &a2.doc.slot_expansion(pat_id, SlotId::Count).unwrap(),
         &a2.doc.var_env::<f64>(),
     )
     .unwrap();
@@ -1008,6 +1020,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
                 b: pat_id,
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         }],
     );
     let a3 = doc
@@ -1031,7 +1044,7 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     // The crate's own bit-semantic comparator must agree with the
     // independent walk below (fix pass: Doc::bit_eq landed).
     assert!(a.bit_eq(b), "Doc::bit_eq");
-    assert_eq!(a.order(), b.order(), "order");
+    assert_eq!(a.ids(), b.ids(), "order");
     assert_eq!(a.epsilon().to_bits(), b.epsilon().to_bits(), "epsilon");
     assert_eq!(a.metadata(), b.metadata(), "metadata");
     let (pa, pb) = (a.vars(), b.vars());
@@ -1055,22 +1068,25 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
             (x, y) => panic!("param kind mismatch {name:?}: {x:?} vs {y:?}"),
         }
     }
-    for &id in a.order() {
+    for id in a.ids() {
         let (na, nb) = (a.node(id).unwrap(), b.node(id).unwrap());
         assert_eq!(na.inputs(), nb.inputs(), "inputs of {id:?}");
         assert_eq!(na.slots(), nb.slots(), "slots of {id:?}");
         for slot in na.slots() {
-            let (ea, eb) = (na.expr(slot).unwrap(), nb.expr(slot).unwrap());
+            let (ea, eb) = (
+                a.slot_expansion(id, slot).unwrap(),
+                b.slot_expansion(id, slot).unwrap(),
+            );
             assert_eq!(ea.dim(), eb.dim(), "slot dim {id:?}/{slot:?}");
             if slot.is_structural() {
                 let (va, vb) = (
-                    eval_count(ea, &a.var_env::<f64>()),
-                    eval_count(eb, &b.var_env::<f64>()),
+                    eval_count(&ea, &a.var_env::<f64>()),
+                    eval_count(&eb, &b.var_env::<f64>()),
                 );
                 assert_eq!(va, vb, "count slot {id:?}/{slot:?}");
             } else {
-                let va = eval::<f64>(ea, &a.var_env()).unwrap();
-                let vb = eval::<f64>(eb, &b.var_env()).unwrap();
+                let va = eval::<f64>(&ea, &a.var_env()).unwrap();
+                let vb = eval::<f64>(&eb, &b.var_env()).unwrap();
                 assert_eq!(
                     va.to_bits(),
                     vb.to_bits(),

@@ -280,7 +280,7 @@ impl Formula {
     /// a RENDERING, not the caller's original string — whitespace and
     /// redundant parentheses are the parser's to normalise. A name is
     /// written as authored; a reader of a variable by id has no name
-    /// here and writes its full id, `#<16 hex>`, which the parser does
+    /// here and writes its full id, `#<ordinal>:<16 hex>`, which the parser does
     /// not read.
     #[getter]
     fn text(&self) -> String {
@@ -331,6 +331,57 @@ impl Formula {
     }
 }
 
+/// **What a slot takes** (VARIABLES-DESIGN VR9; INTENT-LITERALS Q9): a
+/// variable the document holds, read by every slot handed it — which
+/// is how two slots share one; a [`Formula`]; or a value, written
+/// (`WrittenLength`, `WrittenAngle`, which keep their unit) or bare (a
+/// `Length` or an `Angle` in the canonical unit, a `float` as a
+/// dimensionless number, an `int` as a count). A value or a formula
+/// mints the slot's own anonymous variable at the edit door; a `Var`
+/// is the variable itself.
+#[derive(FromPyObject)]
+pub(crate) enum SlotArg {
+    /// A variable the document holds.
+    Var(super::doc::Var),
+    /// A formula.
+    Formula(Formula),
+    /// A length and the unit it was written in.
+    WrittenLength(super::quantity::WrittenLength),
+    /// An angle and the unit it was written in.
+    WrittenAngle(super::quantity::WrittenAngle),
+    /// A length, canonical.
+    Length(super::quantity::Length),
+    /// An angle, canonical.
+    Angle(super::quantity::Angle),
+    /// A count. Before `Scalar`: a Python `int` is also a `float`.
+    Count(i64),
+    /// A dimensionless number.
+    Scalar(f64),
+}
+
+impl SlotArg {
+    /// The formula this argument is, at a slot that reads `dim`: a
+    /// variable is read at the slot's own dimension (the edit door
+    /// refuses one whose kind is another), a value is the literal of
+    /// its own dimension.
+    pub(crate) fn formula(&self, py: Python<'_>, dim: d::Dimension) -> PyResult<d::Formula> {
+        match self {
+            Self::Var(var) => Ok(d::Formula::var(var.0, dim)),
+            Self::Formula(formula) => Ok(formula.0.clone()),
+            Self::WrittenLength(w) => {
+                d::Formula::written_length(w.0).map_err(|err| literal_err(py, w.0.meters(), &err))
+            }
+            Self::WrittenAngle(w) => {
+                d::Formula::written_angle(w.0).map_err(|err| literal_err(py, w.0.radians(), &err))
+            }
+            Self::Length(l) => literal(py, l.0.meters(), d::Dimension::Length),
+            Self::Angle(a) => literal(py, a.0.radians(), d::Dimension::Angle),
+            Self::Count(n) => Ok(d::Formula::count(*n)),
+            Self::Scalar(x) => literal(py, *x, d::Dimension::Scalar),
+        }
+    }
+}
+
 /// **A stored expression** — what a document holds once the edit door
 /// has lowered a [`Formula`]: every variable it reads, read by id.
 ///
@@ -362,7 +413,7 @@ impl Expr {
     }
 
     /// The source text this expression reads back as (`unparse`), a
-    /// variable written as its full id, `#<16 hex>`; `Doc.unparse`
+    /// variable written as its full id, `#<ordinal>:<16 hex>`; `Doc.unparse`
     /// writes the names a document holds.
     #[getter]
     fn text(&self) -> String {
@@ -421,6 +472,33 @@ pub(crate) fn name_fault_err(py: Python<'_>, fault: &d::NameFault) -> PyErr {
         ("count", none()),
     ];
     typed_err(py, ErrorClass::Eval, message, &fields)
+}
+
+/// Raise the refusal of a formula that does not lower against a
+/// document: a name, as [`name_fault_err`] raises it, or a fresh-table
+/// read, which only an edit's own table resolves (a formula Python
+/// builds holds none).
+pub(crate) fn lower_fault_err(py: Python<'_>, fault: &d::LowerFault) -> PyErr {
+    match fault {
+        d::LowerFault::Name(fault) => name_fault_err(py, fault),
+        d::LowerFault::Fresh(fault) => {
+            let none = || py.None();
+            let text = |s: &str| PyString::new(py, s).unbind().into_any();
+            let fields = [
+                ("variant", text(crate::tags::fresh_fault_tag(fault))),
+                ("name", none()),
+                ("expected", text(dimension_tag(fault.dim))),
+                (
+                    "found",
+                    fault
+                        .held
+                        .map_or_else(none, |held| text(dimension_tag(held))),
+                ),
+                ("count", none()),
+            ];
+            typed_err(py, ErrorClass::Eval, fault.to_string(), &fields)
+        }
+    }
 }
 
 /// Raise `ParseError` carrying the refusal's stable tag, its byte

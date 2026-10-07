@@ -128,36 +128,43 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// and twelve vertices, every name a `FromA`/`FromB` lineage — and
 /// the persisted text did not move (`perf2_name_keying_differential`'s
 /// second column).
+///
+/// **Re-pinned for INTENT-LITERALS PR C** (a slot holds a variable):
+/// every node is minted from slots that hold variable ids, a typed
+/// value's variable drawn from what it holds, so every node id moved
+/// and with it every row this hashes. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched across the change.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xaeb22275f9fa495e),
-    ("corner_table", 0x4872c222ee692970),
-    ("heat_sink", 0xa8013a90ea21a4ab),
-    ("crossing_slots", 0xdac2751afb1aeadc),
-    ("nested_islands_105", 0xfaacd2490790c910),
-    ("nested_islands_106_depth1", 0x6ddff7113d31f84e),
-    ("nested_islands_106_depth2", 0x53ee792fa933ac05),
-    ("declared_tangency", 0x9669c31771c92a49),
-    ("kitchen_sink", 0xaada9a5ce2f20448),
-    ("cut_cylinder", 0xa695e6de0f9e4ad3),
-    ("measured_web", 0x7f05cba25971d021),
-    ("boss_union", 0x4cbd3668e897ceb8),
-    ("die_fillet", 0xf37ba47bed7131d2),
-    ("die_chamfer", 0x33f7333d4be4662e),
-    ("die_pips", 0xbd563f3a824cd198),
-    ("heat_sink_fins", 0x655d543ede0f8144),
-    ("die_tool", 0x9c994d489e581818),
-    ("face_sketch", 0xe17f467ecf2c0119),
-    ("part_select", 0xc6df10aecd80f6aa),
-    ("loft_prism", 0x74db68894c07172b),
-    ("die_composed", 0x3a79f7ab4af83db7),
-    ("die_composed_tour", 0x22a87f4c06f82721),
-    ("plate_param", 0xb4c97c37e9802991),
-    ("kiss_carry", 0x95c21251e6e097f2),
-    ("tube_ring", 0xa71be28f0bf1a321),
-    ("tube_arc", 0x2af86e460e5f188b),
-    ("hollow_tube_elbow", 0xafb710889300f596),
-    ("hollow_tube_ring", 0x7842e8a735aaeb8d),
-    ("reshaped_rod", 0x83794d892ebf929a),
+    ("die", 0x34736d33cb85c468),
+    ("corner_table", 0x276b18f05cc5e1ae),
+    ("heat_sink", 0x98e93d616105175b),
+    ("crossing_slots", 0xcbd3eaacc1d87d9b),
+    ("nested_islands_105", 0xd7dc4dc95985f195),
+    ("nested_islands_106_depth1", 0x6b83788291da0c88),
+    ("nested_islands_106_depth2", 0xa7fc3f3fc7992715),
+    ("declared_tangency", 0xd7a9ad1aec41f1aa),
+    ("kitchen_sink", 0xe44451492d4ff7c1),
+    ("cut_cylinder", 0x78206c61483e182b),
+    ("measured_web", 0xa81df71c0cf8777f),
+    ("boss_union", 0xc1a0d2067e76f99a),
+    ("die_fillet", 0x91b8100cc14cf427),
+    ("die_chamfer", 0x60f7d5d09e10dcf9),
+    ("die_pips", 0x3b055eab3c84cd46),
+    ("heat_sink_fins", 0x6cd70febcb179c82),
+    ("die_tool", 0xf33f16e9f2a6a392),
+    ("face_sketch", 0xa8458e25903a8db8),
+    ("part_select", 0xc5bd91f3d8195c58),
+    ("loft_prism", 0xe758bd11e0275122),
+    ("die_composed", 0xb22157b951652042),
+    ("die_composed_tour", 0x046e63552249186f),
+    ("plate_param", 0xf880eb7cba374675),
+    ("kiss_carry", 0x0b783e5a5f8d0d42),
+    ("tube_ring", 0xeaf0b2a5cf7fce6d),
+    ("tube_arc", 0x98067447a8026e82),
+    ("hollow_tube_elbow", 0xc8551fbc285ca6a1),
+    ("hollow_tube_ring", 0xbcd3269fe0f184e7),
+    ("reshaped_rod", 0x32d74f61ccfd3f24),
 ];
 
 #[test]

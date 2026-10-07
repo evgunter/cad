@@ -125,6 +125,7 @@ from pncad import (
     DocRef,
     Formula,
     Frame,
+    FreeVar,
     MateFrame,
     MatePrimitive,
     MateRole,
@@ -132,6 +133,7 @@ from pncad import (
     PatternKind,
     Placement,
     SegTag,
+    VarName,
     Workspace,
     assemble,
     content_pin,
@@ -1753,6 +1755,35 @@ class TestRefactorings(BenchWorkspace):
         self.assertEqual(caught.exception.variant, "not_an_instance")
         self.assertEqual(caught.exception.node, body)
 
+    def test_split_refuses_a_definition_tied_to_both_sides_naming_each(self):
+        # `k = w + j` is read by nothing; `w` only by the cut block and
+        # `j` by the kept one, so `k` could go with neither document.
+        doc = Doc("straddle")
+        for name, value in (("w", 1.5), ("j", 0.5)):
+            doc.apply(DocEdit.declare_var(VarName(name), FreeVar.length(value * m)))
+        doc.apply(DocEdit.declare_var(VarName("k"), doc.parse_formula("w + j")))
+
+        def block(x0, depth):
+            frame = doc.sketch_frame()
+            profile = doc.insert(Node.polygon([
+                (Formula.length_in(x0, m), Formula.length_in(0, m)),
+                (Formula.length_in(x0 + 1, m), Formula.length_in(0, m)),
+                (Formula.length_in(x0 + 1, m), Formula.length_in(1, m)),
+            ], plane=frame))
+            body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
+            doc.apply(DocEdit.set_param(body, "distance", doc.parse_formula(depth)))
+            return [frame, profile, body]
+
+        cut = block(0.0, "w")
+        block(10.0, "j")
+        with self.assertRaises(pncad.SplitError) as caught:
+            pncad.split(doc, cut, random_document_id())
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "definition_straddles_cut")
+        self.assertEqual(
+            (refusal.param, refusal.moving, refusal.staying), ("k", "w", "j")
+        )
+
 
 class TestProductRoots(BenchWorkspace):
     """`set_roots` and `product`: a document states what it IS."""
@@ -2193,7 +2224,7 @@ class TestMateFrameFromFace(BenchWorkspace):
                     yield from inner_names(child, depth + 1)
 
         (local,) = list(inner_names(spelled))
-        local["node"] = 99
+        local["node"] = "0:0000000000000063"
         with self.assertRaises(pncad.EditError) as caught:
             self.seated(
                 "from-face-vanished",

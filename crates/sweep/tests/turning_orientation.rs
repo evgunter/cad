@@ -72,7 +72,8 @@
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, FRAC_PI_6};
 
 use geom::NurbsCurve3;
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point3, Tol, Vec3};
+use sweep::skin::sweep_geometry;
 use sweep::{Lofted, sweep_body};
 
 use crate::common;
@@ -271,14 +272,9 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
 
     let plane_normal = Vec3::new(1.0, 0.0, 0.0);
     let spine = spine_chords(&swept, SPINE_STEPS);
-    // The two arcs are separated by the SIGN of the turn, not by the
-    // halfway index of the surface's own `v`: where `v = 0.5` falls on
-    // the path is the skin's parameterization talking (`loft_geometry`
-    // takes the whole surface's v from the FIRST STRIP, so a section
-    // rolled about its own normal re-parameterizes the body), and this
-    // row is about the shape. Summing the negative increments and the
-    // positive ones apart asks the question directly and is invariant
-    // to where the split index lands.
+    // The two arcs are separated by the SIGN of the turn, not by an
+    // index split: summing the negative increments and the positive
+    // ones apart asks the question about the shape directly.
     let turns: Vec<f64> = spine
         .windows(2)
         .map(|w| signed_angle_about(plane_normal, w[0], w[1]))
@@ -324,6 +320,85 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
     let oracle = |q| index.contains(q);
     assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 4);
     assert_caps_face_out(&swept, &oracle, PROBE_DELTA);
+}
+
+/// **The inflecting duct from two start frames a quarter turn apart
+/// about the start tangent is one solid.**
+///
+/// The two are the kernel's frame and the retired cone recipe's, which
+/// is it turned by `R_z(−90°)` (`s393_start_frame_door`). A centred
+/// square is invariant under that quarter turn and the sweep carries
+/// the start frame rigidly, so every station's ring is the same set of
+/// world points in both builds; the quarter turn is the exact column
+/// permutation, so they are the same BITS, and only which edge is wall
+/// 0 differs. The sections sit at the loft's chord-length parameters,
+/// a function of the rows as a set, so the walls are bit-identical,
+/// shifted by one edge. A parameterization read off one wall moved the
+/// volume in the fifth digit with the roll, and where `v = 0.5` lands
+/// on the spine by 0.354.
+#[test]
+fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
+    let path = inflecting_path();
+    let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
+    let place = normal_start_place(&path);
+    let [x, y, z] = place.linear.cols();
+    let rolled = Affine3::from_parts(Mat3::from_cols(-y, x, z), place.translation);
+    let tol = Tol::witness();
+    let build = |place| {
+        let params = sweep::loft_parameters(
+            &vec![profile.clone(); 13],
+            &sweep::skin::sweep_places(place, &path, 13).expect("the duct's frames"),
+            3,
+            tol,
+        )
+        .expect("the duct's sections parameterize");
+        let geometry = sweep_geometry(&profile, place, &path, 13, 3, tol).expect("the duct skins");
+        let body = sweep_body::<f64>(&profile, place, &path, 13, 3, tol).expect("the duct sweeps");
+        (params, geometry, body)
+    };
+    let (chord_params, base, base_body) = build(place);
+    let (_, other, other_body) = build(rolled);
+
+    assert_eq!(
+        base.section_params, chord_params,
+        "a sweep's sections sit at the loft's chord-length parameters"
+    );
+    assert_eq!(
+        base_body.section_params, chord_params,
+        "the body reads back the parameters its walls were skinned at"
+    );
+    assert_eq!(
+        other.section_params, base.section_params,
+        "rolled: same parameters"
+    );
+    // The rolled frame carries sketch vertex `j` to the world point the
+    // unrolled one carries vertex `j − 1` to.
+    let n = base.walls[0].len();
+    for (j, wall) in other.walls[0].iter().enumerate() {
+        let want = &base.walls[0][(j + n - 1) % n];
+        assert!(
+            wall.knots_u().knots() == want.knots_u().knots()
+                && wall.knots_v().knots() == want.knots_v().knots()
+                && wall.weights() == want.weights()
+                && wall
+                    .control()
+                    .iter()
+                    .zip(want.control())
+                    .all(|(p, q)| p.x == q.x && p.y == q.y && p.z == q.z),
+            "rolled wall {j} must be wall {} of the unrolled duct, bit for bit",
+            (j + n - 1) % n
+        );
+    }
+
+    let (mid, rolled_mid) = (
+        ring_centroid(&base_body, 0.5),
+        ring_centroid(&other_body, 0.5),
+    );
+    assert!(
+        (mid - rolled_mid).norm() < 1e-12,
+        "v = 0.5 must land on the same point of the spine under both frames: {mid:?} \
+         against {rolled_mid:?}"
+    );
 }
 
 /// **Every wall of a sweep along a nowhere-planar path faces out of

@@ -620,7 +620,7 @@ impl VerdictVector {
         h.write_tag(0xE6);
         h.write_u64(self.rows.len() as u64);
         for row in &self.rows {
-            h.write_u64(row.node.0);
+            h.write_id(row.node.0);
             // The tag alphabet is hand-written literals, so the enum's
             // declaration order decides nothing: reordering
             // [`RunStatus`] moves no key. `Ok`/`Failed`/`Poisoned` carry

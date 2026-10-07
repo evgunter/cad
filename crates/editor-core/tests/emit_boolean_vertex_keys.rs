@@ -543,7 +543,7 @@ fn spelled(n: &StableName, swap: bool) -> String {
 
 fn respelled(n: &StableName, swap: bool) -> StableName {
     let mut n = n.clone();
-    n.node = RecipeNodeId(0);
+    n.node = RecipeNodeId::new(0, 0);
     if swap && let Some(h) = n.path.first_mut() {
         *h = match h.clone() {
             RoleSeg::FromA(x) => RoleSeg::FromB(x),

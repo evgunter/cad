@@ -74,3 +74,34 @@ corner touches the wall) then passes tier 3′. The drum ∪ the outer cube
 is left with only the undecidable cross-solid curved pair. The row now
 pins both. The other 32 results were not re-measured. The change can
 move one of them only where its record names a curved face.
+
+## Measured (2026-10-07, PR 4207: a pinched operand)
+
+r2's pinched-operand battery (`join_pinch_cones_r2_probes.rs`
+`r2_pinched_operand_battery`, PR 4139's review r2, 720 lines), release,
+main `3e9d1a96` and PR 4207's head `9d7b9228`. The battery's P is a cube
+minus a smaller box sharing its corner, so P is pinched at the origin.
+Its C is a cube whose near face holds that point.
+
+- 120 results are `OK BAD` on tier 3′ alone, failing only on
+  `StaleContactDeclaration { VertexOnFace }`: 64 lines with one stale
+  record, 56 with two, 176 records in all. Volume, tier 2, the
+  certificate and the legal-operand check pass, and every one meshes.
+- The lines by order and op: `pc U` 36, `cp U` 37, `cp S` 32, `pc S` 6,
+  `pc I` 5, `cp I` 4. They cover poses `i` = 1, 5, 6, 7, 9, 10, 12, 13,
+  14, 18, 19, 20, 22, 25, 28, 32, 35, 36, 37, 43, 44, 47, 48, 50, 51,
+  52, 53, 55, 56, 57, at both ψ = 0 and ψ = 1.1.
+- Main holds the same stale records on the same 120 lines, line for
+  line. On 73 of them main also refused `UndeclaredContact
+  { VertexVertex }` at the pinch, which PR 4207 clears.
+- Examples:
+  - `i=1 ψ=0 cp S`: two records on face `2v1`;
+  - `i=9 ψ=0 pc U`: `VertexOnFace { vertex: 22v1, face: 21v5 }`.
+
+Repro: put the battery file (kept with PR 4139's review r2) under
+`crates/sweep/tests/` with a `mod` line in `all.rs`, limit its pose
+loop to `i = 1`, and print `validate_pseudomanifold`'s error in
+`common/differential.rs`'s `outcome`. Then:
+
+    cargo test --release -p sweep --test all -- --ignored --exact \
+      join_pinch_cones_r2_probes::r2_pinched_operand_battery --nocapture

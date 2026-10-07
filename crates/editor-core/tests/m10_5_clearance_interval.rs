@@ -706,7 +706,7 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
 #[test]
 fn a_node_that_does_not_exist_refuses_at_the_selection() {
     let (doc, _minted, _at) = hexagon();
-    let sel = Selection::body_of(RecipeNodeId(9999));
+    let sel = Selection::body_of(RecipeNodeId::new(0, 9999));
     let report = clearance(
         &doc,
         &box_of(&doc, "place"),

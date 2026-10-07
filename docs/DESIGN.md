@@ -574,13 +574,14 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   circle mints through the fitted route
   (`FittedLane::sphere_circle_image`, certified by `certify_fitted`'s
   Circle-carrier arm), so the oblique-trihedron octant faces store
-  their rows; the cone/torus oblique classes have no ring-computable
-  meters composite and refuse with the class named, their faces left
-  uncached, excused by C4's exemption until each class's route lands.
-  The same exemption covers a spline carrier at the closed-form door
-  and the mirror-torus spiric and no-fitted classes. Each class has
-  its own PCERT row: the torus general circle, the cone section, the
-  spline carrier, and the spiric and no-fitted classes together.
+  their rows; a torus's Villarceau circle and a cone's tilted section
+  mint their exact image (`Pcurve::FocalSection`), and a circle within
+  the band of a cone or torus that is none of its circles refuses as a
+  defect (`CarrierGrazesChart`). C4's exemption, a face left uncached
+  until its class's route lands, covers a spline carrier at the
+  closed-form door and the mirror-torus spiric and no-fitted classes,
+  each on its own PCERT row: the spline carrier, and the spiric and
+  no-fitted classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
@@ -639,7 +640,7 @@ EdgeDescription =
   | TangentIntersection { s1, s2, witness }  -- tangential contact locus; same
                                              -- shape, margin one order up
   | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
-                                             -- (surface, Pcurve) with a `seam` flag
+                                             -- (surface, Pcurve) with a `wrap` flag
                                              -- (iso-lines, seams, user splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest

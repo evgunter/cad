@@ -168,6 +168,7 @@ fn child_band_row() {
                     node,
                     vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
                 ))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

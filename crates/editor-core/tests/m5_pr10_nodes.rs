@@ -121,7 +121,7 @@ fn sweep_inputs_are_profile_then_path_and_it_carries_both_slots() {
 #[test]
 fn a_dangling_profile_ref_refuses_at_the_edit_door() {
     let (doc, ..) = loft_doc();
-    let bogus = RecipeNodeId(9999);
+    let bogus = RecipeNodeId::new(0, 9999);
     let err = doc
         .apply(
             &DocEdit::InsertNode {
@@ -129,6 +129,7 @@ fn a_dangling_profile_ref_refuses_at_the_edit_door() {
                     profiles: vec![bogus],
                     v_degree: count(1),
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -149,6 +150,7 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
                     profiles,
                     v_degree: len(2.0),
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

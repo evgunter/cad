@@ -361,7 +361,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         )
         .unwrap();
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
-    spec.description = EdgeDescriptionSpec::seam(foreign);
+    spec.description = EdgeDescriptionSpec::wrap(foreign);
     let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
     assert!(
         matches!(
@@ -921,6 +921,15 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
             ValidationError::TransverseNotIntrinsic { edge: circ.edge },
             ValidationError::PlanarBoundaryResidual {
                 face: circ.face,
+                edge: circ.edge,
+            },
+            // The seed face passes B twice, once on each side of the
+            // circle, and both corners there are reflex: each sweeps
+            // round to the other's side of the circle, so the face
+            // crosses itself at B (check 9's corner arm).
+            ValidationError::PinchCornerCrossed {
+                face: seed.face,
+                vertex: seg.vertex,
                 edge: circ.edge,
             },
         ]),

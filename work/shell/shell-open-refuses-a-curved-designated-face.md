@@ -2,11 +2,14 @@
 id: shell-open-refuses-a-curved-designated-face
 kind: issue
 title: shell_open refuses every non-plane designated face at construction, where only the props reading of a curved ringed rim is missing
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [shell-offset-three-followups]
+pr: 4191
+branch: shell/curved-mouth
+closed: 2026-10-07
 ---
 
 
@@ -103,3 +106,20 @@ Fixtures the spec owes:
   rows after the void door.
 
 `RimNaming` keeps its shape.
+
+## Closed (SHELL orchestrator, 2026-10-07, PR 4191)
+
+`shell_open` now takes a designated face of any surface kind, and the rim takes the form of its chart:
+- A pole-touching periodic designation, on the outer or the void side, opens to a seamed band. The band keeps every operand face and seam under its own key; each seam is re-anchored by a strut collapsed with `kev_describing`.
+- A window that does not wrap its period becomes a ring. Wrapping is read from the chart, as a boundary that winds the period.
+- The lift reads `geom_brep::offset_distance`, the inverse of the mint.
+- `OpenFaceRingUnsupported` is retired.
+
+A document evaluates a band: `emit_shell` names every branch face, pinned by `lib_g17_shell_node::the_capped_vessel_opens_its_cap_into_a_seamed_band`. A planar void designation also stops refusing at name emission.
+
+Reviewed by a concurrent pair, row DR-97. Its document-path MAJOR was fixed in the fix pass.
+
+Residues, each filed:
+- `shell-open-band-wrapping-between-two-boundaries`;
+- `shell-of-a-cone-tip-refuses-at-the-nappe-decision` (which also holds the lift's unreached cone arm);
+- `shell-of-a-tangent-dome-refuses-at-the-axial-corner`.

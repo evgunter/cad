@@ -92,7 +92,7 @@ fn config(max_leaves: usize) -> DriveConfig {
 
 fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
-        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId(0))),
+        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
         profile_lift: lift,
         ..EvalOptions::default()
     }
@@ -143,6 +143,25 @@ fn key(ev: &Evaluation<impl geom_core::Decide>, id: RecipeNodeId) -> u128 {
 /// The variable `doc` declares as `n`.
 fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
     doc.var_named(n).expect("the fixture declares it")
+}
+
+/// `doc` with each of `names` given a tolerance, so the stackup's
+/// driver varies it (VR8: an untoleranced variable is a constant of the
+/// analysis and has no entry). A derivative does not read the law.
+fn toleranced(doc: &ProfileDoc, names: &[&str]) -> ProfileDoc {
+    names.iter().fold(doc.clone(), |doc, n| {
+        editor_core::apply(
+            &doc,
+            &DocEdit::SetVarDistribution {
+                var: var(&doc, n).into(),
+                distribution: Some(Distribution::Normal { sigma: 1e-3 }),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("a declared variable takes a law")
+        .doc
+    })
 }
 
 fn entry<'a>(
@@ -352,9 +371,11 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         name: name("h"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
+    // `u` carries `h`'s law, so it is an axis too (VR8) and the row
+    // can ask what a parameter that feeds nothing forfeits.
     r.push(DocEdit::DeclareVar {
         name: name("u"),
-        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -665,17 +686,18 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
     let m = measured(&par, s.measure);
     assert_eq!(m.deriv.to_bits(), fresh["w"].deriv.to_bits());
     assert_eq!(m.value.to_bits(), fresh["w"].value.to_bits());
-    let seq = sensitivities(&s.doc, s.measure, None, None, false, None, Tol::witness());
-    let par = sensitivities(&s.doc, s.measure, None, None, true, None, Tol::witness());
+    let lawed = toleranced(&s.doc, &["w", "d", "k"]);
+    let seq = sensitivities(&lawed, s.measure, None, None, false, None, Tol::witness());
+    let par = sensitivities(&lawed, s.measure, None, None, true, None, Tol::witness());
     assert_eq!(seq, par);
     let seq = seq.expect("ok");
     assert_eq!(
         seq.len(),
         3,
-        "one entry per continuous parameter, k included"
+        "one entry per toleranced variable, k included, no written dimension's"
     );
     for (n, expect) in [("w", 1.0), ("d", 1.0), ("k", 0.0)] {
-        match entry(&s.doc, &seq, n) {
+        match entry(&lawed, &seq, n) {
             SensitivityOutcome::Derivative { value, chamber } => {
                 assert_eq!(*value, expect, "{n}");
                 assert_eq!(*chamber, Chamber::LocalOnly);
@@ -757,6 +779,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
                 2.0,
                 Some(uniform(-0.1, 0.1)),
             )),
+            fresh: Vec::new(),
         },
     );
     let r = sensitivities(
@@ -917,7 +940,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     };
     // In declaration order, the order every lane lists variables in.
     let mut want = vec![var(&doc, "h"), var(&doc, "u")];
-    want.sort_by_key(|id| doc.var_order().iter().position(|v| v == id));
+    want.sort_by_key(|id| doc.var_ids().iter().position(|v| v == id));
     assert_eq!(blockers, want);
     for p in &report.per_param {
         assert!(p.contribution.is_err(), "{:?}", p.param);
@@ -1140,8 +1163,9 @@ fn truncated_sigma(sigma: f64, lo: f64, hi: f64) -> f64 {
 
 /// **σ for every form, derived independently.** Uniform `(hi − lo)/√12`
 /// on an ASYMMETRIC support, Normal `σ`, TruncatedNormal by quadrature
-/// on an asymmetric window, fixed `0`; with every ∂m/∂pᵢ = 1 the RSS is
-/// `√Σσᵢ²`. Contributions are `half-width` per axis — the analyzed
+/// on an asymmetric window; with every ∂m/∂pᵢ = 1 the RSS is `√Σσᵢ²`.
+/// The fourth summand `f` carries no tolerance, so it is a constant of
+/// the analysis and has no entry (VR8). Contributions are `half-width` per axis — the analyzed
 /// box's, which for the asymmetric supports is NOT the larger
 /// excursion from the nominal (noted, per spec).
 #[test]
@@ -1185,7 +1209,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
         ),
         other => panic!("{other:?}"),
     }
-    assert_eq!(report.per_param.len(), 4);
+    assert_eq!(report.per_param.len(), 3, "u, n and tn; f is a constant");
     for p in &report.per_param {
         let half = 0.5 * analyzed.get(p.param).expect("axis").offsets.width();
         assert_eq!(p.contribution, Ok(half), "{:?}", p.param);
@@ -1234,7 +1258,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
                     var: doc.spoken_var(var(&doc, "u")),
                 },
             ];
-            want.sort_by_key(|b| doc.var_order().iter().position(|v| *v == b.var().id()));
+            want.sort_by_key(|b| doc.var_ids().iter().position(|v| *v == b.var().id()));
             assert_eq!(blockers, &want);
         }
         other => panic!("{other:?}"),
@@ -1276,8 +1300,9 @@ fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
         m,
     );
     assert_eq!(pinned.deriv, 0.0, "the pinned lift's silent zero");
-    let entries = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
-    match entry(&doc, &entries, "r") {
+    let lawed = toleranced(&doc, &["r"]);
+    let entries = sensitivities(&lawed, m, None, None, false, None, Tol::witness()).expect("ok");
+    match entry(&lawed, &entries, "r") {
         SensitivityOutcome::Derivative { value, .. } => assert_eq!(*value, -1.0),
         other => panic!("{other:?}"),
     }
@@ -1297,8 +1322,9 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
     let (doc, m) = loft();
     let f = measured_f64(&eval(&doc), m);
     assert_eq!(f.to_bits(), 2.0f64.to_bits(), "distance {f}");
-    let entries = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
-    match entry(&doc, &entries, "w") {
+    let lawed = toleranced(&doc, &["w"]);
+    let entries = sensitivities(&lawed, m, None, None, false, None, Tol::witness()).expect("ok");
+    match entry(&lawed, &entries, "w") {
         SensitivityOutcome::Derivative { value, .. } => {
             assert_eq!(
                 *value, 1.0,

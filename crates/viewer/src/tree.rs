@@ -183,10 +183,10 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr, Label,
-    MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
-    node_kind_noun,
+    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
+    Expr, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind,
+    NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
+    VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
@@ -569,13 +569,13 @@ pub fn headline(spoken: &SpokenNode, pose: Option<&str>) -> Headline {
 #[must_use]
 pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
     let of_kind = || {
-        doc.order().iter().filter(|id| {
-            doc.node(**id)
+        doc.ids().into_iter().filter(|&id| {
+            doc.node(id)
                 .is_some_and(|node| node_kind_noun(node) == noun)
         })
     };
     let taken: Vec<&str> = of_kind()
-        .filter_map(|id| doc.label(*id))
+        .filter_map(|id| doc.label(id))
         .map(Label::as_str)
         .collect();
     let text = (of_kind().count() + 1..)
@@ -604,7 +604,13 @@ pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
 pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Option<String> {
     match node {
         Node::Datum(Datum::Frame { origin, u, v }) => {
-            Some(match (plane_name(u, v), written_point(origin)) {
+            let written = |xs: &[VarId; 3], dim| xs.map(|var| doc.written(&Expr::var(var, dim)));
+            let (origin, u, v) = (
+                written(origin, Dimension::Length),
+                written(u, Dimension::Scalar),
+                written(v, Dimension::Scalar),
+            );
+            Some(match (plane_name(&u, &v), written_point(&origin)) {
                 (Some(plane), Some(at)) => format!("{plane} at {at}"),
                 (Some(plane), None) => format!("{plane}, origin driven"),
                 (None, Some(at)) => format!("at {at}"),
@@ -741,7 +747,7 @@ pub fn rows(
 ) -> Vec<TreeRow> {
     let order: Vec<RecipeNodeId> = match evaluation {
         Some(ev) => ev.order.clone(),
-        None => doc.order().to_vec(),
+        None => doc.ids().to_vec(),
     };
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let roots = doc.roots();
