@@ -531,25 +531,31 @@ fn a_frustum_top_rim_mitres_at_leaning_walls() {
                     Some(any)
                 };
                 let band = Band::linear(tol()).expect("the run's band");
-                let (mut checked, mut wrong) = (0, Vec::new());
-                for (i, j, h) in
-                    (0..9).flat_map(|i| (0..9).flat_map(move |j| (0..5).map(move |h| (i, j, h))))
-                {
-                    // Near the corner `(lo, −lo, 1)` and along both its
-                    // edges, every corner being the same by symmetry.
-                    let q = Point3::new(
-                        lo - 0.02 + 0.37 * f64::from(i) / 8.0,
-                        -lo + 0.02 - 0.37 * f64::from(j) / 8.0,
-                        0.86 + 0.13 * f64::from(h) / 4.0,
-                    );
+                let (mut checked, mut cut, mut wrong) = (0, 0, Vec::new());
+                // Section grids across both edges at the corner
+                // `(lo, −lo, 1)`, at stations from it through the
+                // mitre, every corner being the same by symmetry.
+                let grid = (0..13).flat_map(|i| (0..12).map(move |j| (i, j)));
+                let stations = [0.005, 0.02, 0.045, 0.08, 0.13, 0.2];
+                let samples = stations.iter().flat_map(|&t| {
+                    grid.clone().flat_map(move |(i, j)| {
+                        let (u, z) = (0.02 - 0.0125 * f64::from(i), 1.0 - 0.0125 * f64::from(j));
+                        [
+                            Point3::new(lo + t, -lo + u, z),
+                            Point3::new(lo - u, -lo - t, z),
+                        ]
+                    })
+                });
+                for q in samples {
                     let faces = [1.0 - q.z, q.x - s * q.z, -s * q.z - q.y];
                     if faces.iter().any(|f| f.abs() < 1e-6) {
                         continue;
                     }
                     let Some(gone) = removed(q) else { continue };
                     let want = in_frustum(q) && !gone;
+                    cut += usize::from(gone && in_frustum(q));
                     let got = topo::boolean::point_in_solid(&out.body, q, band, tol())
-                        .expect("membership reads");
+                        .unwrap_or_else(|e| panic!("fillet: membership at {q:?} reads, got {e:?}"));
                     checked += 1;
                     if matches!(got, SolidContainment::In) != want
                         || matches!(got, SolidContainment::OnBoundary)
@@ -557,7 +563,10 @@ fn a_frustum_top_rim_mitres_at_leaning_walls() {
                         wrong.push((q, got, want));
                     }
                 }
-                assert!(checked > 200, "fillet: {checked} points sampled");
+                assert!(
+                    checked > 1000 && cut > 50,
+                    "fillet: {checked} points sampled, {cut} of them in the bands"
+                );
                 assert!(
                     wrong.is_empty(),
                     "fillet: {} of {checked} points disagree with the prisms' union: {wrong:?}",
