@@ -467,8 +467,9 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         // The certified quadrature lane reads a chart image
-        // CHANNEL BY CHANNEL out of its closed form; a fitted image
-        // has no such form on an ANALYTIC chart's Green reduction.
+        // CHANNEL BY CHANNEL out of its harmonic form; a fitted or
+        // focal-section image has none on an ANALYTIC chart's Green
+        // reduction.
         // Typed refusal: the fitted-boundary Green lane
         // (`quad::bspline_green_integral`'s remaining consumer) is not
         // wired. A sphere's general circle mints one at rest (an
@@ -476,9 +477,10 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         // face's spherical triangle before this lane is asked.
         let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
             return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries a FITTED pcurve on an analytic \
-                       chart — its Green-form boundary integral (bspline_green_integral) \
-                       is not wired",
+                what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
+                       an analytic chart (a FITTED image, or a cone section's or Villarceau \
+                       circle's focal section) — its Green-form boundary integral is not \
+                       wired",
             });
         };
         let (t0, t1) = cache.params();
