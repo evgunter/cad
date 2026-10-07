@@ -199,6 +199,7 @@ where
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
     );
     (
@@ -828,6 +829,7 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
                     Frame::translation([2.0, 0.0, 0.0]),
                 ]),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -864,6 +866,7 @@ fn an_index_at_the_count_is_still_a_dangling_head() {
             node: scene.placer,
             slot: editor_core::SlotId::Count,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     scene.doc = doc;
@@ -923,6 +926,7 @@ fn the_placement_axis_refuses_in_its_own_voice() {
             &DocEdit::SetOffset {
                 instance,
                 offset: Some(editor_core::Placement::literal(&frame)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

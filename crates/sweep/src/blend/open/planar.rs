@@ -158,7 +158,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
             //
             // ONE fold, ONE home: `Convexity::signed` — the value the
             // plane–plane band arm folds into its feet and the
-            // plane–sphere arm into its spine, and (as the side bit
+            // plane–sphere arm into its spine, and (as the side
             // `Convexity::ball_side`) what the shared sheet reduction
             // hands each trace (`battery::curved_arm`). `corner_ball`
             // alone needs its NEGATIVE, the rest DEPTH

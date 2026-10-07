@@ -66,7 +66,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// kind, which the quantiles of a long tail need not.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 98, 181, 277_156]),
+    ("full", [19, 69, 111, 248_708]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -74,7 +74,12 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// evaluation, in the corpus's order: a wrong word of the same length
 /// moves it where [`NAME_WORDS`] cannot see. Re-pinned with the words
 /// that moved, said in the PR that moves them.
-const SAID_DIGEST: u64 = 0x294d_e513_dce4_8b9d;
+///
+/// INTENT-LITERALS PR C: the words that moved are the node tags (`Extrude
+/// e548`): every slot holds a variable's id, so every node is minted
+/// from other bytes. [`NAME_WORDS`] held, so no name says a word more or
+/// fewer.
+const SAID_DIGEST: u64 = 0x0fc9_b773_e5ec_8b7c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -724,6 +729,7 @@ fn respoken_after_a_dropped_step() {
                 node: profile,
                 loops: vec![rod_loop(true)],
                 ids,
+                fresh: Vec::new(),
             },
             tol,
             &RefusingReach,

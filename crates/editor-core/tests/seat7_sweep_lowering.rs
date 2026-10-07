@@ -307,14 +307,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
 /// constant here held.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xfa04_f1a7_d1c4_847d),
-        ("corner_table", 0xe627_eb39_1cdd_3b27),
-        ("cut_cylinder", 0x9b80_a51c_78d2_ce75),
-        ("boss_union", 0xc76d_2e37_0c97_ae7b),
-        ("kitchen_sink", 0xe372_b510_47f9_3a35),
+        ("die", 0xbad8_3e67_947d_3484),
+        ("corner_table", 0x2c54_ec43_5595_dc12),
+        ("cut_cylinder", 0x5c36_b5b4_37a0_06a4),
+        ("boss_union", 0x3c93_af35_a878_6cc3),
+        ("kitchen_sink", 0xae52_cf84_2852_caa0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -920,6 +926,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
                 arg: StepArg::Radius,
             },
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc, Some(&ev1));
@@ -941,6 +948,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
         DocEdit::DefineVar {
             var: VarName::from_static("r").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
+            fresh: Vec::new(),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -1104,6 +1112,7 @@ fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
                 arg: StepArg::CarrierRadius,
             },
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc, Some(&ev1));

@@ -78,6 +78,7 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, axis: Axis3, to: f64) -> ProfileDo
             node,
             slot: SlotId::Translation(axis),
             expr: len(to),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -563,6 +564,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
             node: part,
             slot: SlotId::Instance,
             expr: editor_core::Formula::count(1),
+            fresh: Vec::new(),
         },
     )
     .0;

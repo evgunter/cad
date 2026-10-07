@@ -1861,12 +1861,15 @@ fn name_boolean_vertices<T: Decide>(
             // deterministic, and unique per line set (straight lines
             // meet once). A pinch is one too: several edges of one
             // operand pierce a face of the other at one vertex, so no
-            // single edge is its parent.
+            // single edge is its parent; and so is a point edges of both
+            // operands run through, one of them on one side, where no
+            // edge pair is.
             (aes, bes, _, _)
                 if seam_lines.len() >= 2
                     && match (aes.len(), bes.len()) {
                         (0, 0) => true,
                         (n, 0) | (0, n) => n >= 2,
+                        (1, _) | (_, 1) => true,
                         _ => false,
                     } =>
             {
@@ -3837,6 +3840,7 @@ mod split_carries_candidates {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &RefusingReach,
@@ -4116,6 +4120,7 @@ mod crossings_rank_along_the_line {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &RefusingReach,
@@ -4316,6 +4321,7 @@ mod edge_pieces_of_one_line_tie {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &RefusingReach,

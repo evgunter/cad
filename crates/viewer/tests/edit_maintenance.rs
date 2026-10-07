@@ -160,7 +160,10 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::DeleteNode { node: victim };
     let outcome = session.perform(op.clone());
-    assert_eq!(outcome.maintenance, expected);
+    assert_eq!(
+        crate::fixture::without_anonymous(&outcome.maintenance),
+        expected
+    );
     assert_line_words(&line_after(&outcome, op), &expected);
     assert!(
         session.committed_doc().node(carrier).is_some(),
@@ -256,7 +259,8 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
     let op = SessionOp::DeleteNode { node: victim };
     let outcome = session.perform(op.clone());
     assert_eq!(
-        outcome.maintenance, expected,
+        crate::fixture::without_anonymous(&outcome.maintenance),
+        expected,
         "the deleted node's key, and not the kept block's"
     );
     assert_line_words(&line_after(&outcome, op), &expected);
@@ -291,7 +295,10 @@ fn apex_y() -> SlotId {
 /// batch's own verdict — clear — stands.
 fn assert_quiet(outcome: &OpOutcome, op: SessionOp) {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&outcome.maintenance),
+        Vec::new()
+    );
     assert_eq!(
         frame::frame_status(
             &frame::outcome_notices(outcome).collect::<Vec<_>>(),
@@ -347,7 +354,10 @@ fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
     });
     assert!(previewed.refusal.is_none(), "{:?}", previewed.refusal);
     assert_eq!(previewed.previewed.len(), 1, "the premise: a preview ran");
-    assert_eq!(previewed.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&previewed.maintenance),
+        Vec::new()
+    );
     let op = SessionOp::CommitGesture {
         node: profile,
         slot,
@@ -364,9 +374,10 @@ fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
 #[test]
 fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let (doc, profile, _) = framed_triangle("maint-profile-flip");
-    let Some(Node::Profile(base)) = doc.node(profile).cloned() else {
+    let Some(Node::Profile(base)) = doc.node(profile) else {
         panic!("the fixture's profile")
     };
+    let base = viewer::sketch::written_program(&doc, base);
     let loops = vec![LoopProgram::Chain(vec![
         ProgramStep::At(common::len2([0.0, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(common::len2([2.0, 0.0]))),
@@ -436,9 +447,10 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     let (doc, profile, extrude) = extruded(&doc, vec![corner(false)]);
     let right = wall(&doc, extrude, 0, 1);
     let (doc, carrier) = frame_on(&doc, extrude, right.clone());
-    let Some(Node::Profile(base)) = doc.node(profile).cloned() else {
+    let Some(Node::Profile(base)) = doc.node(profile) else {
         panic!("the fixture's profile")
     };
+    let base = viewer::sketch::written_program(&doc, base);
     let mut ids = base.kept_in_place();
     ids[0].insert(3, None);
     ids[0].insert(5, None);
@@ -462,7 +474,10 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
         took: pncad::document::Took::Piece,
     }];
     assert_eq!(counted, expected, "the count Apply shows before the click");
-    assert_eq!(outcome.maintenance, expected);
+    assert_eq!(
+        crate::fixture::without_anonymous(&outcome.maintenance),
+        expected
+    );
     assert_line_words(&line_after(&outcome, op), &expected);
 }
 
@@ -514,7 +529,10 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
     let outcome = session.perform(op.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "the premise: the edit landed");
-    assert_eq!(outcome.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&outcome.maintenance),
+        Vec::new()
+    );
     assert_eq!(
         frame::frame_status(
             &frame::outcome_notices(&outcome).collect::<Vec<_>>(),
@@ -557,4 +575,75 @@ fn an_offset_clear_is_carried_but_not_worded() {
         frame::maintenance_notice(&strand).map(|notice| notice.text().to_owned()),
         Some(strand.to_string())
     );
+}
+
+/// `block`'s extrude with its typed depth's anonymous variable given
+/// `distribution`.
+fn toleranced_block(
+    seed: &str,
+    distribution: Option<pncad::document::Distribution>,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let doc: Doc<ProfileProgram> = Doc::empty_derived(seed, Tol::witness());
+    let (doc, extrude) = block(&doc, 0.0);
+    let depth = doc
+        .slot(extrude, SlotId::Distance)
+        .expect("the extrude reads its depth");
+    assert!(doc.var_name(depth).is_none(), "the premise: a typed depth");
+    let doc = pncad::document::apply(
+        &doc,
+        &DocEdit::SetVarDistribution {
+            var: depth.into(),
+            distribution,
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("a length takes a normal")
+    .doc;
+    (doc, extrude)
+}
+
+/// **Retyping a slot whose own variable carried a tolerance says the
+/// tolerance went** (review r2 MINOR-3): the expression door re-lowers
+/// the slot, retiring its anonymous variable, and that variable was an
+/// analysis axis (VR8). One that carried none retires as quietly as
+/// every typed value does (`Maintenance::is_silent_retirement`).
+#[test]
+fn retyping_a_toleranced_slot_says_its_tolerance_went() {
+    let normal = pncad::document::Distribution::Normal { sigma: 0.001 };
+    for (seed, distribution) in [
+        ("maint-toleranced", Some(normal)),
+        ("maint-untoleranced", None),
+    ] {
+        let (doc, extrude) = toleranced_block(seed, distribution);
+        let mut session = DocSession::inline(doc, Tol::witness());
+        let op = SessionOp::SetSlotExpression {
+            node: extrude,
+            slot: SlotId::Distance,
+            text: "2 mm".to_owned(),
+        };
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let retired: Vec<&Maintenance> = outcome
+            .maintenance
+            .iter()
+            .filter(|row| matches!(row, Maintenance::AnonymousVarRemoved { .. }))
+            .collect();
+        assert!(
+            matches!(
+                retired[..],
+                [Maintenance::AnonymousVarRemoved { distribution: held, .. }] if *held == distribution
+            ),
+            "{seed}: the depth's variable retires with what it carried: {retired:?}"
+        );
+        if distribution.is_some() {
+            let line = line_after(&outcome, op);
+            assert!(
+                line.contains("the tolerance it carried went with it"),
+                "{seed}: {line}"
+            );
+        } else {
+            assert_quiet(&outcome, op);
+        }
+    }
 }

@@ -260,6 +260,7 @@ fn a_site_that_is_neither_operand_refuses() {
     let inserted = doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(boolean(decl.clone())),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -743,6 +744,7 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
                     members: vec![a, b],
                     declare: pairs.clone(),
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -803,6 +805,7 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
                 members: vec![a, b],
                 declare: off_member.clone(),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1196,11 +1199,12 @@ fn a_declared_unions_document_replays_in_document_order() {
     // carrier arrives.
     let mut replay = ProfileDoc::empty_derived("docm7_forward_ref_replay", Tol::witness());
     for id in doc.order() {
-        let node = crate::fixture::as_authored(doc.node(*id).expect("a live node"));
+        let node = crate::fixture::as_authored(&doc, doc.node(*id).expect("a live node"));
         replay = replay
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(node),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -1327,6 +1331,7 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
     let refused = doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(boolean((proto, proto))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

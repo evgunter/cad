@@ -92,6 +92,7 @@ fn slide(doc: &ProfileDoc, node: RecipeNodeId, axis: Axis3, by: f64) -> ProfileD
             node,
             slot: SlotId::Translation(axis),
             expr: len(by),
+            fresh: Vec::new(),
         },
     )
     .0

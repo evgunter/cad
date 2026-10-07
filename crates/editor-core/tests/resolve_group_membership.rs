@@ -76,7 +76,16 @@ fn set(doc: ProfileDoc, node: RecipeNodeId, slot: SlotId, to: f64) -> ProfileDoc
         SlotId::Normal(_) => scl(to),
         _ => len(to),
     };
-    step(doc, DocEdit::SetParam { node, slot, expr }).0
+    step(
+        doc,
+        DocEdit::SetParam {
+            node,
+            slot,
+            expr,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 /// The fragment names `node` minted in `ev1` that `ev2` no longer
@@ -905,6 +914,7 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
             node: u_profile,
             loops: vec![editor_core::LoopProgram::polygon(u(-0.5)).unwrap()],
             ids,
+            fresh: Vec::new(),
         },
     );
     let ev1 = run(&doc, None);
