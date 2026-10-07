@@ -82,8 +82,12 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// Ids as their mint ordinal and digest: a `Borders` refusal lists its
 /// walls in mint order now (it listed them by digest), and nothing else
-/// moved — the node tags are still the digest's.
-const SAID_DIGEST: u64 = 0xd6b3_49cb_384c_e311;
+/// moved — the node tags are still the digest's. Re-taken on PR 4228's
+/// tree (a cited line, and `Ends` on every piece), whose words moved
+/// it. On that tree the ids reorder an `Ends` list the same way they
+/// reorder a `Borders` one (mint order, not digest order), and move no
+/// other word.
+const SAID_DIGEST: u64 = 0x461b_e352_3eb9_8c3c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
