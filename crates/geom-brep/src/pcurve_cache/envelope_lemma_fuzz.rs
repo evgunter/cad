@@ -1787,4 +1787,50 @@ mod focal_section_term_rows {
         };
         check("cone_remainder_reads_sin_t0", &p, &s, h, 1.0, 2.0);
     }
+
+    /// PROBE (4227 confirm): the sense drift's `π` on a cone.
+    #[test]
+    fn probe_cone_sense_drift_pi() {
+        let alpha = 0.5_f64;
+        let n = Vec3::unit_z();
+        let s = Surface::Cone {
+            apex: Point3::origin(),
+            axis: n,
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        let (beta, v0) = (0.95_f64, 2.0_f64);
+        let bb = beta * beta;
+        let e = 2.0 * beta / (1.0 + bb);
+        let exact = Pcurve::FocalSection(FocalImage {
+            u0: 0.0,
+            t0: 0.0,
+            v0,
+            va: -e * v0,
+            vb: 0.0,
+            vl: 0.0,
+            beta,
+            sense: 1.0,
+        });
+        // The carrier is the exact image's own map (an ellipse): its
+        // harmonic form read off three samples.
+        let pt = |t: f64| {
+            let q = exact.eval(t);
+            s.eval(q.x, q.y)
+        };
+        let (p0, p1, p2) = (
+            pt(0.0),
+            pt(core::f64::consts::FRAC_PI_2),
+            pt(core::f64::consts::PI),
+        );
+        let c = Point3::origin() + ((p0 - Point3::origin()) + (p2 - Point3::origin())) * 0.5;
+        let h = Harmonic3 {
+            c,
+            a: (p0 - p2) * 0.5,
+            b: p1 - c,
+            l: Vec3::new(0.0, 0.0, 0.0),
+        };
+        let p = with(&exact, |i| i.sense = 1.0 + 1e-6);
+        check("probe_cone_sense_drift_pi", &p, &s, h, -1.57, -1.56);
+    }
 }
