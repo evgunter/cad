@@ -148,3 +148,48 @@ gains this third arm and the inverse property above still holds.
   filed: parametric part instances (the general form of the shared
   case), only if Ev wants it. The three failing rows should pass
   under the move unchanged, bar (3).
+
+## Round 2
+
+**I now move `k`, as B does (sure).** Take `w`, read only by a cut
+node, and `k = w + 1`, named and read by nothing. The argument that
+decides it: `k` holds nothing except a relation to `w`. That relation
+can only hold where `w` is, and after the split `w` is only in the
+part. Keeping `k` in the remainder keeps a name with no meaning left,
+which is the stale-twin defect again by another route. Moving `k` is
+lossless, and inline carries it back exactly.
+
+The side rule is B's closure. A variable's side is the union of its
+readers' sides, and a reader is a node or a definition. A variable
+with no readers follows what it reads.
+- Every reader cut, or no readers and every read moving: it moves.
+- Readers or reads on both sides: refuse `UncutVarReference`.
+- Otherwise, including an unread *free* variable: it stays.
+
+**My earlier argument is answered.** It was only that `k` would strand
+if it stayed. Moving it avoids that just as well as refusing does.
+Refusing was also the worse answer on recourse:
+- A cut is a set of nodes, so the person cannot put `k` into it.
+- Deleting `k` loses it. Redefining `k` as free loses its intent.
+- Every recourse is lossy, in front of a split the person meant to be
+  lossless.
+
+What a move costs: `k` is no longer visible in the remainder. It is in
+the part, and inline restores it.
+
+**Ratified text: I concede that none changes.**
+- B's report did not change my view by itself. Re-reading CLAUDE.md's
+  test did.
+- A4's *Split* paragraph never decided anything about variables.
+  Adding one descriptive sentence there changes no decision, so it
+  lands with the code.
+- "Up to node ids" becoming "up to minted ids" is a re-wording that
+  VR1 forces.
+- VARIABLES-DESIGN was never put to Ev
+  (`work/intent/variables-are-identities-with-labels.md`: "it did not
+  go to Ev"). B's added VR9 line is fine there.
+
+The fork still goes to Ev, as the brief asked, but no text waits on
+Ev's sign-off. One residual difference with B: B states the
+`split(inline)` asymmetry explicitly (an unread named *free* part
+variable stays in the host). I agree; it should go in the module doc.
