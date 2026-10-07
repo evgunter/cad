@@ -2561,6 +2561,9 @@ NOT_BOUND = {
     "RoleSeg": SHAPE,
     "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
+    # A crossing's sense: a field of a `RoleSeg`, the inside of a name,
+    # for `RoleSeg`'s reason.
+    "Sense": SHAPE,
     "Side": SHAPE,
     "SolidName": SHAPE,
     "SplitSide": SHAPE,

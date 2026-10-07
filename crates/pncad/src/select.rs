@@ -102,7 +102,7 @@ pub use editor_core::{
     InterrogateError, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
     OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
     RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
-    SelectRefusal, Selector, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies,
+    SelectRefusal, Selector, Sense, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies,
     all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried,
     declare, declare_all, declared_pairs, denotation, edge_carrier_kind, edge_frame, edge_name,
     face_carrier_kind, face_frame, face_name, find_flush_candidates, leaf_role, meridian_vertex,
