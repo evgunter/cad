@@ -167,6 +167,8 @@ pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
 pub use shell_witness::ShellOrientation;
 pub use zip::Fusions;
+#[cfg(feature = "sweep-testing")]
+pub use zip::take_shared_points;
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and

@@ -681,6 +681,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // A vertex several seams meet is fused by the first: each later zip
     // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
+    let points = super::zip::point_classes(&body, &vertex_map)?;
     let seams = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
     for &(a_face, b_face) in &seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
@@ -688,6 +689,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
+    super::zip::share_points(&mut body, &points)?;
     // A pinch keeps one vertex per cone, so lumps that met only there
     // share no edge: each connected piece of a shell becomes a shell.
     let shells: Vec<crate::entity::ShellKey> = body
