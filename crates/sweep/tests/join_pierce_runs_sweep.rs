@@ -1417,46 +1417,31 @@ fn eight_crossing_corners_nest_two_deep_and_build_every_op() {
     );
 }
 
-/// **A nested pairing at a vertex another crossing pair shares refuses
-/// typed.** [`notch343`] against a pinch of two cubes at its corner,
-/// the sweep's grid direction `i=0 j=0` turned `psi=2.2`, the pinch
-/// first: the notch crosses one cube's corner six times, nested in that
-/// cube's walk order, and the other's as well, at the notch's corner,
-/// B's vertex here and shared. Every op refuses `SharedVertexCrossings`,
-/// since turning a nested run to clear the other pair's cuts would make
-/// it hold the rest
-/// (`work/join/a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings.md`).
-/// Red if the shared vertex's nested plan reaches the reconcile.
+/// **A six-crossing pair at the notch's shared corner builds in both
+/// orders.** [`notch343`] against a pinch of two cubes at its corner,
+/// the sweep's grid direction `i=0 j=0` turned `psi=2.2`: the notch
+/// crosses one cube's corner six times and the other's twice, at the
+/// notch's corner, which both pairs share.
+/// - Notch first, the shared vertex is A's: one run turns, and its own
+///   pair's other run hangs at its copy.
+/// - Pinch first, it is B's, and the six-crossing pair nests in B's
+///   walk order: a fan holds a strut. In the union and the difference
+///   that fan holds the other pair's strut too and turns, which leaves
+///   its strut outside it and holds its other sibling; in the
+///   intersection nothing turns, and the strut hangs at the fan's copy.
+///
+/// Every op builds `SOUND`, one vertex per cone at the corner, on one
+/// point key, and meshing ([`pierce_point_finding`]). Red as
+/// `SharedVertexCrossings` if a plan nested in B's walk order is refused
+/// at a shared vertex, and as `ClassificationInvariant` if the runs a
+/// turn re-nests keep the holders read before it
+/// (`insert::hang_at_shared`).
 #[test]
-fn a_nested_pairing_at_a_shared_vertex_refuses_typed() {
-    for (tag, r, want) in pinch_runs(direction(0, 0), 2.2) {
-        if tag.starts_with("ba") {
-            assert!(
-                matches!(r, Err(BooleanError::SharedVertexCrossings { .. })),
-                "{tag}: {}",
-                outcome(r, want, tol())
-            );
-        }
-    }
-}
-
-/// **A six-crossing pair at the notch's shared corner builds.** The pose
-/// of [`a_nested_pairing_at_a_shared_vertex_refuses_typed`] with the
-/// notch first: the shared vertex is A's, where no pairing nests, and
-/// one run turns. Every op builds `SOUND`, one vertex per cone at the
-/// corner, on one point key, and meshing ([`pierce_point_finding`]).
-/// Red as `ClassificationInvariant` ("a vertex at a shared point is the
-/// In end of one null edge and the Out end of another") if a turned
-/// run's own pair's runs mint at the shared vertex
-/// (`insert::hang_in_turned`).
-#[test]
-fn a_six_crossing_pair_at_the_notchs_shared_corner_builds() {
+fn a_six_crossing_pair_at_the_notchs_shared_corner_builds_in_both_orders() {
     let (m, psi) = (direction(0, 0), 2.2);
     let (notch, pinch) = pinch_pieces(m, psi);
+    let mut bad = Vec::new();
     for (tag, r, want) in pinch_runs(m, psi) {
-        if !tag.starts_with("ab") {
-            continue;
-        }
         let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
             pierce_point_finding(
                 &bb.body,
@@ -1465,9 +1450,16 @@ fn a_six_crossing_pair_at_the_notchs_shared_corner_builds() {
             )
         });
         let line = outcome(r, want, tol());
-        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
-        assert_eq!(finding, Some(None), "{tag}");
+        if !line.starts_with("OK SOUND") || finding != Some(None) {
+            bad.push(format!("{tag}: {line} {finding:?}"));
+        }
     }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND at one vertex per cone:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }
 
 /// **A run turned round a shared vertex holds the rest of its pair.**
@@ -1481,7 +1473,7 @@ fn a_six_crossing_pair_at_the_notchs_shared_corner_builds() {
 /// `ClassificationInvariant` ("a vertex at a shared point is the In end
 /// of one null edge and the Out end of another") when the held run
 /// mints at the shared vertex rather than at the turned run's copy
-/// (`insert::hang_in_turned`).
+/// (`insert::hang_at_shared`).
 #[test]
 fn a_run_turned_at_a_shared_vertex_holds_the_rest_of_its_pair() {
     let v = notch343().v;
@@ -1772,7 +1764,7 @@ fn four_pairs_battery() {
 /// (side-2 cubes, diagonals 120° apart in the plane normal to the grid
 /// direction) and `tripod i=0 j=4 t=1 k=0` (side-4 cubes tilted 0.25
 /// toward it). In each union a run turns at the shared corner and its
-/// siblings hang at its copy (`insert::hang_in_turned`), and the pinched
+/// siblings hang at its copy (`insert::hang_at_shared`), and the pinched
 /// operand's own cones sit on keys no seam links
 /// (`work/join/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`):
 /// the notch-first union refuses `PinchConesOnSeparateKeys`, and at
@@ -1866,7 +1858,7 @@ fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
 /// first builds `SOUND`, one vertex per cone on one key, meshing. Red as
 /// `ClassificationInvariant` ("a vertex at a shared point is the In end
 /// of one null edge and the Out end of another") without
-/// `insert::hang_in_turned`.
+/// `insert::hang_at_shared`.
 #[test]
 fn a_run_turned_at_a_shared_vertex_holds_two_siblings() {
     let v = notch343().v;

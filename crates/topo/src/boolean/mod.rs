@@ -2313,13 +2313,11 @@ pub enum BooleanError {
     /// dangling null edge whose segment holds another's whole builds:
     /// the inner hangs at its tip, and of two with one segment the Out
     /// one holds (`insert::holds_whole`).
-    /// It also refuses where the shared vertex is B's and B's walk order
-    /// nests one of its pairs' runs inside another's: the reconcile turns
-    /// runs to clear the other pairs' cuts, and a nested run turned would
-    /// hold the rest of its own plan. And where a run a shared vertex
-    /// turned holds its own pair's runs in no way they can hang from
-    /// (`insert::sibling_holders`). Emitted by the insertion only:
-    /// `insert::reconcile_pass` and `insert::hang_in_turned`.
+    /// It also refuses where a run the shared vertex turned and a run of
+    /// its own pair that held it would together cover the orbit, so
+    /// neither can hang from the other (`insert::arc_holders`). Emitted
+    /// by the insertion only: `insert::reconcile_pass` and
+    /// `insert::hang_at_shared`.
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
@@ -2334,8 +2332,8 @@ pub enum BooleanError {
     },
     /// A pinch the result would hold with its cones on separate point
     /// keys: an operand's own pinch, which an earlier op left on several
-    /// keys, met where the insertion hung runs at a turned run's copy
-    /// (`insert::hang_in_turned`), and whose keys no seam links, so the
+    /// keys, met where the insertion hung runs at a copy of their own
+    /// pair's (`insert::hang_at_shared`), and whose keys no seam links, so the
     /// census cannot read the point
     /// (`work/join/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`).
     /// Read after the zips off point keys alone

@@ -359,7 +359,7 @@ pub(super) fn share_points<T: geom_core::Real>(
 }
 
 /// **A hung point left on several keys refuses.** Where the insertion
-/// hung runs at a turned run's copy (`insert::hang_in_turned`), `hung`
+/// hung runs at a copy of their own pair's (`insert::hang_at_shared`), `hung`
 /// holds the point's keys: those of every vertex the vertex-vertex
 /// contacts tie to the hung one, in result keys. Those are all of the
 /// point's keys. Every vertex there either has a contact, or is a copy
