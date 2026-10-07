@@ -1,0 +1,141 @@
+== M0_baseline
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+PASS topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+PASS topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+PASS topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+PASS editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 7410, wrong: 0, missing: 1770, missing_crossing: 1720, twice: 0 }
+== M1_parity_too_few
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+FAIL topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+FAIL topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+PASS editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 7410, wrong: 330, missing: 1770, missing_crossing: 1720, twice: 0 }
+== M2_nested_as_apart
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+PASS topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+PASS topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 7410, wrong: 0, missing: 1770, missing_crossing: 1720, twice: 0 }
+== M3_ignore_on_depth2
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+PASS topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+PASS topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+PASS topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+PASS editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 7410, wrong: 0, missing: 1770, missing_crossing: 1720, twice: 0 }
+== M4_pair_intersection
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+PASS topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+FAIL topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+FAIL topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+PASS editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 7410, wrong: 180, missing: 1770, missing_crossing: 1720, twice: 0 }
+== M5_ignore_met
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+PASS topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+PASS topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 7410, wrong: 0, missing: 1770, missing_crossing: 1720, twice: 0 }
+== M6_first_partner_only
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+FAIL topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+FAIL topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+PASS editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 8040, wrong: 260, missing: 1140, missing_crossing: 1140, twice: 0 }
+== M7_ignore_on
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+PASS topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+FAIL topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+FAIL topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+FAIL topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+PASS editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 7410, wrong: 20, missing: 1770, missing_crossing: 1720, twice: 0 }
+== M8_either_side
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+PASS topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+PASS topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+FAIL editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+FAIL editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 7020, wrong: 0, missing: 2160, missing_crossing: 2110, twice: 0 }
+== M9_pairs_declined
+PASS topo boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses
+PASS topo boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner
+PASS topo boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+PASS topo boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided
+PASS topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+PASS topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+PASS topo::all touch_reread_review2_probes::review2_oracle_over_every_scene_and_pose
+FAIL topo boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners
+FAIL editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+FAIL editor-core names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op
+TOTAL Tally { cells: 1200, built: 1030, empty: 170, refused: 0, rows: 6540, wrong: 0, missing: 2640, missing_crossing: 2590, twice: 0 }
+ALLDONE

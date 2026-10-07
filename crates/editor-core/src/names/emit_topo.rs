@@ -4990,4 +4990,158 @@ mod touch_reread_rows {
             "every built cell named: 66 cells, 4 of them empty"
         );
     }
+
+    /// Review-2 probe (not for merge): scenes whose crossing edges the
+    /// boolean leaves unclassified, named at every pose.
+    #[test]
+    fn review2_unclassified_scenes_name() {
+        use topo::test_support::meeting::poses;
+        fn pyr(base: &[[f64; 3]], pose: &Pose) -> AtRestBody<f64> {
+            let n = base.len();
+            let (mut nrm, mut cen) = ([0.0; 3], [0.0; 3]);
+            for i in 0..n {
+                let (a, b) = (base[i], base[(i + 1) % n]);
+                nrm[0] += (a[1] - b[1]) * (a[2] + b[2]);
+                nrm[1] += (a[2] - b[2]) * (a[0] + b[0]);
+                nrm[2] += (a[0] - b[0]) * (a[1] + b[1]);
+                for k in 0..3 {
+                    cen[k] += a[k] / n as f64;
+                }
+            }
+            let dot = -(0..3).map(|k| nrm[k] * cen[k]).sum::<f64>();
+            let mut b: Vec<[f64; 3]> =
+                base.iter().map(|q| [0, 1, 2].map(|k| MEET[k] + q[k])).collect();
+            if dot < 0.0 {
+                b.reverse();
+            }
+            posed_pyramid(&b, MEET, pose, t())
+        }
+        fn nest(base: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
+            [0, 1, 2].map(|i| {
+                [0, 1, 2].map(|k| {
+                    (3.0 * base[i][k] + base[(i + 1) % 3][k] + base[(i + 2) % 3][k]) * s / 5.0
+                })
+            })
+        }
+        fn mix(base: [[f64; 3]; 3], w: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
+            w.map(|w| [0, 1, 2].map(|k| s * (0..3).map(|i| w[i] * base[i][k]).sum::<f64>()))
+        }
+        let (mut named, mut failed, mut cells) = (0, 0, 0);
+        for pose in poses() {
+            let p = |b: [[f64; 3]; 3]| pyr(&b, &pose);
+            let arch = corners(60.0, 0.5, 0.4);
+            let void = corners(120.0, -0.5, 0.4);
+            let plate = posed_box("the plate", PLATE, &pose, t());
+            let arch_b = p(arch);
+            let one = built(union(&plate, &arch_b, t()));
+            let cavity = built(subtract(&plate, &p(void), t()));
+            let both = built(subtract(&one, &p(void), t()));
+            let island_v = nest(void, 0.7);
+            let island = built(union(&cavity, &p(island_v), t()));
+            let hvoid = nest(arch, 0.7);
+            let hollow = built(subtract(&one, &p(hvoid), t()));
+            let bare_hollow = built(subtract(&arch_b, &p(hvoid), t()));
+            let deep = built(union(&hollow, &p(nest(hvoid, 0.7)), t()));
+            let cone = p(corners(240.0, 0.7, 0.5));
+            let over = p(corners(50.0, 0.7, 0.5));
+            let hang = p(corners(240.0, -0.6, 0.5));
+            let hang_over = p(corners(130.0, -0.6, 0.5));
+            let in_void = p(nest(void, 1.4));
+            let in_island = p(nest(island_v, 0.7));
+            let in_hollow = p(nest(hvoid, 0.7));
+            let two_up = built(union(
+                &p(corners(40.0, 0.6, 0.5)),
+                &p(corners(280.0, 0.6, 0.5)),
+                t(),
+            ));
+            let two_down = built(union(
+                &p(corners(200.0, -0.6, 0.5)),
+                &p(corners(110.0, -0.6, 0.5)),
+                t(),
+            ));
+            let third = 1.0 / 3.0;
+            let cross3 = p(mix(
+                arch,
+                [[third, third, third], [0.85, 0.1, 0.05], [0.5, 0.28, 0.22]],
+                0.6,
+            ));
+            let on2 = p(mix(
+                arch,
+                [[0.4, 0.4, 0.2], [0.45, 0.45, 0.1], [0.7, 0.25, 0.05]],
+                0.6,
+            ));
+            let cross_in = p(mix(
+                void,
+                [[third, third, third], [0.7, 0.2, 0.1], [1.2, -0.3, 0.1]],
+                0.6,
+            ));
+            let pol = |deg: f64, r: f64, z: f64| {
+                let (s, k) = deg.to_radians().sin_cos();
+                [r * k, r * s, z]
+            };
+            let dart = pyr(
+                &[
+                    pol(30.0, 0.45, 0.5),
+                    pol(60.0, 0.6, 0.5),
+                    pol(90.0, 0.45, 0.5),
+                    pol(60.0, 0.5, 0.5),
+                ],
+                &pose,
+            );
+            let dart_one = built(union(&plate, &dart, t()));
+            for (label, x, y) in [
+                ("hanging below the cavity", &hang, &cavity),
+                ("hanging across the cavity", &hang_over, &cavity),
+                ("hanging into the void", &in_void, &cavity),
+                ("hanging across the arch and void", &hang_over, &both),
+                ("in the island in the void", &in_island, &island),
+                ("in the void in the arch", &in_hollow, &hollow),
+                ("over the bare hollow arch", &over, &bare_hollow),
+                ("two up over the bare hollow arch", &two_up, &bare_hollow),
+                ("over the hollow arch", &over, &hollow),
+                ("crossing the void in the arch", &cross3, &hollow),
+                ("On the void's face in the arch", &on2, &hollow),
+                ("crossing the island, In side", &cross_in, &island),
+                ("beside the hollow arch", &cone, &hollow),
+                ("crossing depth 3", &cross3, &deep),
+                ("over the deep arch", &over, &deep),
+                ("two down beside the void", &two_down, &both),
+                ("over a dart", &over, &dart_one),
+                ("beside a dart", &cone, &dart_one),
+                ("over a bare dart", &over, &dart),
+            ] {
+                let (xn, yn) = (RecipeNodeId(1), RecipeNodeId(2));
+                let (xt, yt) = (table(x, xn), table(y, yn));
+                for (what, (a, an, at), (b, bn, bt), r) in [
+                    ("x − y", (x, xn, &xt), (y, yn, &yt), subtract(x, y, t())),
+                    ("y − x", (y, yn, &yt), (x, xn, &xt), subtract(y, x, t())),
+                    ("x ∪ y", (x, xn, &xt), (y, yn, &yt), union(x, y, t())),
+                    ("y ∪ x", (y, yn, &yt), (x, xn, &xt), union(y, x, t())),
+                    ("x ∩ y", (x, xn, &xt), (y, yn, &yt), intersect(x, y, t())),
+                    ("y ∩ x", (y, yn, &yt), (x, xn, &xt), intersect(y, x, t())),
+                ] {
+                    cells += 1;
+                    let r = match r {
+                        Ok(BooleanResult::Body(r)) => r,
+                        Ok(BooleanResult::Empty) => continue,
+                        Err(e) => {
+                            eprintln!("REFUSED {}, {label}, {what}: {e:?}", pose.label);
+                            continue;
+                        }
+                    };
+                    let a = OperandCtx { node: an, table: at, body: a };
+                    let b = OperandCtx { node: bn, table: bt, body: b };
+                    match name_boolean(RecipeNodeId(9), &r.body, &r.naming, &a, &b, t()) {
+                        Ok(_) => named += 1,
+                        Err(e) => {
+                            failed += 1;
+                            eprintln!("NAMEFAIL {}, {label}, {what}: {e:?}", pose.label);
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("REVIEW2 cells {cells} named {named} failed {failed}");
+        assert_eq!(failed, 0);
+    }
 }
