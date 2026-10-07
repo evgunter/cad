@@ -420,6 +420,12 @@ every ε. The pad's replay refuses at `line_span` in `line_arc`'s
 tangent arm, which still reads the line's span first and escalates
 on it. The PR's review head read 277: that arm also read the arc's
 span of the foot before escalating. The fix pass took that read out.
+The tangent-pair silent-miss P0
+(`work/paths/validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps`)
+puts it back, numeric 276 → 277 at every ε: a definite miss of the
+foot by either span now leaves the pair's ends to read, so both spans
+are read before the in-band `line_span` escalates. The pad still
+refuses there, between its segments 0 and 1.
 
 ## Closed (SYM-16, PR #4155, 2026-10-06)
 
