@@ -156,6 +156,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     let refused = base.apply(
         &DocEdit::InsertNode {
             node: Box::new(boolean(decl)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -224,6 +225,7 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
         doc.apply(
             &DocEdit::InsertNode {
                 node: Box::new(boolean.clone()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -279,16 +281,16 @@ fn every_declaring_corpus_document_replays_in_document_order() {
     let mut declaring = 0;
     for d in crate::corpus::documents() {
         let doc = &d.doc;
-        let positions = |id: RecipeNodeId| doc.order().iter().position(|n| *n == id);
+        let positions = |id: RecipeNodeId| doc.ids().iter().position(|n| *n == id);
         let mut has_declare = false;
-        for id in doc.order() {
-            if let Some(Node::Boolean { declare, .. } | Node::Union { declare, .. }) = doc.node(*id)
+        for id in doc.ids() {
+            if let Some(Node::Boolean { declare, .. } | Node::Union { declare, .. }) = doc.node(id)
             {
                 has_declare |= !declare.is_empty();
                 for r in declare.iter().flat_map(|((x, y), _)| [x, y]) {
-                    assert!(positions(r.at) < positions(*id), "{}: site forward", d.name);
+                    assert!(positions(r.at) < positions(id), "{}: site forward", d.name);
                     assert!(
-                        positions(r.name.node) < positions(*id),
+                        positions(r.name.node) < positions(id),
                         "{}: name forward",
                         d.name
                     );
@@ -308,8 +310,8 @@ fn every_declaring_corpus_document_replays_in_document_order() {
                 .doc;
         }
         assert_eq!(
-            replay.order(),
-            doc.order(),
+            replay.ids(),
+            doc.ids(),
             "{}: the replay is the document",
             d.name
         );

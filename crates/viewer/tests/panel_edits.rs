@@ -80,12 +80,15 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
         slot: SlotId::Distance,
         value: SlotValue::Continuous(0.012),
     });
+    // A literal slot's value is its own variable's (Q6): the edit
+    // writes that value, and the slot keeps reading the same variable.
+    let held = session
+        .committed_doc()
+        .slot(extrude, SlotId::Distance)
+        .expect("the extrude reads its distance");
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetParam {
-            slot: SlotId::Distance,
-            ..
-        })
+        Some(DocEdit::SetVarValue { var, .. }) if *var == pncad::document::VarRef::Id(held)
     ));
     assert_eq!(
         props::slot_rows(session.committed_doc(), extrude)
@@ -135,36 +138,19 @@ fn literal_and_pattern_doc(
     (doc, extrude, pattern)
 }
 
-/// Replace the object a saved document's first `"<key>":` holds, by
-/// matching braces — the file-modality surgery, in the one place this
-/// suite needs it.
-///
-/// Deliberately NOT a parse-and-re-serialize: a round trip through a
-/// JSON value would rewrite bytes this suite has not asked about, and
-/// the point of the row below is that ONE field was hand-edited into
-/// something no door would have written.
-fn retyped_field(text: &str, key: &str, replacement: &str) -> String {
+/// `text` with the variable id the first `"key":` holds replaced by
+/// `id`: a slot on the wire is its variable's id, so this re-points one
+/// slot at another variable — the one corruption a hand edit can make
+/// of it.
+fn repointed_slot(text: &str, key: &str, id: editor_core::MintId) -> String {
     let at = text
-        .find(&format!("\"{key}\":"))
-        .expect("the wire carries that key");
-    let start = at + text[at..].find('{').expect("its value is an object");
-    let mut depth = 0usize;
-    let mut end = None;
-    for (i, c) in text[start..].char_indices() {
-        match c {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    end = Some(start + i + 1);
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-    let end = end.expect("the object closes");
-    let out = format!("{}{replacement}{}", &text[..start], &text[end..]);
+        .find(&format!("\"{key}\": \""))
+        .expect("the wire carries that key")
+        + key.len()
+        + 5;
+    let spelled = text[at..].find('"').expect("a stored id is a string");
+    assert!(spelled > 0, "a stored slot holds its variable's id");
+    let out = format!("{}{id}{}", &text[..at], &text[at + spelled..]);
     assert_ne!(out, text, "the corruption really landed");
     out
 }
@@ -248,6 +234,7 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
             node: extrude,
             slot: SlotId::Distance,
             expr: pncad::document::Formula::count(3),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -274,6 +261,7 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
             node: pattern,
             slot: SlotId::Count,
             expr: common::len(0.03),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -295,38 +283,37 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
 /// **The file modality** — the door the viewer opens every document
 /// through, over bytes no edit door wrote.
 ///
-/// A hand edit or a foreign tool is the only way a Count literal can
-/// be sitting in a `Length` slot, and it is the input the claim above
+/// A hand edit or a foreign tool is the only way a `Count` variable can
+/// be read at a `Length` slot, and it is the input the claim above
 /// most needs: everything else in this suite reaches the document
-/// through `apply`. The saved fixture is doctored in ONE field and
+/// through `apply`. The saved fixture is doctored in ONE field — the
+/// extrude's distance re-pointed at the pattern count's variable — and
 /// `load` is asked what it thinks.
 #[test]
 fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
     let tol = Tol::witness();
-    let (doc, extrude, _pattern) = literal_and_pattern_doc(tol);
+    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
     let text = pncad::document::save(&doc, &[], tol).expect("the fixture saves");
     pncad::document::load(&text, tol).expect("and loads back as it was written");
 
-    // A `CountLiteral` on the wire is `{"Count": n}`; the extrude's
-    // distance is a `Length` slot.
-    let corrupt = retyped_field(
-        &text,
-        "distance",
-        "{\n              \"Count\": 3\n            }",
-    );
+    let count = doc
+        .slot(pattern, SlotId::Count)
+        .expect("a pattern reads its count");
+    let corrupt = repointed_slot(&text, "distance", count.0);
     match pncad::document::load(&corrupt, tol) {
         Err(pncad::document::PersistError::Snapshot(
-            pncad::document::SnapshotError::SlotDimension {
+            pncad::document::SnapshotError::SlotVarKind {
                 node,
                 slot,
-                expected,
-                found,
+                declared,
+                referenced,
+                ..
             },
         )) => {
             assert_eq!(node.id(), extrude);
             assert_eq!(slot, SlotId::Distance);
-            assert_eq!(expected, Dimension::Length);
-            assert_eq!(found, Dimension::Count);
+            assert_eq!(declared, Dimension::Count);
+            assert_eq!(referenced, Dimension::Length);
         }
         other => panic!("the load door must refuse a Count distance, got {other:?}"),
     }
@@ -608,13 +595,13 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::BeginParamGesture {
-        var: pncad::document::VarId(0x6e6f_7375_6368),
+        var: pncad::document::VarId::new(0, 0x6e6f_7375_6368),
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
             .perform(SessionOp::PreviewParamGesture {
-                var: pncad::document::VarId(0x6e6f_7375_6368),
+                var: pncad::document::VarId::new(0, 0x6e6f_7375_6368),
                 value: 1.0
             })
             .refusal,
@@ -774,7 +761,7 @@ fn refusals_render_as_sentences() {
     // The arm that motivated the widening: a value typed into the
     // field of a variable the document does not hold goes to the EDIT
     // door, whose sentence the status line renders verbatim.
-    let absent = pncad::document::VarId(0x7461_7070_6572);
+    let absent = pncad::document::VarId::new(0, 0x7461_7070_6572);
     let edit = session
         .perform(SessionOp::SetParam {
             var: absent,
@@ -1856,6 +1843,8 @@ fn a_delete_removes_the_parameter_and_its_reader_refuses_unresolved() {
         .result(extrude)
         .and_then(pncad::document::NodeResult::error)
         .expect("the reader fails");
+    // The slot reads the anonymous definition its formula lowered to,
+    // whose refusal is the slot's own: the variable it cannot read.
     assert!(
         matches!(
             &error.kind,

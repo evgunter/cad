@@ -114,6 +114,7 @@ use geom::{Curve3, EllipseInvalid, SpiricInvalid, SurfaceKind};
 use geom_core::{Band, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
+use crate::extent::Reach;
 use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 use geom_core::Decide;
 
@@ -470,9 +471,21 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
 ///
-/// `extent` is the reach the consumer needs the pose read over — the
-/// arms' own operand extent, the lever their angular trileans are
-/// metered at (a tilt `θ` displaces the locus by `θ·extent` there).
+/// `reach` is what the consumer needs the pose read over: an edge's
+/// span ([`Reach::Span`]), the one variant its callers hand it, levered
+/// by its per-carrier farthest distance from a pivot ([`Reach::lever_from`]:
+/// exact at a line's endpoints and a NURBS net's control points, at
+/// most √2 over for a conic). The arms that take a scalar extent read
+/// their pose at an ANCHOR (a cone's apex, a sphere's or torus's
+/// centre) and get its lever from there (a tilt `θ` displaces the locus
+/// by `θ·extent` there). A cylinder has no anchor:
+/// its origin is any point of its axis, so a lever from it overstates
+/// the reach without bound, and the cone×cylinder arm reads its pose at
+/// the apex. The cylinder pair reads it from its axes' feet
+/// ([`cylinder_cylinder_section`]). No lever is a ball around the edge:
+/// on a two-sided trilean whose definite side is the SERVED class, a
+/// lever past the consumed extent decides an in-band reading as served
+/// (a near-parabola read as an ellipse).
 ///
 /// # Errors
 ///
@@ -487,10 +500,19 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 pub fn route_pose<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
-    extent: T,
+    reach: &Reach<T>,
     band: Band,
 ) -> Result<PairRoute, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    let extent = [a, b].into_iter().fold(T::zero(), |lever, s| match *s {
+        Surface::Cone { apex: anchor, .. }
+        | Surface::Sphere { center: anchor, .. }
+        | Surface::Torus { center: anchor, .. } => lever.max(reach.lever_from(anchor)),
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => lever,
+    });
     let (ka, kb) = (a.kind(), b.kind());
     let arm = route(ka, kb);
     let verdict = match (ka, kb) {
@@ -501,7 +523,7 @@ pub fn route_pose<T: Decide>(
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
         (Cylinder, Cylinder) => {
-            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, extent, band) {
+            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, reach, band) {
                 Err(SectionError::RadiusDeclarationContradicted) => {
                     Err(SectionError::RoutesToGeneralRung {
                         pair: "cylinder×cylinder",
@@ -810,15 +832,21 @@ pub enum PlaneCylinderSection<T: Real> {
 
 /// Classifies and constructs the plane×cylinder section (spec §3.1).
 ///
+/// `reach` is where the section is consumed ([`Reach`]). The axis-in-plane
+/// rows read at the foot of its point on the cylinder's axis, so where
+/// the carrier's origin is stored does not enter them.
+///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
-/// 1. `pc_axis_plane_parallel` — margin `(axis·normal)·extent` (the
-///    axis' angle off the plane, metered at the operand extent
-///    `extent`): Zero ⇒ the axis lies in the plane (the parallel
-///    degenerate lane, step 2); definite ⇒ a bounded cut (step 3).
-/// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|`
-///    (meters): Positive ⇒ [`PlaneCylinderSection::ParallelLines`],
-///    Zero ⇒ [`PlaneCylinderSection::TangentLine`], Negative ⇒
+/// 1. `pc_axis_plane_parallel` — margin `(axis·normal)·lever`, the
+///    axis' angle off the plane levered from that foot by `reach`
+///    ([`Reach::lever_from`]): Zero ⇒ the axis lies in the plane
+///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
+///    (step 3).
+/// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|` at
+///    the foot (meters): Positive ⇒
+///    [`PlaneCylinderSection::ParallelLines`], Zero ⇒
+///    [`PlaneCylinderSection::TangentLine`], Negative ⇒
 ///    [`PlaneCylinderSection::Empty`].
 /// 3. `pc_rim_alignment` — margin `‖axis×normal‖·r` (the tilt angle's
 ///    sine, metered at the rim radius): Zero ⇒
@@ -835,11 +863,11 @@ pub enum PlaneCylinderSection<T: Real> {
 pub fn plane_cylinder_section<T: Decide>(
     plane: &Surface<T>,
     cylinder: &Surface<T>,
-    extent: T,
+    reach: &Reach<T>,
     band: Band,
 ) -> Result<PlaneCylinderSection<T>, SectionError> {
     let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
-    if let Some(ruled) = plane_cylinder_ruled(&pc, extent, band).map_err(SectionError::Escalated)? {
+    if let Some(ruled) = plane_cylinder_ruled(&pc, reach, band).map_err(SectionError::Escalated)? {
         return Ok(match ruled {
             RuledSection::ParallelLines { l1, l2 } => {
                 PlaneCylinderSection::ParallelLines { l1, l2 }
@@ -893,18 +921,19 @@ pub(crate) enum RuledSection<T: Real> {
 
 /// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane.
 /// `None` where the axis definitely leaves the plane (step 3 not run).
-/// The gap is read at `pc.o` and the tilt levered at `extent`. The
-/// tangent-locus lane reads its ruling tangency here, so the section and
-/// the witness never decide it apart.
+/// The gap is read at the foot of `reach`'s point on the axis and the
+/// tilt levered from there. The tangent-locus lane reads its ruling
+/// tangency here, so the section and the witness never decide it apart.
 pub(crate) fn plane_cylinder_ruled<T: Decide>(
     pc: &PlaneCylinder<T>,
-    extent: T,
+    reach: &Reach<T>,
     band: Band,
 ) -> Result<Option<RuledSection<T>>, Indeterminate> {
     let &PlaneCylinder { q, n, o, a, r } = pc;
+    let o = reach.foot_on(o, a);
     match decide(
         "pc_axis_plane_parallel",
-        Margin::levered(a.dot(n), extent),
+        Margin::levered(a.dot(n), reach.lever_from(o)),
         band,
     )? {
         Sign::Zero => {}
@@ -1353,14 +1382,19 @@ pub enum EqualCylinderSection<T: Real> {
 ///    the declaration is verified — Zero required; definite ⇒
 ///    [`SectionError::RadiusDeclarationContradicted`]; in-band ⇒
 ///    escalated.
-/// 3. `cc_axes_parallel` — margin `‖a1×a2‖·extent`: Zero ⇒ the
-///    parallel lane (step 4); definite ⇒ the crossing lane (step 5).
-/// 4. `cc_coaxial` / `cc_parallel_gap` — axis-to-axis distance `d`:
-///    coincident-with-zero ⇒ [`SectionError::CoincidentSurfaces`];
-///    then margin `r₁ + r₂ − d`: Positive ⇒ two rulings, Zero ⇒
-///    tangent ruling, Negative ⇒ empty.
+/// 3. `cc_axes_parallel` — margin `‖a1×a2‖·lever`, the lever
+///    [`Reach::lever_between`] the axes by `reach`
+///    ([`cylinder_axes_parallel`]): Zero ⇒ the parallel lane (step 4);
+///    definite ⇒ the crossing lane (step 5).
+/// 4. `cc_coaxial` / `cc_parallel_gap` — axis-to-axis distance `d`,
+///    read between the feet of `reach`'s point on the two axes
+///    ([`Reach::foot_on`]), the same in either order:
+///    coincident-with-zero ⇒
+///    [`SectionError::CoincidentSurfaces`]; then margin `r₁ + r₂ − d`:
+///    Positive ⇒ two rulings, Zero ⇒ tangent ruling, Negative ⇒ empty.
 /// 5. `cc_axes_coplanar` — margin the signed axis-to-axis gap
-///    `(o2−o1)·(a1×a2)/‖a1×a2‖` (meters): Zero ⇒ intersecting axes ⇒
+///    `w·(a1×a2)/‖a1×a2‖` (meters), `w` between the axes' feet at
+///    `reach` ([`cylinder_axes_coplanar`]): Zero ⇒ intersecting axes ⇒
 ///    the two bisector-plane ellipses; definite ⇒ skew ⇒ typed rung-3
 ///    refusal.
 ///
@@ -1371,7 +1405,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
     c1: &Surface<T>,
     c2: &Surface<T>,
     evidence: RadiusEvidence,
-    extent: T,
+    reach: &Reach<T>,
     band: Band,
 ) -> Result<EqualCylinderSection<T>, SectionError> {
     let &Surface::Cylinder {
@@ -1416,25 +1450,28 @@ pub fn cylinder_cylinder_section<T: Decide>(
         }
     }
 
-    let cross = a1.cross(a2);
-    let cross_norm = cross.norm();
-    match cylinder_axes_parallel(cross_norm, extent, band).map_err(SectionError::Escalated)? {
+    match cylinder_axes_parallel(reach, (o1, a1), (o2, a2), band)
+        .map_err(SectionError::Escalated)?
+    {
         Sign::Zero => {
             // Parallel axes: the cross-section is two equal circles at
             // center distance d.
-            let w0 = o2 - o1;
-            let d_vec = w0 - a1 * w0.dot(a1);
-            let d = d_vec.norm();
+            let ParallelAxes { foot1, d_vec, d } = parallel_axes_at(reach, (o1, a1), (o2, a2));
             match decide("cc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
                 Sign::Zero => return Err(SectionError::CoincidentSurfaces),
                 Sign::Positive | Sign::Negative => {}
             }
             let two = T::from_f64(2.0);
+            let mid = foot1 + d_vec * T::from_f64(0.5);
             match parallel_cylinder_gap(r1, r2, d, band).map_err(SectionError::Escalated)? {
                 Sign::Positive => {
-                    let mid = o1 + d_vec * T::from_f64(0.5);
-                    let half = (r1.powi(2) - (d / two).powi(2)).sqrt();
-                    let h = a1.cross(d_vec / d);
+                    // The rulings stand `±half` off `mid` along `h`, both
+                    // ⊥ `a1`, so `half` is read from the perpendicular gap
+                    // `|d_vec|` as `mid` and `h` are: then each ruling lies
+                    // on the first wall exactly. `|d_vec| ≤ d < 2·r1`
+                    // here, so the root is real.
+                    let half = (r1.powi(2) - (d_vec.norm() / two).powi(2)).sqrt();
+                    let h = a1.cross(d_vec).normalize();
                     Ok(EqualCylinderSection::ParallelLines {
                         l1: Curve3::Line {
                             origin: mid + h * half,
@@ -1447,7 +1484,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
                     })
                 }
                 Sign::Zero => Ok(EqualCylinderSection::TangentLine(Curve3::Line {
-                    origin: o1 + d_vec * T::from_f64(0.5),
+                    origin: mid,
                     dir: a1,
                 })),
                 Sign::Negative => Ok(EqualCylinderSection::Empty),
@@ -1455,9 +1492,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
         }
         Sign::Positive | Sign::Negative => {
             // Crossing lane: coplanarity (intersecting vs skew).
-            let w0 = o2 - o1;
-            let gap = w0.dot(cross) / cross_norm;
-            match decide("cc_axes_coplanar", Margin::of(gap), band)
+            match cylinder_axes_coplanar(reach, (o1, a1), (o2, a2), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {}
@@ -1472,8 +1507,10 @@ pub fn cylinder_cylinder_section<T: Decide>(
             }
             // The axes' intersection point (closest point on axis 1;
             // the coplanarity verdict bounds the residual by ε).
-            let t1 = w0.cross(a2).dot(cross) / cross_norm.powi(2);
-            let p = o1 + a1 * t1;
+            let (foot1, w0) = axes_feet(reach, (o1, a1), (o2, a2));
+            let cross = a1.cross(a2);
+            let t1 = w0.cross(a2).dot(cross) / cross.norm().powi(2);
+            let p = foot1 + a1 * t1;
             // The two bisector planes through p. Each ellipse is the
             // tilted plane×cylinder cut of cylinder 1 (by symmetry it
             // lies on cylinder 2 as well).
@@ -1494,15 +1531,113 @@ pub fn cylinder_cylinder_section<T: Decide>(
     }
 }
 
-/// `cc_axes_parallel`: whether two cylinder axes are parallel, their
-/// sine `‖a1×a2‖` levered at `extent`. Zero ⇒ parallel. Shared with the
-/// tangent-locus lane, which reads the same fact at its own lever.
-pub(crate) fn cylinder_axes_parallel<T: Decide>(
-    sin: T,
-    extent: T,
+/// `cc_axes_parallel`: whether the cylinder axes `oᵢ + s·aᵢ` (`aᵢ`
+/// unit) are parallel by `reach`, their sine `‖a1×a2‖` levered at
+/// [`Reach::lever_between`]. Zero ⇒ parallel.
+///
+/// The ONE reading of the fact: the section table's step 3, the
+/// tangent-locus lane and topo's germ frame all ask it here, so the
+/// frame and the table it re-enters cannot disagree.
+///
+/// # Errors
+///
+/// The trilean's diagnostics where it lands in the band or poisons.
+pub fn cylinder_axes_parallel<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide("cc_axes_parallel", Margin::levered(sin, extent), band)
+    let sin = line1.1.cross(line2.1).norm();
+    decide(
+        "cc_axes_parallel",
+        Margin::levered(sin, reach.lever_between(line1, line2)),
+        band,
+    )
+}
+
+/// `cc_axes_coplanar`: whether two crossing cylinder axes `oᵢ + s·aᵢ`
+/// (`aᵢ` unit) meet, the margin their signed gap along the common
+/// perpendicular, `w·(a1×a2)/‖a1×a2‖`, `w` between their feet at `reach`
+/// (`axes_feet`). Zero ⇒ they meet; definite ⇒ skew.
+///
+/// Sliding either point along its axis leaves the gap unchanged, so the
+/// feet name the same gap as any stored origins, with less of the
+/// rounding a far-stored origin's coordinates carry. The division by
+/// `‖a1×a2‖` makes the margin the axis-to-axis LENGTH the band is
+/// denominated in.
+///
+/// The ONE reading, as [`cylinder_axes_parallel`] is: the section
+/// table's step 5 and topo's germ frame ask it here.
+///
+/// # Errors
+///
+/// The trilean's diagnostics where it lands in the band or poisons.
+pub fn cylinder_axes_coplanar<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let (_, w) = axes_feet(reach, line1, line2);
+    let cross = line1.1.cross(line2.1);
+    decide(
+        "cc_axes_coplanar",
+        Margin::of(w.dot(cross) / cross.norm()),
+        band,
+    )
+}
+
+/// The feet of `reach`'s point on two axes `oᵢ + s·aᵢ` ([`Reach::foot_on`]):
+/// the first foot, and the offset from it to the second's. The one
+/// place the cylinder pair's rows read where its axes stand.
+fn axes_feet<T: Real>(
+    reach: &Reach<T>,
+    (o1, a1): (Point3<T>, Vec3<T>),
+    (o2, a2): (Point3<T>, Vec3<T>),
+) -> (Point3<T>, Vec3<T>) {
+    let foot1 = reach.foot_on(o1, a1);
+    (foot1, reach.foot_on(o2, a2) - foot1)
+}
+
+/// Two parallel axes read at their feet ([`axes_feet`]). Decisions read
+/// `d`, which is the same in either operand order; constructions read
+/// `d_vec`, which is ⊥ the first axis so a ruling laid across it lies on
+/// the first wall. They differ by the feet's axial offset, which the
+/// band's tilt allows.
+///
+/// A [`Reach::Span`] picks its pivot per axis, so the two feet are each
+/// axis's least-lever point rather than the feet of one point. "The same
+/// in either order" holds for the edges that reach this arm: an edge on
+/// two parallel walls of equal radius is a ruling, so it stands at one
+/// distance from both axes and its least-lever points are the feet of
+/// one axial station. Geometry that would split them (an edge on
+/// neither wall) does not come through a consumer.
+pub struct ParallelAxes<T: Real> {
+    /// The first axis's foot.
+    pub foot1: Point3<T>,
+    /// The feet's offset ⊥ the first axis.
+    pub d_vec: Vec3<T>,
+    /// The distance between the feet.
+    pub d: T,
+}
+
+/// [`ParallelAxes`] of the lines `oᵢ + s·aᵢ` (`aᵢ` unit) at `reach`.
+/// Shared with the tangent-locus lane and topo's radical plane of a
+/// parallel cylinder pair.
+#[must_use]
+pub fn parallel_axes_at<T: Real>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+) -> ParallelAxes<T> {
+    let (foot1, w) = axes_feet(reach, line1, line2);
+    let a1 = line1.1;
+    ParallelAxes {
+        foot1,
+        d_vec: w - a1 * w.dot(a1),
+        d: w.norm(),
+    }
 }
 
 /// `cc_parallel_gap`: the external-tangency margin `r1 + r2 − d` of two
@@ -2318,6 +2453,15 @@ pub enum ConeCylinderSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
+/// **`extent` is measured from the apex**: the farthest the consumed
+/// region stands from it, which also bounds where the minted circles
+/// may stand (`coc_station_reach`). Every row reads the pose at the
+/// apex and levers its angles from there: a served pose's axes stand at
+/// most `d + θ·extent` apart across the region, `d` what `coc_coaxial`
+/// reads and `θ` the tilt `coc_axes_parallel` admits. The two are
+/// decided one at a time, not as that sum
+/// (`work/tang/cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time.md`).
+///
 /// 1. `coc_cylinder_radius` — margin `R` (meters): the arm states both
 ///    circles at exactly that radius, so it must be a positive length.
 /// 2. `coc_aperture_sin` and `coc_aperture_cos`, each metered at
@@ -2333,8 +2477,8 @@ pub enum ConeCylinderSection<T: Real> {
 ///    general-rung refusal, a tilted cylinder cutting a quartic. Zero
 ///    covers the antiparallel pose too, which is the same
 ///    configuration read through the cylinder's opposite orientation.
-/// 4. `coc_coaxial` — margin the axis-to-axis distance
-///    `‖(o − apex) − a·((o − apex)·a)‖` (meters): Zero ⇒ coaxial;
+/// 4. `coc_coaxial` — margin the apex's distance from the cylinder's
+///    axis, `‖(apex − o) − b·((apex − o)·b)‖` (meters): Zero ⇒ coaxial;
 ///    definite ⇒ the general-rung refusal, a parallel-but-OFFSET
 ///    cylinder cutting a quartic. A norm is never negative, so this
 ///    trilean has two live verdicts by construction.
@@ -2468,12 +2612,11 @@ pub fn cone_cylinder_section<T: Decide>(
         }
     }
 
-    // The axes are parallel: coaxial or merely parallel, by the
-    // axis-to-axis distance. `a` is unit by the surface's own
-    // invariant, so the rejection is the standard point-to-line
-    // distance and no division enters here.
-    let q = o - apex;
-    let d = (q - a * q.dot(a)).norm();
+    // The axes are parallel: coaxial or merely parallel, by the apex's
+    // distance from the CYLINDER's axis, read at the pivot every row
+    // here is levered from. Against its own axis the cylinder's origin
+    // may stand anywhere on it.
+    let d = (apex - o).reject_from(b).norm();
     match decide("coc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Coaxial. On the cone `S(u, v) = apex + a·(v·cos α) +

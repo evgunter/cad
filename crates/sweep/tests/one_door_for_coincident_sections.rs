@@ -98,13 +98,15 @@ fn below_1e_16_the_parameterization_has_no_step_on_the_same_placements() {
     }
 }
 
-/// **Apart, but stepless: the skin's refusal, told truly.** Two shapes
+/// **Apart, but stepless: the skin's refusal, told truly.** A shape
 /// the fold accepts and the chord-length parameterization cannot step:
 /// a middle slab 1 mm thick (above K·ε at every ε row) under a first
-/// slab 1e14 m tall, whose accumulated chord swallows it, and a
-/// section hinged on the edge the parameterization is measured on.
-/// Both refuse as the skin's `NoParameterStep` naming the section, and
-/// neither text claims the sections coincide — they do not.
+/// slab 1e14 m tall, whose accumulated chord swallows it. It refuses
+/// as the skin's `NoParameterStep` naming the section, and the text
+/// does not claim the sections coincide — they do not. (A section
+/// hinged on one of its own edges steps: the loop's other rows move.
+/// [`a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check`]
+/// pins what it does instead.)
 #[test]
 fn sections_apart_whose_parameterization_cannot_step_refuse_without_claiming_coincidence() {
     let tol = Tol::witness();
@@ -114,15 +116,7 @@ fn sections_apart_whose_parameterization_cannot_step_refuse_without_claiming_coi
         "the thin slab is definitely apart"
     );
     let tall = stacked_at(&[-1e14, 0.0, thin, 1.0]);
-    let hinged = vec![
-        Affine3::identity(),
-        Affine3::rotation_about_axis(Point3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.3),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-    ];
-    for (what, sections, places, at) in [
-        ("a 1 mm slab under 1e14 m", squares(4), tall, 2),
-        ("hinged on the first strip", squares(3), hinged, 1),
-    ] {
+    for (what, sections, places, at) in [("a 1 mm slab under 1e14 m", squares(4), tall, 2)] {
         match loft_body::<f64>(&sections, &places, 2, tol) {
             Err(LoftError::Skin(e @ SkinError::NoParameterStep { section })) => {
                 assert_eq!(section, at, "{what}: the stepless section is named");
@@ -202,12 +196,12 @@ fn a_sweep_whose_two_stations_coincide_refuses_at_the_fold() {
 /// **A hinge pinned only up to rounding passes the exact ascent check**
 /// — the measured state of
 /// `work/carve/a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door.md`,
-/// pinned as it is. Under a generic placement the strip-0 hinge moves
-/// by rounding alone, so the parameters ascend by about 1e-16,
-/// `loft_geometry` answers `Ok` with control coordinates past 1e12 for
-/// a 2-unit section, and `loft_body` refuses at the attach gate. This
-/// row goes red when that item is fixed; rewrite it to the fix's
-/// refusal then.
+/// pinned as it is. A section hinged on one of its edges, exactly or
+/// up to rounding: the parameters are the outer loop's, whose other
+/// rows step, so `loft_geometry` answers `Ok` with walls the size of
+/// the sections; the hinge's pinned corners make their seams double
+/// back, and `loft_body` refuses at the attach gate. This row goes red
+/// when that item is fixed; rewrite it to the fix's refusal then.
 #[test]
 fn a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check() {
     let tol = Tol::witness();
@@ -224,10 +218,12 @@ fn a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check() {
         Affine3::rotation_about_axis(a, b - a, 0.3) * pp,
         Affine3::translation(Vec3::new(2.0 * n.x, 2.0 * n.y, 2.0 * n.z)) * pp,
     ];
-    let g = loft_geometry(&sections, &places, 2, tol).expect("the exact ascent check passes");
+    let params = loft_parameters(&sections, &places, 2, tol).expect("the sections parameterize");
+    let g =
+        loft_geometry(&sections, &places, 2, &params, tol).expect("the exact ascent check passes");
     assert!(
-        g.section_params[1] < 1e-15,
-        "the hinge steps by rounding alone: {:?}",
+        g.section_params[1] > 0.1,
+        "the outer loop's other rows step, so the hinge no longer decides v: {:?}",
         g.section_params
     );
     let worst = g
@@ -241,11 +237,21 @@ fn a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check() {
         })
         .fold(0.0f64, f64::max);
     assert!(
-        worst > 1e12,
-        "the walls blow up: largest control coordinate {worst:e}"
+        worst < 10.0,
+        "the walls stay the size of the sections: largest control coordinate {worst:e}"
     );
-    match loft_body::<f64>(&sections, &places, 2, tol) {
-        Err(LoftError::Euler(_)) => {}
-        other => panic!("expected the attach gate's refusal, got {other:?}"),
+    // The hinge's corners are pinned between sections 0 and 1, so their
+    // seams double back and the attach gate refuses the body — as it
+    // refuses the exact hinge.
+    let exact = vec![
+        Affine3::identity(),
+        Affine3::rotation_about_axis(Point3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.3),
+        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+    ];
+    for (what, places) in [("rounding hinge", &places), ("exact hinge", &exact)] {
+        match loft_body::<f64>(&sections, places, 2, tol) {
+            Err(LoftError::Euler(_)) => {}
+            other => panic!("{what}: expected the attach gate's refusal, got {other:?}"),
+        }
     }
 }

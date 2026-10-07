@@ -419,11 +419,15 @@ a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
-closed from the carrier's own parameter), `ConeSection` (a tilted
-plane×cone ellipse on its cone: the slant harmonic, the azimuth the
-Kepler true anomaly of the ellipse's projection, whose focus is the
-axis; its envelope is the harmonic closed form plus one remainder
-term), `Fitted`, `General`
+closed from the carrier's own parameter), `FocalSection` (a conic
+whose projection onto the plane normal to the chart's axis has its
+focus on the axis, in two instances: a tilted plane×cone ellipse on its
+cone, its second channel the harmonic slant, and a Villarceau circle on
+its torus, its second channel the tube angle, linear in the parameter;
+the azimuth is the projection's Kepler true anomaly, and, as for
+`Harmonic`, the envelope alone is the certified statement — the
+harmonic closed form of the Kepler decomposition plus its remainder,
+drift and frame terms — with the schedule its cross-check), `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
@@ -497,10 +501,13 @@ contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 construction; blends are analytic-first.** Implemented in
 `crates/sweep/src/blend/`; `crates/sweep/README.md` is the reference.
 What binds from here: the six named margined predicates over the inputs
-run in order before any ball exists (radius vs `1/κ_max` of each
-support, face clearance, spine regularity, chain G1, convexity-sign
-consistency, corner configuration), which is what lets an interval
-replay certify validity over a parameter box. Every constant-radius arm
+(radius vs `1/κ_max` of each support, face clearance, spine regularity,
+chain G1, convexity-sign consistency, corner configuration) all answer
+before anything is built, which is what lets an interval replay certify
+validity over a parameter box. They run in that order, except face
+clearance's reach arm (every band against every face of the body it
+does not blend), which needs the plan's feet: it runs in the surgery
+after predicate 6 and before any mutation. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band

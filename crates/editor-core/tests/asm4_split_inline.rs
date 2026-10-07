@@ -82,6 +82,7 @@ fn two_group_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>)
             offset: Some(editor_core::Placement::literal(
                 &editor_core::Frame::translation([5.0, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
     );
     (store, doc, ids)
@@ -485,9 +486,9 @@ fn row2_appearance_rides_the_bridge_both_ways() {
 #[test]
 fn row3_severing_cut_refuses_naming_the_edge() {
     let doc = part("asm4-r3s", 0.0, 1.0);
-    let plane = doc.order()[PLANE_POSITION];
-    let profile = doc.order()[PROFILE_POSITION];
-    let extrude = doc.order()[BODY_POSITION];
+    let plane = doc.ids()[PLANE_POSITION];
+    let profile = doc.ids()[PROFILE_POSITION];
+    let extrude = doc.ids()[BODY_POSITION];
     // The kept consumer's edge into the cut input… The frame rides
     // along, so the ONE severed edge is the extrude's — a cut that left
     // the profile's plane behind would sever that one first, and this
@@ -662,7 +663,7 @@ fn row3_further_typed_refusals() {
     assert!(matches!(
         split(
             &doc,
-            &BTreeSet::from([RecipeNodeId(999)]),
+            &BTreeSet::from([RecipeNodeId::new(0, 999)]),
             DocumentId::derive("n"),
             Tol::witness(),
             None
@@ -707,6 +708,7 @@ fn row3_further_typed_refusals() {
             offset: Some(editor_core::Placement::literal(
                 &editor_core::Frame::translation([3.0, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
     );
     match inline(&host2, inst2, &resolver, Tol::witness()) {
@@ -714,7 +716,7 @@ fn row3_further_typed_refusals() {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
             assert_eq!(
                 root,
-                part_doc.spoken(part_doc.order()[BODY_POSITION]),
+                part_doc.spoken(part_doc.ids()[BODY_POSITION]),
                 "the plain extrude root is named, spoken from the part"
             );
         }
@@ -783,6 +785,7 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
                     offset: Some(editor_core::Placement::literal(
                         &editor_core::Frame::translation([dx, 0.0, 0.0]),
                     )),
+                    fresh: Vec::new(),
                 },
             );
             doc2 = next;
@@ -955,6 +958,7 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
                 offset: Some(editor_core::Placement::literal(
                     &editor_core::Frame::translation([dx, 0.0, 0.0]),
                 )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1099,7 +1103,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // NameStraddlesCut: a name declared on a KEPT union derives from a
     // kept node AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
-    let kept_e = doc.order()[BODY_POSITION];
+    let kept_e = doc.ids()[BODY_POSITION];
     let (doc, cut_f) = insert(doc, xy_frame());
     let (doc, cut_p) = insert(
         doc,
@@ -1130,7 +1134,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: kept_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let kept_p = doc.order()[BODY_POSITION - 1];
+    let kept_p = doc.ids()[BODY_POSITION - 1];
     let (doc, kept_twin) = insert(
         doc,
         Node::Extrude {
@@ -1176,7 +1180,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // node's entity — the part document could not express the
     // reference.
     let doc = part("asm4-min2-reach-kept", 0.0, 1.0);
-    let kept_e = doc.order()[BODY_POSITION];
+    let kept_e = doc.ids()[BODY_POSITION];
     let reaching = StableName {
         kind: EntityKind::Edge,
         node: kept_e,
@@ -1216,71 +1220,61 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
 }
 
 /// **A cut name reaching outside the cut names the earliest node it
-/// reaches, in document order**, whatever the ids. The name is a
-/// union's face kept from operand A, so it reaches the union and A's
-/// block; A's block is lengthened until the two ids do not run in
-/// document order, so a pick by lowest id would name the union.
+/// reaches**: the least id, which is the node placed first. The name
+/// is a union's face kept from operand A, so it reaches the union and
+/// A's block, and A's block is named.
 #[test]
 fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
     use editor_core::{BooleanOp, EntityKind, derivation_nodes};
-    for k in 0..64u32 {
-        let doc = ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness());
-        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0 + f64::from(k) / 8.0);
-        let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
-        let (doc, u) = insert(
-            doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a,
-                b,
-                declare: Vec::new(),
-            },
-        );
-        let ev = run(&doc, &EvalOptions::default());
-        let table = &ev.value(u).expect("the union evaluates").name_table;
-        let face_from = |seg: fn(&RoleSeg) -> bool| {
-            table
-                .iter()
-                .map(|(n, _)| n.clone())
-                .find(|n| n.kind == EntityKind::Face && n.path.first().is_some_and(seg))
-                .expect("the union keeps a face of each operand")
-        };
-        let from_a = face_from(|s| matches!(s, RoleSeg::FromA(_)));
-        let reached = derivation_nodes(&from_a);
-        let earliest = *doc
-            .order()
-            .iter()
-            .find(|id| reached.contains(id))
-            .expect("the name reaches live nodes");
-        if reached.first() == Some(&earliest) {
-            continue;
-        }
-        let (doc, decl) = selecting_fillet(doc, from_a.clone());
-        match split(
-            &doc,
-            &decl,
-            DocumentId::derive("asm4-reach-earliest-part"),
-            Tol::witness(),
-            None,
-        ) {
-            Err(SplitError::PartNameReachesRemainder {
-                node,
-                name,
+    let doc = ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Vec::new(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    let table = &ev.value(u).expect("the union evaluates").name_table;
+    let from_a = table
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| {
+            n.kind == EntityKind::Face
+                && n.path
+                    .first()
+                    .is_some_and(|s| matches!(s, RoleSeg::FromA(_)))
+        })
+        .expect("the union keeps a face of operand A");
+    let reached = derivation_nodes(&from_a);
+    assert!(reached.contains(&u) && reached.contains(&a), "{reached:?}");
+    let (doc, decl) = selecting_fillet(doc, from_a.clone());
+    match split(
+        &doc,
+        &decl,
+        DocumentId::derive("asm4-reach-earliest-part"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(SplitError::PartNameReachesRemainder {
+            node,
+            name,
+            missing,
+        }) => {
+            assert_eq!(node, doc.spoken(fillet_of(&doc, &decl)));
+            assert_eq!(name.name(), &from_a);
+            assert_eq!(
                 missing,
-            }) => {
-                assert_eq!(node, doc.spoken(fillet_of(&doc, &decl)));
-                assert_eq!(name.name(), &from_a);
-                assert_eq!(
-                    missing,
-                    doc.spoken(earliest),
-                    "the node named is the one the document holds first"
-                );
-            }
-            other => panic!("expected PartNameReachesRemainder, got {other:?}"),
+                doc.spoken(a),
+                "the node named is the one the document holds first"
+            );
         }
-        return;
+        other => panic!("expected PartNameReachesRemainder, got {other:?}"),
     }
-    panic!("no length in 0..64 put the reached ids out of document order");
 }
 
 /// A cut-local block and a fillet on it whose selection is `name`,
@@ -1288,7 +1282,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
 /// split takes to carry `name` into a part without carrying its
 /// minter.
 fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<RecipeNodeId>) {
-    let before: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let before: BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let (doc, body) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, _fillet) = insert(
         doc,
@@ -1299,7 +1293,7 @@ fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<
         },
     );
     let cut = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|id| !before.contains(id))
@@ -1317,59 +1311,57 @@ fn fillet_of(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> RecipeNodeId {
 /// **A deleted node the name reaches is named after every live one**:
 /// a deleted node has no place in the document, so the live node is
 /// the one the author can still act on. The union whose face the cut
-/// names is deleted (the name stays, a DM7 strand), and its id is made
-/// to sort BELOW the live block's, so a pick by lowest id, or one that
-/// let a deleted node sort first, would name the union.
+/// names is deleted (the name stays, a DM7 strand), so a pick that let
+/// the deleted minter answer would name the union. The union is
+/// inserted after the block it names, so its id sorts after the
+/// block's too: this shape holds the live answer, and cannot build a
+/// deleted node that sorts first.
 #[test]
 fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
     use editor_core::{BooleanOp, EntityKind, derivation_nodes};
-    for k in 0..64u32 {
-        let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
-        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0 + f64::from(k) / 8.0);
-        let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
-        let (doc, u) = insert(
-            doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a,
-                b,
-                declare: Vec::new(),
-            },
-        );
-        if a < u {
-            continue;
-        }
-        let ev = run(&doc, &EvalOptions::default());
-        let table = &ev.value(u).expect("the union evaluates").name_table;
-        let face_from = |seg: fn(&RoleSeg) -> bool| {
-            table
-                .iter()
-                .map(|(n, _)| n.clone())
-                .find(|n| n.kind == EntityKind::Face && n.path.first().is_some_and(seg))
-                .expect("the union keeps a face of each operand")
-        };
-        let from_a = face_from(|s| matches!(s, RoleSeg::FromA(_)));
-        assert!(derivation_nodes(&from_a).contains(&a));
-        let (doc, decl) = selecting_fillet(doc, from_a.clone());
-        let (doc, _) = step(doc, DocEdit::DeleteNode { id: u });
-        assert!(doc.node(u).is_none(), "the union is gone, its name stays");
-        match split(
-            &doc,
-            &decl,
-            DocumentId::derive("asm4-reach-deleted-part"),
-            Tol::witness(),
-            None,
-        ) {
-            Err(SplitError::PartNameReachesRemainder { missing, .. }) => assert_eq!(
-                missing,
-                doc.spoken(a),
-                "the live node, not the deleted union whose id sorts first"
-            ),
-            other => panic!("expected PartNameReachesRemainder, got {other:?}"),
-        }
-        return;
+    let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Vec::new(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    let table = &ev.value(u).expect("the union evaluates").name_table;
+    let from_a = table
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| {
+            n.kind == EntityKind::Face
+                && n.path
+                    .first()
+                    .is_some_and(|s| matches!(s, RoleSeg::FromA(_)))
+        })
+        .expect("the union keeps a face of operand A");
+    let reached = derivation_nodes(&from_a);
+    assert!(reached.contains(&u) && reached.contains(&a), "{reached:?}");
+    let (doc, decl) = selecting_fillet(doc, from_a.clone());
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: u });
+    assert!(doc.node(u).is_none(), "the union is gone, its name stays");
+    match split(
+        &doc,
+        &decl,
+        DocumentId::derive("asm4-reach-deleted-part"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(SplitError::PartNameReachesRemainder { missing, .. }) => assert_eq!(
+            missing,
+            doc.spoken(a),
+            "the live node, not the deleted union"
+        ),
+        other => panic!("expected PartNameReachesRemainder, got {other:?}"),
     }
-    panic!("no length in 0..64 gave the union the lower id");
 }
 
 /// Inline's parameter, tolerance, and metadata refusals.
@@ -1491,7 +1483,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     // ForeignInstanceName: a host reference DERIVES from the instance
     // but is not the bridge's own wrapped form.
     let host = part("asm4-min2-name-host", 5.0, 1.0);
-    let kept_e = host.order()[BODY_POSITION];
+    let kept_e = host.ids()[BODY_POSITION];
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let foreign = StableName {
         kind: EntityKind::Face,
@@ -1501,7 +1493,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 inst,
                 &StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(0),
+                    node: RecipeNodeId::new(0, 0),
                     path: vec![RoleSeg::OutputBody],
                 },
             )
@@ -1587,7 +1579,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             [0.0, 1.0, 0.0],
             vec![square(10.0, 0.0, 0.5)],
         );
-        let body = part_doc.order()[BODY_POSITION];
+        let body = part_doc.ids()[BODY_POSITION];
         let at_extra = StableName {
             kind: EntityKind::Edge,
             node: extra,
@@ -1607,7 +1599,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             node: body,
             path: vec![RoleSeg::OutputBody],
         };
-        let profile = part_doc.order()[BODY_POSITION - 1];
+        let profile = part_doc.ids()[BODY_POSITION - 1];
         let (part_doc, twin) = insert(
             part_doc,
             Node::Extrude {
@@ -1734,6 +1726,7 @@ fn reshaped_component(
                 .map(editor_core::LoopProgram::authored)
                 .collect(),
             ids,
+            fresh: Vec::new(),
         },
     );
     (doc, [f2, p2, e2], face_frame)

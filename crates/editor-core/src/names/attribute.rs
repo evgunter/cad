@@ -144,6 +144,8 @@ pub(super) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -218,11 +220,11 @@ mod tests {
     use super::*;
     use crate::names::role::{CapEnd, EntityKind, ProfileEdgeRef, Qualifier};
 
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(1);
-    const CUT: RecipeNodeId = RecipeNodeId(2);
-    const FILLET: RecipeNodeId = RecipeNodeId(3);
-    const PATTERN: RecipeNodeId = RecipeNodeId(4);
-    const INSTANCE: RecipeNodeId = RecipeNodeId(5);
+    const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1);
+    const CUT: RecipeNodeId = RecipeNodeId::new(0, 2);
+    const FILLET: RecipeNodeId = RecipeNodeId::new(0, 3);
+    const PATTERN: RecipeNodeId = RecipeNodeId::new(0, 4);
+    const INSTANCE: RecipeNodeId = RecipeNodeId::new(0, 5);
 
     /// A cap face of the extrude — a name-free role, minted where it
     /// is emitted.
@@ -242,7 +244,7 @@ mod tests {
             node: EXTRUDE,
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(0),
+                    step: crate::node::StepId::new(0, 0),
                     role: crate::names::PieceRole::Leg,
                 }
                 .into(),

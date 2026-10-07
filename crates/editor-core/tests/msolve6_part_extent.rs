@@ -64,7 +64,7 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
 /// the same document.
 fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
     let profile = part
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(part.node(id), Some(Node::Profile(_))))
@@ -81,6 +81,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
             node: profile,
             loops,
             ids,
+            fresh: Vec::new(),
         },
     );
     let (part, _) = fixture::step(
@@ -89,6 +90,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
             node: body,
             slot: editor_core::SlotId::Distance,
             expr: len(height),
+            fresh: Vec::new(),
         },
     );
     part
@@ -132,7 +134,7 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
 /// If `part` has no such node, or more than one.
 fn body_node(part: &ProfileDoc) -> RecipeNodeId {
     let solids: Vec<RecipeNodeId> = part
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| {
@@ -219,6 +221,7 @@ fn coincidence(
 /// clocking rider on a coincidence over the mated parts' extent, so a
 /// rider (a zero one included) needs the parts in hand where the mate
 /// is authored.
+#[allow(clippy::result_large_err)] // [`at_the_door`]'s pair, as it is
 fn at_the_store(
     doc: &ProfileDoc,
     opts: &EvalOptions,
@@ -825,6 +828,7 @@ fn seated(
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(part_ref)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -832,6 +836,7 @@ fn seated(
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(part_ref)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -843,6 +848,7 @@ fn seated(
                 (b, body),
                 coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
             )),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -924,6 +930,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
                     (c, body),
                     coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
                 )),
+                fresh: Vec::new(),
             },
             tol,
             &counting,
@@ -944,6 +951,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
                 offset: Some(editor_core::Placement::literal(
                     &editor_core::Frame::translation([0.0, 0.0, 3.0]),
                 )),
+                fresh: Vec::new(),
             },
             tol,
             &counting,
@@ -968,6 +976,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
                     members: vec![b, c],
                     declare: Vec::new(),
                 }),
+                fresh: Vec::new(),
             },
             tol,
             &counting,
@@ -990,6 +999,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::instantiate_part(part_ref)),
+                fresh: Vec::new(),
             },
             tol,
             &counting,
@@ -1353,6 +1363,7 @@ fn a6_an_indeterminate_groups_mate_deletes_like_any_other() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 2.0, 3.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let band = Band::linear(Tol::witness()).expect("band");

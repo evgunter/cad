@@ -337,15 +337,20 @@ result.
 
 *Built: DOCM-3 (PR 1803), with DM4.*
 
-## DM6 — Splice is not added
+## DM6 — No edit infers a re-point
 
-No edit rewires a live node's inputs, and none is planned. Every graph change
-is `InsertNode`, `DeleteNode`, or `SetMembers` on a list; cascade delete
-(`cascade_delete_order`, `edit.rs`) is the delete for a node with consumers.
-DM4's flat operators are what make the die's chain unnecessary.
-`no-docedit-splices-a-deleted-node` records the one trigger that would reopen
-the question: a chain that a flat operator cannot flatten and that a user
-needs to edit from the middle.
+A read changes only by an edit that names its new variable in full. An
+operand slot is written by the one slot door every slot has: the formula
+lowers to a read of the slot's kind (`SlotVarKind` otherwise), the read is
+live, and the rewritten node passes the checks the insert door and
+`SetMembers` already make of a node's reads (DM5's distinctness,
+acyclicity over reads). A list operand is the same door with a list. The
+write reports, and never refuses, the downstream names it strands, as DM7
+has a removal do; the N5 ladder diagnoses them and `Rebind` repairs them.
+No door picks a survivor: a delete leaves its readers unresolved and typed
+(D10), and "delete and reconnect" is a client's offer of explicit slot
+writes, the person choosing each. DM4's flat operators remain the way not
+to pay a pairwise chain's naming cost.
 
 ## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 

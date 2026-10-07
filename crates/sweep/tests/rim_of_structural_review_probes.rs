@@ -342,12 +342,13 @@ fn every_circle_edge_of_the_public_door_corpus_answers_against_the_oracle() {
             t.rims, t.max_arcs, t.refused
         );
         if name == "3-arc disc cut by a brick" {
-            // The cut interrupts both rims: every arc dangles.
+            // The cut interrupts both rims, and the join makes what is
+            // left of each one arc, which dangles.
             assert_eq!(t.rims, 0, "{name}: no closed rim survives the cut");
             assert_eq!(
                 t.refused.get("NotOneRim/Dangles"),
-                Some(&6),
-                "{name}: each of the six arcs dangles"
+                Some(&2),
+                "{name}: each rim's one arc dangles"
             );
         }
         total += t.rims;

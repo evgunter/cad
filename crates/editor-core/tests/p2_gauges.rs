@@ -203,7 +203,15 @@ pub(crate) fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
@@ -309,6 +317,7 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     );
     let mate = DocEdit::InsertNode {
         node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)))),
+        fresh: Vec::new(),
     };
     let applied = apply(&doc, &mate, Tol::witness(), &editor_core::RefusingReach)
         .expect("a mate with no rider asks no store");
@@ -329,9 +338,11 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     let log = vec![
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(p.base)),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(p.top)),
+            fresh: Vec::new(),
         },
         mate,
     ];
@@ -343,11 +354,7 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     );
     // The mate places: the top seats on the base.
     let poses = solve(&loaded.doc, &o, Tol::witness());
-    let mate_id = *loaded
-        .doc
-        .order()
-        .last()
-        .expect("the mate is the last node");
+    let mate_id = *loaded.doc.ids().last().expect("the mate is the last node");
     assert_eq!(
         poses.role(mate_id),
         Some(MateRole::Determining),
@@ -408,6 +415,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
             },
             DocEdit::InsertNode {
                 node: Box::new(mate),
+                fresh: Vec::new(),
             },
         ],
         "the record is the group's re-gauges in document order, then the insert"
@@ -417,7 +425,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
         "the record replays from the input to the outcome's document"
     );
     assert_eq!(
-        out.doc.order().last(),
+        out.doc.ids().last(),
         Some(&out.mate),
         "the outcome names the mate its insert minted"
     );
@@ -955,41 +963,33 @@ fn a_cut_reaching_a_dead_gauge_or_of_unplaced_material_alone_refuses_typed() {
 }
 
 /// **A cut of unplaced material alone names the group of its first node
-/// in document order**, whatever the ids. A gauge ahead of the two bare
-/// instances is moved until the later instance draws the lower id, so a
-/// walk over the cut set in id order would name the later group.
+/// in document order**, the least id: two bare instances, and the one
+/// placed first is named.
 #[test]
 fn a_cut_of_unplaced_material_alone_names_its_first_group_in_document_order() {
     let p = parts("p2-split-unplaced-order");
     let o = p.opts();
-    for k in 0..64u32 {
-        let doc = ProfileDoc::empty(
-            DocumentId::derive("p2-split-unplaced-order"),
-            Tol::witness(),
-        );
-        let (doc, _) = insert(doc, Node::gauge(None, literal([f64::from(k), 0.0, 0.0])));
-        let (doc, first) = insert(doc, Node::instantiate_part(p.base));
-        let doc = set_offset(doc, first, None);
-        let (doc, second) = insert(doc, Node::instantiate_part(p.top));
-        let doc = set_offset(doc, second, None);
-        if first < second {
-            continue;
-        }
-        let err = editor_core::split(
-            &doc,
-            &cut(&[first, second]),
-            DocumentId::derive("p2-split-unplaced-order-part"),
-            Tol::witness(),
-            o.resolver.as_ref(),
-        )
-        .expect_err("unplaced material alone");
-        assert!(
-            matches!(&err, editor_core::SplitError::UnplacedAlone { group } if group.id() == first),
-            "the refusal names the first group the document holds: {err:?}"
-        );
-        return;
-    }
-    panic!("no gauge in 0..64 gave the later bare instance the lower id");
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("p2-split-unplaced-order"),
+        Tol::witness(),
+    );
+    let (doc, _) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 0.0])));
+    let (doc, first) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, first, None);
+    let (doc, second) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_offset(doc, second, None);
+    let err = editor_core::split(
+        &doc,
+        &cut(&[second, first]),
+        DocumentId::derive("p2-split-unplaced-order-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect_err("unplaced material alone");
+    assert!(
+        matches!(&err, editor_core::SplitError::UnplacedAlone { group } if group.id() == first),
+        "the refusal names the first group the document holds: {err:?}"
+    );
 }
 
 /// **A cut of one placed group moves as selected, and the frame rule
@@ -1033,7 +1033,10 @@ fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
     let out = split(&checked, &[base, top, mate]).expect("a checked member crosses");
     assert_eq!(
         offset_of(&out.part, out.node_map[&top]),
-        Some(editor_core::test_support::stored_placement(&solved)),
+        Some(editor_core::test_support::stored_placement(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &solved
+        )),
         "the member's checked offset, verbatim"
     );
 
@@ -1255,6 +1258,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
                 class,
                 alignment,
             }),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -1470,7 +1474,7 @@ fn offsets_through(
     map: impl Fn(RecipeNodeId) -> RecipeNodeId,
     onto: &ProfileDoc,
 ) -> Vec<(Option<Placement>, Option<Placement>)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter(|id| matches!(doc.node(**id), Some(Node::InstantiatePart { .. })))
         .map(|&id| (offset_of(doc, id), offset_of(onto, map(id))))
@@ -1510,7 +1514,10 @@ fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
         offset_of(&out.part, out.node_map[&ids[1]]),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the top's checked offset survives the carry"
     );
     for (source, part) in offsets_through(&doc, |id| out.node_map[&id], &out.part) {
@@ -1541,7 +1548,10 @@ fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
         offset_of(&back.doc, through(ids[1])),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the top's checked offset survives the splice"
     );
     for (source, spliced) in offsets_through(&part, through, &back.doc) {
@@ -1569,7 +1579,7 @@ fn round_trip_keeps_every_offset(
     let part_id = DocumentId::derive(&format!("{label}-part"));
     let out = editor_core::split(
         doc,
-        &doc.order().iter().copied().collect(),
+        &doc.ids().iter().copied().collect(),
         part_id,
         Tol::witness(),
         p.opts().resolver.as_ref(),
@@ -1626,7 +1636,10 @@ fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
         offset_of(&back.doc, back.node_map[&out.node_map[&ids[1]]]),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the round trip holds the checked offset"
     );
 }
@@ -1674,7 +1687,7 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
     let (doc, y) = insert(doc, Node::instantiate_part(p.top));
     let (doc, _) = insert(doc, seat(head(p.top_cap(y)), head(p.base_cap(g))));
     assert_eq!(offset_of(&doc, y), None, "Y sits at no offset");
-    assert_eq!(doc.order().len(), 8, "eight nodes, all cut");
+    assert_eq!(doc.ids().len(), 8, "eight nodes, all cut");
 
     let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-chain");
     let host = |i: RecipeNodeId| back.node_map[&out.node_map[&i]];
@@ -1682,13 +1695,19 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
         assert_eq!(
             offset_of(&out.part, out.node_map[&i]),
             want.as_ref()
-                .map(editor_core::test_support::stored_placement),
+                .map(|p| editor_core::test_support::stored_placement(
+                    &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                    p
+                )),
             "{what} in the part"
         );
         assert_eq!(
             offset_of(&back.doc, host(i)),
             want.as_ref()
-                .map(editor_core::test_support::stored_placement),
+                .map(|p| editor_core::test_support::stored_placement(
+                    &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                    p
+                )),
             "{what} in the host"
         );
     }

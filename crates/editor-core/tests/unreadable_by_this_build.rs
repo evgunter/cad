@@ -164,38 +164,60 @@ fn a_missing_required_field_refuses_naming_it() {
 /// row above. The ADDITIVE half cannot be measured with bytes older
 /// than a break, so this exemplar is written by today's writer and kept
 /// minimal: nothing newer than {Datum, Profile, Extrude} appears in it.
-/// Re-frozen again when a profile's steps gained minted ids (the
-/// program's `ids` and the document's step counter), the same kind of
-/// break, and again when the counter became the step mint's chain and
-/// log, again when node ids moved onto that mint, and again when an
-/// extrude's side became a required field.
+/// It is re-frozen, by today's writer, at each such break.
 const OLDER_SHAPED: &str = concat!(
-    "id: 5705d8de0c4b9f14e73725e6a1030c11\n",
-    "{\"snapshot\":{\"id\":\"5705d8de0c4b9f14e73725e6a1030c11\",\"mint\":{\"chain\":\"cc6dde98e4",
-    "3cf05e54e95e58154e9db51456fc7826937bf8e98225949f7f68c4\",\"log\":[{\"step\":543127547",
-    "1832655693},{\"step\":6158057670549142566},{\"node\":11240919837605776152},{\"step\":1",
-    "2112871840740167342},{\"node\":14730674704444354654},{\"node\":16481222604345390933}",
-    ",{\"step\":17213631338936430399},{\"step\":17841264794356394216}]},\"nodes\":{\"1124091",
-    "9837605776152\":{\"Profile\":{\"plane\":16481222604345390933,\"loops\":[{\"Chain\":[{\"At\"",
-    ":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"d",
-    "im\":\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"L",
-    "ength\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"Lin",
-    "eTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"",
-    "value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value",
-    "\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
-    "\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[17841264794356394216,12112871840740167342",
-    ",5431275471832655693,17213631338936430399,6158057670549142566]]}},\"1473067470444",
-    "4354654\":{\"Extrude\":{\"profile\":11240919837605776152,\"distance\":{\"Literal\":{\"valu",
-    "e\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},\"side\":\"along\"}},\"16481222604345390933\":{\"Dat",
-    "um\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Li",
-    "teral\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"L",
-    "ength\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"L",
-    "iteral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"S",
-    "calar\",\"unit\":\"\"}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Li",
-    "teral\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Sc",
-    "alar\",\"unit\":\"\"}}]}}}},\"order\":[16481222604345390933,11240919837605776152,147306",
-    "74704444354654],\"roots\":[14730674704444354654],\"vars\":{},\"epsilon\":1e-09,\"witne",
-    "sses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "id: 8ad37e1a750ae77132c0bf059acb322f\n",
+    "{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf059acb322f\",\"mint\":{\"chain\":\"b4df12e4a4",
+    "1c240fd51afc2c5f7c8122801137c78e464bee6240fe63ab5afab4\",\"log\":[{\"var\":\"1:b639d84",
+    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
+    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
+    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
+    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:d05826096083a72f\"},{\"var\":\"12:3312",
+    "b2f8504eeee2\"},{\"var\":\"13:67cd6e8f80d24d4e\"},{\"var\":\"14:fd8954268d1e7222\"},{\"var",
+    "\":\"15:4e4dce13c4a56d92\"},{\"var\":\"16:e8e5f1ea6e7306c2\"},{\"var\":\"17:0ad5807e1b5f70",
+    "0c\"},{\"var\":\"18:6d679bcadae726fe\"},{\"node\":\"19:f5ee2ea3890bdbd0\"},{\"step\":\"20:05",
+    "3eb2ee5f95c60a\"},{\"step\":\"21:dd0913f0e561776c\"},{\"step\":\"22:5ca04880b5f26723\"},{",
+    "\"step\":\"23:1c5d6d0a2e5f2352\"},{\"step\":\"24:e1a86d05a90489eb\"},{\"var\":\"25:bdc04106",
+    "e3ffa2bc\"},{\"node\":\"26:b4df12e4a41c240f\"}]},\"nodes\":{\"10:54a0180a83275575\":{\"Dat",
+    "um\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:fb5fef638c3",
+    "0912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b90439\"],\"v\"",
+    ":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"19:f5ee2ea",
+    "3890bdbd0\":{\"Profile\":{\"plane\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"",
+    "11:d05826096083a72f\",\"12:3312b2f8504eeee2\"]},{\"LineTo\":{\"Point\":[\"13:67cd6e8f80d",
+    "24d4e\",\"14:fd8954268d1e7222\"]}},{\"LineTo\":{\"Point\":[\"15:4e4dce13c4a56d92\",\"16:e8",
+    "e5f1ea6e7306c2\"]}},{\"LineTo\":{\"Point\":[\"17:0ad5807e1b5f700c\",\"18:6d679bcadae726f",
+    "e\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"20:053eb2ee5f95c60a\",\"21:dd0913f0e561776c\",",
+    "\"22:5ca04880b5f26723\",\"23:1c5d6d0a2e5f2352\",\"24:e1a86d05a90489eb\"]]}},\"26:b4df12",
+    "e4a41c240f\":{\"Extrude\":{\"profile\":\"19:f5ee2ea3890bdbd0\",\"distance\":\"25:bdc04106e",
+    "3ffa2bc\",\"side\":\"along\"}}},\"roots\":[\"26:b4df12e4a41c240f\"],\"vars\":{\"1:b639d844ba",
+    "b8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0",
+    ",\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Co",
+    "ntinuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef638c30912c",
+    "\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"disp",
+    "lay_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuo",
+    "us\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168290\":{\"kin",
+    "d\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_uni",
+    "t\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"di",
+    "m\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"kind\":\"Scal",
+    "ar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}",
+    "},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scal",
+    "ar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Scalar\",\"def",
+    "\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"11:d0",
+    "5826096083a72f\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"va",
+    "lue\":0.0,\"display_unit\":\"m\"}}}},\"12:3312b2f8504eeee2\":{\"kind\":\"Length\",\"def\":{\"F",
+    "ree\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:67cd6e",
+    "8f80d24d4e\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":1.0,\"display_unit\":\"m\"}}}},\"14:fd8954268d1e7222\":{\"kind\":\"Length\",\"def\":{\"Free\"",
+    ":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"15:4e4dce13c4",
+    "a56d92\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0",
+    ",\"display_unit\":\"m\"}}}},\"16:e8e5f1ea6e7306c2\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"C",
+    "ontinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:0ad5807e1b5f70",
+    "0c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"di",
+    "splay_unit\":\"m\"}}}},\"18:6d679bcadae726fe\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
+    "nuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"25:bdc04106e3ffa2bc\":",
+    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"displa",
+    "y_unit\":\"m\"}}}}},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"",
+    "edits\":[]}",
     "\n"
 );
 
@@ -223,7 +245,7 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     assert_ne!(text, OLDER_SHAPED, "the ε rewrite must land");
     let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
     assert_eq!(
-        loaded.doc.order().len(),
+        loaded.doc.ids().len(),
         3,
         "frame, profile and extrude, as written"
     );
@@ -258,9 +280,9 @@ fn bytes_that_are_not_json_stay_parse() {
 /// are `crates/pncad/tests/plate_param.pncad` exactly as main held it
 /// before the side became structural (Ev, #3551), frozen here so the
 /// row reads real history rather than a mutation of today's save. They
-/// predate readers by id too, and a reader by name is the first thing
-/// the parser meets that this build cannot read, so the refusal names
-/// it (`Param`) and carries the regenerate recourse once. It is kept as
+/// predate ids as pairs too, and an id spelled as one integer is the
+/// first thing the parser meets that this build cannot read, so the
+/// refusal names it and carries the regenerate recourse once. It is kept as
 /// `.cad`, as `bool13_goldens/`' older bytes are: refusal evidence, not
 /// a member of the `*.pncad` corpus the load rows walk.
 #[test]
@@ -276,8 +298,11 @@ fn a_document_from_before_the_extrude_side_refuses_unreadable() {
         "an unknown variant is Unreadable: {err:?}"
     );
     let msg = err.to_string();
+    // The first thing this build cannot read in bytes that old is a
+    // slot written as an expression where a slot now holds its
+    // variable's id.
     assert!(
-        msg.contains("unknown variant `Param`"),
+        msg.contains("expected an id: its mint ordinal"),
         "the refusal names what it cannot read: {msg}"
     );
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");

@@ -823,7 +823,7 @@ fn role<'n, 's>(
         RoleSeg::OutputBody => one("the output body".to_owned()),
         RoleSeg::Cap(e) => one(format!("the {} cap", cap(*e))),
         RoleSeg::Lateral(r) => one(format!("the side wall over {}", run(r, f, by))),
-        RoleSeg::RimEdge(c, e) => one(format!("the {} rim edge over {}", cap(*c), piece(e, f, by))),
+        RoleSeg::RimEdge(c, r) => one(format!("the {} rim edge over {}", cap(*c), run(r, f, by))),
         RoleSeg::LateralEdge(v) => one(format!("the lateral edge over {}", vertex(v, f, by))),
         RoleSeg::CapVertex(c, v) => one(format!(
             "the {} cap vertex over {}",
@@ -854,7 +854,7 @@ fn role<'n, 's>(
         )),
         RoleSeg::RevolveCap(m) => one(format!("the {} wedge cap", meridian(*m))),
         RoleSeg::Pole(v) => one(format!("the pole over {}", vertex(v, f, by))),
-        RoleSeg::AxisEdge(e) => one(format!("the axis edge over {}", piece(e, f, by))),
+        RoleSeg::AxisEdge(r) => one(format!("the axis edge over {}", run(r, f, by))),
         RoleSeg::Seam { a, b } => vec![
             text(format!("the seam {kind} of ")),
             cites.one(a),
@@ -924,6 +924,8 @@ fn role<'n, 's>(
             text(" of the blend over "),
             cites.one(edge),
         ],
+        RoleSeg::Mitre { vertex } => vec![text("the mitre at "), cites.one(vertex)],
+        RoleSeg::TurnFoot { vertex } => vec![text("the turn foot at "), cites.one(vertex)],
         RoleSeg::BandFace(edges) => {
             let mut items = vec![text("the blend band over ")];
             items.extend(cites.list(edges));
@@ -1010,10 +1012,10 @@ mod tests {
     use crate::names::role::NameRef;
     use crate::node::StepId;
 
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(1 << 16);
-    const OTHER: RecipeNodeId = RecipeNodeId(2 << 16);
-    const OP: RecipeNodeId = RecipeNodeId(3 << 16);
-    const MOVED: RecipeNodeId = RecipeNodeId(4 << 16);
+    const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
+    const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
+    const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
+    const MOVED: RecipeNodeId = RecipeNodeId::new(0, 4 << 16);
 
     fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName { kind, node, path }
@@ -1021,7 +1023,7 @@ mod tests {
 
     fn leg(step: u64) -> ProfileEdgeRef {
         ProfileEdgeRef::Piece {
-            step: StepId(step << 16),
+            step: StepId::new(0, step << 16),
             role: PieceRole::Leg,
         }
     }
@@ -1042,7 +1044,7 @@ mod tests {
         name(
             EntityKind::Edge,
             EXTRUDE,
-            vec![RoleSeg::RimEdge(CapEnd::End, leg(step))],
+            vec![RoleSeg::RimEdge(CapEnd::End, leg(step).into())],
         )
     }
 

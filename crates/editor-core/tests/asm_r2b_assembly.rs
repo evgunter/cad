@@ -184,6 +184,7 @@ fn stacked(
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate(body, ids[0], ids[1], seat)),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, mate.expect("the mate mints"), store, body)
@@ -413,12 +414,14 @@ fn row2_b_a_declaring_mate_mints_identically() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate(body, ids[0], ids[1], 1.0)),
+            fresh: Vec::new(),
         },
     );
     let (doc, false_mate) = step(
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate(body, ids[0], ids[2], 2.0)),
+            fresh: Vec::new(),
         },
     );
     // Instance 0's top is at z = 1 and instance 2's bottom at z = 2,
@@ -431,6 +434,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate(body, ids[1], ids[2], 1.0)),
+            fresh: Vec::new(),
         },
     );
     let second = second.expect("the third mate mints");
@@ -651,7 +655,10 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // only has the Display still learns which mate is wrong.
     let msg = err.to_string();
     assert!(
-        msg.contains(&format!("mate {}", test_utils::refusal::tag(mate.0))),
+        msg.contains(&format!(
+            "mate {}",
+            test_utils::refusal::tag(mate.0.digest())
+        )),
         "the rendering names the mate: {msg}"
     );
     // The other side of the split: a REFUTED declaration is a finding
@@ -782,6 +789,7 @@ fn remainder_with_a_neighbour(
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate(body, neighbour, seated, 1.0)),
+            fresh: Vec::new(),
         },
     );
     let outer = FaceName::new(in_part(neighbour, body, CapEnd::End))
@@ -886,7 +894,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     assert!(
         err.contains(&format!(
             "in the part of node {} on the remainder",
-            test_utils::refusal::tag(outer_probe.node.0)
+            test_utils::refusal::tag(outer_probe.node.0.digest())
         )),
         "the refusal names the crossing by its `outer`: {err}"
     );
@@ -934,8 +942,8 @@ fn row5_c_inline_dissolves_the_crossing_record() {
             Some(editor_core::Placement::IDENTITY),
         ),
     );
-    let before = doc.order().len();
-    let part_nodes = store.doc(doc_ref.id).order().len();
+    let before = doc.ids().len();
+    let part_nodes = store.doc(doc_ref.id).ids().len();
     let back = inline(
         &doc,
         instance,
@@ -952,7 +960,7 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     // `inline` never touches, so `!order().is_empty()` would hold
     // however little came in. The count can only come from the part.
     assert_eq!(
-        back.doc.order().len(),
+        back.doc.ids().len(),
         before - 1 + part_nodes,
         "the instance went and the part's own recipe came in its place"
     );
@@ -1069,6 +1077,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate(body, ids[0], ids[1], 1.0)),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -1091,6 +1100,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
             node: body,
             slot: editor_core::SlotId::Distance,
             expr: len(0.5),
+            fresh: Vec::new(),
         },
     );
     let new_pin = content_pin(&shorter, Tol::witness()).expect("the pin computes");
@@ -1334,6 +1344,7 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
     );
     let tangent = tangent.expect("the tangent mate mints");
@@ -1417,6 +1428,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate_at(body, ids[0], ids[1], [1.0, 0.0, 1.0])),
+            fresh: Vec::new(),
         },
     );
     // Refuted: instance 2 seats at z = 3, and the mate declares its
@@ -1425,6 +1437,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate(body, ids[0], ids[2], 3.0)),
+            fresh: Vec::new(),
         },
     );
     let grazing = grazing.expect("the grazing mate mints");
@@ -1481,6 +1494,7 @@ fn a_coplanar_pair_with_disjoint_trims_is_refuted_as_stale() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate_at(body, ids[0], ids[1], [2.0, 0.0, 1.0])),
+            fresh: Vec::new(),
         },
     );
     let stale = stale.expect("the mate mints");
@@ -1539,6 +1553,7 @@ fn the_mint_door_renders_each_class_its_own_reason() {
             doc,
             DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
         );
         let mate = mate.expect("the mate mints");
@@ -1612,14 +1627,15 @@ fn every_admitted_class_has_a_wire_spelling() {
             doc,
             DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
         );
         let text =
             editor_core::save(&doc, &[], Tol::witness()).expect("an admitted class is savable");
         let back = editor_core::load(&text, Tol::witness()).expect("and loads back");
         assert_eq!(
-            back.doc.order().len(),
-            doc.order().len(),
+            back.doc.ids().len(),
+            doc.ids().len(),
             "the round trip keeps the mate: {class:?}"
         );
     }
@@ -1640,7 +1656,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         name.path = vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(tagged(99)),
+                node: RecipeNodeId::new(0, tagged(99)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -1651,6 +1667,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -1672,18 +1689,18 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
 #[test]
 fn the_crossing_refusal_is_a_named_node_error() {
     let e = NodeErrorKind::CrossingUnverified {
-        instance: RecipeNodeId(tagged(1)),
+        instance: RecipeNodeId::new(0, tagged(1)),
         outer: Box::new(
             FaceName::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(tagged(2)),
+                node: RecipeNodeId::new(0, tagged(2)),
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             })
             .expect("a crossing's references are face names"),
         ),
         name: Box::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(tagged(3)),
+            node: RecipeNodeId::new(0, tagged(3)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }),
     };
@@ -1753,6 +1770,7 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         },
     );
     (doc, mate.expect("the mate mints"), store)
@@ -1841,15 +1859,15 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     use editor_core::{AtRestFinding, Attribution, MintedDeclaration};
 
     let minted = MintedDeclaration {
-        mate: RecipeNodeId(tagged(4)),
+        mate: RecipeNodeId::new(0, tagged(4)),
         a: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(tagged(1)),
+            node: RecipeNodeId::new(0, tagged(1)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         },
         b: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(tagged(2)),
+            node: RecipeNodeId::new(0, tagged(2)),
             path: vec![RoleSeg::Cap(CapEnd::Start)],
         },
         class: ContactClass::Rest,
@@ -1926,7 +1944,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     let cases = vec![
         ProductError::RootInvalid {
             findings: vec![editor_core::SourceFinding {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
                 output: 1,
                 errors: vec![
                     topo::ValidationError::NegativeVolume {
@@ -1939,15 +1957,15 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             }],
         },
         ProductError::Naming {
-            node: RecipeNodeId(tagged(2)),
+            node: RecipeNodeId::new(0, tagged(2)),
             name: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(tagged(1)),
+                node: RecipeNodeId::new(0, tagged(1)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         },
         ProductError::Graft {
-            node: RecipeNodeId(tagged(5)),
+            node: RecipeNodeId::new(0, tagged(5)),
             source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
                 zero: 1.0,
                 escalate: 0.5,

@@ -55,6 +55,7 @@ use core::f64::consts::SQRT_2;
 use crate::common::oracles::sigma;
 
 use geom::Surface;
+use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
@@ -181,10 +182,10 @@ fn rims() -> [Rim; 3] {
 
 /// One support pair, as the sense-bit row reads it: its name, the rim
 /// point its sheet is taken at, the two traces as functions of their
-/// ball-side bit, the two signed distances in the supports' own
+/// ball side, the two signed distances in the supports' own
 /// closed forms, and whether a ball rests there at all (as a function
 /// of the two sides' `σ`).
-type TraceOf<'a> = Box<dyn Fn(bool) -> SupportTrace<f64> + 'a>;
+type TraceOf<'a> = Box<dyn Fn(SurfaceSide) -> SupportTrace<f64> + 'a>;
 type DistOf<'a> = Box<dyn Fn(Point3<f64>) -> f64 + 'a>;
 type ArmRow<'a> = (
     &'static str,
@@ -460,12 +461,12 @@ fn the_lanterns_arms_fold_both_sense_bits() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: p,
     };
-    let sphere = |side: bool| SupportTrace::Round {
+    let sphere = |side: SurfaceSide| SupportTrace::Round {
         center: origin,
         radius: SPHERE_R,
         side,
     };
-    let flat = |normal: Vec3<f64>| move |side: bool| SupportTrace::Straight { normal, side };
+    let flat = |normal: Vec3<f64>| move |side: SurfaceSide| SupportTrace::Straight { normal, side };
     // Each support's own signed distance, positive on its chart
     // normal's side — written here, not read from the kernel.
     let plane_dist = move |p: Point3<f64>, n: Vec3<f64>, o: Point3<f64>| (p - o).dot(n);
@@ -511,7 +512,12 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     for (name, rim, ta, tb, da, db, feasible) in rows {
         let sheet = sheet_at(rim);
         let mut folded = 0;
-        for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
+        for (side_a, side_b) in [
+            (Inner, Inner),
+            (Outer, Outer),
+            (Inner, Outer),
+            (Outer, Inner),
+        ] {
             let (sa, sb) = (sigma(side_a), sigma(side_b));
             let c = sheet_center(sheet.rim, sheet.sheet_normal(), ta(side_a), tb(side_b), r);
             if !feasible(sa, sb) {

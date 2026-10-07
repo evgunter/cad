@@ -95,7 +95,7 @@ const DEGRADED_HULL_ROUNDING_PER_HALF_WIDTH: f64 = 1.0e-2;
 
 /// The variable `doc` declares as `name`, or an id it never minted.
 fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
-    doc.var_named(name).unwrap_or(editor_core::VarId(0))
+    doc.var_named(name).unwrap_or(editor_core::VarId::new(0, 0))
 }
 
 fn eps() -> f64 {
@@ -485,7 +485,7 @@ fn the_two_hole_plate_stackup() {
         Some(
             format!(
                 "stackup of Measure \"web\" ({})",
-                test_utils::refusal::tag(measure.0)
+                test_utils::refusal::tag(measure.0.digest())
             )
             .as_str()
         ),
@@ -1141,7 +1141,9 @@ fn the_driver_and_the_report_are_schedule_independent() {
 /// the driver's own typed refusal.
 #[test]
 fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
-    let (doc, _, _) = plate(None, None);
+    // Both parameters toleranced, so both are entries (VR8).
+    let law = Some(Distribution::Normal { sigma: 1e-5 });
+    let (doc, _, _) = plate(law, law);
     // A pair the v1 table has no closed form for: a cylinder wall
     // against a plane cap.
     let ev = eval(&doc);
@@ -1149,7 +1151,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     // Taken by kind rather than by literal id — the sketch frame is a
     // node too, so counting positions no longer finds them.
     let extrudes: Vec<_> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -1182,9 +1184,10 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
-    let unsupported = *doc.order().last().expect("inserted");
+    let unsupported = *doc.ids().last().expect("inserted");
     let entries = sensitivities(&doc, unsupported, None, None, false, None, Tol::witness())
         .expect("a refusing measure is not a driver failure");
     assert_eq!(entries.len(), 2);
@@ -1299,7 +1302,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
                 ..
             },
         ) => {
-            let DivergedAt::Replayed(spoken) = node else {
+            let DivergedAt::Replayed(spoken) = &**node else {
                 panic!("the edited document's replay holds the node: {node:?}");
             };
             assert_eq!(
@@ -1356,7 +1359,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
             // The record names a node of the document the drive ran
             // on; it is said by tag as the record's, never looked up
             // in the foreign document.
-            let DivergedAt::Recorded(id) = node else {
+            let DivergedAt::Recorded(id) = &**node else {
                 panic!("the foreign replay parts from the record at the record's node: {node:?}");
             };
             assert!(
@@ -1680,18 +1683,18 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     assert!(report.worst_case.lo <= 2.0 && 2.0 <= report.worst_case.hi);
 }
 
-/// **DATUM — an undistributed parameter is a point mass in the RSS.**
-/// `depth` with no distribution has σ = 0 exactly: its term is zero and
-/// it does NOT block the column (E2's opt-in rule read literally —
-/// fixed is a modelling statement, not a missing spread). Disclosed as
-/// a deviation from E5's "every contributor carries a measure" read
-/// strictly; pinned here so the reading is a datum, not an accident.
+/// **DATUM — an untoleranced parameter is no axis, and blocks nothing.**
+/// `depth` with no tolerance is a constant in every analysis lane
+/// (VARIABLES-DESIGN VR8): it is no axis of the analysed box, the
+/// stackup lists no row for it, and the RSS over the toleranced axes is
+/// available — fixed is a modelling statement, not a missing spread.
+/// Breaks if an untoleranced variable is listed, or blocks the column.
 #[test]
-fn an_undistributed_parameter_is_a_point_mass_in_the_rss() {
+fn an_untoleranced_parameter_is_no_axis_and_blocks_no_rss() {
     let half = eps() / 8.0;
     let (doc, measure, _) = plate(Some(uniform(half)), None);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    assert_eq!(analyzed.axis_std_deviation(v(&doc, "depth")), Some(Ok(0.0)));
+    assert_eq!(analyzed.axis_std_deviation(v(&doc, "depth")), None);
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
     let report = stackup(
         &doc,
@@ -1707,12 +1710,13 @@ fn an_undistributed_parameter_is_a_point_mass_in_the_rss() {
     let sigma_r = (2.0 * half) / f64::sqrt(12.0);
     match report.rss {
         Rss::Advisory { sigma } => assert!((sigma - 2.0 * sigma_r).abs() <= 1e-9 * sigma_r),
-        other => panic!("a fixed parameter must not block the RSS: {other:?}"),
+        other => panic!("an untoleranced parameter must not block the RSS: {other:?}"),
     }
-    let depth = report
-        .per_param
-        .iter()
-        .find(|p| p.param == var(&doc, "depth"))
-        .expect("depth row");
-    assert_eq!(depth.contribution, Ok(0.0));
+    assert!(
+        report
+            .per_param
+            .iter()
+            .all(|p| p.param != var(&doc, "depth")),
+        "an untoleranced parameter is no stackup row"
+    );
 }

@@ -124,6 +124,7 @@ pub fn document() -> CorpusDoc {
             node: blank,
             slot: SlotId::Distance,
             expr: len(H_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: blank,
     }

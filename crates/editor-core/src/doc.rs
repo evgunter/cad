@@ -14,7 +14,7 @@ use crate::distribution::{Distribution, DistributionFault, DistributionField};
 use crate::expr::{Dimension, Expr, ExprPath, ParamValue, VarEnv};
 use crate::ident::DocumentId;
 use crate::names::StableName;
-use crate::node::{Node, RecipeNodeId};
+use crate::node::{Node, RecipeNodeId, SlotId};
 use crate::var::{Var, VarId};
 use geom_core::Tol;
 
@@ -764,9 +764,15 @@ impl FreeVar {
     }
 }
 
-/// The document: recipe DAG (node map + insertion-ordered list) +
-/// document metadata (spec D2; ratified F2's substrate). `P` is the
+/// The document: recipe DAG (the node map, in id order, which is the
+/// order the nodes were inserted in) + document metadata (spec D2; ratified F2's substrate). `P` is the
 /// opaque profile payload (spec D1/D3 — see [`Node`]).
+///
+/// Id order is topological — every input's id is less than its
+/// consumer's — **except where [`crate::DocEdit::SetMembers`] gives a
+/// union a member minted after it**: that door checks liveness and
+/// acyclicity, not order, so the union then points forward
+/// (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
 ///
 /// **A field added here that holds a [`StableName`] is placed in
 /// `Carrier` below**, which is the one enumeration of the document's
@@ -799,12 +805,12 @@ pub struct Doc<P> {
     /// removes and a step a `SetProgram` drops keep their log entries,
     /// so neither id is minted again.
     pub(crate) mint: crate::Mint,
-    /// The nodes, by stable id.
+    /// The nodes, by stable id. Ids order as they were minted, so the
+    /// map's order is the order the nodes were inserted in (the
+    /// recipe's presentation order; the DAG's edges are the nodes'
+    /// input refs, spec D3).
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
-    /// Insertion order of the live nodes (the recipe's presentation
-    /// order; the DAG's edges are the nodes' input refs, spec D3).
-    pub(crate) order: Vec<RecipeNodeId>,
     /// The document's ordered product roots (ASSEMBLY-DESIGN A10,
     /// ASM-ROOTS D-1): document data, never a DAG node. Two invariants
     /// hold at rest and after every edit — *coverage* (every node is
@@ -814,8 +820,9 @@ pub struct Doc<P> {
     /// product's solid ORDER, which is therefore semantic. No
     /// duplicates; every entry is live.
     pub(crate) roots: Vec<RecipeNodeId>,
-    /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id. Every
-    /// key is logged in the mint as [`crate::Minted::Var`].
+    /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id, so in
+    /// declaration order. Every key is logged in the mint as
+    /// [`crate::Minted::Var`].
     #[serde(with = "crate::persist::strict::vars")]
     pub(crate) vars: BTreeMap<VarId, Var>,
     /// **The variables' names** (VR2), beside the variables as
@@ -828,15 +835,6 @@ pub struct Doc<P> {
         with = "crate::persist::strict::var_names"
     )]
     pub(crate) var_names: BTreeMap<VarId, VarName>,
-    /// **The variables' declaration order** — `order`'s twin for the
-    /// variable table. Ids are digest output, so their numeric order
-    /// means nothing to an author; this is the one author-meaningful
-    /// order of the document's variables, and every lane that lists or
-    /// tie-breaks variables reads it ([`Self::free_vars`]). A
-    /// permutation of `vars`' keys (the load door checks it). Absent
-    /// from the wire while empty.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(crate) var_order: Vec<VarId>,
     /// The recorded modeling tolerance ε (M4 PR 6 spec D4): new
     /// documents record the process's committed ambient ε; loading
     /// reconciles the recorded value against the process (one process
@@ -971,11 +969,9 @@ impl<P> Doc<P> {
             id,
             mint: crate::Mint::empty(),
             nodes: BTreeMap::new(),
-            order: Vec::new(),
             roots: Vec::new(),
             vars: BTreeMap::new(),
             var_names: BTreeMap::new(),
-            var_order: Vec::new(),
             epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
@@ -1049,21 +1045,12 @@ impl<P> Doc<P> {
         self.mint.has_node(id)
     }
 
-    /// Live node ids in insertion order.
-    pub fn order(&self) -> &[RecipeNodeId] {
-        &self.order
-    }
-
-    /// **Each live node's position in [`Doc::order`]**: the order the
-    /// author placed the nodes in, which is what every tie between
-    /// nodes breaks by, since an id is a digest and says nothing of
-    /// seniority.
-    pub fn positions(&self) -> BTreeMap<RecipeNodeId, usize> {
-        self.order
-            .iter()
-            .enumerate()
-            .map(|(at, &id)| (id, at))
-            .collect()
+    /// **The live node ids, in id order**: the order the nodes were
+    /// inserted in, which is what every tie between nodes breaks by.
+    /// Topological except where `SetMembers` points a union forward
+    /// (see [`Doc`]).
+    pub fn ids(&self) -> Vec<RecipeNodeId> {
+        self.nodes.keys().copied().collect()
     }
 
     /// The ordered product roots (A10): the gather order of the
@@ -1074,12 +1061,12 @@ impl<P> Doc<P> {
 
     /// Number of live nodes.
     pub fn len(&self) -> usize {
-        self.order.len()
+        self.nodes.len()
     }
 
     /// Whether the document has no live nodes.
     pub fn is_empty(&self) -> bool {
-        self.order.is_empty()
+        self.nodes.is_empty()
     }
 
     /// **Every faulty variable leaf of one expression**, in pre-order:
@@ -1120,14 +1107,10 @@ impl<P> Doc<P> {
         P: crate::ProfilePayload,
     {
         let through = self.reached_through_definitions(var);
-        self.order
+        self.nodes
             .iter()
-            .copied()
-            .filter(|id| {
-                self.nodes
-                    .get(id)
-                    .is_some_and(|node| through.iter().any(|&v| node_reads(node, v)))
-            })
+            .filter(|(_, node)| through.iter().any(|&v| node_reads(node, v)))
+            .map(|(&id, _)| id)
             .collect()
     }
 
@@ -1138,12 +1121,7 @@ impl<P> Doc<P> {
         edges
             .position
             .get(&var)
-            .map(|&at| {
-                edges.definers[at]
-                    .iter()
-                    .map(|&d| self.var_order[d])
-                    .collect()
-            })
+            .map(|&at| edges.definers[at].iter().map(|&d| edges.ids[d]).collect())
             .unwrap_or_default()
     }
 
@@ -1155,7 +1133,7 @@ impl<P> Doc<P> {
         let mut frontier: Vec<usize> = edges.position.get(&var).copied().into_iter().collect();
         while let Some(at) = frontier.pop() {
             for &definer in &edges.definers[at] {
-                if reached.insert(self.var_order[definer]) {
+                if reached.insert(edges.ids[definer]) {
                     frontier.push(definer);
                 }
             }
@@ -1178,21 +1156,14 @@ impl<P> Doc<P> {
     /// definitions reads it, so each is linear in the variables and
     /// their reads.
     fn definition_edges(&self) -> DefinitionEdges {
-        let position: BTreeMap<VarId, usize> = self
-            .var_order
-            .iter()
-            .enumerate()
-            .map(|(at, &id)| (id, at))
-            .collect();
-        let mut reads = vec![Vec::new(); self.var_order.len()];
-        let mut definers = vec![Vec::new(); self.var_order.len()];
+        let ids = self.var_ids();
+        let position: BTreeMap<VarId, usize> =
+            ids.iter().enumerate().map(|(at, &id)| (id, at)).collect();
+        let mut reads = vec![Vec::new(); ids.len()];
+        let mut definers = vec![Vec::new(); ids.len()];
         let mut any = false;
         for (at, read_by) in reads.iter_mut().enumerate() {
-            let Some(expr) = self
-                .vars
-                .get(&self.var_order[at])
-                .and_then(|v| v.def().defined())
-            else {
+            let Some(expr) = self.vars.get(&ids[at]).and_then(|v| v.def().defined()) else {
                 continue;
             };
             let mut leaves = Vec::new();
@@ -1210,6 +1181,7 @@ impl<P> Doc<P> {
             *read_by = held;
         }
         DefinitionEdges {
+            ids,
             position,
             reads,
             definers,
@@ -1224,28 +1196,74 @@ impl<P> Doc<P> {
     /// the anonymous variables read by no node and by no definition of
     /// a variable still standing — so a defined variable comes before
     /// the variables only its definition read.
+    /// **Whether `var` is a typed value**: an anonymous free variable,
+    /// what a value written at a slot lowers to. A value gesture or a
+    /// re-notation on a slot reading one moves it in place, keeping its
+    /// identity and its distribution (INTENT-LITERALS Q6).
+    #[must_use]
+    pub fn is_typed_value(&self, var: VarId) -> bool {
+        !self.var_names.contains_key(&var) && self.free(var).is_some()
+    }
+
+    /// **The anonymous variables [`Node::written`] would not reproduce**:
+    /// one read more than once — by two slots, as a fresh entry shared
+    /// within one edit, or by a slot and a definition — which a written
+    /// re-insert splits into one per reader, and one that carries a
+    /// distribution, which a value written at a slot cannot carry.
+    /// Rebuilding a document by re-inserting its nodes as written is
+    /// the document only where this is empty and no anonymous variable
+    /// was value-edited after its insert (whose mint read the old
+    /// value); the last is the caller's to check, by the ids.
+    ///
+    /// [`Node::written`]: crate::Node::written
+    pub fn written_would_not_reproduce(&self) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut reads: BTreeMap<VarId, usize> = BTreeMap::new();
+        for node in self.nodes.values() {
+            for &var in node.exprs() {
+                *reads.entry(var).or_default() += 1;
+            }
+        }
+        for held in self.vars.values() {
+            if let crate::VarDef::Defined(defined) = held.def() {
+                let mut read = Vec::new();
+                defined.var_reads(&mut read);
+                for (var, _) in read {
+                    *reads.entry(var).or_default() += 1;
+                }
+            }
+        }
+        self.vars
+            .keys()
+            .copied()
+            .filter(|var| !self.var_names.contains_key(var))
+            .filter(|var| {
+                reads.get(var).copied().unwrap_or(0) > 1
+                    || self.free(*var).and_then(FreeVar::distribution).is_some()
+            })
+            .collect()
+    }
+
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,
     {
         let mut node_read = BTreeSet::new();
         for node in self.nodes.values() {
-            for expr in node.exprs() {
-                let mut reads = Vec::new();
-                expr.var_reads(&mut reads);
-                node_read.extend(reads.into_iter().map(|(var, _)| var));
-            }
+            node_read.extend(node.exprs().into_iter().copied());
         }
         let edges = self.definition_edges();
         let unheld = |at: usize| {
-            let id = self.var_order[at];
+            let id = edges.ids[at];
             !self.var_names.contains_key(&id) && !node_read.contains(&id)
         };
         // How many standing definitions read each variable: a round
         // removes its variables' reads, and a variable whose count
         // falls to none joins the next round.
         let mut holders: Vec<usize> = edges.definers.iter().map(Vec::len).collect();
-        let mut round: Vec<usize> = (0..self.var_order.len())
+        let mut round: Vec<usize> = (0..edges.ids.len())
             .filter(|&at| holders[at] == 0 && unheld(at))
             .collect();
         let mut removed = Vec::new();
@@ -1260,7 +1278,7 @@ impl<P> Doc<P> {
                 }
             }
             next.sort_unstable();
-            removed.extend(round.iter().map(|&at| self.var_order[at]));
+            removed.extend(round.iter().map(|&at| edges.ids[at]));
             round = next;
         }
         removed
@@ -1269,7 +1287,7 @@ impl<P> Doc<P> {
     /// **The order definitions evaluate in**: every variable, each
     /// after the variables its definition reads, ties broken by
     /// declaration order — so a document with no definition lists
-    /// [`Self::var_order`]. A variable on a definition cycle, or
+    /// [`Self::var_ids`]. A variable on a definition cycle, or
     /// reading one, which no door admits, comes last, in declaration
     /// order. Kahn's algorithm over [`Self::definition_edges`], the
     /// earliest-declared ready variable first.
@@ -1282,7 +1300,8 @@ impl<P> Doc<P> {
     fn ordered(&self) -> (Vec<VarId>, usize) {
         let edges = self.definition_edges();
         if !edges.any {
-            return (self.var_order.clone(), self.var_order.len());
+            let placed = edges.ids.len();
+            return (edges.ids, placed);
         }
         let mut waiting: Vec<usize> = edges.reads.iter().map(Vec::len).collect();
         let mut ready: std::collections::BinaryHeap<std::cmp::Reverse<usize>> = (0..waiting.len())
@@ -1292,7 +1311,7 @@ impl<P> Doc<P> {
         let mut placed = vec![false; waiting.len()];
         let mut order = Vec::with_capacity(waiting.len());
         while let Some(std::cmp::Reverse(at)) = ready.pop() {
-            order.push(self.var_order[at]);
+            order.push(edges.ids[at]);
             placed[at] = true;
             for &definer in &edges.definers[at] {
                 waiting[definer] -= 1;
@@ -1303,7 +1322,8 @@ impl<P> Doc<P> {
         }
         let ordered = order.len();
         order.extend(
-            self.var_order
+            edges
+                .ids
                 .iter()
                 .zip(&placed)
                 .filter(|(_, placed)| !**placed)
@@ -1381,7 +1401,7 @@ impl<P> Doc<P> {
             return Some(ExpansionFault::Cycle { var, through });
         }
         let sizes = self.expansion_nodes(&order);
-        self.var_order.iter().find_map(|id| {
+        self.vars.keys().find_map(|id| {
             let nodes = *sizes.get(id)?;
             (nodes > crate::edit::DEFINITION_NODE_BOUND)
                 .then_some(ExpansionFault::TooLarge { var: *id, nodes })
@@ -1397,7 +1417,7 @@ impl<P> Doc<P> {
     ///
     /// The first name the document does not hold at the kind it is
     /// read at ([`crate::NameFault`]).
-    pub fn lowered(&self, formula: &crate::Formula) -> Result<Expr, crate::NameFault> {
+    pub fn lowered(&self, formula: &crate::Formula) -> Result<Expr, crate::LowerFault> {
         formula.lower(&|name| self.lowering_scope(name))
     }
 
@@ -1432,14 +1452,15 @@ impl<P> Doc<P> {
     /// name is read off it with [`Self::var_name`] where a lane needs
     /// one.
     pub fn free_vars(&self) -> impl Iterator<Item = (VarId, &FreeVar)> + '_ {
-        self.var_order
+        self.vars
             .iter()
-            .filter_map(|&id| Some((id, self.vars.get(&id)?.free()?)))
+            .filter_map(|(&id, var)| Some((id, var.free()?)))
     }
 
-    /// The variables in declaration order ([`Self::free_vars`]'s base).
-    pub fn var_order(&self) -> &[VarId] {
-        &self.var_order
+    /// **The variable ids, in id order**: the order they were declared
+    /// in ([`Self::free_vars`]'s base).
+    pub fn var_ids(&self) -> Vec<VarId> {
+        self.vars.keys().copied().collect()
     }
 
     /// The name the document holds for `id`, if any.
@@ -1612,16 +1633,11 @@ impl<P> Doc<P> {
     /// collecting version built eagerly.
     fn names_in(&self, carrier: Carrier) -> Box<dyn Iterator<Item = NameCarrier<'_>> + '_> {
         match carrier {
-            Carrier::Payloads => Box::new(
-                self.order
-                    .iter()
-                    .filter_map(|&id| self.nodes.get(&id).map(|node| (id, node)))
-                    .flat_map(|(id, node)| {
-                        node.payload_names()
-                            .into_iter()
-                            .map(move |name| NameCarrier::Payload { node: id, name })
-                    }),
-            ),
+            Carrier::Payloads => Box::new(self.nodes.iter().flat_map(|(&id, node)| {
+                node.payload_names()
+                    .into_iter()
+                    .map(move |name| NameCarrier::Payload { node: id, name })
+            })),
             Carrier::Appearance => Box::new(
                 self.appearance
                     .keys()
@@ -1630,17 +1646,125 @@ impl<P> Doc<P> {
         }
     }
 
-    /// The expression subtree an [`ExprPath`] addresses, or `None` if
-    /// the node is gone, the slot absent, or the path off the tree
-    /// (spec D5).
-    pub fn expr_at(&self, path: &ExprPath) -> Option<&Expr>
+    /// **The variable a node's slot reads** (VARIABLES-DESIGN VR4), or
+    /// `None` if the node is gone or does not carry the slot.
+    pub fn slot(&self, node: RecipeNodeId, slot: SlotId) -> Option<VarId>
     where
         P: crate::ProfilePayload,
     {
-        self.nodes
-            .get(&path.node)?
-            .expr(path.slot)?
+        self.nodes.get(&node)?.expr(slot).copied()
+    }
+
+    /// **The free variable a node's slot reads**, or `None` where the
+    /// slot reads a defined variable, a variable the document no longer
+    /// holds, or no slot is there.
+    pub fn slot_free(&self, node: RecipeNodeId, slot: SlotId) -> Option<&FreeVar>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.free(self.slot(node, slot)?)
+    }
+
+    /// **A continuous slot's written value**: the value its free
+    /// variable holds, in canonical units, and the unit it was written
+    /// in. `None` where [`Self::slot_free`] is, and for a count.
+    pub fn slot_value(&self, node: RecipeNodeId, slot: SlotId) -> Option<(f64, quantity::UnitDef)>
+    where
+        P: crate::ProfilePayload,
+    {
+        match *self.slot_free(node, slot)? {
+            FreeVar::Continuous {
+                value,
+                display_unit,
+                ..
+            } => Some((value, display_unit.def())),
+            FreeVar::Count { .. } => None,
+        }
+    }
+
+    /// **What a node's slot reads, as written**: a reader of its
+    /// variable, each anonymous variable it reaches replaced by what it
+    /// holds — a free one by its value in the unit it was written in, a
+    /// defined one by its definition, expanded the same way — so the
+    /// formula the slot was written as, every name read by id. `None`
+    /// if the node is gone or the slot absent; a reader of the slot's
+    /// variable where the expansion would nest past the bound every
+    /// expression is held to.
+    pub fn slot_expansion(&self, node: RecipeNodeId, slot: SlotId) -> Option<Expr>
+    where
+        P: crate::ProfilePayload,
+    {
+        let var = self.slot(node, slot)?;
+        let dim = self
+            .vars
+            .get(&var)
+            .map_or(slot.dimension(), |v| v.kind().dimension());
+        Some(self.written(&Expr::var(var, dim)))
+    }
+
+    /// **`expr` as written**: each anonymous variable it reaches
+    /// replaced by what it holds ([`Self::slot_expansion`]); `expr`
+    /// itself where that would nest past the bound.
+    pub fn written(&self, expr: &Expr) -> Expr {
+        self.anonymous_expansion(expr)
+            .unwrap_or_else(|_| expr.clone())
+    }
+
+    /// **`expr` expanded only along `path`**: each anonymous definition
+    /// the path enters replaced by what it holds, every leaf off the
+    /// path kept as the variable it reads. `path` addresses this as it
+    /// addresses [`Self::written`] (an anonymous definition's reader is
+    /// its definition, a free one's a leaf), so an edit at `path`
+    /// rebuilt from it re-lowers nothing off the path from a value —
+    /// a shared read, or a distribution, survives (`SetExpression`).
+    /// `None` where `path` leaves the tree.
+    pub(crate) fn expansion_along(&self, expr: &Expr, path: &[u8]) -> Option<Expr> {
+        let Some((&i, rest)) = path.split_first() else {
+            return Some(expr.clone());
+        };
+        if let Some(var) = expr.as_var() {
+            return match self.vars.get(&var).map(Var::def) {
+                Some(crate::VarDef::Defined(defined)) if !self.var_names.contains_key(&var) => {
+                    self.expansion_along(defined, path)
+                }
+                // A free variable, or a named one, is a leaf as written.
+                _ => None,
+            };
+        }
+        let expanded = self.expansion_along(expr.descend(&[i])?, rest)?;
+        expr.with_replaced(&[i], expanded)?.ok()
+    }
+
+    /// `expr` with every reader of an anonymous variable replaced by
+    /// what it holds ([`Self::slot_expansion`]).
+    fn anonymous_expansion(&self, expr: &Expr) -> Result<Expr, crate::DimensionError> {
+        expr.substitute_vars(&mut |var| {
+            if self.var_names.contains_key(&var) {
+                return None;
+            }
+            match self.vars.get(&var)?.def() {
+                crate::VarDef::Free(FreeVar::Continuous {
+                    dim,
+                    value,
+                    display_unit,
+                    ..
+                }) => Expr::literal_leaf_with_unit(*value, *dim, display_unit.def()).ok(),
+                crate::VarDef::Free(FreeVar::Count { value }) => Some(Expr::count(*value)),
+                crate::VarDef::Defined(defined) => self.anonymous_expansion(defined).ok(),
+            }
+        })
+    }
+
+    /// The expression subtree an [`ExprPath`] addresses in its slot's
+    /// expansion ([`Self::slot_expansion`]), or `None` if the node is
+    /// gone, the slot absent, or the path off the tree (spec D5).
+    pub fn expr_at(&self, path: &ExprPath) -> Option<Expr>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.slot_expansion(path.node, path.slot)?
             .descend(&path.path)
+            .cloned()
     }
 
     /// The evaluation environment for this document's variables,
@@ -1668,6 +1792,7 @@ impl<P> Doc<P> {
         let mut env = VarEnv {
             bindings,
             refused: BTreeMap::new(),
+            written: std::collections::BTreeSet::new(),
         };
         self.bind_definitions(&mut env);
         env
@@ -1687,6 +1812,11 @@ impl<P> Doc<P> {
             };
             env.bindings.remove(&id);
             env.refused.remove(&id);
+            if self.var_names.contains_key(&id) {
+                env.written.remove(&id);
+            } else {
+                env.written.insert(id);
+            }
             let bound = if expr.dim() == Dimension::Count {
                 crate::expr::eval_count(expr, env).map(ParamValue::Count)
             } else {
@@ -1729,6 +1859,8 @@ fn expanded_size(expr: &Expr, sizes: &BTreeMap<VarId, usize>, cap: usize) -> usi
 /// by declaration position: each defined variable's live reads, and
 /// each variable's definers in declaration order.
 struct DefinitionEdges {
+    /// The variable ids, in declaration order: what a position indexes.
+    ids: Vec<VarId>,
     position: BTreeMap<VarId, usize>,
     reads: Vec<Vec<usize>>,
     definers: Vec<Vec<usize>>,
@@ -1747,9 +1879,9 @@ pub(crate) enum ExpansionFault {
     TooLarge { var: VarId, nodes: usize },
 }
 
-/// Whether any expression `node` carries reads `var`.
+/// Whether any slot or payload leaf of `node` reads `var`.
 pub(crate) fn node_reads<P: crate::ProfilePayload>(node: &Node<P>, var: VarId) -> bool {
-    node.exprs().into_iter().any(|expr| expr.reads(var))
+    node.exprs().into_iter().any(|&read| read == var)
 }
 
 impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
@@ -1762,7 +1894,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
             && self.mint == other.mint
-            && self.order == other.order
             && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
             // Witness bytes are exact data (no float semantics to
@@ -1783,7 +1914,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                     .is_some_and(|theirs| node.bit_eq(theirs))
             })
             && self.var_names == other.var_names
-            && self.var_order == other.var_order
             && self.vars.len() == other.vars.len()
             && self.vars.iter().all(|(id, var)| {
                 other
@@ -1933,7 +2063,7 @@ mod tests {
     fn name(node: u64, kind: EntityKind) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: Vec::new(),
         }
     }
@@ -1993,26 +2123,20 @@ mod tests {
     }
 
     /// **Both carriers, in the contracted order**: every payload name
-    /// in document order, then every store key in the store's own
-    /// order.
+    /// in id order, then every store key in the store's own order.
     ///
-    /// The fixture makes both halves of that falsifiable. The two
-    /// nodes sit in the document in the REVERSE of their id order, so
-    /// a walk over the node map instead of `Doc::order` swaps the
-    /// first two rows; and both store keys are minted by a node that
-    /// sorts BEFORE either payload name, so a walk that merged the
-    /// two carriers into one sorted list — or ran the store first —
-    /// puts them at the front instead of the back.
+    /// The fixture makes the second half falsifiable: both store keys
+    /// are minted by a node that sorts BEFORE either payload name, so
+    /// a walk that merged the two carriers into one sorted list — or
+    /// ran the store first — puts them at the front instead of the
+    /// back.
     ///
     /// DM7's report is this walk filtered on the deleted node, so
     /// this order is the clause's payload-strands-before-store-strands
     /// order; `dm7_delete_strands` holds that end of it at the door.
     /// The fixture is built by poking `Doc`'s fields, not through
-    /// the edit doors, because the reversal has to be the row's choice:
-    /// through the doors, how a node's id sorts against the ids before
-    /// it is the mint's digest, not the author's. In-crate reach spells
-    /// that state in five lines and keeps the row's subject the walk
-    /// rather than the door.
+    /// the edit doors: in-crate reach spells that state in a few lines
+    /// and keeps the row's subject the walk rather than the door.
     #[test]
     fn name_carriers_reads_the_payloads_then_the_store() {
         let mut doc: ProfileDoc = Doc::empty_derived("carriers", Tol::witness());
@@ -2022,13 +2146,12 @@ mod tests {
         let painted_a = name(0, EntityKind::Face);
         let painted_b = name(1, EntityKind::Face);
 
-        // Declared in id order, ordered in the document backwards.
         doc.nodes.insert(
-            RecipeNodeId(0),
+            RecipeNodeId::new(0, 0),
             Node::Boolean {
                 op: crate::BooleanOp::Union,
-                a: RecipeNodeId(98),
-                b: RecipeNodeId(99),
+                a: RecipeNodeId::new(0, 98),
+                b: RecipeNodeId::new(0, 99),
                 declare: vec![(
                     (
                         SitedRef::at_mint(first.clone()),
@@ -2039,11 +2162,11 @@ mod tests {
             },
         );
         doc.nodes.insert(
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 1),
             Node::Boolean {
                 op: crate::BooleanOp::Union,
-                a: RecipeNodeId(98),
-                b: RecipeNodeId(99),
+                a: RecipeNodeId::new(0, 98),
+                b: RecipeNodeId::new(0, 99),
                 declare: vec![(
                     (
                         SitedRef::at_mint(third.clone()),
@@ -2061,7 +2184,7 @@ mod tests {
         // so its absence below is asserted by the same equality.
         let crossed = name(11, EntityKind::Face);
         doc.nodes.insert(
-            RecipeNodeId(2),
+            RecipeNodeId::new(0, 2),
             Node::InstantiatePart {
                 doc_ref: DocRef {
                     id: DocumentId::derive("carriers-part"),
@@ -2079,7 +2202,6 @@ mod tests {
                 offset: Some(crate::placement::Placement::IDENTITY),
             },
         );
-        doc.order = vec![RecipeNodeId(2), RecipeNodeId(1), RecipeNodeId(0)];
         for key in [&painted_b, &painted_a] {
             doc.appearance
                 .insert(key.clone(), AppearanceRecord::default());
@@ -2089,42 +2211,44 @@ mod tests {
             doc.name_carriers().collect::<Vec<_>>(),
             vec![
                 NameCarrier::Payload {
-                    node: RecipeNodeId(2),
-                    name: &crossed,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(1),
-                    name: &third,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(1),
-                    name: &third,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(0),
+                    node: RecipeNodeId::new(0, 0),
                     name: &first,
                 },
                 NameCarrier::Payload {
-                    node: RecipeNodeId(0),
+                    node: RecipeNodeId::new(0, 0),
                     name: &second,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId::new(0, 1),
+                    name: &third,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId::new(0, 1),
+                    name: &third,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId::new(0, 2),
+                    name: &crossed,
                 },
                 NameCarrier::Store { name: &painted_a },
                 NameCarrier::Store { name: &painted_b },
             ],
-            "the walk is `Carrier::ALL`'s order: document order over the payloads, then the \
+            "the walk is `Carrier::ALL`'s order: id order over the payloads, then the \
              store's own key order"
         );
     }
 
     /// A document holding `a := b + 1 mm` and `b := a`, written past
-    /// the doors (which refuse it, as the load walk does): the shape
+    /// the doors (which refuse it, as the load walk does), both named
+    /// (an unnamed definition is a slot's formula, whose refusal is the
+    /// slot's own — `VarEnv::written`): the shape
     /// [`Doc::definition_order`] and [`Doc::bind_definitions`] still
     /// answer for.
     fn cyclic() -> (ProfileDoc, crate::var::VarId, crate::var::VarId) {
         use crate::expr::{Dimension, Expr};
         use crate::var::{Var, VarDef, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-cyclic", Tol::witness());
-        let (a, b) = (VarId(1), VarId(2));
+        let (a, b) = (VarId::new(0, 1), VarId::new(0, 2));
         let read = |var| Expr::var(var, Dimension::Length);
         let one = Expr::literal(0.001, Dimension::Length).expect("a length");
         doc.vars.insert(
@@ -2134,7 +2258,8 @@ mod tests {
             )),
         );
         doc.vars.insert(b, Var::new(VarDef::Defined(read(a))));
-        doc.var_order = vec![a, b];
+        doc.var_names.insert(a, super::VarName::from_static("a"));
+        doc.var_names.insert(b, super::VarName::from_static("b"));
         (doc, a, b)
     }
 
@@ -2169,7 +2294,7 @@ mod tests {
         use crate::expr::{Dimension, Expr};
         use crate::var::{Var, VarDef, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-saturate", Tol::witness());
-        let w = VarId(1);
+        let w = VarId::new(0, 1);
         doc.vars.insert(
             w,
             Var::new(VarDef::Free(super::FreeVar::continuous(
@@ -2177,10 +2302,9 @@ mod tests {
                 1.0,
             ))),
         );
-        doc.var_order.push(w);
         let mut prev = w;
         for k in 2..40 {
-            let id = VarId(k);
+            let id = VarId::new(0, k);
             let read = Expr::var(prev, Dimension::Length);
             doc.vars.insert(
                 id,
@@ -2188,11 +2312,10 @@ mod tests {
                     Expr::add(read.clone(), read).expect("adds"),
                 )),
             );
-            doc.var_order.push(id);
             prev = id;
         }
         let sizes = doc.expansion_nodes(&doc.definition_order());
-        assert_eq!(sizes[&VarId(2)], 3);
+        assert_eq!(sizes[&VarId::new(0, 2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
     }
 }

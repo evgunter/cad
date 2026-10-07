@@ -160,8 +160,8 @@ use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, ShellError,
-    StaleDeclaration, TransformError, ValidationError,
+    BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, RingPairContact,
+    ShellError, StaleDeclaration, TransformError, ValidationError,
 };
 use pncad::topo::{CoherenceCondition, Unexaminable};
 // All three STL refusals are prelude-curated; the module path is the
@@ -568,7 +568,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
-        EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -589,7 +588,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ContinuousVarCannotBeCount { .. } => "continuous_var_cannot_be_count",
         EditError::UnknownVar { .. } => "unknown_var",
         EditError::VarNameTaken { .. } => "var_name_taken",
-        EditError::VarIdCollides { .. } => "var_id_collides",
+        EditError::FreshUnheld { .. } => "fresh_unheld",
+        EditError::FreshKind { .. } => "fresh_kind",
+        EditError::FreshUnread { .. } => "fresh_unread",
         EditError::VarNameUnchanged { .. } => "var_name_unchanged",
         EditError::AnonymousVarUnread { .. } => "anonymous_var_unread",
         EditError::DeleteAnonymousVar { .. } => "delete_anonymous_var",
@@ -1276,7 +1277,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetExtrudeSideOnNonExtrude { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
-        EditError::NodeIdCollides { .. } => None,
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1292,7 +1292,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::ContinuousVarCannotBeCount { .. } => None,
         EditError::UnknownVar { .. } => None,
         EditError::VarNameTaken { .. } => None,
-        EditError::VarIdCollides { .. } => None,
+        EditError::FreshUnheld { .. } => None,
+        EditError::FreshKind { .. } => None,
+        EditError::FreshUnread { .. } => None,
         EditError::SlotUnresolvedVar { .. } => None,
         EditError::PayloadUnresolvedVar { .. } => None,
         EditError::VarNameUnchanged { .. } => None,
@@ -1485,7 +1487,6 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::ArcCrossesAxis { .. } => "arc_crosses_axis",
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
         RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
-        RevolveError::OneSegmentLoop { .. } => "one_segment_loop",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
         RevolveError::MultipleAxisRuns { .. } => "multiple_axis_runs",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
@@ -1547,6 +1548,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::ChainNotConnected { .. } => "chain_not_connected",
         BlendError::RadiusHeadroom { .. } => "radius_headroom",
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
+        BlendError::FaceClearance { .. } => "face_clearance",
         BlendError::TangentialEdge { .. } => "tangential_edge",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
@@ -1600,6 +1602,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::DegenerateTorus => "degenerate_torus",
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
+        BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
         BooleanErrorKind::CrossingCarrierUnsupported => "crossing_carrier_unsupported",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
@@ -1625,7 +1628,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
-        BooleanErrorKind::PierceRunsUnordered => "pierce_runs_unordered",
+        BooleanErrorKind::PierceRunsNested => "pierce_runs_nested",
+        BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1639,6 +1643,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::RestZipUnsupported => "rest_zip_unsupported",
+        BooleanErrorKind::JoinUndecided => "join_undecided",
+        BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
+        BooleanErrorKind::CurvedRestUnrecorded => "curved_rest_unrecorded",
         BooleanErrorKind::JoinDesync => "join_desync",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
@@ -1706,7 +1713,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
-        LoftError::OneSegmentLoop { .. } => "one_segment_loop",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
@@ -1758,6 +1764,8 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
         NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
+        NamingError::ConventionalVertex { .. } => "conventional_vertex",
+        NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -1792,7 +1800,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OpenFaceRepeated { .. } => "open_face_repeated",
         ShellError::OpenFacesExhaustShell { .. } => "open_faces_exhaust_shell",
         ShellError::OpenFacesDisconnect { .. } => "open_faces_disconnect",
-        ShellError::OpenFaceRingUnsupported { .. } => "open_face_ring_unsupported",
         ShellError::OpenFaceChartPartial { .. } => "open_face_chart_partial",
         ShellError::Lift { .. } => "lift",
         ShellError::Insert { .. } => "insert",
@@ -1986,7 +1993,6 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 /// pinned by `tests::the_edit_and_snapshot_maps_agree_on_the_var_read_words`.
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
-        SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
@@ -2001,9 +2007,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::VarKind { .. } => "var_kind",
         SnapshotError::VarNotMinted { .. } => "var_not_minted",
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
-        SnapshotError::VarOrderMismatch => "var_order_mismatch",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
-        SnapshotError::SlotDimension { .. } => "slot_dimension",
         SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
         SnapshotError::PayloadVarKind { .. } => "payload_var_kind",
@@ -2185,14 +2189,13 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a sixth normalization minted
+/// The match is exhaustive, so a fifth normalization minted
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these five words.
+/// one of these four words.
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
-        NormalizationKind::FullPeriodTorus => "full_period_torus",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
     }
@@ -2329,6 +2332,16 @@ pub fn name_fault_tag(fault: &pncad::document::NameFault) -> &'static str {
     match fault.why {
         pncad::document::Unlowered::Unheld => "unlowered_name",
         pncad::document::Unlowered::Kind { .. } => "var_kind_mismatch",
+    }
+}
+
+/// The stable tag for a fresh-table read a formula makes outside the
+/// edit whose table it reads: the edit door's own words for it
+/// ([`edit_error_tag`]'s `fresh_unheld` and `fresh_kind`).
+pub fn fresh_fault_tag(fault: &pncad::document::FreshFault) -> &'static str {
+    match fault.held {
+        None => "fresh_unheld",
+        Some(_) => "fresh_kind",
     }
 }
 
@@ -2543,7 +2556,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
-        SplitError::AnonymousVarCrossesCut { .. } => "anonymous_var_crosses_cut",
+        SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
@@ -2571,7 +2584,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
-        InlineError::AnonymousVarCrossesCut { .. } => "anonymous_var_crosses_cut",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
         InlineError::MatePlaced { .. } => "mate_placed",
@@ -3044,6 +3056,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",
         ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",
         ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
+        ValidationError::RingMeetsRing { .. } => "ring_meets_ring",
+        ValidationError::RingPairContactEscalated { .. } => "ring_pair_contact_escalated",
+        ValidationError::PinchCornerCrossed { .. } => "pinch_corner_crossed",
+        ValidationError::PinchCornerEscalated { .. } => "pinch_corner_escalated",
         ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
         ValidationError::ShellWinding { .. } => "shell_winding",
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
@@ -3242,6 +3258,21 @@ pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
     }
 }
 
+/// The stable tag for HOW two rings of one face meet: [`ring_contact_tag`]'s
+/// words, the other ring read where that function reads the outer
+/// loop, so one shape keeps one spelling. `vertex_on_ring_edge` is a
+/// vertex of the other ring on the interior of this ring's edge.
+pub fn ring_pair_contact_tag(contact: &RingPairContact) -> &'static str {
+    match contact {
+        RingPairContact::Vertex { .. } => "vertex_vertex",
+        RingPairContact::VertexOnEdge { .. } => "vertex_on_edge",
+        RingPairContact::Edge { .. } => "edge_along_edge",
+        RingPairContact::OtherVertexOnEdge { .. } => "vertex_on_ring_edge",
+        RingPairContact::EdgesMeet { .. } => "edge_edge_point",
+        RingPairContact::Circles { .. } => "circle_circle",
+    }
+}
+
 /// The stable tag for a mate PRIMITIVE — which alignment the authored
 /// mate asks for, before any solve.
 pub fn mate_primitive_tag(primitive: MatePrimitive) -> &'static str {
@@ -3317,7 +3348,6 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
-        StepIdFault::Collides { .. } => "collides",
     }
 }
 

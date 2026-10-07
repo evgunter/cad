@@ -350,12 +350,18 @@ mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
 
+#[path = "a_vertex_read_by_two_sector_passes.rs"]
+mod a_vertex_read_by_two_sector_passes;
+#[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
+mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
 mod cleave_mint_doors;
 #[path = "door_backstop_settled_residue.rs"]
 mod door_backstop_settled_residue;
+#[path = "holes_meeting_at_a_vertex.rs"]
+mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
 #[path = "review_cleave_mint_doors.rs"]

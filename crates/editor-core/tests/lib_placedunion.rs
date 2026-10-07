@@ -76,7 +76,7 @@ fn the_fin_group_is_one_node_and_one_body() {
     let d = doc_named("heat_sink_fins");
     let groups = d
         .doc
-        .order()
+        .ids()
         .iter()
         .filter(|&&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
         .count();
@@ -127,6 +127,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                         angle: ang(0.0),
                     },
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -146,6 +147,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                             b: placed,
                             declare: Vec::new(),
                         }),
+                        fresh: Vec::new(),
                     },
                     Tol::witness(),
                     &editor_core::RefusingReach,
@@ -173,6 +175,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                 )
                 .expect("a stepped rule takes a count"),
             ),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -252,7 +255,7 @@ fn the_die_tool_is_one_node_and_still_cuts() {
     let mut groups = 0;
     let mut unions = 0;
     let mut transforms = 0;
-    for &id in d.doc.order() {
+    for id in d.doc.ids() {
         match d.doc.node(id) {
             Some(Node::PlacedUnion { .. }) => groups += 1,
             Some(Node::Boolean {
@@ -283,7 +286,7 @@ fn every_instance_is_one_instance_segment_deep() {
     let ev = eval::<f64>(&d.doc);
     let tool = d
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
@@ -449,7 +452,8 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(with_count)
+                node: Box::new(with_count),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -465,7 +469,8 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(pattern_explicit)
+                node: Box::new(pattern_explicit),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -496,6 +501,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -640,7 +646,8 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(empty)
+                node: Box::new(empty),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -663,6 +670,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
                 )
                 .expect("a stepped rule takes a count"),
             ),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -688,6 +696,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::placed_union_at(fin, vec![Frame::IDENTITY])),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -744,7 +753,8 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(with(nan))
+                node: Box::new(with(nan)),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -760,7 +770,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)) }, Tol::witness(), &editor_core::RefusingReach),
+        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)), fresh: Vec::new() }, Tol::witness(), &editor_core::RefusingReach),
         Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
     ));
 
@@ -779,6 +789,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(two),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -808,7 +819,8 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(with(turned))
+                node: Box::new(with(turned)),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -868,6 +880,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                     })
                     .collect(),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -889,6 +902,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                         angle: ang(an),
                     },
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -908,6 +922,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                             b: placed,
                             declare: Vec::new(),
                         }),
+                        fresh: Vec::new(),
                     },
                     Tol::witness(),
                     &editor_core::RefusingReach,
@@ -977,6 +992,7 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
             &before,
             &DocEdit::InsertNode {
                 node: Box::new(node.clone()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

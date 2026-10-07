@@ -82,6 +82,7 @@ pub fn document() -> CorpusDoc {
             node: loft,
             slot: SlotId::VDegree,
             expr: Formula::count(1),
+            fresh: Vec::new(),
         },
         bump_root: loft,
     }

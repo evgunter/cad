@@ -23,37 +23,39 @@ with `ShellNaming`), `editor-core`'s recipe doors.
 
 ## Unit order
 
-The landed units (SHELL-1, 2, 5–10) are in `log.md`; SHELL-3 and
-SHELL-4 are CLEAR's. The slate after the 2026-10-06 triage and cut
-(the rows behind it went to SHELF, CLEAR and OFFSET), as units:
+The landed units are in `log.md`: SHELL-1, 2 and 5–10 earlier; the
+2026-10-06 cut's seven units (PRs 4111, 4112, 4115, 4117, 4163, 4151,
+4191) on 2026-10-06/07. SHELL-3 and SHELL-4 are CLEAR's. The slate
+after that cut, as units:
 
-1. **The pole-touching ball** — `shell-of-a-pole-touching-sphere-refuses-mapped-source`
-   (P0). Measure `topo::shell` on today's fixtures first; close on a
-   closed-form row, or fix the measured refusal.
-2. **The operand is at rest** — `shell-answers-for-the-complement-of-an-inside-out-operand`
-   carrying `shell-launders-a-stale-operand-row`: `shell`,
-   `shell_open` and `replace_faces_offset` take an `AtRestBody`, the
-   shape the boolean and split doors already settled.
-3. **The planar gate's silent misses** — `shell-clearance-footprint-reads-vertices-not-arcs`
-   carrying `shell-walls-antiparallel-decides-a-cosine-on-the-metre-band`:
-   arc extents in the footprint, and the facing test as a length.
-4. **Lofted walls** — `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`:
-   a certified NURBS (and ellipse) re-anchor in `plan_reanchors`.
-5. **The refusal text** — `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`
-   carrying `shell-refusals-short-of-the-shape-guard` and
-   `offset-doors-small-doc-and-message-drift`: the chrome standard on
-   every `ReplaceFaceError` and `ShellError` arm, and the guard's
-   admissions deleted.
-6. **The klein elbow's lift** — `shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow`:
-   measure which face `is_axial_in` declines, then take the together
-   door or refuse typed. The end-to-end payoff also waits on FLUX's
-   `spiric-bounded-face-area-is-unimplemented`.
-7. **A curved designated face** — `shell-open-refuses-a-curved-designated-face`:
-   the designer pair first (refuse at props, or keep a construction
-   gate), then a spec.
+8. **Tilted planar walls** — `shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel`
+   (P1, M): the planar gate reads only antiparallel pairs, so two
+   walls meeting at an angle across less than `2t` shell silently.
+   A silent wrong body; first in line.
+9. **The lofted oblique corner** — `shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam`
+   (P1, H): the per-chart door moves a cap rigidly, so a loft with
+   slanted seams refuses `ReanchorOffCarrier`. Measure first; a
+   design question goes to the designer pair before a spec.
+10. **The face door is at rest** — `replace-face-offset-answers-for-the-complement-of-an-inside-out-body`
+    (P2, M) carrying `shell-operand-shape-arms-behind-the-at-rest-gate`
+    (P3, E): the `AtRestBody` gate unit 2 put on `shell` reaches
+    `replace_face_offset`, and the arms it made unreachable go.
+11. **The sealed arm's two refusals** — `shell-of-a-cone-tip-refuses-at-the-nappe-decision`
+    and `shell-of-a-tangent-dome-refuses-at-the-axial-corner` (P2,
+    M each). Unit 7's cone tip, tangent dome and the lift's cone arm
+    all wait here.
+12. **A band between two boundaries** — `shell-open-band-wrapping-between-two-boundaries`
+    (P2, M), unit 7's residue.
 
-Units 1–4 and the unit-7 designers run in parallel; unit 5 follows
-unit 4 in `replace_face.rs`; unit 6 when a lane frees.
+The P3 re-anchor rows (`reanchor-does-not-extend-…`,
+`reanchor-reads-a-closed-spline-carrier-…`,
+`replace-faces-offset-drops-rows-…`,
+`nurbs-lane-absence-has-three-spellings-…`) and the per-chart door's
+`per-chart-door-transports-a-torus-rim-…` follow; the two unpriced
+rows are priced before they are dispatched.
+
+Units 8 and 10 run in parallel (different files); unit 9's measure
+runs beside them.
 
 ## Adjacent, not taken
 

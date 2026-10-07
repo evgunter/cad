@@ -624,6 +624,15 @@ and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
 
 - 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.
 
+- 2026-10-06 — Unit 3 merged (#4169, `252db21ff`; DR-92, no MAJOR from either reviewer). The fix pass also fixed three things the review found:
+  - split's lever reading on a one-vertex cap;
+  - the tangent-plane split through the strut;
+  - contact near a full turn's vertex, now a crossing.
+
+  `one-segment-loop-revolves-and-lofts-to-one-wall` is dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
+  - D10 check: the unit changes how a face's chart closes (the wrap edge) and how closed walls are swept and read. It touches no intent, placement or declared contact, and `BooleanCoincidence::Seam` stays as it is, so it may start under the hold.
+  - Review tier: dual (H). It is new topology through every face reader, where a wrong body ships silently.
+- 2026-10-06 — `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0) closed: CLEAVE PR 4083 had already fixed both rows on main (`65b1b0a838`).
 - 2026-10-06 — Red on main at ε = 1e-6 since #4169 (`252db21ff`): `one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does` held a curved-cut quadrature midpoint (7.3e-6 off, pad 1.3e-3) to a fixed 1e-9. #4205 checks the certified bracket instead. The sibling checks are filed as `work/quad/sweep-tests-hold-quadrature-midpoints-to-fixed-tolerances.md`.
 ## 2026-10-06 — seam note from CARVE: main is red on a PATHS row at ε = 1e-6
 
@@ -638,3 +647,16 @@ red until PATHS fixes it, and CARVE merges them over it with this as
 the reason.
 
 Signed: (CARVE orchestrator)
+
+- 2026-10-07 — The wrap-edge unit merged (#4226, `e1efb472c`; DR-100, no MAJOR from either reviewer). A one-segment loop now revolves and lofts to one wall, and the one-face full torus is adopted.
+  - The fix pass made tier 3 hold the wrap flag both ways. That exposed a STEP slit adopted unflagged (`dm1-id-214.stp`); step-import now flags it as the face's wrap edge.
+  - Two of main's reds were ported by merge, not caused here: the meeting fixture's gates (#4229/#4230), and `SectorRead`'s rung disposition (#4242).
+  - Main's new `boolean/edge_join.rs` (FUSE, #4233) still read the renamed field, so the merge renamed it there.
+
+  Unit 4 (`circle-lowers-to-one-segment`) now waits only on JOIN's `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once`.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) is dispatched on `claude/clever-bardeen-4itqb3`. The seed still reds on main `e1efb472c` with the same message.
+  - D10 check: it is fillet construction accuracy, the tangent point `t2` lying off its own circle by about ε/2. It does not rework how declared tangent joints are recorded or verified, so it may start under the hold, and the lane stops if the fix needs to.
+  - Review tier: dual (H). The fillet construction feeds every filleted profile.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) closes on `claude/clever-bardeen-4itqb3`. The seed's corner has no exact fillet: its offset circles miss tangency by 5.27e-7, inside the 1e-6 band. The decided centre was the radical-line foot, which carried that gap amplified by (ρ₁ + ρ₂)/d (1.117x here, unbounded on near-equal carriers).
+  - The centre now sits midway between the offset circles' nearest points, so each arc×arc rim carries half the gap: the floor where the circles are separated, a bound where they cross. The oracle pins each rim at half the gap, and a pinned sweep draws the decided class at both scalars.
+  - The D10 hold did not bind: no joint's recording or verification changed. The sibling sites are filed as `decided-tangent-point-is-the-radical-foot`.

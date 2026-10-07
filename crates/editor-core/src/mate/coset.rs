@@ -360,7 +360,7 @@ pub enum FoldStop {
     OutOfRange,
     /// The fold's arm is no lever an angle can be decided over at
     /// this band ([`Arm::decides_over`]); refused before any angle is.
-    Unleverable(LeverRefusal),
+    Unleverable(Box<LeverRefusal>),
 }
 
 impl From<Indeterminate> for FoldStop {
@@ -897,7 +897,9 @@ pub(super) fn trivial_member<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<(), FoldStop> {
-    let arm = arm.decides_over(band).map_err(FoldStop::Unleverable)?;
+    let arm = arm
+        .decides_over(band)
+        .map_err(|refusal| FoldStop::Unleverable(Box::new(refusal)))?;
     member_of(Subgroup::Trivial, x, band, arm)
 }
 
@@ -945,7 +947,9 @@ pub fn intersect<T: SolveScalar>(
     if matches!(added.subgroup, Subgroup::Se3) {
         return Ok(held);
     }
-    let arm = arm.decides_over(band).map_err(FoldStop::Unleverable)?;
+    let arm = arm
+        .decides_over(band)
+        .map_err(|refusal| FoldStop::Unleverable(Box::new(refusal)))?;
     let (residual, separated) = table(held.subgroup, added.subgroup, band, arm)?;
     let rotation = candidate_rotation(held, added, residual, band, arm)?;
     let translation = candidate_translation(held, added, residual, separated, rotation, arm);

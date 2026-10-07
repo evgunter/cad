@@ -341,8 +341,10 @@ pub(crate) fn runs(
     let (doc, mut ids) = document(&case.blocks, &case.creation);
     let doc = match case.shift {
         None => doc,
-        // The shift is a value edit of one transform, so every shift of
-        // a case is one document's history and names one set of nodes.
+        // The shift is a value edit of one transform — its slot keeps
+        // the variable it reads, whose value moves, so nothing is minted
+        // — and every shift of a case is one document's history and
+        // names one set of nodes.
         Some((i, dx)) => {
             let (doc, tr) = insert(
                 doc,
@@ -356,12 +358,14 @@ pub(crate) fn runs(
                 ),
             );
             ids[i] = tr;
+            let var = doc
+                .slot(tr, editor_core::SlotId::Translation(editor_core::Axis3::X))
+                .expect("a transform reads its translation");
             crate::fixture::step(
                 doc,
-                editor_core::DocEdit::SetParam {
-                    node: tr,
-                    slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
-                    expr: len(dx),
+                editor_core::DocEdit::SetVarValue {
+                    var: var.into(),
+                    value: editor_core::FreeValue::Continuous(dx),
                 },
             )
             .0
@@ -452,9 +456,15 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// in the other, and so is the rim piece whose end it is;
 /// `work/emit/an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order.md`
 /// owns it.
+///
+/// The digests spell node and step ids, so they moved when slots came to
+/// hold variables (INTENT-LITERALS PR C renumbered every node); the
+/// counts, and which absences they are, did not. They moved again when
+/// an id became its mint ordinal and digest, with the counts PR 4228
+/// left (six: `Ends` on every piece) held.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 529256286454640581),
-    ("r5pokehi", "U", 4, 6790325488204188293),
+    ("r5poke", "U", 6, 2467663368560056480),
+    ("r5pokehi", "U", 6, 16300433809704317214),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.
@@ -838,7 +848,7 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
                         node: m,
                         path: vec![RoleSeg::RimEdge(
                             CapEnd::Start,
-                            crate::fixture::piece(&doc, m, 0, 0),
+                            crate::fixture::piece(&doc, m, 0, 0).into(),
                         )],
                     },
                     EntityKind::Edge,
@@ -961,7 +971,7 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, m, 0, 0),
+            crate::fixture::piece(&doc, m, 0, 0).into(),
         )],
     };
     // x-span → the name there, for every edge along the rim line.

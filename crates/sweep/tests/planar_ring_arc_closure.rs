@@ -10,8 +10,8 @@
 //! shallow cap past the half-disc, the crescent and the lens (two arcs
 //! on one chord, bowing the same way and opposite ways), and the D and
 //! the crescent drawn with an arc split at a vertex on its circle, which
-//! the extrude sweeps as one wall, so the vertex drawn on the arc stays
-//! on the prism's caps and must leave none in the section. Every profile is driven through
+//! the extrude sweeps as one wall, so the vertex drawn on the arc has no
+//! entity and leaves none in the section. Every profile is driven through
 //! the slab upright, off the origin, spun about its axis and tilted
 //! about one axis and two, and every op is asked in both member orders.
 
@@ -23,6 +23,8 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
+
+use crate::common::stations::cut_stations;
 use topo::{AtRestBody, BooleanError};
 
 /// The slab `[−4, 4]² × [−0.5, 0.5]`.
@@ -45,12 +47,12 @@ fn census(body: &topo::Body<f64>) -> Census {
     )
 }
 
-/// **The census of a slab pierced by an `n`-sided prism whose caps
-/// each carry `k` vertices drawn on an arc**, for ∪, ∩, slab ∖ prism and
-/// prism ∖ slab. A vertex drawn between two arcs of one circle splits
-/// the cap's edge there but no wall, so the slab's sections never meet
-/// it: it shows only on the prism's own caps, which ∪ and prism ∖ slab
-/// keep.
+/// **The census of a slab pierced by an `n`-sided prism**, for ∪, ∩,
+/// slab ∖ prism and prism ∖ slab. A vertex drawn between two arcs of one
+/// circle is a station inside a run: it splits neither wall nor rim, so
+/// it has no entity. A station cut back into a rim by hand splits the
+/// rim but no wall, so the slab's sections never meet it, and the
+/// output's join takes it off the caps ∪ and prism ∖ slab keep.
 ///
 /// - ∪: the slab's two faces each keep a ring of `n` edges and `n`
 ///   vertices, and the prism's `n` walls are cut into the stub above and
@@ -58,18 +60,12 @@ fn census(body: &topo::Body<f64>) -> Census {
 /// - ∩: the prism one unit long between the slab's planes;
 /// - slab ∖ prism: the slab with a hole through it, genus 1;
 /// - prism ∖ slab: the two stubs.
-fn pierced(n: usize, k: usize) -> [Census; 4] {
+fn pierced(n: usize) -> [Census; 4] {
     [
-        (
-            1,
-            8 + 4 * n + 2 * k,
-            12 + 6 * n + 2 * k,
-            8 + 2 * n,
-            10 + 2 * n,
-        ),
+        (1, 8 + 4 * n, 12 + 6 * n, 8 + 2 * n, 10 + 2 * n),
         (1, 2 * n, 3 * n, 2 + n, 2 + n),
         (1, 8 + 2 * n, 12 + 3 * n, 6 + n, 8 + n),
-        (2, 4 * n + 2 * k, 6 * n + 2 * k, 4 + 2 * n, 4 + 2 * n),
+        (2, 4 * n, 6 * n, 4 + 2 * n, 4 + 2 * n),
     ]
 }
 
@@ -80,15 +76,13 @@ fn bulge(turn: f64) -> f64 {
     -(turn / 4.0).tan()
 }
 
-/// One profile: its name, its chain, its area in closed form, the
-/// number of sides its prism has, and the number of its vertices drawn
-/// on an arc ([`pierced`]).
+/// One profile: its name, its chain, its area in closed form, and the
+/// number of sides its prism has ([`pierced`]).
 struct Shape {
     name: String,
     chain: Vec<(Point2<f64>, f64)>,
     area: f64,
     sides: usize,
-    on_arc: usize,
 }
 
 /// The area between a chord of length 2 and an arc through `turn` on it.
@@ -107,13 +101,12 @@ fn shapes() -> Vec<Shape> {
             chain: vec![(p(-1.0, 0.0), bulge(turn)), (p(1.0, 0.0), 0.0)],
             area: segment_area(turn),
             sides: 2,
-            on_arc: 0,
         });
     }
     // The D's half-disc arc split at its apex, and at a third of its turn:
-    // a run of two arcs on one circle, which sweeps one wall, so the
-    // prism has two sides and the vertex drawn on the arc stays on its
-    // caps.
+    // a run of two arcs on one circle, which sweeps one wall with one
+    // rim on each cap, so the prism has two sides and the vertex drawn
+    // on the arc has no entity.
     out.push(Shape {
         name: "D split at its apex".into(),
         chain: vec![
@@ -123,7 +116,6 @@ fn shapes() -> Vec<Shape> {
         ],
         area: PI / 2.0,
         sides: 2,
-        on_arc: 1,
     });
     out.push(Shape {
         name: "D split at a third".into(),
@@ -134,7 +126,6 @@ fn shapes() -> Vec<Shape> {
         ],
         area: PI / 2.0,
         sides: 2,
-        on_arc: 1,
     });
     // The crescent: over the top on the half-disc's arc, back on a
     // shallower one bowing the same way.
@@ -143,7 +134,6 @@ fn shapes() -> Vec<Shape> {
         chain: vec![(p(-1.0, 0.0), bulge(PI)), (p(1.0, 0.0), bulge(-0.6))],
         area: segment_area(PI) - segment_area(0.6),
         sides: 2,
-        on_arc: 0,
     });
     // The crescent with its outer arc split at its apex.
     out.push(Shape {
@@ -155,7 +145,6 @@ fn shapes() -> Vec<Shape> {
         ],
         area: segment_area(PI) - segment_area(0.6),
         sides: 2,
-        on_arc: 1,
     });
     // The lens: over the top, and back under the bottom.
     out.push(Shape {
@@ -163,7 +152,6 @@ fn shapes() -> Vec<Shape> {
         chain: vec![(p(-1.0, 0.0), bulge(PI)), (p(1.0, 0.0), bulge(0.6))],
         area: segment_area(PI) + segment_area(0.6),
         sides: 2,
-        on_arc: 0,
     });
     out
 }
@@ -197,13 +185,16 @@ fn poses() -> Vec<(&'static str, Affine3<f64>, f64)> {
     ]
 }
 
-fn prism(shape: &Shape, pose: &Affine3<f64>) -> AtRestBody<f64> {
+/// The prism of `shape` at `pose`, with `stations` (sketch points on
+/// the arc run's circle) cut back into both of the run's rims by hand
+/// (`common::stations::cut_stations`).
+fn prism(shape: &Shape, pose: &Affine3<f64>, stations: &[Point2<f64>]) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -LENGTH / 2.0)));
     let profile = Profile::new(plane, vec![bulge_loop(shape.chain.clone())])
         .validate(tol)
         .unwrap_or_else(|e| panic!("{}: the profile validates: {e:?}", shape.name));
-    let upright = extrude(
+    let ex = extrude(
         &profile,
         Extrusion::Distance {
             depth: LENGTH,
@@ -211,8 +202,25 @@ fn prism(shape: &Shape, pose: &Affine3<f64>) -> AtRestBody<f64> {
         },
         tol,
     )
-    .unwrap()
-    .body;
+    .unwrap();
+    let mut upright = ex.body;
+    if !stations.is_empty() {
+        let [run] = &ex.walls[0]
+            .iter()
+            .filter(|w| w.segments.len() > 1)
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("{}: one wall run carries the stations", shape.name);
+        };
+        let at = |z: f64| {
+            stations
+                .iter()
+                .map(|q| Point3::new(q.x, q.y, z))
+                .collect::<Vec<_>>()
+        };
+        upright = cut_stations(upright, run.bottom_rim, &at(-LENGTH / 2.0), tol);
+        upright = cut_stations(upright, run.top_rim, &at(LENGTH / 2.0), tol);
+    }
     finished(
         "the prism",
         topo::transform_rigid(&upright, pose, tol).unwrap(),
@@ -299,71 +307,105 @@ fn a_prism_with_arc_walls_through_a_slab_builds_every_op() {
         tol,
     );
     for shape in shapes() {
-        for (pose, map, dz) in poses() {
-            let label = format!("{} {pose}", shape.name);
-            let prism = prism(&shape, &map);
-            let v = shape.area * LENGTH;
-            let shared = shape.area / dz;
-            let want = pierced(shape.sides, shape.on_arc);
-            // Tilted, the two stubs' walls overhang each other across the
-            // slab.
-            let stubs = if dz < 1.0 {
-                Reach::Undecided
-            } else {
-                Reach::Decided
-            };
-            let union = check(
-                &format!("{label}, slab ∪ prism"),
-                topo::union(&slab, &prism, tol),
+        every_op(&slab, &shape, &[]);
+    }
+}
+
+/// **A prism whose arc rims hold a station cut back by hand, through
+/// the slab**: what a boolean's cut leaves on an operand. The station
+/// splits each cap's arc rim but neither wall, so the slab's sections
+/// never meet it, and the output's join takes it off the prism's caps:
+/// every op builds the body [`pierced`] counts without it.
+#[test]
+fn a_prism_with_a_station_on_its_arc_rims_through_a_slab_builds_every_op() {
+    let tol = Tol::witness();
+    let slab = finished(
+        "the slab",
+        brick((-4.0, 4.0), (-4.0, 4.0), (-0.5, 0.5), tol),
+        tol,
+    );
+    let p = Point2::new;
+    for (name, stations) in [
+        ("D split at its apex", vec![p(0.0, 1.0)]),
+        ("D split at a third", vec![p(-0.5, 0.75f64.sqrt())]),
+        ("crescent split at its apex", vec![p(0.0, 1.0)]),
+    ] {
+        let shape = shapes()
+            .into_iter()
+            .find(|s| s.name == name)
+            .unwrap_or_else(|| panic!("{name}: a shape"));
+        every_op(&slab, &shape, &stations);
+    }
+}
+
+/// [`a_prism_with_arc_walls_through_a_slab_builds_every_op`]'s checks
+/// for one shape, its prism carrying `stations` ([`prism`]).
+fn every_op(slab: &AtRestBody<f64>, shape: &Shape, stations: &[Point2<f64>]) {
+    let tol = Tol::witness();
+    for (pose, map, dz) in poses() {
+        let label = format!("{} {pose}", shape.name);
+        let prism = prism(shape, &map, stations);
+        let v = shape.area * LENGTH;
+        let shared = shape.area / dz;
+        let want = pierced(shape.sides);
+        // Tilted, the two stubs' walls overhang each other across the
+        // slab.
+        let stubs = if dz < 1.0 {
+            Reach::Undecided
+        } else {
+            Reach::Decided
+        };
+        let union = check(
+            &format!("{label}, slab ∪ prism"),
+            topo::union(slab, &prism, tol),
+            SLAB + v - shared,
+            Reach::Decided,
+        );
+        assert_eq!(
+            check(
+                &format!("{label}, prism ∪ slab"),
+                topo::union(&prism, slab, tol),
                 SLAB + v - shared,
                 Reach::Decided,
-            );
-            assert_eq!(
-                check(
-                    &format!("{label}, prism ∪ slab"),
-                    topo::union(&prism, &slab, tol),
-                    SLAB + v - shared,
-                    Reach::Decided,
-                ),
-                union,
-                "{label}: ∪ census in both member orders"
-            );
-            let meet = check(
-                &format!("{label}, slab ∩ prism"),
-                topo::intersect(&slab, &prism, tol),
+            ),
+            union,
+            "{label}: ∪ census in both member orders"
+        );
+        let meet = check(
+            &format!("{label}, slab ∩ prism"),
+            topo::intersect(slab, &prism, tol),
+            shared,
+            Reach::Decided,
+        );
+        assert_eq!(
+            check(
+                &format!("{label}, prism ∩ slab"),
+                topo::intersect(&prism, slab, tol),
                 shared,
                 Reach::Decided,
-            );
-            assert_eq!(
-                check(
-                    &format!("{label}, prism ∩ slab"),
-                    topo::intersect(&prism, &slab, tol),
-                    shared,
-                    Reach::Decided,
-                ),
-                meet,
-                "{label}: ∩ census in both member orders"
-            );
-            let got = [
-                union,
-                meet,
-                check(
-                    &format!("{label}, slab ∖ prism"),
-                    topo::subtract(&slab, &prism, tol),
-                    SLAB - shared,
-                    Reach::Decided,
-                ),
-                check(
-                    &format!("{label}, prism ∖ slab"),
-                    topo::subtract(&prism, &slab, tol),
-                    v - shared,
-                    stubs,
-                ),
-            ];
-            assert_eq!(
-                got, want,
-                "{label}: census of ∪, ∩, slab ∖ prism, prism ∖ slab"
-            );
-        }
+            ),
+            meet,
+            "{label}: ∩ census in both member orders"
+        );
+        let got = [
+            union,
+            meet,
+            check(
+                &format!("{label}, slab ∖ prism"),
+                topo::subtract(slab, &prism, tol),
+                SLAB - shared,
+                Reach::Decided,
+            ),
+            check(
+                &format!("{label}, prism ∖ slab"),
+                topo::subtract(&prism, slab, tol),
+                v - shared,
+                stubs,
+            ),
+        ];
+        assert_eq!(
+            got, want,
+            "{label}: census of ∪, ∩, slab ∖ prism, prism ∖ slab"
+        );
     }
 }

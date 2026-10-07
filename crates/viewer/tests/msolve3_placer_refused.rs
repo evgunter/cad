@@ -120,8 +120,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
             "Mate {} failed: the mate solve refused: this mate's a reference has no \
              derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
              Pattern {p}",
-            test_utils::refusal::tag(mate.0),
-            p = test_utils::refusal::tag(pattern.0),
+            test_utils::refusal::tag(mate.0.digest()),
+            p = test_utils::refusal::tag(pattern.0.digest()),
         ),
         "the row names the placer the evaluation typed"
     );
@@ -135,7 +135,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
             line: format!(
                 "Pattern {} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
-                test_utils::refusal::tag(pattern.0),
+                test_utils::refusal::tag(pattern.0.digest()),
                 geom_core::RANGE_RECOURSE
             ),
         }],
@@ -347,6 +347,7 @@ fn a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at() {
             node: s.pattern,
             slot: SlotId::Count,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -376,6 +377,7 @@ fn a_part_selecting_another_copy_blames_the_mate_and_not_the_part() {
             node: part,
             slot: SlotId::Instance,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -444,6 +446,7 @@ fn a_part_past_its_patterns_count_fails_beside_the_mate() {
             node: part,
             slot: SlotId::Instance,
             expr: Formula::count(5),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -485,6 +488,7 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
             node: s.pattern,
             slot: SlotId::Count,
             expr: Formula::count(0),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -514,6 +518,7 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
             node: s.pattern,
             slot: SlotId::Count,
             expr: overflowing,
+            fresh: Vec::new(),
         },
         tol,
     );

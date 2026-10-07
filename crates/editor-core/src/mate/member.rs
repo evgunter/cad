@@ -102,9 +102,9 @@ impl Member {
 }
 
 /// **The member key, written out.** `Member` is the `BTreeMap` key
-/// `by_pair` and `edge_of` are built on, and its order, with every node
-/// read as its position in the document, is the order the spanning
-/// tree picks its edges by; so the ordering is stated rather than
+/// `by_pair` and `edge_of` are built on, and its order, every node
+/// compared by id (which is document order: an id's mint ordinal leads
+/// it), is the order the spanning tree picks its edges by; so the ordering is stated rather than
 /// derived: `(instance, copy, chain)` — the instance, then the copy
 /// chain (patterns only, outermost first), then the whole placing
 /// chain, each compared lexicographically. The copies lead so that a
@@ -504,8 +504,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
         error: NodeRefusal::from(kind),
         placer_row,
     };
-    let count_of = |node: RecipeNodeId, expr: &crate::expr::Expr, slot: SlotId, row| {
-        crate::expr::eval_count(expr, env)
+    let count_of = |node: RecipeNodeId, var: &crate::VarId, slot: SlotId, row| {
+        crate::expr::eval_var_count(*var, env)
             .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }, row))
     };
     // The copy exists: the name's index against the evaluated count.
@@ -799,14 +799,15 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
     }
     let vals = node_slots(pattern, env).map_err(here)?;
     let ops = match kind {
-        PatternKind::Linear { direction, .. } => SteppedOperands::linear(
+        PatternKind::Linear { .. } => SteppedOperands::linear(
             need_vec3(&vals, SlotId::Direction).map_err(here)?,
             need_scalar(&vals, SlotId::Spacing).map_err(here)?,
-            direction,
+            &crate::node::Axis3::ALL
+                .map(|axis| crate::eval::written(doc, node)(SlotId::Direction(axis))),
             band,
         )
         .map_err(here)?,
-        PatternKind::Circular { axis, step } => {
+        PatternKind::Circular { axis, .. } => {
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
@@ -822,7 +823,7 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
                 )
                 .map_err(at_datum)?,
                 need_scalar(&vals, SlotId::Step).map_err(here)?,
-                step,
+                &crate::eval::written(doc, node)(SlotId::Step),
                 band,
             )
             .map_err(here)?
@@ -950,14 +951,15 @@ mod tests {
     use geom_core::Tol;
 
     /// The hand-pushed ids are chosen, not minted; the dangling one
-    /// names no node.
-    const AXIS: RecipeNodeId = RecipeNodeId(10);
-    const FRAME2: RecipeNodeId = RecipeNodeId(11);
-    const T1: RecipeNodeId = RecipeNodeId(12);
-    const T2: RecipeNodeId = RecipeNodeId(13);
-    const PATTERN: RecipeNodeId = RecipeNodeId(14);
-    const DANGLING: RecipeNodeId = RecipeNodeId(40);
-    const MATE: RecipeNodeId = RecipeNodeId(50);
+    /// names no node. Their ordinals follow the 57 log entries `build`
+    /// mints before them (its three inserts and every slot's variable).
+    const AXIS: RecipeNodeId = RecipeNodeId::new(58, 10);
+    const FRAME2: RecipeNodeId = RecipeNodeId::new(59, 11);
+    const T1: RecipeNodeId = RecipeNodeId::new(60, 12);
+    const T2: RecipeNodeId = RecipeNodeId::new(61, 13);
+    const PATTERN: RecipeNodeId = RecipeNodeId::new(62, 14);
+    const DANGLING: RecipeNodeId = RecipeNodeId::new(63, 40);
+    const MATE: RecipeNodeId = RecipeNodeId::new(64, 50);
 
     fn xf(input: RecipeNodeId) -> crate::AuthoredNode {
         Node::transform(
@@ -997,6 +999,7 @@ mod tests {
                 &doc,
                 &DocEdit::InsertNode {
                     node: Box::new(node),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &RefusingReach,
@@ -1032,25 +1035,29 @@ mod tests {
             Src::T2 => T2,
             Src::Dangling => DANGLING,
         };
-        let mut push = |id: RecipeNodeId, node: crate::AuthoredNode| {
-            doc.nodes.insert(id, crate::test_support::stored(&node));
-            doc.order.push(id);
-        };
-        push(AXIS, axis_datum_node());
-        push(FRAME2, xy_frame());
-        push(T1, xf(id(t1_in)));
-        push(T2, xf(T1));
-        push(
-            PATTERN,
-            Node::Pattern {
-                input: body,
-                count: crate::Formula::count(4),
-                kind: PatternKind::Circular {
-                    axis: id(axis_operand),
-                    step: ang(0.5),
+        // Stored first, so the variables their slots mint are logged
+        // before the hand-pushed ids, whose ordinals come next.
+        let stored: Vec<_> = [
+            (AXIS, axis_datum_node()),
+            (FRAME2, xy_frame()),
+            (T1, xf(id(t1_in))),
+            (T2, xf(T1)),
+            (
+                PATTERN,
+                Node::Pattern {
+                    input: body,
+                    count: crate::Formula::count(4),
+                    kind: PatternKind::Circular {
+                        axis: id(axis_operand),
+                        step: ang(0.5),
+                    },
                 },
-            },
-        );
+            ),
+        ]
+        .into_iter()
+        .map(|(id, node)| (id, crate::test_support::stored(&mut doc, &node)))
+        .collect();
+        doc.nodes.extend(stored);
         doc.mint = doc
             .mint
             .clone()
