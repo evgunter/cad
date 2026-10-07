@@ -93,8 +93,7 @@ A10's tip transfer, restricted to body reads. It is *where the rule lives*.
    - The saved edit log replays through whatever the rule is at load time,
      so revising the rule changes the product of every document replayed
      from its history.
-   - Reversible toward my recommendation only by adding the clause anyway.
-     I rank it second.
+   - Reversible toward the recommendation only by adding the clause. Second.
 2. **Purely manual (no default at all).** The person or the script states
    every product change.
    - Honest, but every viewer creation flow gains a step, and so does every
@@ -147,6 +146,5 @@ split: likely.
   tool, are invisible, as today. Whether "drawn" should widen beyond the
   product is a separate viewer question; I did not design it.
 - The spec drops Promote's slot insert (`edit.rs:6030`); this agrees.
-- **Test 6 (migration preserves the product).** It is compatible: the
-  migration writes today's root bodies as the list.
-- **Tests.** Mates leave the list; the root-count rows shift by the mate count.
+- **Tests.** Test 6 is compatible: the migration writes today's root bodies
+  as the list. Mates leave the list, so root-count rows shift by the mates.
