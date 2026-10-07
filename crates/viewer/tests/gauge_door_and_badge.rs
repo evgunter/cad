@@ -104,6 +104,7 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(bench.post)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -112,6 +113,7 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
         DocEdit::SetOffset {
             instance: lone,
             offset: Some(Placement::literal(&Frame::translation([1.0, 0.0, 0.0]))),
+            fresh: Vec::new(),
         },
     );
     // Both posts at ONE spot under the shelf: undeclared interference.
@@ -119,12 +121,14 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(seat(bench.post_a, asm::middle_seat_alignment())),
+            fresh: Vec::new(),
         },
     );
     step(
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(seat(bench.post_b, asm::middle_seat_alignment())),
+            fresh: Vec::new(),
         },
     );
     let opts = |dir: &std::path::Path| EvalOptions {
@@ -147,6 +151,7 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
                 None,
                 Placement::literal(&Frame::translation([0.0, 0.0, 0.0])),
             )),
+            fresh: Vec::new(),
         },
     )
     .unwrap();

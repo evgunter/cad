@@ -155,6 +155,7 @@ pub fn document() -> CorpusDoc {
             node: tool,
             slot: SlotId::Origin(editor_core::Axis3::Z),
             expr: len(0.25),
+            fresh: Vec::new(),
         },
         bump_root: tool,
     }

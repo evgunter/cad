@@ -137,6 +137,7 @@ fn scene(label: &str) -> Scene {
         DocEdit::SetOffset {
             instance: top,
             offset: None,
+            fresh: Vec::new(),
         },
     );
     Scene {
@@ -168,6 +169,7 @@ fn control_seat(label: &str) -> Affine3<f64> {
                 crate::fixture::head(b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &s.opts);
@@ -314,6 +316,7 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
                 crate::fixture::head_at(outer, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -460,6 +463,7 @@ fn a2b_sibling_outer_copies_close_a_loop() {
                     crate::fixture::head_at(outer, named(0)),
                     FIRST_SEAT,
                 )),
+                fresh: Vec::new(),
             },
         );
         let (doc, m2) = step(
@@ -470,6 +474,7 @@ fn a2b_sibling_outer_copies_close_a_loop() {
                     crate::fixture::head_at(outer, named(1)),
                     second,
                 )),
+                fresh: Vec::new(),
             },
         );
         (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -526,6 +531,7 @@ fn a2a_sibling_inner_copies_close_a_loop() {
                         ),
                         FIRST_SEAT,
                     )),
+                    fresh: Vec::new(),
                 },
             );
             let (doc, m2) = step(
@@ -539,6 +545,7 @@ fn a2a_sibling_inner_copies_close_a_loop() {
                         ),
                         second,
                     )),
+                    fresh: Vec::new(),
                 },
             );
             (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -586,6 +593,7 @@ fn a2c_copies_differing_at_both_levels_close_a_loop() {
                     ),
                     FIRST_SEAT,
                 )),
+                fresh: Vec::new(),
             },
         );
         let (doc, m2) = step(
@@ -599,6 +607,7 @@ fn a2c_copies_differing_at_both_levels_close_a_loop() {
                     ),
                     second,
                 )),
+                fresh: Vec::new(),
             },
         );
         (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -641,6 +650,7 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
                 crate::fixture::head_at(part, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -696,6 +706,7 @@ fn a3b_two_operands_over_one_copy_are_one_member() {
                 at_pattern.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m2) = step(
@@ -706,6 +717,7 @@ fn a3b_two_operands_over_one_copy_are_one_member() {
                 at_part.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
@@ -764,6 +776,7 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
                 crate::fixture::head_at(moved, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -831,6 +844,7 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
                     reference.clone(),
                     FIRST_SEAT,
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -895,6 +909,7 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
                 crate::fixture::head_at(part, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -980,6 +995,7 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
                 r.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1042,6 +1058,7 @@ fn a1c_three_levels_deep_seat() {
                 r.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1097,6 +1114,7 @@ fn rotating_outer_tree_edge(
                 crate::fixture::head_at(outer, named(1)),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m2) = step(
@@ -1107,6 +1125,7 @@ fn rotating_outer_tree_edge(
                 crate::fixture::head_at(outer, named(2)),
                 [8.5, 8.5, BASE_HEIGHT],
             )),
+            fresh: Vec::new(),
         },
     );
     (doc, s.opts, m1.unwrap(), m2.unwrap(), a, named(1))
@@ -1179,6 +1198,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
                 crate::fixture::head_at(part1, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m2) = step(
@@ -1189,6 +1209,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
                 crate::fixture::head_at(moved, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
@@ -1203,6 +1224,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
             node: part2,
             slot: editor_core::SlotId::Instance,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     // Both references are members: admission is structural and the
@@ -1270,6 +1292,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
                 r.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1413,6 +1436,7 @@ fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
                 crate::fixture::head_at(outer, named(0)),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     // The declaring mate's frame is authored THREE UNITS above the
@@ -1425,6 +1449,7 @@ fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
                 crate::fixture::head_at(outer, named(1)),
                 [SECOND_SEAT[0], SECOND_SEAT[1], SECOND_SEAT[2] + 3.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());

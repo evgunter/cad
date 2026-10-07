@@ -2099,6 +2099,7 @@ fn insert(
         &doc,
         &pncad::document::DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
@@ -2232,11 +2233,10 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
 
     // Replaying the LIFTED program reproduces the AUTHORED loop bit
     // for bit — the lift re-spells the verbs, it does not re-lower.
-    let steps = lifted
-        .try_map_slots(&mut |formula| pncad::document::Expr::try_from(formula))
-        .expect("a lifted recording reads no name")
-        .resolve(&VarEnv::<f64>::default(), 0)
-        .expect("literal arguments resolve");
+    let steps =
+        pncad::document::resolve_written_loops(std::slice::from_ref(&lifted), Tol::witness())
+            .expect("literal arguments resolve")
+            .remove(0);
     let replayed = pncad::profile::replay(&steps, Tol::witness())
         .expect("the lifted program replays")
         .into_loop();
@@ -3416,6 +3416,7 @@ fn asm2a_assembly(
                     offset: Some(pncad::document::Placement::literal(
                         &pncad::document::Frame::translation([dx, 0.0, 0.0]),
                     )),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -3516,6 +3517,7 @@ fn step_export_refuses_an_unplaced_part_naming_it_and_the_cause() {
         &DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3865,6 +3867,7 @@ fn asm_r2b_child_crossing_probe() {
                 None,
                 Some(pncad::document::Placement::IDENTITY),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3997,6 +4000,7 @@ fn asm2b_outer(
                     offset: Some(pncad::document::Placement::literal(
                         &pncad::document::Frame::translation([100.0, 0.0, 0.0]),
                     )),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -4774,7 +4778,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 95] = [
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4860,6 +4864,9 @@ const NOT_CARRIED: [&str; 95] = [
     "entity_name",
     "from_value",
     "var_env_over",
+    // The analysis's axis rule (VR8), which `analyzed_box` and the
+    // stackup's entry set read; a caller asks the box.
+    "is_axis",
     "rebind_suggestions",
     "remap_name",
     "Unmapped",
@@ -6588,6 +6595,7 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
         &DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6671,6 +6679,7 @@ fn step_export_says_a_deeper_route_hop_as_its_document_holds_it_where_the_outer_
         &pncad::document::DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6799,6 +6808,7 @@ fn asm2a_placed_instance(
             offset: Some(pncad::document::Placement::literal(
                 &pncad::document::Frame::translation([dx, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6846,6 +6856,7 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
             &DocEdit::SetOffset {
                 instance,
                 offset: None,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,
@@ -6924,6 +6935,7 @@ fn the_product_reads_unplaced_groups_in_document_order() {
             &DocEdit::SetOffset {
                 instance,
                 offset: None,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,

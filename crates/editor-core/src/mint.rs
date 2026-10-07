@@ -11,11 +11,15 @@
 //! An edit that mints nothing leaves the chain alone. So an id is a
 //! function of the minting edits that led to it: one sequence mints one
 //! set of ids (D9), and two sequences that part from one value mint
-//! different ids from there on. A `DeclareVar` extends the chain by its
-//! definition, display units erased, and then once for the variable it
-//! mints; the variable's name is not in the preimage (VR2), so two
-//! declares of one definition mint two ids only because the chain
-//! moved between them.
+//! different ids from there on. A `DeclareVar` extends the chain by the
+//! variable's kind and then once for the variable it mints; its name is
+//! not in the preimage (VR2), so two declares of one kind mint two ids
+//! only because the chain moved between them. Each anonymous variable an
+//! edit's lowering mints extends it by its kind and what it holds
+//! ([`MintingEdit::DeclareAnonymous`], [`Held`]: a value by its bits, a
+//! definition with its literals canonical), so two sibling inserts that
+//! differ only in a value they hold mint two nodes; a display unit is in
+//! neither preimage (D6).
 //!
 //! The log holds every id the document has minted, deleted nodes' and
 //! dropped steps' included, each tagged with what it names ([`Minted`]),
@@ -27,10 +31,11 @@
 //!
 //! The preimage is not [`crate::persist::canonical_bytes`]: that is a
 //! whole document's serde form, display units included, and answers
-//! "which version"; this is one edit's statement with display units
-//! erased (D6), and answers "which node" or "which step". An insert's
-//! statement is its node as authored, which holds its inputs' and its
-//! names' ids but never its own.
+//! "which version"; this is one edit's statement, and answers "which
+//! node" or "which step". An insert's statement is its node as the door
+//! stores it, which holds its inputs', its names' and its slot
+//! variables' ids but never its own, and so no float and no display
+//! unit (D6).
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
@@ -107,17 +112,14 @@ pub(crate) struct VarIdCollides {
 }
 
 /// **A minting edit**, as the mint reads it: the node an `InsertNode`
-/// inserts, as authored; or what a `SetProgram` states about the steps
-/// it authors — its node, the new loops and, per step, the id it keeps
-/// or `None` for one to mint.
+/// inserts, as stored; what a `SetProgram` states about the steps it
+/// authors — its node, the new loops and, per step, the id it keeps or
+/// `None` for one to mint; or the kind a variable is minted at.
 ///
-/// Its canonical bytes are the serde form of that statement with every
-/// literal's display unit read as its dimension's canonical one: the
-/// display unit is never part of an expression's identity (DESIGN.md
-/// D6), so two edits `bit_eq` cannot tell apart mint the same ids.
+/// Its canonical bytes are the serde form of that statement.
 #[derive(Serialize)]
 #[serde(bound(serialize = "P: Serialize, Node<P, S>: Serialize"))]
-pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::Expr> {
+pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
     /// A node inserted, as the edit states it.
     InsertNode {
         /// The node.
@@ -144,31 +146,80 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::Expr> {
         /// The kind.
         kind: VarKind,
     },
+    /// An anonymous variable minted by the edit door for a value or a
+    /// formula written at a slot, or for a fresh-table entry: its kind
+    /// and what it holds. Unlike a declare's, the value is in the
+    /// preimage: an anonymous variable IS the value a slot was written
+    /// as, so two inserts applied to one base that write different
+    /// values mint two variables, and so two nodes
+    /// (`work/emit/sibling-branches-mint-one-node-id-for-different-nodes.md`),
+    /// as they did when the value sat in the node's own bytes. Not its
+    /// distribution or its notation, which enter no evaluation. A value
+    /// edit afterwards mints nothing: the identity drawn here stays.
+    DeclareAnonymous {
+        /// The kind.
+        kind: VarKind,
+        /// What it holds.
+        held: Held,
+    },
+}
+
+/// **What an anonymous variable holds, as its mint reads it**
+/// ([`MintingEdit::DeclareAnonymous`]): a continuous value's bits, a
+/// count, or a definition with every literal in its canonical unit. A
+/// display unit is never in it (D6): a value's carries none, and a
+/// definition's literals are read canonical, so `w + 125 mm` and
+/// `w + 0.125 m` mint one id.
+#[derive(Serialize)]
+pub(crate) enum Held {
+    /// A continuous value, by its bits.
+    Value(u64),
+    /// A count.
+    Count(i64),
+    /// A definition, its display units erased.
+    Defined(crate::Expr),
+}
+
+impl Held {
+    /// What `def` holds.
+    pub(crate) fn of(def: &crate::var::VarDef) -> Self {
+        match def {
+            crate::var::VarDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
+                Self::Value(value.to_bits())
+            }
+            crate::var::VarDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
+            crate::var::VarDef::Defined(expr) => {
+                let mut canonical = expr.clone();
+                canonical.erase_display_units();
+                Self::Defined(canonical)
+            }
+        }
+    }
 }
 
 impl<'a, P: Serialize + Clone + crate::program::SlotPayload<S>, S: crate::Slot>
     MintingEdit<'a, P, S>
 {
-    /// The insert of `node`, display units erased.
+    /// The insert of `node`.
     fn insert(node: &Node<P, S>) -> Self {
-        let mut node = Box::new(node.clone());
-        node.erase_display_units();
-        Self::InsertNode { node }
+        Self::InsertNode {
+            node: Box::new(node.clone()),
+        }
     }
 }
 
 impl<'a> MintingEdit<'a, crate::program::ProfileProgram> {
-    /// The `SetProgram` of `loops` on `node`, display units erased.
+    /// The `SetProgram` of `loops` on `node`.
     fn set_program(
         node: RecipeNodeId,
         loops: &[LoopProgram],
         ids: &'a [Vec<Option<StepId>>],
     ) -> Self {
-        let mut loops = loops.to_vec();
-        for expr in loops.iter_mut().flat_map(LoopProgram::exprs_mut) {
-            expr.erase_display_units();
+        Self::SetProgram {
+            node,
+            loops: loops.to_vec(),
+            ids,
         }
-        Self::SetProgram { node, loops, ids }
     }
 }
 
@@ -273,9 +324,49 @@ impl Mint {
     /// bytes (its kind alone, [`MintingEdit::DeclareVar`]), then once
     /// for the variable. Reads; mints nothing.
     fn draw_var(&self, kind: VarKind) -> ([u8; 32], VarId) {
-        let edit = MintingEdit::<()>::DeclareVar { kind };
-        let (chain, bits) = Self::draw(VAR_TAG, self.extended(&edit));
+        self.draw_var_of(&MintingEdit::<()>::DeclareVar { kind })
+    }
+
+    /// The id the minting statement `edit` draws for its variable here,
+    /// and the chain it leaves.
+    fn draw_var_of(&self, edit: &MintingEdit<'_, ()>) -> ([u8; 32], VarId) {
+        let (chain, bits) = Self::draw(VAR_TAG, self.extended(edit));
         (chain, VarId(bits))
+    }
+
+    /// **The id an anonymous variable holding `def` draws here**: the
+    /// chain extended by its kind and what it holds
+    /// ([`MintingEdit::DeclareAnonymous`]), then once for the variable.
+    fn draw_anonymous(&self, def: &crate::var::VarDef) -> ([u8; 32], VarId) {
+        self.draw_var_of(&MintingEdit::DeclareAnonymous {
+            kind: def.kind(),
+            held: Held::of(def),
+        })
+    }
+
+    /// The id an anonymous variable holding `def` would mint here —
+    /// what a refusal of it speaks. Reads; mints nothing.
+    #[must_use]
+    pub(crate) fn would_declare_anonymous(&self, def: &crate::var::VarDef) -> VarId {
+        self.draw_anonymous(def).1
+    }
+
+    /// **Mint the id of an anonymous variable holding `def`**
+    /// ([`Self::draw_anonymous`]). On a refusal `self` is untouched.
+    ///
+    /// # Errors
+    ///
+    /// [`VarIdCollides`] where the log already holds the id.
+    pub(crate) fn declare_anonymous(
+        &mut self,
+        def: &crate::var::VarDef,
+    ) -> Result<VarId, VarIdCollides> {
+        let (chain, id) = self.draw_anonymous(def);
+        let mut log = self.log.clone();
+        Self::log_new(&mut log, Minted::Var(id)).map_err(|_| VarIdCollides { id })?;
+        self.chain = chain;
+        self.log = log;
+        Ok(id)
     }
 
     /// The id a declare of a `kind` variable would mint here — what a
@@ -496,7 +587,6 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
 
     use super::{Mint, Minted, NodeIdCollides, VarIdCollides};
-    use crate::expr::{Dimension, Expr};
     use crate::node::{Node, RecipeNodeId, StepId};
     use crate::program::{LoopProgram, ProfileProgram, StepIdFault};
     use crate::var::{VarId, VarKind};
@@ -504,7 +594,7 @@ mod tests {
     fn extrude(profile: u64, distance: f64) -> Node<ProfileProgram> {
         Node::Extrude {
             profile: RecipeNodeId(profile),
-            distance: Expr::literal(distance, Dimension::Length).unwrap(),
+            distance: VarId(distance.to_bits()),
             side: crate::ExtrudeSide::Along,
         }
     }
@@ -538,27 +628,67 @@ mod tests {
         );
     }
 
+    /// The display unit a slot is written in enters neither the
+    /// anonymous variable's preimage (its kind and what it holds, a
+    /// value by its bits and a definition with its literals canonical:
+    /// [`Held`]) nor the node's (its variables' ids). So one point
+    /// written in millimetres and in metres mints one id, and so does
+    /// one written `w + 125 mm` and `w + 0.125 m` (D6).
     #[test]
     fn the_display_unit_is_not_part_of_what_an_insert_hashes() {
-        let written = crate::test_support::stored_expr(
-            &crate::Formula::length_in(2.0, quantity::MM).unwrap(),
-        );
-        let canonical = Expr::literal(written.literal_value().unwrap(), Dimension::Length).unwrap();
-        let mm = Node::<ProfileProgram>::Extrude {
-            profile: RecipeNodeId(1),
-            distance: written,
-            side: crate::ExtrudeSide::Along,
+        let base = || {
+            crate::edit::apply(
+                &crate::ProfileDoc::empty_derived("mint_units", geom_core::Tol::witness()),
+                &crate::DocEdit::DeclareVar {
+                    name: crate::VarName::from_static("w"),
+                    def: crate::VarDecl::Free(crate::FreeVar::continuous(
+                        crate::Dimension::Length,
+                        1.0,
+                    )),
+                },
+                geom_core::Tol::witness(),
+                &crate::RefusingReach,
+            )
+            .unwrap()
+            .doc
         };
-        let m = Node::<ProfileProgram>::Extrude {
-            profile: RecipeNodeId(1),
-            distance: canonical,
-            side: crate::ExtrudeSide::Along,
+        let point = |position: [crate::Formula; 3]| -> RecipeNodeId {
+            let doc = base();
+            let applied = crate::edit::apply(
+                &doc,
+                &crate::DocEdit::InsertNode {
+                    node: Box::new(Node::Datum(crate::node::Datum::Point { position })),
+                    fresh: Vec::new(),
+                },
+                geom_core::Tol::witness(),
+                &crate::RefusingReach,
+            )
+            .unwrap();
+            applied.record.minted.unwrap()
         };
-        assert!(mm.bit_eq(&m), "bit_eq cannot tell the two apart");
+        let mm = [2.0, 3.0, 4.0].map(|v| crate::Formula::length_in(v, quantity::MM).unwrap());
+        let m = [2.0, 3.0, 4.0].map(|v| crate::test_support::len(v / 1000.0));
         assert_eq!(
-            Mint::empty().insert(&mm).unwrap(),
-            Mint::empty().insert(&m).unwrap(),
-            "so they mint one id (D6)"
+            point(mm),
+            point(m),
+            "one point in two units mints one id (D6)"
+        );
+        let w =
+            || crate::Formula::named(crate::VarName::from_static("w"), crate::Dimension::Length);
+        let plus = |offset: crate::Formula| {
+            let x = crate::Formula::add(w(), offset).unwrap();
+            [
+                x,
+                crate::test_support::len(0.0),
+                crate::test_support::len(0.0),
+            ]
+        };
+        assert_eq!(
+            point(plus(
+                crate::Formula::length_in(125.0, quantity::MM).unwrap()
+            )),
+            point(plus(crate::test_support::len(0.125))),
+            "one definition in two units mints one id (D6)"
         );
     }
 

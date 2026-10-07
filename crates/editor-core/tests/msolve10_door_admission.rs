@@ -259,6 +259,7 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(mate(body, ids[0], ids[1], alignment)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,
@@ -470,6 +471,7 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
     };
     let edit = DocEdit::InsertNode {
         node: Box::new(mate(body, ids[0], ids[1], alignment)),
+        fresh: Vec::new(),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
     let log = vec![edit.clone()];
@@ -540,6 +542,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     let snapshot = doc.clone();
     let edit = DocEdit::InsertNode {
         node: Box::new(mate(body, ids[0], ids[1], seat(Some(0.0)))),
+        fresh: Vec::new(),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
     let log = vec![edit.clone()];
@@ -560,6 +563,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
                 ..seat(Some(0.3))
             },
         )),
+        fresh: Vec::new(),
     };
     let gap_wire = serde_json::to_value(&gap).expect("an entry serializes");
     let doctored = wire::doctored(&text, |wire| {
@@ -595,6 +599,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
             ids[1],
             seat(Some(core::f64::consts::FRAC_PI_2)),
         )),
+        fresh: Vec::new(),
     };
     let wire_entry = serde_json::to_value(&contradictory).expect("serializes");
     let doctored = wire::doctored(&text, |wire| {
@@ -678,7 +683,11 @@ fn a3_a_doctored_snapshot_carrying_a_table_gap_loads_and_the_solve_refuses_it() 
         "{fault:?}"
     );
     assert_eq!(poses.role(mate_id), Some(MateRole::Refused));
-    let twin = loaded.doc.node(mate_id).expect("live").authored();
+    let twin = loaded
+        .doc
+        .node(mate_id)
+        .expect("live")
+        .authored(&loaded.doc);
     let (named, door) =
         at_the_door(&loaded.doc, &reach, twin).expect_err("the door refuses the twin");
     assert_eq!(
@@ -784,7 +793,11 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
             "{label}: the fold never reads this pair, so the solve records nothing"
         );
         assert_eq!(poses.role(mate_id), Some(MateRole::Declaring), "{label}");
-        let twin = loaded.doc.node(mate_id).expect("live").authored();
+        let twin = loaded
+            .doc
+            .node(mate_id)
+            .expect("live")
+            .authored(&loaded.doc);
         let (_, fault) =
             at_the_door(&loaded.doc, &reach, twin).expect_err("the door refuses the datum");
         match expect {
@@ -982,6 +995,7 @@ fn corpus() -> Vec<Row> {
             doc,
             DocEdit::InsertNode {
                 node: Box::new(mate(body, ids[0], ids[1], alignment)),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -1108,6 +1122,7 @@ fn corpus() -> Vec<Row> {
             doc,
             DocEdit::InsertNode {
                 node: Box::new(mate(body, ids[0], ids[1], seat(None))),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -1158,6 +1173,7 @@ fn corpus() -> Vec<Row> {
                 node: part,
                 slot: editor_core::SlotId::Instance,
                 expr: editor_core::Formula::count(2),
+                fresh: Vec::new(),
             },
         );
         ("msolve10-corpus-part", doc, opts)
@@ -1186,6 +1202,7 @@ fn corpus() -> Vec<Row> {
                     (lost, lost_body),
                     seat(Some(0.0)),
                 )),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -1206,6 +1223,7 @@ fn corpus() -> Vec<Row> {
                 ids[1],
                 seat(Some(core::f64::consts::FRAC_PI_2)),
             )),
+            fresh: Vec::new(),
         };
         let entry = serde_json::to_value(&entry).expect("serializes");
         let doctored = wire::doctored(&text, |wire| {
@@ -1246,7 +1264,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 continue;
             }
             mates += 1;
-            let twin = at_the_door(&doc, &reach, node.authored());
+            let twin = at_the_door(&doc, &reach, node.authored(&doc));
             match poses.fault(id) {
                 None => {
                     assert!(

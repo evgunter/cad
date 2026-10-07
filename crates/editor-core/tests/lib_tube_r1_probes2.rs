@@ -41,6 +41,7 @@ fn doc_with_axis_dir(
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: dir.map(scl),
             })),
+            fresh: Vec::new(),
         },
     );
     let spine = *doc.order().last().expect("datum");
@@ -54,6 +55,7 @@ fn doc_with_axis_dir(
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
     let tube = *doc.order().last().expect("tube");

@@ -4189,13 +4189,37 @@ pub struct WallRootFault {
 /// where an enclosure of `b` straddles zero the hull of the two is as
 /// narrow as either, and neither denominator nears zero there (it is
 /// `√disc` plus a sliver).
-fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
+pub(super) fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
     let root = disc.max(T::zero()).sqrt();
     // `−b − √disc` adds magnitudes for `b > 0`, `√disc − b` for `b ≤ 0`.
     let (minus, plus) = (T::zero() - b - root, root - b);
     [
         b.select_le_zero(c / plus, minus / a),
         b.select_le_zero(plus / a, c / minus),
+    ]
+}
+
+/// **The line × cone quadratic**: the cone's quadric form along the
+/// line `q + d·t`, negated, `(w·â)² − |w|²·cos²α = A t² + 2B t + C` with
+/// `w = q + d·t − apex` — `A` in `d`'s units squared, `B` in metres
+/// times them, `C` in m². Its zero set is the DOUBLE cone; which nappe
+/// a root lands on is the caller's question. `A = (d·â)² − |d|²cos²α`
+/// vanishes exactly when the line runs parallel to a generator. Each
+/// square straddling zero is a `powi(2)`, the tight square.
+pub(super) fn line_cone_quadratic<T: Decide>(
+    q: Point3<T>,
+    d: Vec3<T>,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+) -> [T; 3] {
+    let cos2 = half_angle.cos().powi(2);
+    let w0 = q - apex;
+    let (da, wa) = (d.dot(axis), w0.dot(axis));
+    [
+        da.powi(2) - d.norm_squared() * cos2,
+        da * wa - w0.dot(d) * cos2,
+        wa.powi(2) - w0.norm_squared() * cos2,
     ]
 }
 
@@ -5031,13 +5055,7 @@ fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
                     continue;
                 }
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let cos2 = cos_a.powi(2);
-                let w0 = q - apex;
-                let da = d.dot(axis);
-                let wa = w0.dot(axis);
-                let a2 = da.powi(2) - cos2;
-                let b2 = da * wa - w0.dot(d) * cos2;
-                let c2 = wa.powi(2) - w0.norm_squared() * cos2;
+                let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
                 // The face's own slant extent — the lever both margins
                 // below are metered by. Single-nappe by construction
                 // ([`cone_chart_trim`]), so this is the far bound.
@@ -5140,12 +5158,7 @@ fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
                 // ball holding the face blocks the ray; a `Zero` on any
                 // of these rows grazes, as on the trimmable arm, since a
                 // tighter tolerance could decide it either way.
-                let cos2 = half_angle.cos().powi(2);
-                let w0 = q - apex;
-                let (da, wa) = (d.dot(axis), w0.dot(axis));
-                let a2 = da.powi(2) - cos2;
-                let b2 = da * wa - w0.dot(d) * cos2;
-                let c2 = wa.powi(2) - w0.norm_squared() * cos2;
+                let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
                 if decide("bool_ray_cone_lead", Margin::levered(a2, reach), band)
                     .map_err(escalate)?
                     == Sign::Zero
