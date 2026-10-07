@@ -236,6 +236,33 @@ Closed: `range-synthetic-name-mints-a-name`,
 `unproven-coincidence-lint-binds-every-variable-as-a-symbol`.
 - 2026-10-06 — Note from ZIP: filed `the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms` (P0/H) on this slate as stage-4 input, on Ev's direction in chat. Two designers converged on retiring the declared-REST zip (`boolean/rest.rs`) with declared pairs. Before then the join gains a partner-edge chord, ring re-homing on a curved chart in aligned contact, and the `mekr` `NotSameFace` cause. The row carries the measurement. ZIP's REST-lane rows are parked on `d10-one-way-to-say-intent-is-unbuilt`. Units ZIP already started finish: the zip's admission check (PR 4127, a live wrong body; Ev, in chat, "finish it"), `Fusions` (PR 4116) and pins (PR 4130). (ZIP orchestrator)
 
+## 2026-10-07 — stage 2 sliced (`docs/INTENT-STAGE2-SPEC.md`)
+
+A spec lane sized stage 2 (operations and one dependency) at main
+`9eaf8eab2f`, measured before stage 1's C and D. Stage 2 lands in six PRs,
+each green, in this order:
+
+- A `operations-define-output-variables`: no node id moves.
+- B `operands-are-reads`: behaviour-preserving, with byte-equal roots.
+- C `the-product-is-an-explicit-list`: closes both parked product rows.
+- D `measure-is-an-operation`.
+- E `select-defines-face-and-edge-variables`.
+- F `a-mate-reads-face-variables`: A12 retires.
+
+C precedes D, E and F because a measure or a mate that reads its operand
+would otherwise drop it from A10's sink set.
+
+Five FORKs are open for designer pairs:
+
+1. The output signature: kinds D10 does not list, and DM3.
+2. How the product list is kept: A10's maintenance.
+3. What a selection is: SELECT-DESIGN §4.
+4. Re-pointing an operand: DM6.
+5. Whether a geometric slot may read a measured value.
+
+The six rows are filed parked behind stage 1, so they do not count toward
+the load. At stage 1's close the stage's ~25 points either fit the budget
+or split into their own program.
 ## 2026-10-07 — FORK-6: split moves a variable with its readers (orchestrator's ruling)
 
 The inline lane (`inline-merges-variables-by-equal-value`) stopped at a
@@ -255,3 +282,12 @@ and A10's regrouping; split(inline(h)) keeps an unread free named part
 variable in the host. Not sent to Ev: no ratified decision moves. A4's
 acceptance is kept and re-worded as VR1 forces ("minted ids"), and A4
 Split and VR9 each gain a descriptive line, landing with the lane's PR.
+
+## 2026-10-07 — stage 2 spec updated to the FORK-2b, FORK-4 and FORK-5 rulings (PR 4216)
+
+- **C is now "the product is the world"** (FORK-2b, #4220). It lands `PlaceInWorld { body, pose }` and a derived product. The audit's C-side retirements ride C rather than B, because each is stated over world placements: D-2's narrowed closure, `InstanceConsumed`, `PlacedUnderTwoRoots` and N4. The product is checked once, at the migration.
+- **B builds the one slot door for operands** (FORK-4, #4221).
+- **D refuses a construction reading an observed variable** (FORK-5, #4218).
+- **F retires A5's minting lift.**
+- **A and E stay pending FORK-1 and FORK-3** (#4222).
+- The consuming-model audit's 14 hits are mapped in spec §11.
