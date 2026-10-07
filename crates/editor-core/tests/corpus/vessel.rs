@@ -138,3 +138,52 @@ pub fn mouth(doc: &ProfileDoc, pot: RecipeNodeId) -> ProfileEdgeRef {
 pub fn document() -> CorpusDoc {
     document_with_open(|doc, pot| vec![band(pot, mouth(doc, pot))])
 }
+
+/// The capped vessel's cap: a sphere of radius `5/64` about `(0, −2/64)`,
+/// meeting the foot at `(4/64, 1/64)` (the 3-4-5 point again) and the
+/// axis at its pole `(0, 3/64)`, so the cap is pole-touching and the
+/// full revolve wears it on two half-faces.
+pub const Y_CAP_C: f64 = -2.0 / 64.0;
+/// The cap's pole.
+pub const Y_POLE: f64 = 3.0 / 64.0;
+/// The cap's segment in the capped meridian: base disc, foot, cap.
+pub const SEG_CAP: u32 = 2;
+
+/// The capped vessel's meridian: the foot under a pole-touching cap.
+pub fn capped_meridian() -> LoopProgram<Formula> {
+    LoopProgram::Chain(vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, Y_FOOT]))),
+        ProgramStep::ArcTo(ProgramArcData::Center {
+            c: len2([0.0, Y_CAP_C]),
+            winding: profile::ArcSweep::Ccw,
+            target: ProgramTarget::Point(len2([0.0, Y_POLE])),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
+}
+
+/// **The capped vessel**: [`capped_meridian`] revolved a full turn and
+/// hollowed to [`WALL`] with its cap opened, the cap named by both of
+/// the half-faces the revolve wears it on. Returns the document, the
+/// shell node and the revolve node.
+pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let mut r = Recorder::new();
+    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![capped_meridian()],
+        ids: Vec::new(),
+    }));
+    let pot = r.insert(Node::Revolve {
+        profile,
+        axis,
+        angle: ang(std::f64::consts::TAU),
+    });
+    let cap = crate::fixture::piece(&r.doc, pot, 0, SEG_CAP as usize);
+    let open = vec![band(pot, cap), editor_core::band_pi(pot, cap)];
+    let shell = r.insert(Node::shell(pot, len(WALL), open));
+    (r.doc, shell, pot)
+}

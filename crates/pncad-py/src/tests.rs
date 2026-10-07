@@ -5891,7 +5891,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "open_face_chart_partial",
             "open_face_repeated",
             "open_face_rim_not_expressible",
-            "open_face_ring_unsupported",
             "open_face_stale",
             "open_faces_disconnect",
             "open_faces_exhaust_shell",
