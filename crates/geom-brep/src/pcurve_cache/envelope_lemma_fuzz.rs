@@ -1670,3 +1670,212 @@ mod review_4227_probes {
         check("cone_remainder_reads_sin_t0", &p, &s, h, 1.0, 2.0);
     }
 }
+
+/// Review probes (PR 4227): the torus arm swept over pose and scale,
+/// and Villarceau circles moved off their class one gate at a time.
+mod review_4227_torus_sweep {
+    use super::*;
+
+    fn pose(s: &mut fuzz::Rng, big: f64, minor: f64) -> (Surface<f64>, Curve3<f64>) {
+        let (axis, u_ref) = frame(s);
+        let reach = 10.0 * big;
+        let center = Point3::new(
+            s.range(-reach, reach),
+            s.range(-reach, reach),
+            s.range(-reach, reach),
+        );
+        let phi = s.range(-PI, PI);
+        let d = rad(axis, u_ref, phi);
+        let tilt = (minor / big).asin();
+        let lean = d.cross(axis) * tilt.cos() + axis * (sign(s) * tilt.sin());
+        let psi = s.range(-PI, PI);
+        (
+            Surface::Torus {
+                center,
+                axis,
+                major_radius: big,
+                minor_radius: minor,
+                u_ref,
+            },
+            circle(
+                center + d * minor,
+                d.cross(lean) * sign(s),
+                big,
+                d * psi.cos() + lean * psi.sin(),
+            ),
+        )
+    }
+
+    #[test]
+    fn every_pose_and_scale_mints_and_certifies() {
+        let mut s = fuzz::start("review_4227::pose_scale");
+        let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
+        for _ in 0..fuzz::scaled(2000) {
+            let big = 10f64.powf(s.range(-2.0, 2.5));
+            let minor = big * s.range(0.02, 0.98);
+            let (surface, carrier) = pose(&mut s, big, minor);
+            let a = s.range(-20.0, 20.0);
+            let b = a + s.range(0.1, TAU);
+            let key = match chart_pcurve(&carrier, &surface, band()) {
+                Ok(p @ Pcurve::FocalSection { .. }) => {
+                    let f = PcurveCache::certify(p.clone(), a, b, &carrier, &surface, band());
+                    let lift = Interval::from_f64;
+                    let iv = PcurveCache::certify(
+                        {
+                            let i = super::super::FocalImage::of(&p).unwrap();
+                            Pcurve::FocalSection {
+                                u0: lift(i.u0),
+                                t0: lift(i.t0),
+                                v0: lift(i.v0),
+                                va: lift(i.va),
+                                vb: lift(i.vb),
+                                vl: lift(i.vl),
+                                beta: lift(i.beta),
+                                sense: lift(i.sense),
+                            }
+                        },
+                        lift(a),
+                        lift(b),
+                        &carrier.map_scalar(lift),
+                        &surface.map_scalar(lift),
+                        band(),
+                    );
+                    match (f, iv) {
+                        (Ok(_), Ok(_)) => "ok".to_string(),
+                        (f, iv) => format!(
+                            "certify refuses (f64 {:?} / iv {:?}) R={big:e} r/R={:.3}",
+                            f.err().map(|e| e.to_string().chars().take(90).collect::<String>()),
+                            iv.err().map(|e| e.to_string().chars().take(90).collect::<String>()),
+                            minor / big
+                        ),
+                    }
+                }
+                Ok(other) => format!("wrong image {}", format!("{other:?}").chars().take(40).collect::<String>()),
+                Err(e) => format!(
+                    "derive refuses R={big:e} r/R={:.3}: {}",
+                    minor / big,
+                    e.to_string().chars().take(120).collect::<String>()
+                ),
+            };
+            *tally.entry(key).or_default() += 1;
+        }
+        for (k, n) in &tally {
+            println!("[probe] {n:5} × {k}");
+        }
+        assert_eq!(tally.len(), 1, "{tally:#?}");
+    }
+
+    /// Moves a Villarceau circle by `delta` along one gate's dimension
+    /// and reports what the arm says; it must never panic or mint a row
+    /// that then certifies wrongly.
+    #[test]
+    fn moved_villarceau_circles_refuse_typed() {
+        let mut s = fuzz::start("review_4227::moved");
+        let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
+        let b = band();
+        for _ in 0..fuzz::scaled(3000) {
+            let big = s.range(0.5, 3.0);
+            let minor = big * s.range(0.05, 0.9);
+            let (surface, carrier) = pose(&mut s, big, minor);
+            let Surface::Torus { axis, center: tc, .. } = surface else { unreachable!() };
+            let Curve3::Circle { center, axis: n, radius, u_ref } = carrier else { unreachable!() };
+            let cat = s.below(3);
+            let delta = match cat {
+                0 => b.zero() * s.range(0.1, 0.9),
+                1 => b.escalate() * s.range(1.5, 30.0),
+                _ => 10f64.powf(s.range(-7.0, -3.0)),
+            };
+            let which = s.below(6);
+            let w = center - tc;
+            let w_r = w - axis * w.dot(axis);
+            let d = w_r.normalize();
+            let moved = match which {
+                // along the radial of the centre
+                0 => circle(center + d * delta, n, radius, u_ref),
+                // along the axis
+                1 => circle(center + axis * delta, n, radius, u_ref),
+                // tangentially in the equator
+                2 => circle(center + axis.cross(d) * delta, n, radius, u_ref),
+                // tilt about d (keeps the plane through the centre)
+                3 => {
+                    let m = n.cross(d);
+                    let n2 = (n + m * delta).normalize();
+                    let u2 = (u_ref - n2 * u_ref.dot(n2)).normalize();
+                    circle(center, n2, radius, u2)
+                }
+                // radius
+                4 => circle(center, n, radius + delta, u_ref),
+                // rotate about the tangent line at the outer vertex
+                _ => {
+                    let tang = n.cross(d);
+                    let n2 = (n + d * delta).normalize();
+                    let vtx = center + d * radius;
+                    let c2 = vtx - (n2.cross(tang)).normalize() * radius * (d.dot(n2.cross(tang)).signum());
+                    let u2 = (u_ref - n2 * u_ref.dot(n2)).normalize();
+                    circle(c2, n2, radius, u2)
+                }
+            };
+            let res = std::panic::catch_unwind(|| chart_pcurve(&moved, &surface, band()));
+            let key = match res {
+                Err(_) => "PANIC".to_string(),
+                Ok(Ok(p)) => {
+                    let off = super::sampled_sup(&p, &surface, &moved, 0.0, TAU);
+                    match PcurveCache::certify(p, 0.0, TAU, &moved, &surface, band()) {
+                        Ok(c) => {
+                            assert!(
+                                c.certificate().envelope >= off - 1e-14,
+                                "envelope {} under {off}",
+                                c.certificate().envelope
+                            );
+                            format!("mint+certify (move {which})")
+                        }
+                        Err(e) => format!(
+                            "mint, certify refuses (move {which}): {}",
+                            e.to_string().chars().take(60).collect::<String>()
+                        ),
+                    }
+                }
+                Ok(Err(e)) => {
+                    let k = match e {
+                        PcurveCertifyError::CarrierGrazesChart { .. } => "grazes",
+                        PcurveCertifyError::CarrierOffChart { .. } => "off",
+                        PcurveCertifyError::Escalated { .. } => "escalated",
+                        _ => "other",
+                    };
+                    let true_off = super::sampled_sup(
+                        &Pcurve::Harmonic {
+                            p0: Point2::new(0.0, 0.0),
+                            pa: Vec2::new(0.0, 0.0),
+                            pb: Vec2::new(0.0, 0.0),
+                            pl: Vec2::new(0.0, 0.0),
+                        },
+                        &surface,
+                        &moved,
+                        0.0,
+                        0.0,
+                    );
+                    let _ = true_off;
+                    let dist = {
+                        let Surface::Torus { center: o, axis: a, major_radius: rr, minor_radius: m, .. } = surface else { unreachable!() };
+                        (0..2048).map(|i| {
+                            let q = moved.eval(f64::from(i) * TAU / 2048.0) - o;
+                            let h = q.dot(a);
+                            let rho = (q - a * h).norm();
+                            ((rho - rr).hypot(h) - m).abs()
+                        }).fold(0.0, f64::max)
+                    };
+                    let inband = if dist <= b.zero() { "IN-BAND" } else { "past" };
+                    if k == "off" && dist <= b.zero() {
+                        println!("[probe] in-band OFF: move {which} delta {delta:e} dist {dist:e} r/R {:.3} band0 {:e}", minor / big, b.zero());
+                    }
+                    format!("{k} (cat {cat}, {inband})")
+                }
+            };
+            *tally.entry(key).or_default() += 1;
+        }
+        for (k, n) in &tally {
+            println!("[probe] {n:5} × {k}");
+        }
+        assert!(!tally.contains_key("PANIC"));
+    }
+}
