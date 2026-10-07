@@ -22,12 +22,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::PI;
-
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
 use topo::{AtRestBody, Body, BooleanOp};
+
+use crate::common::oracles::{ball_volume, cap_volume, lens_volume};
 
 /// A ball of radius `r` centred at `c`, poles on world `y`.
 fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -38,23 +38,6 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     );
     let b = topo::transform_rigid(&b, &Affine3::translation(c), Tol::witness()).unwrap();
     finished("the ball", b, Tol::witness())
-}
-
-fn ball_volume(r: f64) -> f64 {
-    4.0 / 3.0 * PI * r.powi(3)
-}
-
-/// The volume of a spherical cap of height `h` on a sphere of radius `r`.
-fn cap_volume(r: f64, h: f64) -> f64 {
-    PI * h.powi(2) * (3.0 * r - h) / 3.0
-}
-
-/// The lens two balls `r1`, `r2` at centre distance `d` share: the cap
-/// of each beyond the radical plane, which sits at
-/// `x = (d² + r1² − r2²)/2d` from the first centre.
-fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
-    let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
-    cap_volume(r1, r1 - x) + cap_volume(r2, r2 - (d - x))
 }
 
 /// Every tier of validation, then the volume against `expected` through
