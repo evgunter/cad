@@ -236,3 +236,38 @@ fn a_bore_clear_of_a_keyhole_creases_sliver_carves_at_the_closed_form() {
     let want = -2.0 * keyhole_cut(0.1);
     assert!((dv - want).abs() < 1e-12, "ΔV {dv} vs {want}");
 }
+
+/// **Past the disc's radius the first refusal is the shared support's
+/// screen, not the cap meter**: the creases carve at the closed form up
+/// to `r = 0.5975`, and at `r = 0.6` the disc wall both creases end on
+/// refuses `FaceClearanceUncertified`, the screen that cannot tell the
+/// two setbacks run apart along it (the rocker's wall at the same
+/// radius, `demos/tour/src/rocker.rs`). The cap meter refuses nowhere
+/// on the way.
+#[test]
+fn past_the_discs_radius_a_keyhole_crease_first_meets_the_support_screen() {
+    let body = sweep::test_support::finished("body", keyhole_block(), tol());
+    let creases = rod_creases(&body);
+    let vol0 = volume(&body);
+    let r = 0.5975;
+    let out = fillet_edges(&body, &creases, r, tol())
+        .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
+    let dv = volume(&out.body) - vol0;
+    let want = -2.0 * keyhole_cut(r);
+    assert!((dv - want).abs() < 1e-12, "r {r}: ΔV {dv} vs {want}");
+    match fillet_edges(&body, &creases, 0.6, tol()).map_err(|e| e.error) {
+        Err(BlendError::FaceClearanceUncertified { face, .. }) => {
+            let f = body
+                .get_face(face)
+                .expect("the refusal names a source face");
+            assert!(
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { radius, .. }) if (*radius - BR).abs() < 1e-12
+                ),
+                "r 0.6: the face named is the disc's wall"
+            );
+        }
+        other => panic!("r 0.6: expected the support screen's refusal, got {other:?}"),
+    }
+}
