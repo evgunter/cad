@@ -430,7 +430,8 @@ impl<T: Real> Reach<T> {
     /// was measured from, a span's first consumed point or conic centre.
     /// Its distance from a pivot is at most a ball's or a span's lever
     /// from there, so the floor in [`Self::lever_between`] binds only on
-    /// a [`Self::Measured`] length.
+    /// a caller's length ([`Self::Measured`]; no caller hands the cylinder
+    /// pair a [`Self::Face`]).
     fn reading_point(&self) -> Point3<T> {
         match self {
             Self::Ball(ball) => ball.center(),
@@ -482,15 +483,15 @@ impl<T: Real> Reach<T> {
     ///
     /// **The lever here is floored at the foot's distance from the reach's
     /// point** (a ball's centre, the point a length was measured from, a
-    /// span's consumed point); that binds only on a measured
+    /// span's consumed point); that binds only on a [`Self::Measured`]
     /// length, and only here. The caller measured its length along the
     /// axis from `at`; the foot-to-foot gap also carries the radial
     /// offset of `at` from each axis, which a tilt turns into axial
     /// travel between the feet, so this lever reaches at least that far.
-    /// The plane×cylinder row ([`Self::lever_from`]) moves its section by
-    /// the tilt times the AXIAL distance from the foot alone, which the
-    /// length already bounds, so it takes the bare length: floored there,
-    /// a face shorter than the radius would be levered past its own
+    /// The plane×cylinder row moves its section by the tilt times the
+    /// AXIAL distance from the foot, which a [`Self::Face`]'s length
+    /// already measures, so it takes that length bare: floored there, a
+    /// face shorter than the radius would be levered past its own
     /// measure, and a tilt the length leaves in the band served.
     #[must_use]
     pub fn lever_between(&self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {

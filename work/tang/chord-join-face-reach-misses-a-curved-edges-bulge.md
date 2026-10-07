@@ -60,17 +60,21 @@ in the split lane), so whether they move with it is part of the item.
 
 ## Outcome (2026-10-07)
 
-`section_reach` levers a cylinder wall at its axial extent from the
-base vertex, `splitting::rules::face_axial_extent`: each boundary
-vertex's and each certified edge's farthest `|(p − at)·a|`
-(`geom_brep::Reach::axial_lever_from` of the edge's `Reach::Span`).
-On main the face extent already folded in each curved edge's Euclidean
-reach (`edge_reach`), so the under-statement this item opened with no
-longer reached the table; the over-statement did, and is gone: the
-axial extent is never longer than the face extent from the same
-vertex. `face_extent` keeps its split-lane callers and the cone lane,
-whose pivot is filed as
-`chord-join-cone-lane-levers-from-the-base-vertex-not-the-apex`. Rows:
-`chord_join::tests::a_rims_bulge_levers_the_pose_along_the_axis`,
-`splitting::rules::tests::a_faces_axial_extent_reaches_its_rims_bulge`;
+`section_reach` hands the table a `Reach::Face`: the wall face's axial
+extent from the base vertex (`splitting::rules::face_axial_extent`,
+each certified edge's `Reach::axial_lever_from`, a conic arc read over
+the span it holds), and its reach across the wall, `face_extent`, which
+only the tilt's second-order turn about the rulings' hinge reads. On
+main the face extent already folded in each curved edge's Euclidean
+reach, so the under-statement this item opened with no longer reached
+the table; the over-statement did, and is gone: the axial extent is
+never longer than the face extent from the same vertex. `face_extent`
+keeps its split-lane callers and the cone lane, whose pivot is filed as
+`chord-join-cone-lane-levers-from-the-base-vertex-not-the-apex`; a
+spiric or spline edge's span is filed as
+`spiric-and-spline-axial-levers-read-past-the-span`. Rows (chord_join
+tests): `a_rims_bulge_levers_the_pose_along_the_axis`,
+`a_short_face_is_never_turned_definite_by_its_walls_size`,
+`a_face_at_one_station_is_cut_by_a_plane_across_the_axis_in_a_conic`,
+and `splitting::rules::tests::a_faces_axial_extent_reaches_its_rims_bulge`;
 the short-face row stays green unchanged.

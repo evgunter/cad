@@ -52,11 +52,14 @@ LONGER than the radius on a short wall, and it must stay green.
 
 `germ_section_frame` levers the plane×cylinder pair at its wall face's
 axial extent from the reading point (`boolean::join::frame_extent`,
-`splitting::rules::face_axial_extent`), curved edges included. A pair
-handed to `pair_section_frame` without its faces (`extent: None`)
-still levers at the radius; the coin row pins that path and stays
-green. Rows: `a_long_walls_tilt_is_levered_at_its_length_not_its_radius`,
+`splitting::rules::face_axial_extent`, a conic arc read over the span
+it holds), with twice the face's farthest distance from that point as
+its reach across the wall (`geom_brep::Reach::Face`). A pair handed to
+`pair_section_frame` without its faces still levers at the radius; the
+coin row pins that path and stays green. Rows (`frame_dispatch_tests`):
+`a_long_walls_tilt_is_levered_at_its_length_not_its_radius`,
 `a_short_walls_tilt_is_levered_at_its_axial_extent_not_its_radius`,
-`a_rims_bulge_levers_the_germ_frames_tilt` (`frame_dispatch_tests`).
+`a_rims_bulge_levers_the_germ_frames_tilt`,
+`a_partial_rim_levers_the_frame_at_its_arcs_reach_not_the_whole_turn`.
 The cylinder pair's span has the same vertex-only blind spot, filed as
 `germ-cylinder-pair-span-misses-a-curved-edges-bulge`.
