@@ -4304,6 +4304,68 @@ mod tests {
         }
     }
 
+    /// **A one-sided face is levered from the rulings' hinge station
+    /// either way.** A wall of radius `r` whose face is the lone ruling
+    /// `(r, 0, 0)` to `(r, 0, e)`, `e` = 1 mm, cut by the plane through the
+    /// vertex tilted to `sin β = c`. The rulings this lane mints stand on
+    /// the hinge through the foot's projection, `r·c` up the axis: with
+    /// `r·c = e/2` the face reaches `e/2` from that station either way, so
+    /// the tilt moves it by `c·e/2 = 0.6·Kε`, in the band, and the table
+    /// escalates. Read as reaching `e` both ways from the vertex, the
+    /// lever was `e + r·c` and served an ellipse (main's face extent, `e`,
+    /// read `1.2·Kε` and served one too).
+    #[test]
+    fn a_one_sided_face_is_levered_from_the_hinge_station_either_way() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let e = 1e-3;
+        let c: f64 = 1.2 * band.escalate() / e;
+        let r = e / (2.0 * c);
+        let base = Point3::new(r, 0.0, 0.0);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(base, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: r,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(r, 0.0, e),
+            Tol::witness(),
+        )
+        .unwrap();
+        let normal = UnitVec3::new(
+            Vec3::new((1.0 - c * c).sqrt(), 0.0, c),
+            "one-sided face",
+            band,
+        )
+        .unwrap();
+        let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+        assert!(
+            matches!(
+                got,
+                Err(SplitJoinError::Escalated { ref diag, .. })
+                    if diag.predicate == Some("pc_axis_plane_parallel")
+            ),
+            "the tilt over the face from the hinge station is in the band, got {:?}",
+            got.map(|w| w.map(|w| match w.case {
+                SectionCase::Straight(_) => "straight",
+                SectionCase::Tangent(_) => "tangent",
+                SectionCase::Conic(_) => "conic",
+            }))
+        );
+    }
+
     /// The split lane's adjacency question on a conic between edge (a
     /// cylinder cap's rim, which a planar divided face carries): the
     /// belly verdict and the coplanar verdict. The rim is the upper

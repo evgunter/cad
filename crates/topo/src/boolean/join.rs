@@ -3314,10 +3314,23 @@ mod frame_dispatch_tests {
         lever: f64,
     ) -> Vec<(&'static str, Frame)> {
         let sin_beta = k * Tol::witness().eps() / lever;
+        let normal = Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta);
+        plane_frames(body, face, base, normal)
+    }
+
+    /// The frame of the plane through `base` of normal `normal` and the
+    /// wall `face` of `body` lies on, in both face orders, read as
+    /// [`wall_frames`] reads it.
+    fn plane_frames(
+        body: &crate::Body<f64>,
+        face: crate::entity::FaceKey,
+        base: Point3<f64>,
+        normal: Vec3<f64>,
+    ) -> Vec<(&'static str, Frame)> {
         let plane = geom::Surface::Plane {
             origin: base,
-            normal: Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            normal,
+            u_ref: Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
         };
         let wall = body
             .get_face(face)
@@ -3568,6 +3581,67 @@ mod frame_dispatch_tests {
                     );
                 }
             }
+        }
+    }
+
+    /// **A face at one station is cut across the axis in a conic, by the
+    /// germ frame too.** A unit wall about `z` whose face is the rim arc
+    /// at `z = 0` a quarter turn from `(1, 0, 0)`, read at its vertices'
+    /// centre, and the plane `z = 0`: the face reaches nothing along the
+    /// axis, and the plane turns about the rulings' hinge by a right
+    /// angle, which moves the face by its whole reach across the wall.
+    /// The frame is the rim's; a reach across of zero read the tilt as
+    /// Zero and named the rulings' straight frame.
+    #[test]
+    fn a_face_at_one_station_is_cut_across_the_axis_in_the_rims_frame() {
+        let mut body = crate::Body::<f64>::new();
+        let carrier = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: cylinder_at(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), 1.0),
+                sense: true,
+            },
+        )
+        .unwrap();
+        let cyl = body.get_face(seed.face).unwrap().surface;
+        let rim_plane = body.add_surface(geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        let quarter = core::f64::consts::FRAC_PI_2;
+        body.mev(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            carrier.eval(quarter),
+            geom_brep::EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: cyl,
+                    s2: rim_plane,
+                    witness: carrier.mid_point(0.0, quarter),
+                },
+                carrier,
+                param_start: 0.0,
+                param_end: quarter,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        let base = Point3::new(0.0, 0.0, 0.0);
+        for (label, got) in plane_frames(&body, seed.face, base, Vec3::new(0.0, 0.0, 1.0)) {
+            assert!(
+                matches!(got, Ok(Some(_))),
+                "({label}): the rim's frame, got {}",
+                verdict(&got)
+            );
         }
     }
 
