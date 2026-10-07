@@ -229,6 +229,40 @@ fn moving_the_typed_variable_closes_its_offer() {
     assert!(offered(&session, a).is_empty());
 }
 
+/// **An edit elsewhere leaves the offer standing** (choice 2 rejects
+/// closing it on any later edit): moving `k` touches neither the slot
+/// nor the value typed there.
+#[test]
+fn an_edit_elsewhere_leaves_the_offer_standing() {
+    let (mut session, a, _b, w, k) = two_extrudes();
+    typed(&mut session, a, 0.012);
+    let moved = session.perform(SessionOp::SetVariable {
+        var: k,
+        value: SlotValue::Continuous(0.5),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    assert_eq!(moved.committed.len(), 1, "a document edit");
+    assert_eq!(offered(&session, a), vec![w]);
+}
+
+/// **A value moved away and back is not offered again**: the drag
+/// closed the offer for good, and the move back is no typing.
+#[test]
+fn a_value_moved_back_is_not_offered_again() {
+    let (mut session, a, _b, w, _k) = two_extrudes();
+    typed(&mut session, a, 0.012);
+    assert_eq!(offered(&session, a), vec![w]);
+    let minted = reads(&session, a);
+    for value in [0.010, 0.012] {
+        let moved = session.perform(SessionOp::SetVariable {
+            var: minted,
+            value: SlotValue::Continuous(value),
+        });
+        assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    }
+    assert!(offered(&session, a).is_empty());
+}
+
 /// **An offer is made straight after a typing op, and neither an undo
 /// nor a redo makes one**: the redo puts the typed value back, and the
 /// offer the undo closed stays closed.

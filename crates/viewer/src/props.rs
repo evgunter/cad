@@ -133,7 +133,7 @@
 use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VarName,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName,
     VectorSlot, eval, eval_count,
 };
 use pncad::prelude::{M, PI, RAD};
@@ -1134,15 +1134,7 @@ pub fn equal_variables(
         return Vec::new();
     };
     let env = doc.var_env::<f64>();
-    let value_of = |var: VarId| {
-        let dimension = doc.var(var)?.kind().dimension();
-        let expr = Expr::var(var, dimension);
-        if dimension == Dimension::Count {
-            eval_count(&expr, &env).ok().map(SlotValue::Count)
-        } else {
-            eval(&expr, &env).ok().map(SlotValue::Continuous)
-        }
-    };
+    let value_of = |var: VarId| value_in(doc, &env, var);
     let Some(value) = value_of(own) else {
         return Vec::new();
     };
@@ -1159,8 +1151,26 @@ pub fn equal_variables(
         .collect()
 }
 
+/// **What `var` holds now**: a free variable its value, a defined one
+/// what its definition evaluates to; `None` where the document holds no
+/// such variable or it does not evaluate.
+pub fn variable_value(doc: &Doc<ProfileProgram>, var: VarId) -> Option<SlotValue> {
+    value_in(doc, &doc.var_env::<f64>(), var)
+}
+
+/// [`variable_value`] against an environment built once for a scan.
+fn value_in(doc: &Doc<ProfileProgram>, env: &VarEnv<f64>, var: VarId) -> Option<SlotValue> {
+    let dimension = doc.var(var)?.kind().dimension();
+    let expr = Expr::var(var, dimension);
+    if dimension == Dimension::Count {
+        eval_count(&expr, env).ok().map(SlotValue::Count)
+    } else {
+        eval(&expr, env).ok().map(SlotValue::Continuous)
+    }
+}
+
 /// Equal at the bits: `-0.0` is not `0`, where `==` would say it is.
-fn bit_equal(a: SlotValue, b: SlotValue) -> bool {
+pub fn bit_equal(a: SlotValue, b: SlotValue) -> bool {
     match (a, b) {
         (SlotValue::Continuous(a), SlotValue::Continuous(b)) => a.to_bits() == b.to_bits(),
         (SlotValue::Count(a), SlotValue::Count(b)) => a == b,

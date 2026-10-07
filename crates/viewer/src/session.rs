@@ -77,7 +77,7 @@ use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator, evaluate_beside};
 use crate::g1;
 use crate::generation::Generation;
-use crate::history::{History, HistoryId};
+use crate::history::History;
 use crate::parts::{self, PartFiles};
 use crate::pickcache;
 use crate::props::{self, Notation, SlotDriver, SlotValue};
@@ -511,20 +511,31 @@ struct Derived {
     /// The slot whose typed value is offered the variables of equal
     /// value ([`DocSession::offered`]), and the variable that typing
     /// minted. It stands until it is accepted or declined, or until the
-    /// history moves off the state the typing recorded — any later
-    /// edit, a drag of that very variable, an undo, a redo — so an
-    /// offer is only ever made about a value as it was typed.
+    /// slot no longer reads that variable at the value typed — a retype,
+    /// a drag of that very variable, a move of it by its own door — or
+    /// the history steps (an undo, a redo), so an offer is only ever
+    /// made about a value as it was typed. An edit elsewhere leaves it.
     offer: Option<SlotOffer>,
 }
 
 /// A typed value's offer: the slot it was typed at, the variable it
-/// minted there, and the history state the typing recorded.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// minted there, and the value typed.
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct SlotOffer {
     node: RecipeNodeId,
     slot: SlotId,
     var: VarId,
-    at: HistoryId,
+    typed: props::SlotValue,
+}
+
+impl SlotOffer {
+    /// Whether the slot still reads the variable typing minted, at the
+    /// bits typed.
+    fn stands(&self, doc: &Doc<ProfileProgram>) -> bool {
+        doc.slot(self.node, self.slot) == Some(self.var)
+            && props::variable_value(doc, self.var)
+                .is_some_and(|now| props::bit_equal(now, self.typed))
+    }
 }
 
 impl Derived {
@@ -1072,20 +1083,15 @@ impl DocSession {
 
     /// **The variables a value typed at `slot` on `node` is offered**
     /// (D10: typing a value offers an existing variable of equal
-    /// value): empty unless the last op that changed the document typed
-    /// a value there and it has not been accepted or declined — any
-    /// later edit, drag, undo or redo closes it — and empty where no variable
+    /// value): empty unless a value was typed there, still stands as
+    /// typed, and has not been accepted or declined — a drag, a retype,
+    /// an undo or a redo closes it — and empty where no variable
     /// equals it ([`props::equal_variables`]). Read off the committed
     /// document, which is the one the accepting edit applies to.
     pub fn offered(&self, node: RecipeNodeId, slot: SlotId) -> Vec<props::Offered> {
         let doc = self.committed_doc();
         match self.derived.offer {
-            Some(offer)
-                if offer.node == node
-                    && offer.slot == slot
-                    && offer.at == self.history.current()
-                    && doc.slot(node, slot) == Some(offer.var) =>
-            {
+            Some(offer) if offer.node == node && offer.slot == slot && offer.stands(doc) => {
                 props::equal_variables(doc, node, slot)
             }
             Some(_) | None => Vec::new(),
@@ -1491,12 +1497,12 @@ impl DocSession {
         // them. A landing changes only the landed run, an earlier
         // version of the shown document.
         self.derived.said = self.derived.said.respoken(self.doc());
-        // And the one place an offer closes when the history moves off
-        // the state its typing recorded: an offer is made straight
-        // after a typing op and never again, so no later edit, drag,
-        // undo or redo can stand it up about a value nobody typed.
-        let now = self.history.current();
-        self.derived.offer = self.derived.offer.filter(|offer| offer.at == now);
+        // And the one place an offer closes once its value no longer
+        // stands as typed: closed for good, so a value moved away and
+        // back is never offered again — an offer is made straight after
+        // a typing op and never by any other.
+        let doc = self.history.doc();
+        self.derived.offer = self.derived.offer.filter(|offer| offer.stands(doc));
         outcome
     }
 
@@ -1921,11 +1927,14 @@ impl DocSession {
         self.derived.offer = doc
             .slot(node, slot)
             .filter(|&var| doc.is_typed_value(var))
-            .map(|var| SlotOffer {
-                node,
-                slot,
-                var,
-                at: self.history.current(),
+            .and_then(|var| {
+                let typed = props::variable_value(doc, var)?;
+                Some(SlotOffer {
+                    node,
+                    slot,
+                    var,
+                    typed,
+                })
             });
     }
 

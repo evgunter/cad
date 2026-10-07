@@ -308,18 +308,26 @@ New rows, each mutation-checked red without its guard:
 
 | Guard | Row |
 |---|---|
-| the offer stands only at the history state its typing recorded (`SlotOffer::at`, checked in `offered`) | `gui_variables::a_drag_of_the_typed_slot_closes_its_offer`, `gui_variables::moving_the_typed_variable_closes_its_offer` |
-| `perform` closes an offer once the history moves off that state | `gui_variables::a_redo_does_not_revive_an_offer` |
+| the offer stands only while the slot reads the minted variable at the bits typed (`SlotOffer::stands`) | `gui_variables::a_drag_of_the_typed_slot_closes_its_offer`, `gui_variables::moving_the_typed_variable_closes_its_offer` |
+| `perform` closes an offer for good once it stops standing | `gui_variables::a_redo_does_not_revive_an_offer`, `gui_variables::a_value_moved_back_is_not_offered_again` |
+| an edit elsewhere leaves the offer (choice 2 rejects closing it on any later edit) | `gui_variables::an_edit_elsewhere_leaves_the_offer_standing` (guards the choice; no mutant: it pins that the fix is not the history-state key a first cut used) |
 | the `is_typed_value` filter in `offer_after` (the review's surviving M7) | `gui_variables::typed_text_is_offered_and_a_formula_is_not`, now with `b` holding an equal typed value |
 | bit equality in `equal_variables` | `gui_variables::a_negative_zero_is_not_offered_for_a_typed_zero` |
 | `SetSlotVariable` refuses `NotOffered` | `gui_variables::accepting_what_is_not_offered_is_refused` |
 | the naming field closes when its slot stops reading the variable it was opened for (`NameDraft::var`) | `properties_pane_tests::a_naming_field_closes_when_its_slot_reads_another_variable` |
 | a refused rename keeps the field and its text | `properties_pane_tests::a_refused_name_keeps_the_field_and_its_text` |
 
+A first cut keyed the offer to the history state its typing recorded;
+that closed it on an edit anywhere, which is choice 2's rejected
+alternative, so the key is the typed value's bits instead. An
+undo/redo-specific clear was dropped as redundant: a step that changes
+what the slot reads closes the offer through the same check, and the
+mutant removing it survived every row.
+
 Runs on the fix pass: `cargo fmt --all --check` and `cargo clippy --workspace
 --all-targets --all-features -D warnings` clean; `scripts/gates/*.sh`
-and `payload-rung-sweep --check` pass; viewer default 908 passed;
-viewer `--features app` 1192 passed with lavapipe installed, so the two
+and `payload-rung-sweep --check` pass; viewer default 910 passed;
+viewer `--features app` 1194 passed with lavapipe installed, so the two
 GPU rows ran and passed; editor-core `--profile ci` 2776 passed (one
 row, `sym_9_the_drive_writes_the_ladders_receipt`, was cut by the
 run's own wall-clock limit and passed alone in 249 s); `work.py lint`
