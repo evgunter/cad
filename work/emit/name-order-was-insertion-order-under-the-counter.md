@@ -2,11 +2,12 @@
 id: name-order-was-insertion-order-under-the-counter
 kind: issue
 title: Where a name's canonical form picks the least name, the counter made that the earliest-inserted node and the mint makes it an arbitrary one
-status: open
+status: review
 opened: 2026-09-30
 priority: P2
 cost: M
 parent: sibling-branches-mint-one-node-id-for-different-nodes
+branch: emit/ordinal-ids
 ---
 
 
@@ -124,3 +125,23 @@ paragraph) states the pair; fork-log row 74 records it.
 - **Test:** re-drawing another member never takes a held flush stretch. Use
   the designers' fixture, with `declared_side_fault`'s refusal set aside, or
   wait for the doors row that relaxes it.
+
+## Built (branch `emit/ordinal-ids`)
+
+- `MintId { ordinal: u32, digest: u64 }` (`mint.rs`) is the one inner
+  type of `RecipeNodeId`, `StepId` and `VarId`; its derived `Ord`
+  compares the ordinal first. On the wire it is a string,
+  `<ordinal>:<16 hex digest>`, `FullId`'s spelling. The display tag
+  stays the digest's high 48 bits.
+- `Doc::order`, `Doc::positions` and `Doc::var_order` are gone;
+  `Doc::ids` and `Doc::var_ids` derive from the maps' keys.
+  `OrderMismatch`, `VarOrderMismatch`, `NodeIdCollides`, `VarIdCollides`
+  and `StepIdFault::Collides` are retired. `MintLogOrder` now refuses
+  a log whose ordinals do not count up from one.
+- `docm7_union_declare::redrawing_another_member_never_takes_a_held_flush_stretch`
+  holds the rule through the doors.
+- Corpus: `name_tables_by_position` against main moves only the
+  `Borders` wall order in the three `nested_islands` documents; every
+  `FromMember` holder and every value channel is unchanged.
+- Filed: `work/wire/id-lowerings-to-u64-tokens-drop-the-ordinal.md`,
+  `work/flux/analysis-boxes-keep-an-axis-order-the-ids-already-give.md`.
