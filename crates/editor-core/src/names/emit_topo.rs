@@ -5018,6 +5018,11 @@ mod touch_reread_rows {
                 }),
                 t(),
             ));
+            let block = posed_box("a block", [(1.0, 2.0), (0.5, 1.5), (0.3, 1.5)], pose, t());
+            let pentagon: Vec<[f64; 3]> = (0..5)
+                .map(|k| bearing(120.0 + 72.0 * f64::from(k), 0.3, -0.45))
+                .collect();
+            let pentagonal = built(subtract(&block, &apex_pyramid(&pentagon, pose, t()), t()));
             let quad = [
                 bearing(40.0, 0.45, 0.5),
                 bearing(80.0, 0.45, 0.5),
@@ -5091,6 +5096,8 @@ mod touch_reread_rows {
                 ("beside the void in the arch", &cone, &hollow),
                 ("crossing three levels", &cross3, &deep),
                 ("over the void, the island in it", &over, &deep),
+                ("hanging into a pentagonal void", &hang, &pentagonal),
+                ("hanging across a pentagonal void", &hang_over, &pentagonal),
                 ("over a quad void in a quad arch", &over, &quad_hollow),
                 (
                     "over a quad void in a bare quad arch",

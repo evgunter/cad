@@ -381,6 +381,16 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             bearing(238.0, 0.4, 0.4),
             bearing(230.0, 0.448, 0.4),
         ];
+        // A pentagonal void buried in the block: a vertex in one pair,
+        // its partner hollow.
+        let pentagon: Vec<[f64; 3]> = (0..5)
+            .map(|k| bearing(120.0 + 72.0 * f64::from(k), 0.3, -0.45))
+            .collect();
+        let pentagonal_b = built(
+            "a pentagonal void buried",
+            subtract(&block_b, &apex_pyramid(&pentagon, &pose, t()), t()),
+        );
+        let pentagonal = dd(G::All, G::Cone(pentagon.clone()));
         let pyr = |b: [[f64; 3]; 3]| (p(b), c(b));
         let (cone, over) = (pyr(corners(240.0, 0.7, 0.5)), pyr(corners(50.0, 0.7, 0.5)));
         let (hang, hang_over) = (
@@ -573,6 +583,18 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 pick(&cone),
                 (&dart_one_b, &dart_one),
                 Refuses,
+            ),
+            (
+                "hanging into a pentagonal void",
+                pick(&hang),
+                (&pentagonal_b, &pentagonal),
+                Classes,
+            ),
+            (
+                "hanging across a pentagonal void",
+                pick(&hang_over),
+                (&pentagonal_b, &pentagonal),
+                Classes,
             ),
             ("over a bare dart", pick(&over), (&dart_b, &dart_g), Unread),
             (
