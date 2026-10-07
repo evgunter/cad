@@ -27,63 +27,15 @@
 use crate::common;
 
 use common::meeting::{
-    Hole, MEET, PLATE, corners_disjoint, cycles_of, ell_and_wedges, four_wedges, inner_rows, notch,
-    notch_rows, three_wedges, two_wedges, wedge, wedges_on_one_side,
+    Hole, MEET, PLATE, Pose, arch, at, corners_disjoint, ell_and_wedges, four_wedges, inner_rows,
+    notch, notch_rows, orders, posed_box, posed_prism, poses, shape, three_wedges, two_wedges,
+    wedge, wedges_on_one_side,
 };
-use common::{FaceGeometry, describe_as_intersections, finished, prism_ops};
 use geom_core::{Point3, Tol};
-use topo::{AtRestBody, Body, BooleanResult, union, validate_geometric, validate_pseudomanifold};
+use topo::{AtRestBody, BooleanResult, union, validate_geometric, validate_pseudomanifold};
 
 fn t() -> Tol {
     Tol::witness()
-}
-
-type Point = (i64, i64, i64);
-
-fn at(p: Point3<f64>) -> Point {
-    let n = |x: f64| (x * 1e6).round() as i64;
-    (n(p.x), n(p.y), n(p.z))
-}
-
-/// A body's geometry, key-free: each face by the points of its loops'
-/// vertices, each edge by its ends' points, as sorted multisets.
-fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
-    let pt = |he| at(body.half_edge_start_point(he).unwrap());
-    let mut faces: Vec<Vec<Point>> = body
-        .faces()
-        .map(|(_, f)| {
-            let mut ps: Vec<Point> = cycles_of(body, f).into_iter().flatten().map(pt).collect();
-            ps.sort_unstable();
-            ps
-        })
-        .collect();
-    faces.sort_unstable();
-    let mut edges: Vec<[Point; 2]> = body
-        .edges()
-        .map(|(_, e)| {
-            let mut ps = [e.he_plus, e.he_minus].map(pt);
-            ps.sort_unstable();
-            ps
-        })
-        .collect();
-    edges.sort_unstable();
-    (faces, edges)
-}
-
-/// Every order of `0..n`.
-fn orders(n: usize) -> Vec<Vec<usize>> {
-    if n == 0 {
-        return vec![Vec::new()];
-    }
-    let mut out = Vec::new();
-    for order in orders(n - 1) {
-        for i in 0..n {
-            let mut o = order.clone();
-            o.insert(i, n - 1);
-            out.push(o);
-        }
-    }
-    out
 }
 
 /// Folds the plate (member 0) and `holes`' prisms by union in every
@@ -162,115 +114,17 @@ fn holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_ord
     every_order("an L and two wedges", &ell_and_wedges(), [21, 48, 30]);
 }
 
-/// A rigid motion of the whole scene: `x ↦ r x + t`.
-struct Pose {
-    label: &'static str,
-    r: [[f64; 3]; 3],
-    t: [f64; 3],
-}
-
-impl Pose {
-    /// The turn by `angle` about `axis`, then the shift `t`.
-    fn turn(label: &'static str, axis: [f64; 3], angle: f64, t: [f64; 3]) -> Self {
-        let l = axis.iter().map(|a| a * a).sum::<f64>().sqrt();
-        let [x, y, z] = axis.map(|a| a / l);
-        let (s, c) = angle.sin_cos();
-        let d = 1.0 - c;
-        let r = [
-            [c + x * x * d, x * y * d - z * s, x * z * d + y * s],
-            [y * x * d + z * s, c + y * y * d, y * z * d - x * s],
-            [z * x * d - y * s, z * y * d + x * s, c + z * z * d],
-        ];
-        Self { label, r, t }
-    }
-
-    /// The pose then `self`.
-    fn after(self, first: &Self) -> Self {
-        let r = [0, 1, 2]
-            .map(|i| [0, 1, 2].map(|j| (0..3).map(|k| self.r[i][k] * first.r[k][j]).sum::<f64>()));
-        let t =
-            [0, 1, 2].map(|i| (0..3).map(|k| self.r[i][k] * first.t[k]).sum::<f64>() + self.t[i]);
-        Self {
-            label: self.label,
-            r,
-            t,
-        }
-    }
-
-    fn at(&self, p: [f64; 3]) -> Point3<f64> {
-        let q = [0, 1, 2].map(|i| (0..3).map(|k| self.r[i][k] * p[k]).sum::<f64>() + self.t[i]);
-        Point3::new(q[0], q[1], q[2])
-    }
-}
-
-impl Pose {
-    /// The identity.
-    fn rest() -> Self {
-        Self::turn("at rest", [0.0, 0.0, 1.0], 0.0, [0.0, 0.0, 0.0])
-    }
-}
-
-/// The scene's poses: at rest, turned about the top's normal, turned in
-/// general, and flipped (the top facing −z) at rest and turned.
-fn poses() -> Vec<Pose> {
-    let flip = || {
-        Pose::turn(
-            "flipped",
-            [1.0, 0.0, 0.0],
-            std::f64::consts::PI,
-            [0.0, 0.0, 0.0],
-        )
-    };
-    vec![
-        Pose::rest(),
-        Pose::turn("turned about z", [0.0, 0.0, 1.0], 0.65, [0.0, 0.0, 0.0]),
-        Pose::turn("turned", [1.0, 2.0, 3.0], 0.7, [0.3, -0.2, 0.5]),
-        flip(),
-        Pose::turn(
-            "flipped and turned",
-            [-2.0, 1.0, 1.0],
-            1.1,
-            [-0.4, 0.1, 0.3],
-        )
-        .after(&flip()),
-    ]
-}
-
-/// A box `[x, y, z]` placed by `pose`.
-fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose) -> AtRestBody<f64> {
-    let [(x0, x1), (y0, y1), z] = b;
-    let mut body = Body::<f64>::new();
-    prism_ops(
-        &mut body,
-        &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-        z,
-        |x, y, z| pose.at([x, y, z]),
-        FaceGeometry::Certified,
-        t(),
-    );
-    describe_as_intersections(&mut body, t());
-    finished(what, body, t())
-}
-
-/// A hole's prism placed by `pose`.
-fn posed_prism(h: &Hole, pose: &Pose) -> AtRestBody<f64> {
-    let [o, u, v, n] = h.frame();
-    let mut body = Body::<f64>::new();
-    prism_ops(
-        &mut body,
-        &h.profile(),
-        (0.0, h.length),
-        |x, y, z| pose.at([0, 1, 2].map(|i| o[i] + x * u[i] + y * v[i] + z * n[i])),
-        FaceGeometry::Certified,
-        t(),
-    );
-    describe_as_intersections(&mut body, t());
-    finished("a tilted prism", body, t())
-}
-
 fn body(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>) -> AtRestBody<f64> {
     match r {
         Ok(BooleanResult::Body(r)) => r.body,
+        Ok(BooleanResult::Empty) => panic!("{what}: empty"),
+        Err(e) => panic!("{what}: refused: {e:?}"),
+    }
+}
+
+fn built(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>) -> topo::BooleanBody<f64> {
+    match r {
+        Ok(BooleanResult::Body(r)) => r,
         Ok(BooleanResult::Empty) => panic!("{what}: empty"),
         Err(e) => panic!("{what}: refused: {e:?}"),
     }
@@ -280,10 +134,15 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
     topo::mass_properties(b, t()).unwrap().volume
 }
 
-/// Asserts `b` is tier-3 valid with `want`, its corners disjoint, and
+/// Asserts `r` is tier 3 and 3′ valid with `want`, its corners disjoint, and
 /// that a block across the meeting point unions with it.
-fn sound(what: &str, b: &AtRestBody<f64>, want: f64, pose: &Pose) {
+fn sound(what: &str, r: &topo::BooleanBody<f64>, want: f64, pose: &Pose) {
+    let b = &r.body;
     assert_eq!(validate_geometric(b, t()), Ok(()), "{what}: tier 3");
+    assert!(
+        validate_pseudomanifold(b, &r.contacts, t()).is_ok(),
+        "{what}: tier 3′"
+    );
     let v = volume(b);
     assert!(
         (v - want).abs() < 1e-9,
@@ -339,7 +198,7 @@ fn the_plate_against_the_holes_union_builds_sound_in_every_op() {
             }
             sound(
                 &format!("{label}: U − P"),
-                &body(&label, subtract(&u, &p, t())),
+                &built(&label, subtract(&u, &p, t())),
                 volume(&u) - inside,
                 &pose,
             );
@@ -347,16 +206,28 @@ fn the_plate_against_the_holes_union_builds_sound_in_every_op() {
                 ("P ∩ U", intersect(&p, &u, t())),
                 ("U ∩ P", intersect(&u, &p, t())),
             ] {
-                sound(&format!("{label}: {what}"), &body(&label, r), inside, &pose);
+                sound(
+                    &format!("{label}: {what}"),
+                    &built(&label, r),
+                    inside,
+                    &pose,
+                );
             }
             sound(
                 &format!("{label}: P − U"),
-                &body(&label, subtract(&p, &u, t())),
+                &built(&label, subtract(&p, &u, t())),
                 6.0 - inside,
                 &pose,
             );
-            let seq = prisms.iter().fold(p.clone(), |b, q| {
-                body(&format!("{label}: P less each prism"), subtract(&b, q, t()))
+            let first = built(
+                &format!("{label}: P less each prism"),
+                subtract(&p, &prisms[0], t()),
+            );
+            let seq = prisms[1..].iter().fold(first, |b, q| {
+                built(
+                    &format!("{label}: P less each prism"),
+                    subtract(&b.body, q, t()),
+                )
             });
             sound(
                 &format!("{label}: P less each prism"),
@@ -449,4 +320,38 @@ fn every_three_hole_grid_configuration_builds_p_minus_u_sound() {
 #[test]
 fn every_four_hole_grid_configuration_builds_p_minus_u_sound() {
     grid(4);
+}
+
+/// **Holes whose prisms' runs at the meeting point nest refuse typed,
+/// before any strut is hung** ([`arch`]). Leant across one another, the
+/// three prisms' union meets the top with three Out runs whose order
+/// round the point, read from their start germs, is not their order
+/// along the vertex's link; the pierce refuses `PierceRunsNested` in
+/// every op against the plate, both orders, and the prisms' union
+/// builds.
+#[test]
+fn holes_whose_runs_nest_at_their_vertex_refuse_typed_in_every_op() {
+    use topo::{intersect, subtract};
+    let rest = Pose::rest();
+    let p = posed_box("the plate", PLATE, &rest);
+    let prisms: Vec<_> = arch().iter().map(|h| posed_prism(h, &rest)).collect();
+    let u = prisms[1..].iter().fold(prisms[0].clone(), |u, q| {
+        body("the arch's prisms' union", union(&u, q, t()))
+    });
+    for (what, r) in [
+        ("P − U", subtract(&p, &u, t())),
+        ("U − P", subtract(&u, &p, t())),
+        ("P ∪ U", union(&p, &u, t())),
+        ("U ∪ P", union(&u, &p, t())),
+        ("P ∩ U", intersect(&p, &u, t())),
+        ("U ∩ P", intersect(&u, &p, t())),
+    ] {
+        match r {
+            Err(topo::BooleanError::PierceRunsNested { runs: 3, .. }) => {}
+            other => panic!(
+                "the arch, {what}: refuses PierceRunsNested with 3 runs, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+    }
 }

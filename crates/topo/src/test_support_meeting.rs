@@ -4,13 +4,20 @@
 //! Euler-op prism here, a sketch and an extrude there).
 //!
 //! The plate is `[0, 3] × [0, 2] × [0, 1]`; each hole is a right prism
-//! along an axis tilted out of its footprint, so above the top the
-//! prisms lean apart and meet only at [`MEET`].
+//! along an axis tilted out of its footprint, towards a bearing of its
+//! own ([`Hole::lean`]). Leant along their bisectors ([`wedge`]) the
+//! prisms move apart above the top and meet only at [`MEET`]; leant
+//! across one another ([`leaned`], [`arch`]) they may cross above it.
+//! The poses ([`Pose`], [`poses`]) move the whole scene rigidly.
 
 use std::collections::BTreeMap;
 
+use crate::AtRestBody;
 use crate::body::Body;
-use crate::entity::{Face, HalfEdgeKey, LoopBoundary, VertexKey};
+use crate::entity::{Face, HalfEdgeKey, LoopBoundary};
+use crate::test_support::finished;
+use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops};
+use geom_core::{Point3, Tol};
 
 /// The plate, `[x, y, z]` bounds.
 pub const PLATE: [(f64, f64); 3] = [(0.0, 3.0), (0.0, 2.0), (0.0, 1.0)];
@@ -88,6 +95,16 @@ pub fn wedge(a0: f64, a1: f64, k: usize) -> Hole {
     notch(a0, a1, k, 0.4)
 }
 
+/// [`wedge`] leaning towards the bearing `lean` (degrees) rather than
+/// along its bisector: leant across another hole's sector, the prisms'
+/// runs at [`MEET`] can nest about the top's normal.
+pub fn leaned(a0: f64, a1: f64, k: usize, lean: f64) -> Hole {
+    Hole {
+        lean,
+        ..wedge(a0, a1, k)
+    }
+}
+
 /// [`wedge`] of radius `r`: past the plate's edge where `r` reaches it,
 /// so its hole notches the top's boundary rather than lying inside it.
 pub fn notch(a0: f64, a1: f64, k: usize, r: f64) -> Hole {
@@ -155,6 +172,17 @@ pub fn wedges_on_one_side() -> Vec<Hole> {
 /// An L-shaped hole and two wedges in the quadrant it leaves.
 pub fn ell_and_wedges() -> Vec<Hole> {
     vec![ell(), wedge(190.0, 220.0, 1), wedge(235.0, 260.0, 2)]
+}
+
+/// Three wedges leant across one another ([`leaned`]): the first two
+/// turned 60° and 240° off their bisectors. Their prisms' union meets
+/// the top at [`MEET`] with three Out runs that nest about its normal.
+pub fn arch() -> Vec<Hole> {
+    vec![
+        leaned(0.0, 30.0, 0, 75.0),
+        leaned(120.0, 150.0, 1, 375.0),
+        wedge(240.0, 270.0, 2),
+    ]
 }
 
 /// The holes inside the top, labelled: [`two_wedges`] and the four
@@ -231,8 +259,8 @@ pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
 /// or two loops through one vertex, pass their corners there without
 /// crossing. A corner sweeps counterclockwise from its leaving edge to
 /// its arriving one, the face on the left. Corners are grouped by
-/// vertex key, so coincident vertices are compared only as the
-/// topology joins them.
+/// point, rounded to a micron ([`at`]), so the corners of several
+/// vertices on one point (a pinch split per cone) are compared too.
 ///
 /// It reads planar faces with straight edges of positive length, an
 /// outer loop that is a cycle and corners whose two edges leave along
@@ -277,11 +305,6 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
             body.half_edge_start_point(he)
                 .ok_or_else(|| format!("{he:?} has no start point"))
         };
-        let start = |he: HalfEdgeKey| {
-            body.get_half_edge(he)
-                .map(|h| h.start)
-                .ok_or_else(|| format!("{he:?} does not resolve"))
-        };
         let outer = cycles[0]
             .iter()
             .map(|&he| pt(he))
@@ -302,7 +325,7 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
         let u = n.cross(seed).normalize();
         let v = n.cross(u);
         let angle = |d: geom_core::Vec3<f64>| d.dot(v).atan2(d.dot(u)).rem_euclid(TAU);
-        let mut corners: BTreeMap<VertexKey, Vec<(f64, f64)>> = BTreeMap::new();
+        let mut corners: BTreeMap<Point, Vec<(f64, f64)>> = BTreeMap::new();
         for cycle in &cycles {
             let m = cycle.len();
             for i in 0..m {
@@ -325,17 +348,14 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
                         cycle[i]
                     ));
                 }
-                corners
-                    .entry(start(cycle[i])?)
-                    .or_default()
-                    .push((from, sweep));
+                corners.entry(at(here)).or_default().push((from, sweep));
             }
         }
-        for (vk, cs) in corners {
+        for (pk, cs) in corners {
             for (i, &(a, sa)) in cs.iter().enumerate() {
                 for &(b, sb) in &cs[i + 1..] {
                     if (b - a).rem_euclid(TAU) < sa - 1e-9 || (a - b).rem_euclid(TAU) < sb - 1e-9 {
-                        return Err(format!("{fk:?}: two corners at {vk:?} overlap"));
+                        return Err(format!("{fk:?}: two corners at {pk:?} overlap"));
                     }
                 }
             }
@@ -353,4 +373,166 @@ pub fn cycles_of(body: &Body<f64>, f: &Face) -> Vec<Vec<HalfEdgeKey>> {
             LoopBoundary::Empty { .. } => None,
         })
         .collect()
+}
+
+/// A point rounded to a micron.
+pub type Point = (i64, i64, i64);
+
+/// `p` rounded to a micron.
+pub fn at(p: Point3<f64>) -> Point {
+    let n = |x: f64| (x * 1e6).round() as i64;
+    (n(p.x), n(p.y), n(p.z))
+}
+
+/// A body's geometry, key-free: each face by the points of its loops'
+/// vertices, each edge by its ends' points, as sorted multisets.
+pub fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
+    let pt = |he| {
+        at(body
+            .half_edge_start_point(he)
+            .expect("a half-edge of a live body has a start point"))
+    };
+    let mut faces: Vec<Vec<Point>> = body
+        .faces()
+        .map(|(_, f)| {
+            let mut ps: Vec<Point> = cycles_of(body, f).into_iter().flatten().map(pt).collect();
+            ps.sort_unstable();
+            ps
+        })
+        .collect();
+    faces.sort_unstable();
+    let mut edges: Vec<[Point; 2]> = body
+        .edges()
+        .map(|(_, e)| {
+            let mut ps = [e.he_plus, e.he_minus].map(pt);
+            ps.sort_unstable();
+            ps
+        })
+        .collect();
+    edges.sort_unstable();
+    (faces, edges)
+}
+
+/// Every order of `0..n`.
+pub fn orders(n: usize) -> Vec<Vec<usize>> {
+    if n == 0 {
+        return vec![Vec::new()];
+    }
+    let mut out = Vec::new();
+    for order in orders(n - 1) {
+        for i in 0..n {
+            let mut o = order.clone();
+            o.insert(i, n - 1);
+            out.push(o);
+        }
+    }
+    out
+}
+
+/// A rigid motion of the whole scene: `x ↦ r x + t`.
+pub struct Pose {
+    /// Its name in a row's labels.
+    pub label: &'static str,
+    r: [[f64; 3]; 3],
+    t: [f64; 3],
+}
+
+impl Pose {
+    /// The turn by `angle` about `axis`, then the shift `t`.
+    pub fn turn(label: &'static str, axis: [f64; 3], angle: f64, t: [f64; 3]) -> Self {
+        let l = axis.iter().map(|a| a * a).sum::<f64>().sqrt();
+        let [x, y, z] = axis.map(|a| a / l);
+        let (s, c) = angle.sin_cos();
+        let d = 1.0 - c;
+        let r = [
+            [c + x * x * d, x * y * d - z * s, x * z * d + y * s],
+            [y * x * d + z * s, c + y * y * d, y * z * d - x * s],
+            [z * x * d - y * s, z * y * d + x * s, c + z * z * d],
+        ];
+        Self { label, r, t }
+    }
+
+    /// The pose then `self`.
+    pub fn after(self, first: &Self) -> Self {
+        let r = [0, 1, 2]
+            .map(|i| [0, 1, 2].map(|j| (0..3).map(|k| self.r[i][k] * first.r[k][j]).sum::<f64>()));
+        let t =
+            [0, 1, 2].map(|i| (0..3).map(|k| self.r[i][k] * first.t[k]).sum::<f64>() + self.t[i]);
+        Self {
+            label: self.label,
+            r,
+            t,
+        }
+    }
+
+    /// `p` moved.
+    pub fn at(&self, p: [f64; 3]) -> Point3<f64> {
+        let q = [0, 1, 2].map(|i| (0..3).map(|k| self.r[i][k] * p[k]).sum::<f64>() + self.t[i]);
+        Point3::new(q[0], q[1], q[2])
+    }
+}
+
+impl Pose {
+    /// The identity.
+    pub fn rest() -> Self {
+        Self::turn("at rest", [0.0, 0.0, 1.0], 0.0, [0.0, 0.0, 0.0])
+    }
+}
+
+/// The scene's poses: at rest, turned about the top's normal, turned in
+/// general, and flipped (the top facing −z) at rest and turned.
+pub fn poses() -> Vec<Pose> {
+    let flip = || {
+        Pose::turn(
+            "flipped",
+            [1.0, 0.0, 0.0],
+            std::f64::consts::PI,
+            [0.0, 0.0, 0.0],
+        )
+    };
+    vec![
+        Pose::rest(),
+        Pose::turn("turned about z", [0.0, 0.0, 1.0], 0.65, [0.0, 0.0, 0.0]),
+        Pose::turn("turned", [1.0, 2.0, 3.0], 0.7, [0.3, -0.2, 0.5]),
+        flip(),
+        Pose::turn(
+            "flipped and turned",
+            [-2.0, 1.0, 1.0],
+            1.1,
+            [-0.4, 0.1, 0.3],
+        )
+        .after(&flip()),
+    ]
+}
+
+/// A box `[x, y, z]` placed by `pose`.
+pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose) -> AtRestBody<f64> {
+    let [(x0, x1), (y0, y1), z] = b;
+    let mut body = Body::<f64>::new();
+    prism_ops(
+        &mut body,
+        &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+        z,
+        |x, y, z| pose.at([x, y, z]),
+        FaceGeometry::Certified,
+        Tol::witness(),
+    );
+    describe_as_intersections(&mut body, Tol::witness());
+    finished(what, body, Tol::witness())
+}
+
+/// A hole's prism placed by `pose`.
+pub fn posed_prism(h: &Hole, pose: &Pose) -> AtRestBody<f64> {
+    let [o, u, v, n] = h.frame();
+    let mut body = Body::<f64>::new();
+    prism_ops(
+        &mut body,
+        &h.profile(),
+        (0.0, h.length),
+        |x, y, z| pose.at([0, 1, 2].map(|i| o[i] + x * u[i] + y * v[i] + z * n[i])),
+        FaceGeometry::Certified,
+        Tol::witness(),
+    );
+    describe_as_intersections(&mut body, Tol::witness());
+    finished("a tilted prism", body, Tol::witness())
 }

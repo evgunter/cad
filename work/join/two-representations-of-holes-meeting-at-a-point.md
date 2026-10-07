@@ -72,30 +72,30 @@ representation as a whole, not about one arm.
 tiers and the volume. That is RESTFRONT's
 `tier-3-passes-a-face-whose-loop-crosses-itself-at-a-repeated-vertex` (P1).
 
-**The next boolean refuses on it.** The plate `[0,3] × [0,2] × [0,1]`
-less the union of two leaning wedges whose footprints meet at
-(1.5, 1, 1), in one boolean (`topo::test_support::meeting`), builds the
-k-rings form, [18, 41, 25]. A later boolean on that body can refuse
+**The next boolean refused on it.** Before `split_cones`, the plate
+`[0,3] × [0,2] × [0,1]` less the union of two leaning wedges whose
+footprints meet at (1.5, 1, 1), in one boolean
+(`topo::test_support::meeting`), built the k-rings form, [18, 41, 25].
+A later boolean on that body could refuse
 `ClassificationInvariant { "two crossing germs of a vertex pair lie
 along one direction in one sector entry" }`. The plate less each wedge
-in turn builds the other form, and further booleans build on it.
+in turn built the other form, and further booleans built on it.
 
-**PR 4129's narrowing.** The zip's crossing refuses typed
-(`PinchOfManyHolesInOneRing`) where a non-section face of one surface
-and sense has three or more corners at the point, counted over every
-vertex fused onto it (the seams' pairs and one pierce's copies). The
-rows are in `crates/topo/tests/holes_meeting_at_a_vertex.rs`: the plate
-against the union in five poses, and the P − U grids at three and four
-holes. `finish::pinch_site`'s welds are not gated; no row is known to
-reach three corners through them.
+**PR 4129's narrowing, since retired.** Until `split_cones`, PR 4129
+refused the zip's crossing typed (`PinchOfManyHolesInOneRing`) where a
+non-section face of one surface and sense had three or more corners at
+the point, counted over every vertex fused onto it. `finish::pinch_site`'s
+welds were not gated. They do reach three corners of one surface and
+sense: `pierce_strut_at_a_pinch::the_staircase_and_the_plate_build_in_every_op`,
+through Chord and Loops welds, builds sound in all six ops. No known row
+built a crossed face through them.
 
-## A candidate
+## The candidate, as filed
 
 Keep the ring whole and the point as two vertices on it, v and v′, as
 the sequential subtract builds: the split's `mev` without the `kemr`,
-with the pair's zip leaving the copies apart. Then retire
-`PinchOfManyHolesInOneRing`, since a ring can then pass any number of
-copies.
+with the pair's zip leaving the copies apart. `split_cones` took this
+shape, one vertex per cone.
 
 ## Answered on main
 

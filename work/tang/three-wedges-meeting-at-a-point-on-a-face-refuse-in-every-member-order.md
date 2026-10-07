@@ -80,9 +80,11 @@ vertex pierce the top with one Out run per prism. Two fixes:
   lines, and no arm named that. The seam-junction arm now also takes a
   vertex on two or more seam lines with operand edges on both sides,
   one side holding exactly one. Its name is the set of lines, which
-  straight lines make unique, and it is the same in every member order
-  that mints it at the same step. Which step mints the vertex still
-  depends on the order, on main as well; that is filed as
+  straight lines make unique. Each name denotes the right vertex, but
+  the name depends on the member order: on which fold step mints the
+  vertex, and in a union of the wedges alone on which lines the step
+  meets (three wedges: 3 names over 6 orders; four: 10 over 24, review
+  5's count). P − U and U − P inherit it. That is WIRE's known class,
   `work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`.
 
 - **The one-shot subtract builds sound.** The plate less the wedges'
@@ -106,8 +108,9 @@ Rows (`crates/topo/tests/holes_meeting_at_a_vertex.rs` and
 
 Each order asserts its counts, the closed-form volume, tiers 3 and 3′,
 one vertex at the meeting point, and the first order's body by
-geometry. Topo also asserts that every face's corners at one point are
-disjoint, and editor-core asserts `check_mesh`.
+geometry. Both suites assert that every face's corners at one point are
+disjoint (`topo::test_support::meeting::corners_disjoint`), and
+editor-core asserts `check_mesh`.
 On 443f33b7:
 
 - topo refuses `PierceRunsUnordered` in 6 of 24 orders for each

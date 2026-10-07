@@ -31,6 +31,14 @@ one minting configuration the junction name is identical. That much is
 pinned by
 `the_junction_where_the_wedges_meet_has_one_name_in_every_member_order`.
 
+**The wedges alone** (PR 4129, review 5). A union of the leaning
+wedges without the plate mints a different junction name per member
+order: three wedges give 3 distinct names over their 6 orders, four
+wedges 10 over 24. P − U and U − P against the plate inherit the
+divergence. Main refused these unions (`PierceRunsUnordered`, then
+`Naming(Emission)`), so the class is newly reached, not newly made.
+Each name denotes the right vertex.
+
 No name rebinds to other geometry. But `emit_union_member_order`'s
 contract is that a union's names do not depend on the order of its
 members, and this one does.
