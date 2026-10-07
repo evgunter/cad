@@ -2688,13 +2688,31 @@ pub(crate) fn path_island_winding<T: Decide>(
 /// says nothing (`Ok(None)`: the zero band) or escalates moves to the
 /// next. The first escalation escalates only where no reading decides; a
 /// hard error stops the walk.
+#[track_caller]
+fn rp3_log(what: &str) {
+    if let Ok(path) = std::env::var("RP3_FD") {
+        use std::io::Write as _;
+        let at = core::panic::Location::caller();
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "{what} {}:{}", at.file(), at.line());
+        }
+    }
+}
+
+#[track_caller]
 fn first_decided<R, E>(
     readings: impl IntoIterator<Item = Result<Result<Option<R>, Indeterminate>, E>>,
 ) -> Result<Result<Option<R>, Indeterminate>, E> {
     let mut escalated = None;
+    rp3_log("FD_CALL");
     for reading in readings {
         match reading? {
-            Ok(Some(r)) => return Ok(Ok(Some(r))),
+            Ok(Some(r)) => {
+                if escalated.is_some() {
+                    rp3_log("FD_ABSORB");
+                }
+                return Ok(Ok(Some(r)));
+            }
             Ok(None) => {}
             Err(diag) => {
                 escalated.get_or_insert(diag);
