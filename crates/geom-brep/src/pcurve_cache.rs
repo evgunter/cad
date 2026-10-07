@@ -9663,6 +9663,7 @@ mod escape_tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod iso_family {
     //! **[`chart_iso_family`]'s cylinder arm**: a ruling is `U`, a rim
     //! `V`, an oblique line no family, and a line whose tilt off the
