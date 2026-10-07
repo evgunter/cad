@@ -2,12 +2,12 @@
 id: a-vertex-read-twice-where-the-first-pass-writes-nothing-refuses
 kind: issue
 title: A vertex read by two sector passes refuses VertexReadTwice even where its first pass hangs no strut there; stacking pyramids on a plate at one point refuses
-status: open
+status: closed
 opened: 2026-10-07
 priority: P1
 cost: H
-design: true
 refs: [a-vertex-read-by-two-sector-passes-panics-instead-of-refusing]
+closed: 2026-10-07
 ---
 
 
@@ -52,3 +52,28 @@ Two routes, to be weighed first:
 Done when the plate-first fold of standing pyramids builds in every
 member order at tiers 3 and 3′, and the prism row still refuses or
 builds sound.
+
+## Closed
+
+The refusal narrows. `vtxfac::refuse_sector_rereads` still refuses a
+vertex that pierces two faces. For a vertex that pierces a face and
+pairs, it returns the vertex, and the pierce refuses
+`VertexReadTwice` only where it would hang struts (it has Out runs),
+before it writes. A touching pierce writes nothing, so the pair reads
+the orbit as the operand gave it. `vtxfac::partner_side` reads the
+partner's link against the pierced face's datum, and refuses unless it
+lies strictly on one side. `vtxfac::touch_classes` then reads the
+vertex's edge classes against the face and its partners together:
+joined with the partners on the Out side, less the voids of the
+partners on the In side. So each edge at the vertex gets one class.
+The soundness argument is in the PR body.
+
+The plate-first fold of standing pyramids builds in every member order
+at every pose, at tier 3 and the closed-form volume. Tier 3′ refuses
+only the earlier steps' contacts at `MEET`
+(`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
+The strut-hanging prisms (`meeting::wedge`, `meeting::leaned`) still
+refuse, and so does a vertex piercing two blocks' faces
+(`crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`). Filed:
+`work/contact/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`
+(P2).
