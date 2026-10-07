@@ -108,4 +108,4 @@ bullets; N5 *A cited line*); fork-log row 77 records it.
 - Unpark `a-second-crossing-by-one-face-renames-the-first-and-its-pieces`
   once `Ends` on every piece lands.
 
-Prototypes from the fork are in the PR 4212 body's measurements.
+The PR 4212 body holds the fork's measurements.
