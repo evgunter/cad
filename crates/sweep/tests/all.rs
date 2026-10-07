@@ -232,6 +232,8 @@ mod band_planar_oblique_fillet;
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_turn_overrun_probe.rs"]
+mod band_turn_overrun_probe;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
