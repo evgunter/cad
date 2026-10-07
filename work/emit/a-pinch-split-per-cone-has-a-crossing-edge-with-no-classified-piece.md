@@ -14,8 +14,10 @@ cost: M
 Found by TANG's PR 4129 on main b475cf87. EMIT's #4203 ("every
 crossing carries its sense", 704378c3) made `names/emit_topo.rs`'s
 `sense_of` refuse a crossing whose edge has no classified piece at the
-crossing. It meets JOIN's `zip::split_cones` (#4139), which splits a
-pinch per cone before the zips.
+crossing. The witness's vertex is a pinch, which JOIN's
+`zip::split_cones` (#4139) splits per cone before the zips. Whether
+the two interact is not established; the title names the pose, not the
+cause.
 
 The witness is the union of the plate `[0, 3] × [0, 2] × [0, 1]` and
 two leaning wedges whose footprints meet at (1.5, 1, 1)
