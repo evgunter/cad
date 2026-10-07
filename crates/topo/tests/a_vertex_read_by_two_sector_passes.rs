@@ -27,6 +27,12 @@
 //! - **two blocks in face contact**, one body built through the Euler
 //!   doors, against a standing pyramid and against the prism, whose
 //!   vertex at `MEET` pierces both blocks' faces;
+//! - **several partners**: two pyramids united at their apexes, against
+//!   the arch, the arch above a void, and the arch alone; a pyramid
+//!   inside an island in the void, and one inside a void in the arch;
+//! - a pyramid with an edge lying **along** the arch's face;
+//! - a pyramid **lying** on the plate, an edge on its top, which a
+//!   touching vertex refuses to pair with (`vtxfac::partner_side`);
 //! - the plate alone, and the arches without it, read once.
 //!
 //! The operands' own contacts do not reach a result
@@ -47,53 +53,63 @@ use common::meeting::{
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, BooleanError, BooleanResult, CensusContact, Operand, SectorRead, SideCode,
-    SolidContainment, ValidationError, intersect, mass_properties, point_in_solid, readback,
-    subtract, union, validate_geometric, validate_pseudomanifold,
+    AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand, SectorRead,
+    SideCode, SolidContainment, ValidationError, intersect, mass_properties, point_in_solid,
+    point_in_solid_of, readback, subtract, union, validate_geometric, validate_pseudomanifold,
 };
 
 fn t() -> Tol {
     Tol::witness()
 }
 
-/// A pyramid with its apex at [`MEET`] and a horizontal base `rise`
-/// above it (below, where `rise` is negative): two corners at radius
-/// `r` 15° either side of `bearing` (degrees) and one at `0.6 r` on it.
-fn pyramid(bearing: f64, rise: f64, r: f64, pose: &Pose) -> AtRestBody<f64> {
+/// Three base corners relative to [`MEET`]: two at radius `r` 15° either
+/// side of `bearing` (degrees) and one at `0.6 r` on it, `rise` above
+/// it (below, where `rise` is negative).
+fn corners(bearing: f64, rise: f64, r: f64) -> [[f64; 3]; 3] {
     let corner = |d: f64, r: f64| {
         let (s, c) = (bearing + d).to_radians().sin_cos();
-        [r.mul_add(c, MEET[0]), r.mul_add(s, MEET[1]), MEET[2] + rise]
+        [r * c, r * s, rise]
     };
-    // Counterclockwise seen from the apex's side.
-    let turn = if rise > 0.0 { 15.0 } else { -15.0 };
-    let base = [corner(turn, r), corner(-turn, r), corner(0.0, 0.6 * r)];
+    [corner(15.0, r), corner(-15.0, r), corner(0.0, 0.6 * r)]
+}
+
+/// Corners whose cone lies inside `base`'s: each mixes `base`'s three
+/// 3 : 1 : 1, scaled by `s`, so the tetrahedron on them reaches past
+/// `base`'s where `s` exceeds 1.
+fn nest(base: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
+    [0, 1, 2].map(|i| {
+        [0, 1, 2]
+            .map(|k| (3.0 * base[i][k] + base[(i + 1) % 3][k] + base[(i + 2) % 3][k]) * s / 5.0)
+    })
+}
+
+/// The tetrahedron with its apex at [`MEET`] and `base` (relative to it),
+/// wound counterclockwise seen from the apex.
+fn tet(base: [[f64; 3]; 3], pose: &Pose) -> AtRestBody<f64> {
+    let [a, b, c] = base;
+    let det = a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+        + a[2] * (b[0] * c[1] - b[1] * c[0]);
+    let at = |q: [f64; 3]| [0, 1, 2].map(|k| MEET[k] + q[k]);
+    let base = if det < 0.0 { [a, b, c] } else { [b, a, c] }.map(at);
     posed_pyramid(&base, MEET, pose, t())
 }
 
 fn standing(bearing: f64, rise: f64, r: f64, pose: &Pose) -> AtRestBody<f64> {
-    pyramid(bearing, rise, r, pose)
+    tet(corners(bearing, rise, r), pose)
 }
 
 fn hanging(bearing: f64, drop: f64, r: f64, pose: &Pose) -> AtRestBody<f64> {
-    pyramid(bearing, -drop, r, pose)
+    tet(corners(bearing, -drop, r), pose)
 }
 
-/// A pyramid hanging from [`MEET`] inside the cone of the cavity's void
-/// (`hanging(120, 0.5, 0.4)`): each base corner mixes the void's three,
-/// 3 : 1 : 1, so its edges at `MEET` run into the void, and it reaches
-/// 1.4 times as deep, through the void's floor.
-fn in_the_void(pose: &Pose) -> AtRestBody<f64> {
-    let corner = |d: f64, r: f64| {
-        let (s, c) = (120.0 + d).to_radians().sin_cos();
-        [r * c, r * s, -0.5]
-    };
-    let void = [corner(-15.0, 0.4), corner(15.0, 0.4), corner(0.0, 0.24)];
-    let base = [0, 1, 2].map(|i| {
-        let mix =
-            |k: usize| (3.0 * void[i][k] + void[(i + 1) % 3][k] + void[(i + 2) % 3][k]) * 1.4 / 5.0;
-        [0, 1, 2].map(|k| MEET[k] + mix(k))
-    });
-    posed_pyramid(&base, MEET, pose, t())
+/// The cavity's void: a pyramid hanging from [`MEET`] inside the plate.
+fn void() -> [[f64; 3]; 3] {
+    corners(120.0, -0.5, 0.4)
+}
+
+/// The arch: a pyramid standing on [`MEET`].
+fn arch() -> [[f64; 3]; 3] {
+    corners(60.0, 0.5, 0.4)
 }
 
 fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<f64> {
@@ -107,42 +123,53 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
     mass_properties(b, t()).unwrap().volume
 }
 
-/// Every refusal of tier 3′ is a contact at [`MEET`] no record backs,
-/// an operand's own, which the result does not carry
+/// Every refusal of tier 3′ is at [`MEET`]: a contact there no record
+/// backs, an operand's own, which the result does not carry
 /// (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`),
-/// or a touch there the census misreads: a pyramid notched by another,
-/// a saddle corner on the plate
+/// or a touch there between two solids that the census misreads. Those
+/// are a pyramid notched by another, a saddle corner on the plate
 /// (`work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
 /// and a pyramid on a solid that touches itself there, read from its
 /// vertex alone
 /// (`work/contact/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`).
-/// [`material_holds`] reads those results right. Returns whether 3′
-/// held.
-fn three_prime(what: &str, r: &topo::BooleanBody<f64>, pose: &Pose) -> bool {
+/// [`material_holds`] reads those results right. Where `along`, a
+/// pyramid's edge lies in a face of the other's, and that edge's own
+/// contact, which no record carries, may refuse too
+/// (`work/join/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts.md`).
+/// Returns whether 3′ held.
+fn three_prime(what: &str, r: &topo::BooleanBody<f64>, pose: &Pose, along: bool) -> bool {
     let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
         return true;
     };
     let meet = at(pose.at(MEET));
     let at_meet = |v| at(readback::vertex_point(&r.body, v).unwrap()) == meet;
+    let band = Band::linear(t()).unwrap();
+    let touches_meet = |e: &EntityId| match *e {
+        EntityId::Solid(s) => matches!(
+            point_in_solid_of(&r.body, s, pose.at(MEET), band, t()),
+            Ok(SolidContainment::OnBoundary)
+        ),
+        _ => false,
+    };
     for e in &errors {
-        let contact = match e {
-            ValidationError::UndeclaredContact { contact, .. } => contact,
-            ValidationError::CensusUndecidable { what: class, .. }
-                if class.starts_with("they touch at a corner neither convex nor concave")
-                    || class.starts_with("one passes into the other where they touch") =>
-            {
-                continue;
+        let ok = match e {
+            ValidationError::UndeclaredContact { contact, .. } => match *contact {
+                CensusContact::VertexVertex { a, b } => at_meet(a) && at_meet(b),
+                CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex),
+                CensusContact::EdgeFaceOverlap { .. } => along,
+                _ => false,
+            },
+            ValidationError::CensusUndecidable { a, b, what: class } => {
+                (class.starts_with("they touch at a corner neither convex nor concave")
+                    || class.starts_with("one passes into the other where they touch"))
+                    && touches_meet(a)
+                    && touches_meet(b)
             }
-            _ => panic!("{what}: tier 3′ refuses only an operand's own contact, got {e:?}"),
-        };
-        let ok = match *contact {
-            CensusContact::VertexVertex { a, b } => at_meet(a) && at_meet(b),
-            CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex),
             _ => false,
         };
         assert!(
             ok,
-            "{what}: tier 3′ refuses a contact away from MEET, {e:?}"
+            "{what}: tier 3′ refuses only what is filed, at MEET, got {e:?}"
         );
     }
     false
@@ -257,6 +284,18 @@ fn material_holds(
 /// |x| + |y|` and `|x − y| + |x ∩ y| = |x|`, each alike in both orders.
 /// Returns how many results held 3′.
 fn builds(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> usize {
+    builds_along(label, x, y, pose, false)
+}
+
+/// [`builds`], where `along` says an edge of one lies in a face of the
+/// other ([`three_prime`]).
+fn builds_along(
+    label: &str,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
+    pose: &Pose,
+    along: bool,
+) -> usize {
     let mut held = 0;
     let mut v = [0.0; 6];
     // Each op's keep over (in x, in y).
@@ -285,7 +324,7 @@ fn builds(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) ->
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
-                held += usize::from(three_prime(&what, &r, pose));
+                held += usize::from(three_prime(&what, &r, pose, along));
                 volume(&r.body)
             }
             Ok(BooleanResult::Empty) => {
@@ -381,9 +420,19 @@ struct Scene {
     hang_over: AtRestBody<f64>,
     in_void: AtRestBody<f64>,
     bare: AtRestBody<f64>,
+    arch: AtRestBody<f64>,
     arches: AtRestBody<f64>,
     one: AtRestBody<f64>,
     cavity: AtRestBody<f64>,
+    both: AtRestBody<f64>,
+    two_up: AtRestBody<f64>,
+    two_down: AtRestBody<f64>,
+    island: AtRestBody<f64>,
+    in_island: AtRestBody<f64>,
+    hollow: AtRestBody<f64>,
+    in_hollow: AtRestBody<f64>,
+    along: AtRestBody<f64>,
+    lying: AtRestBody<f64>,
     blocks: AtRestBody<f64>,
     prism: AtRestBody<f64>,
     leaned: AtRestBody<f64>,
@@ -396,20 +445,66 @@ impl Scene {
         let bare = rest
             .iter()
             .fold(first, |u, a| built("the arches", union(&u, a, t())));
+        let arch_body = tet(arch(), pose);
+        let one = built("the plate and one arch", union(&plate, &arch_body, t()));
+        let cavity = built(
+            "the plate less a hanging pyramid",
+            subtract(&plate, &tet(void(), pose), t()),
+        );
+        let pair = |what, [x, y]: [[[f64; 3]; 3]; 2]| {
+            built(what, union(&tet(x, pose), &tet(y, pose), t()))
+        };
+        // A pyramid along the arch's outer face: one edge lies in it,
+        // the other two outside the arch.
+        let [p, q, _] = arch();
+        let out = |c: [f64; 3]| {
+            let (s, k) = 60f64.to_radians().sin_cos();
+            [1.2 * c[0] + 0.2 * k, 1.2 * c[1] + 0.2 * s, 1.2 * c[2]]
+        };
+        let mid = [0, 1, 2].map(|k| 0.6 * (p[k] + q[k]));
+        // A pyramid whose link runs along the top: one base corner on it.
+        let corner = |d: f64, r: f64, z: f64| {
+            let (s, c) = (60.0 + d).to_radians().sin_cos();
+            [r * c, r * s, z]
+        };
+        let lie = [
+            corner(20.0, 0.4, 0.5),
+            corner(-20.0, 0.4, 0.5),
+            corner(0.0, 0.5, 0.0),
+        ];
         Self {
             cone: standing(240.0, 0.7, 0.5, pose),
             over: standing(50.0, 0.7, 0.5, pose),
             hang: hanging(240.0, 0.6, 0.5, pose),
             hang_over: hanging(130.0, 0.6, 0.5, pose),
-            in_void: in_the_void(pose),
+            in_void: tet(nest(void(), 1.4), pose),
             arches: built("the plate and the arches", union(&plate, &bare, t())),
-            one: built(
-                "the plate and one arch",
-                union(&plate, &standing(60.0, 0.5, 0.4, pose), t()),
+            both: built(
+                "the arch less a hanging pyramid",
+                subtract(&one, &tet(void(), pose), t()),
             ),
-            cavity: built(
-                "the plate less a hanging pyramid",
-                subtract(&plate, &hanging(120.0, 0.5, 0.4, pose), t()),
+            two_up: pair(
+                "two standing pyramids",
+                [corners(40.0, 0.6, 0.5), corners(280.0, 0.6, 0.5)],
+            ),
+            two_down: pair(
+                "two hanging pyramids",
+                [corners(200.0, -0.6, 0.5), corners(110.0, -0.6, 0.5)],
+            ),
+            island: built(
+                "an island in the void",
+                union(&cavity, &tet(nest(void(), 0.7), pose), t()),
+            ),
+            in_island: tet(nest(nest(void(), 0.7), 0.7), pose),
+            hollow: built(
+                "a void in the arch",
+                subtract(&one, &tet(nest(arch(), 0.7), pose), t()),
+            ),
+            in_hollow: tet(nest(nest(arch(), 0.7), 0.7), pose),
+            along: tet([mid, out(p), out(q)], pose),
+            lying: built(
+                "the plate and a lying pyramid",
+                union(&plate, &tet(lie, pose), t()),
             ),
             blocks: posed_boxes(
                 "two blocks in face contact",
@@ -419,7 +514,10 @@ impl Scene {
             ),
             prism: posed_prism(&wedge(200.0, 260.0, 0), pose, t()),
             leaned: posed_prism(&leaned(200.0, 260.0, 0, 300.0), pose, t()),
+            arch: arch_body,
             bare,
+            one,
+            cavity,
             plate,
         }
     }
@@ -456,6 +554,63 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         &s.cavity,
         pose,
     );
+    // The crossed arch is one of three partners, whichever the pairs'
+    // order reads first.
+    builds(
+        "a standing pyramid over the arches",
+        &s.over,
+        &s.arches,
+        pose,
+    );
+}
+
+/// **A vertex in several pairs, or touching a face beside nested
+/// partners, reads each edge once**: two pyramids united at their
+/// apexes, against the arch, the arch above a void, and the arch
+/// alone; a pyramid inside an island in the void, and one inside a void
+/// in the arch; and a pyramid with an edge lying along the arch's face.
+/// At rest; every pose is the slow matrix's.
+#[test]
+fn a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once() {
+    let pose = &Pose::rest();
+    let s = Scene::at(pose);
+    builds(
+        "two standing pyramids, one over the arch",
+        &s.two_up,
+        &s.one,
+        pose,
+    );
+    builds(
+        "two standing pyramids over the arch and void",
+        &s.two_up,
+        &s.both,
+        pose,
+    );
+    builds(
+        "two hanging pyramids beside the void",
+        &s.two_down,
+        &s.both,
+        pose,
+    );
+    builds(
+        "two standing pyramids over the bare arch",
+        &s.two_up,
+        &s.arch,
+        pose,
+    );
+    builds(
+        "a pyramid in the island in the void",
+        &s.in_island,
+        &s.island,
+        pose,
+    );
+    builds(
+        "a pyramid in the void in the arch",
+        &s.in_hollow,
+        &s.hollow,
+        pose,
+    );
+    builds_along("a pyramid along the arch", &s.along, &s.one, pose, true);
 }
 
 /// **A vertex that crosses a face it is paired on, or pierces two
@@ -482,6 +637,14 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
             "pair",
             true,
         );
+        // A partner whose link runs along the top (`vtxfac::partner_side`).
+        for (label, x) in [
+            ("standing beside a lying pyramid", &s.cone),
+            ("over a lying pyramid", &s.over),
+            ("hanging below a lying pyramid", &s.hang),
+        ] {
+            refuses(label, x, &s.lying, &pose, "pair", false);
+        }
         refuses("two blocks", &s.cone, &s.blocks, &pose, "pierce", false);
         // The prism's edge crosses the contact at `MEET`, so its first
         // pierce would hang struts there: only a refusal before that
@@ -498,7 +661,7 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
 }
 
 /// **Every scene, at every pose, in every op and both orders, builds
-/// sound or refuses typed**: 21 scenes, 630 op cells.
+/// sound or refuses typed**: 34 scenes, 1020 op cells.
 #[test]
 fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     let mut held = 0;
@@ -522,8 +685,25 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
             ("hanging below the bare arches", &s.hang, &s.bare),
             ("a prism through the plate", &s.prism, &s.plate),
             ("a leaned prism through the plate", &s.leaned, &s.plate),
+            ("two up, one over the arch", &s.two_up, &s.one),
+            ("two up over the arch and void", &s.two_up, &s.both),
+            ("two down beside the void", &s.two_down, &s.both),
+            ("two up over the bare arch", &s.two_up, &s.arch),
+            ("over the arch and void", &s.over, &s.both),
+            ("hanging across the arch and void", &s.hang_over, &s.both),
+            ("in the island in the void", &s.in_island, &s.island),
+            ("in the void in the arch", &s.in_hollow, &s.hollow),
         ] {
             held += builds(label, x, y, &pose);
+        }
+        held += builds_along("along the arch", &s.along, &s.one, &pose, true);
+        held += builds_along("along the bare arch", &s.along, &s.arch, &pose, true);
+        for (label, x) in [
+            ("standing beside a lying pyramid", &s.cone),
+            ("over a lying pyramid", &s.over),
+            ("hanging below a lying pyramid", &s.hang),
+        ] {
+            refuses(label, x, &s.lying, &pose, "pair", false);
         }
         refuses(
             "a prism through the top",
@@ -579,7 +759,41 @@ fn standing_pyramids_folded_onto_the_plate_build_in_every_member_order() {
             }
             let last = last.unwrap();
             assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
-            three_prime(&what, &last, &pose);
+            three_prime(&what, &last, &pose, false);
+            let v = volume(&body);
+            assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
+        }
+    }
+}
+
+/// **The plate, the three arches and a fourth standing pyramid fold in
+/// a sample of their 120 member orders**: every seventh order, at three
+/// poses, at tier 3 and the closed-form volume, tier 3′ as
+/// `three_prime` allows. Every order at every pose was run once and
+/// built so (the PR that added this row).
+#[test]
+fn five_members_fold_onto_the_plate_in_sampled_member_orders() {
+    let poses = poses();
+    for pose in [&poses[0], &poses[2], &poses[4]] {
+        let mut members = vec![posed_box("the plate", PLATE, pose, t())];
+        members.extend([60.0, 180.0, 300.0].map(|b| standing(b, 0.5, 0.4, pose)));
+        members.push(standing(240.0, 0.7, 0.5, pose));
+        let want: f64 = members.iter().map(volume).sum();
+        for order in orders(members.len()).into_iter().step_by(7) {
+            let what = format!("{}, member order {order:?} (0 = plate)", pose.label);
+            let mut last = None;
+            let mut body = members[order[0]].clone();
+            for (k, &i) in order.iter().enumerate().skip(1) {
+                match union(&body, &members[i], t()) {
+                    Ok(BooleanResult::Body(r)) => {
+                        body = r.body.clone();
+                        last = Some(r);
+                    }
+                    other => panic!("{what}: step {k}, {:?}", other.map(|_| ())),
+                }
+            }
+            assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
+            three_prime(&what, &last.unwrap(), pose, false);
             let v = volume(&body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
         }

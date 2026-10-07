@@ -1398,6 +1398,15 @@ pub(super) fn pair_search<T: Decide>(
     Ok(records)
 }
 
+/// [`wedge_classes`]' reading: whether the other body's material there
+/// is its faces' inner half-spaces met (a convex cone; joined, its
+/// complement), and each edge's class, empty where it read none.
+#[derive(Clone, Debug, Default)]
+pub(super) struct WedgeRows {
+    pub met: bool,
+    pub rows: Vec<(HalfEdgeKey, SideCode)>,
+}
+
 /// **Each edge of `own`'s orbit, classified against the other
 /// operand's closed body at the same point**, where its neighbourhood
 /// there is a wedge — `other`'s sectors lie on two faces, so the point
@@ -1421,7 +1430,7 @@ pub(super) fn wedge_classes<T: Decide>(
     own: &[BoolSector<T>],
     other: &[BoolSector<T>],
     band: Band,
-) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
+) -> Result<WedgeRows, BooleanError> {
     let mut faces: Vec<(FaceKey, OutwardNormal<T>)> = Vec::new();
     for s in other {
         if !faces.iter().any(|&(f, _)| f == s.face) {
@@ -1441,7 +1450,7 @@ pub(super) fn wedge_classes<T: Decide>(
                         (true, _, _) => None,
                     });
             let Some((dir, reach)) = inside else {
-                return Ok(Vec::new());
+                return Ok(WedgeRows::default());
             };
             code(dir, reach, *n1)? != SideCode::Out
         }
@@ -1453,14 +1462,14 @@ pub(super) fn wedge_classes<T: Decide>(
                     }
                     for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
                         if code(dir, reach, n)? == SideCode::Out {
-                            return Ok(Vec::new());
+                            return Ok(WedgeRows::default());
                         }
                     }
                 }
             }
             true
         }
-        _ => return Ok(Vec::new()),
+        _ => return Ok(WedgeRows::default()),
     };
     let (wins, loses) = if met {
         (SideCode::Out, SideCode::In)
@@ -1482,7 +1491,7 @@ pub(super) fn wedge_classes<T: Decide>(
         };
         out.push((s.he, class));
     }
-    Ok(out)
+    Ok(WedgeRows { met, rows: out })
 }
 
 #[cfg(test)]

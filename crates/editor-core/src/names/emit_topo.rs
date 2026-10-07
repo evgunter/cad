@@ -4328,3 +4328,156 @@ mod track_cover {
         assert_eq!(read(&t, vec![(0, arc(2.0, 3.0))]), (vec![], vec![], false));
     }
 }
+
+/// **The boolean's rows at a vertex read twice name the result**: a
+/// pyramid standing on its apex at a point of a plate's top that another
+/// pyramid's apex rests on, or two pyramids united at their apexes there,
+/// in every op and both orders, name through [`name_boolean`] with no
+/// emission refusal (`crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`
+/// reads the same scenes' material and classes).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod touch_reread_rows {
+    use super::{OperandCtx, name_boolean};
+    use crate::names::emit::{ent, name1};
+    use crate::names::role::{CapEnd, EntityKind, RoleSeg};
+    use crate::names::table::{EntityKey, NameTable};
+    use crate::names::{PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef};
+    use crate::node::{RecipeNodeId, StepId};
+    use geom_core::Tol;
+    use topo::test_support::meeting::{MEET, PLATE, Pose, posed_box, posed_pyramid};
+    use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
+
+    fn t() -> Tol {
+        Tol::witness()
+    }
+
+    /// Base corners relative to `MEET`, as the topo rows build them.
+    fn corners(bearing: f64, rise: f64, r: f64) -> [[f64; 3]; 3] {
+        let corner = |d: f64, r: f64| {
+            let (s, c) = (bearing + d).to_radians().sin_cos();
+            [r * c, r * s, rise]
+        };
+        [corner(15.0, r), corner(-15.0, r), corner(0.0, 0.6 * r)]
+    }
+
+    fn tet(base: [[f64; 3]; 3]) -> AtRestBody<f64> {
+        let [a, b, c] = base;
+        let det = a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+            + a[2] * (b[0] * c[1] - b[1] * c[0]);
+        let at = |q: [f64; 3]| [0, 1, 2].map(|k| MEET[k] + q[k]);
+        let base = if det < 0.0 { [a, b, c] } else { [b, a, c] }.map(at);
+        posed_pyramid(&base, MEET, &Pose::rest(), t())
+    }
+
+    fn built(r: Result<BooleanResult<f64>, topo::BooleanError>) -> AtRestBody<f64> {
+        match r {
+            Ok(BooleanResult::Body(r)) => r.body,
+            other => panic!("{:?}", other.map(|_| ())),
+        }
+    }
+
+    /// A name for every entity of `body`, each its own: the rows read
+    /// operand edges by name, not by role.
+    fn table(body: &AtRestBody<f64>, node: RecipeNodeId) -> NameTable {
+        let piece = |k: usize| ProfileEdgeRef::Piece {
+            step: StepId(k as u64),
+            role: PieceRole::Leg,
+        };
+        let at = |k: usize| ProfileVertexRef::Piece {
+            step: StepId(k as u64),
+            role: PieceRole::Leg,
+        };
+        let mut t = NameTable::new();
+        t.insert(
+            name1(EntityKind::Body, node, RoleSeg::OutputBody),
+            ent(0, EntityKey::Body),
+        )
+        .unwrap();
+        for (k, (f, _)) in body.faces().enumerate() {
+            let name = name1(
+                EntityKind::Face,
+                node,
+                RoleSeg::Lateral(PieceRun::one(piece(k))),
+            );
+            t.insert(name, ent(0, EntityKey::Face(f))).unwrap();
+        }
+        for (k, (e, _)) in body.edges().enumerate() {
+            let name = name1(EntityKind::Edge, node, RoleSeg::LateralEdge(at(k)));
+            t.insert(name, ent(0, EntityKey::Edge(e))).unwrap();
+        }
+        for (k, (v, _)) in body.vertices().enumerate() {
+            let name = name1(
+                EntityKind::Vertex,
+                node,
+                RoleSeg::CapVertex(CapEnd::End, at(k)),
+            );
+            t.insert(name, ent(0, EntityKey::Vertex(v))).unwrap();
+        }
+        t
+    }
+
+    #[test]
+    fn a_vertex_read_twice_names_its_result_in_every_op() {
+        let plate = posed_box("the plate", PLATE, &Pose::rest(), t());
+        let arch = tet(corners(60.0, 0.5, 0.4));
+        let one = built(union(&plate, &arch, t()));
+        let both = built(subtract(&one, &tet(corners(120.0, -0.5, 0.4)), t()));
+        let arches = built(union(
+            &plate,
+            &[180.0, 300.0].iter().fold(arch.clone(), |u, &b| {
+                built(union(&u, &tet(corners(b, 0.5, 0.4)), t()))
+            }),
+            t(),
+        ));
+        let cone = tet(corners(240.0, 0.7, 0.5));
+        let over = tet(corners(50.0, 0.7, 0.5));
+        let pair = |x, y| built(union(&tet(x), &tet(y), t()));
+        let two_up = pair(corners(40.0, 0.6, 0.5), corners(280.0, 0.6, 0.5));
+        let two_down = pair(corners(200.0, -0.6, 0.5), corners(110.0, -0.6, 0.5));
+        let mut named = 0;
+        for (label, x, y) in [
+            ("the arches", &cone, &arches),
+            ("one standing pyramid", &cone, &one),
+            ("over the arch", &over, &one),
+            ("over the arches", &over, &arches),
+            ("two up, one over the arch", &two_up, &one),
+            ("two up over the arch and void", &two_up, &both),
+            ("two down beside the void", &two_down, &both),
+            ("two up over the bare arch", &two_up, &arch),
+        ] {
+            let (xn, yn) = (RecipeNodeId(1), RecipeNodeId(2));
+            let (xt, yt) = (table(x, xn), table(y, yn));
+            for (what, (a, an, at), (b, bn, bt), r) in [
+                ("x − y", (x, xn, &xt), (y, yn, &yt), subtract(x, y, t())),
+                ("y − x", (y, yn, &yt), (x, xn, &xt), subtract(y, x, t())),
+                ("x ∪ y", (x, xn, &xt), (y, yn, &yt), union(x, y, t())),
+                ("y ∪ x", (y, yn, &yt), (x, xn, &xt), union(y, x, t())),
+                ("x ∩ y", (x, xn, &xt), (y, yn, &yt), intersect(x, y, t())),
+                ("y ∩ x", (y, yn, &yt), (x, xn, &xt), intersect(y, x, t())),
+            ] {
+                let Ok(BooleanResult::Body(r)) = r else {
+                    continue;
+                };
+                let a = OperandCtx {
+                    node: an,
+                    table: at,
+                    body: a,
+                };
+                let b = OperandCtx {
+                    node: bn,
+                    table: bt,
+                    body: b,
+                };
+                if let Err(e) = name_boolean(RecipeNodeId(9), &r.body, &r.naming, &a, &b, t()) {
+                    panic!("{label}, {what}: names, got {e:?}");
+                }
+                named += 1;
+            }
+        }
+        assert_eq!(
+            named, 44,
+            "every built cell named: 48 cells, 4 of them empty"
+        );
+    }
+}
