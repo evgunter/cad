@@ -564,6 +564,16 @@ pub enum SsiError {
         /// extent.
         verdict: BandVerdict,
     },
+    /// A side's plane distance, within the band of the plane, was not
+    /// resolved to one sign: its Bézier pieces whose hull straddles zero
+    /// were halved past the halvings one side's sign may spend.
+    SideSignBudget {
+        /// The wall's side, where the curve is one
+        /// ([`boundary_section`] names none).
+        side: Option<ChartSide>,
+        /// The halvings spent.
+        halvings: usize,
+    },
     /// A crossing the boundary pass isolated would not settle onto both
     /// surfaces within the march's settling residual.
     EndNotOnLocus {
@@ -959,6 +969,17 @@ impl core::fmt::Display for SsiError {
                  surfaces may be tangent along that edge, and no region is reported there",
                 verdict.margin_text()
             ),
+            Self::SideSignBudget { side, halvings } => {
+                match side {
+                    Some(side) => write!(f, "ssi: along {side}")?,
+                    None => write!(f, "ssi: along the boundary curve")?,
+                }
+                write!(
+                    f,
+                    ", the plane distance's Bézier pieces were halved {halvings} times, the \
+                     budget for one side, and its sign is unresolved"
+                )
+            }
             Self::EndNotOnLocus { side, bracket } => write!(
                 f,
                 "ssi: the crossing on {side} isolated between parameters {:e} and {:e} would \
@@ -1278,6 +1299,7 @@ impl SsiError {
             Self::BoundaryTangent { verdict, .. } => {
                 crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
             }
+            Self::SideSignBudget { .. } => SIDE_SIGN_BUDGET_RECOURSE.to_owned(),
             // The section certified a sign change in the bracket, so a
             // root is there; one that will not settle is the settling's
             // limit.
@@ -1353,7 +1375,8 @@ impl SsiError {
     }
 
     /// This refusal with the wall's `side` named, where it is a graze of
-    /// a boundary curve that names none; any other refusal unchanged.
+    /// a boundary curve, or its unresolved sign, that names none; any
+    /// other refusal unchanged.
     #[must_use]
     pub(crate) fn on_side(self, side: ChartSide) -> Self {
         match self {
@@ -1365,6 +1388,13 @@ impl SsiError {
                 side: Some(side),
                 bracket,
                 verdict,
+            },
+            Self::SideSignBudget {
+                side: None,
+                halvings,
+            } => Self::SideSignBudget {
+                side: Some(side),
+                halvings,
             },
             other => other,
         }
@@ -1803,6 +1833,12 @@ const EXHAUSTIVENESS_RECOURSE: &str = "Recourse: lower the floor scale, name a f
 /// excludes.
 const CELL_BUDGET_RECOURSE: &str = "Recourse: name a domain around just the feature traced and a \
      feature extent near its size, or move the surfaces to cross clearly or stay clearly apart";
+
+/// [`SsiError::SideSignBudget`]'s ending: the halvings go to pieces of
+/// the side that each lie within rounding of the plane somewhere without
+/// crossing it.
+const SIDE_SIGN_BUDGET_RECOURSE: &str = "Recourse: move the plane clearly off that edge of the \
+     wall, or onto it";
 
 /// What a step cap is, in [`SsiError::StepBudget`]'s sentence.
 fn step_cap_words(cap: StepCap) -> &'static str {
@@ -3538,6 +3574,16 @@ mod ending_tests {
                 super::WRONG_LANE_RECOURSE,
             ),
             (
+                "side sign budget, side",
+                super::SIDE_SIGN_BUDGET_RECOURSE,
+                super::SIDE_SIGN_BUDGET_RECOURSE,
+            ),
+            (
+                "side sign budget, curve",
+                super::SIDE_SIGN_BUDGET_RECOURSE,
+                super::SIDE_SIGN_BUDGET_RECOURSE,
+            ),
+            (
                 "end not on locus",
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
@@ -3629,7 +3675,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 40;
+    const ARMS: usize = 41;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3676,6 +3722,7 @@ mod ending_tests {
             SsiError::RefinementExhausted { .. } => 37,
             SsiError::MarchStepInBand { .. } => 38,
             SsiError::MarchShortOfFit { .. } => 39,
+            SsiError::SideSignBudget { .. } => 40,
         }
     }
 
@@ -4008,6 +4055,20 @@ mod ending_tests {
                 SsiError::BoundaryTangent {
                     side: bottom,
                     verdict: BandVerdict::Refused(zero),
+                },
+            ),
+            (
+                "side sign budget, side",
+                SsiError::SideSignBudget {
+                    side: Some(bottom),
+                    halvings: 200_000,
+                },
+            ),
+            (
+                "side sign budget, curve",
+                SsiError::SideSignBudget {
+                    side: None,
+                    halvings: 200_000,
                 },
             ),
             (
