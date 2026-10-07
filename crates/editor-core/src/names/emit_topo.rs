@@ -1457,8 +1457,9 @@ enum JoinedCover {
 /// holds `e` whole makes `e` a piece of it, the least such in key order
 /// with A's before B's; otherwise several that overlap it and together
 /// cover it name it as a set, since a set name says the edge lies on
-/// its constituents. Anything else — a curved `e`, or one that runs
-/// along a seam for part of its length — is named from its two faces,
+/// its constituents. A curved `e` reads its cover off the curved rims
+/// lying on its carrier ([`curved_cover`]). Anything else — one that
+/// runs along a seam for part of its length — is named from its two faces,
 /// never from the lineage of the key the join kept, which holds only
 /// part of it.
 #[allow(clippy::too_many_arguments)]
@@ -1473,9 +1474,6 @@ fn joined_cover<T: Decide>(
     bnd: geom_core::Band,
 ) -> Result<JoinedCover, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    if topo::query::edge_carrier_kind(body, e) != Some(topo::query::CurveKind::Line) {
-        return Ok(JoinedCover::Faces);
-    }
     let Some([f0, f1]) = inc.edge_faces.get(&e).map(Vec::as_slice) else {
         return Err(bug("a joined edge without exactly two adjacent faces"));
     };
@@ -1486,6 +1484,9 @@ fn joined_cover<T: Decide>(
         })
     };
     let (d0, d1) = (descents(*f0)?, descents(*f1)?);
+    if topo::query::edge_carrier_kind(body, e) != Some(topo::query::CurveKind::Line) {
+        return curved_cover(e, body, a, b, (&d0, &d1), bnd);
+    }
     let mut candidates: BTreeSet<OpSide<EdgeKey>> = BTreeSet::new();
     for &g0 in &d0 {
         for &g1 in d1
@@ -1516,6 +1517,88 @@ fn joined_cover<T: Decide>(
         JoinedCover::Set(cover.along)
     } else {
         JoinedCover::Faces
+    })
+}
+
+/// [`joined_cover`] for a curved joined edge `e` between faces that
+/// descend to `d0` and `d1`: the curved rims of one operand between two
+/// of those faces whose midpoints lie on `e`'s carrier
+/// ([`ON_MEMBER_EDGE`]). One that ends where `e` ends is `e` whole; two
+/// or more are the pieces the join made one, named as their set; none
+/// names `e` from its faces.
+fn curved_cover<T: Decide>(
+    e: EdgeKey,
+    body: &Body<T>,
+    a: &OperandCtx<'_, T>,
+    b: &OperandCtx<'_, T>,
+    (d0, d1): (&[OpSide<FaceKey>], &[OpSide<FaceKey>]),
+    bnd: geom_core::Band,
+) -> Result<JoinedCover, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let curve = |body: &Body<T>, k: EdgeKey| {
+        body.get_edge(k)
+            .and_then(|d| body.get_curve_geom(d.curve))
+            .and_then(topo::CurveGeom::certified)
+            .map(|c| (c.carrier().clone(), c.params()))
+            .ok_or(bug("a joined edge's cover has no certified curve"))
+    };
+    let (carrier, (t0, t1)) = curve(body, e)?;
+    let on = |p: Point3<T>| -> Result<bool, NamingError> {
+        let Some(t) = carrier.param_near(p, geom::mid_param(t0, t1)) else {
+            return Ok(false);
+        };
+        let gap = Margin::of((p - carrier.eval(t)).norm());
+        decide(ON_MEMBER_EDGE, gap, bnd)
+            .map(|s| s == Sign::Zero)
+            .map_err(|source| NamingError::Escalated {
+                predicate: ON_MEMBER_EDGE,
+                source,
+            })
+    };
+    let mut along: Vec<OpSide<EdgeKey>> = Vec::new();
+    for &g0 in d0 {
+        for &g1 in d1
+            .iter()
+            .filter(|g1| g1.operand() == g0.operand() && **g1 != g0)
+        {
+            let (op, k0) = g0.of(a, b);
+            let (_, k1) = g1.of(a, b);
+            for r in rims_between(op.body, k0, k1)? {
+                if topo::query::edge_carrier_kind(op.body, r) == Some(topo::query::CurveKind::Line)
+                {
+                    continue;
+                }
+                let (c, (r0, r1)) = curve(op.body, r)?;
+                if on(c.mid_point(r0, r1))? && !along.contains(&g0.with(r)) {
+                    along.push(g0.with(r));
+                }
+            }
+        }
+    }
+    along.sort_unstable();
+    Ok(match along.as_slice() {
+        [] => JoinedCover::Faces,
+        [r] => {
+            let (op, k) = r.of(a, b);
+            let (v0, v1) = edge_ends(op.body, k)?;
+            let (w0, w1) = edge_ends(body, e)?;
+            let at = |p: Point3<T>, q: Point3<T>| -> Result<bool, NamingError> {
+                decide(ON_MEMBER_EDGE, Margin::of((p - q).norm()), bnd)
+                    .map(|s| s == Sign::Zero)
+                    .map_err(|source| NamingError::Escalated {
+                        predicate: ON_MEMBER_EDGE,
+                        source,
+                    })
+            };
+            let (p0, p1) = (vertex_point(op.body, v0)?, vertex_point(op.body, v1)?);
+            let (q0, q1) = (vertex_point(body, w0)?, vertex_point(body, w1)?);
+            if (at(p0, q0)? && at(p1, q1)?) || (at(p0, q1)? && at(p1, q0)?) {
+                JoinedCover::One(*r)
+            } else {
+                JoinedCover::Faces
+            }
+        }
+        _ => JoinedCover::Set(along),
     })
 }
 

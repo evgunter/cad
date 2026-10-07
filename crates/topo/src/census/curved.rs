@@ -34,13 +34,22 @@ enum Carrier<T: Real> {
     },
 }
 
+/// An edge's certified curve as these lanes read it.
+struct Read<T: Real> {
+    curve: geom::Curve3<T>,
+    carrier: Carrier<T>,
+    span: (T, T),
+    /// The carrier's least speed, metres per unit parameter.
+    speed: T,
+}
+
 /// `e`'s certified curve's carrier, span and least speed, or the typed
 /// refusal pushed for a carrier outside these lanes.
 fn read<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     errors: &mut Vec<ValidationError>,
-) -> Option<(geom::Curve3<T>, Carrier<T>, (T, T), T)> {
+) -> Option<Read<T>> {
     let curve = body
         .edges
         .get(e)
@@ -74,7 +83,12 @@ fn read<T: Decide>(
             return None;
         }
     };
-    Some((carrier, read, curve.params(), speed))
+    Some(Read {
+        curve: carrier,
+        carrier: read,
+        span: curve.params(),
+        speed,
+    })
 }
 
 fn decided<T: Decide>(
@@ -97,7 +111,12 @@ pub(super) fn on_curved_interior<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    let (carrier, _, (t0, t1), speed) = read(body, e, errors)?;
+    let Read {
+        curve: carrier,
+        span: (t0, t1),
+        speed,
+        ..
+    } = read(body, e, errors)?;
     // The midpoint anchor keeps the recovered parameter in span for a
     // span of at most one period (`Curve3::param_near`).
     let t = carrier.param_near(q, geom::mid_param(t0, t1))?;
@@ -218,8 +237,18 @@ pub(super) fn curved_interiors_meet<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    let (ca, ra, (a0, a1), _) = read(body, a, errors)?;
-    let (cb, rb, (b0, b1), _) = read(body, b, errors)?;
+    let Read {
+        curve: ca,
+        carrier: ra,
+        span: (a0, a1),
+        ..
+    } = read(body, a, errors)?;
+    let Read {
+        curve: cb,
+        carrier: rb,
+        span: (b0, b1),
+        ..
+    } = read(body, b, errors)?;
     let mut points = vec![
         ca.eval(geom::mid_param(a0, a1)),
         cb.eval(geom::mid_param(b0, b1)),
