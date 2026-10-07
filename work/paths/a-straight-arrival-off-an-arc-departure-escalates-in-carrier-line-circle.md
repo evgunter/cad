@@ -7,7 +7,7 @@ opened: 2026-10-07
 closed: 2026-10-07
 priority: P0
 cost: M
-refs: [validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc]
+refs: [validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc, validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps]
 ---
 
 
@@ -44,11 +44,18 @@ need answered.
   certifies the arc clear of the whole line (its span definitely
   excludes the point facing the line, both endpoints definitely on the
   centre's side); `joint` answers no contact on either span's definite
-  miss before an indeterminate one escalates.
+  miss of a secant candidate before an indeterminate one escalates.
+  A tangency candidate stands for a `√(2rε)` stretch of near-contact,
+  so the tangent arms of `line_arc` and `arc_arc` still escalate on
+  any in-band span reading.
 - **Rows:** `path_property`'s two route-3 rows (the drawn case; the
   second draw with an ε-relative twin) and `rejections`'
   `an_in_band_line_circle_clearance_escalates_only_where_the_arc_holds_the_graze`.
 - **Siblings** the same shape still escalates on (line × line, line ×
   circle off the line's span, circle × circle) are filed as
   `validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`.
+- **The tangent arms' silent miss**, pre-existing on `main` (a definite
+  span miss of the tangency point read as no contact while the
+  segments touch within ε), is filed as
+  `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps`.
 

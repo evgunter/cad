@@ -14,8 +14,8 @@ Found by the class sweep of
 which fixed two instances in `crates/profile/src/seg.rs`: `line_arc`
 now asks `arc_clear_of_carrier` before an in-band
 `carrier_line_circle` escalates, and `joint` answers "no contact" on
-either span's definite miss before the other's in-band reading
-escalates.
+either span's definite miss of a secant candidate before the other's
+in-band reading escalates.
 
 ## The shape
 
@@ -42,11 +42,17 @@ the inventory names; `arc_arc` needs the same per arc against the other
 circle; `line_line` needs the endpoint's distance along the other
 carrier.
 
-## Unmeasured
+## The tangent arms: measured, and split out
 
-`line_arc`'s decided-Zero arm takes one candidate at the foot and
-span-checks it alone. A clearance up to ε puts the true crossings up to
-`√(2rε)` either side of the foot, so a foot definitely off the arc but
-within that reach of its endpoint may hide an endpoint within ε of the
-line. Not probed.
-
+`line_arc`'s decided-Zero arm, and `arc_arc`'s two tangent arms, take
+one candidate at the tangency point and span-check it alone. A
+clearance up to ε keeps the carriers within ε for about `√(2rε)` either
+side of it. The #4264 reviewer measured the line × arc arm: `line_arc`
+returns no contacts while the segments truly cross or touch in 10–435
+of each 300 000 random f64 draws at every ε, all in that arm, and all
+also wrong on `main`. That is a silent wrong answer, not an escalation,
+so it is filed on its own at P0:
+`validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps`.
+#4264 keeps the tangent arms on `main`'s escalate-on-in-band rule, so
+it does not widen that hole. This item keeps the escalation siblings
+above.
