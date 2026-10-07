@@ -461,8 +461,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// hold variables (INTENT-LITERALS PR C renumbered every node); the
 /// counts, and which absences they are, did not.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 1818041890608486645),
-    ("r5pokehi", "U", 4, 10531216965515607373),
+    ("r5poke", "U", 6, 13211588160630570731),
+    ("r5pokehi", "U", 6, 11307950134352118373),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.

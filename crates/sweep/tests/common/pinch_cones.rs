@@ -110,8 +110,8 @@ fn in_link(link: &[Vec<V3>], s: V3) -> bool {
 /// The cones of `op(x, y)`'s boundary at `p`, and how many of them are
 /// free (module docs). `Err` where the count is undefined at this
 /// resolution: two piece planes through `p` within 1e-7 of each other
-/// but not the same, a sample on a circle, or an arrangement vertex the
-/// result's boundary passes more than once.
+/// but not the same, a sample on a circle, a cell too small to sample,
+/// or an arrangement vertex the result's boundary passes more than once.
 pub fn cones_at(
     p: V3,
     x: &[Vec<Plane>],
@@ -185,15 +185,20 @@ pub fn cones_at(
                             }
                         }
                         angles.sort_by(f64::total_cmp);
+                        let dirs: Vec<V3> = (0..angles.len())
+                            .map(|k| {
+                                let a1 = angles
+                                    .get(k + 1)
+                                    .copied()
+                                    .unwrap_or(angles[0] + std::f64::consts::TAU);
+                                let mid = 0.5 * (angles[k] + a1);
+                                add(scale(e1, mid.cos()), scale(e2, mid.sin()))
+                            })
+                            .collect();
+                        let samples = round_vertex(v, &dirs, &circles)?;
                         let mut held = Vec::new();
-                        for k in 0..angles.len() {
-                            let a1 = angles
-                                .get(k + 1)
-                                .copied()
-                                .unwrap_or(angles[0] + std::f64::consts::TAU);
-                            let mid = 0.5 * (angles[k] + a1);
-                            let dir = add(scale(e1, mid.cos()), scale(e2, mid.sin()));
-                            held.push(meet(unit(add(v, scale(dir, 1e-5))), &mut cells)?);
+                        for s in samples {
+                            held.push(meet(s, &mut cells)?);
                         }
                         let turns = (0..held.len())
                             .filter(|&k| held[k] != held[(k + 1) % held.len()])
@@ -270,6 +275,33 @@ pub fn cones_at(
     Ok((held + open - 1, halves + lunes))
 }
 
+/// One sample in each cell round the arrangement vertex `v`, along
+/// `dirs`: each sample is on `v`'s side of every circle missing `v`. A
+/// great-circle arc shorter than a half-turn crosses another great circle
+/// at most once and a circle through its start not at all, so such a
+/// sample lies in the cell its direction opens into at `v`. The step
+/// shrinks until that holds, so a cell narrower than any fixed step is
+/// still sampled.
+fn round_vertex(v: V3, dirs: &[V3], circles: &[V3]) -> Result<Vec<V3>, &'static str> {
+    let off: Vec<(V3, bool)> = circles
+        .iter()
+        .filter(|&&c| dot(c, v).abs() >= 1e-12)
+        .map(|&c| (c, dot(c, v) > 0.0))
+        .collect();
+    let mut step = 1e-5;
+    while step > 1e-13 {
+        let samples: Vec<V3> = dirs.iter().map(|&d| unit(add(v, scale(d, step)))).collect();
+        if samples
+            .iter()
+            .all(|&s| off.iter().all(|&(c, side)| (dot(c, s) > 0.0) == side))
+        {
+            return Ok(samples);
+        }
+        step /= 8.0;
+    }
+    Err("a cell round an arrangement vertex is too small to sample")
+}
+
 /// The vertices of `body` at exactly `at`.
 pub fn vertices_at(body: &Body<f64>, at: V3) -> Vec<VertexKey> {
     body.vertex_points()
@@ -317,12 +349,43 @@ pub fn cone_finding(
     }
 }
 
-/// Where `body`'s vertices at `at` do not all share one point key, the
-/// finding, else `None`.
+/// Where `body` does not hold a pinch at `at` whose vertices share one
+/// point key, the finding, else `None`: fewer than two vertices there is
+/// a finding too, so a pinch row cannot pass on a point it lost.
+/// [`shared_point_finding`] is the reading for a point that may hold one.
 pub fn point_key_finding(body: &Body<f64>, at: V3) -> Option<String> {
+    let at_v = vertices_at(body, at);
+    if at_v.len() < 2 {
+        return Some(format!(
+            "{} vertices at {at:?}: no pinch to share a key",
+            at_v.len()
+        ));
+    }
+    shared_point_finding(body, at)
+}
+
+/// Where `body`'s vertices at `at`, if several, do not all share one
+/// point key, the finding, else `None`. A point holding one vertex or
+/// none passes: [`cone_finding`] counts them.
+pub fn shared_point_finding(body: &Body<f64>, at: V3) -> Option<String> {
     let at_v = vertices_at(body, at);
     let point = |k| body.get_vertex(k).unwrap().point;
     at_v.iter()
         .any(|&k| point(k) != point(at_v[0]))
         .then(|| format!("the vertices at {at:?} do not share one point: {at_v:?}"))
+}
+
+/// Where a class `zip::share_points` rebound on this thread since the
+/// last drain held keys at different points, the finding, else `None`;
+/// with the number of classes drained. The rebind reads no position, so
+/// this pins its premise: the seams tie only keys holding one point,
+/// bit for bit.
+pub fn shared_point_spread_finding() -> (usize, Option<String>) {
+    let classes = topo::take_shared_points();
+    let bits = |p: &[String; 3]| p.clone().map(|c| c.parse::<f64>().unwrap().to_bits());
+    let finding = classes
+        .iter()
+        .find(|c| c.iter().any(|p| bits(p) != bits(&c[0])))
+        .map(|c| format!("a rebound class holds keys at different points: {c:?}"));
+    (classes.len(), finding)
 }

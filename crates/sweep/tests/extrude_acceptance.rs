@@ -153,7 +153,7 @@ fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::Surfac
     match description(body, edge) {
         EdgeDescription::Chart(c) => {
             assert_eq!(c.surface, chart, "the image must be drawn in {chart:?}");
-            assert!(!c.seam, "a declared image is not the chart's seam");
+            assert!(!c.wrap, "a declared image is not the chart's seam");
         }
         other => panic!("expected a conventional chart image, got {other:?}"),
     }

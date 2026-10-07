@@ -174,6 +174,8 @@ mod pcurve_p1a_meter;
 mod pcurve_p1b_r2_probes;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
+#[path = "pcurve_villarceau.rs"]
+mod pcurve_villarceau;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
@@ -273,5 +275,7 @@ mod r2_mesh7_door_probes;
 mod sphere_circle_certificate;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
+#[path = "torus_chart_guards.rs"]
+mod torus_chart_guards;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;

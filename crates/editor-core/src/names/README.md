@@ -286,13 +286,17 @@ never the bare member edge. Unlike two coplanar faces, the stretch and the set
 are different cells on the line, and a name cites only what its cell lies on.
 
 A pair boolean names a joined edge by the same reading over its two operands'
-edges. A seam vertex cites a member edge whole, `FromMember(m, e)`, never a
-piece and never a set: the one it lies on, the least where several do. In a
-pair boolean, where an A edge and a B edge both hold it, A's is cited. A
-vertex at a member vertex is that vertex, and one where a single face crosses
-a member edge is the `Crossing` of that edge and that face. A reference to a
-member edge, or to a piece of one, that no longer resolves is offered every
-set listing that member edge.
+edges, read along the edge's carrier: its line, or the curve a curved edge is
+carried by, where "along" is overlapping it over a length of that curve. A
+closed edge, one the output stage joined round a closed carrier, lies within a
+closed operand edge alone and is covered over its whole period, so its name
+reads nothing off where its vertex sits. A seam vertex cites a member edge
+whole, `FromMember(m, e)`, never a piece and never a set: the one it lies on,
+the least where several do. In a pair boolean, where an A edge and a B edge
+both hold it, A's is cited. A vertex at a member vertex is that vertex, and one
+where a single face crosses a member edge is the `Crossing` of that edge and
+that face. A reference to a member edge, or to a piece of one, that no longer
+resolves is offered every set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
 all of these hold: their members are declared coincident on them, or share a
@@ -505,7 +509,10 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   survivor, and at a union the published entities a fold step's group descends
   to, followed by entity through every later step. A piece a later step
   re-mints under a seam name of its own is not a descendant by that descent and
-  is not counted. Two tied parents that share a base are two groups, each
+  is not counted. An edge piece's group is its line's: every edge the node
+  holds on the line from an operand edge, whichever parent edge on the line it
+  descends from, whole or in pieces, counted together. Two tied parents that
+  share a base are two groups, each
   counted on its own, where the emitter groups by parent entity; where it
   groups by parent names (the seam lanes) their pieces share one group and the
   rung declines. That is a statement about two recorded groups, not a claimed
