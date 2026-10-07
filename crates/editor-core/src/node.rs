@@ -1049,7 +1049,7 @@ pub enum Datum<S = crate::VarId> {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1075,7 +1075,7 @@ pub enum Datum<S = crate::VarId> {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1472,7 +1472,7 @@ impl SitedRef {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1521,7 +1521,7 @@ impl SitedRef {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1545,7 +1545,7 @@ impl SitedRef {
 /// use editor_core::{EntityKind, FaceName, RecipeNodeId, StableName};
 /// let edge = StableName {
 ///     kind: EntityKind::Edge,
-///     node: RecipeNodeId(0),
+///     node: RecipeNodeId::new(0, 0),
 ///     path: Vec::new(),
 /// };
 /// assert_eq!(FaceName::new(edge).unwrap_err().found, EntityKind::Edge);
@@ -3180,7 +3180,7 @@ macro_rules! node_rows {
 /// fn named() -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -3199,13 +3199,13 @@ macro_rules! node_rows {
 ///     editor_core::declare_rest(vec![(sited(), sited())]);
 ///
 /// fn sited() -> editor_core::SitedRef {
-///     editor_core::SitedRef::new(editor_core::RecipeNodeId(0), named())
+///     editor_core::SitedRef::new(editor_core::RecipeNodeId::new(0, 0), named())
 /// }
 ///
 /// fn named() -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }

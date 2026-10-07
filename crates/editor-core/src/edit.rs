@@ -200,8 +200,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// ```compile_fail,E0560
     /// let _: editor_core::DocEdit<editor_core::ProfileProgram> =
     ///     editor_core::DocEdit::SetProgram {
-    ///         node: editor_core::RecipeNodeId(1),
-    ///         plane: editor_core::RecipeNodeId(0),
+    ///         node: editor_core::RecipeNodeId::new(0, 1),
+    ///         plane: editor_core::RecipeNodeId::new(0, 0),
     ///         loops: Vec::new(),
     ///         ids: Vec::new(),
     ///     };
