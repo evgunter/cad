@@ -109,7 +109,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopK
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
@@ -549,6 +549,22 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
+/// Where the section table reads a wall's pose, and the lever: the base
+/// vertex `at`'s point, and [`face_extent`], the farthest boundary vertex
+/// of `face` from it, which bounds how far along the axis a tilt pinned
+/// at the vertex's foot moves the section. No ball around the vertex is
+/// a lever ([`geom_brep::Reach`]'s module docs): levered at one, a vertex
+/// on a wall `r` from the axis read `r + face_extent` from the foot, and
+/// an in-band tilt decided as an ellipse.
+fn section_reach<T: Decide>(
+    body: &Body<T>,
+    at: VertexKey,
+    face: FaceKey,
+) -> Result<(Point3<T>, T), SplitJoinError> {
+    let extent = face_extent(body, at, face).map_err(unbounded)?;
+    Ok((body.resolve_vertex_point(at, Proven), extent))
+}
+
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
 /// no outer boundary has no extent to meter a section across.
 fn unbounded(e: crate::splitting::rules::UnboundedFace) -> SplitJoinError {
@@ -849,7 +865,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    extent: T,
+    (at, extent): (Point3<T>, T),
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -946,7 +962,8 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let sec = geom_brep::plane_cylinder_section(plane_s, wall, extent, band).map_err(table)?;
+    let reach = geom_brep::Reach::Measured { at, lever: extent };
+    let sec = geom_brep::plane_cylinder_section(plane_s, wall, &reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
         | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
@@ -1402,8 +1419,7 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let extent = face_extent(body, at, face).map_err(unbounded)?;
-    let case = section_case(face, band, &plane_s, &wall, extent)?;
+    let case = section_case(face, band, &plane_s, &wall, section_reach(body, at, face)?)?;
     Ok(Some(WallSection { wall, case }))
 }
 
@@ -1515,8 +1531,7 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let extent = face_extent(body, u1, face).map_err(unbounded)?;
-    let conic = match section_case(face, band, &plane_s, wall, extent)? {
+    let conic = match section_case(face, band, &plane_s, wall, section_reach(body, u1, face)?)? {
         // A two-ruling section's chords are straight on the plane too.
         SectionCase::Straight(_) => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING
@@ -3454,6 +3469,195 @@ mod tests {
         body.get_edge(made.edge).unwrap().he_plus
     }
 
+    /// **A wall's section reads at its base vertex, wherever the wall's
+    /// origin is stored.** Row C's unit wall and the plane `x = 1`
+    /// tangent to it along the base vertex's ruling, the axis tilted
+    /// half the zero band toward the plane and the wall's origin stored
+    /// 1000 m out along it either way. Read at the base vertex's foot,
+    /// the tilt is in the zero band at the face extent and the gap is the
+    /// radius: the tangent ruling. Read 1000 m away, the gap moved by
+    /// `1000·θ`, five hundred times the band: two rulings on one side, no
+    /// section on the other.
+    #[test]
+    fn a_walls_section_reads_at_its_base_vertex_wherever_the_origin_is_stored() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let base = Point3::new(1.0, 0.0, 0.0);
+        let sin_beta: f64 = 0.5 * band.zero();
+        let axis = Vec3::new(-sin_beta, 0.0, (1.0 - sin_beta * sin_beta).sqrt());
+        let normal = UnitVec3::new(Vec3::new(1.0, 0.0, 0.0), "stored-origin row", band).unwrap();
+        for along in [1000.0, -1000.0] {
+            let mut body = crate::Body::<f64>::new();
+            let seed = body.mvfs(base, true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Cylinder {
+                        origin: Point3::origin() + axis * along,
+                        axis,
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            body.mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(1.0, 0.0, 1.0),
+                Tol::witness(),
+            )
+            .unwrap();
+            let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+            assert!(
+                matches!(
+                    got,
+                    Ok(Some(WallSection {
+                        case: SectionCase::Tangent(_),
+                        ..
+                    }))
+                ),
+                "stored {along} m along: the tangent ruling, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
+    /// **A face shorter than the radius is levered at its face extent,
+    /// not the radius.** Row C's wall and plane with the second vertex at
+    /// `(1, 0, h)`, `h < r`, the plane tilted so the axis meets it at
+    /// `sin β = k·ε/h`. A tilt moves the section by the tilt times the
+    /// AXIAL distance from the base vertex's foot, at most `h`, so
+    /// `pc_axis_plane_parallel` reads `k·ε`: in the band, and the table
+    /// escalates. Floored at the foot's distance from the vertex (the
+    /// radius), the lever read `k·ε·r/h`, definite from `k = 6` at
+    /// `h = 0.5` and from `k = 3` at `h = 0.2`, and served a tilted
+    /// ellipse. `k = 1.2` reads Zero if the lever is cut below `h`.
+    #[test]
+    fn a_short_faces_pose_is_levered_at_its_face_extent_not_the_radius() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let base = Point3::new(1.0, 0.0, 0.0);
+        for h in [0.5, 0.2] {
+            let mut body = crate::Body::<f64>::new();
+            let seed = body.mvfs(base, true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Cylinder {
+                        origin: Point3::origin(),
+                        axis: Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            body.mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(1.0, 0.0, h),
+                Tol::witness(),
+            )
+            .unwrap();
+            for k in [1.2, 3.0, 6.0, 8.0, 9.0, 9.9] {
+                let sin_beta: f64 = k * band.zero() / h;
+                let normal = UnitVec3::new(
+                    Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
+                    "short-face row",
+                    band,
+                )
+                .unwrap();
+                let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+                assert!(
+                    matches!(
+                        got,
+                        Err(SplitJoinError::Escalated { ref diag, .. })
+                            if diag.predicate == Some("pc_axis_plane_parallel")
+                    ),
+                    "h = {h}, k = {k}: an in-band tilt must escalate, got {:?}",
+                    got.map(|w| w.map(|w| match w.case {
+                        SectionCase::Straight(_) => "straight",
+                        SectionCase::Tangent(_) => "tangent",
+                        SectionCase::Conic(_) => "conic",
+                    }))
+                );
+            }
+        }
+    }
+
+    /// **A wall's pose is levered at its face extent, not a ball about
+    /// the base vertex** (row C). A unit cylinder face about `z` whose
+    /// base vertex `(1, 0, 0)` lies on the ruling the plane `x = 1`
+    /// touches, its other vertex `(1, 0, 2)` a face extent of 2 away, past
+    /// the radius; the plane through the base vertex tilted so the axis
+    /// meets it at `sin β = k·ε/2`. Levered at the face extent,
+    /// `pc_axis_plane_parallel` reads `k·ε`, in the band, and the table
+    /// escalates. Levered at a ball of that radius about the base vertex,
+    /// the axis's foot stood `r` inside it and the lever read
+    /// `r + 2 = 3`: `1.5·k·ε`, a definite tilt for `k ≥ 7`, and a tilted
+    /// ellipse. `k = 1.2` is in the band too, and reads Zero if the lever
+    /// is cut below the face extent (the extent is past the radius, so the
+    /// pivot's distance from the vertex, the lever's floor, does not hide
+    /// the cut).
+    #[test]
+    fn a_walls_pose_is_levered_at_its_face_extent() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let base = Point3::new(1.0, 0.0, 0.0);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(base, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(1.0, 0.0, 2.0),
+            Tol::witness(),
+        )
+        .unwrap();
+        for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
+            let sin_beta: f64 = k * band.zero() / 2.0;
+            let normal = UnitVec3::new(
+                Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
+                "row C",
+                band,
+            )
+            .unwrap();
+            let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+            assert!(
+                matches!(
+                    got,
+                    Err(SplitJoinError::Escalated { ref diag, .. })
+                        if diag.predicate == Some("pc_axis_plane_parallel")
+                ),
+                "k = {k}: an in-band tilt must escalate, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
     /// The split lane's adjacency question on a conic between edge (a
     /// cylinder cap's rim, which a planar divided face carries): the
     /// belly verdict and the coplanar verdict. The rim is the upper
@@ -3671,6 +3875,10 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
+    fn reach() -> (Point3<f64>, f64) {
+        (Point3::origin(), 4.0)
+    }
+
     fn plane() -> geom::Surface<f64> {
         geom::Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.5),
@@ -3704,7 +3912,7 @@ mod section_case_pair_tests {
     fn the_pair_is_order_free() {
         let f = FaceKey::default();
         for (a, b) in [(plane(), cylinder()), (cylinder(), plane())] {
-            let got = section_case(f, band(), &a, &b, 4.0).expect("the rim arm is wired");
+            let got = section_case(f, band(), &a, &b, reach()).expect("the rim arm is wired");
             let SectionCase::Conic(c) = got else {
                 panic!("a square cut names a rim circle");
             };
@@ -3722,13 +3930,13 @@ mod section_case_pair_tests {
             (cylinder(), sphere()),
             (sphere(), sphere()),
         ] {
-            match section_case(f, band(), &a, &b, 4.0) {
+            match section_case(f, band(), &a, &b, reach()) {
                 Err(SplitJoinError::SectionInvariant { .. }) => {}
                 Err(e) => panic!("a curved pair must refuse SectionInvariant, got {e:?}"),
                 Ok(_) => panic!("a curved pair must refuse typed, never classify"),
             }
         }
-        match section_case(f, band(), &plane(), &plane(), 4.0) {
+        match section_case(f, band(), &plane(), &plane(), reach()) {
             Err(SplitJoinError::SectionInvariant { .. }) => {}
             Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
             Ok(_) => panic!("a planar pair must refuse typed here, never classify"),

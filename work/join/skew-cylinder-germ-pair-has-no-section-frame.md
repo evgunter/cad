@@ -33,7 +33,9 @@ both orders, for 8 lines over four skew placements; at the probe's
 1.5707963 rad that placement stops earlier, at
 `CurvedSectorSideUnsupported` (a sector side decided Zero at a margin
 of 7.5e-17). All are raised by `boolean::join::pair_section_frame`'s coplanarity
-split (`bool_germ_frame_axes_coplanar` definite: skew keeps `NoArm`).
+split (the section table's `cc_axes_coplanar`, which the frame asks;
+`bool_germ_frame_axes_coplanar` when this was filed. Definite: skew keeps
+`NoArm`).
 Placement 0 (parallel axes) passes the frame and stops at the lane
 (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`); placement 4
 meets the pinch door (`GermFrameCylinderPinch`).
