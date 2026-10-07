@@ -8212,6 +8212,8 @@ fn spiric_off_own_chart(on_mirror: bool, why: &'static str) -> NoImage {
 // test gate can skip the sweep without skipping the deterministic rows.
 #[cfg(test)]
 mod envelope_lemma_fuzz;
+#[cfg(test)]
+mod review_probe;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

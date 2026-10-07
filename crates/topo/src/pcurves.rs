@@ -7067,3 +7067,47 @@ mod room_fence_tests {
         assert!(room(&sphere, at(8.0 * EPS)), "8ε from the axis: room");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod review_probe_4227 {
+    use super::*;
+    use geom_core::{Point3, Tol, Vec3};
+    #[test]
+    fn villarceau_whole_turn_joint() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (big, r) = (2.0_f64, 0.7_f64);
+        let axis = Vec3::new(0.1, 0.2, 1.0).normalize();
+        let u_ref = (Vec3::unit_x() - axis * axis.x).normalize();
+        let center = Point3::new(0.3, -0.2, 0.5);
+        let surface = Surface::Torus { center, axis, major_radius: big, minor_radius: r, u_ref };
+        let chart = DescribedChart::of(&surface).unwrap();
+        for phi in [0.0_f64, 1.0, 2.5, -2.0] {
+            for family in [1.0_f64, -1.0] {
+                for trav in [1.0_f64, -1.0] {
+                    for psi in [0.0_f64, 2.0] {
+                        for k in [-1.0_f64, 0.0, 2.0] {
+                            let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
+                            let tilt = (r / big).asin();
+                            let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
+                            let c = geom::Curve3::Circle { center: center + d * r, axis: d.cross(lean) * trav, radius: big, u_ref: d * psi.cos() + lean * psi.sin() };
+                            let img = geom_brep::chart_pcurve(&c, &surface, band).unwrap();
+                            let img = img.shift_branch(k, core::f64::consts::TAU);
+                            let img = shift_polar_branch(&img, -k, core::f64::consts::TAU);
+                            let (t0, t1) = (0.3, 0.3 + core::f64::consts::TAU);
+                            let row = geom_brep::PcurveCache::certify(img.clone(), t0, t1, &c, &surface, band).unwrap();
+                            let Pcurve::FocalSection { sense, vl, .. } = img else { panic!() };
+                            let el = decide_joint(chart, row.pcurve(), t0, row.pcurve().eval(t1), c.eval(t0), Some(core::f64::consts::TAU), band);
+                            let ok = matches!(el, Ok(JointElement::Shift(Deck { u, v, twin: false })) if u == sense as i32 && v == vl as i32);
+                            if !ok {
+                                println!("[probe J] phi {phi} fam {family} trav {trav} psi {psi} k {k}: sense {sense} vl {vl} → {:?}", el.as_ref().ok());
+                            }
+                            assert!(ok);
+                        }
+                    }
+                }
+            }
+        }
+        println!("[probe J] all whole-turn joints decided (sense, vl)");
+    }
+}
