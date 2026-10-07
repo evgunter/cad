@@ -156,7 +156,7 @@ fn rim(doc: &editor_core::ProfileDoc, node: RecipeNodeId, seg: u32) -> StableNam
         node,
         path: vec![RoleSeg::RimEdge(
             editor_core::CapEnd::End,
-            crate::fixture::piece(doc, node, 0, seg as usize),
+            crate::fixture::piece(doc, node, 0, seg as usize).into(),
         )],
     }
 }
@@ -279,7 +279,7 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
             node: body(doc),
             path: vec![RoleSeg::RimEdge(
                 editor_core::CapEnd::End,
-                crate::fixture::no_piece_of(doc),
+                crate::fixture::no_piece_of(doc).into(),
             )],
         }]
     });

@@ -115,7 +115,7 @@ fn assert_rim_pieces(
         node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(doc, m, 0, 2),
+            crate::fixture::piece(doc, m, 0, 2).into(),
         )],
     };
     let t = table(ev, union);

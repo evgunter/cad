@@ -20,8 +20,8 @@ use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom_brep::PcurveCache;
 use geom_brep::ssi::{self, SsiDomain};
-use geom_brep::{Pcurve, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
 use mesh::TessellateError;
@@ -142,7 +142,6 @@ fn build_fitted_cache() -> PcurveCache<f64> {
     let carrier = Arc::new(sub_arc3(loop_carrier, (0.0, 0.25)).expect("the carrier's quarter"));
     let image = Arc::new(sub_arc2(&image, (0.0, 0.25)).expect("the image's quarter"));
     let (t0, t1) = image.domain();
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     PcurveCache::<f64>::certify_fitted(
         image,
         t0,
@@ -150,7 +149,6 @@ fn build_fitted_cache() -> PcurveCache<f64> {
         &Curve3::Nurbs(carrier),
         &cylinder(),
         Some(&sphere()),
-        window,
         Band::linear(Tol::witness()).unwrap(),
         geom_brep::FittedLane::certified(),
     )

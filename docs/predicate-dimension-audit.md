@@ -349,7 +349,6 @@ which is what actually moves the number.
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
 | pcurve_cache.rs:1988 | pcurve_azimuth_period (harmonic) | (τ−extent)·azimuth_lever | m | OK |
 | pcurve_cache.rs:1894 | pcurve_interval_meter (fitted/iso gate) | carrier parameter extent × param_rate (a NURBS net's knot domain × its certified speed lower bound) | m | OK (metered door; the collapsed-arm gate) |
-| pcurve_cache.rs `trim_containment` (:5772) | pcurve_trim_containment | chart-param overhang × `chart_arms_at` (the cone arm from the check's own boxes since M6-3) | m | OK (**`metered_sup` door**: `chart_arms_at` answers a `SupSpeed` pair, and an escape metred through a certified upper bound can only refuse) |
 | pcurve_cache.rs:2382 / :2868 | pcurve_interval_forward (fitted / iso) | span × param_rate — a NURBS carrier's rate IS its certified speed lower bound | m | OK (metered door; the meter gated at :1894) |
 | pcurve_cache.rs:2397 | pcurve_azimuth_period (fitted) | rad headroom × `chart_arms_at`'s azimuth lever (the cone's `v_sup·sin α`) | m | OK (levered door) |
 | pcurve_cache.rs:1664 | pcurve_chart_radial_moving | Σ m-norms BARE (amplitude is metres) | m | FIXED (M6-3) |
@@ -502,8 +501,12 @@ which is what actually moves the number.
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
-| pcurves.rs (`chart_u_arm`, `v_meter`) | pcurve_loop_continuity / closure(_height) | Δu × `chart_u_arm`; Δv × `v_meter` | m on every chart kind. The AZIMUTH charts take their local lever (r, r·cos v, R+r·cos v, v·sin α) and the sphere/torus second channel its polar radius; a PLANE answers exactly 1 on both channels because its u/v ARE metres; a SPLINE chart (`Nurbs`/`Approx`, and the same for a placeholder's absent net) answers `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)` — the chart's own metre stretch | m | OK. Both channels of the spline arm are metred through the exported sup bound; sup is the conservative side at both callers, which make ESCAPE claims (`pcurve_loop_continuity` asks whether a joint gap keeps the loop closed, `pcurve_loop_pole_joint` whether a lever is collapsed), so an over-stated arm refuses and never certifies. Not a `decide_flagged` site. **Which door the u channel takes is the chart kind's answer, carried in the arm's type** (`ChartArm`): on the angular kinds Δu is an ANGLE and the arm is metres per radian, so `Margin::levered`; on a plane or spline chart Δu is a chart-PARAMETER span and the arm is a `SupSpeed`, so `Margin::metered_sup` — the same door and the same reason as the v channel, whose rate `v_meter` answers (an exact polar radius is a sup by being exact; a spline chart's is one by derivation) |
-| pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; local azimuth lever (m) | m | OK (added by the clause-(i) migration) |
+| pcurves.rs (`spline_gap_closes`: `chart_u_arm`, `v_meter`) | pcurve_loop_continuity | a SPLINE chart's (`Nurbs`/`Approx`) joint gap: Δu × `chart_u_arm` and Δv × `v_meter`, `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)`, the chart's own metre stretch | m | OK (`metered_sup` door: an escape metred through a certified upper bound can only refuse) |
+| pcurves.rs (`near_pole_gap_closes`: `joint_arm`) | pcurve_loop_pole_gap | at a joint whose singular incidence AND orbit marks are undecided: (gap − m·step) × the vertex's own distance from the axis, for the orbit points m = 0 (and ±1 where the image has a sphere twin) | m | OK (levered door; the lever is the vertex's own, so an escape it admits is ≤ ε in metres at that vertex) |
+| pcurves.rs (`joint_has_room`: `joint_arm`) | chart_bound_joint_room | `chart_boundary`'s room fence, per joint off the singular set: a quarter of the chord two of the joint's chart ends would span half the orbit's step apart, `sin(step/4)/2` (`sin(π/4)/2` on a sphere, `1/2` on a cylinder, cone or torus) × the ends' least distance from the axis, `d − 2ε` at the vertex's own `d` | m | OK (levered door). It is an escape claim on the conservative side: only a definite `Positive` admits, so the chord `2·(d − 2ε)·sin(step/4)` is past four times the band's escalation, `4·K·ε > 4ε`, the joint bound, at every `K > 1`: no two chart ends of the joint lie half a step apart, and the decided integer is the joint's own. A spline chart is exempt: its joints decided their lifted chart-space gap |
+| pcurves.rs (`turn_element`) | pcurve_turn_closes | a killed half's two vertex points' 3-D distance: whether its carrier is closed, so the kill crosses it by a turn | m | OK (`Margin::of` a distance; only a decided `Zero` reads the ends as one point, and the turn is then decided at that point by the walk's own joint decision, which takes the coincidence as given) |
+| pcurves.rs (`decide_joint`: `joint_arm`) | pcurve_loop_branch | (gap − (m+½)·step) × the joint vertex's distance from the chart axis (analytic; `step` the orbit's: half a period on a sphere, whose twin sits half a period over, a whole one elsewhere) or `chart_u_arm` (spline); the polar channel (gap − (k+½)·τ) × its polar radius | m | OK, and NOT by the escape argument: a mark decision is not an escape claim, and a larger arm decides marks more readily. It is sound because the arm is positive, so a decided sign is the sign of `gap − mark` itself, and the cell between two decided marks holds exactly one orbit point; the arm's size only sets how near a mark a gap may sit and still decide. Where the margin `step/2 × lever` exceeds the joint bound (the chart ends `≤ 4ε` apart in metres, `decide_joint`'s docs), the decided integer is the joint's true deck element. It does not everywhere the incidence reads `Off`: `Off` only puts the vertex `K·ε` from the singular set, so near a pole at a small `K` the lever is about `K·ε`, and near a narrow cone's apex it is `p·sin α`, small even at `K = 10`. There a mark may decide a different orbit point, but only one equally near the joint; every orbit point lifts the same 3-D point, so the lift stays continuous in metres to the joint bound. Otherwise a mark decides Zero (a refusal) or escalates. No decided integer names a different point |
+| pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; the joint vertex's distance to the chart's singular set (a sphere's nearer pole, a cone's apex), or a spline net's `sup \|S_u\|` | m | OK |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK (metered door; the rate is an `InfSpeed` on every kind — the three closed forms by being exact, the net by `speed_lower_bound`'s derivation — which is what an interiority claim needs) |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | transform.rs:155 | transform_rigid_trans_finite_* | t·0 poison probe (0 or NaN by construction) | — | OK |
@@ -534,6 +537,7 @@ which is what actually moves the number.
 | splitting/order.rs (`sort_along`) | split_join_line_order | how far one of a face's crossings lies past another along its section (m) vs the run's band: a real distance apart or one point. A planar face's is the difference of along-line coordinates; a curved face's is the eccentric-anomaly difference times the conic's speed halfway, the arc length to second order | m | OK (CLEAVE) |
 | splitting/order.rs (`group_coincident`), splitting/join.rs (`conic_pairs`) | split_join_line_gap | the same gap between successive sorted crossings of one face (m), and across a conic's branch cut, vs the run's band: Zero is one point, Positive two | m | OK (CLEAVE) |
 | splitting/join.rs (`line_pairs`) | split_join_face_line | `|n_face × n_plane|` levered by the face's crossings' spread (m): the face's section line exists | m | OK (CLEAVE) |
+| splitting/join.rs (`ruling_pairs`) | split_join_ruling_side | a crossing's distance from one section ruling less its distance from the other (m): which ruling it lies on, Zero where the rulings meet (a cone's apex) | m | OK (CLEAVE) |
 | splitting/join.rs (`conic_pairs`) | split_join_conic_heading | the sine `(n_plane × n_out)·Ĉ′` between the section's heading into the face and the conic's unit tangent, levered by the wall's `curvature_lever_arm` (the cylinder's or sphere's radius) (m): how far the section runs from tangent to the wall, and so which way along the conic enters the face | m | OK (CLEAVE) |
 | splitting/finish.rs (`line_clears_conic`) | split_nest_line_conic | a conic carrier's centre offset from a line less its amplitude across it, `|m·(c − p)| − √((m·a)² + (m·b)²)` (m) | m | OK (CLEAVE) |
 | splitting/finish.rs (`conics_clear`) | split_nest_conic_conic | in one conic's unit coordinates, `1 − |c′| − σ` or `|c′| − σ − 1` with `σ` the largest singular value of the other's semi-axis matrix, levered by the first's smaller semi-axis (m) | m | OK (CLEAVE) |
@@ -1018,14 +1022,16 @@ Flagged, NOT fixed here (dispositions):
   advance, and — asked once per description rather than once per cell
   — an outer loop's period excess) from pooling.
 
-  **The `pcurves.rs` closure rows take a second call site under this
-  unit.** `chart_boundary` re-decides its loops' closure gap under the
-  walk's own `pcurve_loop_closure` / `pcurve_loop_closure_height`
-  names, with NO period allowed, because the description needs the
-  closure the walk's `± τ` arm deliberately admits to be excluded. Same
-  quantity, same arms (`chart_u_arm`, `v_meter`), same dimension — the
-  row two tables up covers it, and the population grows rather than
-  splitting.
+  **No `pcurves.rs` row takes a second call site under this unit.**
+  `chart_boundary` excludes the closure the walk's `±1` winding
+  deliberately admits by reading the walk's own joint elements: their
+  composition once around must be the identity (`Winding::is_zero`),
+  an integer comparison that decides nothing. Its singular fence is the
+  walk's `pcurve_loop_pole_joint` row, asked of every joint's vertex
+  again, and its room fence is the one new row,
+  `chart_bound_joint_room`, which keeps that integer comparison off the
+  joints whose integer was decided with too little room to be the
+  joint's own.
 
 - **F20** (added by PCERT's incidence-and-fidelity unit, PR 3812)
   `geom-brep/src/pcurve_cache.rs` `schedule_residuals` under

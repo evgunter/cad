@@ -4,6 +4,7 @@ kind: issue
 title: PcurveCertificate tells its fitted kinds apart by statement plus ssi.is_some(), so an inconsistent pair is representable
 status: open
 opened: 2026-10-01
+priority: P2
 ---
 
 
