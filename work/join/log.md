@@ -1116,3 +1116,19 @@ Signed (JOIN orchestrator).
 - **Visible change:** STEP import now refuses a face whose two inner bounds touch.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07: two units dispatched
+
+- `a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc` (P1 M):
+  a diagnosis, then a fix. Branch `join/roof-cross-valley`.
+- `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses`
+  (P1 M, test side): a wrong oracle can certify a wrong body. Branch
+  `join/sweep-oracle-convex-volume`.
+- The P0 `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census`
+  is not dispatched yet. Its fix is a census and tolerance question that
+  REACH's tier-3′ gate depends on. It wants a design pass, which the
+  seven-day usage warning argues against starting now.
+- `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`
+  (filed by PR 4249) follows when 4249 lands.
+
+Signed (JOIN orchestrator).
