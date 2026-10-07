@@ -4,6 +4,7 @@ kind: issue
 title: Inline merges a part's variable into a same-named host variable when their definitions are bit-equal: identity inferred from equal values, which D10 rules out
 status: closed
 branch: intent/inline-carries-variables
+pr: 4243
 opened: 2026-10-03
 closed: 2026-10-07
 priority: P0
