@@ -95,8 +95,8 @@ pub(crate) struct Study {
 ///
 /// INTENT-LITERALS PR C: a formula written at a slot is an anonymous
 /// definition, bound through the non-finite door, so each written
-/// formula adds a theorem (plate +1, annulus +2, bracket +3; the link
-/// and the pad hold at these scales). `registered` and the verdicts do not move, and an
+/// formula adds a theorem (plate +1, annulus +2, link +2, bracket +3;
+/// the pad holds). `registered` and the verdicts do not move, and an
 /// untoleranced variable binds as its nominal (VR8).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
@@ -111,7 +111,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             registered: 0,
-            symbolic_zero: [1047, 1047, 1047],
+            symbolic_zero: [1048, 1048, 1048],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -122,7 +122,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             registered: 0,
-            symbolic_zero: [564, 564, 564],
+            symbolic_zero: [566, 566, 566],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -137,7 +137,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: Some(3.030e2),
             refused_by: None,
             registered: 48,
-            symbolic_zero: [772, 772, 772],
+            symbolic_zero: [774, 774, 774],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -156,7 +156,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic_zero: [1373, 1373, 1373],
+            symbolic_zero: [1376, 1376, 1376],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
