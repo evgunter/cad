@@ -314,7 +314,7 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let third = 1.0 / 3.0;
         let cross3 = mix(
             arch,
-            [[third, third, third], [0.85, 0.1, 0.05], [0.5, 0.28, 0.22]],
+            [[third, third, third], [0.75, 0.15, 0.1], [0.45, 0.22, 0.33]],
             0.6,
         );
         let on2 = mix(

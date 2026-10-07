@@ -5007,7 +5007,7 @@ mod touch_reread_rows {
             let third = 1.0 / 3.0;
             let cross3 = p(mix(
                 arch_base,
-                [[third, third, third], [0.85, 0.1, 0.05], [0.5, 0.28, 0.22]],
+                [[third, third, third], [0.75, 0.15, 0.1], [0.45, 0.22, 0.33]],
                 0.6,
             ));
             let on2 = p(mix(
