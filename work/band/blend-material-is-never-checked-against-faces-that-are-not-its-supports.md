@@ -2,10 +2,12 @@
 id: blend-material-is-never-checked-against-faces-that-are-not-its-supports
 kind: issue
 title: blend: the band's material is never checked against faces that are not its supports, so a concave fillet grows into an island and builds an overlapping body every tier admits
-status: open
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: H
+pr: 4143
+closed: 2026-10-07
 ---
 
 Found by the lane that made the blend carve each chain inside its own
