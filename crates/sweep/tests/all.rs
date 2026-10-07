@@ -268,6 +268,8 @@ mod blend_dual_tangent;
 mod blend_margin_payload_interval;
 #[path = "blend_operand_gate.rs"]
 mod blend_operand_gate;
+#[path = "review_4252_probes.rs"]
+mod review_4252_probes;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
