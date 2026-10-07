@@ -102,11 +102,19 @@ refusing a named variable the cut alone reads: makes the name decide a
 lifecycle, against VR2, and treats named and anonymous differently at the
 one seam where they should not differ.
 
-**Ratified text.** None changes. VARIABLES-DESIGN is agent-written and was
-not put before Ev (`variables-are-identities-with-labels`: it "did not go
-to Ev"); it gains one line at VR9: "Split moves a variable with its
-readers; inline carries every variable of the part under a new id." The
-refactor module doc states the closure.
+**Ratified text.** A4's acceptance (`crates/editor-core/ASSEMBLY.md`,
+Ev-ratified 2026-10-03): "Inline-of-split returns the document split was
+given, up to node ids and that one regrouping." The move keeps it; (c)
+would retire it for every document whose part reads a named variable. One
+re-wording lands with the change, not as a decision: "up to node and
+variable ids". The inline ruling already forces it, since a carried named
+variable now returns under a new id, as anonymous ones have since PR C, and
+nothing reads a variable's id but its own document (VR1). VARIABLES-DESIGN
+is agent-written and was not put before Ev
+(`variables-are-identities-with-labels`: it "did not go to Ev"); it gains
+one line at VR9: "Split moves a variable with its readers; inline carries
+every variable of the part under a new id." The refactor module doc states
+the closure.
 
 ## For the orchestrator
 
