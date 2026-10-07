@@ -158,7 +158,12 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
                     other => panic!("c over {span:?}, order {order:?}: {other:?}"),
                 };
                 assert!(
-                    topo::joinable_vertices(&out.body).is_empty(),
+                    topo::joinable_vertices(
+                        &out.body,
+                        geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+                    )
+                    .unwrap()
+                    .is_empty(),
                     "c over {span:?}, order {order:?}, at {next}: a joinable vertex is left"
                 );
                 let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
@@ -171,7 +176,12 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
             }
             let body = &acc.expect("two steps").body;
             assert!(
-                topo::joinable_vertices(body).is_empty(),
+                topo::joinable_vertices(
+                    body,
+                    geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+                )
+                .unwrap()
+                .is_empty(),
                 "c over {span:?}, order {order:?}: a joinable vertex is left"
             );
             counts.push((

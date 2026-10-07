@@ -6904,6 +6904,52 @@ pub fn chart_pcurve<T: Decide>(
     derive_harmonic(carrier, surface, band).map(|(image, _)| image)
 }
 
+/// The two iso families of an analytic chart: `U` the `u = const`
+/// lines (a cylinder's or cone's rulings, a sphere's or torus's
+/// meridians), `V` the `v = const` lines (rims and parallels).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IsoFamily {
+    /// `u = const`.
+    U,
+    /// `v = const`.
+    V,
+}
+
+/// The iso family `carrier`'s image on `surface`'s chart lies on, read
+/// off the class arm [`chart_pcurve`]'s derivation selects for it, so
+/// the family is the mint's own structure and never decided a second
+/// way. `None` for a planar chart and for an image on no family (a
+/// cylinder's oblique section, a cone's tilted one).
+///
+/// # Errors
+///
+/// [`chart_pcurve`]'s.
+pub fn chart_iso_family<T: Decide>(
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Option<IsoFamily>, PcurveCertifyError> {
+    if matches!(carrier, Curve3::Spiric { .. }) {
+        return Ok(None);
+    }
+    let (_, derivation) = derive_harmonic(carrier, surface, band)?;
+    Ok(match derivation {
+        Derivation::CylinderMeridian
+        | Derivation::ConeRuling { .. }
+        | Derivation::SphereMeridian { .. }
+        | Derivation::TorusMeridian { .. } => Some(IsoFamily::U),
+        // A circle on a cylinder is a cross-section; any other moving
+        // carrier there is an oblique section's sinusoid.
+        Derivation::CylinderMoving { .. } => {
+            matches!(carrier, Curve3::Circle { .. }).then_some(IsoFamily::V)
+        }
+        Derivation::ConeRim { .. }
+        | Derivation::SphereParallel { .. }
+        | Derivation::TorusParallel { .. } => Some(IsoFamily::V),
+        Derivation::Plane | Derivation::ConeSection => None,
+    })
+}
+
 /// [`chart_pcurve`]'s harmonic arms, answering the image together with
 /// the structure selections that produced it ([`Derivation`]) — the
 /// one body both the mint and check 4's re-derivation run.

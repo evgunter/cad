@@ -2040,6 +2040,12 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
                 verdict,
             })
             .collect(),
+        BooleanErrorKind::JoinUndecided => vec![BooleanError::JoinUndecided(
+            crate::JoinUndecided {
+                vertex: crate::entity::VertexKey::default(),
+                reading: crate::JoinReading::Regularity(diag),
+            },
+        )],
         BooleanErrorKind::CurvedSectorSideUnsupported => refused()
             .into_iter()
             .map(|verdict| BooleanError::CurvedSectorSideUnsupported { verdict })

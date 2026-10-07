@@ -200,7 +200,12 @@ fn a_union_answered_by_one_operand_joins_its_station_vertices() {
     let t = Tol::witness();
     let prism = finished("the subdivided prism", subdivided_prism(t).body, t);
     assert_eq!(
-        topo::joinable_vertices(&prism).len(),
+        topo::joinable_vertices(
+            &prism,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap()
+        .len(),
         2,
         "the station on each cap rim"
     );
@@ -209,7 +214,14 @@ fn a_union_answered_by_one_operand_joins_its_station_vertices() {
     let out = r.body().expect("non-empty");
     assert_eq!(out.kind, topo::BooleanResultKind::OperandA);
     assert_eq!(out.naming.edge_joins.len(), 2, "both stations joined");
-    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(
+        topo::joinable_vertices(
+            &out.body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![]
+    );
     assert_eq!(out.body.vertices().count(), 8);
     assert_eq!(out.body.edges().count(), 12);
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
@@ -272,7 +284,12 @@ fn a_rim_joined_twice_reads_through_both_joins() {
         t,
     );
     assert_eq!(
-        topo::joinable_vertices(&prism).len(),
+        topo::joinable_vertices(
+            &prism,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap()
+        .len(),
         4,
         "two stations per cap rim"
     );
@@ -281,7 +298,14 @@ fn a_rim_joined_twice_reads_through_both_joins() {
     let out = r.body().expect("non-empty");
     let joins = &out.naming.edge_joins;
     assert_eq!(joins.len(), 4, "every station joined");
-    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(
+        topo::joinable_vertices(
+            &out.body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![]
+    );
     assert_eq!(out.body.edges().count(), 12, "a box");
     assert!(
         joins

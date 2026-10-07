@@ -525,7 +525,11 @@ fn the_rest_lane_joins_every_joinable_vertex_it_leaves() {
             "{order}: the REST lane's output stage joins the rims' vertices"
         );
         assert_eq!(
-            topo::joinable_vertices(&out.body),
+            topo::joinable_vertices(
+                &out.body,
+                geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+            )
+            .unwrap(),
             vec![],
             "{order}: no joinable vertex is left"
         );

@@ -4784,6 +4784,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "invalid_declaration",
             "join",
             "join_desync",
+            "join_undecided",
             "merge",
             "non_finite_sector_chord",
             "non_manifold_result",

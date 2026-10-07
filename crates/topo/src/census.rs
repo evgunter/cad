@@ -1132,7 +1132,15 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         .iter()
         .filter_map(|(k, v)| body.points.get(v.point).map(|p| (k, v.point, *p)))
         .collect();
-    let verts: Vec<(VertexKey, Point3<T>)> = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
+    // A conventional vertex has no identity of its own: a touch at its
+    // point is a touch on its closed edge's interior, which the
+    // vertex-granular sweeps do not read for a curved edge anywhere.
+    let verts: Vec<(VertexKey, Point3<T>)> = resolved
+        .iter()
+        .filter(|&&(k, _, _)| !crate::boolean::is_conventional_vertex(body, k))
+        .map(|&(k, _, p)| (k, p))
+        .collect();
+    let vmap = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
     let vpoint = resolved.iter().map(|&(k, point, _)| (k, point)).collect();
     let mut edges = Vec::new();
     for (key, edge) in body.edges.iter() {
@@ -1217,7 +1225,6 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             });
         }
     }
-    let vmap = verts.iter().copied().collect();
     Geo {
         verts,
         edges,
@@ -3397,6 +3404,8 @@ const TOUCH_SPAN: &str = "census_touch_span";
 /// passes a normalized direction or a face's outward normal, and a
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
+mod curved;
+
 mod metric {
     use super::{Band, Decide, Margin, Point3, Real, Sign, Vec3, decide};
 
@@ -5771,16 +5780,14 @@ fn confirm_vertex_on_edge<T: Decide>(
         return;
     };
     let Some(e) = geo.edges.iter().find(|e| e.key == c.edge) else {
-        if body.get_edge(c.edge).is_some() {
-            errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Edge(c.edge)),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a vertex-on-edge record is certified on a line edge only",
-                    },
-                ),
-            });
-        } else {
+        let Some(edge) = body.get_edge(c.edge) else {
+            errors.push(stale);
+            return;
+        };
+        let end = [edge.he_plus, edge.he_minus]
+            .iter()
+            .any(|&h| body.get_half_edge(h).is_some_and(|h| h.start == c.vertex));
+        if end || curved::on_curved_interior(body, c.edge, q, band, errors) == Some(false) {
             errors.push(stale);
         }
         return;
@@ -5807,19 +5814,13 @@ fn confirm_edge_edge<T: Decide>(
     };
     let lookup = |k: EdgeKey| geo.edges.iter().find(|e| e.key == k);
     let (Some(ea), Some(eb)) = (lookup(c.a), lookup(c.b)) else {
-        match [c.a, c.b]
-            .into_iter()
-            .find(|&k| lookup(k).is_none() && body.get_edge(k).is_some())
+        let live = |k| body.get_edge(k).is_some();
+        if c.a == c.b
+            || !live(c.a)
+            || !live(c.b)
+            || curved::curved_interiors_meet(body, c.a, c.b, band, errors) == Some(false)
         {
-            Some(curved) => errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Edge(curved)),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "an edge-edge record is certified on line edges only",
-                    },
-                ),
-            }),
-            None => errors.push(stale),
+            errors.push(stale);
         }
         return;
     };

@@ -1746,7 +1746,15 @@ fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
         "a cone at v is a straight edge through it: {:?}",
         at_v.iter().map(|&w| valence(w)).collect::<Vec<_>>()
     );
-    assert_eq!(topo::joinable_vertices(&body), vec![], "maximal edges");
+    assert_eq!(
+        topo::joinable_vertices(
+            &body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![],
+        "maximal edges"
+    );
 }
 
 /// **A pinched operand's pierces weld only where their corners nest.**
