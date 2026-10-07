@@ -451,10 +451,15 @@ pub(crate) fn path_parity<T: Decide>(
                     // The signed half-chord `±√|(rρ)² − D²|`, linear in
                     // the angle the piece crosses the plane at.
                     let reach = (p.radius * rho).powi(2) - d.powi(2);
-                    match decide_m(
-                        "split_ring_path_meets_plane",
-                        Margin::of(reach.abs().sqrt().copysign(reach)),
-                    )? {
+                    #[cfg(test)]
+                    let margin = if review2_probes::OLD_MARGIN.with(core::cell::Cell::get) {
+                        p.radius * rho - d.abs()
+                    } else {
+                        reach.abs().sqrt().copysign(reach)
+                    };
+                    #[cfg(not(test))]
+                    let margin = reach.abs().sqrt().copysign(reach);
+                    match decide_m("split_ring_path_meets_plane", Margin::of(margin))? {
                         Sign::Negative => continue,
                         Sign::Zero => return Ok(None),
                         Sign::Positive => {}
@@ -564,6 +569,10 @@ pub(crate) mod cone_islands;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_path_grid;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+pub(crate) mod review2_probes;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
