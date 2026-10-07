@@ -888,10 +888,19 @@ fn extrude_reads(doc: &ProfileDoc) -> BTreeSet<VarId> {
     seen
 }
 
-/// Row 12's inline half: the carried readers read the HOST's ids — the
-/// id a bit-equal variable of the same name already holds there, and the
-/// id the host mints for one it did not hold — and the host loads and
-/// builds.
+/// The variables a carried variable's definition reads, in `doc`.
+fn definition_reads(doc: &ProfileDoc, var: VarId) -> BTreeSet<VarId> {
+    let mut reads = Vec::new();
+    doc.var(var)
+        .and_then(|held| held.def().defined())
+        .expect("a defined variable")
+        .var_reads(&mut reads);
+    reads.into_iter().map(|(read, _)| read).collect()
+}
+
+/// Row 12's inline half: every part variable crosses as an id the host
+/// mints, never one it already holds, and the carried readers read
+/// those ids; the host loads and builds.
 #[test]
 fn inline_repoints_readers_at_the_hosts_ids() {
     let (part, store, doc_ref) = part_reading_d_and_e();
@@ -900,12 +909,12 @@ fn inline_repoints_readers_at_the_hosts_ids() {
         DocumentId::derive("intent-vars-3-inline-host"),
         Tol::witness(),
     );
-    let host = declare(&host, "pad", 9.0);
-    let host = declare(&host, "d", 1.0);
+    let host = declare(&host, "pad", 1.0);
     let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
     let out = inline(&host, instance, &store, Tol::witness()).expect("the part inlines");
     let (host_d, host_e) = (id(&out.doc, "d"), id(&out.doc, "e"));
-    assert_eq!(host_d, id(&host, "d"), "a bit-equal d merges by name");
+    assert_ne!(host_d, id(&part, "d"), "the host mints its own d");
+    assert_ne!(host_d, id(&host, "pad"), "d is not the equal-valued pad");
     assert_ne!(host_e, id(&part, "e"), "the host mints its own e");
     assert_eq!(
         extrude_reads(&out.doc),
@@ -918,6 +927,107 @@ fn inline_repoints_readers_at_the_hosts_ids() {
             .expect("and loads")
             .doc
             .bit_eq(&out.doc)
+    );
+    assert!(failures(&eval_after(&out.doc, None)).is_empty());
+}
+
+/// A host already holding the part's `d` at the same value, bit for
+/// bit, is a second variable under the same name: inline refuses
+/// rather than merging the two, and names the clash.
+#[test]
+fn an_equal_valued_name_the_host_holds_refuses() {
+    let (part, store, doc_ref) = part_reading_d_and_e();
+    let store: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-inline-clash"),
+        Tol::witness(),
+    );
+    let host = declare(&host, "d", 1.0);
+    assert!(
+        host.var(id(&host, "d"))
+            .expect("held")
+            .bit_eq(part.var(id(&part, "d")).expect("held")),
+        "the premise: the two d are bit-equal"
+    );
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    match inline(&host, instance, &store, Tol::witness()) {
+        Err(InlineError::VarNameConflict { name }) => assert_eq!(name, n("d")),
+        other => panic!("expected VarNameConflict on d, got {other:?}"),
+    }
+}
+
+/// An anonymous variable crosses as the host's own, its value, unit and
+/// distribution bit for bit; an anonymous definition reads the carried
+/// named variable, not the part's.
+#[test]
+fn inline_carries_an_anonymous_variable_whole() {
+    let part = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-inline-anon"),
+        Tol::witness(),
+    );
+    let part = declare(&part, "d", 1.0);
+    let (part, [_, _, toleranced]) = block(part, 0.0, len(0.75));
+    let Some(Node::Extrude { distance, .. }) = part.node(toleranced) else {
+        unreachable!("block's third node is its extrude")
+    };
+    let anonymous = *distance;
+    let part = step(
+        &part,
+        DocEdit::SetVarDistribution {
+            var: anonymous.into(),
+            distribution: Some(Distribution::Normal { sigma: 0.001 }),
+        },
+    )
+    .doc;
+    let (part, [_, _, offset]) = block(
+        part,
+        4.0,
+        Formula::add(named("d"), len(0.25)).expect("lengths add"),
+    );
+    let Some(Node::Extrude { distance, .. }) = part.node(offset) else {
+        unreachable!("block's third node is its extrude")
+    };
+    let defined = *distance;
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part.clone(), Tol::witness());
+    let store: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty(
+        DocumentId::derive("intent-vars-3-inline-anon-host"),
+        Tol::witness(),
+    );
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let out = inline(&host, instance, &store, Tol::witness()).expect("the part inlines");
+    let carried = |old: RecipeNodeId| match out.doc.node(out.node_map[&old]) {
+        Some(Node::Extrude { distance, .. }) => *distance,
+        other => panic!("the carried extrude, got {other:?}"),
+    };
+    let (host_toleranced, host_defined) = (carried(toleranced), carried(offset));
+    assert_ne!(host_toleranced, anonymous, "a fresh id");
+    assert!(
+        out.doc
+            .var(host_toleranced)
+            .expect("held")
+            .bit_eq(part.var(anonymous).expect("held")),
+        "value, unit and distribution cross bit for bit"
+    );
+    assert!(
+        out.doc
+            .var(host_toleranced)
+            .and_then(|held| held.free())
+            .and_then(|free| free.distribution())
+            .is_some(),
+        "the distribution is carried"
+    );
+    let reads = definition_reads(&out.doc, host_defined);
+    let part_reads = definition_reads(&part, defined);
+    assert_eq!(
+        reads,
+        BTreeSet::from([id(&out.doc, "d")]),
+        "the definition reads the carried d"
+    );
+    assert!(
+        reads.is_disjoint(&part_reads),
+        "and no id of the part's: {reads:?} vs {part_reads:?}"
     );
     assert!(failures(&eval_after(&out.doc, None)).is_empty());
 }

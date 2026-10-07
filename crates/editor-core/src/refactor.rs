@@ -1103,8 +1103,9 @@ pub enum InlineError {
         key: String,
     },
     /// The referenced document holds a variable under a name the host
-    /// also holds, with a different definition — inlining would
-    /// silently pick one meaning for the shared name.
+    /// also holds. The carried variable is a new one whatever its
+    /// value (VR1), and a name is unique (VR2): inline neither merges
+    /// the two nor drops or mints a name.
     VarNameConflict {
         /// The name.
         name: crate::doc::VarName,
@@ -1292,11 +1293,10 @@ impl core::fmt::Display for InlineError {
             ),
             Self::VarNameConflict { name } => write!(
                 f,
-                "inline: both documents hold a variable named {name}, with different \
-                 definitions. {}",
+                "inline: both documents hold a variable named {name}, and the referenced \
+                 document's crosses as a variable of its own. {}",
                 Recourse(&format!(
-                    "define this document's {name} as the referenced document's (DefineVar), \
-                     then inline"
+                    "rename the {name} of one of the two documents (RenameVar), then inline"
                 ))
             ),
             Self::UnresolvedVarCrossesCut { var, node } => write!(
@@ -2361,27 +2361,6 @@ impl<'s> VarCarry<'s> {
             self.reader(&carried.anonymous, var, dim)
         });
         (authored, carried)
-    }
-
-    /// Whether the target's variable `held` is the source's `var` bit
-    /// for bit, read through this carry: a definition reading an
-    /// anonymous variable the target does not hold is never.
-    fn agrees(&self, var: &crate::var::Var, held: Option<&crate::var::Var>) -> bool {
-        let Some(held) = held else { return false };
-        let def = match var.def() {
-            VarDef::Free(free) => VarDef::Free(free.clone()),
-            VarDef::Defined(expr) => {
-                let mut reads = Vec::new();
-                expr.var_reads(&mut reads);
-                if reads.iter().any(|(read, _)| !self.map.contains_key(read)) {
-                    return false;
-                }
-                let mut expr = expr.clone();
-                expr.remap_vars(&self.map);
-                VarDef::Defined(expr)
-            }
-        };
-        held.bit_eq(&crate::var::Var::new(def))
     }
 
     /// The ids the carried edit's fresh table minted, entry by entry.
@@ -3595,11 +3574,9 @@ pub fn inline(
     let step = |current: &mut Recording<'_, ProfileProgram>,
                 edit: DocEdit<ProfileProgram>|
      -> Result<(), InlineError> { current.apply(edit).map(|_| ()).map_err(refused) };
-    // Variables merge by name only when they already agree bit for
-    // bit; a disagreeing shared name refuses (no silent pick). In the
-    // PART's declaration order, so the host lists the part's variables
-    // as the part's author declared them. Each carried reader is
-    // re-pointed at the host's id for its variable.
+    // The part's variables are declared in the PART's declaration
+    // order, so the host lists them as the part's author did. Each
+    // carried reader is re-pointed at the host's id for its variable.
     // A spliced reader of a variable the part no longer holds has
     // nothing to be re-pointed at, and refuses here, at this door.
     for &id in part.order() {
@@ -3614,23 +3591,20 @@ pub fn inline(
             });
         }
     }
-    // A named part variable merges into the host's variable of its
-    // name only where the two agree bit for bit (a definition reading
-    // an anonymous variable never does); a disagreeing shared name
-    // refuses. An anonymous one crosses with the first spliced edit
-    // that reads it (`VarCarry`).
+    // Every part variable crosses as an id the host mints, never one
+    // it holds: a named one declared here, refusing a name the host
+    // holds whatever either's value; an anonymous one with the first
+    // spliced edit that reads it (`VarCarry`).
     let mut vars = VarCarry::new(&part);
     for id in part.definition_order() {
-        let (Some(var), Some(name)) = (part.var(id), part.var_name(id)) else {
+        let Some(name) = part.var_name(id) else {
             continue;
         };
-        match doc.var_named(name.as_str()) {
-            Some(_) => return Err(InlineError::VarNameConflict { name: name.clone() }),
-            None => {
-                vars.declare(&mut current, id, name.clone())
-                    .map_err(refused)?;
-            }
+        if doc.var_named(name.as_str()).is_some() {
+            return Err(InlineError::VarNameConflict { name: name.clone() });
         }
+        vars.declare(&mut current, id, name.clone())
+            .map_err(refused)?;
     }
     // The promoted gauge, under the instance's gauge holding its
     // offset, takes the instance's label: it stands in for the instance,
