@@ -206,6 +206,8 @@ mod refusal_concision_chains;
 mod refusal_concision_refactor;
 #[path = "remap_reorders_ids.rs"]
 mod remap_reorders_ids;
+#[path = "resolve_cited_line.rs"]
+mod resolve_cited_line;
 #[path = "resolve_group_membership.rs"]
 mod resolve_group_membership;
 #[path = "resolve_piece_ladder.rs"]

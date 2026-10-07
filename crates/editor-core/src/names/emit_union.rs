@@ -383,7 +383,8 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 }
 
 /// Member `member`'s edge `edge` in its own body, as its own table
-/// names it, a cited line read as the least row on it (N5): a tie
+/// names it, a cited line read as the least row on it (N5), the least
+/// untied one where there is one: a tie
 /// there is [`NamingError::MemberEdgeTied`], and a member or name the
 /// union does not have is an emission bug (every member-keyed row came
 /// from that member's table).
@@ -395,10 +396,11 @@ fn member_edge<'a, T: geom_core::Decide>(
     let bug = |what| NamingError::Emission { what };
     let m = member_of(members, member)?;
     let entry = m.table.lookup(edge).or_else(|| {
-        m.table
-            .on_line(edge)
-            .first()
-            .and_then(|row| m.table.lookup(row))
+        let rows = m.table.on_line(edge);
+        rows.iter()
+            .filter_map(|row| m.table.lookup(row))
+            .find(|e| matches!(e, Entry::Unique(_)))
+            .or_else(|| rows.first().and_then(|row| m.table.lookup(row)))
     });
     match entry {
         Some(Entry::Unique(e)) => match e.key {

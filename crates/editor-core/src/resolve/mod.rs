@@ -1354,7 +1354,13 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
-        let (node, entity) = lookup_unique(self.ctx.eval, name)?;
+        // A line is no row: its last-good entry is the least row on it,
+        // as a union reads a cited line (N5, "A cited line").
+        let (node, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
+            line_rows(self.ctx.eval, name)
+                .iter()
+                .find_map(|row| lookup_unique(self.ctx.eval, row))
+        })?;
         let table = &self.ctx.eval.value(node)?.name_table;
         let Some(body) = table.name_of(&EntityRef {
             body: entity.body,
@@ -1469,8 +1475,13 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 
     // Cascade dominates: an embedded operand name that itself fails
     // to resolve carries the root cause (its own diagnosis chains).
-    // A name cited by its line is present while any row lies on it.
-    let lines = cited_lines(name);
+    // A name cited by its line is present while any row lies on it, and
+    // so is the line a name resolved here is, when it is one: an edge
+    // spelled with no piece qualifier that neither run holds as a row.
+    let is_line = name.kind == EntityKind::Edge
+        && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
+        && !prior.carried(name);
+    let lines = cited_lines(name, is_line);
     let mut cascade: Option<StableName> = None;
     walk_names(name, Partners::Cascade, &mut |inner| {
         if cascade.is_none()
@@ -1559,14 +1570,15 @@ fn line_rows<'a, T: Decide>(
         .map_or(&[], |v| v.name_table.on_line(line))
 }
 
-/// **Every name `name` cites by its line**, at every depth: a crossing's
+/// **Every name `name` cites by its line**, at every depth, `name`
+/// itself read as a line where `is_line`: a crossing's
 /// edges, a seam vertex's, a `Keeps` entry, the parent an edge piece
 /// wraps, and the parent a line wraps in turn (`names::role::edge_line`).
 /// By address, so a reader can tell a name in a line position from an
 /// equal one elsewhere in the tree.
-fn cited_lines(name: &StableName) -> Vec<&StableName> {
+fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
     let mut out: Vec<&StableName> = Vec::new();
-    let mut stack: Vec<(&StableName, bool)> = vec![(name, false)];
+    let mut stack: Vec<(&StableName, bool)> = vec![(name, is_line)];
     while let Some((n, is_line)) = stack.pop() {
         let mut lines: Vec<&StableName> = Vec::new();
         let tail = n
