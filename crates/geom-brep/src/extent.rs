@@ -38,14 +38,13 @@
 //! cylinder pair's caller ([`Reach::Measured`]) hands a length it
 //! measured, and only that pair floors it ([`Reach::lever_between`]).
 //! A plane×cylinder face's caller ([`Reach::Face`]) hands what it
-//! measured of the face from its reading point: how far the face
-//! reaches either way along the axis ([`Reach::range_along`] of each
-//! boundary span), where a tilt moves the section by the tilt times a
-//! point's axial distance from the rulings' hinge
-//! ([`Reach::hinge_lever`]), and how far it reaches from there at all,
-//! which the tilt's second-order turn across the wall moves it by
-//! ([`Reach::turn_lever`]). The classifier adds no length of its own:
-//! every term is the reach's, read against the plane's hinge.
+//! measured of the face from `at`: how far it reaches either way along
+//! the axis ([`Reach::range_along`] of each boundary span) and how far
+//! it reaches at all. The plane×cylinder row reads them at the RULINGS'
+//! HINGE, the point a face lever is read from: the axial reach from the
+//! hinge's station ([`Reach::hinge_lever`]), and the reach across the
+//! wall from the hinge, `at`'s own offset from it included
+//! ([`Reach::turn_lever`]). The classifier adds no length of its own.
 //!
 //! The tangent-locus witness reads a ball, [`Reach::Ball`]: the one its
 //! callers, the carrier doors, hand it.
@@ -270,9 +269,10 @@ impl<T: Real> Reach<T> {
     ///   the germ frame's longer of the larger radius and the walls'
     ///   span, which the cylinder pair also floors at the foot's distance
     ///   from `at` ([`Self::lever_between`]).
-    /// - [`Self::Face`]: the face's farthest axial distance from `at`,
-    ///   whatever the pivot (the pivot is `at`'s foot, which stands at
-    ///   `at`'s axial station).
+    /// - [`Self::Face`]: the larger of its two axial sides. No caller
+    ///   reads it: the plane×cylinder row reads a face from its hinge
+    ///   ([`Self::hinge_lever`]), and no caller hands the cylinder pair a
+    ///   face.
     /// - [`Self::Span`]: per carrier, never an underestimate and exact
     ///   where the carrier allows:
     ///   - a **line** segment: its endpoints (distance to a point is
@@ -394,16 +394,6 @@ impl<T: Real> Reach<T> {
         }
     }
 
-    /// How far the consumed region reaches from `pivot` along the unit
-    /// `axis`: the larger side of [`Self::range_along`], an upper bound
-    /// on `|(x − pivot)·axis|`. The plane×cylinder row moves its section
-    /// by a tilt times that axial distance.
-    #[must_use]
-    pub fn axial_lever_from(&self, pivot: Point3<T>, axis: Vec3<T>) -> T {
-        let (lo, hi) = self.range_along(pivot, axis);
-        hi.max(-lo)
-    }
-
     /// **The plane×cylinder row's lever from the rulings' hinge**: the
     /// farthest a consumed point stands along the axis from the hinge's
     /// station, `shift` along the axis from `pivot` (the foot the gap is
@@ -421,17 +411,13 @@ impl<T: Real> Reach<T> {
     }
 
     /// **The plane×cylinder row's lever for the tilt's turn across the
-    /// wall**, zero for every reach but a [`Self::Face`]. The plane turns
-    /// about the rulings' hinge through `hinge` by an angle of sine `c`
-    /// and cosine `cos`, which moves a consumed point standing `x` across
-    /// the wall from the hinge by `(1 − cos)·x`, second order in the tilt.
-    /// The face bounds `x` by its farthest distance from `at`, `across`,
-    /// plus `at`'s own distance across the wall from the hinge: the
-    /// component of `at − hinge` along the plane's normal off the axis,
-    /// `|(at − hinge)·(n − c·a)| / cos`, or where `cos` is too small to
-    /// divide by, `at − hinge` off the axis. Returned as a lever, levered
-    /// by `c` (`(1 − cos)/|c| = |c|/(1 + cos)`), so nothing divides by
-    /// `c`. A ball's or a span's lever reaches round the wall already.
+    /// wall**, zero for every reach but a [`Self::Face`]: a turn of sine
+    /// `c` and cosine `cos` about the hinge through `hinge` moves a point
+    /// standing `x` across the wall from it by `(1 − cos)·x`. The face
+    /// bounds `x` by `across` plus `at`'s own distance across the wall
+    /// from the hinge, `|(at − hinge)·(n − c·a)| / cos`, or, where `cos`
+    /// is too small to divide by, `at − hinge` off the axis. Returned as a
+    /// lever, `(1 − cos)/|c| = |c|/(1 + cos)`, so nothing divides by `c`.
     #[must_use]
     pub fn turn_lever(&self, hinge: Point3<T>, (n, a): (Vec3<T>, Vec3<T>), c: T, cos: T) -> T {
         match self {
@@ -664,16 +650,23 @@ mod tests {
             .fold(0.0_f64, f64::max)
     }
 
+    /// The farthest `reach` stands from `pivot` along `axis`, either way.
+    fn axial(reach: &Reach<f64>, pivot: Point3<f64>, axis: Vec3<f64>) -> f64 {
+        let (lo, hi) = reach.range_along(pivot, axis);
+        hi.max(-lo)
+    }
+
     /// **A conic arc's axial lever is the farthest it reaches along the
     /// axis over its span**, to sampling: never short of a sampled
     /// point, and within sampling of the farthest, on arcs whose crests
     /// lie inside, outside and astride the span, a whole turn, a span
-    /// past one, and a span stored backwards. A whole-turn support
-    /// over-reaches every arc that misses a crest; a lever that dropped
-    /// a crest falls short of every arc that holds one.
+    /// past one, and a span stored backwards, read from a pivot above
+    /// the conics (the low crest binds) and one far below them (the high
+    /// crest binds), with a short arc about each crest. A whole-turn
+    /// support over-reaches every arc that misses a crest; a lever that
+    /// dropped either crest falls short of the arc about it.
     #[test]
     fn a_conic_arcs_axial_lever_is_its_reach_over_the_span() {
-        let pivot = Point3::new(0.3, -0.2, 0.7);
         let axis = Vec3::new(0.2, -0.3, 1.0).normalize();
         let tilted = Vec3::new(0.6, 0.0, 0.8);
         let carriers = [
@@ -710,23 +703,51 @@ mod tests {
             (4.0, 1.0),
         ];
         let mut short = 0;
-        for carrier in &carriers {
-            for span in spans {
-                let lever = Reach::Span {
-                    carrier: carrier.clone(),
-                    t0: span.0,
-                    t1: span.1,
+        let mut crests = [0, 0];
+        for (side, pivot) in [Point3::new(0.3, -0.2, 0.7), Point3::new(0.0, 0.0, -5.0)]
+            .into_iter()
+            .enumerate()
+        {
+            for carrier in &carriers {
+                // The arcs about each crest of the sinusoid along the axis.
+                let along = |t: f64| (carrier.eval(t) - pivot).dot(axis);
+                let grid = (0..7200).map(|k| tau * f64::from(k) / 7200.0);
+                let high = grid
+                    .clone()
+                    .fold(0.0, |b, t| if along(t) > along(b) { t } else { b });
+                let low = grid.fold(0.0, |b, t| if along(t) < along(b) { t } else { b });
+                let about = [(high - 0.3, high + 0.3), (low - 0.3, low + 0.3)];
+                for span in spans.into_iter().chain(about) {
+                    let lever = axial(
+                        &Reach::Span {
+                            carrier: carrier.clone(),
+                            t0: span.0,
+                            t1: span.1,
+                        },
+                        pivot,
+                        axis,
+                    );
+                    let far = sampled_along(carrier, span, pivot, axis);
+                    assert!(
+                        lever >= far * (1.0 - 1e-12) && lever - far < 1e-6,
+                        "{carrier:?} over {span:?} from {pivot:?}: lever {lever} against the \
+                         farthest sampled {far}"
+                    );
+                    let whole = sampled_along(carrier, (0.0, tau), pivot, axis);
+                    short += usize::from(far < whole - 1e-3);
                 }
-                .axial_lever_from(pivot, axis);
-                let far = sampled_along(carrier, span, pivot, axis);
-                assert!(
-                    lever >= far * (1.0 - 1e-12) && lever - far < 1e-6,
-                    "{carrier:?} over {span:?}: lever {lever} against the farthest sampled {far}"
-                );
-                let whole = sampled_along(carrier, (0.0, tau), pivot, axis);
-                short += usize::from(far < whole - 1e-3);
+                // Which crest binds the arc about the high one, past its ends.
+                let (t0, t1) = about[0];
+                let ends = along(t0).abs().max(along(t1).abs());
+                if along(high).abs() > ends + 1e-3 {
+                    crests[side] += 1;
+                }
             }
         }
+        assert!(
+            crests[1] == 3,
+            "the high crest binds every arc about it from below: {crests:?}"
+        );
         assert!(short >= 6, "the arcs that miss a crest: {short}");
     }
 
@@ -751,12 +772,15 @@ mod tests {
             offset: 0.7,
         };
         let tau = core::f64::consts::TAU;
-        let lever = Reach::Span {
-            carrier: spiric.clone(),
-            t0: 0.0,
-            t1: tau,
-        }
-        .axial_lever_from(pivot, z);
+        let lever = axial(
+            &Reach::Span {
+                carrier: spiric.clone(),
+                t0: 0.0,
+                t1: tau,
+            },
+            pivot,
+            z,
+        );
         let far = sampled_along(&spiric, (0.0, tau), pivot, z);
         assert!(
             lever >= far && lever - far < 1e-6,
@@ -773,12 +797,15 @@ mod tests {
         let spline = Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap(),
         ));
-        let lever = Reach::Span {
-            carrier: spline.clone(),
-            t0: 0.0,
-            t1: 1.0,
-        }
-        .axial_lever_from(pivot, z);
+        let lever = axial(
+            &Reach::Span {
+                carrier: spline.clone(),
+                t0: 0.0,
+                t1: 1.0,
+            },
+            pivot,
+            z,
+        );
         let far = sampled_along(&spline, (0.0, 1.0), pivot, z);
         assert!(
             lever >= far && lever - far < 1e-12,
