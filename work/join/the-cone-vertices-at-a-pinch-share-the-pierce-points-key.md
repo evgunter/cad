@@ -92,9 +92,10 @@ records alone. No position is read to find it.
   (main: 1 vertex; 2 refuse `Triangulation`, 2 panic the mesher).
 - r2's pinched-operand battery: 75 lines `BAD` → `SOUND`. Every
   tier-3′ `VertexVertex` at the pinch clears (236 on main, 0 on
-  head). The 120 lines still `BAD` fail only on a
-  `StaleContactDeclaration { VertexOnFace }` that main reports on the
-  same lines.
+  head). The 120 lines still `BAD` fail only on
+  `StaleContactDeclaration { VertexOnFace }` (176 records), which main
+  reports on the same lines, line for line: FUSE's
+  `a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms`.
 - Everything else is byte-identical: r1's other families (`nt`,
   `stair3`, `islnotch`, `cyl`, `multi`, `pair`, `x4`), the rest of
   `dbl`, r2's tri-cone battery, and the pierce, pinch, corner-pair,
