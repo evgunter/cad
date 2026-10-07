@@ -1511,7 +1511,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 entry: editor_core::Minted::Step(StepId::new(0, tagged(6))),
             },
             vec![
-                "not strictly ascending at step 000000000006",
+                "does not count up from one at step 000000000006",
                 "which no mint writes",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
