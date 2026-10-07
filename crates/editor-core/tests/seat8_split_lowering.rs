@@ -184,9 +184,9 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x5c36_b5b4_37a0_06a4u64),
-        ("part_select", 0xe9fb_5d4a_bcb6_2f71),
-        ("kitchen_sink", 0xae52_cf84_2852_caa0),
+        ("cut_cylinder", 0x2180_47fc_4c41_82b0u64),
+        ("part_select", 0x6f61_bd94_e8d5_3326),
+        ("kitchen_sink", 0x1161_860c_ba55_1340),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -300,7 +300,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xec78_d2db_9d61_cc91,
+        got, 0x824c_5e6b_e34a_0851,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

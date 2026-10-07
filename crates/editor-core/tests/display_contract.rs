@@ -3029,7 +3029,7 @@ fn maintenance_display_says_what_the_edit_did() {
                 distribution: Some(editor_core::Distribution::Normal { sigma: 0.001 }),
             },
             vec![
-                "nothing reading #0000000000070000",
+                "nothing reading #0:0000000000070000",
                 "the tolerance it carried went with it",
             ],
         ),

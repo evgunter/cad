@@ -94,7 +94,7 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// and declaring the die's variables mints their ids on the chain,
 /// which moves every id minted after a declare (ids only: no name's
 /// wording moved).
-const DIE_TABLE_DIGEST: u64 = 0xc1c0_7d29_e5e4_5713;
+const DIE_TABLE_DIGEST: u64 = 0x3473_6d33_cb85_c468;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
@@ -105,7 +105,11 @@ const DIE_TABLE_DIGEST: u64 = 0xc1c0_7d29_e5e4_5713;
 /// and with it every row this hashes. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched across the change.
-const DIE_NAMES_DIGEST: u64 = 0xe192_4a71_c589_1233;
+///
+/// **Re-pinned when an id became its mint ordinal and its digest**: the
+/// rows hash each name's `Debug`, which spells the id, so every row
+/// moved; the same fence held.
+const DIE_NAMES_DIGEST: u64 = 0x4885_4452_f05f_b9a4;
 
 #[test]
 fn die_name_tables_are_golden() {

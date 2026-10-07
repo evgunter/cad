@@ -951,14 +951,15 @@ mod tests {
     use geom_core::Tol;
 
     /// The hand-pushed ids are chosen, not minted; the dangling one
-    /// names no node.
-    const AXIS: RecipeNodeId = RecipeNodeId::new(9, 10);
-    const FRAME2: RecipeNodeId = RecipeNodeId::new(10, 11);
-    const T1: RecipeNodeId = RecipeNodeId::new(11, 12);
-    const T2: RecipeNodeId = RecipeNodeId::new(12, 13);
-    const PATTERN: RecipeNodeId = RecipeNodeId::new(13, 14);
-    const DANGLING: RecipeNodeId = RecipeNodeId::new(14, 40);
-    const MATE: RecipeNodeId = RecipeNodeId::new(15, 50);
+    /// names no node. Their ordinals follow the 57 log entries `build`
+    /// mints before them (its three inserts and every slot's variable).
+    const AXIS: RecipeNodeId = RecipeNodeId::new(58, 10);
+    const FRAME2: RecipeNodeId = RecipeNodeId::new(59, 11);
+    const T1: RecipeNodeId = RecipeNodeId::new(60, 12);
+    const T2: RecipeNodeId = RecipeNodeId::new(61, 13);
+    const PATTERN: RecipeNodeId = RecipeNodeId::new(62, 14);
+    const DANGLING: RecipeNodeId = RecipeNodeId::new(63, 40);
+    const MATE: RecipeNodeId = RecipeNodeId::new(64, 50);
 
     fn xf(input: RecipeNodeId) -> crate::AuthoredNode {
         Node::transform(
@@ -1034,25 +1035,29 @@ mod tests {
             Src::T2 => T2,
             Src::Dangling => DANGLING,
         };
-        let mut push = |id: RecipeNodeId, node: crate::AuthoredNode| {
-            let node = crate::test_support::stored(&mut doc, &node);
-            doc.nodes.insert(id, node);
-        };
-        push(AXIS, axis_datum_node());
-        push(FRAME2, xy_frame());
-        push(T1, xf(id(t1_in)));
-        push(T2, xf(T1));
-        push(
-            PATTERN,
-            Node::Pattern {
-                input: body,
-                count: crate::Formula::count(4),
-                kind: PatternKind::Circular {
-                    axis: id(axis_operand),
-                    step: ang(0.5),
+        // Stored first, so the variables their slots mint are logged
+        // before the hand-pushed ids, whose ordinals come next.
+        let stored: Vec<_> = [
+            (AXIS, axis_datum_node()),
+            (FRAME2, xy_frame()),
+            (T1, xf(id(t1_in))),
+            (T2, xf(T1)),
+            (
+                PATTERN,
+                Node::Pattern {
+                    input: body,
+                    count: crate::Formula::count(4),
+                    kind: PatternKind::Circular {
+                        axis: id(axis_operand),
+                        step: ang(0.5),
+                    },
                 },
-            },
-        );
+            ),
+        ]
+        .into_iter()
+        .map(|(id, node)| (id, crate::test_support::stored(&mut doc, &node)))
+        .collect();
+        doc.nodes.extend(stored);
         doc.mint = doc
             .mint
             .clone()

@@ -131,14 +131,14 @@ fn with_distance(text: &str, wire: serde_json::Value) -> String {
     let nodes = body["snapshot"]["nodes"]
         .as_object_mut()
         .expect("a node map");
-    let distances: Vec<u64> = nodes
+    let distances: Vec<String> = nodes
         .values()
-        .filter_map(|node| node.get("Extrude")?["distance"].as_u64())
+        .filter_map(|node| node.get("Extrude")?["distance"].as_str().map(str::to_owned))
         .collect();
-    let [distance] = distances[..] else {
+    let [distance] = &distances[..] else {
         panic!("the fixture has exactly one extrude to tamper, got {distances:?}")
     };
-    body["snapshot"]["vars"][distance.to_string()] = serde_json::json!({
+    body["snapshot"]["vars"][distance.as_str()] = serde_json::json!({
         "kind": "Length",
         "def": { "Defined": wire },
     });

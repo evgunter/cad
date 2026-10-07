@@ -909,7 +909,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// variable's id, so every node is minted from other bytes, and the
 /// id-free rows held.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x2d31_9da2_2717_1972),
+    (1e-9, 0x76be_7889_78b2_4a63),
     (1e-6, 0x0858_f725_cff7_c8ea),
     (1e-12, 0x2325_5f17_5c76_c71c),
 ];

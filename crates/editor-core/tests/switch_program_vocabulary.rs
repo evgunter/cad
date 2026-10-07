@@ -1016,7 +1016,8 @@ fn every_document_verb_survives_the_wire() {
 
 /// The expressions of a program, counted from the wire rather than
 /// from a number written here: a stored slot is its variable's id, so
-/// the numbers in its loops' serialization ARE its expressions. It holds for the one-step programs below for the same
+/// the ids (and the numbers) in its loops' serialization ARE its
+/// expressions. It holds for the one-step programs below for the same
 /// reason it holds for the corpus: each is one of the corpus's own
 /// chain steps, so the property is inherited rather than re-argued.
 fn literal_count(program: &ProfileProgram) -> usize {
@@ -1033,6 +1034,8 @@ fn literal_count(program: &ProfileProgram) -> usize {
             }
             serde_json::Value::Array(items) => items.iter().for_each(|item| walk(item, out)),
             serde_json::Value::Number(_) => *out += 1,
+            // A slot holds its variable's id, spelled as a string.
+            serde_json::Value::String(s) if editor_core::MintId::parse(s).is_some() => *out += 1,
             serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::String(_) => {
             }
         }

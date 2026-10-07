@@ -297,7 +297,7 @@ fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
         measure["expr"] = serde_json::json!({
             "Add": [
                 inner,
-                { "Value": { "var": 1, "dim": "Length" } },
+                { "Value": { "var": "0:0000000000000001", "dim": "Length" } },
             ]
         });
         wrapped += 1;

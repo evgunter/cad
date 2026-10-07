@@ -79,7 +79,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// e548`): every slot holds a variable's id, so every node is minted
 /// from other bytes. [`NAME_WORDS`] held, so no name says a word more or
 /// fewer.
-const SAID_DIGEST: u64 = 0x0fc9_b773_e5ec_8b7c;
+///
+/// Ids as their mint ordinal and digest: a `Borders` refusal lists its
+/// walls in mint order now (it listed them by digest), and nothing else
+/// moved — the node tags are still the digest's.
+const SAID_DIGEST: u64 = 0x5b07_b109_c863_0281;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

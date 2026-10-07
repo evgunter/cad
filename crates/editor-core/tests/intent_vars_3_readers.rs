@@ -260,7 +260,7 @@ fn a_delete_leaves_its_readers_unresolved() {
             serde_json::json!(old.0),
             "the surgery is aimed at the reader"
         );
-        *radius = serde_json::json!(1);
+        *radius = serde_json::json!("0:0000000000000001");
     });
     match load(&forged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
@@ -660,7 +660,7 @@ fn readers_round_trip_and_a_stored_name_refuses() {
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
             assert!(
-                detail.contains("invalid type: map, expected u64"),
+                detail.contains("invalid type: map, expected an id"),
                 "{detail}"
             );
         }

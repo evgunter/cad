@@ -534,14 +534,13 @@ pub fn corpus_text(tol: Tol) -> String {
     }
     let built: Vec<_> = die
         .doc
-        .order()
-        .iter()
-        .copied()
+        .ids()
+        .into_iter()
         .filter(|&id| id != die.blank)
         .collect();
     assert_eq!(
-        replay.order(),
-        &built[..],
+        replay.ids(),
+        built,
         "the replay re-mints every node id `build` minted, the blank deleted"
     );
     // The ids were cleared on the strength of the insert door minting

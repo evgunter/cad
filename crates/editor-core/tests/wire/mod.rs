@@ -158,9 +158,10 @@ pub fn retype_slot_var(
     unit: &str,
 ) {
     let var = slot(wire)
-        .as_u64()
-        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)));
-    let held = &mut wire["snapshot"]["vars"][var.to_string()];
+        .as_str()
+        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)))
+        .to_owned();
+    let held = &mut wire["snapshot"]["vars"][var.as_str()];
     let def = &mut held["def"]["Free"]["Continuous"];
     assert!(
         def.is_object(),
@@ -179,7 +180,8 @@ pub fn slot_var_def(
     slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
 ) -> &mut serde_json::Value {
     let var = slot(wire)
-        .as_u64()
-        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)));
-    &mut wire["snapshot"]["vars"][var.to_string()]["def"]["Free"]["Continuous"]
+        .as_str()
+        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)))
+        .to_owned();
+    &mut wire["snapshot"]["vars"][var.as_str()]["def"]["Free"]["Continuous"]
 }

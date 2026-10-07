@@ -429,10 +429,14 @@ fn a_kind_its_definition_does_not_hold_refuses_at_load() {
 #[test]
 fn a_variable_the_mint_never_minted_refuses_at_load() {
     let err = load_doctored(|snap, w, _| {
+        // Retagged a node's rather than dropped, so the log still
+        // counts up from one.
         let log = snap["mint"]["log"].as_array_mut().expect("the mint log");
-        let before = log.len();
-        log.retain(|entry| entry != &serde_json::json!({ "var": w.0 }));
-        assert_eq!(log.len(), before - 1, "w's entry was in the log");
+        let entry = log
+            .iter_mut()
+            .find(|entry| *entry == &serde_json::json!({ "var": w.0 }))
+            .expect("w's entry is in the log");
+        *entry = serde_json::json!({ "node": w.0 });
     });
     let PersistError::Snapshot(SnapshotError::VarNotMinted { var }) = err else {
         panic!("not VarNotMinted: {err:?}")
@@ -474,16 +478,20 @@ fn an_unread_unnamed_variable_refuses_at_load() {
 }
 
 /// **The document's variables have ONE order, the author's**: the
-/// declaration order, which is id order, and which every lane lists,
-/// draws and tie-breaks in. The twins' digests sort AGAINST their
-/// declaration (the first declare of a kind from an empty chain draws
-/// the larger digest — asserted, so the row cannot pass by reading the
-/// digest), and every lane still says `w` first.
+/// declaration order, which is id order (an id's mint ordinal leads
+/// it), and which every lane lists, draws and tie-breaks in. The
+/// twins' digests sort AGAINST their declaration (asserted, so the row
+/// cannot pass by reading the digest), and every lane still says `w`
+/// first.
 #[test]
 fn every_lane_reads_the_declaration_order_not_the_digest_order() {
     let (doc, measure) = measured_twins();
     let (w, v) = (id(&doc, "w"), id(&doc, "v"));
-    assert!(w > v, "the fixture's ids sort against its declarations");
+    assert!(
+        w.0.digest() > v.0.digest(),
+        "the fixture's digests sort against its declarations"
+    );
+    assert!(w < v, "and its ids sort with them");
     // The measure's own variable, the anonymous definition its value
     // lowers to, is declared after the twins.
     assert_eq!(doc.var_ids()[..2], [w, v]);
