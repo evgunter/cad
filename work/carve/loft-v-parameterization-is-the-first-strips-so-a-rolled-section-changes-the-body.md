@@ -137,7 +137,8 @@ frame law, filed as
 `sweep-frame-is-a-minimal-rotation-from-the-start-tangent`. Under the
 loft's rule the coil builds again.
 
-**Open: `lily_leaf_b` escalates at the default ε.** Under the loft's
+**`lily_leaf_b` escalates at the default ε: walled (the orchestrator's
+ruling), as `lily` wall 17, pinned to QUAD's row.** Under the loft's
 rule its volume refuses with the in-band convergence arm (margin
 −2.7e-9 in (1e-9, 1e-8)). It measures at 1e-6 and 1e-12, and it measured
 under both the old rule and the path parameter. This is QUAD's

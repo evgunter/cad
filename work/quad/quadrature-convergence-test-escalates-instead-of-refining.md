@@ -142,3 +142,9 @@ tolerance: margin -2.717410219170452e-9 lies inside the ambiguity band (1e-9, 1e
 It measures at ε = 1e-6 and 1e-12, and it measured under both the old
 rule and the path parameter. It is the same in-band convergence arm, on
 a body with no question about its shape.
+
+This is now a live tour wall on a normal scene: `demos/tour/src/lily.rs`
+wall 17 (`LEAF_B_VOLUME_WALL`) pins `lily_leaf_b`'s volume refusal at
+the default ε, and goes red ("NO LONGER REFUSES") when this row's fix
+lands. Its Pappus containment row (`finding_13_tessellation_table_reproduces`)
+reads the volume through the same wall at the default ε.
