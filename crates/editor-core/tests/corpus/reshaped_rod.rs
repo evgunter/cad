@@ -143,6 +143,7 @@ pub fn document() -> CorpusDoc {
         node: profile,
         loops: vec![rod_loop(true)],
         ids,
+        fresh: Vec::new(),
     });
 
     CorpusDoc {
@@ -157,6 +158,7 @@ pub fn document() -> CorpusDoc {
             node: rod,
             slot: SlotId::Distance,
             expr: len(L_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: rod,
     }

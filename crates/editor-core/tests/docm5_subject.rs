@@ -646,6 +646,7 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
         &editor_core::DocEdit::DefineVar {
             var: editor_core::VarName::from_static("fins").into(),
             def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 160 }),
+            fresh: Vec::new(),
         },
         tol,
         &editor_core::RefusingReach,

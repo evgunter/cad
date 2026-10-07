@@ -643,3 +643,20 @@ coincidence is now a margined verdict (no declarations), checked by the
   - the bracket and the pad, by 5b;
   - the shallow-arc grid stays as pctail's P2.
 - **Priorities set on the remaining slate.** The three C4 route rows (torus general circle, cone section, spline carrier) are P1, per Ev's 3617 ruling that every uncovered class gets a route wired. The spiric / no-fitted classes, the fitted-kind option and the line-seam refusal are P2. The torus general circle goes next, as the nearest analogue of the sphere route (3733).
+
+## 2026-10-07 — torus general circle: designer pair concurs, implementer dispatched
+
+- **Designers:** an Opus/Fable pair (byte 220, on `analysis/design-fork/pcert-torus-general-circle-2026-10-07`). Both recommend the same final state, so this is not a fork and gets no fork-log row.
+- **The geometry corrects the row's premise:**
+  - A ring torus holds only parallels, meridians and Villarceau circles.
+  - The class's "circle ⊥ the axis centred off it" lies on no torus; it only grazes the tube crest.
+  - A right circular cone holds no circle but its rims, so `UncoveredClass::ConeSection` is a grazer too.
+- **Adopted:**
+  - A Villarceau circle gets an exact closed-form image (a Kepler azimuth with the focus on the axis, and an affine minor angle), certified as `MapResidualClosedForm`.
+  - `Pcurve::ConeSection` is generalised into one focal-section image with one lemma. Opus leaned to a sibling variant; Fable to generalising. The orchestrator picked generalising, with a stop-and-report if any field would be meaningless for one instance.
+  - Torus incidence goes through the existing `ConicTorusHarmonics` (degree 2, not the issue's degree 4), then structural Villarceau gates.
+  - A grazer (on cone or torus) refuses typed.
+  - `UncoveredClass::TorusGeneralCircle` and `::ConeSection` are deleted.
+- **Rejected:** a fitted Hermite image for every band-close torus circle. It certifies at the fallback grade a curve that has a closed form, and it is conditional on the fitted door.
+- **Folded in:** the cone lane's schedule `Record::Verdict` is brought in line with C4's witness-lane cross-check.
+- **Implementer:** session_01Jf5pbwHG7dwojg183pt2vs, branch `pcert/torus-villarceau-route` from 9645b375. It is an H unit, so it gets a dual review.

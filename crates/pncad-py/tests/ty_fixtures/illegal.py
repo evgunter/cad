@@ -126,10 +126,9 @@ Node.profile(Open.at((0 * m, 0 * m)).line_to(Start), plane="yz")  # ty: error
 # origin — not the other way round.
 SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (0 * m, 1 * m, 0 * m), (0.0, 0.0, 1.0))  # ty: error
 
-# `v_degree` is a Count EXPRESSION (`Formula.count`): a float is not one,
-# and neither is a bare integer.
+# `v_degree` is a Count: a count slot takes an `int` (Q9), and a float
+# is not one.
 Node.loft([], 2.5)  # ty: error
-Node.loft([], 2)  # ty: error
 
 # LIB-PYBUNDLE. A real id to hang the node doors off — the refusals
 # below are about the ARGUMENT types, not about a missing name.
@@ -141,24 +140,20 @@ solid: NodeId = doc.insert(
     )
 )
 
-# THE SEAT IS AN `Formula`, AND NOTHING ELSE REACHES IT. A dimensioned
-# slot takes the expression its kernel slot holds, so the quantity a
-# caller computed is not a slot value until a constructor makes one of
-# it — `Formula.literal(1 * m)` for the canonical row, or
-# `Formula.written_length` for the notation the author wrote.
-Node.extrude(solid, 1 * m)  # ty: error
+# A DIMENSIONED SLOT TAKES ITS OWN DIMENSION'S ROW (Q9): a variable, a
+# `Formula`, or a value that measures what the slot measures — a
+# `Length` or a `WrittenLength` at a length slot. A bare float is
+# dimensionless, so it is not a length.
 Node.extrude(solid, 1.0)  # ty: error
-Node.revolve(solid, solid, 90 * deg)  # ty: error
-Node.fillet(solid, 1 * mm, [])  # ty: error
 
 # A fillet selection is NAMES — the text a materializer answered with,
 # never node ids.
 Node.fillet(solid, Formula.length_in(1, m), [solid])  # ty: error
 
-# A blend radius is a `Formula`, not a bare number.
+# A blend radius is a length, not a bare number.
 Node.fillet(solid, 1.0, [])  # ty: error
 
-# The chamfer's setback is a `Formula` as well, and its selection is
+# The chamfer's setback is a length as well, and its selection is
 # names — the twin holds the same two lines.
 Node.chamfer(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, Formula.length_in(1, m), [solid])  # ty: error
@@ -295,14 +290,11 @@ Node.pattern(solid, 5 * m, PatternKind.linear((Formula.literal(1.0), Formula.lit
 name: VarName = VarName("which")
 DocEdit.bind_count_param(solid, name, slot="instance")  # ty: error
 
-# LIB-EDITS. The CONTINUOUS slot edit takes the slot's word and an
-# EXPRESSION, which is a dimension-checked tree `Doc.parse_formula`
-# builds — never a bare number and never a dimensioned quantity, both
-# of which would smuggle a second way of saying what a slot holds.
-DocEdit.set_param(solid, "distance", 1 * m)  # ty: error
-DocEdit.set_param(solid, "distance", 1.0)  # ty: error
-# And the word is TEXT: a slot is a name, so there is no slot type to
-# pass and an index is not one either.
+# LIB-EDITS. The CONTINUOUS slot edit takes the slot's word and what a
+# slot takes (Q9): its dimension is the word's, which the type cannot
+# read, so a value of another dimension refuses at the edit door. And
+# the word is TEXT: a slot is a name, so there is no slot type to pass
+# and an index is not one either.
 DocEdit.set_param(solid, 0, doc.parse_formula("1 m"))  # ty: error
 
 # The name repair takes two NAMES — opaque text, as every other

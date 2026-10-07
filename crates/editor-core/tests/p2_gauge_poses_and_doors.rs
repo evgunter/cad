@@ -131,7 +131,15 @@ fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 fn literal<S: Clone>(m: &M) -> Placement<S> {
@@ -686,6 +694,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
             node: pat,
             slot: SlotId::Count,
             expr: Formula::count(1),
+            fresh: Vec::new(),
         },
     )
     .0;

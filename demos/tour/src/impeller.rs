@@ -156,8 +156,16 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
 fn build_doc(tol: Tol) -> Recipe {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("impeller", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied =
-            apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("insert node");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode {
+                node,
+                fresh: Vec::new(),
+            },
+            tol,
+            &RefusingReach,
+        )
+        .expect("insert node");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };

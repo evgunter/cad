@@ -50,12 +50,14 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
+/// A length carrying a tolerance, so the analysis varies it (VR8: an
+/// untoleranced variable is a constant of every analysis lane).
 fn length(value: f64) -> FreeVar {
     FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),
-        distribution: None,
+        distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
     }
 }
 
@@ -141,6 +143,7 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
         &DocEdit::DefineVar {
             var: name(param).into(),
             def: editor_core::VarDecl::Free(length(value)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -168,7 +171,11 @@ fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
         ("depth", D0, D0 / m0),
         ("radius", R0, -4.0 * (1.0 - 2.0 * R0) / m0),
     ];
-    assert_eq!(entries.len(), closed.len(), "one entry per parameter");
+    assert_eq!(
+        entries.len(),
+        closed.len(),
+        "one entry per toleranced variable, no written dimension's (VR8)"
+    );
     let mut misses = Vec::new();
     for &(param, nominal, want) in &closed {
         let var = doc.var_named(param).expect("the fixture declares it");
