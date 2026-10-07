@@ -386,6 +386,41 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
     }
 }
 
+/// **A planar void designation opens from a document.** The cup shelled
+/// sealed, then opened at its void's ceiling — the cavity twin of its
+/// top, `Inner(top)`. On a void the rim IS that cavity twin, and the
+/// name table carries it once, as `Rim(Inner(top))`: the rim role, not
+/// a second `Inner` row for the same face.
+#[test]
+fn a_planar_void_designation_opens_and_its_rim_is_named_for_it() {
+    let (doc, sealed) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![]));
+    let blank = blank_of(&doc);
+    let ceiling = shelled(
+        sealed,
+        EntityKind::Face,
+        RoleSeg::Inner(cup::top(blank).into()),
+    );
+    let (doc, opened) = fixture::insert(
+        doc,
+        Node::shell(sealed, fixture::len(cup::T / 4.0), vec![ceiling.clone()]),
+    );
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "the void-opened cup:\n{}", bad.join("\n"));
+    let body = body_of(&ev, opened);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    let table = &ev.value(opened).expect("evaluated").name_table;
+    let rim = shelled(opened, EntityKind::Face, RoleSeg::Rim(ceiling.into()));
+    assert!(
+        matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
+        "the void's rim is named for the designated ceiling"
+    );
+}
+
 // ---------------------------------------------------------------
 // 3. The refusal families
 // ---------------------------------------------------------------
