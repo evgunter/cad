@@ -3764,6 +3764,7 @@ MEMBERS_BOUND_AS = {
     "ParseError::TrailingInput": "ParseError.variant",
     "ParseError::MalformedNumber": "ParseError.variant",
     "ParseError::IntegerOverflow": "ParseError.variant",
+    "ParseError::RatioPartNotInteger": "ParseError.variant",
     "ParseError::UnknownUnit": "ParseError.variant",
     "ParseError::UnknownFunction": "ParseError.variant",
     "ParseError::WrongArity": "ParseError.variant",
