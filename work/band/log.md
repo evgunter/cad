@@ -701,3 +701,13 @@ closes with PR 4209. Step 5 (the non-isosceles overrun, a numeric probe
 before its spec) is now its own row,
 `a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
 whole-face planar path step 5 was to delete went at step 2.
+
+## 2026-10-07 — step 5's design to Ev (the non-isosceles overrun)
+
+PR 4239's probe measured the overrun on 2250 corners and the three witnesses
+(the bracket, the sheared box, the leaning prism). Two designers (A/B,
+fork-log row 85) agreed on the final state from their first reports. After
+two reconciliation rounds they also agreed on the verdict's two readings,
+the three-leg recourse, and what a later blend of L meets (a chamfer of L
+builds at 0 of 980 corners at an equal setback). Design reports, closed
+forms and measurements: the `[ev]` PR and the item's probe findings.
