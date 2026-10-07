@@ -102,3 +102,15 @@ downstream crate inherits the red with no attribution.
 **How the reds were attributed.** Job logs are readable from a cloud box
 for attribution: GitHub MCP `get_job_logs` with `return_content=false`
 returns a signed URL that `curl` fetches.
+
+## A fourth, through a whole-tree gate (EMIT, 2026-10-07)
+
+#4234 added a payload rung (`SectorRead`). `payload-rung-sweep.py --check`
+reads the whole tree, but it runs only inside the `lint` job. On main's
+next push, a work-only render, `lint` was skipped. So the red first showed
+on #4228, an EMIT PR that had merged main. `--check` on `origin/main`
+reproduced it, and #4241 fixed it.
+
+The skip that hides it is a different one from the latency cut. A
+whole-tree gate is green or red for the tree, not for the diff, so the
+diff decides only whether anyone sees it.
