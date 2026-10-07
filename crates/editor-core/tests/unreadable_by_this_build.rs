@@ -168,34 +168,69 @@ fn a_missing_required_field_refuses_naming_it() {
 /// program's `ids` and the document's step counter), the same kind of
 /// break, and again when the counter became the step mint's chain and
 /// log, again when node ids moved onto that mint, and again when an
-/// extrude's side became a required field.
+/// extrude's side became a required field, and again when a slot
+/// came to hold its variable's id.
 const OLDER_SHAPED: &str = concat!(
-    "id: 5705d8de0c4b9f14e73725e6a1030c11\n",
-    "{\"snapshot\":{\"id\":\"5705d8de0c4b9f14e73725e6a1030c11\",\"mint\":{\"chain\":\"cc6dde98e4",
-    "3cf05e54e95e58154e9db51456fc7826937bf8e98225949f7f68c4\",\"log\":[{\"step\":543127547",
-    "1832655693},{\"step\":6158057670549142566},{\"node\":11240919837605776152},{\"step\":1",
-    "2112871840740167342},{\"node\":14730674704444354654},{\"node\":16481222604345390933}",
-    ",{\"step\":17213631338936430399},{\"step\":17841264794356394216}]},\"nodes\":{\"1124091",
-    "9837605776152\":{\"Profile\":{\"plane\":16481222604345390933,\"loops\":[{\"Chain\":[{\"At\"",
-    ":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"d",
-    "im\":\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"L",
-    "ength\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"Lin",
-    "eTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"",
-    "value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value",
-    "\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
-    "\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[17841264794356394216,12112871840740167342",
-    ",5431275471832655693,17213631338936430399,6158057670549142566]]}},\"1473067470444",
-    "4354654\":{\"Extrude\":{\"profile\":11240919837605776152,\"distance\":{\"Literal\":{\"valu",
-    "e\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},\"side\":\"along\"}},\"16481222604345390933\":{\"Dat",
-    "um\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Li",
-    "teral\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"L",
-    "ength\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"L",
-    "iteral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"S",
-    "calar\",\"unit\":\"\"}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Li",
-    "teral\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Sc",
-    "alar\",\"unit\":\"\"}}]}}}},\"order\":[16481222604345390933,11240919837605776152,147306",
-    "74704444354654],\"roots\":[14730674704444354654],\"vars\":{},\"epsilon\":1e-09,\"witne",
-    "sses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "id: 8ad37e1a750ae77132c0bf059acb322f\n{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf",
+    "059acb322f\",\"mint\":{\"chain\":\"0316a8e5f987300fb63dbac217e149d3ac1a39a289aa4d0de",
+    "502fe43be30e09f\",\"log\":[{\"node\":222550937288781839},{\"var\":687067507121259641",
+    "},{\"var\":1692951550161305783},{\"var\":3992818210703844589},{\"var\":4557121810070",
+    "918341},{\"var\":4720270004154464002},{\"var\":5217081412177518420},{\"step\":642089",
+    "1478810644163},{\"node\":6952591527216186421},{\"var\":6958480090943866564},{\"var\"",
+    ":8004427572517704354},{\"var\":9933765765270439050},{\"step\":10270049170496020773},",
+    "{\"var\":10636643242840588584},{\"var\":11508714693452263776},{\"var\":1152016280368",
+    "8111428},{\"var\":12921966442148625044},{\"var\":13437228041663008622},{\"var\":1496",
+    "9638619857046222},{\"var\":15645373147172179756},{\"step\":16054304900290762691},{\"",
+    "var\":16300829493895992422},{\"var\":16922366612452288273},{\"node\":174034797324733",
+    "40673},{\"step\":17434746612444774629},{\"step\":18381077563867063357}]},\"nodes\":{",
+    "\"222550937288781839\":{\"Extrude\":{\"profile\":6952591527216186421,\"distance\":12",
+    "921966442148625044,\"side\":\"along\"}},\"6952591527216186421\":{\"Profile\":{\"plan",
+    "e\":17403479732473340673,\"loops\":[{\"Chain\":[{\"At\":[10636643242840588584,800442",
+    "7572517704354]},{\"LineTo\":{\"Point\":[3992818210703844589,16922366612452288273]}},",
+    "{\"LineTo\":{\"Point\":[14969638619857046222,4720270004154464002]}},{\"LineTo\":{\"P",
+    "oint\":[13437228041663008622,4557121810070918341]}},{\"LineTo\":\"Start\"}]}],\"ids\"",
+    ":[[17434746612444774629,6420891478810644163,18381077563867063357,1605430490029076269",
+    "1,10270049170496020773]]}},\"17403479732473340673\":{\"Datum\":{\"Frame\":{\"origin\"",
+    ":[16300829493895992422,9933765765270439050,1692951550161305783],\"u\":[1564537314717",
+    "2179756,6958480090943866564,5217081412177518420],\"v\":[11508714693452263776,1152016",
+    "2803688111428,687067507121259641]}}}},\"order\":[17403479732473340673,69525915272161",
+    "86421,222550937288781839],\"roots\":[222550937288781839],\"vars\":{\"687067507121259",
+    "641\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"v",
+    "alue\":0.0,\"display_unit\":\"\"}}}},\"1692951550161305783\":{\"kind\":\"Length\",\"",
+    "def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"",
+    "m\"}}}},\"3992818210703844589\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous",
+    "\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"455712181007091834",
+    "1\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"val",
+    "ue\":1.0,\"display_unit\":\"m\"}}}},\"4720270004154464002\":{\"kind\":\"Length\",\"d",
+    "ef\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"",
+    "m\"}}}},\"5217081412177518420\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous",
+    "\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"6958480090943866564",
+    "\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"valu",
+    "e\":0.0,\"display_unit\":\"\"}}}},\"8004427572517704354\":{\"kind\":\"Length\",\"def",
+    "\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"",
+    "}}}},\"9933765765270439050\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
+    "{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"10636643242840588584\"",
+    ":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":0.0,\"display_unit\":\"m\"}}}},\"11508714693452263776\":{\"kind\":\"Scalar\",\"def\"",
+    ":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}",
+    "}},\"11520162803688111428\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{",
+    "\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"12921966442148625044\":",
+    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":1.0,\"display_unit\":\"m\"}}}},\"13437228041663008622\":{\"kind\":\"Length\",\"def\"",
+    ":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}",
+    "}}},\"14969638619857046222\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
+    "{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15645373147172179756\"",
+    ":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\"",
+    ":1.0,\"display_unit\":\"\"}}}},\"16300829493895992422\":{\"kind\":\"Length\",\"def\"",
+    ":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}",
+    "}}},\"16922366612452288273\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
+    "{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}}},\"var_order\":[1630082",
+    "9493895992422,9933765765270439050,1692951550161305783,15645373147172179756,695848009",
+    "0943866564,5217081412177518420,11508714693452263776,11520162803688111428,68706750712",
+    "1259641,10636643242840588584,8004427572517704354,3992818210703844589,169223666124522",
+    "88273,14969638619857046222,4720270004154464002,13437228041663008622,4557121810070918",
+    "341,12921966442148625044],\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appea",
+    "rance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -276,8 +311,11 @@ fn a_document_from_before_the_extrude_side_refuses_unreadable() {
         "an unknown variant is Unreadable: {err:?}"
     );
     let msg = err.to_string();
+    // The first thing this build cannot read in bytes that old is a
+    // slot written as an expression where a slot now holds its
+    // variable's id.
     assert!(
-        msg.contains("unknown variant `Param`"),
+        msg.contains("invalid type: map, expected u64"),
         "the refusal names what it cannot read: {msg}"
     );
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");

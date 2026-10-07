@@ -139,6 +139,7 @@ pub fn try_inserted(
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
     )?;

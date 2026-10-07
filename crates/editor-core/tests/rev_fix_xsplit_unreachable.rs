@@ -211,6 +211,7 @@ fn three_shapes() -> ProfileDoc {
                 in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
                 in_part(b, b_body, CapEnd::Start),
             )),
+            fresh: Vec::new(),
         },
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a

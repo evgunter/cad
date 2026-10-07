@@ -86,9 +86,9 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     // rebind and nothing to report.
     let applied = delete(&doc, fillet);
     assert!(
-        applied.maintenance.is_empty(),
+        crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
         "a name whose carrier and mint are the same deleted node strands nothing: {:?}",
-        applied.maintenance
+        crate::fixture::without_anonymous(&applied.maintenance)
     );
 }
 
@@ -180,7 +180,7 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
             .iter()
             .any(|row| matches!(row, Maintenance::Strand { .. })),
         "the operand is a read site, not a name: {:?}",
-        applied.maintenance
+        crate::fixture::without_anonymous(&applied.maintenance)
     );
     let fault = solve_document(&applied.doc, &reach, Tol::witness())
         .fault(mate)
@@ -257,7 +257,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![Maintenance::StrandedAppearance {
             name: doc.spoken_name(&painted),
             took: editor_core::Took::Node

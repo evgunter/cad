@@ -516,6 +516,15 @@ fn sym_9_what_each_retry_recovers() {
 /// baseline moving, not a retry taking a decision away: `retried` stays
 /// zero on all five.
 ///
+/// A slot that holds a variable (INTENT-LITERALS PR C) lowers a formula
+/// written at a slot to an anonymous defined variable, which the
+/// environment binds through the non-finite door as it binds every
+/// definition: `symbolic_zero` gains those bindings' theorems on every
+/// document, over the rows just above (the plate +1, the annulus +2,
+/// the boss +4, the bracket +3, the link +2), and no other column
+/// moves; the pad's drive receipt holds. The untoleranced
+/// variables bind as constants (VR8), as the literals they were did.
+///
 /// It pins the whole split with the ladder against the same replay
 /// without it, so a decision that moved DOWN reds, and the `retried`
 /// column at its measured count — ZERO on all five now, which is the
@@ -541,16 +550,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [1047, 0, 0, 654], [1047, 0, 0, 654], 0),
-        ("r1_annulus", [564, 0, 0, 399], [564, 0, 0, 399], 0),
-        ("r1_segment_boss", [517, 2, 26, 376], [517, 2, 26, 376], 0),
+        ("two_hole_plate", [1048, 0, 0, 654], [1048, 0, 0, 654], 0),
+        ("r1_annulus", [566, 0, 0, 399], [566, 0, 0, 399], 0),
+        ("r1_segment_boss", [521, 2, 26, 376], [521, 2, 26, 376], 0),
         (
             "r2_filleted_bracket",
-            [1373, 5, 47, 986],
-            [1373, 5, 47, 986],
+            [1376, 5, 47, 986],
+            [1376, 5, 47, 986],
             0,
         ),
-        ("r2_link", [772, 0, 48, 627], [772, 0, 48, 627], 0),
+        ("r2_link", [774, 0, 48, 627], [774, 0, 48, 627], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
