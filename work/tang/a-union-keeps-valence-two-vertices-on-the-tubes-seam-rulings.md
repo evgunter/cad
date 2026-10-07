@@ -56,3 +56,13 @@ vertices stay:
   rulings split at the rim height and at the top rim.
 
 The same fusion would turn those rows red knowingly.
+
+## Also on a ruling lying on a seam ruling
+
+`crates/sweep/tests/a_ruling_lying_on_a_wall.rs`,
+`a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared`: the
+prism turned onto a seam ruling (0 or π rad) shares a stretch of it,
+and the sweep splits the ruling at the prism edge's ends. Its unions
+are `(4, 8, 6)` with the edge inside one wall face, against the tube's
+`(4, 6, 4)`, and `(9, 19, 12)` across the rim, against a minimal
+`(9, 18, 11)`.
