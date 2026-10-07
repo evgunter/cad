@@ -479,6 +479,8 @@ mod meta_minted_ids;
 mod meta_nesting_bound;
 #[path = "name_depth.rs"]
 mod name_depth;
+#[path = "name_size_against_cut_depth.rs"]
+mod name_size_against_cut_depth;
 #[path = "name_tables_by_position.rs"]
 mod name_tables_by_position;
 #[path = "name_words_corpus.rs"]

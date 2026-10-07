@@ -1540,7 +1540,10 @@ fn fragment_base(name: &StableName) -> Option<StableName> {
 /// `Ends` (N2).
 fn piece_line(name: &StableName) -> Option<StableName> {
     (name.kind == EntityKind::Edge
-        && matches!(name.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))))
+        && matches!(
+            name.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+        ))
     .then(|| fragment_base(name))
     .flatten()
 }

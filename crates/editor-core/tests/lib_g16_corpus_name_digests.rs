@@ -130,12 +130,12 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// second column).
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xaeb22275f9fa495e),
-    ("corner_table", 0xa0725b31e46ee531),
+    ("corner_table", 0x28cec41f04c014f9),
     ("heat_sink", 0xa2e32cd04022cc69),
-    ("crossing_slots", 0x04c6907d8b0efaa1),
-    ("nested_islands_105", 0x8938df6e34167122),
-    ("nested_islands_106_depth1", 0x4b2282a07d019514),
-    ("nested_islands_106_depth2", 0x8ac7363c0980fda9),
+    ("crossing_slots", 0x680a3300ee0a2ed1),
+    ("nested_islands_105", 0x63a8da982092485e),
+    ("nested_islands_106_depth1", 0x53fd457db4bb7ee4),
+    ("nested_islands_106_depth2", 0xa68e11eafed8ed67),
     ("declared_tangency", 0x9669c31771c92a49),
     ("kitchen_sink", 0xfadb383743121dd0),
     ("cut_cylinder", 0xac3a71843cfb56ef),

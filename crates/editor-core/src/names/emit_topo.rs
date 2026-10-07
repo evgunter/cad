@@ -502,7 +502,15 @@ fn name_split_edges_vertices<T: Decide>(
             Some(RoleSeg::SectionEdge { .. }) => Lone::Whole,
             _ => Lone::Piece,
         };
-        name_edge_pieces(&mut pieces, t, from_tie, &base, (s.body, s.ix), &edges, lone)?;
+        name_edge_pieces(
+            &mut pieces,
+            t,
+            from_tie,
+            &base,
+            (s.body, s.ix),
+            &edges,
+            lone,
+        )?;
     }
     pieces.mint(t, tie)
 }
@@ -1438,12 +1446,6 @@ fn name_boolean_edges<T: Decide>(
         let (op, root_key) = root.of(a, b);
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
         let base = name1(EntityKind::Edge, node, root.wrap(inner.name));
-        // The group is its pieces' base: the line they lie on.
-        rec.record(
-            &edge_line(&NameRef::new(base.clone())),
-            edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
-            root.map(EntityKey::Edge).parent(),
-        );
         // Undivided: the one edge runs between the operand edge's own two
         // ends, as the operand's keys read the result's vertices there.
         let whole = match edges.as_slice() {
@@ -1458,16 +1460,28 @@ fn name_boolean_edges<T: Decide>(
             }
             _ => false,
         };
+        let lone = if in_sets.contains(&root) || !whole {
+            Lone::Piece
+        } else {
+            Lone::Whole
+        };
+        // The group is recorded under what its members are spelled
+        // from: the edge whole, or the line its pieces lie on.
+        let spelled = match lone {
+            Lone::Whole => base.clone(),
+            Lone::Piece => (*edge_line(&NameRef::new(base.clone()))).clone(),
+        };
+        rec.record(
+            &spelled,
+            edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
+            root.map(EntityKey::Edge).parent(),
+        );
         out.push(EdgeGroup {
             base,
             from_tie: inner.tied,
             edges,
             set: Vec::new(),
-            lone: if in_sets.contains(&root) || !whole {
-                Lone::Piece
-            } else {
-                Lone::Whole
-            },
+            lone,
         });
     }
     Ok(out)
@@ -1965,7 +1979,9 @@ fn name_boolean_vertices<T: Decide>(
         };
         // Pieces of one line crossed alike share a name, and rank along
         // the line by the carrier of the least-named of them.
-        let slot = groups.entry(seg).or_insert((false, Vec::new(), along.clone()));
+        let slot = groups
+            .entry(seg)
+            .or_insert((false, Vec::new(), along.clone()));
         if along.first() < slot.2.first() {
             slot.2 = along;
         }
