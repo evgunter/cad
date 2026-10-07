@@ -17,7 +17,7 @@
 //! use the second to read what was published. Neither flattens a
 //! name: the set is flat because the mint made it so.
 
-use super::role::{MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
+use super::role::{CapEnd, MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
 /// that is itself a merged face, through any wrapping — refused at
@@ -92,14 +92,16 @@ pub(crate) fn edge_set(
 }
 
 /// The run-holding role of a name's foot: which sweep role holds the
-/// run (a meridian with its end), so two feet are the same role over
+/// run (a rim or a meridian with its end), so two feet are the same role over
 /// two runs exactly when their [`RunRole`]s are equal.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum RunRole {
     Lateral,
+    RimEdge(CapEnd),
     Band,
     BandPi,
     Meridian(MeridianEnd),
+    AxisEdge,
 }
 
 impl RunRole {
@@ -107,9 +109,11 @@ impl RunRole {
     fn seg(self, run: PieceRun) -> RoleSeg {
         match self {
             Self::Lateral => RoleSeg::Lateral(run),
+            Self::RimEdge(end) => RoleSeg::RimEdge(end, run),
             Self::Band => RoleSeg::Band(run),
             Self::BandPi => RoleSeg::BandPi(run),
             Self::Meridian(end) => RoleSeg::Meridian(end, run),
+            Self::AxisEdge => RoleSeg::AxisEdge(run),
         }
     }
 }
@@ -118,9 +122,11 @@ impl RunRole {
 fn run_foot(foot: &StableName) -> Option<(RunRole, &PieceRun)> {
     match foot.path.as_slice() {
         [RoleSeg::Lateral(run)] => Some((RunRole::Lateral, run)),
+        [RoleSeg::RimEdge(end, run)] => Some((RunRole::RimEdge(*end), run)),
         [RoleSeg::Band(run)] => Some((RunRole::Band, run)),
         [RoleSeg::BandPi(run)] => Some((RunRole::BandPi, run)),
         [RoleSeg::Meridian(end, run)] => Some((RunRole::Meridian(*end), run)),
+        [RoleSeg::AxisEdge(run)] => Some((RunRole::AxisEdge, run)),
         _ => None,
     }
 }
@@ -135,9 +141,10 @@ fn peel(name: &StableName) -> Option<(bool, &StableName)> {
     }
 }
 
-/// The one-piece walls (or meridian edges) a run of two or more pieces
-/// stands for — its `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`
-/// segment spelled once per piece — read through its descent wrappers
+/// The one-piece walls (or rim or meridian edges) a run of two or more
+/// pieces stands for — its `Lateral`, `RimEdge(end, ·)`, `Band`,
+/// `BandPi`, `Meridian(end, ·)` or `AxisEdge` segment spelled once per
+/// piece — read through its descent wrappers
 /// and re-wrapped by that same chain, or `None` when the name, peeled
 /// to its foot, holds no such run. A run wall is not a merge: it holds
 /// its pieces' walls the way a merged face holds its constituents, and
@@ -431,6 +438,43 @@ mod tests {
             s
         };
         assert!(covers(&set, &from_a(12, lateral(3, &[7]))));
+    }
+
+    /// **A cap's rim holds its run as the wall does.** A rim named for
+    /// one piece before the sweep carried the run as one edge (a
+    /// station's rim piece) is offered the run's rim on the same cap,
+    /// never the other cap's; the run rim covers each piece's rim.
+    #[test]
+    fn a_run_rim_is_offered_for_its_pieces_rims_on_its_own_cap() {
+        let rim = |end: CapEnd, steps: &[u64]| {
+            let run = PieceRun::new(
+                steps
+                    .iter()
+                    .map(|&s| ProfileEdgeRef::Piece {
+                        step: crate::node::StepId(s),
+                        role: crate::names::PieceRole::Leg,
+                    })
+                    .collect(),
+            )
+            .unwrap();
+            StableName {
+                kind: EntityKind::Edge,
+                node: RecipeNodeId(3),
+                path: vec![RoleSeg::RimEdge(end, run)],
+            }
+        };
+        let run = rim(CapEnd::End, &[7, 8]);
+        assert_eq!(
+            run_constituents(&run).unwrap(),
+            vec![rim(CapEnd::End, &[7]), rim(CapEnd::End, &[8])]
+        );
+        assert!(row_covers(&run, &rim(CapEnd::End, &[8])));
+        assert!(
+            !row_covers(&run, &rim(CapEnd::Start, &[8])),
+            "the other cap"
+        );
+        let rows = [run.clone(), rim(CapEnd::Start, &[7, 8])];
+        assert_eq!(offers(&rim(CapEnd::End, &[7]), rows.iter()), vec![run]);
     }
 
     /// **N3's offers over a run** (`names/README.md`, N1 "Swept walls

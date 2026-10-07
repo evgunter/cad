@@ -383,9 +383,8 @@ fn a_cut_into_the_faces_window_refuses_at_the_gate() {
 /// **A cut clear of the face's window splits, and its halves are
 /// right**: `10⁻⁴` of the size plus `20 ε` beyond the face's least and
 /// greatest support (clear of the gate's `12 ε` pad), along thirteen
-/// directions, in two poses. The zones' fixtures are full turns: a
-/// sphere face's azimuth window is not read
-/// (`reach/split-gate-zone-ignores-the-azimuth-window`). Each half's
+/// directions, in two poses. The zones' fixtures are full turns; their
+/// partial turns are `reach_split_gate_azimuth`'s. Each half's
 /// volume is held to the grid within `2·10⁻³` of the body's, whose own
 /// volume is first held to the same grid.
 #[test]

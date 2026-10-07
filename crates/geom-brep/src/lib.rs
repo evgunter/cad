@@ -102,7 +102,7 @@ pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
     WallBendError, bends_into_material, enters_material, enters_material_order2,
 };
-pub use extent::ExtentBall;
+pub use extent::{ExtentBall, Reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
@@ -121,8 +121,9 @@ pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
     PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
     Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
-    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
-    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
+    cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
+    cylinder_sphere_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
+    plane_torus_section, route, route_pose, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
@@ -131,7 +132,9 @@ pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
     IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row,
 };
-pub use offset::{ConeOffset, Nappe, OffsetError, offset_surface};
+pub use offset::{
+    ConeOffset, Nappe, OffsetDistanceError, OffsetError, offset_distance, offset_surface,
+};
 pub use offset_fit::{
     BestBound, LastRound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,

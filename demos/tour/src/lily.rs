@@ -1809,6 +1809,22 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
 }
 
 /// The tour stop.
+/// Wall 17: `lily_leaf_b`'s volume at the default ε. Tier 3 certifies
+/// the leaf, and the continuation to the volume number escalates on
+/// the quadrature's in-band convergence test (margin −2.7e-9 inside
+/// `(1e-9, 1e-8)`) instead of refining another round. The leaf measures
+/// at ε = 1e-6 and 1e-12, and under the earlier first-strip and
+/// path-parameter v alike, so the refusal is the quadrature arm's, not
+/// the leaf's geometry
+/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`).
+pub(crate) const LEAF_B_VOLUME_WALL: crate::VolumeWall = crate::VolumeWall {
+    scene: "lily",
+    n: 17,
+    what: "measure the long swept leaf's volume at the default ε",
+    retire: "drop LEAF_B_VOLUME_WALL from the scene and restore the leaf's \
+             finding-13 volume row",
+};
+
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let pieces = plant::<f64>(tol);
     let note = format!(
@@ -1881,10 +1897,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 // takes 2e-3. The names below are the lofted blades; a
                 // piece added, renamed or rebuilt with another section
                 // is placed by this rule, not by its name.
-                if p.name == "lily_leaf_a" || p.name.starts_with("lily_sepal") {
+                let sb = if p.name == "lily_leaf_a" || p.name.starts_with("lily_sepal") {
                     sb
                 } else {
                     sb.finer(2e-3)
+                };
+                if p.name == "lily_leaf_b" {
+                    sb.volume_walled(LEAF_B_VOLUME_WALL)
+                } else {
+                    sb
                 }
             })
             .collect(),
@@ -3390,25 +3411,44 @@ mod review_probes {
                     .abs()
                     .mul_add(leaf.section.centroid_rise(), leaf.len);
             let b = body(&ps, name);
-            let e = pncad::topo::VolumeReading::of(
+            let reading = pncad::topo::VolumeReading::of(
                 pncad::topo::validate_geometric_certificate(b, Tol::witness())
                     .expect("the swept leaf is tier 3 clean")
                     .measure(),
-            )
-            .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
-            .enclosure();
-            let (lo, hi) = (e.volume_lo, e.volume_hi);
-            assert!(
-                lo <= pappus && pappus <= hi,
-                "{name}: Pappus {pappus} outside the certified [{lo}, {hi}]"
             );
-            if hi - lo > BRACKET_CEILING * pappus {
-                println!(
-                    "{name}: certified [{lo:e}, {hi:e}] is {:.1e} of Pappus wide, past \
-                     the {BRACKET_CEILING:e} ceiling at this ε — it contains Pappus, \
-                     which at this width is weak evidence of agreement",
-                    (hi - lo) / pappus
+            // The long leaf's volume is wall 17 at the default ε: the
+            // containment needs the number the wall pins as refused.
+            if name == "lily_leaf_b" && Tol::witness().eps() == pncad::tolerance::DEFAULT_EPS {
+                let w = LEAF_B_VOLUME_WALL;
+                crate::walls::wall(
+                    w.scene,
+                    w.n,
+                    w.what,
+                    reading,
+                    crate::in_band_convergence,
+                    w.retire,
                 );
+                println!(
+                    "{name}: SKIPPED the Pappus containment at the default ε — wall 17 \
+                     (work/quad/quadrature-convergence-test-escalates-instead-of-refining.md)"
+                );
+            } else {
+                let e = reading
+                    .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
+                    .enclosure();
+                let (lo, hi) = (e.volume_lo, e.volume_hi);
+                assert!(
+                    lo <= pappus && pappus <= hi,
+                    "{name}: Pappus {pappus} outside the certified [{lo}, {hi}]"
+                );
+                if hi - lo > BRACKET_CEILING * pappus {
+                    println!(
+                        "{name}: certified [{lo:e}, {hi:e}] is {:.1e} of Pappus wide, past \
+                         the {BRACKET_CEILING:e} ceiling at this ε — it contains Pappus, \
+                         which at this width is weak evidence of agreement",
+                        (hi - lo) / pappus
+                    );
+                }
             }
             let m = pncad::mesh::tessellate(b, 2e-3, Tol::witness()).expect("tessellate");
             let short = (pappus - signed_volume(&m)) / pappus;
@@ -3923,7 +3963,7 @@ mod review_probes {
     /// stacking fold.** The wall is no longer at spine turn π and is
     /// no longer about how far the spine goes. The loft's stacking
     /// statement is a fold over adjacent section pairs, each decided
-    /// against its own base section's normal, so a blade whose spine
+    /// against both its sections' normals, so a blade whose spine
     /// turns a full circle and more builds as long as each of its
     /// slabs advances — and at [`LOFT_STATIONS`] stations each slab
     /// carries 1/16 of the turn.

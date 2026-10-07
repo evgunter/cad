@@ -31,3 +31,9 @@ stays on both wedge caps), and the body fails tier 3 here. The sweep
 keeps one wall per arc in a partial revolve until this folds
 (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`,
 which also needs the sweep to mint those pieces with split lineage).
+
+The sweep no longer reaches it (FUSE, `fuse/sweep-runs`, 2026-10-06):
+a partial revolve carries a run of cocircular arcs as one wall and each
+wedge cap carries the run as one meridian edge, so the arm reads a
+two-edge boundary there. The lineage-piece case from a split edge
+stands as found.

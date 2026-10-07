@@ -1547,6 +1547,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::ChainNotConnected { .. } => "chain_not_connected",
         BlendError::RadiusHeadroom { .. } => "radius_headroom",
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
+        BlendError::FaceClearance { .. } => "face_clearance",
         BlendError::TangentialEdge { .. } => "tangential_edge",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
@@ -1709,6 +1710,8 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::OneSegmentLoop { .. } => "one_segment_loop",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
+        LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
+        LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
     }
 }
@@ -1790,7 +1793,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::OpenFaceRepeated { .. } => "open_face_repeated",
         ShellError::OpenFacesExhaustShell { .. } => "open_faces_exhaust_shell",
         ShellError::OpenFacesDisconnect { .. } => "open_faces_disconnect",
-        ShellError::OpenFaceRingUnsupported { .. } => "open_face_ring_unsupported",
         ShellError::OpenFaceChartPartial { .. } => "open_face_chart_partial",
         ShellError::Lift { .. } => "lift",
         ShellError::Insert { .. } => "insert",

@@ -183,31 +183,80 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
     );
 }
 
-/// **Claim 2/(Zero,Zero): an edge exactly ON the wall keeps the
-/// cosurface door.** A box whose corners all sit exactly on the pipe's
-/// wall carrier (x = +-sqrt(1 - 0.09), y = +-0.3) has four long edges
-/// that are RULINGS of the wall — axis-parallel lines lying on the
-/// carrier with both endpoints at residual 0. The ring lane's
-/// structural separation says those must answer `Constant` and keep the
-/// pierce door (an undeclared cosurface is never an event), even though
-/// the same box's x- and y-edges are honest secant chords.
+/// **Claim 2/(Zero,Zero): an edge exactly ON the wall is an ON event
+/// when its faces are distinct carriers.** A box whose corners all sit
+/// exactly on the pipe's wall carrier (x = +-sqrt(1 - 0.09), y = +-0.3)
+/// has four long edges that are RULINGS of the wall — axis-parallel
+/// lines lying on the carrier with both endpoints at residual 0 — while
+/// its x- and y-edges are honest secant chords. Each ruling's two faces
+/// are planes decided distinct from the wall, so it is a curve where two
+/// carriers meet, not a cosurface: every op builds undeclared at its
+/// closed form, valid at tiers 3 and 3′. The union is the pipe, the
+/// intersection the box, `b ∖ p` empty, and `p ∖ b` the pipe with a
+/// box-shaped void touching the wall along the four rulings, its eight
+/// corners recorded on the wall.
 #[test]
-fn r2_a_box_with_on_carrier_rulings_keeps_the_cosurface_door() {
+fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
+    let tol = Tol::witness();
+    let none = topo::BooleanDeclarations::none();
     let x = (1.0f64 - 0.09).sqrt();
-    let err = topo::union(
-        &finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), Tol::witness()),
-        &finished(
-            "the box",
-            brick((-x, x), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
-            Tol::witness(),
-        ),
-        Tol::witness(),
-    )
-    .expect_err("an undeclared on-carrier contact must refuse");
-    assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the rulings on the carrier keep the pierce door: {err:?}"
+    let p = finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), tol);
+    let b = finished(
+        "the box",
+        brick((-x, x), (-0.3, 0.3), (-0.3, 0.3), tol),
+        tol,
     );
+    let (pipe, boxed) = (PI * 4.0, 2.0 * x * 0.6 * 0.6);
+    let whole = Some((pipe, (4, 6, 4, 1), [0, 0]));
+    let common = Some((boxed, (6, 12, 8, 1), [0, 0]));
+    for (op, r, want) in [
+        ("p ∪ b", topo::union_with(&p, &b, &none, tol), whole),
+        ("b ∪ p", topo::union_with(&b, &p, &none, tol), whole),
+        (
+            "p ∖ b",
+            topo::subtract_with(&p, &b, &none, tol),
+            Some((pipe - boxed, (10, 18, 12, 2), [0, 8])),
+        ),
+        ("b ∖ p", topo::subtract_with(&b, &p, &none, tol), None),
+        ("p ∩ b", topo::intersect_with(&p, &b, &none, tol), common),
+        ("b ∩ p", topo::intersect_with(&b, &p, &none, tol), common),
+    ] {
+        let bb = match (r, want) {
+            (Ok(topo::BooleanResult::Empty), None) => continue,
+            (Ok(topo::BooleanResult::Body(bb)), Some(_)) => bb,
+            (r, _) => panic!("{op}: {want:?}: {r:?}"),
+        };
+        let (volume, census, contacts) = want.unwrap();
+        let body = &bb.body;
+        topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
+        topo::validate_pseudomanifold(body, &bb.contacts, tol)
+            .unwrap_or_else(|e| panic!("{op}: tier 3′: {e:?}"));
+        let v = topo::mass_properties(body, tol).unwrap().volume;
+        assert!(
+            (v - volume).abs() <= 1e-12 * volume,
+            "{op}: the closed form: {v} vs {volume}"
+        );
+        assert_eq!(
+            (
+                body.faces().count(),
+                body.edges().count(),
+                body.vertices().count(),
+                body.shells().count()
+            ),
+            census,
+            "{op}: F, E, V, shells"
+        );
+        let c = &bb.contacts;
+        assert_eq!(
+            [c.vv.len(), c.a_on_b.len() + c.b_on_a.len()],
+            contacts,
+            "{op}: [v-v, v-f] records"
+        );
+        assert!(
+            c.curves.is_empty() && c.patches.is_empty(),
+            "{op}: no curve or patch records"
+        );
+    }
 }
 
 /// **Claim 3, the transient chord's certification, re-measured.** The
