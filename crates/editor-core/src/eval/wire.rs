@@ -554,7 +554,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .collect();
     for k in surfaces {
         // Stamping a just-enumerated live key cannot fail.
-        let _ = body.set_surface_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_surface_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     let curves: Vec<_> = body
@@ -563,7 +563,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .filter(|&k| body.curve_source(k).is_none())
         .collect();
     for k in curves {
-        let _ = body.set_curve_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_curve_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     let points: Vec<_> = body
@@ -572,7 +572,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .filter(|&k| body.point_source(k).is_none())
         .collect();
     for k in points {
-        let _ = body.set_point_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_point_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     idx
@@ -622,7 +622,7 @@ impl Placing {
 /// and an axis row the input held `Cleared` stays so: there is no
 /// source left to place.
 fn compose_placed<T: Decide>(input: &Body<T>, placed: &mut Body<T>, at: Placing) {
-    let by = at.by.0;
+    let by = at.by.0.digest();
     for (k, _) in input.surfaces() {
         if let Some(src) = input.surface_source(k) {
             let _ = placed.set_surface_source(k, src.placed(by, at.body));

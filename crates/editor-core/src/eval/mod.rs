@@ -5439,7 +5439,7 @@ where
             for ids in &program.ids {
                 h.write_u64(ids.len() as u64);
                 for id in ids {
-                    h.write_u64(id.0);
+                    h.write_id(id.0);
                 }
             }
             // The f64 stream above IS the structure identity and stays
@@ -5611,9 +5611,9 @@ where
             class,
             alignment,
         } => {
-            h.write_u64(a.at.0);
+            h.write_id(a.at.0);
             feed_stable_name(&mut h, &a.name);
-            h.write_u64(b.at.0);
+            h.write_id(b.at.0);
             feed_stable_name(&mut h, &b.name);
             // The class's word is `ContactClass::content_tag` — the one
             // spelling the crossing record, the mate and the declaration
@@ -5743,7 +5743,7 @@ where
                 // RECIPE PAYLOAD selecting a reading, not a Merkle link
                 // to an input — the input's own key is fed separately
                 // through `upstream_keys`.
-                h.write_u64(r.at.0);
+                h.write_id(r.at.0);
                 feed_stable_name(&mut h, &r.name);
             }
             feed_measure_expr(&mut h, expr);
@@ -5942,7 +5942,7 @@ fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> Na
     h.write_key(content);
     h.write_u64(upstream.len() as u64);
     for (id, nk) in upstream {
-        h.write_u64(id.0);
+        h.write_id(id.0);
         h.write_u64(nk.0 as u64);
         h.write_u64((nk.0 >> 64) as u64);
     }
@@ -6408,7 +6408,7 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
             e.var_reads(&mut reads);
             h.write_u64(reads.len() as u64);
             for (var, dim) in reads {
-                h.write_u64(var.0);
+                h.write_id(var.0);
                 h.write_tag(dimension_tag(dim));
             }
         }
@@ -6477,7 +6477,7 @@ fn feed_declared(h: &mut KeyHasher, pairs: &[crate::DeclaredPair]) {
     h.write_u64(pairs.len() as u64);
     for ((a, b), class) in pairs {
         for r in [a, b] {
-            h.write_u64(r.at.0);
+            h.write_id(r.at.0);
             feed_stable_name(h, &r.name);
         }
         h.write_u64(class.content_tag());
@@ -6508,7 +6508,7 @@ fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
                     EntityKind::Edge => 3,
                     EntityKind::Vertex => 4,
                 });
-                h.write_u64(name.node.0);
+                h.write_id(name.node.0);
                 h.write_u64(name.path.len() as u64);
                 let mut level = SegFeed(Vec::new());
                 for seg in &name.path {
@@ -6538,6 +6538,11 @@ impl<'a> SegFeed<'a> {
 
     fn write_u64(&mut self, x: u64) {
         self.0.push(Fed::U64(x));
+    }
+
+    fn write_id(&mut self, id: crate::MintId) {
+        self.write_u64(u64::from(id.ordinal()));
+        self.write_u64(id.digest());
     }
 
     fn name(&mut self, name: &'a StableName) {
@@ -6680,7 +6685,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
     let pe = |h: &mut SegFeed<'a>, e: crate::names::ProfileEdgeRef| match e {
         crate::names::ProfileEdgeRef::Piece { step, role: r } => {
             h.write_tag(1);
-            h.write_u64(step.0);
+            h.write_id(step.0);
             role(h, r);
         }
         crate::names::ProfileEdgeRef::Section { circle: c, role: r } => {
@@ -6705,7 +6710,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
     let pv = |h: &mut SegFeed<'a>, v: crate::names::ProfileVertexRef| match v {
         crate::names::ProfileVertexRef::Piece { step, role: r } => {
             h.write_tag(1);
-            h.write_u64(step.0);
+            h.write_id(step.0);
             role(h, r);
         }
         crate::names::ProfileVertexRef::Section { circle: c, role: r } => {
@@ -6916,7 +6921,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         // entities one key — the memo hazard the segment vocabulary
         // exists to prevent.
         RoleSeg::FromMember { member, of } => {
-            h.write_u64(member.0);
+            h.write_id(member.0);
             h.name(of);
         }
         // The shell's three roles. Each wraps one source name; the hole
@@ -7552,7 +7557,7 @@ mod name_feed_tests {
             EntityKind::Edge => 3,
             EntityKind::Vertex => 4,
         });
-        h.write_u64(name.node.0);
+        h.write_id(name.node.0);
         h.write_u64(name.path.len() as u64);
         for seg in &name.path {
             let mut level = SegFeed(Vec::new());

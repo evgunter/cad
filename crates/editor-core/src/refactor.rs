@@ -1582,7 +1582,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::SetExtrudeSideOnNonExtrude { .. }
             | EditError::StepIdsRefused { .. }
-            | EditError::NodeIdCollides { .. }
             | EditError::TooFewMembers { .. }
             | EditError::DeleteWouldDangle { .. }
             | EditError::UnknownSlot { .. }
@@ -1604,7 +1603,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::ContinuousVarCannotBeCount { .. }
             | EditError::UnknownVar { .. }
             | EditError::VarNameTaken { .. }
-            | EditError::VarIdCollides { .. }
             | EditError::VarKindFixed { .. }
             | EditError::NotAFreeVar { .. }
             | EditError::DefinitionCycle { .. }

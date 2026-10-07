@@ -412,11 +412,13 @@ pub(crate) fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId
                  here predates the frame node and cannot be read by this build)",
             )
         }
-        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<RecipeNodeId, E> {
-            Ok(RecipeNodeId(v))
+        fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<RecipeNodeId, E> {
+            crate::MintId::parse(text)
+                .map(RecipeNodeId)
+                .ok_or_else(|| E::invalid_value(serde::de::Unexpected::Str(text), &self))
         }
     }
-    de.deserialize_u64(PlaneRef)
+    de.deserialize_str(PlaneRef)
 }
 
 /// The persisted MEASUREMENT expression (ERROR-DESIGN E3): the same

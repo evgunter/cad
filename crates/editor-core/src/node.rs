@@ -56,23 +56,44 @@ macro_rules! name_free_node {
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
 /// substrate): minted from the document's mint chain ([`crate::Mint`])
-/// at insertion, never reused (deletion does not free it), never
-/// positional. Its stability is a contract, pinned by test.
+/// at insertion, never reused (deletion does not free it). Of two
+/// nodes one document holds, the one inserted first has the lesser id
+/// ([`MintId`]). Its stability is a contract, pinned by test.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct RecipeNodeId(pub u64);
+pub struct RecipeNodeId(pub MintId);
 
 /// **A profile program step's identity** (`names/README.md`, "N1, the
 /// profile pieces"): minted from the document's mint chain
 /// ([`crate::Mint`]) when the step is authored — by `InsertNode`
 /// or `SetProgram` — never reused, never positional, and unique across
-/// the document. A profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
+/// the document, ordered as minted ([`MintId`]). A profile piece's name
+/// spells it ([`crate::names::ProfileEdgeRef`]).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct StepId(pub u64);
+pub struct StepId(pub MintId);
 
+impl RecipeNodeId {
+    /// The node id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(MintId::new(ordinal, digest))
+    }
+}
+
+impl StepId {
+    /// The step id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(MintId::new(ordinal, digest))
+    }
+}
+
+pub use crate::mint::MintId;
 pub use crate::names::{EntityKind, FaceName, RoleSeg, StableName};
 
 /// A coordinate axis, naming vector components in slot identities

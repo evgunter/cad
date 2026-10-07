@@ -226,7 +226,8 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
         // and a name is not identity (VR8: a rename moves no token).
         ExprKind::Var(var) => {
             out.push(T_VAR);
-            out.extend_from_slice(&var.0.to_be_bytes());
+            out.extend_from_slice(&var.0.ordinal().to_be_bytes());
+            out.extend_from_slice(&var.0.digest().to_be_bytes());
         }
         ExprKind::Leaf(own) => match *own {},
         ExprKind::Add(a, b) => binary(T_ADD, a, b, defs, out),

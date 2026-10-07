@@ -33,7 +33,7 @@
 //!   at hand ([`Speaker::held`]). Inside a line that already names a
 //!   node ([`Speaker::about`]), that node reads `this <noun>`, so no
 //!   sentence names it twice.
-//! - [`FullId`] — every bit of the id, for a machine channel (a
+//! - [`FullId`] — the whole id, for a machine channel (a
 //!   binding's `repr`, a goldened report) where two ids must never
 //!   print alike.
 //!
@@ -51,7 +51,7 @@ use crate::doc::Doc;
 use crate::label::Label;
 use crate::names::words::Detail;
 use crate::names::{NameTable, StableName};
-use crate::node::{BooleanOp, Datum, Node, RecipeNodeId, StepId};
+use crate::node::{BooleanOp, Datum, MintId, Node, RecipeNodeId, StepId};
 use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -59,18 +59,20 @@ use crate::program::ProfilePayload;
 /// leaked document id).
 const TAG_DIGITS: usize = 12;
 
-/// How far a tag shifts the id: it shows the HIGH [`TAG_DIGITS`] hex
-/// digits. An id is the head of a digest read big-endian
-/// (`crate::mint`), so its leading digits are the hash's own, and a
-/// tag is the id's prefix — the rule a `DocRef`'s pin prefix follows.
+/// How far a tag shifts the id's digest: it shows the HIGH
+/// [`TAG_DIGITS`] hex digits. A digest is the head of a hash read
+/// big-endian (`crate::mint`), so its leading digits are the hash's
+/// own, and a tag is the digest's prefix — the rule a `DocRef`'s pin
+/// prefix follows. The mint ordinal is not in the tag: ordinals repeat
+/// across documents and branches, where the digest tells ids apart.
 const TAG_SHIFT: u32 = 64 - 4 * TAG_DIGITS as u32;
 
-fn write_tag(f: &mut fmt::Formatter<'_>, bits: u64) -> fmt::Result {
-    write!(f, "{:0width$x}", bits >> TAG_SHIFT, width = TAG_DIGITS)
+fn write_tag(f: &mut fmt::Formatter<'_>, id: MintId) -> fmt::Result {
+    write!(f, "{:0width$x}", id.digest() >> TAG_SHIFT, width = TAG_DIGITS)
 }
 
-/// The bare tag: the id's high 48 bits as 12 lowercase hex digits, the
-/// first twelve of its sixteen (`3fa9c1d2a0b1`).
+/// The bare tag: the digest's high 48 bits as 12 lowercase hex digits,
+/// the first twelve of its sixteen (`3fa9c1d2a0b1`).
 impl fmt::Display for RecipeNodeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_tag(f, self.0)
@@ -84,20 +86,22 @@ impl fmt::Display for StepId {
     }
 }
 
-/// **An id with every bit shown**: 16 lowercase hex digits,
-/// zero-padded. The machine channel's spelling, where a tag's
-/// abbreviation could make two ids read alike.
+/// **An id shown whole**: its mint ordinal in decimal, a colon, and
+/// its digest as 16 lowercase hex digits, zero-padded
+/// (`3:3fa9c1d2a0b1c3d4`). The machine channel's spelling, where a
+/// tag's abbreviation could make two ids read alike, and the wire's
+/// ([`MintId`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FullId(pub u64);
+pub struct FullId(pub MintId);
 
 impl fmt::Display for FullId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:016x}", self.0)
+        write!(f, "{}:{:016x}", self.0.ordinal(), self.0.digest())
     }
 }
 
 impl RecipeNodeId {
-    /// The id with every bit shown ([`FullId`]).
+    /// The id shown whole ([`FullId`]).
     #[must_use]
     pub fn full(self) -> FullId {
         FullId(self.0)
@@ -105,14 +109,14 @@ impl RecipeNodeId {
 }
 
 impl StepId {
-    /// The id with every bit shown ([`FullId`]).
+    /// The id shown whole ([`FullId`]).
     #[must_use]
     pub fn full(self) -> FullId {
         FullId(self.0)
     }
 }
 
-/// `#` and every bit, `#3fa9c1d2a0b1c3d4`: the one spelling of a
+/// `#` and the whole id, `#3:3fa9c1d2a0b1c3d4`: the one spelling of a
 /// variable with no name, the text [`crate::unparse`] writes for its
 /// reader.
 impl fmt::Display for crate::var::VarId {
@@ -122,7 +126,7 @@ impl fmt::Display for crate::var::VarId {
 }
 
 impl crate::var::VarId {
-    /// The id with every bit shown ([`FullId`]).
+    /// The id shown whole ([`FullId`]).
     #[must_use]
     pub fn full(self) -> FullId {
         FullId(self.0)
@@ -130,7 +134,7 @@ impl crate::var::VarId {
 }
 
 /// **A variable as a person reads it** (VARIABLES-DESIGN VR2): its
-/// name (`w`), or `#3fa9c1d2a0b1c3d4` when it has none (the
+/// name (`w`), or `#3:3fa9c1d2a0b1c3d4` when it has none (the
 /// [`crate::var::VarId`] spelling, which a formula's reader shares). Built by
 /// [`Doc::spoken_var`] from the document that holds the variable;
 /// refusals carry it the way they carry a [`SpokenNode`].
@@ -201,17 +205,18 @@ pub struct SpokenNode {
     /// The kind noun, `None` for an id the document does not hold.
     kind: Option<&'static str>,
     /// The node's label, `None` when it has none or is not held. Boxed
-    /// so that a spoken node stays 32 bytes on a 64-bit target (the id,
-    /// the kind's two words, the box): the edit refusals hold up to
-    /// two, and every edit door returns them by value.
+    /// so that a spoken node stays 40 bytes on a 64-bit target (the
+    /// id's two words, the kind's two words, the box): the edit
+    /// refusals hold up to two, and every edit door returns them by
+    /// value.
     label: Option<Box<Label>>,
 }
 
 // The width the label's box buys, held where clippy measures it: an
-// unboxed label makes it 48 bytes, and `PersistError`, which carries an
+// unboxed label makes it 56 bytes, and `PersistError`, which carries an
 // `EditError`, crosses clippy's 128-byte large-`Err` line.
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<SpokenNode>() == 32);
+const _: () = assert!(core::mem::size_of::<SpokenNode>() == 40);
 
 impl SpokenNode {
     /// A spoken node with no document behind it, for a fixture that
@@ -680,7 +685,7 @@ enum NodeFact {
 
 impl NodeFact {
     /// What the fact is about: one fact is kept per key.
-    fn key(self) -> (u8, u64) {
+    fn key(self) -> (u8, MintId) {
         match self {
             Self::Step(id, _) => (0, id.0),
             Self::SoleProfile(node, _) => (1, node.0),

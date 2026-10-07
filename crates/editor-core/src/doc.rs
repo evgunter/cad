@@ -764,8 +764,8 @@ impl FreeVar {
     }
 }
 
-/// The document: recipe DAG (node map + insertion-ordered list) +
-/// document metadata (spec D2; ratified F2's substrate). `P` is the
+/// The document: recipe DAG (the node map, in id order, which is the
+/// order the nodes were inserted in) + document metadata (spec D2; ratified F2's substrate). `P` is the
 /// opaque profile payload (spec D1/D3 — see [`Node`]).
 ///
 /// **A field added here that holds a [`StableName`] is placed in
@@ -799,12 +799,12 @@ pub struct Doc<P> {
     /// removes and a step a `SetProgram` drops keep their log entries,
     /// so neither id is minted again.
     pub(crate) mint: crate::Mint,
-    /// The nodes, by stable id.
+    /// The nodes, by stable id. Ids order as they were minted, so the
+    /// map's order is the order the nodes were inserted in (the
+    /// recipe's presentation order; the DAG's edges are the nodes'
+    /// input refs, spec D3).
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
-    /// Insertion order of the live nodes (the recipe's presentation
-    /// order; the DAG's edges are the nodes' input refs, spec D3).
-    pub(crate) order: Vec<RecipeNodeId>,
     /// The document's ordered product roots (ASSEMBLY-DESIGN A10,
     /// ASM-ROOTS D-1): document data, never a DAG node. Two invariants
     /// hold at rest and after every edit — *coverage* (every node is
@@ -814,8 +814,9 @@ pub struct Doc<P> {
     /// product's solid ORDER, which is therefore semantic. No
     /// duplicates; every entry is live.
     pub(crate) roots: Vec<RecipeNodeId>,
-    /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id. Every
-    /// key is logged in the mint as [`crate::Minted::Var`].
+    /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id, so in
+    /// declaration order. Every key is logged in the mint as
+    /// [`crate::Minted::Var`].
     #[serde(with = "crate::persist::strict::vars")]
     pub(crate) vars: BTreeMap<VarId, Var>,
     /// **The variables' names** (VR2), beside the variables as
@@ -828,15 +829,6 @@ pub struct Doc<P> {
         with = "crate::persist::strict::var_names"
     )]
     pub(crate) var_names: BTreeMap<VarId, VarName>,
-    /// **The variables' declaration order** — `order`'s twin for the
-    /// variable table. Ids are digest output, so their numeric order
-    /// means nothing to an author; this is the one author-meaningful
-    /// order of the document's variables, and every lane that lists or
-    /// tie-breaks variables reads it ([`Self::free_vars`]). A
-    /// permutation of `vars`' keys (the load door checks it). Absent
-    /// from the wire while empty.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(crate) var_order: Vec<VarId>,
     /// The recorded modeling tolerance ε (M4 PR 6 spec D4): new
     /// documents record the process's committed ambient ε; loading
     /// reconciles the recorded value against the process (one process
@@ -971,11 +963,9 @@ impl<P> Doc<P> {
             id,
             mint: crate::Mint::empty(),
             nodes: BTreeMap::new(),
-            order: Vec::new(),
             roots: Vec::new(),
             vars: BTreeMap::new(),
             var_names: BTreeMap::new(),
-            var_order: Vec::new(),
             epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
@@ -1049,21 +1039,10 @@ impl<P> Doc<P> {
         self.mint.has_node(id)
     }
 
-    /// Live node ids in insertion order.
-    pub fn order(&self) -> &[RecipeNodeId] {
-        &self.order
-    }
-
-    /// **Each live node's position in [`Doc::order`]**: the order the
-    /// author placed the nodes in, which is what every tie between
-    /// nodes breaks by, since an id is a digest and says nothing of
-    /// seniority.
-    pub fn positions(&self) -> BTreeMap<RecipeNodeId, usize> {
-        self.order
-            .iter()
-            .enumerate()
-            .map(|(at, &id)| (id, at))
-            .collect()
+    /// **The live node ids, in id order**: the order the nodes were
+    /// inserted in, which is what every tie between nodes breaks by.
+    pub fn ids(&self) -> Vec<RecipeNodeId> {
+        self.nodes.keys().copied().collect()
     }
 
     /// The ordered product roots (A10): the gather order of the
@@ -1074,12 +1053,12 @@ impl<P> Doc<P> {
 
     /// Number of live nodes.
     pub fn len(&self) -> usize {
-        self.order.len()
+        self.nodes.len()
     }
 
     /// Whether the document has no live nodes.
     pub fn is_empty(&self) -> bool {
-        self.order.is_empty()
+        self.nodes.is_empty()
     }
 
     /// **Every faulty variable leaf of one expression**, in pre-order:
@@ -1120,14 +1099,10 @@ impl<P> Doc<P> {
         P: crate::ProfilePayload,
     {
         let through = self.reached_through_definitions(var);
-        self.order
+        self.nodes
             .iter()
-            .copied()
-            .filter(|id| {
-                self.nodes
-                    .get(id)
-                    .is_some_and(|node| through.iter().any(|&v| node_reads(node, v)))
-            })
+            .filter(|(_, node)| through.iter().any(|&v| node_reads(node, v)))
+            .map(|(&id, _)| id)
             .collect()
     }
 
@@ -1141,7 +1116,7 @@ impl<P> Doc<P> {
             .map(|&at| {
                 edges.definers[at]
                     .iter()
-                    .map(|&d| self.var_order[d])
+                    .map(|&d| edges.ids[d])
                     .collect()
             })
             .unwrap_or_default()
@@ -1155,7 +1130,7 @@ impl<P> Doc<P> {
         let mut frontier: Vec<usize> = edges.position.get(&var).copied().into_iter().collect();
         while let Some(at) = frontier.pop() {
             for &definer in &edges.definers[at] {
-                if reached.insert(self.var_order[definer]) {
+                if reached.insert(edges.ids[definer]) {
                     frontier.push(definer);
                 }
             }
@@ -1178,21 +1153,14 @@ impl<P> Doc<P> {
     /// definitions reads it, so each is linear in the variables and
     /// their reads.
     fn definition_edges(&self) -> DefinitionEdges {
-        let position: BTreeMap<VarId, usize> = self
-            .var_order
-            .iter()
-            .enumerate()
-            .map(|(at, &id)| (id, at))
-            .collect();
-        let mut reads = vec![Vec::new(); self.var_order.len()];
-        let mut definers = vec![Vec::new(); self.var_order.len()];
+        let ids = self.var_ids();
+        let position: BTreeMap<VarId, usize> =
+            ids.iter().enumerate().map(|(at, &id)| (id, at)).collect();
+        let mut reads = vec![Vec::new(); ids.len()];
+        let mut definers = vec![Vec::new(); ids.len()];
         let mut any = false;
         for (at, read_by) in reads.iter_mut().enumerate() {
-            let Some(expr) = self
-                .vars
-                .get(&self.var_order[at])
-                .and_then(|v| v.def().defined())
-            else {
+            let Some(expr) = self.vars.get(&ids[at]).and_then(|v| v.def().defined()) else {
                 continue;
             };
             let mut leaves = Vec::new();
@@ -1210,6 +1178,7 @@ impl<P> Doc<P> {
             *read_by = held;
         }
         DefinitionEdges {
+            ids,
             position,
             reads,
             definers,
@@ -1238,14 +1207,14 @@ impl<P> Doc<P> {
         }
         let edges = self.definition_edges();
         let unheld = |at: usize| {
-            let id = self.var_order[at];
+            let id = edges.ids[at];
             !self.var_names.contains_key(&id) && !node_read.contains(&id)
         };
         // How many standing definitions read each variable: a round
         // removes its variables' reads, and a variable whose count
         // falls to none joins the next round.
         let mut holders: Vec<usize> = edges.definers.iter().map(Vec::len).collect();
-        let mut round: Vec<usize> = (0..self.var_order.len())
+        let mut round: Vec<usize> = (0..edges.ids.len())
             .filter(|&at| holders[at] == 0 && unheld(at))
             .collect();
         let mut removed = Vec::new();
@@ -1260,7 +1229,7 @@ impl<P> Doc<P> {
                 }
             }
             next.sort_unstable();
-            removed.extend(round.iter().map(|&at| self.var_order[at]));
+            removed.extend(round.iter().map(|&at| edges.ids[at]));
             round = next;
         }
         removed
@@ -1269,7 +1238,7 @@ impl<P> Doc<P> {
     /// **The order definitions evaluate in**: every variable, each
     /// after the variables its definition reads, ties broken by
     /// declaration order — so a document with no definition lists
-    /// [`Self::var_order`]. A variable on a definition cycle, or
+    /// [`Self::var_ids`]. A variable on a definition cycle, or
     /// reading one, which no door admits, comes last, in declaration
     /// order. Kahn's algorithm over [`Self::definition_edges`], the
     /// earliest-declared ready variable first.
@@ -1282,7 +1251,8 @@ impl<P> Doc<P> {
     fn ordered(&self) -> (Vec<VarId>, usize) {
         let edges = self.definition_edges();
         if !edges.any {
-            return (self.var_order.clone(), self.var_order.len());
+            let placed = edges.ids.len();
+            return (edges.ids, placed);
         }
         let mut waiting: Vec<usize> = edges.reads.iter().map(Vec::len).collect();
         let mut ready: std::collections::BinaryHeap<std::cmp::Reverse<usize>> = (0..waiting.len())
@@ -1292,7 +1262,7 @@ impl<P> Doc<P> {
         let mut placed = vec![false; waiting.len()];
         let mut order = Vec::with_capacity(waiting.len());
         while let Some(std::cmp::Reverse(at)) = ready.pop() {
-            order.push(self.var_order[at]);
+            order.push(edges.ids[at]);
             placed[at] = true;
             for &definer in &edges.definers[at] {
                 waiting[definer] -= 1;
@@ -1303,7 +1273,8 @@ impl<P> Doc<P> {
         }
         let ordered = order.len();
         order.extend(
-            self.var_order
+            edges
+                .ids
                 .iter()
                 .zip(&placed)
                 .filter(|(_, placed)| !**placed)
@@ -1381,7 +1352,7 @@ impl<P> Doc<P> {
             return Some(ExpansionFault::Cycle { var, through });
         }
         let sizes = self.expansion_nodes(&order);
-        self.var_order.iter().find_map(|id| {
+        self.vars.keys().find_map(|id| {
             let nodes = *sizes.get(id)?;
             (nodes > crate::edit::DEFINITION_NODE_BOUND)
                 .then_some(ExpansionFault::TooLarge { var: *id, nodes })
@@ -1432,14 +1403,15 @@ impl<P> Doc<P> {
     /// name is read off it with [`Self::var_name`] where a lane needs
     /// one.
     pub fn free_vars(&self) -> impl Iterator<Item = (VarId, &FreeVar)> + '_ {
-        self.var_order
+        self.vars
             .iter()
-            .filter_map(|&id| Some((id, self.vars.get(&id)?.free()?)))
+            .filter_map(|(&id, var)| Some((id, var.free()?)))
     }
 
-    /// The variables in declaration order ([`Self::free_vars`]'s base).
-    pub fn var_order(&self) -> &[VarId] {
-        &self.var_order
+    /// **The variable ids, in id order**: the order they were declared
+    /// in ([`Self::free_vars`]'s base).
+    pub fn var_ids(&self) -> Vec<VarId> {
+        self.vars.keys().copied().collect()
     }
 
     /// The name the document holds for `id`, if any.
@@ -1612,16 +1584,11 @@ impl<P> Doc<P> {
     /// collecting version built eagerly.
     fn names_in(&self, carrier: Carrier) -> Box<dyn Iterator<Item = NameCarrier<'_>> + '_> {
         match carrier {
-            Carrier::Payloads => Box::new(
-                self.order
-                    .iter()
-                    .filter_map(|&id| self.nodes.get(&id).map(|node| (id, node)))
-                    .flat_map(|(id, node)| {
-                        node.payload_names()
-                            .into_iter()
-                            .map(move |name| NameCarrier::Payload { node: id, name })
-                    }),
-            ),
+            Carrier::Payloads => Box::new(self.nodes.iter().flat_map(|(&id, node)| {
+                node.payload_names()
+                    .into_iter()
+                    .map(move |name| NameCarrier::Payload { node: id, name })
+            })),
             Carrier::Appearance => Box::new(
                 self.appearance
                     .keys()
@@ -1729,6 +1696,8 @@ fn expanded_size(expr: &Expr, sizes: &BTreeMap<VarId, usize>, cap: usize) -> usi
 /// by declaration position: each defined variable's live reads, and
 /// each variable's definers in declaration order.
 struct DefinitionEdges {
+    /// The variable ids, in declaration order: what a position indexes.
+    ids: Vec<VarId>,
     position: BTreeMap<VarId, usize>,
     reads: Vec<Vec<usize>>,
     definers: Vec<Vec<usize>>,
@@ -1762,7 +1731,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
             && self.mint == other.mint
-            && self.order == other.order
             && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
             // Witness bytes are exact data (no float semantics to
@@ -1783,7 +1751,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                     .is_some_and(|theirs| node.bit_eq(theirs))
             })
             && self.var_names == other.var_names
-            && self.var_order == other.var_order
             && self.vars.len() == other.vars.len()
             && self.vars.iter().all(|(id, var)| {
                 other

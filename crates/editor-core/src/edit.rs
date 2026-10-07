@@ -257,8 +257,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// Structural when the kind is `Count`.
     ///
     /// Refuses a name the document already holds
-    /// ([`EditError::VarNameTaken`], naming the holder), an id the mint
-    /// log already holds ([`EditError::VarIdCollides`]), and a
+    /// ([`EditError::VarNameTaken`], naming the holder), and a
     /// definition no door may write (the checks every door that writes
     /// a definition runs: [`EditError::NonFiniteVar`],
     /// [`EditError::InvalidDistribution`],
@@ -1244,14 +1243,6 @@ pub enum EditError {
         /// What is wrong with the ids.
         fault: crate::program::StepIdFault,
     },
-    /// The id an `InsertNode` drew from the document's mint chain is
-    /// one the mint log already holds (`names/README.md`, N1). An
-    /// honest log cannot reach it short of a 64-bit digest collision;
-    /// a log a file was edited to hold can.
-    NodeIdCollides {
-        /// The id drawn.
-        id: SpokenNode,
-    },
     /// A list input left with fewer than two entries. A union of one
     /// body is that body and a loft through one section is not a skin:
     /// either is a node whose meaning is its own input, spelled as an
@@ -1445,12 +1436,6 @@ pub enum EditError {
     DeleteAnonymousVar {
         /// The variable.
         var: SpokenVar,
-    },
-    /// A [`DocEdit::DeclareVar`] drew an id the mint log already holds
-    /// (N1's collision refusal, at the variable tag).
-    VarIdCollides {
-        /// The id drawn.
-        id: VarId,
     },
     /// A [`DocEdit::DefineVar`] offered a definition of another kind
     /// than the variable's. A kind is fixed at minting (VR3): a new
@@ -2192,8 +2177,8 @@ impl EditError {
 }
 
 /// [`EditError::StepIdsRefused`]'s recourse, by the fault. `InsertNode`
-/// raises `Preminted`, `SetProgram` the shape and keep arms, and both
-/// `Collides`; `NotMinted` is the load door's, which an edit door
+/// raises `Preminted`, `SetProgram` the shape and keep arms;
+/// `NotMinted` is the load door's, which an edit door
 /// spells [`EditError::NameStepNeverMinted`].
 fn step_ids_recourse(
     f: &mut core::fmt::Formatter<'_>,
@@ -2221,10 +2206,6 @@ fn step_ids_recourse(
             f,
             format_args!("keep the id on one of the two steps, and give the other none"),
         ),
-        // The mint draws from a SHA-256 chain over the document's own
-        // edits, so a draw the log already holds is a chain or log the
-        // file was damaged in, or a defect.
-        F::Collides { .. } => tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
         F::NotMinted { .. } => tail.ending(f, geom_core::KERNEL_DEFECT_ENDING),
     }
 }
@@ -2274,9 +2255,7 @@ impl EditError {
     /// as raised**: [`EditError::LabelUnchanged`] (about the label the
     /// node held, which said with a later one would claim a label the
     /// refused edit never offered), [`EditError::VarNameUnchanged`]
-    /// (the same, of a variable's name), [`EditError::NodeIdCollides`]
-    /// (about an id the log already held, which spoken from a version
-    /// holding it would name that node as the insert's), and the arms
+    /// (the same, of a variable's name), and the arms
     /// that say a node is not live — said from a version that holds it
     /// again, `X "plate" is not live` would contradict itself.
     #[must_use]
@@ -2484,7 +2463,6 @@ impl EditError {
             Self::Roots(fault) => *fault = fault.respoken(doc),
             Self::LabelUnchanged { node: _ }
             | Self::VarNameUnchanged { var: _ }
-            | Self::NodeIdCollides { id: _ }
             | Self::UnknownNode { id: _ }
             | Self::UnresolvedInput { input: _ }
             | Self::ReadSiteMissingNode { at: _ }
@@ -2499,7 +2477,6 @@ impl EditError {
             | Self::StructuralSlotNeedsStructuralEdit { slot: _ }
             | Self::NotStructuralSlot { slot: _ }
             | Self::UnknownVar { var: _, door: _ }
-            | Self::VarIdCollides { id: _ }
             | Self::Dimension(_)
             | Self::RebindKindMismatch { from: _, to: _ }
             | Self::EmptyWitnessBulk
@@ -2633,14 +2610,6 @@ impl EditError {
                     "{node}'s program cannot take the step ids given: {fault}"
                 )?;
                 step_ids_recourse(f, tail, fault)
-            }
-            Self::NodeIdCollides { id } => {
-                write!(
-                    f,
-                    "{id}, the node this insert mints, draws an id the document's mint log \
-                     already holds"
-                )?;
-                tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
             Self::TooFewMembers { found, .. } => {
                 write!(
@@ -2956,14 +2925,6 @@ impl EditError {
                     f,
                     format_args!("replace the expressions that read it, or name it first"),
                 )
-            }
-            Self::VarIdCollides { id } => {
-                write!(
-                    f,
-                    "the declare drew the variable id {id}, which this document's mint log \
-                     already holds"
-                )?;
-                tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::VarKindFixed { var, kind, offered } => {
                 write!(
@@ -3835,7 +3796,7 @@ fn settle_step_ids(
             }
         }
     }
-    let minted = mint.set_program(node.id(), new, ids).map_err(refuse)?;
+    let minted = mint.set_program(node.id(), new, ids);
     Ok((minted, dropped))
 }
 
@@ -5105,11 +5066,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
         for formula in held.exprs_mut() {
             *formula = formula.lower_held(&|name| doc.lowering_scope(name));
         }
-        let would = new
-            .mint
-            .clone()
-            .insert(&held)
-            .unwrap_or_else(|crate::NodeIdCollides { id }| id);
+        let would = new.mint.clone().insert(&held);
         SpokenNode::entering(would, &held)
     })?;
     // Liveness, and it stays spelled here rather than moving to
@@ -5132,11 +5089,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // extends a mint held aside, so a refusal further down
     // leaves the document's untouched.
     let mut mint = new.mint.clone();
-    let id =
-        mint.insert(node)
-            .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides {
-                id: SpokenNode::entering(id, node),
-            })?;
+    let id = mint.insert(node);
     check_node_inputs(doc, id, node)?;
     check_declared_sides(
         doc,
@@ -5503,18 +5456,16 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     holder: doc.spoken_var(holder),
                 });
             }
-            // A free definition is checked BEFORE anything is minted: a
-            // definition fault outranks a collision, and a refused
-            // declare speaks the id it would have minted. What a defined
-            // one reads is asked after, with the rest of its checks.
+            // A free definition is checked BEFORE anything is minted, and
+            // a refused declare speaks the id it would have minted. What
+            // a defined one reads is asked after, with the rest of its
+            // checks.
             let spoken = SpokenVar::new(new.mint.would_declare(def.kind()), Some(name.clone()));
             if let VarDecl::Free(free) = def {
                 check_var_def(&spoken, &VarDef::Free(free.clone()))?;
             }
             let mut mint = new.mint.clone();
-            let id = mint
-                .declare(def.kind())
-                .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
+            let id = mint.declare(def.kind());
             let def = lower_decl(doc, &spoken, def)?;
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
@@ -6016,11 +5967,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             } = promote_plan(doc, *instance)?;
             let promoted: Node<P> = Node::gauge(parent, offset);
             let mut mint = new.mint.clone();
-            let id = mint
-                .insert(&promoted)
-                .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides {
-                    id: SpokenNode::entering(id, &promoted),
-                })?;
+            let id = mint.insert(&promoted);
             // The gauge's parent is the instance's gauge, which a live
             // group's root may name dangling: the insert door's check.
             check_gauge_ref(new, id, parent, || SpokenNode::entering(id, &promoted))?;

@@ -1246,7 +1246,7 @@ impl Holes {
     fn placeholder(index: usize) -> StableName {
         StableName {
             kind: EntityKind::Body,
-            node: RecipeNodeId(index as u64),
+            node: RecipeNodeId::new(0, index as u64),
             path: Vec::new(),
         }
     }
@@ -1609,11 +1609,11 @@ fn read_json(text: &str) -> Result<StableName, LevelFault> {
         name.each_held_mut(&mut |h| {
             let (slot, index) = match h {
                 HoldMut::Shared(r) => {
-                    let index = r.node.0;
+                    let index = r.node.0.digest();
                     (r.get_mut(), index)
                 }
                 HoldMut::Owned(n) => {
-                    let index = n.node.0;
+                    let index = n.node.0.digest();
                     (Some(n), index)
                 }
             };

@@ -6,24 +6,27 @@
 //! The chain is a SHA-256 digest the document carries. A minting edit
 //! extends it by that edit's canonical bytes ([`MintingEdit`]); an
 //! `InsertNode` then extends it once more for the node it mints, and
-//! each step either edit mints extends it once more again. An id is the
-//! first 64 bits of the chain at the point that minted it, big-endian.
-//! An edit that mints nothing leaves the chain alone. So an id is a
-//! function of the minting edits that led to it: one sequence mints one
-//! set of ids (D9), and two sequences that part from one value mint
-//! different ids from there on. A `DeclareVar` extends the chain by its
-//! definition, display units erased, and then once for the variable it
-//! mints; the variable's name is not in the preimage (VR2), so two
-//! declares of one definition mint two ids only because the chain
-//! moved between them.
+//! each step either edit mints extends it once more again. An id is a
+//! [`MintId`]: its mint ordinal, the log's length when it was drawn
+//! plus one, and the first 64 bits of the chain at the point that drew
+//! it, big-endian. An edit that mints nothing leaves the chain alone.
+//! So an id is a function of the minting edits that led to it: one
+//! sequence mints one set of ids (D9), and two sequences that part from
+//! one value mint different ids from there on — the same ordinals, and
+//! different digests. A `DeclareVar` extends the chain by its
+//! definition's kind, and then once for the variable it mints; the
+//! variable's name is not in the preimage (VR2), so two declares of one
+//! kind mint two ids only because the chain moved between them.
 //!
-//! The log holds every id the document has minted, deleted nodes' and
-//! dropped steps' included, each tagged with what it names ([`Minted`]),
-//! ascending by id. A mint whose id the log already holds, under either
-//! tag, is refused; the doors that write a name, and the load door,
-//! refuse a node or a step the log does not hold as that; and the load
-//! door refuses a log that is not strictly ascending
-//! (`SnapshotError::MintLogOrder`).
+//! Ids order by ordinal first, so they order as they were minted. The
+//! log holds every id the document has minted, deleted nodes' and
+//! dropped steps' included, each tagged with what it names
+//! ([`Minted`]), in mint order: the entry at index `i` has ordinal
+//! `i + 1`. So no two ids one document mints are equal. The doors that
+//! write a name, and the load door, refuse a node or a step the log
+//! does not hold as that; and the load door refuses a log whose
+//! ordinals do not count up from one (`SnapshotError::MintLogOrder`),
+//! the only log a mint writes.
 //!
 //! The preimage is not [`crate::persist::canonical_bytes`]: that is a
 //! whole document's serde form, display units included, and answers
@@ -36,7 +39,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
 use crate::node::{Node, RecipeNodeId, StepId};
-use crate::program::{LoopProgram, StepIdFault};
+use crate::program::LoopProgram;
 use crate::var::{VarId, VarKind};
 
 /// The document's mint: the chain the next minting edit extends and
@@ -47,10 +50,94 @@ pub struct Mint {
     /// The chain digest, as 64 lowercase hex digits on the wire.
     #[serde(with = "chain_hex")]
     chain: [u8; 32],
-    /// Every id minted, strictly ascending by id. Read as written, so
-    /// the load door can refuse a log out of order rather than repair
-    /// it.
+    /// Every id minted, in mint order. Read as written, so the load
+    /// door can refuse a log out of order rather than repair it.
     log: Vec<Minted>,
+}
+
+/// **An id the mint draws** (`names/README.md`, N1, "The id."): the
+/// pair of its mint ordinal — the mint log's length when it was
+/// drawn, plus one — and the first 64 bits of the chain digest that
+/// drew it. Ordered ordinal first, so of two ids one document minted
+/// the lesser is the one minted first; the digest is what tells apart
+/// two documents' ids at one ordinal.
+///
+/// [`crate::RecipeNodeId`], [`crate::StepId`] and [`crate::VarId`] each
+/// wrap one. On the wire it is a string, its [`crate::FullId`]
+/// spelling (`3:3fa9c1d2a0b1c3d4`), so a map keyed by ids is a JSON
+/// object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct MintId {
+    ordinal: u32,
+    digest: u64,
+}
+
+impl MintId {
+    /// The id with mint ordinal `ordinal` and digest head `digest`.
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self { ordinal, digest }
+    }
+
+    /// Its mint ordinal: one more than the number of ids its document
+    /// had minted before it. No mint draws ordinal 0.
+    #[must_use]
+    pub const fn ordinal(self) -> u32 {
+        self.ordinal
+    }
+
+    /// The first 64 bits of the chain digest that drew it.
+    #[must_use]
+    pub const fn digest(self) -> u64 {
+        self.digest
+    }
+
+    /// The id as [`crate::FullId`] spells it, read back: the ordinal in
+    /// decimal with no leading zero, a colon, and the digest as 16
+    /// lowercase hex digits. `None` for any other text.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        let (ordinal, digest) = text.split_once(':')?;
+        let decimal = !ordinal.is_empty()
+            && ordinal.bytes().all(|b| b.is_ascii_digit())
+            && (ordinal == "0" || !ordinal.starts_with('0'));
+        let hex = digest.len() == 16
+            && digest
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+        if !(decimal && hex) {
+            return None;
+        }
+        Some(Self {
+            ordinal: ordinal.parse().ok()?,
+            digest: u64::from_str_radix(digest, 16).ok()?,
+        })
+    }
+}
+
+impl Serialize for MintId {
+    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        ser.collect_str(&crate::FullId(*self))
+    }
+}
+
+impl<'de> Deserialize<'de> for MintId {
+    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct Spelled;
+        impl serde::de::Visitor<'_> for Spelled {
+            type Value = MintId;
+            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str(
+                    "an id: its mint ordinal in decimal, a colon, and its digest as 16 \
+                     lowercase hex digits (`3:3fa9c1d2a0b1c3d4`)",
+                )
+            }
+            fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<MintId, E> {
+                MintId::parse(text).ok_or_else(|| E::invalid_value(serde::de::Unexpected::Str(text), &self))
+            }
+        }
+        de.deserialize_str(Spelled)
+    }
 }
 
 /// **One entry of the mint log**: an id, and whether it was minted for
@@ -67,9 +154,9 @@ pub enum Minted {
 }
 
 impl Minted {
-    /// The id's bits, the log's order.
+    /// The id, whatever it names.
     #[must_use]
-    pub fn bits(self) -> u64 {
+    pub fn id(self) -> MintId {
         match self {
             Self::Node(id) => id.0,
             Self::Step(step) => step.0,
@@ -88,22 +175,6 @@ impl core::fmt::Display for Minted {
             Self::Var(var) => write!(f, "variable {var}"),
         }
     }
-}
-
-/// Why the mint refused a node id; the insert door reports it as
-/// [`crate::EditError::NodeIdCollides`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NodeIdCollides {
-    /// The id the insert drew, which the log already holds.
-    pub(crate) id: RecipeNodeId,
-}
-
-/// Why the mint refused a variable id; the declare door reports it as
-/// [`crate::EditError::VarIdCollides`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct VarIdCollides {
-    /// The id the declare drew, which the log already holds.
-    pub(crate) id: VarId,
 }
 
 /// **A minting edit**, as the mint reads it: the node an `InsertNode`
@@ -211,7 +282,7 @@ impl Mint {
         self.chain
     }
 
-    /// Every id the document has minted, ascending by id.
+    /// Every id the document has minted, in mint order.
     #[cfg(test)]
     #[must_use]
     pub(crate) fn log(&self) -> &[Minted] {
@@ -235,10 +306,11 @@ impl Mint {
         })
     }
 
+    /// Whether the log holds `entry`: the entry at its ordinal's index
+    /// is it.
     fn holds(&self, entry: Minted) -> bool {
-        self.log
-            .binary_search_by_key(&entry.bits(), |e| e.bits())
-            .is_ok_and(|at| self.log[at] == entry)
+        let at = (entry.id().ordinal() as usize).checked_sub(1);
+        at.and_then(|at| self.log.get(at)) == Some(&entry)
     }
 
     /// Whether the document minted `id` as a node's id: what
@@ -274,8 +346,8 @@ impl Mint {
     /// for the variable. Reads; mints nothing.
     fn draw_var(&self, kind: VarKind) -> ([u8; 32], VarId) {
         let edit = MintingEdit::<()>::DeclareVar { kind };
-        let (chain, bits) = Self::draw(VAR_TAG, self.extended(&edit));
-        (chain, VarId(bits))
+        let (chain, id) = Self::draw(VAR_TAG, self.extended(&edit), &self.log);
+        (chain, VarId(id))
     }
 
     /// The id a declare of a `kind` variable would mint here — what a
@@ -286,39 +358,32 @@ impl Mint {
     }
 
     /// **Mint the id of a declared `kind` variable** ([`Self::draw_var`]).
-    /// On a refusal `self` is untouched.
-    ///
-    /// # Errors
-    ///
-    /// [`VarIdCollides`] where the log already holds the id.
-    pub(crate) fn declare(&mut self, kind: VarKind) -> Result<VarId, VarIdCollides> {
+    pub(crate) fn declare(&mut self, kind: VarKind) -> VarId {
         let (chain, id) = self.draw_var(kind);
-        let mut log = self.log.clone();
-        Self::log_new(&mut log, Minted::Var(id)).map_err(|_| VarIdCollides { id })?;
         self.chain = chain;
-        self.log = log;
-        Ok(id)
+        self.log.push(Minted::Var(id));
+        id
     }
 
-    /// This mint with `entries` logged too, where a test pushes nodes
-    /// by hand rather than through the insert door.
+    /// This mint with `entries` logged too, in order, where a test
+    /// pushes nodes by hand rather than through the insert door: each
+    /// entry's ordinal must be the next one.
     #[cfg(test)]
     pub(crate) fn logged(mut self, entries: impl IntoIterator<Item = Minted>) -> Self {
-        for entry in entries {
-            // A test's hand-chosen id the log holds already stays once.
-            let _ = Self::log_new(&mut self.log, entry);
-        }
+        self.log.extend(entries);
+        assert_eq!(self.out_of_order(), None, "a hand-built log counts up from one");
         self
     }
 
-    /// The first log entry whose id is not greater than the one before
-    /// it — a repeat or a step down — `None` for a strictly ascending
-    /// log.
+    /// The first log entry whose ordinal is not its place in the log —
+    /// a repeat, a gap or a step down — `None` for a log whose ordinals
+    /// count up from one, the only log a mint writes.
     pub(crate) fn out_of_order(&self) -> Option<Minted> {
         self.log
-            .windows(2)
-            .find(|pair| pair[0].bits() >= pair[1].bits())
-            .map(|pair| pair[1])
+            .iter()
+            .zip(1u64..)
+            .find(|&(entry, ordinal)| u64::from(entry.id().ordinal()) != ordinal)
+            .map(|(&entry, _)| entry)
     }
 
     /// The chain extended by `edit`'s canonical bytes.
@@ -334,8 +399,9 @@ impl Mint {
             .into()
     }
 
-    /// The next digest along `chain` under `tag`, and the id it gives.
-    fn draw(tag: &[u8], chain: [u8; 32]) -> ([u8; 32], u64) {
+    /// The next digest along `chain` under `tag`, and the id it gives
+    /// as the next entry of `log`.
+    fn draw(tag: &[u8], chain: [u8; 32], log: &[Minted]) -> ([u8; 32], MintId) {
         let chain: [u8; 32] = Sha256::new()
             .chain_update(tag)
             .chain_update(chain)
@@ -343,57 +409,41 @@ impl Mint {
             .into();
         let mut head = [0u8; 8];
         head.copy_from_slice(&chain[..8]);
-        (chain, u64::from_be_bytes(head))
-    }
-
-    /// Logs `entry`, or hands it back where the log holds its id
-    /// already.
-    fn log_new(log: &mut Vec<Minted>, entry: Minted) -> Result<(), Minted> {
-        match log.binary_search_by_key(&entry.bits(), |e| e.bits()) {
-            Ok(_) => Err(entry),
-            Err(at) => {
-                log.insert(at, entry);
-                Ok(())
-            }
-        }
+        let Some(ordinal) = u32::try_from(log.len())
+            .ok()
+            .and_then(|minted| minted.checked_add(1))
+        else {
+            panic!(
+                "a document has minted {} ids, the most a mint ordinal counts",
+                log.len()
+            )
+        };
+        (chain, MintId::new(ordinal, u64::from_be_bytes(head)))
     }
 
     /// **The id an insert of `node` mints**: the chain extended by the
     /// node's canonical bytes, then once for the node. The steps the
     /// node's profile authors, if any, are minted next, by
-    /// [`Self::steps_of_insert`]. On a refusal `self` is untouched.
-    ///
-    /// # Errors
-    ///
-    /// [`NodeIdCollides`] where the log already holds the id.
+    /// [`Self::steps_of_insert`].
     pub(crate) fn insert<P: Serialize + Clone + crate::program::SlotPayload<S>, S: crate::Slot>(
         &mut self,
         node: &Node<P, S>,
-    ) -> Result<RecipeNodeId, NodeIdCollides>
+    ) -> RecipeNodeId
     where
         Node<P, S>: Serialize,
     {
-        let (chain, bits) = Self::draw(NODE_TAG, self.extended(&MintingEdit::insert(node)));
-        let id = RecipeNodeId(bits);
-        let mut log = self.log.clone();
-        Self::log_new(&mut log, Minted::Node(id)).map_err(|_| NodeIdCollides { id })?;
+        let edit = self.extended(&MintingEdit::insert(node));
+        let (chain, id) = Self::draw(NODE_TAG, edit, &self.log);
+        let id = RecipeNodeId(id);
         self.chain = chain;
-        self.log = log;
-        Ok(id)
+        self.log.push(Minted::Node(id));
+        id
     }
 
     /// **The ids for the steps of the profile [`Self::insert`] just
     /// minted a node for**: one per authored step, `count` in all, in
-    /// loop then step order, each extending the chain once. On a
-    /// refusal `self` is untouched.
-    ///
-    /// # Errors
-    ///
-    /// [`StepIdFault::Collides`] where an id is already in the log.
-    pub(crate) fn steps_of_insert(
-        &mut self,
-        shape: &[Vec<Option<StepId>>],
-    ) -> Result<Vec<Vec<StepId>>, StepIdFault> {
+    /// loop then step order, each extending the chain once.
+    pub(crate) fn steps_of_insert(&mut self, shape: &[Vec<Option<StepId>>]) -> Vec<Vec<StepId>> {
         self.fill(self.chain, shape)
     }
 
@@ -401,23 +451,18 @@ impl Mint {
     /// loop, one entry per authored step, the id a step keeps or `None`
     /// for one to mint. The chain is extended by `edit`'s bytes, and
     /// each `None` is minted from it in loop then step order; with no
-    /// `None` nothing moves. On a refusal `self` is untouched.
-    ///
-    /// # Errors
-    ///
-    /// [`StepIdFault::Collides`] where an id is already in the log (or
-    /// minted twice by this edit).
+    /// `None` nothing moves.
     pub(crate) fn set_program(
         &mut self,
         node: RecipeNodeId,
         loops: &[LoopProgram],
         shape: &[Vec<Option<StepId>>],
-    ) -> Result<Vec<Vec<StepId>>, StepIdFault> {
+    ) -> Vec<Vec<StepId>> {
         if shape.iter().flatten().all(Option::is_some) {
-            return Ok(shape
+            return shape
                 .iter()
                 .map(|lp| lp.iter().flatten().copied().collect())
-                .collect());
+                .collect();
         }
         self.fill(
             self.extended(&MintingEdit::set_program(node, loops, shape)),
@@ -426,12 +471,7 @@ impl Mint {
     }
 
     /// Mints each `None` of `shape` along `chain`, extending the log.
-    fn fill(
-        &mut self,
-        mut chain: [u8; 32],
-        shape: &[Vec<Option<StepId>>],
-    ) -> Result<Vec<Vec<StepId>>, StepIdFault> {
-        let mut log = self.log.clone();
+    fn fill(&mut self, mut chain: [u8; 32], shape: &[Vec<Option<StepId>>]) -> Vec<Vec<StepId>> {
         let mut ids = Vec::with_capacity(shape.len());
         for lp in shape {
             let mut out = Vec::with_capacity(lp.len());
@@ -439,11 +479,10 @@ impl Mint {
                 let step = match *kept {
                     Some(step) => step,
                     None => {
-                        let (next, bits) = Self::draw(STEP_TAG, chain);
+                        let (next, id) = Self::draw(STEP_TAG, chain, &self.log);
                         chain = next;
-                        let step = StepId(bits);
-                        Self::log_new(&mut log, Minted::Step(step))
-                            .map_err(|_| StepIdFault::Collides { step })?;
+                        let step = StepId(id);
+                        self.log.push(Minted::Step(step));
                         step
                     }
                 };
@@ -452,8 +491,7 @@ impl Mint {
             ids.push(out);
         }
         self.chain = chain;
-        self.log = log;
-        Ok(ids)
+        ids
     }
 }
 
