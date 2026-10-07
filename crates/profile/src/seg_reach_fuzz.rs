@@ -1,11 +1,15 @@
 //! **A pair whose carriers nearly touch reads no contact only where its
-//! segments are apart**: a counterexample search over line × arc and
-//! arc × arc pairs whose carriers lie within ε of tangency or cross at
-//! a shallow angle just past the band, each segment reaching a few
-//! times the stretch along which the carriers stay within ε, against
-//! an independent oracle — the closed-form distance between the two
-//! segments, from their endpoints, their common normals and their
-//! crossings. No pair the oracle puts within ε may read "no contact".
+//! segments are apart**: a counterexample search against an independent
+//! oracle, the closed-form distance between the two segments from their
+//! endpoints, their common normals and their crossings. No pair the
+//! oracle puts within ε may read "no contact". Half the draws are line
+//! × arc and arc × arc pairs whose carriers lie within ε of tangency or
+//! cross at a shallow angle just past the band, each segment reaching a
+//! few times the stretch along which the carriers stay within ε or
+//! sweeping up to 10⁻³ short of a full turn. The other half end a line
+//! or an arc at an edge of the band off another segment's carrier,
+//! leaving it at an angle as small as 10⁻⁶, which is where an in-band
+//! end reading has to escalate rather than read clear.
 //!
 //! In a file of its own so the per-file test gate can skip it without
 //! skipping `seg`'s deterministic pair rows.
