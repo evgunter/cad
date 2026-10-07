@@ -39,7 +39,12 @@ spelling across `crates/`; the src hits that take the foot as a decided
 tangent's one point, each its owner's to weigh:
 
 - `crates/profile/src/seg.rs`, the arc/arc contact classifier's internal
-  `carrier_circles_internal` Zero arm (PATHS). The external arm takes
+  `carrier_circles_internal` Zero arm (PATHS). Filed on its own as
+  `an-internal-tangency-reads-its-spans-at-the-radical-foot-off-both-arcs`
+  (P2): near-concentric carriers put the foot centimetres off both
+  arcs, and the chordal `arc_span` reading of that point refuses
+  `TangentialContact` between arcs that are 1–3 cm apart, so the
+  radial place does decide a verdict there. The external arm takes
   `c₁ + û·r₁` and is already gap-optimal. **This point is read as a
   location**: `crates/profile/src/validate.rs` `judge_pair` discounts a
   `Touch` only where `seg::coincident("contact_at_shared_vertex",
@@ -75,6 +80,6 @@ tangent's one point, each its owner's to weigh:
 All of them put the point on the link line, so its ANGLE about either
 centre is the link's; a reader that only span-checks that angle sees
 nothing. What moves is its radial place, which matters wherever the
-point is used as a location. The one location reader found, above, is
-dominated by the angle, which keeps this at P3: no consumer was found
-whose verdict the radial place decides.
+point is used as a location. The location reader found, above, is
+dominated by the angle; the span reading of the same point is not, and
+has its own item. That keeps this row at P3 for the other hits.
