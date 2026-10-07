@@ -1356,6 +1356,7 @@ impl OpPlacement {
             | E::RechartFalsifies { .. }
             | E::RechartOffBoundary { .. }
             | E::RechartBoundaryEscalated { .. }
+            | E::NotMovedEdge { .. }
             | E::FaceMovedTwice { .. }
             | E::FanStartMismatch { .. }
             | E::LoopNotEmpty { .. }

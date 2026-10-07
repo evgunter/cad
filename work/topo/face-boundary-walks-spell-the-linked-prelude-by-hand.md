@@ -79,7 +79,10 @@ Moved onto it: `boolean/ops.rs` `face_boundary_meets`,
 `boolean/rim_wedge.rs` `face_boundary_arcs`; `boolean/surface_group.rs`
 `unmated_boundary`; `merge_faces.rs` `outermost_survivor` (rings only,
 through `loop_members_linked`) and `boundary_points`; `offset_nappe.rs`
-`corner_stations`. From the `once(outer).chain(rings)` sweep:
+`corner_stations`; `boolean/boxes.rs` `sphere_window` and
+`torn_outer_loop` (once `splitting/classify.rs` `sphere_zone_reach`;
+onto `loop_members_linked`, the outer loop alone). From the
+`once(outer).chain(rings)` sweep:
 `boolean/rest.rs` `face_witnesses`, `halves_at`; `shell.rs`
 `duplicate_in_loop`; `splitting/rules.rs` `face_extent`; `movefac.rs`'s
 loop hop (onto `face_loops_linked`; its walk stays, see below).
@@ -113,8 +116,7 @@ topology: `chart_region.rs` UV polygons (three). HOLD (D10, PR 3990):
 `boolean/rest.rs` `patch_faces`, whose own logic reads the declared
 REST surfaces. It is the last face walk that spells its loop field
 `"loops"`; respell it (`outer`/`rings`) when the hold lifts. Single-loop walks, which the iterator's shape does not
-take: `splitting/containment.rs` `cycle_steps`, `splitting/classify.rs`,
-`shell.rs` (four), `boolean/contain.rs` `:981`, `chord_join.rs`,
+take: `splitting/containment.rs` `cycle_steps`, `shell.rs` (four), `boolean/contain.rs` `:981`, `chord_join.rs`,
 `euler.rs` `:2837`, `boolean/rest.rs` (six outer-only walks behind its
 `loop_boundary`/`cycle` helpers). `movefac.rs`'s walk: validator-shaped
 asserts on the loop record run between the loop hop and the walk, and

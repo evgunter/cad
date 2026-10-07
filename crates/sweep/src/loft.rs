@@ -68,7 +68,7 @@ use std::sync::Arc;
 
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, NewellError, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::SplineError;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
@@ -83,8 +83,8 @@ use crate::skin::{
     LoftGeometry, Section, SectionLoop, SkinError, skin_validated, sweep_places, validate_loft,
 };
 use crate::swept::{
-    SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
-    swept_segments,
+    CapEnd, CapPlaneError, SweptSeg, cap_plane, cap_points, describe_face_rim_at_rest,
+    face_surface_key, placed_segment_spec, swept_segments,
 };
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
@@ -139,8 +139,9 @@ pub enum LoftError {
     /// (D4 ¶2 reports surface inside
     /// [`EulerOpError::Certification`]).
     Euler(EulerOpError),
-    /// A cap plane could not be certified from its boundary points.
-    CapPlane(NewellError),
+    /// A cap plane could not be certified or oriented from its boundary
+    /// points.
+    CapPlane(CapPlaneError),
     /// The whole-body pcurve mint pass refused: a wall boundary's
     /// exact line-in-UV image failed its certification.
     Pcurve(PcurveMintError),
@@ -255,7 +256,7 @@ impl fmt::Display for LoftError {
             Self::Band(e) => write!(f, "{e}"),
             Self::Skin(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation of the assembly refused: {e}"),
-            Self::CapPlane(e) => write!(f, "an end cap is not planar: {e}"),
+            Self::CapPlane(e) => write!(f, "{e}"),
             Self::Pcurve(e) => write!(f, "{e}"),
             Self::SeamStructure { source } => write!(
                 f,
@@ -592,22 +593,20 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         hes.push(m.he_plus);
         prev = m;
     }
-    let forward = cap_points(outer, qs, bplace);
-    let mut bottom_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
-    if let Some(&p0) = forward.first() {
-        bottom_order.push(p0);
-    }
-    for &p in forward.iter().skip(1).rev() {
-        bottom_order.push(p);
-    }
-    let bottom_plane = newell_plane(&bottom_order, band).map_err(LoftError::CapPlane)?;
+    let bottom_plane = cap_plane(
+        &cap_points(outer, qs, bplace),
+        bplace,
+        false,
+        CapEnd::Start,
+        band,
+    )
+    .map_err(LoftError::CapPlane)?;
     let close = body.mef(
         MefSite::Chords {
             he1: prev.he_minus,
             he2: first.he_plus,
         },
         placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
-        // Newell over the loop the cap runs: outward, as extrude's.
         FaceSurface::New {
             surface: bottom_plane,
             sense: true,
@@ -735,8 +734,14 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     }
 
     // ---- Phase 5: the swept seed face survives as the top cap. ----
-    let far_loop = cap_points(&tloops[0], &tq[0], tplace);
-    let top_plane = newell_plane(&far_loop, band).map_err(LoftError::CapPlane)?;
+    let top_plane = cap_plane(
+        &cap_points(&tloops[0], &tq[0], tplace),
+        tplace,
+        false,
+        CapEnd::End,
+        band,
+    )
+    .map_err(LoftError::CapPlane)?;
     body.set_face_surface(
         top_face,
         FaceSurface::New {

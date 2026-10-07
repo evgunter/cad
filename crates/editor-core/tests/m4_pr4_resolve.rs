@@ -977,6 +977,10 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::HoleRim { of: x, .. } => under(x),
         // Two.
         RoleSeg::Seam { a: x, b: y }
+        | RoleSeg::Crossing {
+            edge: x, face: y, ..
+        }
+        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,

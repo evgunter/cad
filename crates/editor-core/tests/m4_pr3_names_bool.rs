@@ -188,7 +188,15 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let seams = t
         .iter()
         .filter(|(n, _)| {
-            n.kind == EntityKind::Vertex && matches!(n.path.first(), Some(RoleSeg::Seam { .. }))
+            n.kind == EntityKind::Vertex
+                && matches!(
+                    n.path.first(),
+                    Some(
+                        RoleSeg::Seam { .. }
+                            | RoleSeg::Crossing { .. }
+                            | RoleSeg::EdgeCrossing { .. }
+                    )
+                )
         })
         .count();
     assert!(seams >= 4, "expected seam vertices, got {seams}");
