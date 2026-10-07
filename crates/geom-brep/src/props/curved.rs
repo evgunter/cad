@@ -4010,7 +4010,7 @@ fn torus_chart<T: Decide>(
     let half = T::from_f64(0.5);
     let f = |v: T| {
         let (sv, cv) = v.sin_cos();
-        r * ((big * big + r * r) * sv + big * r * v + big * r * half * (v + sv * cv))
+        r * ((big.powi(2) + r.powi(2)) * sv + big * r * v + big * r * half * (v + sv * cv))
     };
     let g = |v: T| r * (big * v + r * v.sin_cos().0);
     let mut total = TorusChart {
