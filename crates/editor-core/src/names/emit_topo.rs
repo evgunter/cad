@@ -3197,7 +3197,8 @@ pub(super) fn rank_crossings<T: Decide>(
         reads.push((extent, p, unread));
     }
     let forward = way.unwrap_or(true);
-    let mut chords: Vec<((*const Body<T>, EdgeKey), Option<Chord<T>>)> = Vec::new();
+    type PieceKey<T> = (*const Body<T>, EdgeKey);
+    let mut chords: Vec<(PieceKey<T>, Option<Chord<T>>)> = Vec::new();
     let ranks = rank_by(reads.len(), |i, j| match (&reads[i], &reads[j]) {
         ((_, pi, Some((bi, ei))), (_, pj, Some((bj, ej))))
             if std::ptr::eq(*bi, *bj) && ei == ej =>
