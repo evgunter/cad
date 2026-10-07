@@ -114,7 +114,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 51;
+const OP_COUNT: usize = 53;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -359,6 +359,15 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             name: Some(VarName::from_static("depth")),
         },
         SessionOp::DeleteVar { var },
+        SessionOp::SetSlotVariable {
+            node,
+            slot: SlotId::Distance,
+            var,
+        },
+        SessionOp::DeclineOffer {
+            node,
+            slot: SlotId::Distance,
+        },
     ]
 }
 
@@ -450,6 +459,11 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // for `SetVariable`'s reason.
         SessionOp::RenameVar { .. } => (49, false),
         SessionOp::DeleteVar { .. } => (50, false),
+        // The slot-write gesture is a document edit, fenced for
+        // `SetVariable`'s reason; declining an offer touches neither the
+        // document nor the history.
+        SessionOp::SetSlotVariable { .. } => (51, false),
+        SessionOp::DeclineOffer { .. } => (52, true),
     }
 }
 
@@ -857,6 +871,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
@@ -1464,6 +1480,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }

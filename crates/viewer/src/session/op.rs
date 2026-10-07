@@ -129,6 +129,30 @@ pub enum SessionOp {
         /// The expression source.
         text: String,
     },
+    /// **Make a slot read an existing variable** — the slot-write
+    /// gesture, and what accepting a typed value's offer emits
+    /// (`DocSession::offered`): one `SetParam` (or `SetStructuralParam`)
+    /// whose formula is the variable alone, so two slots share one
+    /// variable from then on. A variable of another kind is the edit
+    /// door's to refuse.
+    SetSlotVariable {
+        /// The node.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+        /// The variable it reads from now on.
+        var: VarId,
+    },
+    /// **Decline a typed value's offer**: the slot keeps the variable
+    /// its typed value minted, distinct from every variable offered
+    /// (D10: "declining the offer is what makes the two distinct").
+    /// Changes no document and enters no history.
+    DeclineOffer {
+        /// The node.
+        node: RecipeNodeId,
+        /// The slot whose offer is declined.
+        slot: SlotId,
+    },
     /// Write a value into a document variable.
     SetVariable {
         /// The variable.
@@ -1064,6 +1088,8 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
+            | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
@@ -1134,6 +1160,8 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
+            | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
@@ -1345,9 +1373,11 @@ impl SessionOp {
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }
-            | Self::CancelFreeMove => true,
+            | Self::CancelFreeMove
+            | Self::DeclineOffer { .. } => true,
             Self::DeleteNode { .. }
             | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
             | Self::ProbeBounds { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
@@ -1470,6 +1500,8 @@ impl SessionOp {
             | Self::CancelFreeMove
             | Self::DeleteNode { .. }
             | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
+            | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }

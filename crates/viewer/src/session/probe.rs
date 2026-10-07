@@ -199,8 +199,11 @@ fn probe_scale(
             Ok((value.as_f64(), unit, dimension == Dimension::Count))
         }
         BoundsTarget::Variable { var } => {
-            let Some(param) = doc.free(*var) else {
+            let Some(held) = doc.var(*var) else {
                 return Err(Refusal::NoSuchVariable(*var));
+            };
+            let Some(param) = held.free() else {
+                return Err(Refusal::VariableIsDefined(doc.spoken_var(*var)));
             };
             // Same rule as a slot's: one of whatever unit the
             // field is WRITTEN in. A continuous variable names the
@@ -248,7 +251,7 @@ fn probe_edit(
             // edit itself carries a value and nothing else, so a
             // probe cannot disturb the variable's declaration
             // (`props::variable_edit`'s door).
-            let dimension = doc.free(*var)?.dim();
+            let dimension = doc.var(*var)?.kind().dimension();
             Some(props::variable_edit(
                 *var,
                 SlotValue::of(dimension, value).ok()?,

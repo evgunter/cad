@@ -756,6 +756,8 @@ pub fn acts(op: &SessionOp) -> bool {
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
@@ -864,6 +866,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
@@ -2925,6 +2929,7 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
         Refusal::DrivenByExpression { .. }
         | Refusal::NoSuchSlot { .. }
         | Refusal::NoSuchVariable(_)
+        | Refusal::VariableIsDefined(_)
         | Refusal::ConstantRefused { .. }
         | Refusal::EmptyName
         | Refusal::WrongNodeKind { .. }

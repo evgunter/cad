@@ -3947,6 +3947,125 @@ mod properties_pane_tests {
             .map(|message| message.text().to_owned())
     }
 
+    /// The startup extrude's depth typed as `value`, after a length
+    /// variable `name` declared at the same value; the extrude selected.
+    fn typed_beside(name: &'static str, value: f64) -> Vec<SessionOp> {
+        vec![
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static(name),
+                value: pncad::document::FreeVar::continuous(
+                    pncad::document::Dimension::Length,
+                    value,
+                ),
+            },
+            SessionOp::SetSlot {
+                node: extrude(),
+                slot: SlotId::Distance,
+                value: crate::props::SlotValue::Continuous(value),
+            },
+            SessionOp::Select(Selection::Node(extrude())),
+        ]
+    }
+
+    /// **The offer is drawn under the typed slot, and its button writes
+    /// the slot to read the variable** — the real pane, the click
+    /// reaching the session as `SetSlotVariable`. The variable list
+    /// says `beam` too, so the button is the run on the offer's line.
+    #[test]
+    fn the_offer_is_drawn_and_its_button_makes_the_slot_read_the_variable() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        let painted = pane.quiet();
+        let line = Driven::only(&painted, "same value as");
+        let at = painted
+            .iter()
+            .filter(|(run, _)| run == "beam")
+            .map(|(_, rect)| rect.center())
+            .min_by(|p, q| (p.y - line.y).abs().total_cmp(&(q.y - line.y).abs()))
+            .expect("the offered variable is drawn");
+        assert!((at.y - line.y).abs() < 4.0, "on the offer's line");
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        pane.frame(vec![egui::Event::PointerMoved(at)]);
+        pane.frame(vec![press(true), press(false)]);
+        pane.frame(Vec::new());
+        let doc = pane.app.session.committed_doc();
+        assert_eq!(
+            doc.slot(extrude(), SlotId::Distance),
+            doc.var_named("beam"),
+            "the slot reads the variable offered"
+        );
+        let after = pane.quiet();
+        assert!(
+            !after.iter().any(|(run, _)| run == "same value as"),
+            "an accepted offer is no longer drawn"
+        );
+    }
+
+    /// **Declining is a button too**, and it leaves the document where
+    /// it was: the slot keeps the variable its typed value minted.
+    #[test]
+    fn keep_separate_declines_the_offer_and_moves_no_document() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        pane.quiet();
+        let minted = pane
+            .app
+            .session
+            .committed_doc()
+            .slot(extrude(), SlotId::Distance);
+        let steps = pane.app.session.history().len();
+        pane.click("keep separate");
+        let after = pane.quiet();
+        assert!(!after.iter().any(|(run, _)| run == "same value as"));
+        assert_eq!(pane.app.session.history().len(), steps, "no undo step");
+        assert_eq!(
+            pane.app
+                .session
+                .committed_doc()
+                .slot(extrude(), SlotId::Distance),
+            minted
+        );
+    }
+
+    /// **The naming field opens on the proposal and stores nothing
+    /// until it is committed** (VR2): the proposal is the text the
+    /// field holds, the document holds no name while it is open, and
+    /// the commit is one `RenameVar` of the variable the slot reads.
+    #[test]
+    fn a_name_is_proposed_in_the_pane_and_stored_on_commit() {
+        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
+        pane.quiet();
+        let var = pane
+            .app
+            .session
+            .committed_doc()
+            .slot(extrude(), SlotId::Distance)
+            .expect("the extrude reads its depth");
+        assert!(pane.app.session.committed_doc().var_name(var).is_none());
+        pane.click("name…");
+        assert_eq!(
+            pane.app.drafts.name_draft,
+            Some(((extrude(), SlotId::Distance), "distance".to_owned())),
+            "the field opens on the proposal"
+        );
+        pane.quiet();
+        assert!(
+            pane.app.session.committed_doc().var_name(var).is_none(),
+            "a proposal stores nothing"
+        );
+        pane.click("Name");
+        let doc = pane.app.session.committed_doc();
+        assert_eq!(
+            doc.var_name(var).map(|name| name.as_str()),
+            Some("distance")
+        );
+        assert_eq!(doc.slot(extrude(), SlotId::Distance), Some(var));
+        assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+    }
+
     /// **A driven slot's unit picker is drawn, cannot be opened, and
     /// says what `SetSlotUnit` would refuse with** — the whole app,
     /// the real pane, a slot made driven through the real door.

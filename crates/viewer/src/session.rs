@@ -508,6 +508,21 @@ struct Derived {
     /// field it invalidates rather than leaving one of them to a route
     /// a reader of the walk cannot see.
     bounds: Option<BoundsReading>,
+    /// The slot whose typed value is offered the variables of equal
+    /// value ([`DocSession::offered`]), and the variable that typing
+    /// minted. It stands until it is accepted or declined, or until the
+    /// slot no longer reads that variable — a later edit, an undo — so
+    /// an offer is never made about a value the slot no longer holds.
+    offer: Option<SlotOffer>,
+}
+
+/// A typed value's offer: the slot it was typed at and the variable it
+/// minted there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SlotOffer {
+    node: RecipeNodeId,
+    slot: SlotId,
+    var: VarId,
 }
 
 impl Derived {
@@ -521,6 +536,7 @@ impl Derived {
             scratch: None,
             landed: None,
             bounds: None,
+            offer: None,
         }
     }
 }
@@ -546,6 +562,7 @@ impl core::fmt::Debug for Derived {
             scratch,
             landed,
             bounds,
+            offer,
         } = self;
         f.debug_struct("Derived")
             .field("selection", selection)
@@ -554,6 +571,7 @@ impl core::fmt::Debug for Derived {
             .field("scratch", &scratch.as_ref().map(|_| format_args!("<Doc>")))
             .field("landed", landed)
             .field("bounds", bounds)
+            .field("offer", offer)
             .finish()
     }
 }
@@ -1050,6 +1068,26 @@ impl DocSession {
         self.derived.bounds.as_ref()
     }
 
+    /// **The variables a value typed at `slot` on `node` is offered**
+    /// (D10: typing a value offers an existing variable of equal
+    /// value): empty unless the last typed value there still stands and
+    /// has not been accepted or declined, and empty where no variable
+    /// equals it ([`props::equal_variables`]). Read off the committed
+    /// document, which is the one the accepting edit applies to.
+    pub fn offered(&self, node: RecipeNodeId, slot: SlotId) -> Vec<props::Offered> {
+        let doc = self.committed_doc();
+        match self.derived.offer {
+            Some(offer)
+                if offer.node == node
+                    && offer.slot == slot
+                    && doc.slot(node, slot) == Some(offer.var) =>
+            {
+                props::equal_variables(doc, node, slot)
+            }
+            Some(_) | None => Vec::new(),
+        }
+    }
+
     /// **The gathered product of the landed run** — the aggregate a
     /// display fit sizes itself on, and the aggregate a scene is
     /// tessellated from.
@@ -1478,6 +1516,13 @@ impl DocSession {
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
+            SessionOp::SetSlotVariable { node, slot, var } => {
+                self.set_slot_variable(node, slot, var)
+            }
+            SessionOp::DeclineOffer { node, slot } => {
+                self.close_offer(node, slot);
+                OpOutcome::default()
+            }
             SessionOp::SetVariable { var, value } => self.set_variable(var, value),
             SessionOp::SetVariableUnit { var, unit } => self.set_variable_unit(var, unit),
             SessionOp::SetVariableText { var, text } => self.set_variable_text(var, &text),
@@ -1842,9 +1887,54 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
-        match props::slot_edit(self.committed_doc(), node, slot, value, unit) {
-            Ok(edit) => self.commit_written(edit),
+        match props::slot_typed_edit(node, slot, value, unit) {
+            Ok(edit) => {
+                let outcome = self.commit_written(edit);
+                self.offer_after(node, slot, &outcome);
+                outcome
+            }
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// **Open the offer a typed value earns** (D10), once the edit that
+    /// typed it has landed: the slot now reads a variable that typing
+    /// minted, and [`Self::offered`] answers the variables of equal
+    /// value. Text that reads a variable or computes one mints no typed
+    /// value and opens nothing; a refused or empty edit leaves the
+    /// standing offer as it was.
+    fn offer_after(&mut self, node: RecipeNodeId, slot: SlotId, outcome: &OpOutcome) {
+        if outcome.refusal.is_some() || outcome.committed.is_empty() {
+            return;
+        }
+        let doc = self.committed_doc();
+        self.derived.offer = doc
+            .slot(node, slot)
+            .filter(|&var| doc.is_typed_value(var))
+            .map(|var| SlotOffer { node, slot, var });
+    }
+
+    /// **Accept an offer**: the slot reads `var` — the slot-write
+    /// gesture, one edit and one undo step. The door checks the kind.
+    fn set_slot_variable(&mut self, node: RecipeNodeId, slot: SlotId, var: VarId) -> OpOutcome {
+        let outcome = self.commit_written(props::slot_read_edit(node, slot, var));
+        if outcome.refusal.is_none() {
+            self.close_offer(node, slot);
+        }
+        outcome
+    }
+
+    /// **Decline an offer**: the slot keeps the variable its typed value
+    /// minted, which is what makes it distinct from the ones offered
+    /// (D10). It changes no document; declining where nothing is
+    /// offered is the same nothing.
+    fn close_offer(&mut self, node: RecipeNodeId, slot: SlotId) {
+        if self
+            .derived
+            .offer
+            .is_some_and(|offer| offer.node == node && offer.slot == slot)
+        {
+            self.derived.offer = None;
         }
     }
 
@@ -1949,7 +2039,9 @@ impl DocSession {
         // offered is the expression standing — and the `unparse` /
         // `parse_formula` round trip preserves both the bits and the
         // display unit, so a source re-typed as itself compares equal.
-        self.commit_written(edit)
+        let outcome = self.commit_written(edit);
+        self.offer_after(node, slot, &outcome);
+        outcome
     }
 
     /// The value door: write a declared variable's value.

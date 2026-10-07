@@ -75,23 +75,32 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
     assert!(!distance.structural);
     assert_eq!(distance.value, Ok(SlotValue::Continuous(0.008)));
 
+    let before = session
+        .committed_doc()
+        .slot(extrude, SlotId::Distance)
+        .expect("the extrude reads its distance");
     let outcome = session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,
         value: SlotValue::Continuous(0.012),
     });
-    // A literal slot's value is its own variable's (Q6): the edit
-    // writes that value, and the slot keeps reading the same variable.
-    let held = session
-        .committed_doc()
+    // A value TYPED at a slot mints an anonymous variable (VR6, D10),
+    // through `SetParam`: the slot reads a new variable, and the one it
+    // read before, read by nothing now, leaves the document (VR7).
+    assert!(
+        matches!(outcome.committed.as_slice(), [DocEdit::SetParam { .. }]),
+        "{:?}",
+        outcome.committed
+    );
+    let doc = session.committed_doc();
+    let held = doc
         .slot(extrude, SlotId::Distance)
         .expect("the extrude reads its distance");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::SetVarValue { var, .. }) if *var == pncad::document::VarRef::Id(held)
-    ));
+    assert_ne!(held, before, "the typed value is a new variable");
+    assert!(doc.is_typed_value(held), "an anonymous free variable");
+    assert!(doc.var(before).is_none(), "the unread one is gone");
     assert_eq!(
-        props::slot_rows(session.committed_doc(), extrude)
+        props::slot_rows(doc, extrude)
             .into_iter()
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
@@ -663,6 +672,7 @@ test_utils::f6_variants! {
         DrivenByExpression,
         NoSuchSlot,
         NoSuchVariable,
+        VariableIsDefined,
         ConstantRefused,
         EmptyName,
         WrongNodeKind,

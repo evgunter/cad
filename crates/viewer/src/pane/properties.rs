@@ -321,10 +321,9 @@ impl ViewerBehavior<'_> {
         // previewed document would be answering about a document the
         // door will not see.
         let committed = self.session.committed_doc();
-        let existing = name.as_ref().and_then(|name| {
-            let var = committed.var_named(name.as_str())?;
-            Some((var, committed.free(var)?.dim()))
-        });
+        let existing = name
+            .as_ref()
+            .and_then(|name| crate::props::named_variable(committed, name));
         if let (Some(name), Some((var, dimension))) = (&name, existing) {
             if exists_notice(ui, &self.theme, name, dimension) {
                 self.ops.push(SessionOp::Select(Selection::Variable(var)));
@@ -621,6 +620,7 @@ impl ViewerBehavior<'_> {
                 self.slot_notes_ui(ui, node, row);
                 ui.horizontal(|ui| {
                     self.range_button(ui, node, row, "range?");
+                    self.name_button(ui, node, row, "name…");
                 });
             }
             SlotGroup::Vector { family, rows } => {
@@ -649,6 +649,12 @@ impl ViewerBehavior<'_> {
                     ui.weak("range");
                     for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
                         self.range_button(ui, node, row, axis.label());
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.weak("name");
+                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                        self.name_button(ui, node, row, axis.label());
                     }
                 });
             }
@@ -883,6 +889,116 @@ impl ViewerBehavior<'_> {
         let reading = self.bounds_wording(&target);
         if let Some(var) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
             self.ops.push(SessionOp::Select(Selection::Variable(var)));
+        }
+        self.offer_ui(ui, node, row.slot);
+        self.name_field_ui(ui, node, row.slot);
+    }
+
+    /// **The offer a typed value earns** (D10), under its row: each
+    /// existing variable of equal value as a button whose click makes
+    /// the slot read it ([`SessionOp::SetSlotVariable`]), and a button
+    /// that declines, keeping the variable the typing minted
+    /// ([`SessionOp::DeclineOffer`]). Nothing is drawn while nothing is
+    /// offered (`DocSession::offered`).
+    fn offer_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, slot: SlotId) {
+        let offered = self.session.offered(node, slot);
+        if offered.is_empty() {
+            return;
+        }
+        ui.horizontal_wrapped(|ui| {
+            crate::widgets::message_toned(ui, "same value as", &self.theme, Tone::Advisory);
+            for offer in offered {
+                if ui
+                    .add(egui::Button::new(offer.label.as_str()).small())
+                    .on_hover_text(OFFER_HOVER)
+                    .clicked()
+                {
+                    self.ops.push(SessionOp::SetSlotVariable {
+                        node,
+                        slot,
+                        var: offer.var,
+                    });
+                }
+            }
+            if ui
+                .add(egui::Button::new("keep separate").small())
+                .on_hover_text(DECLINE_HOVER)
+                .clicked()
+            {
+                self.ops.push(SessionOp::DeclineOffer { node, slot });
+            }
+        });
+    }
+
+    /// The button that opens the naming field for the variable a slot
+    /// reads — drawn only where that variable is unnamed, since a named
+    /// one is renamed at its own row. The field opens on the proposal
+    /// ([`props::proposed_name`]); the document holds no name until the
+    /// field is committed (VR2).
+    fn name_button(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow, label: &str) {
+        let doc = self.session.committed_doc();
+        let Some(var) = doc.slot(node, row.slot) else {
+            return;
+        };
+        if doc.var_name(var).is_some() || doc.var(var).is_none() {
+            return;
+        }
+        let proposal = props::proposed_name(doc, row.slot);
+        if ui
+            .add(egui::Button::new(label).small())
+            .on_hover_text(NAME_HOVER)
+            .clicked()
+        {
+            self.drafts.name_draft = Some((
+                (node, row.slot),
+                proposal.map(|name| name.to_string()).unwrap_or_default(),
+            ));
+        }
+    }
+
+    /// **The naming field**, under the row whose button opened it: the
+    /// proposal as editable text, committed as one
+    /// [`SessionOp::RenameVar`] on its button or Enter, abandoned on
+    /// `cancel`. A text that is no name disables the commit and says why
+    /// on hover, in the name door's words.
+    fn name_field_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, slot: SlotId) {
+        let Some(((at_node, at_slot), _)) = &self.drafts.name_draft else {
+            return;
+        };
+        if (*at_node, *at_slot) != (node, slot) {
+            return;
+        }
+        let Some(var) = self.session.committed_doc().slot(node, slot) else {
+            self.drafts.name_draft = None;
+            return;
+        };
+        let mut commit = false;
+        let mut cancel = false;
+        ui.horizontal(|ui| {
+            let Some((_, text)) = self.drafts.name_draft.as_mut() else {
+                return;
+            };
+            let field = ui.add(egui::TextEdit::singleline(text).desired_width(120.0));
+            let entered = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let name = VarName::new(text.trim());
+            let button = ui.add_enabled(name.is_ok(), egui::Button::new("Name").small());
+            let button = match &name {
+                Ok(_) => button,
+                Err(fault) => button.on_disabled_hover_text(fault.to_string()),
+            };
+            commit = name.is_ok() && (entered || button.clicked());
+            cancel = ui.add(egui::Button::new("cancel").small()).clicked();
+        });
+        if commit
+            && let Some((_, text)) = self.drafts.name_draft.take()
+            && let Ok(name) = VarName::new(text.trim())
+        {
+            self.ops.push(SessionOp::RenameVar {
+                var,
+                name: Some(name),
+            });
+        } else if cancel {
+            self.drafts.name_draft = None;
         }
     }
 
@@ -1397,6 +1513,16 @@ fn hide_toggle(
     }
     toggle.changed()
 }
+
+/// What an offered variable's button says on hover.
+const OFFER_HOVER: &str = "read this variable here instead of the value typed: the two slots then \
+                           move together";
+
+/// What the decline button says on hover.
+const DECLINE_HOVER: &str = "keep the value typed as its own variable";
+
+/// What the naming button says on hover.
+const NAME_HOVER: &str = "name the variable this slot reads, so a formula can read it too";
 
 /// What a range button says on hover, for a slot's and a variable's
 /// alike.

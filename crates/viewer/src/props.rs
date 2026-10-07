@@ -133,8 +133,8 @@
 use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VectorSlot, eval,
-    eval_count,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VarName,
+    VectorSlot, eval, eval_count,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{
@@ -902,6 +902,14 @@ pub fn slot_unit(doc: &Doc<ProfileProgram>, node: RecipeNodeId, slot: SlotId) ->
     doc.slot_expansion(node, slot)?.display_unit()
 }
 
+/// **The variable the document holds under `name`, at its kind's
+/// dimension** — free or defined alike, since the declare door refuses
+/// a name either holds (`EditError::VarNameTaken`).
+pub fn named_variable(doc: &Doc<ProfileProgram>, name: &VarName) -> Option<(VarId, Dimension)> {
+    let var = doc.var_named(name.as_str())?;
+    Some((var, doc.var(var)?.kind().dimension()))
+}
+
 /// One document-level variable, as the panel shows it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VariableRow {
@@ -991,7 +999,36 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
         .collect()
 }
 
-/// The edit that writes `value` into `slot` on `node`.
+/// **The edit a value GESTURE writes into `slot` on `node`**: a slot
+/// reading a typed value moves that value (VARIABLES-DESIGN,
+/// INTENT-LITERALS Q6), so the variable keeps its identity, its
+/// notation and its distribution, and every other slot takes
+/// [`slot_typed_edit`]'s new variable. A value TYPED into the field
+/// is [`slot_typed_edit`] whatever the slot reads.
+///
+/// # Errors
+///
+/// [`slot_typed_edit`]'s.
+pub fn slot_edit(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+    value: SlotValue,
+    unit: Option<UnitDef>,
+) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
+    if let Some(var) = doc.slot(node, slot)
+        && doc.is_typed_value(var)
+    {
+        return Ok(variable_edit(var, value));
+    }
+    slot_typed_edit(node, slot, value, unit)
+}
+
+/// **The edit a value TYPED at `slot` on `node` writes**: the slot
+/// reads a new anonymous free variable holding `value` (VR6; D10's
+/// "typing a value in the GUI mints a free variable"), and whatever it
+/// read before is no longer read from here. Two slots that read one
+/// variable are therefore made two by a value typed at either.
 ///
 /// The structural/continuous divide is decided by the SLOT, which is
 /// the only thing that knows: a Count slot takes
@@ -999,7 +1036,7 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
 /// edit rather than applying it keeps this a pure function of the
 /// request, which is what lets a test assert on the emitted edit.
 ///
-/// `unit` is the display unit the new literal REMEMBERS. Callers pass
+/// `unit` is the display unit the new variable REMEMBERS. Callers pass
 /// the slot's existing one (`SlotRow::unit`), which is what makes an
 /// edit to the number leave the way it is written alone; the door that
 /// changes the unit is `SessionOp::SetSlotUnit`. A `Count` slot has no
@@ -1015,21 +1052,12 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
 /// dimension — reported rather than silently dropped, because a
 /// mismatched unit means the caller's idea of the slot disagrees with
 /// the slot's own.
-pub fn slot_edit(
-    doc: &Doc<ProfileProgram>,
+pub fn slot_typed_edit(
     node: RecipeNodeId,
     slot: SlotId,
     value: SlotValue,
     unit: Option<UnitDef>,
 ) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
-    // A value gesture on a slot reading its own written value moves that
-    // value (VARIABLES-DESIGN, INTENT-LITERALS Q6): the variable keeps
-    // its identity, its notation and its distribution.
-    if let Some(var) = doc.slot(node, slot)
-        && doc.is_typed_value(var)
-    {
-        return Ok(variable_edit(var, value));
-    }
     let expr = match (value, unit) {
         (SlotValue::Count(count), _) => Formula::count(count),
         (SlotValue::Continuous(v), None) => Formula::literal(v, slot.dimension())?,
@@ -1037,7 +1065,24 @@ pub fn slot_edit(
             Formula::literal_with_unit(v, slot.dimension(), unit)?
         }
     };
-    Ok(if slot.is_structural() {
+    Ok(slot_formula_edit(node, slot, expr))
+}
+
+/// **The edit that makes `slot` on `node` read `var`** — the slot-write
+/// gesture an accepted offer emits ([`equal_variables`]). The kind is
+/// the door's to check (`EditError::SlotVarKind`).
+pub fn slot_read_edit(node: RecipeNodeId, slot: SlotId, var: VarId) -> DocEdit<ProfileProgram> {
+    slot_formula_edit(node, slot, Formula::var(var, slot.dimension()))
+}
+
+/// `expr` at `slot`, through the edit the slot's side of the
+/// structural divide takes.
+pub fn slot_formula_edit(
+    node: RecipeNodeId,
+    slot: SlotId,
+    expr: Formula,
+) -> DocEdit<ProfileProgram> {
+    if slot.is_structural() {
         DocEdit::SetStructuralParam {
             node,
             slot,
@@ -1051,7 +1096,115 @@ pub fn slot_edit(
             expr,
             fresh: Vec::new(),
         }
-    })
+    }
+}
+
+/// One variable a slot's typed value is OFFERED — an existing variable
+/// of the same kind holding the same value (D10).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Offered {
+    /// The variable accepting the offer makes the slot read.
+    pub var: VarId,
+    /// How the offer names it: its name, or for an anonymous variable
+    /// the slot that reads it (`the depth of Extrude "base"`), as VR2
+    /// says an unnamed variable reads; its tag where no slot reads it.
+    pub label: String,
+}
+
+/// **The variables `slot` on `node` is offered**: every other variable
+/// of the kind the slot reads whose value equals the slot's, in
+/// declaration order — free variables by their value, defined ones by
+/// what their definition evaluates to. Equal is equal at the bits of
+/// the canonical value: `5 mm` typed twice is offered, `0.5 cm` against
+/// `5 mm` only where the two scale to the same number.
+///
+/// Empty where the slot reads nothing the document holds, or reads a
+/// value nothing else equals.
+pub fn equal_variables(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> Vec<Offered> {
+    let Some(own) = doc.slot(node, slot) else {
+        return Vec::new();
+    };
+    let Some(kind) = doc.var(own).map(|held| held.kind()) else {
+        return Vec::new();
+    };
+    let env = doc.var_env::<f64>();
+    let value_of = |var: VarId| {
+        let dimension = doc.var(var)?.kind().dimension();
+        let expr = Expr::var(var, dimension);
+        if dimension == Dimension::Count {
+            eval_count(&expr, &env).ok().map(SlotValue::Count)
+        } else {
+            eval(&expr, &env).ok().map(SlotValue::Continuous)
+        }
+    };
+    let Some(value) = value_of(own) else {
+        return Vec::new();
+    };
+    doc.var_order()
+        .iter()
+        .copied()
+        .filter(|&var| var != own)
+        .filter(|&var| doc.var(var).is_some_and(|held| held.kind() == kind))
+        .filter(|&var| value_of(var) == Some(value))
+        .map(|var| Offered {
+            var,
+            label: variable_label(doc, var),
+        })
+        .collect()
+}
+
+/// **A variable as a person reads it**: its name, or, unnamed, the first
+/// slot in document order that reads it (VR2: "the depth of Extrude
+/// "base plate""), or its tag where no slot does.
+pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
+    if let Some(name) = doc.var_name(var) {
+        return name.to_string();
+    }
+    doc.order()
+        .iter()
+        .find_map(|&node| {
+            let slot = doc
+                .node(node)?
+                .slots()
+                .into_iter()
+                .find(|&slot| doc.slot(node, slot) == Some(var))?;
+            Some(format!("the {} of {}", slot.label(), doc.spoken(node)))
+        })
+        .unwrap_or_else(|| doc.spoken_var(var).to_string())
+}
+
+/// **The name the naming affordance proposes** for the variable `slot`
+/// reads: the slot's own word, snake-cased, and the first of `word`,
+/// `word_2`, `word_3`, … the document does not hold. Only a proposal:
+/// the kernel mints no name (VR2), and nothing is stored until the
+/// person commits it (`SessionOp::RenameVar`).
+pub fn proposed_name(doc: &Doc<ProfileProgram>, slot: SlotId) -> Option<VarName> {
+    let word: String = slot
+        .label()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    (1..)
+        .map(|n| {
+            if n == 1 {
+                word.clone()
+            } else {
+                format!("{word}_{n}")
+            }
+        })
+        .take(1000)
+        .filter_map(|text| VarName::new(&text).ok())
+        .find(|name| doc.var_named(name.as_str()).is_none())
 }
 
 /// The `FreeVar` a dimension, a value and a NOTATION mint — the

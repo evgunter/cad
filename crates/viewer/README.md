@@ -42,6 +42,16 @@ the preferences file as `[notation] length` and `angle`, by unit
 symbol; it is never written into a document. A literal you wrote reads
 in the unit it was written in.
 
+A value typed at a slot — a number, or a written quantity like
+`5 mm` — gives the slot a new variable of its own, whatever it read
+before. When other variables of the same kind hold the same value, the
+slot's row says `same value as` and names each one: click one to make
+the slot read it (one undoable edit; the two then move together), or
+**keep separate** to keep the typed value distinct. A slot whose
+variable has no name has a **name…** button that opens a field on a
+proposed name (the slot's own word); nothing is stored until you press
+**Name** or Enter.
+
 In the Properties panel, the document-variables list ends with an
 add-variable row (name + dimension + value, written in the working
 notation's unit, one undoable edit); an
@@ -1527,7 +1537,9 @@ delegating arm exists to carry the door's answer unchanged.
 **A lookup is not a pre-check.** Opening a gesture on a variable needs
 its dimension, and the range probe needs its value and unit; both look
 the variable up whether or not an edit ever follows, so a flat arm is
-the honest answer when the lookup fails. What separates the two cases
+the honest answer when the lookup fails — `NoSuchVariable` for an id
+the document does not hold, and, for the probe, `VariableIsDefined`
+for one whose definition holds no value to move. What separates the two cases
 is whether an edit is about to be committed that would refuse on its
 own.
 

@@ -60,6 +60,11 @@ pub(crate) struct Drafts {
     pub(crate) expr_target: Option<(RecipeNodeId, SlotId)>,
     /// The refused text itself.
     pub(crate) expr_text: String,
+    /// The slot whose variable the naming field is open for, and the
+    /// text in it — seeded with the proposal
+    /// ([`crate::props::proposed_name`]) and stored in the document
+    /// only when the person commits it (VR2).
+    pub(crate) name_draft: Option<((RecipeNodeId, SlotId), String)>,
     /// The add-variable form's name field.
     pub(crate) new_variable_name: String,
     /// Its chosen dimension — `None` until the user picks one, and
@@ -619,6 +624,7 @@ impl Default for Drafts {
             delta_text: None,
             expr_target: None,
             expr_text: String::new(),
+            name_draft: None,
             new_variable_name: String::new(),
             new_variable_dimension: None,
             new_variable_value: 0.0,

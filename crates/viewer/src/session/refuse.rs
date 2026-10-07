@@ -273,6 +273,12 @@ pub enum Refusal {
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
     NoSuchVariable(VarId),
+    /// A value door that reads a FREE variable's value was pointed at a
+    /// defined one: the range probe, which seeds its search from the
+    /// value it would move. A defined variable holds a formula and no
+    /// value of its own, so there is nothing to move; its range is the
+    /// ranges of the variables it reads.
+    VariableIsDefined(SpokenVar),
     /// A variable's field was given a constant expression that does
     /// not evaluate to a value — a non-finite result, or a count past
     /// its range. Constant text typed as a value is folded here, before
@@ -444,6 +450,7 @@ impl Refusal {
                 var: var.respoken(doc),
                 source,
             },
+            Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
             Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
             Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
@@ -489,6 +496,7 @@ impl Refusal {
             | Self::NoSuchSlot { .. }
             | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
+            | Self::VariableIsDefined(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -530,6 +538,7 @@ impl Refusal {
             Self::NoSuchSlot { .. }
             | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
+            | Self::VariableIsDefined(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -796,6 +805,11 @@ impl core::fmt::Display for Refusal {
             Self::ConstantRefused { var, source } => {
                 write!(f, "the value typed for {var} does not evaluate: {source}")
             }
+            Self::VariableIsDefined(var) => write!(
+                f,
+                "{var} is defined by a formula and holds no value of its own to move — \
+                 probe a variable it reads"
+            ),
             Self::EmptyName => {
                 write!(
                     f,
