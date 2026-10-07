@@ -895,7 +895,7 @@ class TestPersistence(unittest.TestCase):
         var = doc.slot(box, "distance")
         header, body_text = doc.save().split("\n", 1)
         body = json.loads(body_text)
-        held = body["snapshot"]["vars"][str(int(var.hex, 16))]
+        held = body["snapshot"]["vars"][var.hex]
         self.assertIn("Defined", held["def"], "the distance is a defined variable to tamper")
         held["def"]["Defined"] = wire
         return header + "\n" + json.dumps(body)
