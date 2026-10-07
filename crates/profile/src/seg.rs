@@ -1024,6 +1024,9 @@ enum Joint {
 
 /// A point definitely outside either span is no contact, whatever the
 /// other span reads; only then does an indeterminate reading escalate.
+/// Sound where the candidates are the true crossings of the carriers;
+/// `line_arc`'s tangent arm, whose foot stands for a √(2rε) stretch of
+/// near-contact, reads both spans definitely before calling it.
 fn joint(
     m1: Result<Sign, Indeterminate>,
     m2: Result<Sign, Indeterminate>,
@@ -1137,7 +1140,8 @@ fn line_arc<T: Decide>(
 ) -> Result<PairOutcome<T>, Indeterminate> {
     let to_center = g.arc.centre - line.a;
     let h = line.unit.perp_dot(to_center);
-    let foot = line.a + line.unit * to_center.dot(line.unit);
+    let tc = to_center.dot(line.unit);
+    let foot = line.a + line.unit * tc;
     let (clearance, _) = carrier_line_circle_margin(line.unit, line.a, g);
     let mut contacts = Vec::new();
     let carriers = match decide("carrier_line_circle", Margin::of(clearance), band) {
@@ -1150,7 +1154,13 @@ fn line_arc<T: Decide>(
     match carriers {
         Sign::Negative => {}
         Sign::Zero => {
-            if let Some(j) = joint(line_span(line, foot, band), arc_span(g, foot, band))? {
+            // The foot is the one candidate, but carriers within ε of
+            // tangency stay within ε of each other for ≈ √(2rε) along
+            // the line, so a definite miss of the foot settles nothing
+            // while the other span reads it in band.
+            let on_line = line_span(line, foot, band)?;
+            let on_arc = arc_span(g, foot, band)?;
+            if let Some(j) = joint(Ok(on_line), Ok(on_arc))? {
                 contacts.push(Contact {
                     point: foot,
                     kind: match j {
@@ -1161,7 +1171,6 @@ fn line_arc<T: Decide>(
             }
         }
         Sign::Positive => {
-            let tc = to_center.dot(line.unit);
             let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
             for t in [tc - half, tc + half] {
                 let q = line.a + line.unit * t;
@@ -1413,5 +1422,133 @@ pub(crate) fn ray_crossings<T: Decide>(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod line_arc_tests {
+    use super::*;
+    use geom_core::{Interval, Tol};
+
+    /// What `line_arc` read: the contact count, or the predicate it
+    /// escalated on.
+    type Read = Result<usize, Option<&'static str>>;
+
+    fn pt<T: Real>((x, y): (f64, f64)) -> Point2<T> {
+        Point2::new(T::from_f64(x), T::from_f64(y))
+    }
+
+    fn line<T: Decide>(a: (f64, f64), b: (f64, f64), band: Band) -> Seg<T> {
+        build_seg(pt(a), pt(b), Segment::Line, Consistency::Decide, band)
+            .unwrap_or_else(|e| panic!("line {a:?} → {b:?}: {}", e.predicate()))
+    }
+
+    /// The arc on the circle `centre`, `radius` from polar angle `start`
+    /// through the signed `sweep`.
+    fn arc<T: Decide>(
+        centre: (f64, f64),
+        radius: f64,
+        start: f64,
+        sweep: f64,
+        band: Band,
+    ) -> Seg<T> {
+        let at = |t: f64| (centre.0 + radius * t.cos(), centre.1 + radius * t.sin());
+        let carrier = Arc2 {
+            centre: pt(centre),
+            radius: T::from_f64(radius),
+            sweep: T::from_f64(sweep),
+        };
+        build_seg(
+            pt(at(start)),
+            pt(at(start + sweep)),
+            Segment::Arc(carrier),
+            Consistency::Decide,
+            band,
+        )
+        .unwrap_or_else(|e| panic!("arc at {centre:?}, r = {radius}: {}", e.predicate()))
+    }
+
+    fn read<T: Decide>(line: &Seg<T>, arc: &Seg<T>, band: Band) -> Read {
+        let SegKind::Arc(g) = &arc.kind else {
+            panic!("the arc row is a line")
+        };
+        match line_arc(line, arc, g, band) {
+            Ok(PairOutcome::Contacts(contacts)) => Ok(contacts.len()),
+            Ok(PairOutcome::Overlap) => panic!("a line and an arc overlapped"),
+            Err(source) => Err(source.predicate),
+        }
+    }
+
+    /// Every row at one scalar: (name, what `line_arc` must read, what
+    /// it read). Offsets are in the run's ε and K: `mid` is inside the
+    /// band, `2·Kε` and `3·Kε` past it.
+    fn rows<T: Decide>() -> Vec<(&'static str, Read, Read)> {
+        let t = Tol::witness().get();
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let (eps, k) = (t.eps, t.k);
+        let mid = eps * ((1.0 + k) / 2.0);
+        let quarter = std::f64::consts::FRAC_PI_2;
+        let pi = std::f64::consts::PI;
+        // The circle tangent to y = 0 at the origin, where its carrier
+        // clearance is decided Zero; the arc runs down its left side.
+        let tangent = |sweep| arc::<T>((0.0, 1.0), 1.0, pi, sweep, band);
+        // The same carrier secant to y = 0 by an in-band clearance.
+        let secant = arc::<T>((0.0, 1.0), 1.0 + mid, pi, quarter - 3.0 * k * eps, band);
+        // The unit circle, cut by y = 0 at (±1, 0), its arc ending an
+        // in-band distance past (1, 0).
+        let unit = arc::<T>((0.0, 0.0), 1.0, quarter, -(quarter + mid), band);
+        vec![
+            (
+                "tangent: the line holds the foot in band, the arc stops 2Kε short of it",
+                Err(Some("line_span")),
+                read(
+                    &line((-1.0, 0.0), (mid, 0.0), band),
+                    &tangent(quarter - 2.0 * k * eps),
+                    band,
+                ),
+            ),
+            (
+                "tangent: the line stops 2Kε short of the foot, the arc holds it in band",
+                Err(Some("arc_span")),
+                read(
+                    &line((-1.0, 0.0), (-2.0 * k * eps, 0.0), band),
+                    &tangent(quarter + mid),
+                    band,
+                ),
+            ),
+            (
+                "in-band secant: the arc skips the facing point but ends across the line",
+                Err(Some("carrier_line_circle")),
+                read(&line((-2.0, 0.0), (2.0, 0.0), band), &secant, band),
+            ),
+            (
+                "secant: the line misses (1, 0), the arc holds it in band",
+                Ok(0),
+                read(&line((2.0, 0.0), (3.0, 0.0), band), &unit, band),
+            ),
+        ]
+    }
+
+    fn wrong(scalar: &str, rows: Vec<(&'static str, Read, Read)>) -> Vec<String> {
+        rows.into_iter()
+            .filter(|(_, want, got)| want != got)
+            .map(|(name, want, got)| format!("{scalar}: {name}: want {want:?}, got {got:?}"))
+            .collect()
+    }
+
+    /// **`line_arc` settles no contact only where the segments are
+    /// apart**, at `f64` and at `Interval`: a decided-tangent carrier
+    /// pair whose foot one span misses and the other holds in band
+    /// escalates (the curves stay within ε for ≈ √(2rε) along the line,
+    /// so the foot is not the only candidate); an in-band secant whose
+    /// arc skips the facing point but ends across the line is not
+    /// certified clear; and a definite line miss of a secant crossing
+    /// is no contact whatever the arc reads there.
+    #[test]
+    fn line_arc_reads_no_contact_only_off_both_segments() {
+        let mut wrong_rows = wrong("f64", rows::<f64>());
+        wrong_rows.extend(wrong("Interval", rows::<Interval>()));
+        assert!(wrong_rows.is_empty(), "{}", wrong_rows.join("\n"));
     }
 }
