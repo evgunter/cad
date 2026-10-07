@@ -22,6 +22,8 @@ use profile::{Profile, SketchPlane};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{Body, BooleanError, BooleanOp};
 
+use crate::common::oracles::{ball_volume, lens_volume};
+
 /// A ball of radius `r` centred at `c`, poled on y: its seam meridians
 /// lie in the half-plane `z = 0, x ≥ 0` about its centre.
 pub(crate) fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
@@ -78,21 +80,6 @@ fn rod_x(r: f64, (y, z): (f64, f64), (x0, x1): (f64, f64), seams_beside: bool) -
         Tol::witness(),
     )
     .unwrap()
-}
-
-pub(crate) fn ball_volume(r: f64) -> f64 {
-    4.0 / 3.0 * PI * r.powi(3)
-}
-
-/// The volume of a spherical cap of height `h` on a sphere of radius `r`.
-pub(crate) fn cap_volume(r: f64, h: f64) -> f64 {
-    PI * h.powi(2) * (3.0 * r - h) / 3.0
-}
-
-/// The lens two balls `r1`, `r2` at centre distance `d` share.
-fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
-    let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
-    cap_volume(r1, r1 - x) + cap_volume(r2, r2 - (d - x))
 }
 
 const R1: f64 = 1.0;

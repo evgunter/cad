@@ -152,13 +152,16 @@ fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
     }
 }
 
-/// **Four crossings all above the circle's centre stop typed at the
-/// sphere ring.** At `x > 0.5, θ = 10°, 70°, 110°, 170°` the walk pairs
-/// the crossings as above, and the section's loop on the ball's face is
-/// a ring clear of every edge of that face: the ring lane has no island
-/// winding on a sphere (`work/tang/a-ring-on-a-sphere-face-has-no-island-winding.md`).
+/// **Four crossings all above the circle's centre wind a sphere ring.**
+/// At `x > 0.5, θ = 10°, 70°, 110°, 170°` the walk pairs the crossings
+/// as above, and the section's loop on the ball's face is a ring clear
+/// of every edge of that face, whose island the ring lane winds without
+/// a chart (`chord_join::sphere_island_winding`): ∩ and slab ∖ ball
+/// build at the slab's closed form. ∪ and ball ∖ slab keep the ring as a
+/// hole of the ball's face, which the result gate refuses
+/// (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
 #[test]
-fn four_crossings_above_the_centre_stop_at_the_sphere_ring() {
+fn four_crossings_above_the_centre_wind_the_sphere_ring() {
     let (c, rho) = (0.5f64, 0.75f64.sqrt());
     let (za, zb) = (
         rho * 10f64.to_radians().sin(),
@@ -169,38 +172,57 @@ fn four_crossings_above_the_centre_stop_at_the_sphere_ring() {
         brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
         Tol::witness(),
     );
+    let shared = slab_share(c, za, zb);
+    let slab_volume = (3.0 - c) * 6.0 * (zb - za);
     for (pole, b) in [
         ("y-poled", ball(Vec3::unit_z(), 0.0)),
         ("turned", ball(Vec3::new(0.4, 0.1, 0.9), 1.3)),
     ] {
+        for (name, op, x, y, expected) in [
+            ("slab ∩ ball", BooleanOp::Intersect, &slab, &b, shared),
+            (
+                "slab ∖ ball",
+                BooleanOp::Subtract,
+                &slab,
+                &b,
+                slab_volume - shared,
+            ),
+        ] {
+            let label = format!("{pole} ball, {name}");
+            let body = run(op, x, y);
+            assert_eq!(
+                topo::validate_geometric(&body, Tol::witness()),
+                Ok(()),
+                "{label}: tier 3"
+            );
+            let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+            assert!(
+                (v - expected).abs() <= 1e-9 * expected,
+                "{label}: volume {v} against the closed form {expected}"
+            );
+        }
         for (name, out) in [
             (
                 "slab ∪ ball",
                 topo::boolean::union(&slab, &b, Tol::witness()),
             ),
             (
-                "slab ∩ ball",
-                topo::boolean::intersect(&slab, &b, Tol::witness()),
-            ),
-            (
-                "slab ∖ ball",
-                topo::boolean::subtract(&slab, &b, Tol::witness()),
-            ),
-            (
                 "ball ∖ slab",
                 topo::boolean::subtract(&b, &slab, Tol::witness()),
             ),
         ] {
-            match out {
-                Err(topo::BooleanError::Join(topo::SplitJoinError::RingOffCylinderChart {
-                    kind: geom::SurfaceKind::Sphere,
-                    ..
-                })) => {}
-                other => panic!(
-                    "{pole} ball, {name}: expected the sphere ring's door, got {:?}",
-                    other.map(|_| "a body")
+            assert!(
+                matches!(
+                    &out,
+                    Err(topo::BooleanError::ResultInvalid { errors })
+                        if matches!(errors.as_slice(), [topo::ValidationError::VolumeUncomputable {
+                            source: topo::MassPropsError::RingOnCurvedFace { .. },
+                            ..
+                        }])
                 ),
-            }
+                "{pole} ball, {name}: expected the result gate on the ringed ball face, got {:?}",
+                out.map(|_| "a body")
+            );
         }
     }
 }

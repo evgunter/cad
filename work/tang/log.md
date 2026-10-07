@@ -654,3 +654,29 @@ plane; its two fixtures, the turned dome and the prism on the slanted
 tube, build every op at their closed forms; the declared one-carrier
 arms do not read ellipses, so the D10 hold leaves their reach where it
 was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).
+
+## 2026-10-07 — a ring on a sphere face winds its island (TANG implementer)
+
+`a-ring-on-a-sphere-face-has-no-island-winding` (P2) closes. The
+sphere ring lane winds its island without a chart: the cap of the
+section plane the run lies in, the closing arc's lean, and an
+outer-loop point read directly or by a great-circle path's crossing
+parity. Ring re-homing on a sphere reads the same parity. The probe
+pose, its mirror, a ring near a pole, tilted poles, the item's box
+corner and box edge, and a ring on the whole section circle build ∩
+and box ∖ ball at their slice integrals in both orders, at tiers 3 and
+3′; the ball's side of ∪ and ball ∖ box stop at FLUX's ringed-sphere
+volume. The lens union against a crease ball builds every op. Filed:
+`a-ring-on-a-cone-or-torus-face-has-no-island-winding` (P2).
+
+## 2026-10-07 — the sphere ring lane's review fix pass (TANG implementer)
+
+PR 4211's FULL review (APPROVE-WITH-FIXES, 0 MAJOR). The fixes:
+- re-homing and the winding read outer-loop edge midpoints as
+  references, so a loop whose every vertex is on the run still decides;
+- the cap of the run is read at every arc's ends, midpoint and in-span
+  extremes;
+- `RingOffCylinderChart` is renamed `RingIslandUnread`.
+
+The review's far-pole, bar and edge-midpoint poses are rows, and so are
+two far-pole notches whose outer-point paths run through a run vertex.

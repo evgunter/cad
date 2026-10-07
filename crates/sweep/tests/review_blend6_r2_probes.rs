@@ -302,10 +302,11 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
             .expect_err("a 0.55 m radius does not fit a 1 m face")
             .error,
     ));
+    let (leaning, turn) = crate::common::operands::leaning_turn(0.5);
     out.push((
         "fillet turn",
-        fillet_edges(&body, &top_loop(&body), D, t)
-            .expect_err("square corners with two edges requested are turns")
+        fillet_edges(&leaning, &turn, D, t)
+            .expect_err("a turn whose faces are not symmetric overruns its mitre")
             .error,
     ));
     out
@@ -336,10 +337,11 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
             .expect_err("a curved end face is a run-out")
             .error,
     ));
+    let (leaning, turn) = crate::common::operands::leaning_turn(0.5);
     out.push((
         "turn",
-        chamfer_edges(&body, &top_loop(&body), D, t)
-            .expect_err("square corners with two edges requested are turns")
+        chamfer_edges(&leaning, &turn, D, t)
+            .expect_err("a turn whose faces are not symmetric overruns its mitre")
             .error,
     ));
     out.push((
@@ -365,57 +367,19 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
             .error,
     ));
 
-    let mut two = cube(L, Tol::witness());
+    let (mut two, corner_pair) = crate::common::operands::leaning_turn(0.5);
     let other = cube(L, Tol::witness());
     topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
-    // Two edges of one corner of the first solid: a turn, refused inside
-    // the shell it lies in.
-    let two_edges = query::all_edges(&two);
-    let ends = |e: EdgeKey| {
-        let he = two.get_edge(e).expect("an edge").he_plus;
-        [
-            two.get_half_edge(he).expect("a half").start,
-            two.half_edge_end(he).expect("an end"),
-        ]
-    };
-    let corner_pair = two_edges
-        .iter()
-        .skip(1)
-        .find(|&&e| ends(e).iter().any(|v| ends(two_edges[0]).contains(v)))
-        .map(|&e| [two_edges[0], e])
-        .expect("an edge meeting the first at a corner");
+    // The leaning prism's asymmetric turn, beside a cube: the overrun,
+    // refused inside the shell it lies in.
     out.push((
         "two-solid body",
         chamfer_edges(&two, &corner_pair, D, t)
-            .expect_err("two edges of one corner turn, in either solid")
+            .expect_err("an asymmetric turn overruns its mitre, in either solid")
             .error,
     ));
 
     out
-}
-
-/// The four edges of the cube's top face — a closed, non-tangent chain.
-fn top_loop(body: &Body<f64>) -> Vec<EdgeKey> {
-    let at_top = |e: EdgeKey| -> bool {
-        let Some(edge) = body.get_edge(e) else {
-            return false;
-        };
-        let Some(start) = body.get_half_edge(edge.he_plus).map(|h| h.start) else {
-            return false;
-        };
-        let Some(end) = body.half_edge_end(edge.he_plus) else {
-            return false;
-        };
-        [start, end].into_iter().all(|v| {
-            body.get_vertex(v)
-                .and_then(|x| body.get_point(x.point))
-                .is_some_and(|p| p.z > L - 1e-9)
-        })
-    };
-    query::all_edges(body)
-        .into_iter()
-        .filter(|e| at_top(*e))
-        .collect()
 }
 
 /// An L-bracket: the six-vertex L profile extruded by 1 m.

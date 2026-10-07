@@ -40,3 +40,14 @@ that no edge reaches, which would land as a ring on both faces.
 - The case is not specific to carved bodies: the plain-ball witness refuses
   identically.
 
+
+## 2026-10-07 — the edge-reached door moved (TANG, PR 4211)
+
+The first "Not this" bullet is stale: a crossing an edge reaches still
+lands as a pierce ring, but the ring lane now winds it on a sphere
+(`chord_join::sphere_island_winding`). Its ∩ and box ∖ ball build; ∪
+and ball ∖ box stop at the result gate on the ringed ball face
+(`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`). The
+refusal it named, renamed `RingIslandUnread`, is now reached on a sphere
+only by a run on both sides of its section plane or bounded by a
+non-circle edge. This item's whole-circle case is unchanged.

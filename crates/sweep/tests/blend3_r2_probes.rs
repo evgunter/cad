@@ -147,8 +147,8 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 /// - requesting the four floor edges alone leaves each floor corner
 ///   with exactly two requested edges, so the battery walks them into
 ///   ONE CLOSED chain, chain G1 breaks it at each sharp corner into four
-///   open chains, and each corner — two of its three edges requested —
-///   refuses as the turn;
+///   open chains, and each corner — two of its three edges requested,
+///   the walls square to the floor — is a concave mitre, which builds;
 /// - completing the request — here the WHOLE pocket component, floor,
 ///   struts and even the convex rim — reaches the struts' top ends,
 ///   which are the rim's mixed corners: the corner door refuses
@@ -177,19 +177,12 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let floor = edges_with_corners(&body, floor_corner);
     assert_eq!(floor.len(), 4, "the pocket floor's four concave edges");
-    let err = chamfer_edges(&body, &floor, D, Tol::witness())
-        .expect_err("the floor alone is an incomplete request");
-    assert!(
-        matches!(
-            err.error,
-            BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::Turn,
-                ..
-            }
-        ),
-        "the floor-only request breaks at its sharp corners and refuses at \
-         the turns, got {:?}",
-        err.error
+    let floor_only = chamfer_edges(&body, &floor, D, Tol::witness())
+        .unwrap_or_else(|e| panic!("the floor alone mitres at its four corners, got {e}"));
+    assert_eq!(
+        floor_only.naming.as_ref().expect("births").mitres.len(),
+        4,
+        "the floor-only request breaks at its sharp corners into four mitred turns"
     );
 
     let full = edges_with_corners(&body, on_pocket_vertical);

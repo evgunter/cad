@@ -66,8 +66,7 @@ const KEY_SLOT: f64 = 0.8;
 /// The plate's thickness.
 const DEPTH: f64 = 0.5;
 /// Radius of the 3-D fillet on the keyhole's two convex creases: the
-/// eye tip's radius, the largest of the plate's radii the keyhole
-/// admits (walls 1 and 2 in [`crease_narration`]).
+/// eye tip's radius.
 const R_CREASE: f64 = R_EYE;
 /// Half the eye slot's tip separation: the two R = 1 slot carriers sit
 /// at (∓1/2, 0), so they cross at (0, ±√(1 − 1/4)) — the vesica of the
@@ -507,22 +506,12 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     let creases = keyhole_creases(plate);
     assert_eq!(creases.len(), 2, "the keyhole's two disc/slot creases");
 
-    // The plate's own blend radius: the ball rolls OUTSIDE the disc's
-    // wall, where its curvature sets no limit, but the headroom
-    // predicate reads `(1 − r/R)·r` whichever side the ball is on.
-    crate::walls::wall(
-        "rocker",
-        1,
-        "round the keyhole's creases at the outline's blend radius R_BLEND = R_disc",
-        fillet_edges(&plate.body, &creases, R_BLEND, tol),
-        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
-        "raise R_CREASE to R_BLEND",
-    );
-    // Larger radii carve too, up to the headroom wall: the sliver each
-    // cap loses ends at the slot wall's foot `x = cx`, short of the
-    // slot's end, and the cap meter reads the slot end's edge clear of
-    // it.
-    for r in [0.31, 0.49] {
+    // Larger radii carve too, the outline's own blend radius among
+    // them: the ball rolls outside the disc's wall, which bends away
+    // from it, and the sliver each cap loses ends at the slot wall's
+    // foot `x = cx`, short of the slot's end, so the cap meter reads
+    // the slot end's edge clear of it.
+    for r in [0.31, 0.49, R_BLEND] {
         let out = fillet_edges(&plate.body, &creases, r, tol)
             .unwrap_or_else(|e| panic!("the creases carve at r = {r}, got {e:?}"));
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("r = {r}: tier 3, got {e:?}"));
@@ -558,8 +547,8 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
          description alone also matches the outline's six tangent seams, and the door \
          refuses those (`TangentialEdge`): the selector has no convexity atom. Each crease \
          removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
-         measured {dv:.6e}. Radii up to 0.49 carve at their closed forms; the outline's \
-         blend radius ({R_BLEND}) is refused (wall 1)."
+         measured {dv:.6e}. Larger radii carve at their closed forms too, up to the \
+         outline's own blend radius ({R_BLEND})."
     )
 }
 
