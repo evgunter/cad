@@ -7,6 +7,9 @@ opened: 2026-10-06
 priority: P2
 cost: M
 design: true
+needs_ev: true
+pr: 4284
+branch: emit/ev-touch-spelling
 refs: [a-second-crossing-by-one-face-renames-the-first-and-its-pieces]
 ---
 
