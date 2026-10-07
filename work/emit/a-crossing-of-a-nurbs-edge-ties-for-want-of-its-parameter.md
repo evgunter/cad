@@ -2,7 +2,8 @@
 id: a-crossing-of-a-nurbs-edge-ties-for-want-of-its-parameter
 kind: issue
 title: Crossings of a NURBS edge tie because param_along has no parameter for a NURBS carrier, where N2 ranks them by the carrier's own parameter
-status: open
+status: review
+branch: emit/nurbs-crossing-param
 opened: 2026-10-01
 priority: P2
 cost: M
@@ -36,3 +37,44 @@ edge's sense against the other operand's closed body. Once the sense is
 built (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`,
 branch `emit/crossing-sense`), re-measure this row against the narrower
 case that is left.
+
+## Built (emit lane, 2026-10-07, branch `emit/nurbs-crossing-param`)
+
+Re-measured after the sense landed: the case left is two crossings of
+one NURBS piece by one face with one sense. No body the kernel accepts
+reaches it. The split refuses a plane that may meet a NURBS edge
+(`topo::splitting::classify::carrier_gate`, `CurvedEdgeUnsupported`),
+and the boolean refuses any operand with one (`gate_operand_edges`). So
+the rows are unit rows on `rank_crossings`, with real pieces: the
+corner edges of a wavy loft.
+
+`emit_topo::chord_along` reads a crossing on a NURBS piece along the
+piece's chord, in meters. It does so only when every control point
+shaping the piece's certified interval advances strictly along that
+chord, each step decided positive through `name_frag_order_along`. The
+weights are positive, so knot insertion keeps that polygon advancing,
+and variation diminishing makes the piece a graph over its chord. The
+readings then order as the parameters do. A difference the band
+decides is the order of the feet, wherever the crossing points sit
+within tolerance of the curve. The check is sufficient, not necessary.
+A piece it cannot certify keeps N2's tie, and so does a pair the band
+cannot part.
+
+`rank_crossings` keeps the span order across pieces and uses the chord
+reading for two crossings on one piece.
+`discriminate::order_along` split into `extent_before` (one pair) and
+`rank_by` (the ranks from any pairwise order), so both readings go
+through one decision. Neither carries `CertifiedBounds`, which the
+naming scalar lacks. `Curve3::project` was not used: its foot
+parameter is an uncertified `f64`, and bounding the parameter error
+from its residuals would need a speed bound and a uniqueness argument
+of the same kind.
+
+Rows (`emit_topo`'s `nurbs_crossings_rank_by_parameter`, at ε 1e-6,
+1e-9 and 1e-12): the first and third of three same-sense crossings of
+a plane rank by parameter, whichever order they are handed in. Two
+crossings a quarter of the band apart tie, and so does one point
+handed in twice.
+
+Found on the way and filed:
+`work/nurbs/a-swaying-loft-corner-refuses-as-a-vanishing-span.md`.
