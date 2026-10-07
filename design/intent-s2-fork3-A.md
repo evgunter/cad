@@ -136,9 +136,8 @@ binding regardless of FORK-5: *sure*.
   appearance store.
 - **The latent name-rebind defect** (rewriting a site where `from` still
   resolves) is today's; not filed since E retires the path. File it if E slips.
-- **Vertex kind.** `MeasurePrimitive` docs refuse a vertex reference typed, so
-  no `Vertex` kind is needed for E; D10's trio stands. If FORK-1 adds one,
-  nothing here changes.
+- **Vertex kind.** `MeasurePrimitive` refuses a vertex reference typed, so E
+  needs no `Vertex` kind; D10's trio stands. If FORK-1 adds one, nothing moves.
 - **Canonical form of a `Vec<Edge>` slot** is over the selects' definitions,
   not their ids (mint order). The door check and the content key read through
   `Doc::vars`; `feed_scalar_join` hashes names today, so the key is unchanged.
