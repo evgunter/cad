@@ -549,7 +549,6 @@ which is what actually moves the number.
 | chord_join.rs (`sphere_path_parity`) | split_sphere_path_meets_circle | `r·√(A² + B²) − \|D\|`: an arc's reach across the path's plane less its centre's offset from it | m | OK (TANG) |
 | chord_join.rs (`sphere_path_parity`) | split_sphere_path_along | `(â × x̂)·m̂` and `(x̂ × b̂)·m̂` (sines), levered at the sphere's radius | m | OK (TANG) |
 | chord_join.rs (`sphere_path_parity`) | split_sphere_path_in_span | a crossing's parameter less an arc's span end (rad), levered at the arc's radius | m | OK (TANG) |
-| chord_join.rs (`sphere_ring_side`) | split_sphere_ring_on_run | distance between a point and a run vertex, through the `Margin::norm3` door | m | OK (TANG) |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_window | `τ − Δu` (rad) levered at the radius | m | OK |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_azimuth | azimuth difference (rad) levered at the radius | m | OK (cylinder only; a sphere reads `sphere_ring_side`) |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_height | axial height difference, bare | m | OK |

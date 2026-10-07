@@ -108,34 +108,29 @@ fn disc_in_rect(rho: f64, (cx, cy): (f64, f64), (x0, x1): (f64, f64), (y0, y1): 
 
 /// Adaptive Simpson on `[a, b]`.
 fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
+    /// One panel `(a, b)`, its end and middle values, and its estimate.
     fn step(
         f: &dyn Fn(f64) -> f64,
-        a: f64,
-        b: f64,
-        fa: f64,
-        fm: f64,
-        fb: f64,
+        (a, b): (f64, f64),
+        (fa, fm, fb): (f64, f64, f64),
         whole: f64,
         depth: u32,
     ) -> f64 {
         let (m, h) = (0.5 * (a + b), b - a);
-        let (lm, rm) = (0.5 * (a + m), 0.5 * (m + b));
-        let (flm, frm) = (f(lm), f(rm));
+        let (flm, frm) = (f(0.5 * (a + m)), f(0.5 * (m + b)));
         let left = h / 12.0 * (fa + 4.0 * flm + fm);
         let right = h / 12.0 * (fm + 4.0 * frm + fb);
         if depth == 0 || (left + right - whole).abs() <= 1e-15 {
             return left + right + (left + right - whole) / 15.0;
         }
-        step(f, a, m, fa, flm, fm, left, depth - 1) + step(f, m, b, fm, frm, fb, right, depth - 1)
+        step(f, (a, m), (fa, flm, fm), left, depth - 1)
+            + step(f, (m, b), (fm, frm, fb), right, depth - 1)
     }
     let (fa, fm, fb) = (f(a), f(0.5 * (a + b)), f(b));
     step(
         f,
-        a,
-        b,
-        fa,
-        fm,
-        fb,
+        (a, b),
+        (fa, fm, fb),
         (b - a) / 6.0 * (fa + 4.0 * fm + fb),
         40,
     )

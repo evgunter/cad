@@ -105,9 +105,10 @@ the island: one on the far side directly, one on the run's side by the
 parity of the great-circle path to the far cap's pole
 (`chord_join::sphere_path_parity`). Ring re-homing on a sphere,
 `chord_join::sphere_ring_side`, reads the same parity from a ring
-vertex to an outer-loop vertex of the old face apart from the run, and
-reads a ring whose every vertex is on a run vertex `OnRun`, so a pierce
-strut at a pinch waits as it does on a plane.
+vertex to an outer-loop vertex of the old face; a path ending on the
+run reads nothing and the next pair is asked, so a ring on the run at
+every vertex refuses there as on a wall's chart
+(`a-chorded-ring-on-the-run-at-every-vertex-has-no-homing-reading`).
 
 The probe pose builds ∩ in both orders and slab ∖ ball at the slice
 integral; ∪ in both orders and ball ∖ slab keep the ring as a hole of

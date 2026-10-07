@@ -2757,43 +2757,21 @@ pub(crate) fn sphere_island_winding<T: Decide>(
 /// [`ring_side`] on a sphere face, without a chart: whether `ring`
 /// lies inside `newf`'s outer loop (the run a `mef` just walled off
 /// `oldf`), by the parity of the great-circle path from a ring vertex to
-/// a vertex of `oldf`'s outer loop decided apart from every run vertex
-/// — a point outside the new face ([`sphere_path_parity`]).
-///
-/// A ring vertex decided coincident with a run vertex is ON the run
-/// and the next is asked, so a ring every vertex of which is
-/// [`RingSide::OnRun`] — a pierce strut at a pinch the run passes
-/// through, which [`ChordJoiner::rehome_rings`] leaves pending. A path
-/// whose reading lands in band says nothing and the next pair is
-/// asked; a ring with a vertex off the run that no pair decides is
-/// [`RingSide::Undecided`].
+/// a vertex of `oldf`'s outer loop, a point outside the new face
+/// ([`sphere_path_parity`]). A path whose reading lands in band says
+/// nothing and the next pair is asked: one ending on the run does, so a
+/// copy of a run vertex in `oldf`'s outer loop, or a ring vertex on the
+/// run, never decides. A ring no pair decides is
+/// [`RingSide::Undecided`], as on a wall's chart ([`chart_ring_side`]).
 fn sphere_ring_side<T: Decide>(
     body: &Body<T>,
-    (centre, radius): (Point3<T>, T),
+    sphere: (Point3<T>, T),
     (oldf, newf): (FaceKey, FaceKey),
     ring: LoopKey,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
     let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
     let outer = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.outer;
-    let run_points = loop_points(body, run)?;
-    let on_run = |p: Point3<T>| -> Result<bool, SplitJoinError> {
-        for &q in &run_points {
-            match decide("split_sphere_ring_on_run", Margin::norm3(p - q), band)
-                .map_err(|diag| SplitJoinError::Escalated { face: newf, diag })?
-            {
-                Sign::Zero => return Ok(true),
-                Sign::Positive | Sign::Negative => {}
-            }
-        }
-        Ok(false)
-    };
-    let mut outside = Vec::new();
-    for w in loop_points(body, outer)? {
-        if !on_run(w)? {
-            outside.push(w);
-        }
-    }
     let first = match body
         .get_loop(run)
         .ok_or_else(|| corrupt_loop(run))?
@@ -2809,20 +2787,15 @@ fn sphere_ring_side<T: Decide>(
     };
     let cycle = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
     let loop_arcs = sphere_run_arcs(body, newf, &cycle)?;
-    let mut side = RingSide::OnRun;
+    let outside = loop_points(body, outer)?;
     for p in loop_points(body, ring)? {
-        if on_run(p)? {
-            continue;
-        }
-        side = RingSide::Undecided;
         for &w in &outside {
-            if let Some(odd) = sphere_path_parity(newf, (centre, radius), (p, w), &loop_arcs, band)?
-            {
+            if let Some(odd) = sphere_path_parity(newf, sphere, (p, w), &loop_arcs, band)? {
                 return Ok(if odd { RingSide::In } else { RingSide::Out });
             }
         }
     }
-    Ok(side)
+    Ok(RingSide::Undecided)
 }
 
 /// **The chord of a section segment that is an edge of BOTH solids**
