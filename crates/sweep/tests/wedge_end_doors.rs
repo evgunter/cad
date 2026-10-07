@@ -365,26 +365,15 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
             .copied()
             .find(|&e| tangent_edges(&built.body).iter().any(|(t, _)| *t == e))
             .expect("the strut the cusp joint swept is marked Tangent");
+        let operand = sweep::test_support::at_rest(&built.body, tol());
         for (verb, got) in [
             (
                 "chamfer",
-                chamfer_edges(
-                    &sweep::test_support::at_rest(&built.body, tol()),
-                    &[strut],
-                    0.05,
-                    tol(),
-                )
-                .map(|_| ()),
+                chamfer_edges(&operand, &[strut], 0.05, tol()).map(|_| ()),
             ),
             (
                 "fillet",
-                fillet_edges(
-                    &sweep::test_support::at_rest(&built.body, tol()),
-                    &[strut],
-                    0.05,
-                    tol(),
-                )
-                .map(|_| ()),
+                fillet_edges(&operand, &[strut], 0.05, tol()).map(|_| ()),
             ),
         ] {
             match got {

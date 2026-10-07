@@ -121,15 +121,11 @@ fn both_rims_of_a_bore_fillet_in_one_call_and_remove_two_corner_tori() {
 fn the_one_call_bore_is_the_sequential_composition_in_both_orders() {
     for b in bores() {
         let v_one = volume(&one_call(&b).body);
+        let operand = sweep::test_support::at_rest(&b.body, tol());
         for (first, second) in [(b.lo, b.hi), (b.hi, b.lo)] {
-            let mid = fillet_edges(
-                &sweep::test_support::at_rest(&b.body, tol()),
-                &circle_arcs_at_z(&b.body, first),
-                RHO,
-                tol(),
-            )
-            .unwrap_or_else(|e| panic!("{}: the z = {first} rim alone, got {e:?}", b.what))
-            .body;
+            let mid = fillet_edges(&operand, &circle_arcs_at_z(&b.body, first), RHO, tol())
+                .unwrap_or_else(|e| panic!("{}: the z = {first} rim alone, got {e:?}", b.what))
+                .body;
             let end = fillet_edges(
                 &sweep::test_support::at_rest(&mid, tol()),
                 &circle_arcs_at_z(&mid, second),
