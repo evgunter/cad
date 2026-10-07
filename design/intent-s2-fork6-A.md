@@ -117,9 +117,7 @@ gains this third arm and the inverse property above still holds.
   behaviour, so it waits on your sign-off with this fork.
 - `refactor.rs`'s comment "the remainder keeps its table either way:
   a named variable nothing reads is legal document state" was written
-  by an agent in a fix pass (`0eeb19d3a`), not by you. It goes.
-
-**Reversibility:** easy; one place in split, inline unchanged.
+  by an agent in a fix pass (`0eeb19d3a`), not by you. It goes. (Reversibility: easy; one place in split.)
 
 ## For the orchestrator
 
