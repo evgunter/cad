@@ -22,7 +22,9 @@
 //!   hangs struts there before the pair would read it;
 //! - **two blocks in face contact**, one body built through the Euler
 //!   doors, against the standing pyramid, whose apex pierces both
-//!   blocks' faces at a point of their contact.
+//!   blocks' faces at a point of their contact, and against the prism,
+//!   whose first pierce there hangs struts before the second would read
+//!   the orbit.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -159,5 +161,17 @@ fn a_vertex_piercing_two_faces_refuses_typed_in_every_op() {
         );
         let cone = standing(240.0, 0.7, 0.5, &pose);
         every_op("two blocks", &cone, &blocks, &pose, "pierce", false);
+        // The prism's edge crosses the contact at `MEET`, so its first
+        // pierce hangs struts there, and only a refusal before that
+        // pass writes keeps the second pierce off the written orbit.
+        let prism = posed_prism(&wedge(200.0, 260.0, 0), &pose);
+        every_op(
+            "a prism through two blocks",
+            &prism,
+            &blocks,
+            &pose,
+            "pierce",
+            true,
+        );
     }
 }
