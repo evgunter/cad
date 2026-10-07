@@ -403,7 +403,22 @@ fn pose_lines(s: &Shape, place: &str, f: [V3; 3], what: &str) -> Vec<String> {
                         }),
                         Err(_) => None,
                     };
-                    outcome(r, want, tol()) + &why.unwrap_or_default()
+                    // `R2_MESH=1` (review of PR 4272) also tessellates the
+                    // body and asks `check_mesh` whether it is watertight.
+                    let mesh = match &r {
+                        Ok(res) if std::env::var("R2_MESH").is_ok() => {
+                            res.body()
+                                .map(|bb| match mesh::tessellate(&bb.body, 5e-3, tol()) {
+                                    Ok(m) => match mesh::validate::check_mesh(&m) {
+                                        Ok(()) => " MESH ok".to_string(),
+                                        Err(e) => format!(" MESH BAD {e:?}"),
+                                    },
+                                    Err(e) => format!(" MESH UNTESSELLATED {e:?}"),
+                                })
+                        }
+                        _ => None,
+                    };
+                    outcome(r, want, tol()) + &why.unwrap_or_default() + &mesh.unwrap_or_default()
                 }
                 Err(_) => "PANIC".into(),
             };
