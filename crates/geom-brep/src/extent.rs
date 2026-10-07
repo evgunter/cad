@@ -34,13 +34,16 @@
 //! caller's own measure of that region from the point it is read at.**
 //! No ball chosen around the consumed region is a lever. An edge's span
 //! ([`Reach::Span`]) is levered by its per-carrier farthest distance
-//! from the pivot that makes that distance least on each axis. A face's
-//! caller ([`Reach::Measured`]) hands a length it measured; only the
-//! cylinder pair floors it ([`Reach::lever_between`]). The plane×cylinder
-//! row moves its section by the tilt times a point's AXIAL distance from
-//! the pivot, so its face callers measure exactly that: the face's
-//! farthest axial distance from the reading point, one span per boundary
-//! edge ([`Reach::axial_lever_from`]).
+//! from the pivot that makes that distance least on each axis. The
+//! cylinder pair's caller ([`Reach::Measured`]) hands a length it
+//! measured, and only that pair floors it ([`Reach::lever_between`]).
+//! A plane×cylinder face's caller ([`Reach::Face`]) hands two lengths
+//! it measured from its reading point: how far the face reaches along
+//! the axis, where a tilt moves the section by the tilt times that
+//! distance ([`Reach::axial_lever_from`] of each boundary span), and how
+//! far it reaches from there at all, which the tilt's second-order turn
+//! across the wall moves it by ([`Reach::across`]). No length is added
+//! to a reach outside these variants.
 //!
 //! The tangent-locus witness reads a ball, [`Reach::Ball`]: the one its
 //! callers, the carrier doors, hand it.
@@ -166,6 +169,43 @@ fn foot<T: Real>(p: Point3<T>, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
     origin + axis * (p - origin).dot(axis)
 }
 
+/// **The farthest a conic arc reaches along a direction**: the largest
+/// `|(x − pivot)·dir|` over `x = c + u·a·cos t + v·b·sin t`,
+/// `t ∈ [t0, t1]`. Along `dir` the arc reads `C + A·cos t + B·sin t`,
+/// whose crests `C ± R` (`R = √(A² + B²)`) stand where
+/// `cos(t − t*) = ±1`; a crest lies in the span iff its cosine against
+/// the span's middle `m` is at least `cos h`, `h` the half-span (capped
+/// at a half-turn, past which every crest is in). So the farthest is an
+/// end's reading or a crest's, the crest read only where the test puts
+/// it in the span. Comparison-free ([`Real::select_le_zero`]): an
+/// enclosure that cannot tell takes the crest.
+fn conic_arc_along<T: Real>(
+    (c, u, v): (Point3<T>, Vec3<T>, Vec3<T>),
+    (a, b): (T, T),
+    (t0, t1): (T, T),
+    pivot: Point3<T>,
+    dir: Vec3<T>,
+) -> T {
+    let mid = (c - pivot).dot(dir);
+    let (pa, pb) = (a * u.dot(dir), b * v.dot(dir));
+    let read = |t: T| {
+        let (s, co) = t.sin_cos();
+        (mid + pa * co + pb * s).abs()
+    };
+    let half = T::from_f64(0.5);
+    let crest = (pa.powi(2) + pb.powi(2)).sqrt();
+    let (sm, cm) = ((t0 + t1) * half).sin_cos();
+    let toward = pa * cm + pb * sm;
+    let edge = crest
+        * ((t1 - t0) * half)
+            .abs()
+            .min(T::from_f64(core::f64::consts::PI))
+            .cos();
+    let high = (edge - toward).select_le_zero((mid + crest).abs(), T::zero());
+    let low = (edge + toward).select_le_zero((mid - crest).abs(), T::zero());
+    read(t0).max(read(t1)).max(high).max(low)
+}
+
 /// **What a section classifier reads its axis rows across**: where on
 /// an axis the gap is read ([`Reach::foot_on`]), and the lever a tilt
 /// pinned there is metered at ([`Reach::lever_from`]). The module docs
@@ -177,16 +217,28 @@ pub enum Reach<T: Real> {
     /// ([`ExtentBall::lever_from`]): the tangent-locus witness's reading,
     /// the ball its callers (the carrier doors) hand it.
     Ball(ExtentBall<T>),
-    /// A length the caller measured from `at` (a wall's axial extent,
-    /// the germ frame's walls' span), read at the foot of `at`. Its
-    /// lever is that length ([`Self::lever_from`]), floored for the
-    /// cylinder pair at the foot's distance from `at`
-    /// ([`Self::lever_between`]).
+    /// A length the caller measured from `at` (the germ frame's walls'
+    /// span or the larger radius), read at the foot of `at`. Its lever
+    /// is that length ([`Self::lever_from`]), floored for the cylinder
+    /// pair at the foot's distance from `at` ([`Self::lever_between`]).
     Measured {
         /// The point the caller measured from.
         at: Point3<T>,
         /// The caller's length.
         lever: T,
+    },
+    /// A face on the cylinder the caller measured from `at`, read at the
+    /// foot of `at`: its farthest axial distance from `at` (the lever,
+    /// [`Self::lever_from`]) and a bound on its farthest distance across
+    /// the wall from the plane's hinge ([`Self::across`]). The
+    /// plane×cylinder callers hand it.
+    Face {
+        /// The point the caller measured from.
+        at: Point3<T>,
+        /// The face's farthest axial distance from `at`.
+        along: T,
+        /// The face's reach across the wall from the hinge.
+        across: T,
     },
     /// An edge's carrier over `[t0, t1]`, read at the axis point whose
     /// lever to it is least ([`Self::foot_on`]) and levered by the
@@ -207,14 +259,13 @@ impl<T: Real> Reach<T> {
     /// on the consumed region's distance from `pivot`.
     ///
     /// - [`Self::Ball`]: the ball's far side from `pivot`.
-    /// - [`Self::Measured`]: the caller's length, whatever the pivot.
-    ///   What callers hand: chord_join and the germ frame the wall face's
-    ///   farthest axial distance from `at` for the plane×cylinder pair
-    ///   ([`Self::axial_lever_from`] of each boundary edge), the exact
-    ///   distance a tilt pinned at `at`'s foot moves the section by; the
-    ///   germ frame the longer of the larger radius and the walls' span
-    ///   for the cylinder pair, which also reads the foot's distance from
-    ///   `at` ([`Self::lever_between`]).
+    /// - [`Self::Measured`]: the caller's length, whatever the pivot:
+    ///   the germ frame's longer of the larger radius and the walls'
+    ///   span, which the cylinder pair also floors at the foot's distance
+    ///   from `at` ([`Self::lever_between`]).
+    /// - [`Self::Face`]: the face's axial extent from `at`, whatever the
+    ///   pivot (the pivot is `at`'s foot, which stands at `at`'s axial
+    ///   station).
     /// - [`Self::Span`]: per carrier, never an underestimate and exact
     ///   where the carrier allows:
     ///   - a **line** segment: its endpoints (distance to a point is
@@ -234,6 +285,7 @@ impl<T: Real> Reach<T> {
         match self {
             Self::Ball(ball) => ball.lever_from(pivot),
             Self::Measured { lever, .. } => *lever,
+            Self::Face { along, .. } => *along,
             Self::Span { carrier, .. } => match carrier {
                 Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
                 Curve3::Ellipse {
@@ -256,51 +308,59 @@ impl<T: Real> Reach<T> {
         }
     }
 
-    /// The lever a tilt of the unit `axis` pinned at `pivot` is metered
-    /// at where the reading moves only ALONG that axis: an upper bound on
-    /// `|(x − pivot)·axis|` over the consumed points `x`. The
-    /// plane×cylinder row moves its section by the tilt times that axial
-    /// distance alone, so its callers measure a face with this, one
-    /// [`Self::Span`] per boundary edge.
+    /// How far the consumed region reaches from `pivot` ALONG the unit
+    /// `axis`: an upper bound on `|(x − pivot)·axis|` over the consumed
+    /// points `x`. The plane×cylinder row moves its section by a tilt
+    /// times that axial distance, so its face callers measure a face with
+    /// this, one [`Self::Span`] per boundary edge ([`Self::Face`]).
     ///
     /// - [`Self::Ball`]: the centre's axial distance plus the radius.
-    /// - [`Self::Measured`]: the caller's length.
-    /// - [`Self::Span`], per carrier, exact for the whole carrier and
-    ///   never an underestimate for a span of it:
+    /// - [`Self::Measured`] and [`Self::Face`]: the caller's length.
+    /// - [`Self::Span`], per carrier, never an underestimate:
     ///   - a **line** segment or a **NURBS** carrier: its endpoints or
-    ///     control points (a linear function attains its maximum over a
-    ///     segment or a convex hull at a vertex of it);
-    ///   - a **circle** or **ellipse**: the centre's axial distance plus
-    ///     the conic's support along the axis, `R·|axis × k|` or
-    ///     `√((major·u·axis)² + (minor·v·axis)²)` with `v = k × u`,
-    ///     whatever the parameter span;
-    ///   - a **spiric**: the centre's axial distance plus its torus's
-    ///     support along the axis, `R·|axis × k| + r`.
+    ///     its whole control net (a linear function peaks over a segment
+    ///     or a convex hull at a vertex of it); the net is the whole
+    ///     carrier's, not the span's;
+    ///   - a **circle** or **ellipse**: exact over `[t0, t1]`. Along the
+    ///     axis the conic reads `C + A·cos t + B·sin t`, a sinusoid of
+    ///     amplitude `√(A² + B²)`, so the farthest is at an end of the
+    ///     span or at one of its two crests where the crest lies in the
+    ///     span ([`conic_arc_along`]);
+    ///   - a **spiric**: its torus's support along the axis,
+    ///     `|(c − pivot)·axis| + R·|axis × k| + r`, whatever the span.
     #[must_use]
     pub fn axial_lever_from(&self, pivot: Point3<T>, axis: Vec3<T>) -> T {
         let along = |p: Point3<T>| (p - pivot).dot(axis).abs();
         match self {
             Self::Ball(ball) => along(ball.center()) + ball.radius(),
             Self::Measured { lever, .. } => *lever,
-            Self::Span { carrier, .. } => match carrier {
+            Self::Face { along, .. } => *along,
+            Self::Span { carrier, t0, t1 } => match carrier {
                 Curve3::Circle {
                     center,
                     axis: k,
                     radius,
-                    ..
-                } => along(*center) + radius.abs() * axis.cross(*k).norm(),
+                    u_ref,
+                } => conic_arc_along(
+                    (*center, *u_ref, k.cross(*u_ref)),
+                    (*radius, *radius),
+                    (*t0, *t1),
+                    pivot,
+                    axis,
+                ),
                 Curve3::Ellipse {
                     center,
                     axis: k,
                     major,
                     minor,
                     u_ref,
-                } => {
-                    let v = k.cross(*u_ref);
-                    along(*center)
-                        + ((*major * u_ref.dot(axis)).powi(2) + (*minor * v.dot(axis)).powi(2))
-                            .sqrt()
-                }
+                } => conic_arc_along(
+                    (*center, *u_ref, k.cross(*u_ref)),
+                    (*major, *minor),
+                    (*t0, *t1),
+                    pivot,
+                    axis,
+                ),
                 Curve3::Spiric {
                     center,
                     axis: k,
@@ -315,6 +375,21 @@ impl<T: Real> Reach<T> {
                     .iter()
                     .fold(T::zero(), |m, &p| m.max(along(p))),
             },
+        }
+    }
+
+    /// How far a [`Self::Face`] reaches across the wall from the
+    /// plane×cylinder row's hinge, zero for every other reach. A tilt `β`
+    /// turns the plane about the hinge, and a consumed point standing `x`
+    /// across the wall from it moves by `(1 − cos β)·x` on top of the
+    /// axial term: second order in the tilt, and the caller's own measure
+    /// of the face. A ball's or a span's lever reaches round the wall
+    /// already.
+    #[must_use]
+    pub fn across(&self) -> T {
+        match self {
+            Self::Face { across, .. } => *across,
+            Self::Ball(_) | Self::Measured { .. } | Self::Span { .. } => T::zero(),
         }
     }
 
@@ -347,7 +422,7 @@ impl<T: Real> Reach<T> {
                 ..
             } => foot(*center, origin, axis),
             Self::Ball(ball) => foot(ball.center(), origin, axis),
-            Self::Measured { at, .. } => foot(*at, origin, axis),
+            Self::Measured { at, .. } | Self::Face { at, .. } => foot(*at, origin, axis),
         }
     }
 
@@ -359,7 +434,7 @@ impl<T: Real> Reach<T> {
     fn reading_point(&self) -> Point3<T> {
         match self {
             Self::Ball(ball) => ball.center(),
-            Self::Measured { at, .. } => *at,
+            Self::Measured { at, .. } | Self::Face { at, .. } => *at,
             Self::Span {
                 carrier:
                     Curve3::Circle { center, .. }
@@ -519,15 +594,31 @@ mod tests {
         }
     }
 
-    /// **A span's axial lever is the carrier's support along the axis**
-    /// from any pivot: never short of a sampled point's axial distance,
-    /// and, round a whole conic, within sampling of the farthest. A
-    /// lever that dropped the conic's tilt off the axis (its centre's
-    /// distance alone) falls short by the support, and one that took the
-    /// distance round it (the Euclidean lever) over-reaches by the
-    /// radial part.
+    /// The farthest `|(x − pivot)·axis|` over `carrier` sampled on
+    /// `[t0, t1]`.
+    fn sampled_along(
+        carrier: &Curve3<f64>,
+        (t0, t1): (f64, f64),
+        pivot: Point3<f64>,
+        axis: Vec3<f64>,
+    ) -> f64 {
+        (0..=20_000)
+            .map(|k| {
+                let t = t0 + (t1 - t0) * f64::from(k) / 20_000.0;
+                (carrier.eval(t) - pivot).dot(axis).abs()
+            })
+            .fold(0.0_f64, f64::max)
+    }
+
+    /// **A conic arc's axial lever is the farthest it reaches along the
+    /// axis over its span**, to sampling: never short of a sampled
+    /// point, and within sampling of the farthest, on arcs whose crests
+    /// lie inside, outside and astride the span, a whole turn, a span
+    /// past one, and a span stored backwards. A whole-turn support
+    /// over-reaches every arc that misses a crest; a lever that dropped
+    /// a crest falls short of every arc that holds one.
     #[test]
-    fn a_spans_axial_lever_is_its_support_along_the_axis() {
+    fn a_conic_arcs_axial_lever_is_its_reach_over_the_span() {
         let pivot = Point3::new(0.3, -0.2, 0.7);
         let axis = Vec3::new(0.2, -0.3, 1.0).normalize();
         let tilted = Vec3::new(0.6, 0.0, 0.8);
@@ -553,34 +644,92 @@ mod tests {
                 u_ref: Vec3::new(-0.8, 0.0, 0.6),
             },
         ];
-        for carrier in carriers {
-            let lever = Reach::Span {
-                carrier: carrier.clone(),
-                t0: 0.0,
-                t1: 1.0,
+        let tau = core::f64::consts::TAU;
+        let spans = [
+            (0.0, tau),
+            (0.0, 1.0),
+            (1.0, 2.5),
+            (2.0, 4.0),
+            (3.5, 6.0),
+            (-1.0, 0.4),
+            (5.0, 5.0 + tau + 0.5),
+            (4.0, 1.0),
+        ];
+        let mut short = 0;
+        for carrier in &carriers {
+            for span in spans {
+                let lever = Reach::Span {
+                    carrier: carrier.clone(),
+                    t0: span.0,
+                    t1: span.1,
+                }
+                .axial_lever_from(pivot, axis);
+                let far = sampled_along(carrier, span, pivot, axis);
+                assert!(
+                    lever >= far * (1.0 - 1e-12) && lever - far < 1e-6,
+                    "{carrier:?} over {span:?}: lever {lever} against the farthest sampled {far}"
+                );
+                let whole = sampled_along(carrier, (0.0, tau), pivot, axis);
+                short += usize::from(far < whole - 1e-3);
             }
-            .axial_lever_from(pivot, axis);
-            let far = (0..=7200)
-                .map(|k| {
-                    let t = core::f64::consts::TAU * f64::from(k) / 7200.0;
-                    (carrier.eval(t) - pivot).dot(axis).abs()
-                })
-                .fold(0.0_f64, f64::max);
-            assert!(
-                lever >= far && lever - far < 1e-6,
-                "{carrier:?}: lever {lever} against the farthest sampled {far}"
-            );
         }
-        let segment = Reach::Span {
-            carrier: Curve3::Line {
-                origin: Point3::new(1.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
-            },
-            t0: -2.0,
-            t1: 5.0,
-        };
+        assert!(short >= 6, "the arcs that miss a crest: {short}");
+    }
+
+    /// **A spiric's and a spline's axial levers are their bounds' own
+    /// support, and reach the carrier.** A spiric oval read along its
+    /// torus's axis reaches the torus's support `r` at `v = π/2`, so its
+    /// lever is the farthest sampled point exactly; a lever short of
+    /// the minor radius, or one round the torus (`R + r`), misses it. A
+    /// clamped cubic read along `z` peaks at its last control point,
+    /// which it interpolates; its lever is that, where the control
+    /// points' Euclidean reach over-reaches.
+    #[test]
+    fn a_spiric_and_a_splines_axial_levers_reach_the_carrier() {
         let z = Vec3::new(0.0, 0.0, 1.0);
-        assert_eq!(segment.axial_lever_from(Point3::new(0.0, 0.0, 1.0), z), 4.0);
+        let pivot = Point3::new(0.4, -0.3, 0.25);
+        let spiric = Curve3::Spiric {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: z,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            offset: 0.7,
+        };
+        let tau = core::f64::consts::TAU;
+        let lever = Reach::Span {
+            carrier: spiric.clone(),
+            t0: 0.0,
+            t1: tau,
+        }
+        .axial_lever_from(pivot, z);
+        let far = sampled_along(&spiric, (0.0, tau), pivot, z);
+        assert!(
+            lever >= far && lever - far < 1e-6,
+            "spiric: lever {lever} against the farthest sampled {far}"
+        );
+        use geom_core::KnotVector;
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(2.0, 1.0, 0.5),
+            Point3::new(1.0, -2.0, 1.0),
+            Point3::new(0.5, 0.5, 2.0),
+        ];
+        let spline = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap(),
+        ));
+        let lever = Reach::Span {
+            carrier: spline.clone(),
+            t0: 0.0,
+            t1: 1.0,
+        }
+        .axial_lever_from(pivot, z);
+        let far = sampled_along(&spline, (0.0, 1.0), pivot, z);
+        assert!(
+            lever >= far && lever - far < 1e-12,
+            "spline: lever {lever} against the farthest sampled {far}"
+        );
     }
 
     /// **The minimax stays bounded at the certified scalar** where two

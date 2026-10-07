@@ -140,7 +140,7 @@
 //! for rule (a)'s Fig. 14.8 coplanar-edge-goes-below choice.
 
 use geom_brep::{EntersMaterial, WallBend, enters_material};
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Sign};
 
 use super::neighborhood::{chord, sector_face};
 use super::{
@@ -507,7 +507,7 @@ fn wall_graze<T: Decide>(
 /// The face-extent lever arm for the coplanarity/sense predicates: the
 /// farthest distance from the base vertex to any point of the face's
 /// boundary — its vertices, and each curved edge's far reach
-/// ([`edge_reach`]), so a one-vertex face bounded by a closed edge has
+/// ([`face_reach_from`]), so a one-vertex face bounded by a closed edge has
 /// the arm its edge spans, not zero — the largest displacement a
 /// normal-angle error can induce across this face (D4 ¶1's "face
 /// extent" arm, computed, named).
@@ -544,12 +544,25 @@ pub(crate) fn face_extent<T: Decide>(
     vertex: VertexKey,
     face: FaceKey,
 ) -> Result<T, UnboundedFace> {
-    let p_base = body.resolve_vertex_point(vertex, Proven);
+    face_reach_from(body, face, body.resolve_vertex_point(vertex, Proven))
+}
+
+/// [`face_extent`] from any point `at`: the farthest `face`'s boundary
+/// stands from it, each certified edge levered as its
+/// [`geom_brep::Reach::Span`] is ([`geom_brep::Reach::lever_from`]: a
+/// conic's or spiric's centre distance plus its largest radius, a
+/// spline's farthest control point, a segment's ends). The refusal is
+/// [`face_extent`]'s.
+pub(crate) fn face_reach_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+) -> Result<T, UnboundedFace> {
     boundary_reach(
         body,
         face,
-        |p| (p - p_base).norm(),
-        |curve| edge_reach(curve.carrier(), p_base),
+        |p| (p - at).norm(),
+        |curve| span_of(curve).lever_from(at),
     )
 }
 
@@ -560,10 +573,13 @@ pub(crate) fn face_extent<T: Decide>(
 /// [`geom_brep::Reach::Span`]), so a curved edge's bulge past every
 /// vertex is reached. A coordinate along an axis has no interior
 /// extremum on a plane or a cylinder about that axis, so the boundary's
-/// bound is the face's. It is the exact lever of a tilt of `axis` read
-/// at `at`'s foot on it, whose reading moves by the tilt times the
-/// axial distance: never shorter than the face, and never longer than
-/// [`face_extent`] from the same point.
+/// bound is the face's. It is the lever of a tilt of `axis` read at
+/// `at`'s foot on it, whose reading moves by the tilt times the axial
+/// distance: never shorter than the face, never longer than
+/// [`face_reach_from`] the same point, and exact wherever the boundary's
+/// edges are segments and conic arcs. A spiric edge is read at its
+/// torus's support and a spline at its whole control net, which can
+/// reach past the span the edge holds.
 ///
 /// The refusal is [`face_extent`]'s, on the same loop shapes.
 pub(crate) fn face_axial_extent<T: Decide>(
@@ -576,16 +592,18 @@ pub(crate) fn face_axial_extent<T: Decide>(
         body,
         face,
         |p| (p - at).dot(axis).abs(),
-        |curve| {
-            let (t0, t1) = curve.params();
-            geom_brep::Reach::Span {
-                carrier: curve.carrier().clone(),
-                t0,
-                t1,
-            }
-            .axial_lever_from(at, axis)
-        },
+        |curve| span_of(curve).axial_lever_from(at, axis),
     )
+}
+
+/// A certified edge as the reach of the span it holds.
+fn span_of<T: Decide>(curve: &geom_brep::EdgeCurve<T>) -> geom_brep::Reach<T> {
+    let (t0, t1) = curve.params();
+    geom_brep::Reach::Span {
+        carrier: curve.carrier().clone(),
+        t0,
+        t1,
+    }
 }
 
 /// The farthest `face`'s boundary reaches by a measure: `point` of each
@@ -624,36 +642,6 @@ fn boundary_reach<T: Decide>(
         }
     }
     Ok(extent)
-}
-
-/// An over-estimate of how far from `p` any point of a curved
-/// `carrier` lies, whatever span of it an edge holds: a conic's or
-/// spiric's centre distance plus its largest radius (a spiric lies on
-/// its torus, within R + r of the centre), a spline's farthest control
-/// point (its convex hull holds it, every weight being positive). A
-/// line's points lie between its endpoints, which are vertices, so it
-/// adds nothing.
-fn edge_reach<T: Real>(carrier: &geom::Curve3<T>, p: Point3<T>) -> T {
-    match carrier {
-        geom::Curve3::Line { .. } => T::zero(),
-        geom::Curve3::Circle { center, radius, .. } => (*center - p).norm() + radius.abs(),
-        geom::Curve3::Ellipse {
-            center,
-            major,
-            minor,
-            ..
-        } => (*center - p).norm() + major.abs().max(minor.abs()),
-        geom::Curve3::Spiric {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => (*center - p).norm() + major_radius.abs() + minor_radius.abs(),
-        geom::Curve3::Nurbs(curve) => curve
-            .control()
-            .iter()
-            .fold(T::zero(), |far, &q| far.max((q - p).norm())),
-    }
 }
 
 /// [`face_extent`]'s refusal: `face`'s outer loop is the lone `vertex`.

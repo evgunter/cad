@@ -4144,6 +4144,70 @@ mod tests {
         }
     }
 
+    /// **A short face is never turned definite by its wall's size.** A
+    /// wall of radius `r` whose face is the lone ruling `(r, 0, 0)` to
+    /// `(r, 0, 10 µm)`, cut by the plane through the vertex and the axis
+    /// tilted so the axis meets it at `sin β = k·ε/10 µm`: the ruling
+    /// leaves the plane by at most `k·ε`, so the section over it is the
+    /// ruling pair (`Straight`) at every `k < 1`, on a 1 km wall and a
+    /// 1 m one. Levered across the whole cylinder (`r + |gap|`) the tilt's
+    /// second-order turn read `r·sin² β`, which served an ellipse on the
+    /// 1 km wall and escalated on the 1 m one; the face reaches 10 µm
+    /// across the wall and reads nothing.
+    #[test]
+    fn a_short_face_is_never_turned_definite_by_its_walls_size() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let e = 1e-5;
+        for r in [1000.0, 1.0] {
+            let base = Point3::new(r, 0.0, 0.0);
+            let mut body = crate::Body::<f64>::new();
+            let seed = body.mvfs(base, true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Cylinder {
+                        origin: Point3::origin(),
+                        axis: Vec3::unit_z(),
+                        radius: r,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            body.mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(r, 0.0, e),
+                Tol::witness(),
+            )
+            .unwrap();
+            for k in [0.5, 0.8, 0.95] {
+                let c: f64 = k * band.zero() / e;
+                let normal =
+                    UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "short face", band)
+                        .unwrap();
+                let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+                assert!(
+                    matches!(
+                        got,
+                        Ok(Some(WallSection {
+                            case: SectionCase::Straight(_),
+                            ..
+                        }))
+                    ),
+                    "r = {r}, k = {k}: the ruling pair, got {:?}",
+                    got.map(|w| w.map(|w| match w.case {
+                        SectionCase::Straight(_) => "straight",
+                        SectionCase::Tangent(_) => "tangent",
+                        SectionCase::Conic(_) => "conic",
+                    }))
+                );
+            }
+        }
+    }
+
     /// The split lane's adjacency question on a conic between edge (a
     /// cylinder cap's rim, which a planar divided face carries): the
     /// belly verdict and the coplanar verdict. The rim is the upper

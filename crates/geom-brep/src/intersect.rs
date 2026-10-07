@@ -838,11 +838,12 @@ pub enum PlaneCylinderSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
-/// 1. `pc_axis_plane_parallel` — margin `(axis·normal)·lever`, the
-///    axis' angle off the plane levered from that foot by `reach`
-///    ([`Reach::lever_from`]) plus the reach across the wall a finite
-///    tilt also moves (`(r + |gap|)·|c|/(1 + cos)`, `c = axis·normal`,
-///    second order in the tilt): Zero ⇒ the axis lies in the plane
+/// 1. `pc_axis_plane_parallel` — margin `c·lever`, `c = axis·normal`,
+///    the axis' angle off the plane levered from that foot by `reach`
+///    ([`Reach::lever_from`]), plus the two second-order terms of a
+///    finite tilt about the rulings' hinge: its station's offset
+///    `|gap·c|`, and the reach's own measure across the wall levered at
+///    `|c|/(1 + cos)` ([`Reach::across`]): Zero ⇒ the axis lies in the plane
 ///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
 ///    (step 3).
 /// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|` at
@@ -935,19 +936,17 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
     let o = reach.foot_on(o, a);
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
-    // The plane parts from the rulings' plane about their common line
-    // through the foot's projection. At a consumed point a sine `c` off
-    // the axis moves it by `|c|` times its axial distance from the foot,
-    // and by `1 − cos` times its reach across the wall, at most
-    // `r + |gap|`: `|c|·(r + |gap|)/(1 + cos)` levers the second term,
-    // which a lever measured along the axis alone does not carry.
-    let across = (r + gap_signed.abs()) * c.abs()
-        / (T::one() + (T::one() - c.powi(2)).max(T::zero()).sqrt());
-    match decide(
-        "pc_axis_plane_parallel",
-        Margin::levered(c, reach.lever_from(o) + across),
-        band,
-    )? {
+    // The rulings this lane mints stand on the plane's hinge through
+    // `o − n·gap`, whose axial station is `gap·c` from the foot's, and the
+    // real plane turns off theirs about that hinge: a consumed point
+    // moves by `c` times its axial distance from the hinge's station, at
+    // most the reach's lever plus `|gap·c|`, and by `1 − cos` times its
+    // reach across the wall from the hinge (`Reach::across`), levered at
+    // `|c|/(1 + cos)` so nothing divides by `c`.
+    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
+    let lever =
+        reach.lever_from(o) + (gap_signed * c).abs() + reach.across() * c.abs() / (T::one() + cos);
+    match decide("pc_axis_plane_parallel", Margin::levered(c, lever), band)? {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Ok(None),
     }
