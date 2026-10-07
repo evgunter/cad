@@ -187,7 +187,7 @@ fn selecting_a_parameter_marks_the_features_it_drives() {
 
     // A parameter nothing reads marks nothing — the honest answer, not
     // "everything" and not a panic.
-    let unused = pncad::document::VarId(0x756e_7573_6564);
+    let unused = pncad::document::VarId::new(0, 0x756e_7573_6564);
     let quiet = marks::focus(&index, session.doc(), &Selection::Param(unused));
     assert!(quiet.is_empty());
 }
@@ -312,13 +312,13 @@ fn die(tol: Tol) -> Die {
     let first =
         |doc: &DieDoc,
          want: fn(&pncad::document::Node<pncad::document::ProfileProgram>) -> bool| {
-            doc.order()
+            doc.ids()
                 .iter()
                 .copied()
                 .find(|&id| want(doc.node(id).expect("an ordered node exists")))
                 .expect("the die has this node kind")
         };
-    let composed = *doc.order().last().expect("the die has nodes");
+    let composed = *doc.ids().last().expect("the die has nodes");
     let box_blend = input_of(&doc, composed);
     let cut = input_of(&doc, box_blend);
     let cube = input_of(&doc, cut);

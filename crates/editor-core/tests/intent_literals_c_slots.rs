@@ -785,19 +785,19 @@ fn the_load_door_reads_every_slots_variable() {
     );
     let doc = declare(&doc, "n", VarDecl::Free(FreeVar::Count { value: 3 }));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let at = |wire: &mut serde_json::Value, var: u64| {
+    let at = |wire: &mut serde_json::Value, var: VarId| {
         wire["snapshot"]["nodes"][point.0.to_string()]["Datum"]["Point"]["position"][1] =
             serde_json::json!(var);
     };
-    let unminted = crate::wire::doctored(&text, |wire| at(wire, 1));
+    let unminted = crate::wire::doctored(&text, |wire| at(wire, VarId::new(0, 1)));
     match load(&unminted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
-            assert_eq!((node.id(), var), (point, VarId(1)));
+            assert_eq!((node.id(), var), (point, VarId::new(0, 1)));
         }
         other => panic!("a slot of an unminted id refuses, got {other:?}"),
     }
     let count = doc.var_named("n").expect("declared");
-    let counted = crate::wire::doctored(&text, |wire| at(wire, count.0));
+    let counted = crate::wire::doctored(&text, |wire| at(wire, count));
     match load(&counted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,

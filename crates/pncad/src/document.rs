@@ -107,8 +107,8 @@ pub use editor_core::cascade_delete_order;
 // `EditError::PlacementRuleMismatch` carry.
 pub use editor_core::{
     Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg,
-    SlotId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    MeasureNodeFault, MintId, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId,
+    RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the

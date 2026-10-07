@@ -402,8 +402,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   body is any number of solids, so a disjoint union is a body of
   several solids. Booleans, `shell` and `split` take bodies and return
   bodies, and each sorts its result into solids, so every output is an
-  operand. A product (an explicit list of `Body` variables, D10) is not
-  a boolean operand: the editor refuses it, naming the explicit union
+  operand. A product (the copies its world placements define, D10) is
+  not a boolean operand: the editor refuses it, naming the explicit union
   of the copies that makes them one body
   (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
   structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
@@ -1226,10 +1226,18 @@ makes the two distinct.
 **Operations.** A node is an operation: it reads variables and defines
 one or more. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
-product is an explicit list of `Body` variables. A `Face` or `Edge`
+product is the world: every copy a world placement defines. A world
+placement is an operation reading one `Body` and defining its copy;
+building or combining bodies places nothing, and an operand appears
+only if a placement names it. A document whose world holds nothing has
+an empty product. A `Face` or `Edge`
 variable is a selection of a `Body` variable by `StableName`, and the
 N5 resolution ladder lives there; deleting a variable leaves its
-readers unresolved, typed, never silently re-pointed.
+readers unresolved, typed, never silently re-pointed. A `Measure`
+defines an *observed* variable, a function of the built geometry
+rather than of what was written; an observed variable, and any
+definition reading one, is read only by an assertion. A construction
+reads what was written.
 
 **Spaces and placement.** A part has no location. A **space** is a set
 of copies related to one another; a part is born in its own space. A
@@ -1239,7 +1247,8 @@ added to a pinned copy refuses as an overconstraint, decided by
 subgroup algebra (A11 (1)) without measuring. A mate places and never
 checks. The **world** is one undeletable frame that copies may be
 related to like a part; export reads its coordinates and nothing else
-does. The kernel computes each space in the frame of its earliest
+does. Construction never reads the world; a document builds in a frame
+of its own. The kernel computes each space in the frame of its earliest
 member, chosen from the recipe and never from values or from the world,
 so an unrelated edit moves no bit (D9).
 

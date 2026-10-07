@@ -209,14 +209,14 @@ fn a_quarter_turn_less_a_quarter_turn_is_zero_by_theorem() {
 
     // Two written `90 deg`, each toleranced, are two variables: two
     // symbols, which the form cannot cancel.
-    let (u, v) = (VarId(1), VarId(2));
+    let (u, v) = (VarId::new(0, 1), VarId::new(0, 2));
     let session = |decide: bool| {
         with_session_rules(budget, SymRules::shipped(), || {
             let right = core::f64::consts::FRAC_PI_2;
             let mut env = VarEnv::<S>::default();
             for var in [u, v] {
                 let value = S::param_over(
-                    ParamSymbol::new(var.0),
+                    ParamSymbol::new(var.0.digest()),
                     Interval::from_bounds(right - 1e-3, right + 1e-3),
                     -1e-3,
                     1e-3,
@@ -322,8 +322,8 @@ fn a_definitions_quantities_mint_first_and_retire_after_it() {
     let formula = doc.slot(blend, SlotId::Radius).unwrap();
     let reads = definition_reads(&doc, blend);
     let w = doc.var_named("w").unwrap();
-    let order = doc.var_order();
-    let at = |var| order.iter().position(|&v| v == var).unwrap();
+    // A variable's mint ordinal is its place in the mint order.
+    let at = |var: editor_core::VarId| var.0.ordinal();
     assert_eq!(reads[1], w);
     assert!(at(reads[0]) < at(reads[2]), "pre-order");
     assert!(

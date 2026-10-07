@@ -671,7 +671,7 @@ mod tests {
     fn name() -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             path: Vec::new(),
         }
     }
@@ -680,7 +680,7 @@ mod tests {
         Box::new(crate::ResolveError::NodeGone {
             name: name(),
             edit: crate::RecipeEditRef::NodeDeleted {
-                node: RecipeNodeId(3),
+                node: RecipeNodeId::new(0, 3),
             },
         })
     }
@@ -712,8 +712,8 @@ mod tests {
 
     fn frame_direction(error: UnitVec3Error) -> K {
         K::FrameDirection {
-            profile: RecipeNodeId(4),
-            frame: RecipeNodeId(2),
+            profile: RecipeNodeId::new(0, 4),
+            frame: RecipeNodeId::new(0, 2),
             refusal: crate::DirectionRefusal {
                 role: "frame normal",
                 error,
@@ -732,7 +732,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     fn witness(class: C) -> K {
         use crate::{EvalError, SlotId};
-        let n = RecipeNodeId;
+        let n = |i| RecipeNodeId::new(0, i);
         match class {
             C::Expr => K::Expr {
                 slot: SlotId::Distance,
@@ -788,17 +788,17 @@ mod tests {
             },
             C::ParamBox => K::ParamBox {
                 source: crate::ParamBoxError::UnknownParam {
-                    param: crate::SpokenVar::new(crate::VarId(1), None),
+                    param: crate::SpokenVar::new(crate::VarId::new(0, 1), None),
                 },
             },
             C::Seed => K::Seed {
                 source: crate::SeedError::UnknownVar {
-                    var: crate::SpokenVar::new(crate::VarId(1), None),
+                    var: crate::SpokenVar::new(crate::VarId::new(0, 1), None),
                 },
             },
             C::SeedPinnedSection => K::SeedPinnedSection {
                 section: n(3),
-                param: crate::VarId(1),
+                param: crate::VarId::new(0, 1),
             },
             C::WrongOperand => K::WrongOperand {
                 input: n(3),

@@ -444,7 +444,7 @@ fn a_non_datum_reference_refuses() {
     }
     // An unevaluated node id, same door: a node with no value is its
     // own refusal, carrying the standing rather than a word for it.
-    let ghost = at(RecipeNodeId(9999), Cmp::Approx, 0.0);
+    let ghost = at(RecipeNodeId::new(0, 9999), Cmp::Approx, 0.0);
     assert!(matches!(
         select_where(
             &ev,
@@ -454,11 +454,8 @@ fn a_non_datum_reference_refuses() {
             &no_params(),
             Tol::witness()
         ),
-        Err(SelectRefusal::DatumHasNoValue(
-            NodeStanding::NotInDocument {
-                node: RecipeNodeId(9999)
-            }
-        ))
+        Err(SelectRefusal::DatumHasNoValue(NodeStanding::NotInDocument { node }))
+            if node == RecipeNodeId::new(0, 9999)
     ));
 }
 
@@ -471,7 +468,7 @@ fn a_valueless_node_is_empty_not_an_error() {
     assert!(
         select_where(
             &ev,
-            RecipeNodeId(9999),
+            RecipeNodeId::new(0, 9999),
             &all(EntityKind::Edge),
             &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
             &no_params(),
@@ -523,7 +520,7 @@ fn composed_ids(
     ev: &editor_core::Evaluation<f64>,
 ) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (_, pipped) = doc
-        .order()
+        .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
             Some(Node::Fillet { target, .. }) => Some((*id, *target)),

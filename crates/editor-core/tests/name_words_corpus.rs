@@ -80,10 +80,14 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// from other bytes. [`NAME_WORDS`] held, so no name says a word more or
 /// fewer.
 ///
-/// INTENT-LITERALS PR D: `kitchen_sink`'s node tags, whose formulas'
-/// written quantities now mint variables of their own; [`NAME_WORDS`]
-/// held.
-const SAID_DIGEST: u64 = 0x9a6f_3099_1546_e50b;
+/// Ids as their mint ordinal and digest: a `Borders` refusal lists its
+/// walls in mint order now (it listed them by digest), and nothing else
+/// moved — the node tags are still the digest's. Re-taken on PR 4228's
+/// tree (a cited line, and `Ends` on every piece), whose words moved
+/// it. On that tree the ids reorder an `Ends` list the same way they
+/// reorder a `Borders` one (mint order, not digest order), and move no
+/// other word.
+const SAID_DIGEST: u64 = 0x461b_e352_3eb9_8c3c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -126,7 +130,7 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
     let full = Speaker::of(doc);
     let scoped = full.within(ev);
     let mut out = Census::default();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(value) = ev.value(id) else { continue };
         let mut groups: [BTreeMap<String, usize>; 3] = Default::default();
         for (name, _) in value.name_table.iter() {
@@ -358,7 +362,7 @@ fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'st
         .iter()
         .zip(evals)
         .find_map(|(d, ev)| {
-            d.doc.order().iter().find_map(|&id| match d.doc.node(id) {
+            d.doc.ids().iter().find_map(|&id| match d.doc.node(id) {
                 Some(Node::Fillet { selection, .. }) if selection.len() > 1 => Some((
                     &d.doc,
                     ev,
@@ -426,7 +430,7 @@ fn refusals(
         t_hi: 1.0,
         point: geom_core::Point3::new(0.0, 0.0, 0.0),
     };
-    let instance = RecipeNodeId(test_utils::refusal::tagged(1));
+    let instance = RecipeNodeId::new(0, test_utils::refusal::tagged(1));
     vec![
         (
             "ResolveError::Vanished",
@@ -782,7 +786,10 @@ fn each_boolean_join_says_its_operation() {
             .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
             .name_table;
         let by = Speaker::of(&r.doc);
-        let join = format!(", {verb} at {noun} {}", test_utils::refusal::tag(at.0));
+        let join = format!(
+            ", {verb} at {noun} {}",
+            test_utils::refusal::tag(at.0.digest())
+        );
         let through_b: Vec<String> = table
             .iter()
             .map(|(name, _)| name)
@@ -872,7 +879,7 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
         .map(|d| (&d.doc, fixture::run(&d.doc, &EvalOptions::default())))
         .filter_map(|(doc, ev)| {
             let node = doc
-                .order()
+                .ids()
                 .iter()
                 .copied()
                 .filter(|&id| ev.value(id).is_some())

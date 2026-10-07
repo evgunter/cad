@@ -653,7 +653,7 @@ mod census {
     fn name() -> Box<StableName> {
         Box::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7),
+            node: RecipeNodeId::new(0, 7),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         })
     }
@@ -685,27 +685,27 @@ mod census {
                 error: InterrogateError::WholeBody,
             },
             SelectRefusal::NotADatum {
-                datum: RecipeNodeId(9),
+                datum: RecipeNodeId::new(0, 9),
                 found: "a body",
             },
             SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
-                node: RecipeNodeId(9),
-                through: RecipeNodeId(4),
+                node: RecipeNodeId::new(0, 9),
+                through: RecipeNodeId::new(0, 4),
             }),
             SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
-                node: RecipeNodeId(9),
+                node: RecipeNodeId::new(0, 9),
             }),
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
             },
             SelectRefusal::PairInBand {
                 pair: Box::new((*name(), *name())),
-                at: (RecipeNodeId(7), RecipeNodeId(8)),
+                at: (RecipeNodeId::new(0, 7), RecipeNodeId::new(0, 8)),
                 predicate: "bool_plane_side_of",
                 source: in_band(),
             },
             SelectRefusal::AcrossSpaces {
-                group: RecipeNodeId(3),
+                group: RecipeNodeId::new(0, 3),
                 cause: crate::mate::Unplaced::NoOffset,
             },
             SelectRefusal::BadValue(crate::expr::EvalError::ContinuousExprInCountEval {

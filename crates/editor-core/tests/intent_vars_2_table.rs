@@ -228,7 +228,7 @@ fn the_symbol_is_the_variables_id() {
         let (_, counts) = session(|| {
             let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
             let by_hand = Sym::<f64>::from_f64(VALUE)
-                + Sym::param_over(ParamSymbol::new(var.0), 0.0, 0.0, 0.0);
+                + Sym::param_over(ParamSymbol::new(var.0.digest()), 0.0, 0.0, 0.0);
             decide(bound(var, &env) - by_hand)
         });
         assert_eq!(counts.symbolic_zero, 1, "{name}'s symbol is its id");
@@ -320,7 +320,7 @@ fn the_table_round_trips_with_its_var_mint_arm() {
     let doc = twins();
     let text = save(&doc, &[], Tol::witness()).unwrap();
     for name in ["w", "v"] {
-        let tag = format!("\"var\": {}", id(&doc, name).0);
+        let tag = format!("\"var\": \"{}\"", id(&doc, name).0);
         assert_eq!(text.matches(&tag).count(), 1, "{name}'s mint entry");
     }
     let back = load(&text, Tol::witness()).unwrap().doc;
@@ -429,10 +429,14 @@ fn a_kind_its_definition_does_not_hold_refuses_at_load() {
 #[test]
 fn a_variable_the_mint_never_minted_refuses_at_load() {
     let err = load_doctored(|snap, w, _| {
+        // Retagged a node's rather than dropped, so the log still
+        // counts up from one.
         let log = snap["mint"]["log"].as_array_mut().expect("the mint log");
-        let before = log.len();
-        log.retain(|entry| entry != &serde_json::json!({ "var": w.0 }));
-        assert_eq!(log.len(), before - 1, "w's entry was in the log");
+        let entry = log
+            .iter_mut()
+            .find(|entry| *entry == &serde_json::json!({ "var": w.0 }))
+            .expect("w's entry is in the log");
+        *entry = serde_json::json!({ "node": w.0 });
     });
     let PersistError::Snapshot(SnapshotError::VarNotMinted { var }) = err else {
         panic!("not VarNotMinted: {err:?}")
@@ -444,12 +448,12 @@ fn a_variable_the_mint_never_minted_refuses_at_load() {
 #[test]
 fn a_name_on_no_variable_refuses_at_load() {
     let err = load_doctored(|snap, _, _| {
-        snap["var_names"]["99"] = serde_json::json!("ghost");
+        snap["var_names"]["0:0000000000000063"] = serde_json::json!("ghost");
     });
     assert_eq!(
         err,
         PersistError::Snapshot(SnapshotError::NameOnMissingVar {
-            var: VarId(99),
+            var: VarId::new(0, 99),
             name: n("ghost"),
         })
     );
@@ -473,33 +477,25 @@ fn an_unread_unnamed_variable_refuses_at_load() {
     assert_eq!(var.name(), None);
 }
 
-/// `VarOrderMismatch`: a declaration order that drops a variable.
-#[test]
-fn a_declaration_order_missing_a_variable_refuses_at_load() {
-    let err = load_doctored(|snap, w, _| {
-        let order = snap["var_order"].as_array_mut().expect("the order");
-        let before = order.len();
-        order.retain(|id| id != &serde_json::json!(w.0));
-        assert_eq!(order.len(), before - 1, "w was listed");
-    });
-    assert_eq!(err, PersistError::Snapshot(SnapshotError::VarOrderMismatch));
-}
-
 /// **The document's variables have ONE order, the author's**: the
-/// declaration order, which every lane lists, draws and tie-breaks in.
-/// The twins' ids sort AGAINST their declaration (the first declare of
-/// a kind from an empty chain draws the larger id — asserted, so the
-/// row cannot pass by an id order that happens to agree), and every
-/// lane still says `w` first.
+/// declaration order, which is id order (an id's mint ordinal leads
+/// it), and which every lane lists, draws and tie-breaks in. The
+/// twins' digests sort AGAINST their declaration (asserted, so the row
+/// cannot pass by reading the digest), and every lane still says `w`
+/// first.
 #[test]
-fn every_lane_reads_the_declaration_order_not_the_id_order() {
+fn every_lane_reads_the_declaration_order_not_the_digest_order() {
     let (doc, measure) = measured_twins();
     let (w, v) = (id(&doc, "w"), id(&doc, "v"));
-    assert!(w > v, "the fixture's ids sort against its declarations");
+    assert!(
+        w.0.digest() > v.0.digest(),
+        "the fixture's digests sort against its declarations"
+    );
+    assert!(w < v, "and its ids sort with them");
     // The measure's own variable, the anonymous definition its value
     // lowers to, is declared after the twins.
-    assert_eq!(doc.var_order()[..2], [w, v]);
-    assert_eq!(doc.var_order().len(), 3);
+    assert_eq!(doc.var_ids()[..2], [w, v]);
+    assert_eq!(doc.var_ids().len(), 3);
     assert_eq!(
         doc.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
         vec![w, v]
@@ -515,7 +511,7 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
         vec![w, v]
     );
     // Equal laws, so equal relative widths: the tie goes to the
-    // earlier-declared variable, never to the lower id.
+    // earlier-declared variable, never to the lower digest.
     assert_eq!(root.split_axis(&root), Some(w));
     let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness()).unwrap();
     assert_eq!(
@@ -525,5 +521,5 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
     // And the order survives a save.
     let text = save(&doc, &[], Tol::witness()).unwrap();
     let back = load(&text, Tol::witness()).unwrap().doc;
-    assert_eq!(back.var_order(), doc.var_order());
+    assert_eq!(back.var_ids(), doc.var_ids());
 }

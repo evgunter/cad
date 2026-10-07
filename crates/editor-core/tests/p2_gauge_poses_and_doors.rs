@@ -871,7 +871,7 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
     );
     let cause = format!(
         "its gauge chain names node {}, which was deleted",
-        test_utils::refusal::tag(g.0)
+        test_utils::refusal::tag(g.0.digest())
     );
     for said in [editor_core::spoken_by(row, &outer), row.to_string()] {
         assert!(

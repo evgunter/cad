@@ -88,7 +88,7 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.order()[doc.order().len() - 2];
+    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -485,9 +485,9 @@ fn a_definition_reads_only_what_the_document_holds() {
         Err(EditError::DefinitionUnknownVarName { name, .. }) => assert_eq!(name, n("nope")),
         other => panic!("an unheld name, got {other:?}"),
     }
-    match declare_in(&doc, Formula::var(VarId(0x5eed), Dimension::Length)) {
+    match declare_in(&doc, Formula::var(VarId::new(0, 0x5eed), Dimension::Length)) {
         Err(EditError::DefinitionUnresolvedVar { read, .. }) => {
-            assert_eq!(read.id(), VarId(0x5eed))
+            assert_eq!(read.id(), VarId::new(0, 0x5eed))
         }
         other => panic!("an unminted id, got {other:?}"),
     }
@@ -670,7 +670,7 @@ fn definitions_bind_after_what_they_read() {
     )
     .doc;
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    assert_eq!(doc.var_order(), &[h, w]);
+    assert_eq!(doc.var_ids(), &[h, w]);
     assert_eq!(doc.definition_order(), vec![w, h]);
     let env = doc.var_env::<f64>();
     assert_eq!(
@@ -835,10 +835,12 @@ fn a_definition_no_door_wrote_refuses_at_load() {
         matches!(&err, PersistError::Unreadable { detail, .. } if detail.contains("unknown variant `Name`")),
         "{err:?}"
     );
-    let err = load_doctored(&doc, |snap| def(snap, wire_var(VarId(0x5eed), "Length")));
+    let err = load_doctored(&doc, |snap| {
+        def(snap, wire_var(VarId::new(0, 0x5eed), "Length"))
+    });
     assert!(
         matches!(&err, PersistError::Snapshot(SnapshotError::DefinitionReadsUnmintedVar { var, read })
-            if var.id() == h && *read == VarId(0x5eed)),
+            if var.id() == h && *read == VarId::new(0, 0x5eed)),
         "{err:?}"
     );
     let err = load_doctored(&doc, |snap| {

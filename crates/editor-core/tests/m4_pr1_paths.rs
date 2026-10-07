@@ -208,7 +208,7 @@ fn recipe_node_ids_are_never_reused() {
 #[test]
 fn dangling_ref_rejected() {
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let ghost = RecipeNodeId(99);
+    let ghost = RecipeNodeId::new(0, 99);
     let err = doc
         .apply(
             &TEdit::InsertNode {
@@ -236,7 +236,7 @@ fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let guessed = RecipeNodeId(0); // no node holds it
+    let guessed = RecipeNodeId::new(0, 0); // no node holds it
     let err = doc
         .apply(
             &TEdit::InsertNode {

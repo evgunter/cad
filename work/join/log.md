@@ -1099,3 +1099,36 @@ Signed (JOIN orchestrator).
     checked against rule 1 before any dual dispatch.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07: PR 4240 landed (tier-3 pinch checks)
+
+- **PR 4240 merged** after its FULL review and fix pass. Check 9 now refuses:
+  - every pair of rings of one face that meet (`RingMeetsRing`);
+  - a corner that is not a slice of its own face (`PinchCornerCrossed`), on planar faces and through the tangent plane on cylinder, sphere and torus.
+- **The rows** `a-corner-is-a-slice-of-its-face-tier-3-check` and `check-9-refuses-only-a-ring-meeting-its-outer-loop` are closed.
+- **The fix pass** answered all four MINORs:
+  - the skip now works by side, not by edge;
+  - a box broad phase cut the 1,600-ring case from 2.45 s to 19 ms;
+  - crossed pins exist for the reflex, straight and curved cases;
+  - the ring-pair escalation has its own variant.
+- **One deviation, accepted:** the arm does not read a face check 6 has refused, since its corners would be the complements of its true ones. That replaces my NOTE-2 ruling ("leave it, document it").
+- **`ring_pairs`' `Decide + Bounds`** is argued under the 2026-07-29 driver amendment, on the census's terms, as `face_boxes` was. It applies that ruling and does not change it.
+- **Visible change:** STEP import now refuses a face whose two inner bounds touch.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: two units dispatched
+
+- `a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc` (P1 M):
+  a diagnosis, then a fix. Branch `join/roof-cross-valley`.
+- `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses`
+  (P1 M, test side): a wrong oracle can certify a wrong body. Branch
+  `join/sweep-oracle-convex-volume`.
+- The P0 `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census`
+  is not dispatched yet. Its fix is a census and tolerance question that
+  REACH's tier-3′ gate depends on. It wants a design pass, which the
+  seven-day usage warning argues against starting now.
+- `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`
+  (filed by PR 4249) follows when 4249 lands.
+
+Signed (JOIN orchestrator).

@@ -267,7 +267,7 @@ enum Binop {
 /// have earned. A probe is a reader of a variable at the dimension, which
 /// every dimension has.
 fn lattice(op: Binop, left: Dimension, right: Dimension) -> Result<Dimension, DimensionError> {
-    let probe = |dim| Expr::var(crate::var::VarId(0), dim);
+    let probe = |dim| Expr::var(crate::var::VarId::new(0, 0), dim);
     let (a, b) = (probe(left), probe(right));
     match op {
         Binop::Add => Expr::add(a, b),

@@ -44,3 +44,6 @@ on an analytic chart:
 A fixture needs either a producer path to one of these (the issue
 `uncovered-chart-classes-have-no-incidence-test` names a STEP re-import
 of a spiric rim landing a spline on a torus) or a test-only door.
+
+
+Correction (spline-carrier designers, PR 4261): an `Intersection` spline strut on an analytic face does not take the fitted lane. `analytic_derive` excuses it (`UncoveredClass::SplineCarrier`). `crates/topo/tests/m6_2_fitted_at_rest.rs` and `topo/tests/fixture/mod.rs` build exactly that face through public `mev`. So until the spline route lands, a fixture for the excusal is that face without the hand-attached row (`attach_pcurve`).

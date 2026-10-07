@@ -85,9 +85,9 @@ fn selection_of(
 fn fillet_and_target(
     doc: &editor_core::ProfileDoc,
 ) -> (editor_core::RecipeNodeId, editor_core::RecipeNodeId) {
-    for id in doc.order() {
-        if let Some(Node::Fillet { target, .. }) = doc.node(*id) {
-            return (*id, *target);
+    for id in doc.ids() {
+        if let Some(Node::Fillet { target, .. }) = doc.node(id) {
+            return (id, *target);
         }
     }
     panic!("the composed die has a fillet node")

@@ -30,7 +30,7 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **three** of the ten doors that read a box from
+//! PRUNES. That is **four** of the eleven doors that read a box from
 //! here; at four of the other seven, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL, and at the other three it is
 //! more exact work AND can be a refusal:
@@ -46,6 +46,11 @@
 //!   through the same door (`census::Candidates::class`); they are
 //!   built from `face_reach`, not from these constructors, so the
 //!   inventory below does not count them.
+//! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
+//!   rings of one face whose hulled edge boxes clear are never handed
+//!   to the contact arms, and whether two rings meet is decided by those
+//!   arms through `Decide`. A bigger box costs a pair the exact arms,
+//!   never an answer.
 //! - `boolean::reduce`'s operand GATE grants on non-overlap: an
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
@@ -112,10 +117,10 @@
 //!   of: the crossing layer keeps its typed door.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The ten are not
+//! about a door, and the door has to be named. The eleven are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! a tenth door cannot land unargued. **It pins WHERE the doors are
+//! a new door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -3548,7 +3553,7 @@ pub(crate) mod tests {
         // hands it. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
-        const PINNED: [(&str, usize); 9] = [
+        const PINNED: [(&str, usize); 10] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/mod.rs", 2),
             ("boolean/ops.rs", 4),
@@ -3558,6 +3563,7 @@ pub(crate) mod tests {
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
+            ("validate.rs", 1),
         ];
         const HOME: &str = "boolean/boxes.rs";
         const DOORS: [&str; 4] = ["face_box(", "face_box_rule(", "edge_box(", "edge_box_rule("];

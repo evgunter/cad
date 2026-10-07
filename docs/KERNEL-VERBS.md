@@ -449,6 +449,16 @@ the table.
   "disjoint"; the shell verb's own precondition escalates the same way
   and never proceeds to build.
 
+  **The same arms run between every two rings of a face**
+  (`ValidationError::RingMeetsRing`, escalating as
+  `ValidationError::RingPairContactEscalated`, each naming both
+  rings): a pinch is one vertex per cone, so two loops of one face
+  meeting is a crossing wherever it happens. The shell verb's
+  precondition compares the new ring with the host's outer loop only,
+  so a host ring the new one touches is refused by this check at the
+  verb's closing validate, untyped by the verb
+  (`work/shell/shell-glue-precondition-skips-the-hosts-existing-rings.md`).
+
   **What check 9's contact arms do NOT match, enumerated** (an unstated
   blind spot is an unverified claim): `Ellipse`, `Spiric` and NURBS
   carriers in the locus and meeting-point arms, whose endpoints the

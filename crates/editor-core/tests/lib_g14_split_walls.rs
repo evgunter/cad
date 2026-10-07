@@ -444,7 +444,7 @@ fn node_level_prose_carries_the_emitter_payload() {
     assert!(s.contains("edge") && s.contains('1'), "{s}");
 
     let s = carried(NamingError::MissingUpstream {
-        node: RecipeNodeId(tagged(7)),
+        node: RecipeNodeId::new(0, tagged(7)),
     });
     assert!(s.contains('7'), "{s}");
 

@@ -35,7 +35,7 @@ fn env_with(var: VarId, v: ParamValue<f64>) -> VarEnv<f64> {
 
 #[test]
 fn param_lookup_and_typed_failures() {
-    let id = VarId(0x3fa9_c1d2_a0b1_0001);
+    let id = VarId::new(0, 0x3fa9_c1d2_a0b1_0001);
     let depth = Formula::var(id, Dimension::Length);
     // Bound correctly: the raw kernel-unit value comes back.
     let env = env_with(
@@ -84,8 +84,8 @@ fn param_lookup_and_typed_failures() {
 
 #[test]
 fn count_param_is_exact_i64() {
-    let n = Formula::var(VarId(7), Dimension::Count);
-    let env = env_with(VarId(7), ParamValue::Count(7));
+    let n = Formula::var(VarId::new(0, 7), Dimension::Count);
+    let env = env_with(VarId::new(0, 7), ParamValue::Count(7));
     assert_eq!(eval_count(&Clone::clone(&n), &env).unwrap(), 7);
     // A Count param under continuous eval is a typed refusal.
     assert_eq!(
@@ -198,10 +198,10 @@ mod interval_lane {
 
     #[test]
     fn interval_var_env_embeds_exactly() {
-        let depth = Formula::var(VarId(3), Dimension::Length);
+        let depth = Formula::var(VarId::new(0, 3), Dimension::Length);
         let mut env: VarEnv<Interval> = VarEnv::default();
         env.bindings.insert(
-            VarId(3),
+            VarId::new(0, 3),
             ParamValue::Continuous {
                 dim: Dimension::Length,
                 value: <Interval as Real>::from_f64(0.003),

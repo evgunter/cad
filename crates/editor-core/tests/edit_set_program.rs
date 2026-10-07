@@ -606,12 +606,12 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     );
 }
 
-/// The least step id `doc`'s mint log does not hold.
+/// A step id `doc`'s mint log does not hold: ordinal 0, which no mint
+/// draws.
 fn never_minted(doc: &ProfileDoc) -> StepId {
-    (0..)
-        .map(StepId)
-        .find(|s| !doc.mint().has_step(*s))
-        .expect("a u64 the log does not hold")
+    let step = StepId::new(0, 0);
+    assert!(!doc.mint().has_step(step), "no mint draws ordinal 0");
+    step
 }
 
 /// **A name may spell a step a `SetProgram` dropped, never one the
@@ -629,7 +629,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
     let reshaped = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids).doc;
     let dropped = wall_by(r.rod, old[5], PieceRole::Leg);
     let (_, frame) = frame_on(reshaped.clone(), r.rod, dropped.clone());
-    assert!(frame.0 > 0, "a name on a dropped step inserts");
+    assert!(frame.0.ordinal() > 0, "a name on a dropped step inserts");
 
     let next = never_minted(&reshaped);
     let unminted = wall_by(r.rod, next, PieceRole::Leg);
@@ -838,9 +838,9 @@ fn a_node_that_holds_no_program_refuses() {
         })
     );
     assert_eq!(
-        set_program(&r.doc, RecipeNodeId(99), vec![rod_loop(false)], ids).err(),
+        set_program(&r.doc, RecipeNodeId::new(0, 99), vec![rod_loop(false)], ids).err(),
         Some(EditError::UnknownNode {
-            id: editor_core::SpokenNode::absent(RecipeNodeId(99))
+            id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 99))
         })
     );
 }
@@ -932,7 +932,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     let empty = ProfileDoc::empty_derived("set-program-log", tol());
     let r = rod("set-program-log", &[CREASE]);
     // The log is the edits `rod` applied, so it mints the same ids.
-    let (plane, profile_node, rod_node) = (r.doc.order()[0], r.profile, r.rod);
+    let (plane, profile_node, rod_node) = (r.doc.ids()[0], r.profile, r.rod);
     let edits = [
         DocEdit::InsertNode {
             node: Box::new(fixture::xy_frame()),
@@ -1015,7 +1015,7 @@ fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
 #[test]
 fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     let edit: DocEdit<ProfileProgram> = DocEdit::SetProgram {
-        node: RecipeNodeId(1),
+        node: RecipeNodeId::new(0, 1),
         loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).unwrap()],
         ids: vec![vec![None]],
         fresh: Vec::new(),
@@ -1023,7 +1023,7 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     let wire = serde_json::to_string(&edit).expect("serializes");
     assert_eq!(
         wire,
-        r#"{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Quantity":{"value":0.0,"dim":"Length","unit":"m"}},{"Quantity":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Quantity":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
+        r#"{"SetProgram":{"node":"0:0000000000000001","loops":[{"Circle":{"centre":[{"Quantity":{"value":0.0,"dim":"Length","unit":"m"}},{"Quantity":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Quantity":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
     );
 
     let r = rod("set-program-old-file", &[CREASE]);
@@ -1053,6 +1053,13 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     );
     let no_ids = format!("{header}\n{v}\n");
     unreadable(&no_ids, "ids");
+    // A step id spelled as one integer, as a file from before ids were
+    // a pair spells it.
+    let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let step = &mut v["snapshot"]["nodes"][r.profile.0.to_string()]["Profile"]["ids"][0][0];
+    assert!(step.is_string(), "a step id is spelled as a string: {step}");
+    *step = serde_json::json!(5);
+    unreadable(&format!("{header}\n{v}\n"), "an id: its mint ordinal");
     // A positional locator in a name, written compact so the piece is
     // one run of bytes.
     let compact: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
@@ -1098,8 +1105,8 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         edit(&mut v);
         format!("{header}\n{v}\n")
     };
-    let ids = |v: &mut serde_json::Value, node: RecipeNodeId, k: usize, to: u64| {
-        v["snapshot"]["nodes"][node.0.to_string()]["Profile"]["ids"][0][k] = to.into();
+    let ids = |v: &mut serde_json::Value, node: RecipeNodeId, k: usize, to: editor_core::MintId| {
+        v["snapshot"]["nodes"][node.0.to_string()]["Profile"]["ids"][0][k] = to.to_string().into();
     };
     let refused = |text: String| match load(&text, tol()) {
         Err(PersistError::Snapshot(e)) => e,
@@ -1117,8 +1124,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
 
     // Two profiles share an id: the later profile in id order holds
     // the repeat. That pins the load door's current walk (the node map,
-    // in id order), not a contract; `persist::check`'s
-    // `rv_the_name_pass_refuses_in_document_order` is its sibling.
+    // in id order), not a contract.
     let shared = edited(&|v| ids(v, other, 0, mine[0].0));
     assert_eq!(
         step_fault(shared, profile.max(other)),
@@ -1162,18 +1168,24 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         }
         other => panic!("a name on a never-minted step refuses, got {other:?}"),
     }
-    // A program id the log does not hold, taken out of the log.
+    // A program id the log does not hold as a step's: its entry
+    // retagged a node's, so the log still counts up from one.
     let unlogged = edited(&|v| {
         let log = v["snapshot"]["mint"]["log"]
             .as_array_mut()
             .expect("the file carries its mint log");
-        log.retain(|entry| entry["step"].as_u64() != Some(theirs[1].0));
+        let spelled = serde_json::Value::from(theirs[1].0.to_string());
+        for entry in log.iter_mut() {
+            if entry["step"] == spelled {
+                *entry = serde_json::json!({ "node": spelled.clone() });
+            }
+        }
     });
     assert_eq!(
         step_fault(unlogged, other),
         StepIdFault::NotMinted { step: theirs[1] }
     );
-    // A log entry twice, and a log out of order: a snapshot fault the
+    // A log entry twice, out of order or missing: a snapshot fault the
     // load door names, not a vocabulary this build lacks.
     let log_of = |v: &serde_json::Value| -> Vec<serde_json::Value> {
         v["snapshot"]["mint"]["log"]
@@ -1195,15 +1207,27 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     twice.insert(i + 1, written[i].clone());
     let mut swapped = written.clone();
     swapped.swap(i, j);
-    let first: editor_core::Minted =
-        serde_json::from_value(written[i].clone()).expect("a log entry");
-    for (label, log) in [
-        ("an entry twice", twice),
-        ("two entries out of order", swapped),
+    let mut gap = written.clone();
+    gap.remove(j);
+    let entry = |at: usize| -> editor_core::Minted {
+        serde_json::from_value(written[at].clone()).expect("a log entry")
+    };
+    for (label, log, names) in [
+        ("an entry twice", twice, entry(i)),
+        ("two entries out of order", swapped, entry(j)),
+        ("an entry missing", gap, entry(j + 1)),
     ] {
         match refused(set_log(log)) {
-            editor_core::SnapshotError::MintLogOrder { entry } => {
-                assert_eq!(entry, first, "{label}");
+            refusal @ editor_core::SnapshotError::MintLogOrder { entry } => {
+                assert_eq!(entry, names, "{label}");
+                // The sentence says what the door checks: the ordinals
+                // count up from one, so a gap refuses as a repeat does.
+                let said = refusal.to_string();
+                assert!(
+                    said.contains(&format!("does not count up from one at {names}"))
+                        && said.contains("a repeat, a step down or a gap"),
+                    "{label}: {said}"
+                );
             }
             other => panic!("{label} refuses as a snapshot fault, got {other:?}"),
         }
@@ -1221,59 +1245,6 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
             assert!(detail.contains("missing field `mint`"), "{detail}");
         }
         other => panic!("a file without a mint is unreadable, got {other:?}"),
-    }
-}
-
-/// **An insert whose draw the log already holds refuses**, typed as
-/// `NodeIdCollides`, and moves nothing. An honest log cannot reach it
-/// short of a 64-bit digest collision, so the log is doctored: the id
-/// the next insert would mint is written into it under a step's tag,
-/// which the load door admits (the log keeps dropped steps' ids), and
-/// one log means the tag does not let the draw through. The refusal
-/// ends as every mint-log fault does, a damaged file or a defect.
-#[test]
-fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
-    let doc = ProfileDoc::empty_derived("node-id-collides", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
-    let next = Node::Profile(fixture::desc(plane, vec![fixture::square(0.0, 0.0, 1.0)]));
-    let (_, drawn) = insert(doc.clone(), next.clone());
-    let text = save(&doc, &[], tol()).expect("saves");
-    let (header, body) = text.split_once('\n').expect("an id line, then the body");
-    let mut body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
-    let log = body["snapshot"]["mint"]["log"]
-        .as_array_mut()
-        .expect("the file carries its mint log");
-    let at = log
-        .iter()
-        .position(|entry| {
-            let bits = entry["node"]
-                .as_u64()
-                .or(entry["step"].as_u64())
-                .or(entry["var"].as_u64());
-            bits.expect("a tagged entry") > drawn.0
-        })
-        .unwrap_or(log.len());
-    log.insert(at, serde_json::json!({ "step": drawn.0 }));
-    let doctored = load(&format!("{header}\n{body}\n"), tol())
-        .expect("a log holding a step id no program holds loads")
-        .doc;
-    match doctored.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(next),
-            fresh: Vec::new(),
-        },
-        tol(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(ref e @ EditError::NodeIdCollides { ref id }) => {
-            assert_eq!(id.id(), drawn, "the refusal names the id the insert drew");
-            let text = e.to_string();
-            assert!(
-                text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
-                "a mint-log fault ends as a damaged file or a defect: {text}"
-            );
-        }
-        other => panic!("the draw the log holds refuses, got {other:?}"),
     }
 }
 

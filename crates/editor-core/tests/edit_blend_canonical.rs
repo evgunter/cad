@@ -317,7 +317,7 @@ fn an_empty_selection_is_canonical() {
     )
     .expect("an empty selection is not this door's refusal")
     .doc;
-    let fillet = *doc.order().last().expect("the fillet is the last node");
+    let fillet = *doc.ids().last().expect("the fillet is the last node");
     let ev = evaluate::<f64>(
         &doc,
         None,
