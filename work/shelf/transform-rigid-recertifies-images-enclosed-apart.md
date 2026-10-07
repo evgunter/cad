@@ -5,7 +5,7 @@ title: transform_rigid maps a body's surfaces and its edge carriers separately, 
 status: open
 opened: 2026-10-02
 priority: P2
-refs: [SYM-15]
+refs: [SYM-15, SYM-17]
 cost: H
 design: true
 ---
@@ -58,6 +58,30 @@ chain item's "What Phase 1 found"):
   (`crates/geom-core/src/sym.rs:5295`) proves `‖w‖² − r² ≡ 0` (SYM-15's
   review, the same probe). A reading that asked the tier for `‖w‖`
   rather than its enclosure would have it.
+
+## The same loss one step earlier: the map's own rigidity (SYM-17)
+
+On the plain `Interval` lane the chain never reaches re-certification.
+`check_rigid` refuses the map first, because it re-derives rigidity
+from the entries.
+- At σ = 0.01 rad, `c0·c1` encloses `±0.05999`, `±2·sin h` for the
+  angle box's half-width `h`. `c0·c0 − 1` encloses `[−1.8e-3, 9.0e-4]`.
+- The leaf certifies only below σ = 1.7e-10, at one link and at four
+  (`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`, "What
+  Phase 1 found").
+
+**Transporting the certificate starts with the map**: over ℝ,
+`Mat3::rotation_about` is orthogonal with determinant +1 by
+construction.
+- Measured with the seven linear margins skipped (branch
+  `sym/17-probe`, `SYM17_SKIP_LINEAR`): the plain lane refuses at the
+  same first transform on this item's wall. `carrier_endpoint_start` on
+  `EdgeKey(1v1)` encloses `[0, 8.9988e-5]`, at one link and at four.
+- With the map's certificate alone, the one-link chain certifies at
+  σ = 5e-9 and the four-link chain at 5e-10.
+- So the map's certificate and this item's transport are one design
+  and land together. Either alone leaves the plain lane refusing at σ
+  = 0.01, at the first transform.
 
 ## Home
 
