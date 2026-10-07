@@ -1681,47 +1681,6 @@ struct ResidualHarmonics<T> {
     noise: T,
 }
 
-/// The seam frame of an axisymmetric surface: `(w, u_ref, v_ref)` with
-/// `w` the radial component of `p` relative to the surface's own
-/// anchor/axis and `v_ref = axis × u_ref` — the pieces the
-/// a seam chart image residuals are built from. `None` for
-/// the plane (not periodic — a seam description on it is malformed) and
-/// for [`Surface::Nurbs`] (unimplemented).
-pub(crate) fn seam_frame<T: Real>(
-    s: &Surface<T>,
-    p: Point3<T>,
-) -> Option<(Vec3<T>, Vec3<T>, Vec3<T>)> {
-    let (anchor, axis, u_ref) = match *s {
-        // Nurbs: no implicit/seam form (C2.1 foot points, M5 PR 4).
-        // Approx: neither — its stand-in is a spline, and an offset
-        // description carries no axis to hang a seam frame on.
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => (origin, axis, u_ref),
-        Surface::Cone {
-            apex, axis, u_ref, ..
-        } => (apex, axis, u_ref),
-        Surface::Sphere {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => (center, axis, u_ref),
-        Surface::Torus {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => (center, axis, u_ref),
-    };
-    let (_, w) = axial_radial(p, anchor, axis);
-    Some((w, u_ref, axis.cross(u_ref)))
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

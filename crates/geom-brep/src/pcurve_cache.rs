@@ -6715,6 +6715,27 @@ fn run_iso_checks<T: Decide>(
             }
             let u_start = p0.x + pl.x * t0;
             let (cu0, cu1) = payload.knots_u().domain();
+            // Which way the image runs the column: a wrap edge a
+            // construction laid against the column's own direction
+            // (D1) is carried by the column run back
+            // ([`crate::nurbs_iso::reversed_column`]), and is compared
+            // against that same reversal of the traversed row.
+            let backward = match decide(
+                "pcurve_iso_seam_sense",
+                Margin::metered_sup(pl.y * span, stretch_v),
+                band,
+            )
+            .map_err(esc)?
+            {
+                Sign::Positive => false,
+                Sign::Negative => true,
+                Sign::Zero => {
+                    return Err(PcurveCertifyError::IsoUnsupported {
+                        what: "a DEGENERATE iso line (neither chart channel definitely moves \
+                               over the span)",
+                    });
+                }
+            };
             // The traversed column: a boundary row is a control-net
             // COPY and pays the boundary snap `|u_start − side|·stretch`;
             // an interior column is the de Boor COLLAPSE at `u_start`
@@ -6784,6 +6805,12 @@ fn run_iso_checks<T: Decide>(
                     (row, du_extent.value())
                 }
             };
+            let b = if backward {
+                crate::nurbs_iso::reversed_column(&b)
+                    .map_err(|source| PcurveCertifyError::ChartRow { source })?
+            } else {
+                b
+            };
             // One spline space: the knots bitwise, and the weights
             // either bitwise (a boundary row's, or a collapsed row's
             // with the net's weights constant along `u`) or both
@@ -6805,13 +6832,22 @@ fn run_iso_checks<T: Decide>(
             for (pb, pc) in b.control().iter().zip(c.control()) {
                 hull = hull.max((*pb - *pc).norm());
             }
-            // Parameter map v(t) = p0.y + pl.y·t vs the identity: the
+            // Parameter map v(t) = p0.y + pl.y·t vs the identity, or
+            // vs `a + b − t` on a column run back over `[a, b]`: the
             // difference is affine, so its extremes are at the
             // endpoints; metered through the carrier's own rate bound.
             let v_at_0 = p0.y + pl.y * t0;
             let v_at_1 = p0.y + pl.y * t1;
-            let slack_param =
-                curve_rate_bound(c).to_meters((v_at_0 - t0).abs().max((v_at_1 - t1).abs()));
+            let along = |t: T| {
+                if backward {
+                    let (a, b) = c.domain();
+                    T::from_f64(a + b) - t
+                } else {
+                    t
+                }
+            };
+            let slack_param = curve_rate_bound(c)
+                .to_meters((v_at_0 - along(t0)).abs().max((v_at_1 - along(t1)).abs()));
             // Domain containment: the hull and rate bounds hold on the
             // carrier's knot domain only.
             let (d0, d1) = c.domain();

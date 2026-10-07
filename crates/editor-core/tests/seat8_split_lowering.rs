@@ -180,11 +180,16 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a chart image's flag became
+/// `wrap` (the wrap edge, D1): the digest feeds each curve's `Debug`,
+/// whose field name moved; with `wrap: ` read back as `seam: ` the feed
+/// reproduces every old constant, so no evaluation moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x5c36_b5b4_37a0_06a4u64),
+        ("cut_cylinder", 0x86f5_0ce4_eff6_bf34u64),
         ("part_select", 0xe9fb_5d4a_bcb6_2f71),
         ("kitchen_sink", 0xae52_cf84_2852_caa0),
     ] {

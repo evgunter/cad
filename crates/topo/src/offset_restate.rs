@@ -74,7 +74,7 @@ pub(crate) fn restate<T: Real>(
             None => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 image: (!slides).then_some(c.pcurve),
-                seam: c.seam,
+                wrap: c.wrap,
                 declared,
             },
         },

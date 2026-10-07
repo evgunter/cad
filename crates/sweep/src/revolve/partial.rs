@@ -21,6 +21,7 @@ use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::chain::build_chain;
 use super::runs::{Collapsed, collapse_runs};
 use super::surfaces::{revolved_strut_spec, wall_surface};
+use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
 use crate::swept::{
@@ -97,7 +98,22 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     // the scope by dropping it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0], true)?;
+    // A one-segment loop (D1's full turn) is swept whole in phases 1–2,
+    // far end first (`turn::sweep_turn`), so its seed is the far vertex.
+    let ends = |li: usize| TurnEnds {
+        near: points[li][0],
+        far: rpoints[li][0],
+        place_far: place_end,
+        n_far: n_end,
+    };
+    let seed = body.mvfs(
+        if profile::is_full_turn(outer) {
+            rpoints[0][0]
+        } else {
+            qs[0]
+        },
+        true,
+    )?;
     // Start cap plane: derived from the sketch data alone — it reads no
     // entity and mints none — so the closing surface can be in hand
     // before the chain that will carry it.
@@ -109,55 +125,90 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
         band,
     )
     .map_err(|source| RevolveError::CapPlane { source })?;
-    let start = build_chain(
-        &mut body,
-        frame,
-        seed.r#loop,
-        seed.vertex,
-        outer,
-        qs,
-        FaceSurface::New {
-            surface: start_plane,
-            sense: true,
-        },
-        tol,
-    )?;
-    let end_face = seed.face;
-    let start_face = start.face;
-    let start_surface = face_surface_key(&body, start_face);
+    let start_cap = FaceSurface::New {
+        surface: start_plane,
+        sense: true,
+    };
+    let mut swept_early: Vec<Option<LoopSwept>> = (0..loops.len()).map(|_| None).collect();
     let mut bases = Vec::with_capacity(loops.len());
-    bases.push(start.hes);
     let mut verts = Vec::with_capacity(loops.len());
-    verts.push(start.verts);
+    let (start_face, anchor) = if profile::is_full_turn(outer) {
+        let (turn, swept) = sweep_turn(
+            &mut body,
+            frame,
+            &cols[0].cls,
+            &outer[0],
+            seed.r#loop,
+            &ends(0),
+            theta,
+            axis_c,
+            start_cap,
+            tol,
+        )?;
+        bases.push(vec![turn.near_in_wall]);
+        verts.push(vec![he_start(&body, turn.near_in_wall)]);
+        swept_early[0] = Some(swept);
+        (turn.near_face, turn.far_kept)
+    } else {
+        let start = build_chain(
+            &mut body,
+            frame,
+            seed.r#loop,
+            seed.vertex,
+            outer,
+            qs,
+            start_cap,
+            tol,
+        )?;
+        let anchor = start.hes[0];
+        bases.push(start.hes);
+        verts.push(start.verts);
+        (start.face, anchor)
+    };
+    let end_face = seed.face;
+    let start_surface = face_surface_key(&body, start_face);
 
     // ---- Phase 2: holes (rings in the seed face + kfmrh into the
     // start cap; extrude's shape — hole vertices are never on-axis for
     // a validated profile, so the generic sweep handles them). ----
-    let anchor = bases[0][0];
     for (li, segs) in loops.iter().enumerate().skip(1) {
         let hq = &points[li];
-        let bridge = body.mev_line(
-            MevSite::Fan {
-                he1: anchor,
-                he2: anchor,
-            },
-            hq[0],
-            tol,
-        )?;
-        let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
+        if profile::is_full_turn(segs) {
+            let (turn, swept) = crate::swept::full_turn_hole(
+                &mut body,
+                anchor,
+                rpoints[li][0],
+                start_face,
+                tol,
+                |b, ring, disc| {
+                    sweep_turn(
+                        b,
+                        frame,
+                        &cols[li].cls,
+                        &segs[0],
+                        ring,
+                        &ends(li),
+                        theta,
+                        axis_c,
+                        disc,
+                        tol,
+                    )
+                },
+            )?;
+            bases.push(vec![turn.near_in_wall]);
+            verts.push(vec![he_start(&body, turn.near_in_wall)]);
+            swept_early[li] = Some(swept);
+            continue;
+        }
+        let (ring, ring_vertex) = crate::swept::plant_hole_ring(&mut body, anchor, hq[0], tol)?;
         let hole = build_chain(
             &mut body,
             frame,
             ring,
-            bridge.vertex,
+            ring_vertex,
             segs,
             hq,
-            // The disc is transient: `kfmrh` kills it at once, and
-            // nothing reads its bit.
-            FaceSurface::Shared {
-                key: start_surface,
-                sense: false,
-            },
+            crate::swept::transient_disc(start_surface),
             tol,
         )?;
         body.kfmrh(start_face, hole.face)?;
@@ -178,21 +229,24 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     let mut rims_all: Vec<Vec<Option<EdgeKey>>> = Vec::with_capacity(loops.len());
     let mut tops_all: Vec<Vec<Option<EdgeKey>>> = Vec::with_capacity(loops.len());
     for (li, (col, hes)) in cols.iter().zip(&bases).enumerate() {
-        let swept = sweep_loop(
-            &mut body,
-            li,
-            col,
-            hes,
-            &points[li],
-            &rpoints[li],
-            frame,
-            theta,
-            axis_c,
-            place_end,
-            n_end,
-            band,
-            tol,
-        )?;
+        let swept = match swept_early[li].take() {
+            Some(swept) => swept,
+            None => sweep_loop(
+                &mut body,
+                li,
+                col,
+                hes,
+                &points[li],
+                &rpoints[li],
+                frame,
+                theta,
+                axis_c,
+                place_end,
+                n_end,
+                band,
+                tol,
+            )?,
+        };
         walls_all.push(swept.faces);
         rims_all.push(swept.rims);
         tops_all.push(swept.tops);
@@ -291,6 +345,23 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
             end_meridians: end_mer,
         },
     })
+}
+
+/// The start vertex of `he`, a half-edge the calling driver minted.
+///
+/// # Panics
+///
+/// If `he` is not live: every caller passes a half-edge its own driver
+/// minted and reads it before any step that kills it.
+#[track_caller]
+fn he_start<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> topo::VertexKey {
+    body.get_half_edge(he)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "half-edge {he:?} was minted by this driver and is read before any kill of it"
+            )
+        })
+        .start
 }
 
 /// The edge of `he`, a chain half-edge the calling driver minted.
