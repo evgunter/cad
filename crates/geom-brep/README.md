@@ -197,14 +197,19 @@ Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
 (`geom_brep::boundary_section`: plane × one boundary curve of the
-wall, the same door the boolean's NURBS crossing layer reads). A side
+wall). A side
 either lies within the band of the plane, or meets it at isolated
 crossings, each found to the sweep floor and decided transversal along
 the side, or refused as a graze, the locus tangent to the side, naming
 the side (`SsiError::BoundaryGraze`). A side within the band is
 decided over a strip beside it where the wall's slope across it is
-one-signed: nothing where the strip is clear of the plane, a `Side`
-region where the locus is coincident with the side (below); where that
+one-signed: nothing where the strip is clear of the plane (its plane
+distance one-signed and the wall moving further that way inward; a
+piece of the side whose Bernstein hull straddles zero is halved until
+one-signed, the side reads in band at opposite signs or a halving that
+does not narrow a hull, and it refuses past its halvings,
+`SsiError::SideSignBudget`), a `Side` region where the locus is
+coincident with the side (below); where that
 slope does not clear the band the surfaces may be tangent along the
 side, and it refuses toward C7 (`SsiError::BoundaryTangent`); where no
 strip has it one-signed, or none holds the locus's certified zero set

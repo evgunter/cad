@@ -549,6 +549,32 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-06 — PR 3953 lands (two dangling null edges with one
   segment). Every one-arc lens case builds in every op and passes 3′.
   The P0 row closes.
+- 2026-10-06 — Dispatched `sweeps-build-one-rim-edge-per-segment-not-per-run`
+  (P1) on `fuse/sweep-runs`. It is the extrude half and partial
+  revolve's direct construction; the lane stops on anything that needs
+  a curved-join key.
+- 2026-10-06 — `curved-joinable-vertices-are-left-unjoined` is put to
+  a designer pair (blinding byte on
+  `analysis/design-fork/fuse-curved-join-key-2026-10-06`). PR 3881's
+  ruling says curved edges join where the carrier is structurally one,
+  "keyed by the surfaces and the intersection branch". The ratified
+  `EdgeDescription::Intersection` selects its branch by a witness
+  point, so the key the ruling names does not exist yet. Giving it one
+  would change ratified text, so the orchestrator treats it as a fork,
+  not a unit.
+- 2026-10-06 — The curved-join key is put to Ev as PR 4198 (`[ev]`,
+  fork-log row 78, `needs_ev: true` on
+  `curved-joinable-vertices-are-left-unjoined`). After three rounds the
+  designers converged on these points:
+  - the shared vertex decides the branch, with no new key;
+  - poles and apexes are never joinable (they are most of the counted
+    population);
+  - a joined closed edge keeps a canonical vertex at the curved face's
+    chart cut;
+  - the maximal-edges clause is restored to Ev's approved "structural
+    carrier". Its D10 rewording (adca520953, inside PR 4002) had no
+    sign-off.
+  Left to Ev: the same-kind tie-break's flavour.
 - 2026-10-06 — Steps 2 and 4 of the PR 3881 build land on main
   together. PR 4161 (merged-set edge names) merged into
   `fuse/join-every-stage`, then PR 4140 landed.
@@ -563,3 +589,16 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     rows on 4140; a FULL review on 4161.
   - **Unit row:** stays open for the P1 rows (b) sweeps and (c)
     curved joins, then step 3.
+- 2026-10-07 — Ev ruled on PR 4198 (merged).
+  - **Accepted as written:** the vertex decides the branch; poles and
+    apexes are never joinable; the clause is restored to "structural
+    carrier".
+  - **Replaced:** the designers' canonical cut. A closed joined edge's
+    one vertex is conventional, like a seam, with no identity of its
+    own. Uniqueness holds up to its position, and PR 3881's C12.5
+    sentence retires.
+  - **Designers' round 4:** both found the rule sound and added the
+    structural definition and the edge-interior reading at that point.
+  - Fork-log row 78 is complete.
+  - `curved-joinable-vertices-are-left-unjoined` is dispatched on
+    `fuse/curved-join`.

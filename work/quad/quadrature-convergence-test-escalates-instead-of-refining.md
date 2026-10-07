@@ -145,3 +145,24 @@ D-profile rod of `fillet_h7_transverse_cap.rs` cut by the plane through
 creases filleted: `mass_properties` of the result refuses
 `props_quad_converged` (margin 5.6e-12, band `(1e-12, 1e-11)`) at
 ε = 1e-12; not pinned.
+
+## 2026-10-07 — boolean-built tubes split across their axes (CLEAVE)
+
+These are second constructions from `cleave/revseam-1e6`'s
+corroboration probe, and they are not pinned. A two-seam cylinder,
+`common::bores::turned_cylinder(0.3, 1.0)`, has rods subtracted about
+`z` by `common::cavity::{cut, rod}`. Each body is split, and then
+`mass_properties` is taken of a half:
+
+- **The default ε.** The body is the counterbore: the cylinder less a
+  rod of r 0.3 over z ∈ [−0.5, 0.7], then a rod of r 0.6 over
+  z ∈ [0.6, 1.5]. It is split through `(0, 0, 0.3)`, with the normal
+  leaning 0.1 rad off `z`. One half refuses with `Escalated { margin
+  −6.05e-9, band (1e-9, 1e-8), "props_quad_converged" }`. The same
+  cut measures at 1e-6.
+- **ε = 1e-12.** The body is the tube: the cylinder less a rod of
+  r 0.5 over z ∈ [−0.5, 1.5]. It is split through `(1, 0, 1)` with
+  normal `(−sin 0.2, 0, cos 0.2)`, which touches the top rim. One half
+  refuses with margin 4.85e-12, band `(1e-12, 1e-11)`. The same cut
+  measures at 1e-6.
+
