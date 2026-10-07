@@ -481,10 +481,13 @@ contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 construction; blends are analytic-first.** Implemented in
 `crates/sweep/src/blend/`; `crates/sweep/README.md` is the reference.
 What binds from here: the six named margined predicates over the inputs
-run in order before any ball exists (radius vs `1/κ_max` of each
-support, face clearance, spine regularity, chain G1, convexity-sign
-consistency, corner configuration), which is what lets an interval
-replay certify validity over a parameter box. Every constant-radius arm
+(radius vs `1/κ_max` of each support, face clearance, spine regularity,
+chain G1, convexity-sign consistency, corner configuration) all answer
+before anything is built, which is what lets an interval replay certify
+validity over a parameter box. They run in that order, except face
+clearance's reach arm (every band against every face of the body it
+does not blend), which needs the plan's feet: it runs in the surgery
+after predicate 6 and before any mutation. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band

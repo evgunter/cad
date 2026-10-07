@@ -469,14 +469,14 @@ enum EndVerdict<T: Real> {
 /// [`geom_brep::implicit_outward_normal`] — never a sampled or
 /// re-derived orientation (S10 category A). Unwrapped here because
 /// both consumers read it as geometry (a dot, a mean).
-fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
+pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
     let s = body.get_surface(f.surface)?;
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
 /// The sample parameters of a link, and its carrier.
-fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T, T)> {
+pub(super) fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T, T)> {
     let e = body.get_edge(edge)?;
     let c = body.get_curve_geom(e.curve)?.certified()?;
     let (t0, t1) = c.params();
@@ -1648,7 +1648,10 @@ fn break_at_turns<T: Real>(chain: Chain<T>, turns: &[usize]) -> Vec<Chain<T>> {
 }
 
 /// **Run the battery** — C8's six predicates over the request's
-/// inputs, in C8's order, before any construction.
+/// inputs, in C8's order, before any construction — all but predicate
+/// 2's reach arm, which needs the plan's feet and runs in the surgery
+/// before any mutation. So an `Ok` here does not yet say that no band
+/// reaches a face it does not blend; `fillet_edges` asks that too.
 ///
 /// # Errors
 ///
