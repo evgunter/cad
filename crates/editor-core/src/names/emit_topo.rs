@@ -2103,10 +2103,10 @@ fn survivor(rows: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
 
 /// **Every operand vertex result vertex `v` is**, `(operand, key)` in
 /// that operand's clone keys: its own key read through the layout
-/// ([`operand_key`]), each key fused into it and each B key a B-side
-/// weld fused into one of those, through any number of fusions, and
-/// every copy a null edge joins any of them to, transitively
-/// (`BooleanNaming::null_copies`: one point).
+/// ([`operand_key`]), each key fused into it, and, transitively, every
+/// key a B-side weld (`BooleanNaming::weld_merges_b`) or a null edge
+/// (`BooleanNaming::null_copies`) joins to any of those: either leaves
+/// two keys of one point.
 fn operand_vertex_keys(
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -2117,25 +2117,24 @@ fn operand_vertex_keys(
     for &k in core::iter::once(&v).chain(fused.get(&v).into_iter().flatten()) {
         keys.insert(operand_key(naming, inv_vertices, k)?.0.of_operand());
     }
-    let welds = naming.weld_merges_b.rows();
-    let welded: Vec<_> = welds
+    let one_point: Vec<_> = naming
+        .weld_merges_b
+        .rows()
         .iter()
-        .filter(|&&(dead, _)| keys.contains(&(topo::Operand::B, survivor(welds, dead))))
-        .map(|&(dead, _)| (topo::Operand::B, dead))
+        .map(|&(dead, kept)| (topo::Operand::B, dead, kept))
+        .chain(naming.null_copies.iter().copied())
+        .flat_map(|(side, x, y)| [((side, x), (side, y)), ((side, y), (side, x))])
         .collect();
-    keys.extend(welded);
     loop {
-        let copies: Vec<_> = naming
-            .null_copies
+        let new: Vec<_> = one_point
             .iter()
-            .flat_map(|&(side, x, y)| [((side, x), (side, y)), ((side, y), (side, x))])
             .filter(|(from, to)| keys.contains(from) && !keys.contains(to))
-            .map(|(_, to)| to)
+            .map(|&(_, to)| to)
             .collect();
-        if copies.is_empty() {
+        if new.is_empty() {
             return Ok(keys);
         }
-        keys.extend(copies);
+        keys.extend(new);
     }
 }
 

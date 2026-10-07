@@ -2,10 +2,11 @@
 id: a-pinch-split-per-cone-has-a-crossing-edge-with-no-classified-piece
 kind: issue
 title: Naming refuses Emission 'a crossing's edge has no piece the boolean classified at the crossing' on a union whose pinch split_cones splits per cone (plate and two leaning wedges, wedges first)
-status: open
+status: review
 opened: 2026-10-07
 priority: P0
 cost: M
+branch: emit/pinch-crossing-classified
 ---
 
 
@@ -66,3 +67,24 @@ these orders built and named the junction.
 ## Done when
 
 The flip-back rows build in every member order, with the naming of #4203 in place, and `every_order_but` and the junction row's refusal arm go.
+
+## Cause
+
+`names/emit_topo.rs`'s `fused_partners` read `vertex_merges` one hop
+deep: each kept key got the keys fused straight into it, never those
+fused into a key that a later row fused away in turn. On the first
+fold step of two adjacent wedges (two wedges, [2, 1, 0]: A wedge 2,
+B wedge 1), the reduction's null edges leave A's pinch vertex two
+copies, and the zips fuse B's copy into the first (`7v3 → 20v1`) and
+then the first into the second (`20v1 → 21v1`). Result vertex `21v1`
+read only `20v1`, so `operand_vertex_keys` held A keys alone, and B's
+leg edge, which the boolean classified at B's copies of that point,
+had no class row among them. `sense_of` refused. Before #4203 nothing
+read the senses there, so the short read was silent.
+
+`fused_partners` now gathers every key fused into a vertex through any
+number of rows (in the order they died), and `operand_vertex_keys`
+closes over B-side welds and null copies together, both as two keys
+of one point, so a chain of welds or a weld reached through a null copy
+is read as well. topo records every class it owes here; the fix is in
+the naming. The sense rule (N2 *Vertices*) is unchanged.
