@@ -34,12 +34,10 @@ list, once written, is never re-derived from the graph.
   its place.
 - **Deleting an unlisted node**: the list is untouched.
 
-**Other clause values.**
-- `leave`: no list change.
-- `append`: keep the operands and add the result. This is D10's "operand
-  stays first-class", for example keeping a cut's tool.
-- An explicit position or replacement set.
-- `SetProduct { bodies }` remains the whole-list edit.
+**Other clause values:** `leave` (no list change); `append` (keep the
+operands and add the result: D10's "operand stays first-class", e.g. a cut's
+tool); an explicit position or replacement set. `SetProduct { bodies }`
+remains the whole-list edit.
 
 A raw delete with `leave` follows D10's deletion rule. The product entry is a
 reader, so it stays in the list unresolved and typed, and the gather refuses
@@ -122,12 +120,10 @@ stops being a sink); `f = fillet(c, append)` → `[c, f]`; `SetProduct [f]` →
 `[f]`; delete `f` (follow) → `[c]`, since `c` is an orphan again; delete `c`
 (leave) → `[c†]`, `†` unresolved, and the gather refuses naming `c`.
 
-**Confidence.**
-- Where the rule lives: likely.
-- That the rule is A10's restricted to body reads: sure.
-- That delete-`leave` leaves an unresolved entry rather than dropping it:
-  likely. This follows D10's reader rule.
-- That an empty-product cut refuses at split: likely.
+**Confidence.** Where the rule lives: likely. The rule is A10's restricted
+to body reads: sure. Delete-`leave` leaves an unresolved entry rather than
+dropping it (D10's reader rule): likely. An empty-product cut refuses at
+split: likely.
 
 ## For the orchestrator
 
