@@ -524,10 +524,10 @@ pub(in crate::blend) fn foot_param<T: Decide + Bounds>(
         .ok_or_else(|| unbuilt_run_out(EntityId::Vertex(vertex), FOOT_INSIDE_A_FACE))
 }
 
-/// The refusal for two cut-offs whose feet on one shared rim cross or
-/// coincide.
-pub(in crate::blend) const FEET_CROSS_ON_A_SHARED_RIM: &str = "two cut-offs' feet cross or \
-     coincide on the rim they share, so the regions they take from the end faces meet";
+/// The refusal for two band ends — cut-offs, or a cut-off and a turn,
+/// or two turns — whose feet on one shared rim cross or coincide.
+pub(in crate::blend) const FEET_CROSS_ON_A_SHARED_RIM: &str = "two band ends' feet cross or \
+     coincide on the rim they share, so the regions they take from the faces beside it meet";
 
 /// **Two splits on one rim, metered before any mutation.** A rim
 /// joins two vertices and a band may be cut off at each — two bands

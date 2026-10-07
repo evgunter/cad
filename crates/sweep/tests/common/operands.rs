@@ -270,7 +270,7 @@ pub fn half_round_end() -> (Body<f64>, EdgeKey) {
 /// and the two top edges that turn at `(s, 0, 1)` — along `x` over the
 /// square end face `y = 0`, and along `y` over the leaning wall. The
 /// turn is isosceles only at `s = 0`, so at a definite lean both verbs
-/// refuse it as the overrun (`blend::battery::TURN_OVERRUN`).
+/// refuse it (`blend::battery::TURN_NOT_ISOSCELES`).
 pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
     let plane = sweep::test_support::sketch_from_axes(
         Point3::new(0.0, 0.0, 0.0),
@@ -314,4 +314,50 @@ pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
         between(corner, Point3::new(s, -1.5, 1.0)),
     ];
     (body, edges)
+}
+
+/// **A box sheared along its diagonal**: the parallelepiped
+/// `{0 ≤ z ≤ 1, s z ≤ x ≤ 2 + s z, s z ≤ y ≤ 1.5 + s z}`, two
+/// parallelogram prisms intersected, its lateral edges along
+/// `(s, s, 1)`. Its top corners `(s, s, 1)` and `(2 + s, 1.5 + s, 1)`
+/// are isosceles turns about their lateral edge; at `(2 + s, s, 1)` and
+/// `(s, 1.5 + s, 1)` the two top edges make supplementary angles with
+/// it.
+pub fn parallelepiped(s: f64) -> Body<f64> {
+    let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+    let tol = Tol::witness();
+    let along_y = sweep::test_support::prism_on(
+        sweep::test_support::sketch_from_axes(
+            Point3::new(0.0, 3.5, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            z,
+            tol,
+        ),
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 0.0),
+            (Point2::new(2.0 + s, 1.0), 0.0),
+            (Point2::new(s, 1.0), 0.0),
+        ],
+        5.0,
+        tol,
+    );
+    let (z0, z1) = (-0.5, 1.5);
+    let along_x = sweep::test_support::prism_on(
+        sweep::test_support::sketch_from_axes(
+            Point3::new(3.5, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, -1.0, 0.0),
+            z,
+            tol,
+        ),
+        vec![
+            (Point2::new(-1.5 - s * z0, z0), 0.0),
+            (Point2::new(-s * z0, z0), 0.0),
+            (Point2::new(-s * z1, z1), 0.0),
+            (Point2::new(-1.5 - s * z1, z1), 0.0),
+        ],
+        5.0,
+        tol,
+    );
+    sweep::test_support::realized(topo::boolean::BooleanOp::Intersect, &along_y, &along_x, tol)
 }

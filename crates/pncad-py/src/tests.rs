@@ -3535,6 +3535,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
         BlendDecision::TurnIsosceles,
+        BlendDecision::MitreSection,
     ] {
         let refused = BlendError::Escalated {
             site: BlendSite::Link {

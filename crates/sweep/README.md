@@ -266,7 +266,8 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   L, and L ends there. Otherwise the band that reaches further is cut off
   past the mitre by the other band's far support, one more short curve
   down to L. Which holds is a margined verdict (`fillet3_turn_isosceles`,
-  the two face angles at the vertex compared): Zero builds
+  the two face angles at the vertex compared, and the two bands' feet on
+  L): Zero builds
   the first, definite the second, the sliver band refuses. A Zero
   verdict is a coincidence decided from values, so the verdict records
   it (`BatteryVerdict::coincidences`, D10). No ball rests at a turn,
@@ -292,8 +293,9 @@ inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
 or coincide, metered before any mutation by `fillet3_cut_off_feet`
 (feet apart only within the band escalate); a turn whose trihedron
-`fillet3_turn_isosceles` decides definitely not isosceles, the overrun
-past the mitre (`TURN_OVERRUN`); an end vertex
+`fillet3_turn_isosceles` decides definitely not isosceles
+(`TURN_NOT_ISOSCELES`), which includes a chamfer at supplementary face
+angles, whose two feet on L coincide; an end vertex
 of valence other than three. A vertex whose three edges do not round
 one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
 request names there: an edge cut off where its unrequested edges round

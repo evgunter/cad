@@ -117,7 +117,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_turn() {
         matches!(
             err.error,
             BlendError::UnsupportedRunOut {
-                detail: sweep::blend::battery::TURN_OVERRUN,
+                detail: sweep::blend::battery::TURN_NOT_ISOSCELES,
                 ..
             }
         ),

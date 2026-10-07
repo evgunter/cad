@@ -19,7 +19,7 @@ use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
-use sweep::blend::battery::TURN_OVERRUN;
+use sweep::blend::battery::TURN_NOT_ISOSCELES;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     BlendDecision, BlendError, CornerConfig, DecidedCoincidence, FILLET3_CORNER_RECOURSE,
@@ -35,7 +35,7 @@ use crate::band_planar_cut_off::{
     D, Verb, carve, edge, midpoint_tol, pad_ceiling, the_box, tol, volume, volume_enclosure,
 };
 use crate::common::cavity::{brick, cavity_corner, cut, edges_with_corners, rod, vented_cavity};
-use crate::common::operands::leaning_turn;
+use crate::common::operands::{leaning_turn, parallelepiped};
 
 /// What two band prisms meeting at a right trihedron overlap in.
 fn overlap(verb: Verb) -> f64 {
@@ -211,7 +211,7 @@ fn a_turn_whose_faces_are_not_symmetric_refuses_typed() {
     for verb in [Verb::Chamfer, Verb::Fillet] {
         match verb.run(&body, &turn) {
             Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-                assert_eq!(detail, TURN_OVERRUN, "{verb:?}");
+                assert_eq!(detail, TURN_NOT_ISOSCELES, "{verb:?}");
             }
             other => panic!("{verb:?}: the overrun refuses as a run-out, got {other:?}"),
         }
@@ -344,12 +344,12 @@ fn an_isosceles_turn_is_recorded_as_a_value_decided_coincidence() {
         let verdict = run_battery_for(&request, band, kind).expect("the battery admits");
         assert_eq!(verdict.turns.len(), 4, "{kind:?}: four turns");
         assert_eq!(
-            verdict.coincidences.len(),
+            verdict.coincidences().count(),
             4,
             "{kind:?}: one record per turn"
         );
-        for (turn, record) in verdict.turns.iter().zip(&verdict.coincidences) {
-            let DecidedCoincidence::IsoscelesTurn { vertex, reading } = record;
+        for turn in &verdict.turns {
+            let DecidedCoincidence::IsoscelesTurn { vertex, reading } = &turn.coincidence;
             assert_eq!(*vertex, turn.vertex, "{kind:?}: recorded at the turn");
             assert!(
                 reading.abs() < 1e-15,
@@ -431,12 +431,146 @@ fn the_mitre_carves_at_the_certified_scalar() {
 /// rim of a square frustum — two trapezoid prisms intersected, each
 /// side leaning in by `s` — whose every corner is symmetric about its
 /// leaning lateral edge, the two requested dihedrals both `90° + atan s`.
-/// Both verbs build four mitres; the fillet's lie on both their
-/// cylinders, the chamfer's in both their planes, and every face the
-/// carve mints is tier-3 valid with naming total.
+/// Both verbs build four mitres, tier-3 valid with naming total; the
+/// fillet's lie on both their cylinders. The frustum is convex, so the
+/// chamfered solid is the frustum less each edge's chamfer half-space,
+/// and the boolean's volume is the oracle; the filleted solid is the
+/// frustum less each edge's band prism, the union the mitres bound,
+/// sampled point by point near the rim.
 #[test]
 fn a_frustum_top_rim_mitres_at_leaning_walls() {
+    use topo::boolean::SolidContainment;
     let s = 0.3;
+    let body = frustum(s);
+    validate_geometric(&body, tol()).expect("the frustum is tier-3 valid");
+    let (lo, hi) = (s, 2.0 - s);
+    let rim = [
+        edge(&body, [lo, -lo, 1.0], [hi, -lo, 1.0]),
+        edge(&body, [hi, -lo, 1.0], [hi, -hi, 1.0]),
+        edge(&body, [hi, -hi, 1.0], [lo, -hi, 1.0]),
+        edge(&body, [lo, -hi, 1.0], [lo, -lo, 1.0]),
+    ];
+    // Each top edge: a point on it, the top's inward direction across
+    // it, and its wall's outward unit normal.
+    let k = (1.0 + s * s).sqrt();
+    let edges = [
+        ([lo, -lo], [0.0, -1.0], [0.0, 1.0]),
+        ([hi, -lo], [-1.0, 0.0], [1.0, 0.0]),
+        ([hi, -hi], [0.0, 1.0], [0.0, -1.0]),
+        ([lo, -hi], [1.0, 0.0], [-1.0, 0.0]),
+    ]
+    .map(|([x, y], [mx, my], [nx, ny])| {
+        (
+            Point3::new(x, y, 1.0),
+            Vec3::new(mx, my, 0.0),
+            Vec3::new(nx / k, ny / k, s / k),
+        )
+    });
+    let top = Vec3::new(0.0, 0.0, 1.0);
+    let in_frustum = |p: Point3<f64>| {
+        (0.0..=1.0).contains(&p.z)
+            && (s * p.z..=2.0 - s * p.z).contains(&p.x)
+            && (s * p.z - 2.0..=-s * p.z).contains(&p.y)
+    };
+    let v0 = volume(&body);
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let out = verb
+            .run(&body, &rim)
+            .unwrap_or_else(|e| panic!("{verb:?}: the frustum's rim mitres, got {e}"));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
+        assert_naming_totality(&body, &out, &rim, "the frustum's top rim");
+        assert_eq!(
+            out.naming.as_ref().expect("births").mitres.len(),
+            4,
+            "{verb:?}: four mitres"
+        );
+        let (_, stray) = crate::band_planar_cut_off::arc_residual(&out);
+        assert!(
+            stray < 1e-12,
+            "{verb:?}: a mitre strays {stray} from a band"
+        );
+        match verb {
+            Verb::Chamfer => {
+                let oracle = edges.iter().fold(body.clone(), |cut, &(p, m, n)| {
+                    realized(
+                        BooleanOp::Intersect,
+                        &cut,
+                        &half_space(p + m * D, top + n),
+                        tol(),
+                    )
+                });
+                let (removed, want) = (v0 - volume(&out.body), v0 - volume(&oracle));
+                assert!(
+                    (removed - want).abs() < 1e-9,
+                    "chamfer: ΔV {removed} against the half-spaces' {want}"
+                );
+            }
+            Verb::Fillet => {
+                // Each band's prism: the wedge between its axis's two
+                // radii to the feet, outside its cylinder.
+                let prisms = edges.map(|(p, _, n)| {
+                    let c = p - (top + n) * (D / (1.0 + top.dot(n)));
+                    (c, (top.cross(n)).normalize(), n)
+                });
+                let removed = |q: Point3<f64>| -> Option<bool> {
+                    let mut any = false;
+                    for &(c, axis, n) in &prisms {
+                        let w = q - c;
+                        let w = w - axis * w.dot(axis);
+                        let g = top.dot(n);
+                        let (a, b) = (
+                            (w.dot(top) - g * w.dot(n)) / (1.0 - g * g),
+                            (w.dot(n) - g * w.dot(top)) / (1.0 - g * g),
+                        );
+                        let rim_gap = (w.norm() - D).abs().min(a.abs()).min(b.abs());
+                        if rim_gap < 1e-6 {
+                            return None;
+                        }
+                        any |= a > 0.0 && b > 0.0 && w.norm() > D;
+                    }
+                    Some(any)
+                };
+                let band = Band::linear(tol()).expect("the run's band");
+                let (mut checked, mut wrong) = (0, Vec::new());
+                for (i, j, h) in
+                    (0..9).flat_map(|i| (0..9).flat_map(move |j| (0..5).map(move |h| (i, j, h))))
+                {
+                    // Near the corner `(lo, −lo, 1)` and along both its
+                    // edges, every corner being the same by symmetry.
+                    let q = Point3::new(
+                        lo - 0.02 + 0.37 * f64::from(i) / 8.0,
+                        -lo + 0.02 - 0.37 * f64::from(j) / 8.0,
+                        0.86 + 0.13 * f64::from(h) / 4.0,
+                    );
+                    let faces = [1.0 - q.z, q.x - s * q.z, -s * q.z - q.y];
+                    if faces.iter().any(|f| f.abs() < 1e-6) {
+                        continue;
+                    }
+                    let Some(gone) = removed(q) else { continue };
+                    let want = in_frustum(q) && !gone;
+                    let got = topo::boolean::point_in_solid(&out.body, q, band, tol())
+                        .expect("membership reads");
+                    checked += 1;
+                    if matches!(got, SolidContainment::In) != want
+                        || matches!(got, SolidContainment::OnBoundary)
+                    {
+                        wrong.push((q, got, want));
+                    }
+                }
+                assert!(checked > 200, "fillet: {checked} points sampled");
+                assert!(
+                    wrong.is_empty(),
+                    "fillet: {} of {checked} points disagree with the prisms' union: {wrong:?}",
+                    wrong.len()
+                );
+            }
+        }
+    }
+}
+
+/// The square frustum of [`a_frustum_top_rim_mitres_at_leaning_walls`]:
+/// `x ∈ [s z, 2 − s z]`, `y ∈ [s z − 2, −s z]`, `z ∈ [0, 1]`.
+fn frustum(s: f64) -> Body<f64> {
     // The trapezoid between heights `z0` and `z1` whose sides run
     // through `(0, 0)–(s, 1)` and `(2, 0)–(2 − s, 1)`, in the plane
     // through `origin` spanned by `u` and `z`, extruded 3 along `u × z`.
@@ -456,8 +590,6 @@ fn a_frustum_top_rim_mitres_at_leaning_walls() {
     };
     // The second reaches past the first's top and bottom, so the two
     // share no face plane.
-    // `x ∈ [0, 2]` across `y ∈ [−2.5, 0.5]`, and `y ∈ [−2, 0]` across
-    // `x ∈ [−0.5, 2.5]`.
     let along_x = trapezoid(
         Point3::new(0.0, 0.5, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
@@ -468,42 +600,31 @@ fn a_frustum_top_rim_mitres_at_leaning_walls() {
         Vec3::new(0.0, -1.0, 0.0),
         (-0.5, 1.5),
     );
-    let body = realized(BooleanOp::Intersect, &along_x, &along_y, tol());
-    validate_geometric(&body, tol()).expect("the frustum is tier-3 valid");
-    let (lo, hi) = (s, 2.0 - s);
-    let rim = [
-        edge(&body, [lo, -lo, 1.0], [hi, -lo, 1.0]),
-        edge(&body, [hi, -lo, 1.0], [hi, -hi, 1.0]),
-        edge(&body, [hi, -hi, 1.0], [lo, -hi, 1.0]),
-        edge(&body, [lo, -hi, 1.0], [lo, -lo, 1.0]),
-    ];
-    let v0 = volume(&body);
-    for verb in [Verb::Chamfer, Verb::Fillet] {
-        let out = verb
-            .run(&body, &rim)
-            .unwrap_or_else(|e| panic!("{verb:?}: the frustum's rim mitres, got {e}"));
-        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
-        assert_naming_totality(&body, &out, &rim, "the frustum's top rim");
-        assert_eq!(
-            out.naming.as_ref().expect("births").mitres.len(),
-            4,
-            "{verb:?}: four mitres"
-        );
-        let (_, stray) = crate::band_planar_cut_off::arc_residual(&out);
-        assert!(
-            stray < 1e-12,
-            "{verb:?}: a mitre strays {stray} from a band"
-        );
-        // Each band removes at most the triangle of its two setbacks
-        // along its whole edge.
-        let alpha = core::f64::consts::FRAC_PI_2 + s.atan();
-        let bound = 4.0 * (hi - lo) * D * D * alpha.sin() / 2.0;
-        let removed = v0 - volume_enclosure(&out.body).0;
-        assert!(
-            removed > 0.0 && removed < bound,
-            "{verb:?}: ΔV {removed} is positive and under the bands' prisms, {bound}"
-        );
-    }
+    realized(BooleanOp::Intersect, &along_x, &along_y, tol())
+}
+
+/// The half-space `(x − q)·n ≤ 0` within a slab ten wide: a prism on
+/// its plane, extruded along `−n`.
+fn half_space(q: Point3<f64>, n: Vec3<f64>) -> Body<f64> {
+    let n = n.normalize();
+    let seed = if n.x.abs() < 0.9 {
+        Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        Vec3::new(0.0, 1.0, 0.0)
+    };
+    let u = (seed - n * seed.dot(n)).normalize();
+    let v = u.cross(n);
+    prism_on(
+        sketch_from_axes(q - u * 5.0 - v * 5.0, u, v, tol()),
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(10.0, 0.0), 0.0),
+            (Point2::new(10.0, 10.0), 0.0),
+            (Point2::new(0.0, 10.0), 0.0),
+        ],
+        10.0,
+        tol(),
+    )
 }
 
 /// [`carve`]'s checks — tier 3, naming totality, `ΔV` against the
@@ -620,5 +741,302 @@ fn concave_mitres_beside_an_island_refuse_where_their_bands_reach_it() {
             -(verb.section() * 8.0 - 4.0 * overlap(verb)),
             "an island clear of the floor rim's bands",
         );
+    }
+}
+
+/// **A sheared box's supplementary corners refuse; its isosceles ones
+/// build** (`common::operands::parallelepiped`, lean `s = 0.3`). At
+/// `(s, s, 1)` the two top edges make one angle with the lateral edge,
+/// and the turn mitres: tier 3, naming total, and the chamfer at the
+/// volume of the box less its two chamfer half-spaces. At `(2 + s, s,
+/// 1)` they make supplementary angles, and both verbs refuse it as not
+/// isosceles, which is all the refusal claims: a chamfer's two feet on
+/// the lateral edge coincide there, so no band reaches past the other,
+/// and that chamfer is the overrun's design, not built here.
+#[test]
+fn a_sheared_box_mitres_its_isosceles_corners_and_refuses_its_supplementary_ones() {
+    let s = 0.3;
+    let body = parallelepiped(s);
+    validate_geometric(&body, tol()).expect("the sheared box is tier-3 valid");
+    let v = [s, s, 1.0];
+    let iso = [
+        edge(&body, v, [2.0 + s, s, 1.0]),
+        edge(&body, v, [s, 1.5 + s, 1.0]),
+    ];
+    let k = (1.0 + s * s).sqrt();
+    let top = Vec3::new(0.0, 0.0, 1.0);
+    let p = Point3::new(s, s, 1.0);
+    let oracle = [
+        (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, s) / k),
+        (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, s) / k),
+    ]
+    .iter()
+    .fold(body.clone(), |cut, &(m, n)| {
+        realized(
+            BooleanOp::Intersect,
+            &cut,
+            &half_space(p + m * D, top + n),
+            tol(),
+        )
+    });
+    let v0 = volume(&body);
+    let w = [2.0 + s, s, 1.0];
+    let supplementary = [
+        edge(&body, w, [s, s, 1.0]),
+        edge(&body, w, [2.0 + s, 1.5 + s, 1.0]),
+    ];
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let out = verb
+            .run(&body, &iso)
+            .unwrap_or_else(|e| panic!("{verb:?}: the isosceles corner mitres, got {e}"));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
+        assert_naming_totality(&body, &out, &iso, "the sheared box's isosceles corner");
+        if let Verb::Chamfer = verb {
+            let (removed, want) = (v0 - volume(&out.body), v0 - volume(&oracle));
+            assert!(
+                (removed - want).abs() < 1e-9,
+                "chamfer: ΔV {removed} against the half-spaces' {want}"
+            );
+        }
+        match verb.run(&body, &supplementary) {
+            Err(BlendError::UnsupportedRunOut { detail, .. }) => {
+                assert_eq!(detail, TURN_NOT_ISOSCELES, "{verb:?}");
+            }
+            other => panic!("{verb:?}: the supplementary corner refuses, got {other:?}"),
+        }
+    }
+}
+
+/// **A sliver void behind an oblique turn's station**: the sheared
+/// box's isosceles corner, its cap planes oblique to both edges, so each
+/// band's material near the foot on the lateral edge lies at stations
+/// behind the vertex along its own edge — inside the reach's window
+/// only by the cap's pad. The chamfer reaches the void and refuses it as
+/// its material; the fillet, whose section is thinner there, leaves it
+/// whole and builds at the void-free carve's volume.
+#[test]
+fn a_void_behind_an_oblique_turns_station_refuses_where_its_band_reaches_it() {
+    let s = 0.3;
+    let clean = parallelepiped(s);
+    let body = cut(
+        "sliver void",
+        &clean,
+        &brick(
+            Point3::new(0.286, 0.279, 0.9),
+            Point3::new(0.298, 0.284, 0.925),
+        ),
+    );
+    let v = [s, s, 1.0];
+    let turn = |b: &Body<f64>| [edge(b, v, [2.0 + s, s, 1.0]), edge(b, v, [s, 1.5 + s, 1.0])];
+    refuses_on_reach(&body, &turn(&body), Verb::Chamfer, "a sliver void behind v");
+    let base = Verb::Fillet
+        .run(&clean, &turn(&clean))
+        .expect("the void-free fillet builds");
+    let removed = volume_enclosure(&clean).0 - volume_enclosure(&base.body).0;
+    carve_beside(
+        &body,
+        &turn(&body),
+        Verb::Fillet,
+        removed,
+        "a sliver void behind v",
+    );
+}
+
+/// **A turn's foot and a cut-off's foot on one third edge, crossing
+/// where the support screen passes.** A prism over the quadrilateral
+/// `(0, 0), (cos 30°, −sin 30°), (2, h), (0, h)` in `xz`, extruded along
+/// `−y`: its top two edges at `(0, 0, h)` turn about the vertical edge
+/// L, whose foot stands `d` below the top; the front bottom edge, at
+/// 120° to L, is cut off at L's lower end, its foot `d / sin 120°` up
+/// L. The two cross at `h ≤ d·(1 + 2/√3) ≈ 0.2155`, while the front
+/// face's two blended edges stand `h` apart, which the screen clears
+/// for `h > 2d`. Between the two the shared-rim meter alone refuses;
+/// above, both verbs build.
+#[test]
+fn a_turn_foot_and_a_cut_off_foot_cross_where_the_screen_passes() {
+    let (c, sn) = (30f64.to_radians().cos(), 30f64.to_radians().sin());
+    for (h, crosses) in [(0.22, false), (0.215, true), (0.205, true)] {
+        let body = prism_on(
+            sketch_from_axes(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                tol(),
+            ),
+            vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(c, -sn), 0.0),
+                (Point2::new(2.0, h), 0.0),
+                (Point2::new(0.0, h), 0.0),
+            ],
+            1.5,
+            tol(),
+        );
+        let edges = [
+            edge(&body, [0.0, 0.0, h], [2.0, 0.0, h]),
+            edge(&body, [0.0, 0.0, h], [0.0, -1.5, h]),
+            edge(&body, [0.0, 0.0, 0.0], [c, 0.0, -sn]),
+        ];
+        for verb in [Verb::Chamfer, Verb::Fillet] {
+            match (verb.run(&body, &edges), crosses) {
+                (Err(BlendError::UnsupportedRunOut { detail, .. }), true) => assert!(
+                    detail.contains("feet cross or coincide on the rim they share"),
+                    "h = {h} ({verb:?}): the shared-rim meter refuses, got {detail}"
+                ),
+                (Ok(out), false) => {
+                    validate_geometric(&out.body, tol())
+                        .unwrap_or_else(|e| panic!("h = {h} ({verb:?}): tier 3, {e:?}"));
+                    assert_naming_totality(&body, &out, &edges, "a turn and a cut-off on L");
+                }
+                (other, _) => panic!(
+                    "h = {h} ({verb:?}): {} expected, got {:?}",
+                    if crosses {
+                        "the feet-cross refusal"
+                    } else {
+                        "a build"
+                    },
+                    other.map(|_| ())
+                ),
+            }
+        }
+    }
+}
+
+/// **The mitre's end lies on both trimlines within the band**, at
+/// obtuse and acute face angles: the sheared box's isosceles corner at
+/// leans `±0.6` (face angles about 117° and 63°), and the top rims of a
+/// frustum and of an inverted one (each corner's face angles about 106°
+/// and 74°). The verdict decides Zero only with the two bands' feet on
+/// the third edge within the band of each other, so the foot — their
+/// midpoint — is within half of it from each band's trimline on its
+/// own face of the third edge.
+#[test]
+fn the_turn_foot_lies_on_both_trimlines_within_the_band() {
+    let band = Band::linear(tol()).expect("the run's band");
+    let sheared = |s: f64| {
+        let body = parallelepiped(s);
+        let v = [s, s, 1.0];
+        let e = vec![
+            edge(&body, v, [2.0 + s, s, 1.0]),
+            edge(&body, v, [s, 1.5 + s, 1.0]),
+        ];
+        (body, e)
+    };
+    let rim = |s: f64| {
+        let body = frustum(s);
+        let (lo, hi) = (s, 2.0 - s);
+        let e = vec![
+            edge(&body, [lo, -lo, 1.0], [hi, -lo, 1.0]),
+            edge(&body, [hi, -lo, 1.0], [hi, -hi, 1.0]),
+            edge(&body, [hi, -hi, 1.0], [lo, -hi, 1.0]),
+            edge(&body, [lo, -hi, 1.0], [lo, -lo, 1.0]),
+        ];
+        (body, e)
+    };
+    for (what, (body, edges)) in [
+        ("sheared 0.6", sheared(0.6)),
+        ("sheared −0.6", sheared(-0.6)),
+        ("frustum 0.3", rim(0.3)),
+        ("inverted frustum −0.3", rim(-0.3)),
+    ] {
+        for kind in [
+            sweep::blend::BlendKind::Chamfer,
+            sweep::blend::BlendKind::Fillet,
+        ] {
+            let request = sweep::blend::BlendRequest {
+                body: &body,
+                edges: edges.clone(),
+                size: D,
+            };
+            let verdict = run_battery_for(&request, band, kind)
+                .unwrap_or_else(|e| panic!("{what} ({kind:?}): the battery admits, got {e}"));
+            assert!(!verdict.turns.is_empty(), "{what} ({kind:?}): a turn");
+            for turn in &verdict.turns {
+                for (edge, face) in turn.requested.iter().zip(turn.others) {
+                    let link = verdict
+                        .chains
+                        .iter()
+                        .flat_map(|c| c.links())
+                        .find(|l| l.edge == *edge)
+                        .expect("the turn's link");
+                    let (line, _) = if link.face_a == face {
+                        &link.blend.trim_a
+                    } else {
+                        &link.blend.trim_b
+                    };
+                    let geom::Curve3::Line { origin, dir } = line else {
+                        panic!("{what} ({kind:?}): a plane band's trimline is a line");
+                    };
+                    let miss = (turn.foot - *origin).cross(*dir).norm() / dir.norm();
+                    assert!(
+                        miss <= band.zero() / 2.0,
+                        "{what} ({kind:?}): the foot misses a trimline by {miss:e}, \
+                         over half the band {:e}",
+                        band.zero()
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **An acute turn whose face angles agree within the band but whose
+/// feet do not.** A spike: the box `[−0.2, 0.6] × [−0.5, 0.5] × [0, 0.4]`
+/// less two half-spaces through the origin, each through one requested
+/// edge in `z = 0` — at `±α`, `α = 15°` — and the third edge, rising
+/// along `(cos β, 0, sin β)`, `β = 13.6°`, so both face angles are about
+/// 20°. A chamfer's feet on the third edge stand `d / sin φ` up it,
+/// which moves as `cos φ / sin³φ` in `cos φ`: turn the second edge on
+/// by `ε`, the face angles' cosines then differing by half the zero
+/// band over the edge's lever, and the feet stand about twice the band
+/// apart. The verdict reads the feet too, so that turn escalates rather
+/// than building a mitre whose end misses both trimlines; the symmetric
+/// spike builds.
+#[test]
+fn an_acute_turn_symmetric_only_by_its_angles_escalates() {
+    let band = Band::linear(tol()).expect("the run's band");
+    let (alpha, beta) = (15f64.to_radians(), 13.6f64.to_radians());
+    let spike = |eps: f64| {
+        let e1 = Vec3::new(alpha.cos(), alpha.sin(), 0.0);
+        let e2 = Vec3::new((alpha + eps).cos(), -(alpha + eps).sin(), 0.0);
+        let l = Vec3::new(beta.cos(), 0.0, beta.sin());
+        let outward = |n: Vec3<f64>, away: Vec3<f64>| if n.dot(away) > 0.0 { -n } else { n };
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let body = [outward(e1.cross(l), e2), outward(e2.cross(l), e1)]
+            .iter()
+            .fold(
+                brick(Point3::new(-0.2, -0.5, 0.0), Point3::new(0.6, 0.5, 0.4)),
+                |b, &n| realized(BooleanOp::Intersect, &b, &half_space(o, n), tol()),
+            );
+        let far = |d: Vec3<f64>| [0.6, 0.6 * d.y / d.x, 0.0];
+        let edges = [
+            edge(&body, [0.0, 0.0, 0.0], far(e1)),
+            edge(&body, [0.0, 0.0, 0.0], far(e2)),
+        ];
+        (body, edges)
+    };
+    let (body, edges) = spike(0.0);
+    let out = Verb::Chamfer
+        .run(&body, &edges)
+        .unwrap_or_else(|e| panic!("the symmetric spike mitres, got {e}"));
+    validate_geometric(&out.body, tol()).expect("the symmetric spike's mitre is tier-3 valid");
+    let lever = 0.6 / alpha.cos();
+    let eps = band.zero() / (2.0 * lever * alpha.sin() * beta.cos());
+    let (body, edges) = spike(eps);
+    match Verb::Chamfer.run(&body, &edges) {
+        Err(BlendError::Escalated {
+            decision, source, ..
+        }) => {
+            assert_eq!(decision, BlendDecision::TurnIsosceles);
+            let reading = source.margin.diagnostic_f64_for_error_text().value();
+            assert!(
+                reading.is_some_and(|m| m > band.zero()),
+                "the feet's gap is what is in band, got {reading:?}"
+            );
+        }
+        other => panic!(
+            "ε = {eps:e}: the feet apart by more than the band escalate, got {:?}",
+            other.map(|_| ())
+        ),
     }
 }

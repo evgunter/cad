@@ -361,7 +361,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
             matches!(
                 e,
                 BlendError::UnsupportedRunOut {
-                    detail: pncad::sweep::blend::battery::TURN_OVERRUN,
+                    detail: pncad::sweep::blend::battery::TURN_NOT_ISOSCELES,
                     ..
                 }
             )

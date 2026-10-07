@@ -40,7 +40,7 @@
 use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::battery::{Chain, Convexity, JointVerdict, Link, joint_verdict};
+use super::battery::{Chain, Convexity, JointVerdict, Link, Turn, joint_verdict};
 use super::build::{fan_at, outward_of};
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
@@ -597,11 +597,6 @@ pub(super) struct BoundaryChord<T: Real> {
 /// the band's two supports, and its foot on each in that order.
 pub(super) type CutOffRow<T> = (VertexKey, [FaceKey; 2], [Point3<T>; 2]);
 
-/// One planned turn, as support admission reads it: the vertex, the
-/// face its two bands share and the trimlines' crossing there, and the
-/// third edge's two faces and the foot on it, which both share.
-pub(super) type TurnRow<T> = (VertexKey, FaceKey, Point3<T>, [FaceKey; 2], Point3<T>);
-
 /// **A support face's requested boundary**: every requested edge in its
 /// cycles, each ending at two stations, and every station a planned
 /// corner or joint that counts this face among its supports, or a
@@ -631,7 +626,9 @@ impl<T: Decide> RequestedBoundary<T> {
     /// `(joint, its foot on each of its two faces in that order)` for
     /// every planned joint, `cut_offs` is `(vertex, the band's two
     /// supports, its foot on each in that order)` for every planned
-    /// cut-off, and `turns` is [`TurnRow`] for every planned turn. The
+    /// cut-off, and `turns` is every planned turn, whose station on its
+    /// shared face is the trimlines' crossing and on each of its third
+    /// edge's faces the foot. The
     /// feet are the plan's, not this door's: where a band's
     /// trimlines meet a support is what the two verbs derive differently
     /// (the ball's foot; the two trimlines' crossing), and deriving it
@@ -651,7 +648,7 @@ impl<T: Decide> RequestedBoundary<T> {
         corners: &[(VertexKey, &CornerFaces, [Point3<T>; 3])],
         joints: &[(&Joint, [Point3<T>; 2])],
         cut_offs: &[CutOffRow<T>],
-        turns: &[TurnRow<T>],
+        turns: &[Turn<T>],
     ) -> Result<Self, BlendError> {
         // Read once so a face that is not a plane refuses at this door
         // rather than deeper in the carve.
@@ -679,11 +676,13 @@ impl<T: Decide> RequestedBoundary<T> {
                 .iter()
                 .find(|(c, faces, _)| *c == v && faces.contains(&face))
                 .map(|(_, faces, feet)| if faces[0] == face { feet[0] } else { feet[1] });
-            let turn = turns.iter().find(|t| t.0 == v).and_then(|t| {
-                if t.1 == face {
-                    Some((t.2, StationKind::Mitre))
+            let turn = turns.iter().find(|t| t.vertex == v).and_then(|t| {
+                if t.shared == face {
+                    Some((t.crossing, StationKind::Mitre))
                 } else {
-                    t.3.contains(&face).then_some((t.4, StationKind::TurnFoot))
+                    t.others
+                        .contains(&face)
+                        .then_some((t.foot, StationKind::TurnFoot))
                 }
             });
             // A corner and a joint END a band and run through it, and a

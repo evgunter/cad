@@ -131,9 +131,9 @@
 //! approximating-blend lane, banked as its own reviewed unit). An end
 //! whose configuration is the supported one but whose shape the cut-off
 //! does not build — a curved end face, a foot off its rim's span
-//! (landing inside a support), two cut-offs' feet crossing on the one
-//! rim they share, a turn whose trihedron is not isosceles (the overrun
-//! past the mitre) — is a **run-out**, and refuses as
+//! (landing inside a support), two band ends' feet crossing on the one
+//! rim they share, a turn whose trihedron is not isosceles — is a
+//! **run-out**, and refuses as
 //! [`BlendError::UnsupportedRunOut`] before any mutation.
 
 mod admit;
@@ -287,15 +287,21 @@ pub enum BlendDecision {
     CutOffFeet,
     /// `fillet3_turn_isosceles`: at a turn, the two requested edges make
     /// equal angles with the unrequested one — the trihedron is
-    /// isosceles about it — so the mitre lands on it. Passes only at
-    /// zero.
+    /// isosceles about it — and the two bands' feet on it agree, so the
+    /// mitre lands on it. Passes only at zero.
     TurnIsosceles,
+    /// `cylinder_cylinder_section`: a filleted turn's two cylinders
+    /// meet in the two ellipses whose one in the trihedron's plane of
+    /// symmetry is the mitre. Decided in `geom-brep` (the radii equal,
+    /// the axes not parallel, the axes coplanar), whose in-band verdict
+    /// is reported as this decision.
+    MitreSection,
 }
 
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -310,6 +316,7 @@ impl BlendDecision {
         Self::CapEllipse,
         Self::CutOffFeet,
         Self::TurnIsosceles,
+        Self::MitreSection,
     ];
 
     /// The `k_stats` name the decision is metered under.
@@ -330,6 +337,7 @@ impl BlendDecision {
             Self::CapEllipse => "ellipse_axes_distinct",
             Self::CutOffFeet => "fillet3_cut_off_feet",
             Self::TurnIsosceles => "fillet3_turn_isosceles",
+            Self::MitreSection => "cylinder_cylinder_section",
         }
     }
 
@@ -369,7 +377,12 @@ impl BlendDecision {
             Self::TurnIsosceles => {
                 "whether two requested edges turning at a vertex make equal angles with its \
                  third edge, the faces being symmetric about it (the margin is the difference \
-                 of the angles' cosines, levered at the longer edge)"
+                 of the angles' cosines, levered at the longer edge, or the distance between \
+                 the two bands' feet on the third edge, whichever is larger)"
+            }
+            Self::MitreSection => {
+                "whether a filleted turn's two bands meet in an ellipse (the margin is the \
+                 section's: the radii's difference, the axes' parallelism or their coplanarity)"
             }
         }
     }
@@ -395,7 +408,7 @@ impl BlendDecision {
             Self::CapTransverse => FILLET3_CAP_TILT_RECOURSE,
             Self::CapEllipse => FILLET3_CAP_ELLIPSE_RECOURSE,
             Self::CutOffFeet => FILLET3_CORNER_RECOURSE,
-            Self::TurnIsosceles => FILLET3_TURN_RECOURSE,
+            Self::TurnIsosceles | Self::MitreSection => FILLET3_TURN_RECOURSE,
         }
     }
 
@@ -416,9 +429,11 @@ impl BlendDecision {
             }
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
-            Self::ChainG1 | Self::SupportCoaxiality | Self::CapTransverse | Self::TurnIsosceles => {
-                None
-            }
+            Self::ChainG1
+            | Self::SupportCoaxiality
+            | Self::CapTransverse
+            | Self::TurnIsosceles
+            | Self::MitreSection => None,
             // The second-order separation passes on any definite sign,
             // but the relay's in-band verdict may be a station's
             // first-order wedge, which a smaller tolerance decides
@@ -674,7 +689,7 @@ pub enum RunOutPolicy {
     /// [`CornerConfig::Turn`]: the end where two edges of the vertex
     /// are requested. Built where the trihedron is isosceles about the
     /// third edge, the mitre running down to it and the third edge
-    /// ending there; the overrun past the mitre is not built.
+    /// ending there; a turn that is not isosceles is not built.
     Mitre,
 }
 
@@ -775,8 +790,9 @@ pub enum CornerConfig {
     /// the other's support and meets it along their intersection
     /// ([`RunOutPolicy::Mitre`]). IN SCOPE for both verbs on either
     /// side where `fillet3_turn_isosceles` decides the trihedron
-    /// isosceles about the third edge; the overrun refuses as a
-    /// run-out.
+    /// isosceles about the third edge; any other turn refuses as a
+    /// run-out. A configuration tag, as [`Self::EndFace`] is: no
+    /// refusal carries it, and C8 names it beside the policy it takes.
     Turn,
     /// A vertex reached with an in-band or poisoned configuration
     /// margin — the configuration could not be classified at all.
@@ -991,9 +1007,10 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of o
      between planes, whatever is requested: all three edges, two symmetric about the third, or one \
      cut off in a plane end face, in one call";
 /// The lever of `fillet3_turn_isosceles`: in band, the turn is neither
-/// the mitre that lands on the third edge nor the overrun past it, so
-/// the way out is a symmetric vertex, a clearly asymmetric one, or the
-/// corner patch, which the third edge requested alongside builds.
+/// decided symmetric nor decided not, so the way out is a symmetric
+/// vertex, or the corner patch, which the third edge requested
+/// alongside builds. A clearly asymmetric vertex is no way out: it
+/// refuses too.
 pub const FILLET3_TURN_RECOURSE: &str = "make the faces at the vertex symmetric about its third \
      edge, where the two bands meet on it, or request that edge too, which builds the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
@@ -1514,7 +1531,7 @@ pub enum BlendError {
     /// a run-out: a curved end face, a foot off its rim's span (inside a
     /// face rather than on the end face's rim), two cut-offs' feet that
     /// cross on one shared rim, a turn whose trihedron is not isosceles
-    /// (one band overrunning the mitre).
+    /// (its two requested edges at different angles to the third).
     ///
     /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
     /// which is the OQ6 vocabulary for what a vertex's own

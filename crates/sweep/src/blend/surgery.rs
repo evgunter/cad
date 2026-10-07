@@ -216,7 +216,7 @@ use topo::{
 };
 
 use super::admit::{
-    AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary, TurnRow,
+    AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary,
 };
 use super::arms::EdgeBlend;
 use super::battery::{
@@ -624,7 +624,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         let at = foot_param(source, turn.edge, turn.vertex, turn.foot)?;
         turns.push(turn_plan(source, turn, [a, b], at, kind, band)?);
     }
-    turns.sort_by_key(|t| t.vertex);
+    turns.sort_by_key(|t| t.turn.vertex);
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
     for links in ends {
         let v = links.vertex();
@@ -696,10 +696,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             )
         })
         .collect();
-    let turn_rows: Vec<TurnRow<T>> = turns
-        .iter()
-        .map(|t| (t.vertex, t.shared, t.crossing, t.others, t.foot))
-        .collect();
     let mut supports: Vec<RequestedBoundary<T>> = Vec::with_capacity(support_keys.len());
     for f in support_keys {
         supports.push(RequestedBoundary::admit(
@@ -709,7 +705,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             &corner_rows,
             &joint_rows,
             &cut_rows,
-            &turn_rows,
+            &verdict.turns,
         )?);
     }
 
@@ -723,7 +719,12 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 
     // ---- Two splits on one rim — two cut-offs', or a cut-off's and a
     // turn's on its third edge — the second must land on the piece the
-    // first leaves. ----
+    // first leaves. The support screen does not subsume this: a foot
+    // stands `setback / sin φ` along the rim from its vertex, `φ` the
+    // angle there between the rim and the band's edge, so at an oblique
+    // angle the feet cross while the two edges are still further apart
+    // than their setbacks
+    // (`band_planar_mitre::a_turn_foot_and_a_cut_off_foot_cross_where_the_screen_passes`). ----
     shared_rims_clear(
         source,
         ruled_plans
@@ -731,7 +732,11 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             .flat_map(RuledPlan::ends)
             .chain(cut_offs.iter().map(|c| &c.end))
             .flat_map(EndCut::feet)
-            .chain(turns.iter().map(|t| (t.third, t.vertex, t.foot))),
+            .chain(
+                turns
+                    .iter()
+                    .map(|t| (t.turn.edge, t.turn.vertex, t.turn.foot)),
+            ),
         band,
     )?;
 

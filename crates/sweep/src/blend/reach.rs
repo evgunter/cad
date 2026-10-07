@@ -23,11 +23,8 @@
 //! - A straight link runs over the edge's window, closed at each end by
 //!   the plane of the face it runs into, and the window widens by the
 //!   cross-section's run along it; at a corner patch it ends at the
-//!   patch's anchors. A cut-off or a cap ends the band in that plane. A
-//!   mitre ends it short of the plane, which is the other band's
-//!   support: the section's corners past it — the edge point, the foot
-//!   on L's face, the foot on the shared face — pass the plane no later
-//!   than the mitre's plane of symmetry, so it bounds the band too.
+//!   patch's anchors. A cut-off, a cap or a mitre ends the band within
+//!   that plane — at a mitre, the other band's support.
 //! - A circular link is taken over the whole turn, every bound a
 //!   function of its meridian sheet; a support off the band's axis is
 //!   read about it with its departure as slack.
@@ -1005,7 +1002,9 @@ fn straight_reach<T: Decide + Bounds>(
         }
         let sv = (pv - start).dot(tau);
         ends.push(match patch {
-            // The band ends at the patch, between its anchors' stations.
+            // The band ends at the patch, between its anchors' stations,
+            // and its material inside the patch is the patch's: the core
+            // stops at the vertex.
             Some((_, anchors)) => {
                 let at = |x: &Point3<T>| (*x - start).dot(tau);
                 let first = anchors.first().map_or(sv, at);
@@ -1013,9 +1012,11 @@ fn straight_reach<T: Decide + Bounds>(
                     .iter()
                     .map(at)
                     .fold((first, first), |(l, h), x| (l.min(x), h.max(x)));
-                (sv, lo, hi)
+                (sv, sv, lo, hi)
             }
-            None => (sv, sv - pad, sv + pad),
+            // Ended by the plane it runs into: the cross-section within
+            // that plane is the band's material across the whole pad.
+            None => (sv - pad, sv + pad, sv - pad, sv + pad),
         });
     }
     let s0 = (start - Point3::origin()).dot(tau);
@@ -1031,10 +1032,10 @@ fn straight_reach<T: Decide + Bounds>(
             (Role::Other, Bound::Affine { n: tau, d: s0 + hi }),
         ]
     };
-    let w_lo = ends[0].1.min(ends[1].1);
-    let w_hi = ends[0].2.max(ends[1].2);
-    let edge_extent = window(ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
-    core.extend(edge_extent.iter().map(|(_, b)| b.clone()));
+    let w_lo = ends[0].2.min(ends[1].2);
+    let w_hi = ends[0].3.max(ends[1].3);
+    let core_window = window(ends[0].0.min(ends[1].0), ends[0].1.max(ends[1].1));
+    core.extend(core_window.iter().map(|(_, b)| b.clone()));
     let mut bounds = cross;
     bounds.extend(caps);
     bounds.extend(window(w_lo, w_hi));

@@ -376,13 +376,62 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     builds(&body, &edges[..1], 0.1, "the edge alone, cut off");
     builds(&body, &corner[..2], 0.1, "two edges of a symmetric corner");
     builds(&body, &edges, 0.1, "every corner fully requested");
-    let (leaning, turn) = crate::common::operands::leaning_turn(0.5);
-    let overrun = refusal(&leaning, &turn, 0.1, "an asymmetric turn", false);
-    assert!(
-        matches!(overrun, BlendError::UnsupportedRunOut { .. }),
-        "an asymmetric turn is a run-out, got {overrun:?}"
-    );
-    carries(&overrun, FILLET3_CORNER_RECOURSE, "overrun");
+    // Of the turns that are not isosceles, the leaning wall's bands meet
+    // past the mitre; the sheared box's supplementary corner's chamfer
+    // feet coincide on the third edge. Each refusal claims only what its
+    // input shows: angles that differ, and no overrun where the feet
+    // coincide.
+    let (leaning, _) = crate::common::operands::leaning_turn(0.5);
+    let sheared = crate::common::operands::parallelepiped(0.3);
+    let turn_at = |body: &topo::Body<f64>, v: [f64; 3], ends: [[f64; 3]; 3]| {
+        let p = geom_core::Point3::new(v[0], v[1], v[2]);
+        let out = ends.map(|q| (geom_core::Point3::new(q[0], q[1], q[2]) - p).normalize());
+        let edges = [
+            crate::band_planar_cut_off::edge(body, v, ends[0]),
+            crate::band_planar_cut_off::edge(body, v, ends[1]),
+        ];
+        // The two face angles' cosines against the third edge.
+        (edges, [out[0].dot(out[2]), out[1].dot(out[2])])
+    };
+    for (what, body, (edges, cos)) in [
+        (
+            "an asymmetric turn",
+            &leaning,
+            turn_at(
+                &leaning,
+                [0.5, 0.0, 1.0],
+                [[2.0, 0.0, 1.0], [0.5, -1.5, 1.0], [0.0, 0.0, 0.0]],
+            ),
+        ),
+        (
+            "a supplementary turn",
+            &sheared,
+            turn_at(
+                &sheared,
+                [2.3, 0.3, 1.0],
+                [[0.3, 0.3, 1.0], [2.3, 1.8, 1.0], [2.0, 0.0, 0.0]],
+            ),
+        ),
+    ] {
+        let refused = refusal(body, &edges, 0.1, what, false);
+        assert!(
+            matches!(refused, BlendError::UnsupportedRunOut { .. }),
+            "{what} is a run-out, got {refused:?}"
+        );
+        carries(&refused, FILLET3_CORNER_RECOURSE, what);
+        let text = refused.to_string();
+        let sine = |c: f64| (1.0 - c * c).sqrt();
+        assert!(
+            text.contains("different angles") && (cos[0] - cos[1]).abs() > 1e-9,
+            "{what}: the refusal names the angles, which differ ({cos:?}): {text}"
+        );
+        if (sine(cos[0]) - sine(cos[1])).abs() < 1e-12 {
+            assert!(
+                !text.contains("overrun"),
+                "{what}: the chamfer's feet coincide, so no band overruns: {text}"
+            );
+        }
+    }
     let mitred = fillet_edges(&body, &corner[..2], 0.1, tol()).expect("the mitre builds");
     let third = mitred
         .naming
