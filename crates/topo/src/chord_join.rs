@@ -5206,3 +5206,81 @@ mod torn_hop_rows {
         );
     }
 }
+
+/// Review probes for PR 4255 (scratch branch only).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_probes {
+    use super::*;
+    use crate::{FaceSurface, MevSite};
+    use geom_core::{Point3, Vec3};
+
+    /// A wall of radius `r` about z whose face is the lone ruling
+    /// (r, 0, 0)–(r, 0, e); the plane through (r, 0, 0) and the axis,
+    /// tilted so the axis meets it at sin β = frac·ε/e: the ruling's
+    /// points leave the plane by at most frac·ε, so the parallel reading
+    /// is the truth for frac ≤ 1.
+    #[test]
+    fn probe_chord_short_ruling() {
+        let eps = Tol::witness().eps();
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        for &r in &[1.0e-3, 1.0, 1.0e3] {
+            for &e in &[1.0e-5, 3.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0] {
+                for frac in [0.5, 0.8, 0.95] {
+                    let mut body = crate::Body::<f64>::new();
+                    let seed = body.mvfs(Point3::new(r, 0.0, 0.0), true).unwrap();
+                    body.set_face_surface(
+                        seed.face,
+                        FaceSurface::New {
+                            surface: geom::Surface::Cylinder {
+                                origin: Point3::origin(),
+                                axis: Vec3::unit_z(),
+                                radius: r,
+                                u_ref: Vec3::unit_x(),
+                            },
+                            sense: true,
+                        },
+                    )
+                    .unwrap();
+                    body.mev_line(
+                        MevSite::Lone {
+                            r#loop: seed.r#loop,
+                        },
+                        Point3::new(r, 0.0, e),
+                        Tol::witness(),
+                    )
+                    .unwrap();
+                    let c = frac * eps / e;
+                    let normal =
+                        UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "probe", band)
+                            .unwrap();
+                    let truth_dev = c * e; // the ruling's farthest point off the plane
+                    let got = wall_section(
+                        &body,
+                        band,
+                        Point3::new(r, 0.0, 0.0),
+                        normal,
+                        seed.face,
+                        seed.vertex,
+                    );
+                    let v = match &got {
+                        Ok(Some(w)) => match w.case {
+                            SectionCase::Straight(_) => "straight",
+                            SectionCase::Tangent(_) => "tangent",
+                            SectionCase::Conic(_) => "conic",
+                        },
+                        Ok(None) => "none",
+                        Err(SplitJoinError::Escalated { diag, .. }) => {
+                            diag.predicate.unwrap_or("?")
+                        }
+                        Err(_) => "other error",
+                    };
+                    eprintln!(
+                        "CHORD r={r} e={e} frac={frac}: c={c:.3e} truth_dev/eps={:.3} verdict={v}",
+                        truth_dev / eps
+                    );
+                }
+            }
+        }
+    }
+}

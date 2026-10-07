@@ -4896,3 +4896,188 @@ mod radical_plane_rows {
         }
     }
 }
+
+/// Review probes for PR 4255 (scratch branch only).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_probes {
+    use super::*;
+    use crate::{FaceSurface, MevSite};
+    use geom::{Curve3, Surface};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A unit wall about z whose face is: the oblique (φ) rim's arc over
+    /// t ∈ [π/2 − δ, π/2 + δ], then the ruling from its end down by h.
+    fn arc_wall(
+        phi: f64,
+        delta: f64,
+        h: f64,
+    ) -> (
+        crate::Body<f64>,
+        crate::entity::FaceKey,
+        Curve3<f64>,
+        (f64, f64),
+        Point3<f64>,
+        Point3<f64>,
+    ) {
+        let tol = Tol::witness();
+        let (s, c) = phi.sin_cos();
+        let carrier = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis: Vec3::new(-s, 0.0, c),
+            major: 1.0 / c,
+            minor: 1.0,
+            u_ref: Vec3::new(c, 0.0, s),
+        };
+        let hp = core::f64::consts::FRAC_PI_2;
+        let (t0, t1) = (hp - delta, hp + delta);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(carrier.eval(t0), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let cyl = body.get_face(seed.face).unwrap().surface;
+        let plane = body.add_surface(Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(-s, 0.0, c),
+            u_ref: Vec3::new(c, 0.0, s),
+        });
+        let p1 = carrier.eval(t1);
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p1,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        s1: cyl,
+                        s2: plane,
+                        witness: carrier.eval(hp),
+                    },
+                    carrier: carrier.clone(),
+                    param_start: t0,
+                    param_end: t1,
+                },
+                tol,
+            )
+            .unwrap();
+        let p2 = p1 - Vec3::unit_z() * h;
+        body.mev_line(
+            MevSite::Fan {
+                he1: arc.he_minus,
+                he2: arc.he_minus,
+            },
+            p2,
+            tol,
+        )
+        .unwrap();
+        (body, seed.face, carrier, (t0, t1), p1, p2)
+    }
+
+    #[test]
+    fn probe_germ_partial_arc() {
+        let eps = Tol::witness().eps();
+        let kk = Tol::witness().k();
+        for &(phi, delta, h) in &[
+            (core::f64::consts::FRAC_PI_4, 0.05, 1.2),
+            (1.2, 0.02, 0.5),
+            (0.6, 0.1, 0.3),
+        ] {
+            let (body, face, carrier, (t0, t1), p1, p2) = arc_wall(phi, delta, h);
+            let on = super::super::rest::face_witnesses(&body, face).unwrap();
+            let wall = body
+                .get_face(face)
+                .and_then(|f| body.get_surface(f.surface))
+                .cloned()
+                .unwrap();
+            // independent oracle: sampled boundary
+            let mut pts: Vec<Point3<f64>> = (0..=4000)
+                .map(|k| carrier.eval(t0 + (t1 - t0) * f64::from(k) / 4000.0))
+                .collect();
+            pts.extend((0..=4000).map(|k| p1 + (p2 - p1) * (f64::from(k) / 4000.0)));
+            for frac in [0.5, 0.8, 0.95] {
+                let c = frac * eps; // main's lever is r = 1: main margin = frac·ε
+                let n = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
+                let plane = Surface::Plane {
+                    origin: Point3::new(0.0, 1.0, 0.0),
+                    normal: n,
+                    u_ref: Vec3::new(0.0, 1.0, 0.0),
+                };
+                assert!(on.len() >= 3, "three boundary vertices");
+                let (at, span) =
+                    super::frame_reading(&plane, &wall, Vec::new(), on.clone()).unwrap();
+                let axial_truth = pts.iter().fold(0.0f64, |m, p| m.max((*p - at).z.abs()));
+                // plane offset between real plane and the rulings' plane at consumed points
+                let foot = Point3::new(0.0, 0.0, at.z);
+                let gap = (foot - plane_origin(&plane)).dot(n);
+                let h0 = foot - n * gap;
+                let nprime = (n - Vec3::unit_z() * c).normalize();
+                let dev = pts
+                    .iter()
+                    .fold(0.0f64, |m, p| m.max((*p - h0).dot(n - nprime).abs()));
+                #[cfg(not(review_main))]
+                let (lever, got) = {
+                    let extent =
+                        super::frame_extent((&plane, &body, face), (&wall, &body, face), at, span)
+                            .unwrap();
+                    (
+                        extent,
+                        pair_section_frame(
+                            &plane,
+                            &wall,
+                            geom_brep::RadiusEvidence::None,
+                            at,
+                            extent,
+                            band(),
+                        ),
+                    )
+                };
+                #[cfg(review_main)]
+                let (lever, got) = (
+                    Some(1.0),
+                    pair_section_frame(
+                        &plane,
+                        &wall,
+                        geom_brep::RadiusEvidence::None,
+                        at,
+                        span,
+                        band(),
+                    ),
+                );
+                let v = match &got {
+                    Ok(Some(_)) => "served conic",
+                    Ok(None) => "served straight",
+                    Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("?"),
+                    Err(_) => "refusal",
+                };
+                eprintln!(
+                    "GERM phi={phi} delta={delta} h={h} frac={frac}: lever={lever:?} axial_truth={axial_truth:.6} truth_dev/eps={:.4} (K={kk}) verdict={v}",
+                    dev / eps
+                );
+            }
+        }
+    }
+
+    fn plane_origin(p: &Surface<f64>) -> Point3<f64> {
+        match p {
+            Surface::Plane { origin, .. } => *origin,
+            _ => unreachable!(),
+        }
+    }
+}
