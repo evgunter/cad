@@ -86,7 +86,7 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// runs the loop backwards, and its walls, rims, struts and cap vertices are
 /// now named by the pieces at their CANONICAL positions (they were
 /// named by the swept positions, each wall by another piece); and node
-/// ids are digests of the document's mint chain, and the die's pip
+/// ids are drawn from the document's mint chain, and the die's pip
 /// subtracts carry their declared pairs as their own payload, so every
 /// subtract's id, and every id minted after one, is the chain's
 /// without a declaration node in it; and every extrude carries its side

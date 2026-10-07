@@ -1601,7 +1601,9 @@ fn corner_pairs(doc: &ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> Vec<(Site
 /// from `b` to a re-drawing of it (identical geometry, a later id),
 /// declarations and all: the three names it held there are still the
 /// union's names for them, still through `a`. A salt node inserted
-/// first moves every digest, so the answer is not the digests' luck.
+/// first moves every digest, so the answer is not the digests' luck,
+/// and each member list is also given the other way round, so the
+/// answer is not the list's order either: "first" is first minted.
 ///
 /// The re-drawing is minted before the union, because the doors admit
 /// a declared side minted before its carrier only
@@ -1611,68 +1613,84 @@ fn corner_pairs(doc: &ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> Vec<(Site
 fn redrawing_another_member_never_takes_a_held_flush_stretch() {
     let tol = Tol::witness();
     for salt in 0..6u32 {
-        let doc = ProfileDoc::empty_derived("redraw-flush", tol);
-        let (doc, _) = insert(
-            doc,
-            Node::Datum(editor_core::Datum::Point {
-                position: [len(f64::from(salt)), len(0.0), len(0.0)],
-            }),
-        );
-        let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, b) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-        let (doc, redrawn) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-        let pairs = corner_pairs(&doc, a, b);
-        let (doc, union) = declared_union(doc, &[a, b], pairs);
-        let ev = run(&doc);
-        assert!(
-            failure(&ev, union).is_none(),
-            "salt {salt}: {:?}",
-            failure(&ev, union)
-        );
-        let held = shared_corner(&ev, union);
-        assert_eq!(
-            held.len(),
-            3,
-            "salt {salt}: the corner edge and its two ends: {held:?}"
-        );
-        let senior = |name: &StableName| matches!(name.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == a);
-        assert!(
-            held.iter().all(senior),
-            "salt {salt}: the corner is named through the senior block: {held:?}"
-        );
+        // Each list both ways round, so a rule keyed by list position
+        // rather than by mint order names the corner through `b` (or the
+        // re-drawing) in one of the two.
+        for reversed in [false, true] {
+            let listed = |x: RecipeNodeId, y: RecipeNodeId| {
+                if reversed { vec![y, x] } else { vec![x, y] }
+            };
+            let case = format!(
+                "salt {salt}, {}",
+                if reversed {
+                    "listed later first"
+                } else {
+                    "listed in mint order"
+                }
+            );
+            let doc = ProfileDoc::empty_derived("redraw-flush", tol);
+            let (doc, _) = insert(
+                doc,
+                Node::Datum(editor_core::Datum::Point {
+                    position: [len(f64::from(salt)), len(0.0), len(0.0)],
+                }),
+            );
+            let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+            let (doc, b) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+            let (doc, redrawn) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+            let pairs = corner_pairs(&doc, a, b);
+            let (doc, union) = declared_union(doc, &listed(a, b), pairs);
+            let ev = run(&doc);
+            assert!(
+                failure(&ev, union).is_none(),
+                "{case}: {:?}",
+                failure(&ev, union)
+            );
+            let held = shared_corner(&ev, union);
+            assert_eq!(
+                held.len(),
+                3,
+                "{case}: the corner edge and its two ends: {held:?}"
+            );
+            let senior = |name: &StableName| matches!(name.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == a);
+            assert!(
+                held.iter().all(senior),
+                "{case}: the corner is named through the senior block: {held:?}"
+            );
 
-        let (doc, _) = step(
-            doc,
-            DocEdit::SetDeclare {
-                node: union,
-                pairs: Vec::new(),
-            },
-        );
-        let (doc, _) = step(
-            doc,
-            DocEdit::SetMembers {
-                node: union,
-                members: vec![a, redrawn],
-            },
-        );
-        let pairs = corner_pairs(&doc, a, redrawn);
-        let (doc, _) = step(
-            doc,
-            DocEdit::SetDeclare {
-                node: union,
-                pairs: editor_core::declare_continuation(pairs),
-            },
-        );
-        let ev = run(&doc);
-        assert!(
-            failure(&ev, union).is_none(),
-            "salt {salt}: {:?}",
-            failure(&ev, union)
-        );
-        assert_eq!(
-            shared_corner(&ev, union),
-            held,
-            "salt {salt}: the re-drawn member took none of the held corner"
-        );
+            let (doc, _) = step(
+                doc,
+                DocEdit::SetDeclare {
+                    node: union,
+                    pairs: Vec::new(),
+                },
+            );
+            let (doc, _) = step(
+                doc,
+                DocEdit::SetMembers {
+                    node: union,
+                    members: listed(a, redrawn),
+                },
+            );
+            let pairs = corner_pairs(&doc, a, redrawn);
+            let (doc, _) = step(
+                doc,
+                DocEdit::SetDeclare {
+                    node: union,
+                    pairs: editor_core::declare_continuation(pairs),
+                },
+            );
+            let ev = run(&doc);
+            assert!(
+                failure(&ev, union).is_none(),
+                "{case}: {:?}",
+                failure(&ev, union)
+            );
+            assert_eq!(
+                shared_corner(&ev, union),
+                held,
+                "{case}: the re-drawn member took none of the held corner"
+            );
+        }
     }
 }

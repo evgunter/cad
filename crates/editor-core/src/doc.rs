@@ -768,6 +768,12 @@ impl FreeVar {
 /// order the nodes were inserted in) + document metadata (spec D2; ratified F2's substrate). `P` is the
 /// opaque profile payload (spec D1/D3 — see [`Node`]).
 ///
+/// Id order is topological — every input's id is less than its
+/// consumer's — **except where [`crate::DocEdit::SetMembers`] gives a
+/// union a member minted after it**: that door checks liveness and
+/// acyclicity, not order, so the union then points forward
+/// (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
+///
 /// **A field added here that holds a [`StableName`] is placed in
 /// `Carrier` below**, which is the one enumeration of the document's
 /// name carriers: the delete door's DM7 report, the split door's
@@ -1041,6 +1047,8 @@ impl<P> Doc<P> {
 
     /// **The live node ids, in id order**: the order the nodes were
     /// inserted in, which is what every tie between nodes breaks by.
+    /// Topological except where `SetMembers` points a union forward
+    /// (see [`Doc`]).
     pub fn ids(&self) -> Vec<RecipeNodeId> {
         self.nodes.keys().copied().collect()
     }

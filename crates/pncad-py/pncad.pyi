@@ -2931,7 +2931,9 @@ class Var:
     @property
     def hex(self) -> str:
         """The whole id: its mint ordinal, a colon, and its digest as
-        sixteen lowercase hex digits."""
+        sixteen lowercase hex digits — the key a saved file's variable
+        table holds it under. (Named for when an id was its hex digest
+        alone.)"""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 

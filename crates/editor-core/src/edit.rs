@@ -5263,7 +5263,11 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
 /// One forward pass suffices because id order ([`Doc::ids`]) is
 /// insertion order and an insertion's inputs must already be live,
 /// making the list topological: a consumer is always seen after every input it
-/// could inherit doom from.
+/// could inherit doom from. **Except** where [`DocEdit::SetMembers`]
+/// gave a union a member minted after it: that union is seen before the
+/// member, so the pass misses it and the first delete refuses
+/// [`EditError::DeleteWouldDangle`]
+/// (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
 pub fn cascade_delete_order<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,

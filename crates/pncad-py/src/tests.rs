@@ -10490,7 +10490,7 @@ fn the_unplaced_tag_is_the_kernels_word() {
 /// the helper hands Python follows the source document and the part
 /// alike, each in id order, which is the order its nodes were placed.
 #[test]
-fn a_split_node_map_reaches_python_in_document_order() {
+fn a_split_node_map_reaches_python_in_target_id_order() {
     use pncad::document::{Datum, DocumentId, Node, ProfileDoc, RecipeNodeId, split};
     let frame = |x: f64| {
         Node::Datum(Datum::Frame {
@@ -10531,7 +10531,7 @@ fn a_split_node_map_reaches_python_in_document_order() {
         None,
     )
     .expect("a cut of free frames splits");
-    let listed = crate::node_map::in_document_order(&out.node_map, &out.part);
+    let listed = crate::node_map::in_target_id_order(&out.node_map, &out.part);
     assert_eq!(
         listed.iter().map(|&(from, _)| from).collect::<Vec<_>>(),
         cut,

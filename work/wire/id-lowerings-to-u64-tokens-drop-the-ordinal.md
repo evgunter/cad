@@ -39,7 +39,15 @@ source, or one symbolic indeterminate, silently.
 Neither token needs ONE integer; each needs an injective, ordered,
 hashable identity. The ordinal alone would be injective within one
 document but repeats across documents (a part's evaluation meets its
-host's), which the digest does not.
+host's). The digest is no better there: the chain starts from `[0; 32]`
+and holds no document id, so two documents whose edits begin alike mint
+alike. Two empty documents whose first edits are the same block both
+mint `26:b4df12e4a41c240f`, digest and ordinal both. What keeps a
+part's sources apart from its host's in practice is the wrapping: a
+part's sources reach the host as `GeomSource::placed(instance digest,
+..)` (`crates/topo/src/source.rs:164`, composed in
+`crates/editor-core/src/eval/wire.rs`'s `compose_placed`), so the
+instance's id, not the part's node ids, tells them apart.
 
 ## Options
 

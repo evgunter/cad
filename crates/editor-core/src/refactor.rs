@@ -3182,7 +3182,9 @@ pub fn split(
         )?;
     }
     // Reverse document order deletes consumers before their inputs, so
-    // no delete dangles a live reference.
+    // no delete dangles a live reference — except past a union
+    // `SetMembers` pointed forward
+    // (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
     for &old in doc.ids().iter().rev() {
         if cut.contains(&old) {
             rem_apply(&mut remainder, DocEdit::DeleteNode { id: old })?;

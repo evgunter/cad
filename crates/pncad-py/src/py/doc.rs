@@ -3424,7 +3424,8 @@ pub(crate) struct Var(pub(crate) d::VarId);
 #[pymethods]
 impl Var {
     /// The whole id: its mint ordinal, a colon, and its digest as sixteen
-    /// lowercase hex digits.
+    /// lowercase hex digits — the key a saved file's variable table
+    /// holds it under. (Named for when an id was its hex digest alone.)
     #[getter]
     fn hex(&self) -> String {
         self.0.full().to_string()

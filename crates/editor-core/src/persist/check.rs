@@ -174,7 +174,7 @@ pub(crate) enum Walk {
     /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
     /// [`first_var_fault`] over the variable table (VARIABLES-DESIGN
-    /// VR1–VR3): the mint log it asks is strictly ascending, every
+    /// VR1–VR3): the mint log it asks counts up from one, every
     /// variable's stored kind is its definition's,
     /// every id is logged in the mint as a variable's, every name sits
     /// on a live variable, and no name is held twice. Snapshot only.
@@ -492,8 +492,8 @@ fn free_vars(snapshot: &ProfileDoc) -> impl Iterator<Item = (VarId, &FreeVar)> {
 /// twice. The names are walked by id, so the pair a twice-held name
 /// reports is the two lowest ids holding it.
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
-    // The mint log first, since `has_var` below asks it: strictly
-    // ascending, the only log a mint writes. The structural walk asks
+    // The mint log first, since `has_var` below asks it: its ordinals
+    // count up from one, the only log a mint writes. The structural walk asks
     // it again for a snapshot checked alone (`validate_snapshot`).
     if let Some(entry) = snapshot.mint.out_of_order() {
         return Some(SnapshotError::MintLogOrder { entry });
@@ -880,10 +880,11 @@ pub enum SnapshotError {
         /// What is wrong.
         fault: crate::program::StepIdFault,
     },
-    /// The mint's log is not strictly ascending by id: an id logged
-    /// twice, or out of order — a log no mint wrote.
+    /// The mint's log does not count up from one: an entry's ordinal
+    /// is not its place in the log (a repeat, a step down or a gap) —
+    /// a log no mint wrote.
     MintLogOrder {
-        /// The first entry not greater than the one before it.
+        /// The first entry whose ordinal is not its place in the log.
         entry: crate::Minted,
     },
     /// A name the document holds spells a profile step its mint log
@@ -931,6 +932,9 @@ pub enum SnapshotError {
     /// A node's input ref does not precede it in id order (insertion
     /// order is topological by construction, and ids order as inserted
     /// — a forward ref means a tampered file, and possibly a cycle).
+    /// **Except** a union [`crate::DocEdit::SetMembers`] gave a member
+    /// minted after it: the edit door accepts that and this refuses its
+    /// save (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
     ForwardInput {
         /// The referring node.
         node: SpokenNode,
@@ -1287,8 +1291,8 @@ impl core::fmt::Display for SnapshotError {
             Self::StepIds { node, fault } => write!(f, "{node}'s step ids: {fault}"),
             Self::MintLogOrder { entry } => write!(
                 f,
-                "the mint's log is not strictly ascending at {entry} — an id logged twice or out \
-                 of order, which no mint writes. {}",
+                "the mint's log does not count up from one at {entry} — its ordinal is not its \
+                 place in the log (a repeat, a step down or a gap), which no mint writes. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::NameStepNotMinted { name, step } => write!(
@@ -1496,8 +1500,8 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             Ok(())
         }
     };
-    // The mint log first, since every check below asks it: strictly
-    // ascending, the only log a mint writes.
+    // The mint log first, since every check below asks it: its ordinals
+    // count up from one, the only log a mint writes.
     if let Some(entry) = doc.mint.out_of_order() {
         return Err(SnapshotError::MintLogOrder { entry });
     }

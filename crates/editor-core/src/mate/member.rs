@@ -102,9 +102,9 @@ impl Member {
 }
 
 /// **The member key, written out.** `Member` is the `BTreeMap` key
-/// `by_pair` and `edge_of` are built on, and its order, with every node
-/// read as its position in the document, is the order the spanning
-/// tree picks its edges by; so the ordering is stated rather than
+/// `by_pair` and `edge_of` are built on, and its order, every node
+/// compared by id (which is document order: an id's mint ordinal leads
+/// it), is the order the spanning tree picks its edges by; so the ordering is stated rather than
 /// derived: `(instance, copy, chain)` — the instance, then the copy
 /// chain (patterns only, outermost first), then the whole placing
 /// chain, each compared lexicographically. The copies lead so that a

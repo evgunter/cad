@@ -1679,14 +1679,12 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     let wb = walk_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
     check_references(doc, env, mate, &wa, &wb).map_err(Box::new)?;
     admit_class(mate, *class)?;
-    // The two parts are asked in DOCUMENT order. The fold asks the
-    // tree's parent first, and the parent is wherever the root rule
-    // put the root, so where both parts are missing the two doors may
-    // name different ones; each names a part the mate needs.
-    // Document order is the order list's, not the ids': an id is a
-    // digest (N1), so comparing two says nothing about which came first.
-    let at = |id: RecipeNodeId| doc.ids().iter().position(|&n| n == id);
-    let (first, second) = if at(wa.member.instance) <= at(wb.member.instance) {
+    // The two parts are asked in DOCUMENT order, which is id order (an
+    // id's mint ordinal leads it, N1). The fold asks the tree's parent
+    // first, and the parent is wherever the root rule put the root, so
+    // where both parts are missing the two doors may name different
+    // ones; each names a part the mate needs.
+    let (first, second) = if wa.member.instance <= wb.member.instance {
         (&wa.member, &wb.member)
     } else {
         (&wb.member, &wa.member)

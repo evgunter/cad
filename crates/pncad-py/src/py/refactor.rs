@@ -848,7 +848,7 @@ impl InlineOutcome {
 
 /// A node map as the pairs Python reads ([`crate::node_map`]).
 fn pairs_in_order(map: &d::NodeMap, doc: &d::ProfileDoc) -> Vec<(NodeId, NodeId)> {
-    crate::node_map::in_document_order(map, doc)
+    crate::node_map::in_target_id_order(map, doc)
         .into_iter()
         .map(|(a, b)| (NodeId(a), NodeId(b)))
         .collect()

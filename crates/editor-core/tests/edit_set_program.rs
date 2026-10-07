@@ -1218,8 +1218,16 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         ("an entry missing", gap, entry(j + 1)),
     ] {
         match refused(set_log(log)) {
-            editor_core::SnapshotError::MintLogOrder { entry } => {
+            refusal @ editor_core::SnapshotError::MintLogOrder { entry } => {
                 assert_eq!(entry, names, "{label}");
+                // The sentence says what the door checks: the ordinals
+                // count up from one, so a gap refuses as a repeat does.
+                let said = refusal.to_string();
+                assert!(
+                    said.contains(&format!("does not count up from one at {names}"))
+                        && said.contains("a repeat, a step down or a gap"),
+                    "{label}: {said}"
+                );
             }
             other => panic!("{label} refuses as a snapshot fault, got {other:?}"),
         }

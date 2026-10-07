@@ -17,7 +17,7 @@ use pncad::document::{NodeMap, ProfileDoc, RecipeNodeId};
 /// maps lands a node in the document it builds, so a target missing
 /// from it is a kernel bug, not a state to sort somewhere.
 #[must_use]
-pub fn in_document_order(map: &NodeMap, doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+pub fn in_target_id_order(map: &NodeMap, doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     let mut pairs: Vec<(RecipeNodeId, RecipeNodeId)> = map
         .iter()
         .map(|(&from, &to)| {
