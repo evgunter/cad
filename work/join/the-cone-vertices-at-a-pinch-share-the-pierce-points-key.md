@@ -101,3 +101,41 @@ records alone. No position is read to find it.
   `dbl`, r2's tri-cone battery, and the pierce, pinch, corner-pair,
   both reflex and `rc_wide` ×84 batteries. No line goes `SOUND` →
   refusal.
+
+## Fix pass (FULL review, PR 4207)
+
+- Docs carry the traced cause: the row's doc, `share_points`' doc
+  (which no longer names a ring-copy source no line has), and `zip.rs`'s
+  module header, which now names `share_points`.
+- One union-find (`zip::Roots`) serves `point_classes` and
+  `split_cones`.
+- `share_point`'s premise is structural, and its doc says so: its one
+  caller passes keys the seam pairs tie, and the zips certify those
+  pairs coincident. A runtime check is not expressible over `T: Real`:
+  `Real` has no equality, a `Bounds` read is a ratified seam, and the
+  bit channel (`geom_core::bit_identity`) is fenced. The premise is
+  pinned in test builds instead (`sweep-testing`,
+  `topo::take_shared_points`). The pinch rows assert that every class
+  rebound held one point, bit for bit. A rebind that takes in a foreign
+  key goes red there. `share_point` and `move_vertices` name each other
+  as sibling doors.
+- `point_key_finding` refuses a point with fewer than two vertices.
+  `shared_point_finding` is the reading for a point that may hold one.
+- Residue filed: `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`
+  (`touch`, `dbl3`; parked on D10).
+- No row for a vertex whose second correspondent alone links a class.
+  `dbl` and the pinch battery hold 489 such vertices, but a
+  first-correspondent-only `point_classes` leaves every line
+  byte-identical: the zips already leave those vertices on one key.
+
+Re-measured after merging main, main `7e4e2c96` vs head `02f7a182`,
+release:
+- `dbl`: 9 lines `BAD` → `SOUND`; the rest of the 4 320 byte-identical.
+- r2's pinched-operand battery: 75 `BAD` → `SOUND`. The review's exact
+  replay (`r2p`): the same 75, plus 73 still-`BAD` lines (stale
+  declarations) whose pinch goes from two keys to one.
+- `two`: 1 line `BAD` → `SOUND` of 1 728.
+- Byte-identical: `dbl3` (216), `touch` (84), the pinch (3 029) and
+  pierce (4 541) batteries.
+- The pinch rows (26) pass.
+- No line goes `SOUND` → refusal.
