@@ -259,9 +259,9 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 /// Several partners read [`layered`]: the cones that no other holds
 /// are outermost, and the material beyond them is outside the solid
 /// where they are met and inside it where they are joined. Where a
-/// partner reads nothing, an edge is left undecided, or the outermost
-/// disagree, each pair's rows stand as read, as for one pair. A nesting
-/// read in band refuses.
+/// partner reads nothing or an edge is left undecided, each pair's rows
+/// stand as read, as for one pair. A nesting read in band refuses, and
+/// so do outermost cones that disagree.
 pub(super) fn pair_classes<T: Decide>(
     pairs: &[PairRead<T>],
     band: Band,
@@ -309,8 +309,12 @@ fn layered_alone<T: Decide>(
             } else {
                 SideCode::In
             };
+            // A regular operand's outermost cones agree: beyond them its
+            // material is one thing.
             if base.is_some_and(|b| b != here) {
-                return Ok(None);
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a vertex's outermost partner cones disagree on the material beyond them",
+                });
             }
             base = Some(here);
         }
