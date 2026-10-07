@@ -453,27 +453,31 @@ fn name_split_edges_vertices<T: Decide>(
         // Each crossing carries its sense against this half; a plane
         // crosses a straight edge at most once, and an arc it crosses
         // twice leaves crossings of both senses on each side. Several
-        // of one sense on one line are ranked along it (N2), by the
-        // carrier of its least-named crossed edge.
-        let mut by_line: BTreeMap<(NameRef, Sense), OnLine<T>> = BTreeMap::new();
-        for (crossed, (parent, verts)) in crossings {
-            let forward = oriented(target_body, target_table, crossed, &parent.name)?;
-            let pieces = pieces_of.get(&crossed).map_or(&[][..], Vec::as_slice);
-            let line = edge_line(&parent.name);
-            for &v in &verts {
+        // of one sense on one line are ranked along it (N2).
+        type OnLine<'b, T> = (bool, Vec<Crossed<'b, T>>);
+        let mut by_line: BTreeMap<(NameRef, Sense), OnLine<'_, T>> = BTreeMap::new();
+        for (crossed, (parent, verts)) in &crossings {
+            let forward = oriented(target_body, target_table, *crossed, &parent.name)?;
+            let pieces = pieces_of.get(crossed).map_or(&[][..], Vec::as_slice);
+            let along = CrossedEdge {
+                body: target_body,
+                table: target_table,
+                edge: *crossed,
+                name: &parent.name,
+            };
+            for &v in verts {
                 let sense = split_sense(body, v, pieces)?;
                 let sense = if forward { sense } else { sense.flipped() };
-                by_line
-                    .entry((line.clone(), sense))
-                    .or_insert_with(|| OnLine::new(&parent.name, crossed))
-                    .push(
-                        &parent,
-                        crossed,
-                        (ent(s.ix, EntityKey::Vertex(v)), vertex_point(body, v)?),
-                    );
+                let on = by_line.entry((edge_line(&parent.name), sense)).or_default();
+                on.0 |= parent.tied;
+                on.1.push((
+                    ent(s.ix, EntityKey::Vertex(v)),
+                    vertex_point(body, v)?,
+                    along,
+                ));
             }
         }
-        for ((line, sense), on) in by_line {
+        for ((line, sense), (tied, on)) in by_line {
             let base = name1(
                 EntityKind::Vertex,
                 node,
@@ -483,13 +487,7 @@ fn name_split_edges_vertices<T: Decide>(
                     sense,
                 },
             );
-            let edge = CrossedEdge {
-                body: target_body,
-                table: target_table,
-                edge: on.along.1,
-                name: &on.along.0,
-            };
-            rank_crossings(t, tie, on.tied, &base, &edge, &on.crossings, bnd)?;
+            rank_crossings(t, tie, tied, &base, &on, bnd)?;
         }
     }
     tie.flush(t)?;
@@ -1691,7 +1689,7 @@ fn name_boolean_vertices<T: Decide>(
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
     let mut senses = CrossingSenses::new();
-    let mut groups: BTreeMap<RoleSeg, (bool, Vec<VertexKey>, Along)> = BTreeMap::new();
+    let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // Operand pass-downs: the kept key itself, then its dead
         // fusion partners (deterministic order: KEPT-KEY identity
@@ -1978,79 +1976,72 @@ fn name_boolean_vertices<T: Decide>(
             ),
         };
         // Pieces of one line crossed alike share a name, and rank along
-        // the line by the carrier of the least-named of them.
-        let slot = groups
-            .entry(seg)
-            .or_insert((false, Vec::new(), along.clone()));
-        if along.first() < slot.2.first() {
-            slot.2 = along;
-        }
+        // the line, each read on its own piece.
+        let slot = groups.entry(seg).or_insert((false, Vec::new()));
         slot.0 |= from_tie;
-        slot.1.push(v);
+        slot.1.push((v, along));
     }
-    for (seg, (from_tie, verts, along)) in groups {
+    for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
         rec.record_by_name(
             &base,
             verts
                 .iter()
-                .map(|&v| ent(0, EntityKey::Vertex(v)))
+                .map(|&(v, _)| ent(0, EntityKey::Vertex(v)))
                 .collect(),
             from_tie,
         );
-        if verts.len() == 1 {
-            put(t, tie, from_tie, base, ent(0, EntityKey::Vertex(verts[0])))?;
+        if let [(v, _)] = verts.as_slice() {
+            put(t, tie, from_tie, base, ent(0, EntityKey::Vertex(*v)))?;
             continue;
         }
         // Several crossings with one name: ranked along the crossed
-        // edge (the A side's where both are edges).
-        let crossed = match &along {
-            Along::A(e) => crossed_edge(e, a.table).map(|k| (a, k, e)),
-            Along::B(e) => crossed_edge(e, b.table).map(|k| (b, k, e)),
-            Along::Either(pa, pb) => match crossed_edge(pa, a.table) {
-                Some(k) => Some((a, k, pa)),
-                None => crossed_edge(pb, b.table).map(|k| (b, k, pb)),
-            },
-        };
-        let Some((op, k, parent)) = crossed else {
+        // line (the A side's where both are edges), or tied where one
+        // lies on no edge either table names.
+        let mut crossings = Vec::with_capacity(verts.len());
+        for (v, along) in &verts {
+            let on = match along {
+                Along::A(e) => crossed_edge(e, a.table).map(|k| (a, k, e)),
+                Along::B(e) => crossed_edge(e, b.table).map(|k| (b, k, e)),
+                Along::Either(pa, pb) => match crossed_edge(pa, a.table) {
+                    Some(k) => Some((a, k, pa)),
+                    None => crossed_edge(pb, b.table).map(|k| (b, k, pb)),
+                },
+            };
+            let Some((op, k, parent)) = on else {
+                crossings.clear();
+                break;
+            };
+            crossings.push((
+                ent(0, EntityKey::Vertex(*v)),
+                vertex_point(body, *v)?,
+                CrossedEdge {
+                    body: op.body,
+                    table: op.table,
+                    edge: k,
+                    name: parent,
+                },
+            ));
+        }
+        if crossings.is_empty() {
             let ents = verts
                 .iter()
-                .map(|&v| ent(0, EntityKey::Vertex(v)))
+                .map(|&(v, _)| ent(0, EntityKey::Vertex(v)))
                 .collect();
             mint_candidates(t, tie, from_tie, base, ents)?;
             continue;
-        };
-        let crossings = verts
-            .iter()
-            .map(|&v| Ok((ent(0, EntityKey::Vertex(v)), vertex_point(body, v)?)))
-            .collect::<Result<Vec<_>, NamingError>>()?;
-        let edge = CrossedEdge {
-            body: op.body,
-            table: op.table,
-            edge: k,
-            name: parent,
-        };
-        rank_crossings(t, tie, from_tie, &base, &edge, &crossings, bnd)?;
+        }
+        rank_crossings(t, tie, from_tie, &base, &crossings, bnd)?;
     }
     Ok(senses)
 }
 
-/// The edge a seam vertex group's ranks lie along: an A-side edge, a
-/// B-side one, or the first of a seam's two parents that is an edge.
-#[derive(Clone)]
+/// The edge a seam vertex is ranked along: an A-side edge, a B-side
+/// one, or the first of a seam's two parents that is an edge.
 enum Along {
     A(NameRef),
     B(NameRef),
     Either(NameRef, NameRef),
-}
-
-impl Along {
-    /// The name it is chosen by among the pieces of one line.
-    fn first(&self) -> &NameRef {
-        match self {
-            Self::A(e) | Self::B(e) | Self::Either(e, _) => e,
-        }
-    }
 }
 
 /// Each result vertex the zips and A-side welds fused → the dead
@@ -2759,8 +2750,8 @@ pub(super) fn param_along<T: Decide>(
     })
 }
 
-/// The edge a group of crossings is ranked along: edge `edge` of
-/// `body`, named `name` in its own table `table`.
+/// The edge a crossing is read along: edge `edge` of `body`, named
+/// `name` in its own table `table`.
 pub(super) struct CrossedEdge<'a, T: geom_core::Real> {
     pub(super) body: &'a Body<T>,
     pub(super) table: &'a NameTable,
@@ -2768,79 +2759,85 @@ pub(super) struct CrossedEdge<'a, T: geom_core::Real> {
     pub(super) name: &'a StableName,
 }
 
-/// The crossings of one line with one sense in a Split (N2), over the
-/// crossed edges that lie on it: whether any of those edges is tied,
-/// each crossing and its point, and the least-named crossed edge, whose
-/// carrier ranks them.
-struct OnLine<T: geom_core::Real> {
-    tied: bool,
-    crossings: Vec<(super::table::EntityRef, Point3<T>)>,
-    along: (NameRef, EdgeKey),
-}
-
-impl<T: geom_core::Real> OnLine<T> {
-    fn new(name: &NameRef, edge: EdgeKey) -> Self {
-        Self {
-            tied: false,
-            crossings: Vec::new(),
-            along: (name.clone(), edge),
-        }
-    }
-
-    fn push(
-        &mut self,
-        parent: &Upstream,
-        edge: EdgeKey,
-        crossing: (super::table::EntityRef, Point3<T>),
-    ) {
-        self.tied |= parent.tied;
-        if parent.name < self.along.0 {
-            self.along = (parent.name.clone(), edge);
-        }
-        self.crossings.push(crossing);
+impl<T: geom_core::Real> Clone for CrossedEdge<'_, T> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
+
+impl<T: geom_core::Real> Copy for CrossedEdge<'_, T> {}
+
+/// One crossing of a group [`rank_crossings`] ranks: its entity, the
+/// point it lies at, and the edge on the line it is read along.
+pub(super) type Crossed<'a, T> = (super::table::EntityRef, Point3<T>, CrossedEdge<'a, T>);
 
 /// **Ranks the crossings of one line by one face with one sense** (N2):
-/// a lone crossing is `base`, and several, each an entity and the point
-/// it lies at on the line, take `base` + `Fragment(OrderAlong)` by the
-/// carrier parameter of `crossed`, an edge on the line, oriented by
-/// [`crossed_edge_orientation`]; with no orientation or no parameter
-/// they tie.
+/// a lone crossing is `base`, and several take `base` +
+/// `Fragment(OrderAlong)` by where each lies along the line.
+///
+/// Each crossing is read on the edge it lies on, a piece of the line,
+/// by the carrier's own parameter within that piece's certified
+/// interval ([`param_along`]): the pieces of one line are sub-intervals
+/// of one parameterization, so every crossing reads in the line's
+/// coordinates and no piece's name chooses where a closed carrier's
+/// period is cut. Where the carrier has no closed-form parameter, a
+/// crossing spans its piece's interval ([`param_span`]), so crossings
+/// on different pieces still order and two on one piece tie. The
+/// orientation is each piece's [`crossed_edge_orientation`]; with none,
+/// or pieces that disagree, they tie.
 pub(super) fn rank_crossings<T: Decide>(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,
     base: &StableName,
-    crossed: &CrossedEdge<'_, T>,
-    crossings: &[(super::table::EntityRef, Point3<T>)],
+    crossings: &[Crossed<'_, T>],
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
-    let keys: Vec<super::table::EntityRef> = crossings.iter().map(|&(e, _)| e).collect();
+    let keys: Vec<super::table::EntityRef> = crossings.iter().map(|&(e, _, _)| e).collect();
     if let [one] = keys.as_slice() {
         return Ok(put(t, tie, from_tie, base.clone(), *one)?);
     }
-    let CrossedEdge {
-        body,
-        table,
-        edge,
-        name,
-    } = *crossed;
-    let Some(forward) = crossed_edge_orientation(body, table, edge, name)? else {
-        return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?);
-    };
+    let mut way: Option<bool> = None;
     let mut extents = Vec::with_capacity(crossings.len());
-    for &(_, p) in crossings {
-        let Some(along) = param_along(body, edge, p)? else {
-            return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?);
+    for &(_, p, along) in crossings {
+        let CrossedEdge {
+            body,
+            table,
+            edge,
+            name,
+        } = along;
+        let forward = match (crossed_edge_orientation(body, table, edge, name)?, way) {
+            (Some(f), None) => f,
+            (Some(f), Some(w)) if f == w => f,
+            _ => return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?),
         };
-        let along = if forward { along } else { -along };
-        extents.push(Extent {
-            min: along,
-            max: along,
+        way = Some(forward);
+        let (lo, hi) = match param_along(body, edge, p)? {
+            Some(at) => (at, at),
+            None => param_span(body, edge)?,
+        };
+        extents.push(if forward {
+            Extent { min: lo, max: hi }
+        } else {
+            Extent { min: -hi, max: -lo }
         });
     }
     insert_ranked_or_tied(t, tie, from_tie, base, &keys, &extents, bnd, |e| *e)
+}
+
+/// Edge `e`'s certified parameter interval on its carrier, increasing
+/// as the edge runs as stored.
+fn param_span<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<(T, T), NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let edge = body
+        .get_edge(e)
+        .ok_or_else(|| bug("a crossed edge is not live in its body"))?;
+    Ok(body
+        .get_curve_geom(edge.curve)
+        .ok_or_else(|| bug("a crossed edge's carrier is dangling"))?
+        .certified()
+        .ok_or_else(|| bug("a crossed edge carries no certified carrier"))?
+        .params())
 }
 
 /// Inserts a same-name group ranked by order-along, or tied when
@@ -4079,5 +4076,213 @@ mod split_edge_lineage {
             lost_within_its_half >= 1,
             "the premise, a piece whose lineage leaves its own half"
         );
+    }
+}
+
+#[cfg(test)]
+mod crossings_rank_along_the_line {
+    //! **Crossings on two pieces of one curved line rank in the line's
+    //! own coordinates** (N2, *Vertices*). A 270° arc's top rim is one
+    //! line; a notch near 200° leaves it two arcs, `A` holding 20° and
+    //! `B` holding 260°. Read on `B`'s window of the carrier, the point
+    //! at 20° lies past 260°; read on its own piece it lies where the
+    //! line runs. So the group ranks the crossing on the piece that comes
+    //! first along the line first, whichever order the pieces are handed
+    //! in and so whichever of them is named least.
+    //!
+    //! Stand-in crossings, because no body the kernel builds today puts
+    //! two same-sense crossings of one line by one face on two pieces of
+    //! it: that needs a face meeting the line's carrier four times (a
+    //! tilted cylinder through a rim circle), and the boolean refuses
+    //! non-parallel cylinder pairs (`GermFrameUnsupported`).
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{CrossedEdge, param_span, rank_crossings};
+    use crate::edit::DocEdit;
+    use crate::eval::{BooleanValue, CancelToken, EvalOptions, ValuePayload, evaluate};
+    use crate::ident::DocumentId;
+    use crate::names::defer::TieRows;
+    use crate::names::role::{EntityKind, Qualifier, RoleSeg, StableName};
+    use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
+    use crate::node::{BooleanOp, Node, RecipeNodeId};
+    use crate::program::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
+    use crate::test_support::{frame, len, scl};
+    use crate::{ProfileDoc, RefusingReach};
+    use geom_core::{Point3, Tol};
+
+    fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
+        let a = crate::apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("inserts");
+        (a.doc, a.record.minted.expect("a node"))
+    }
+
+    fn extrude(
+        doc: ProfileDoc,
+        z0: f64,
+        dz: f64,
+        loop_: LoopProgram<crate::Formula>,
+    ) -> (ProfileDoc, RecipeNodeId) {
+        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![loop_],
+                ids: Vec::new(),
+            }),
+        );
+        ins(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(dz),
+                side: crate::ExtrudeSide::Along,
+            },
+        )
+    }
+
+    fn rim(deg: f64) -> Point3<f64> {
+        let t = deg.to_radians();
+        Point3::new(t.cos(), t.sin(), 1.0)
+    }
+
+    #[test]
+    fn crossings_on_two_pieces_of_a_closed_line_rank_by_the_line() {
+        let doc = ProfileDoc::empty(
+            DocumentId::derive("crossings-along-the-line"),
+            Tol::witness(),
+        );
+        // A 270° arc from 0° about the origin, closed through the
+        // centre: its top rim arc is one edge, one line.
+        let (doc, disc) = extrude(
+            doc,
+            0.0,
+            1.0,
+            LoopProgram::Chain(vec![
+                ProgramStep::At([len(1.0), len(0.0)]),
+                ProgramStep::ArcTo(ProgramArcData::Bulge {
+                    target: ProgramTarget::Point([len(0.0), len(-1.0)]),
+                    b: scl((3.0 * std::f64::consts::PI / 8.0).tan()),
+                }),
+                ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(0.0)])),
+                ProgramStep::LineTo(ProgramTarget::Start),
+            ]),
+        );
+        let (doc, notch) = extrude(
+            doc,
+            0.8,
+            1.0,
+            LoopProgram::polygon([(-1.5, -0.38), (-0.6, -0.38), (-0.6, -0.30), (-1.5, -0.30)])
+                .expect("finite"),
+        );
+        let (doc, notched) = ins(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Subtract,
+                a: disc,
+                b: notch,
+                declare: Vec::new(),
+            },
+        );
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let value = ev.value(notched).expect("the notched disc evaluates");
+        let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
+            panic!("a body");
+        };
+        let table = &value.name_table;
+        // The two top-rim arcs, each with its name and its interval.
+        let mut arcs = Vec::new();
+        for (name, entry) in table.iter() {
+            let (Entry::Unique(r), Some(RoleSeg::Fragment(Qualifier::Ends(_)))) =
+                (entry, name.path.last())
+            else {
+                continue;
+            };
+            let EntityKey::Edge(e) = r.key else { continue };
+            let (v0, v1) = super::edge_ends(body, e).unwrap();
+            let z = |v| super::vertex_point(body, v).unwrap().z;
+            if (z(v0) - 1.0).abs() < 1e-9 && (z(v1) - 1.0).abs() < 1e-9 {
+                arcs.push((e, name.clone(), param_span(body, e).unwrap()));
+            }
+        }
+        assert_eq!(arcs.len(), 2, "the notch leaves the rim two arcs: {arcs:?}");
+        let on = |deg: f64| {
+            let p = rim(deg);
+            arcs.iter()
+                .find(|(e, _, _)| {
+                    super::param_along(body, *e, p).unwrap().is_some_and(|t| {
+                        let (t0, t1) = param_span(body, *e).unwrap();
+                        t0 <= t && t <= t1
+                    })
+                })
+                .unwrap_or_else(|| panic!("an arc holds {deg}°"))
+        };
+        let (a, b) = (on(20.0), on(260.0));
+        assert_ne!(a.0, b.0, "the two crossings lie on two arcs");
+        let (on_a, on_b) = (
+            CrossedEdge {
+                body,
+                table,
+                edge: a.0,
+                name: &a.1,
+            },
+            CrossedEdge {
+                body,
+                table,
+                edge: b.0,
+                name: &b.1,
+            },
+        );
+        // Two stand-in vertices for the crossings: the ranks are the
+        // question, not the entities.
+        let mut vs = body.vertices().map(|(v, _)| v);
+        let (x, y) = (vs.next().unwrap(), vs.next().unwrap());
+        let ent = |v| EntityRef {
+            body: 0,
+            key: EntityKey::Vertex(v),
+        };
+        let base = StableName {
+            kind: EntityKind::Vertex,
+            node: notched,
+            path: vec![RoleSeg::OutputBody],
+        };
+        let rank = |crossings: &[(EntityRef, Point3<f64>, CrossedEdge<'_, f64>)]| {
+            let mut t = NameTable::new();
+            let mut tie = TieRows::default();
+            rank_crossings(
+                &mut t,
+                &mut tie,
+                false,
+                &base,
+                crossings,
+                geom_core::Band::linear(Tol::witness()).unwrap(),
+            )
+            .unwrap();
+            tie.flush(&mut t).unwrap();
+            let rank_of = |v| match t.name_of(&ent(v)).and_then(|n| n.path.last().cloned()) {
+                Some(RoleSeg::Fragment(Qualifier::OrderAlong { rank, .. })) => rank,
+                other => panic!("a ranked crossing, not {other:?}"),
+            };
+            (rank_of(x), rank_of(y))
+        };
+        // Along the line, the piece with the lesser interval comes first.
+        let want = if a.2.0 < b.2.0 { (0, 1) } else { (1, 0) };
+        let one = rank(&[(ent(x), rim(20.0), on_a), (ent(y), rim(260.0), on_b)]);
+        let two = rank(&[(ent(y), rim(260.0), on_b), (ent(x), rim(20.0), on_a)]);
+        assert_eq!(one, want, "ranks along the line, A {:?} B {:?}", a.2, b.2);
+        assert_eq!(two, want, "the order handed in does not rank");
     }
 }

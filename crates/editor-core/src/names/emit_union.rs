@@ -1289,15 +1289,39 @@ fn cite_member_edges<T: geom_core::Decide>(
             keys.push(e);
             points.push(vertex_point(body, v)?);
         }
+        // Each crossing is read on the member edge of the line it lies
+        // on, the line's least row where it lies on none.
         let member_table = member_of(members, member)?.table;
-        let crossed = CrossedEdge {
+        let mut on_line = Vec::new();
+        for row in member_table.on_line(edge.name()) {
+            if let Some(Entry::Unique(e)) = member_table.lookup(row)
+                && let EntityKey::Edge(k) = e.key
+            {
+                on_line.push((k, row, Segment::of_edge(member_body, k)?));
+            }
+        }
+        let least = CrossedEdge {
             body: member_body,
             table: member_table,
             edge: member_edge,
             name: edge.name(),
         };
-        let crossings: Vec<_> = keys.into_iter().zip(points).collect();
-        rank_crossings(&mut out, &mut tie, false, &base, &crossed, &crossings, bnd)?;
+        let mut crossings = Vec::with_capacity(keys.len());
+        for (k, p) in keys.into_iter().zip(points) {
+            let mut along = least;
+            for (e, row, seg) in &on_line {
+                if seg.place(p, ON_MEMBER_EDGE, bnd)? != OnSegment::Off {
+                    along = CrossedEdge {
+                        edge: *e,
+                        name: row.name(),
+                        ..least
+                    };
+                    break;
+                }
+            }
+            crossings.push((k, p, along));
+        }
+        rank_crossings(&mut out, &mut tie, false, &base, &crossings, bnd)?;
     }
     tie.flush(&mut out)?;
     Ok(out)
@@ -1365,8 +1389,12 @@ fn rank_along_seam<T: geom_core::Decide>(
                 edge,
                 name,
             };
-            let crossings: Vec<_> = keys.into_iter().zip(points).collect();
-            rank_crossings(out, tie, false, base, &crossed, &crossings, bnd)
+            let crossings: Vec<_> = keys
+                .into_iter()
+                .zip(points)
+                .map(|(k, p)| (k, p, crossed))
+                .collect();
+            rank_crossings(out, tie, false, base, &crossings, bnd)
         }
         None => Ok(mint_candidates(out, tie, false, base.clone(), keys)?),
     }
