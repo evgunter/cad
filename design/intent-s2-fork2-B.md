@@ -1,6 +1,77 @@
 # FORK-2 — how the explicit product list is kept
 
-## For Ev
+## For Ev — round 2
+
+**Recommendation (likely), revised.**
+- The kernel's insert, delete and re-point doors apply the follow rule as
+  their default effect, as the other report proposes. Nothing re-derives the
+  list, and `SetProduct` is the explicit override. I drop the per-edit
+  clause.
+- I add one thing: **each door records the list change it made as data.**
+  The edit stored in the log carries the resulting list change (or the door
+  appends a `SetProduct` to the log). Replay then reads the change and never
+  re-runs the rule.
+- Both reports already agree on the rule: A10's "the tip replaces its
+  operands", restricted to operations that define a body.
+
+**The other report's strongest point, conceded.** A clause on every insert
+and delete earns nothing that `SetProduct` does not already say.
+- Every deviation is one more edit, and the viewer already groups an insert
+  plus a `SetProduct` into one user action.
+- One mechanism beats two. A person keeping a tool beside a cut sends cut
+  plus `SetProduct`, and undoes it as one action.
+
+**Where the other report is wrong.** Its reversibility claim is that "the
+default is sugar over `SetProduct`, so dropping it changes no stored data".
+That holds only if the door's effect is stored.
+- A save is a snapshot plus the edit log since that snapshot, and load
+  replays that log through `apply` (`persist/mod.rs`, Format).
+- With the rule applied only at the door, a stored `Insert` means "insert,
+  and change the list by whatever the rule says at load time". Revising or
+  dropping the rule therefore changes the product of every saved document
+  whose log holds a body insert after its snapshot.
+- Recording the door's change makes the claim true. The rule then binds
+  only new edits.
+
+**Does my replay argument hold? Yes, but it is narrow (sure).**
+- It covers only the log after the snapshot; the snapshot's product is
+  stored outright.
+- Most changes to the rule would arrive with a format change, and an older
+  file refuses with the regenerate recourse anyway.
+- So the argument is about getting the record right, not a weighty user
+  hazard. It costs one recorded list change per body edit. That price is
+  what makes "reversible, changes no stored data" true rather than nearly
+  true.
+
+**Delete, conceded.** Deleting a listed operation removes its entry, and its
+unlisted orphans take its place.
+- No edit can leave a dead entry in the list, so my round-1
+  unresolved-entry state is unrepresentable.
+- That is better than refusing it at the gather. D10's "never silently
+  re-pointed" is about readers; it does not apply here, because the entry
+  *was* the deleted thing and the edit that removed it says so.
+
+**Also agreed.**
+- The other report's re-pointing rule (`SetMembers`, or an operand write if
+  FORK-4 admits one): the rule applies to the reads it adds and drops, at
+  the operation's own entry.
+- An empty product is a valid document; only the gather refuses
+  `EmptyProduct`.
+
+**One residual difference: split of a cut with no listed body.** I would
+refuse it at the split door rather than mint a part whose instance refuses
+`EmptyProduct` at every evaluation. A refactor that yields a broken
+instance should fail where it is asked. Confidence: likely.
+
+**Convergent final state.**
+1. The follow rule runs at the insert, delete and re-point doors.
+2. Each door records the list change it made.
+3. `SetProduct` is the override.
+4. Every stored entry is live and a body.
+5. Split and inline state their own list changes.
+6. Promote, mates, measures and assertions never touch the list.
+
+## For Ev — round 1
 
 **Recommendation (likely).** The product list changes only when an edit says
 so. The kernel holds no rule that guesses it. An edit that makes or deletes a
