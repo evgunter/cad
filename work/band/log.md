@@ -781,3 +781,12 @@ Claim 1 (a bore wholly inside the sliver dying with it) is NOT built. The
 unit row stays open, re-titled to that question: may a blend delete an
 authored feature wholly inside the material it removes? It goes to Ev
 after the designer protocol (both designers recommend building it).
+
+## 2026-10-07 — the bore-in-the-sliver question to Ev
+
+PR 4271 left the unit's claim 1 open as a design fork: may a blend delete an
+authored feature wholly inside the material it removes? Two designers (A/B,
+fork-log row 86) both recommend building it, silently, as a Boolean does.
+They split on whether the blend's naming records the consumed faces, and
+on one C8 sentence. The implementing lane had recommended keeping the
+refusal; that is the stated alternative. The `[ev]` PR carries the question.

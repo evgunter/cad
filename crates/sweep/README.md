@@ -43,8 +43,14 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 A band changes the material between its supports and its blend surface:
 a convex band removes it, a concave one adds it. Predicate 2 meters that
 region — the band's REACH — against every face of the body that is not
-a support of the chain, in any shell: a face there would be cut through
-or buried, and the surgery has no step for either. The supports' own
+a support of the chain, in any shell, and reads each face as clear of
+it, wholly inside it, or crossing it. A feature wholly inside the reach
+goes with that material, as a feature wholly inside a Boolean's tool goes
+with the tool: its faces, edges and rings die in the carve, and the
+verdict is logged so a later reader of one of its names resolves
+`Vanished` with the blend's verdict as the cause. A face crossing the
+reach would need the band trimmed by it, which the surgery has no step
+for, and refuses. The supports' own
 boundary features are judged first, by the battery's screen and the
 surgery's exact ring and boundary meters; the reach runs after them,
 before any mutation, and refuses `BlendError::FaceClearance` — a
@@ -353,7 +359,9 @@ the band's tangent contact with a curved support, the arcs as its
 transverse intersection with the cap, on either material side. On
 either side the cap loses the sliver between the arc and the old
 vertex, cut away on the convex side and covered by the fill on the
-concave side, and every other edge of the cap stays where it
+concave side; a feature of the cap wholly inside the sliver goes with
+it, as predicate 2 reads any feature wholly inside a band's reach, and
+every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered
