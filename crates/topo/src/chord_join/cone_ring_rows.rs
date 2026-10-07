@@ -17,10 +17,10 @@
 
 use super::*;
 use crate::MevSite;
-use crate::ring_path::cone_islands::band;
 use crate::ring_path::cone_islands::{
     Frame, Island, IslandEdge, cone, frames, lune, on_nappe, plane, sector,
 };
+use crate::ring_path::cone_islands::{band, scales};
 use core::f64::consts::FRAC_PI_6;
 
 fn tol() -> Tol {
@@ -262,7 +262,11 @@ fn islands(f: Frame, cone: &geom::Surface<f64>) -> Vec<(&'static str, Island, f6
 #[test]
 fn a_cone_ring_run_winds_its_island_as_the_oracle_does() {
     let mut seen = [0usize; 2];
-    for f in frames().into_iter().flat_map(|f| [f, f.scaled(1e-3)]) {
+    let scales = scales(1e-3, 0.1);
+    for f in frames()
+        .into_iter()
+        .flat_map(|f| scales.iter().map(move |&s| f.scaled(s)))
+    {
         for mirror in [false, true] {
             for sense in [true, false] {
                 let surface = cone(f, mirror);
@@ -323,7 +327,11 @@ fn bystanders(f: Frame, island: &Island) -> (Point3<f64>, Point3<f64>) {
 /// frames at two scales (1 and 1e-3); no reading refuses.
 #[test]
 fn a_ring_on_a_cone_face_is_re_homed_by_a_path() {
-    for f in frames().into_iter().flat_map(|f| [f, f.scaled(1e-3)]) {
+    let scales = scales(1e-3, 0.1);
+    for f in frames()
+        .into_iter()
+        .flat_map(|f| scales.iter().map(move |&s| f.scaled(s)))
+    {
         for mirror in [false, true] {
             let surface = cone(f, mirror);
             for (name, island, _) in islands(f, &surface) {
@@ -507,7 +515,10 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
 /// oracle's.
 #[test]
 fn the_arrival_arc_reads_its_second_meeting_with_the_closing_chord() {
-    for f in [frames()[0], frames()[1].scaled(1e-3)] {
+    for f in scales(1e-3, 0.1)
+        .into_iter()
+        .map(|s| frames()[usize::from(s < 1.0)].scaled(s))
+    {
         let surface = cone(f, false);
         let island = sector(f, &surface);
         let (mut body, face, key) = sheet(f, surface.clone(), true);

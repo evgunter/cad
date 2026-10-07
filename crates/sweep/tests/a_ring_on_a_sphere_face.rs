@@ -484,6 +484,14 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
 #[test]
 fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
     let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "pair 82 at this ε",
+            "the millimetre balls are within a few thousand coincidence widths, and their \
+             merge escalates on its chart before any ring is read",
+        );
+        return;
+    }
     let (r1, r2) = (6.098088671076322e-4, 1.4613194916300017e-3);
     let c2 = Vec3::new(
         -0.0018727710410726642,

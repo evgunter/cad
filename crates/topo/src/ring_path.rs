@@ -632,7 +632,8 @@ mod graze_rows {
     use super::*;
 
     /// **A path grazing a section's plane is read by its half-chord.** A
-    /// great-circle arc of a millimetre sphere meets the plane of a small
+    /// great-circle arc of a sphere a million coincidence widths across
+    /// meets the plane of a small
     /// circle of it whose offset from the arc's farthest reach,
     /// `r·ρ − |D|`, sits inside the band, while the half-chord it cuts,
     /// `√((rρ)² − D²)`, is micrometres: the meeting is decided, and the
@@ -640,7 +641,9 @@ mod graze_rows {
     #[test]
     fn a_graze_within_the_band_of_its_gap_is_decided_by_its_half_chord() {
         let b = band();
-        let r = 1e-3;
+        // A millimetre at the witness ε: the sphere is a million
+        // coincidence widths across.
+        let r = 1e6 * b.zero();
         let gap = (b.zero() * b.escalate()).sqrt();
         let half = (r * r - (r - gap) * (r - gap)).sqrt();
         assert!(

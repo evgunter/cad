@@ -8,7 +8,7 @@
 
 use super::*;
 use crate::MevSite;
-use crate::ring_path::cone_islands::{Frame, band, frames};
+use crate::ring_path::cone_islands::{Frame, band, frames, plane, read_at};
 use core::f64::consts::PI;
 
 fn tol() -> Tol {
@@ -88,11 +88,7 @@ fn arc3(s: Sph, a: Point3<f64>, v: Point3<f64>, b: Point3<f64>) -> Arc3 {
 }
 
 fn spec(body: &mut Body<f64>, surface: SurfaceKey, a: &Arc3) -> EdgeCurveSpec<f64> {
-    let s2 = body.add_surface(geom::Surface::Plane {
-        origin: a.plane.0,
-        normal: a.plane.1,
-        u_ref: a.plane.1.orthonormal_basis().0,
-    });
+    let s2 = body.add_surface(plane(a.plane.0, a.plane.1));
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             s1: surface,
@@ -334,7 +330,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
     let (mut seen, mut m2, mut asked) = ([0usize; 2], 0usize, 0usize);
     let mut failures = Vec::new();
     let mut built = 0;
-    let target = 36;
+    let (target, mut stood) = (36, 0);
     while built < target {
         let f = frames()[built % 3];
         let r = [1.0, 1e-3, 1e3][(built / 3) % 3];
@@ -343,6 +339,10 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
             continue;
         };
         built += 1;
+        if !read_at(0.1 * r) || 1e-13 * r > band().zero() {
+            stood += 1;
+            continue;
+        }
         let poly = island.polyline(s);
         for back in [false, true] {
             let island = if back {
@@ -374,7 +374,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
                     let m = first.carrier.mid_point(0.0, first.end);
                     let travel = first.carrier.deriv(0.5 * first.end);
                     let radial = (m - f.o) / r;
-                    let outward = if sense { radial } else { -radial };
+                    let outward = geom_brep::OutwardNormal::from_chart(radial, sense).vec();
                     let left = outward.cross(travel).normalize();
                     let x = m + left * (1e-4 * r);
                     let x = f.o + (x - f.o).normalize() * r;
@@ -417,6 +417,13 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
             }
         }
     }
+    if stood > 0 {
+        test_utils::vacuity::stood_down(
+            "a sphere island at scale 1e-3 or 1e3",
+            "its smallest feature is within ten thousand coincidence widths at this ε, or \
+             its arcs, built in f64, certify their ends only to about 1e-13 of its size",
+        );
+    }
     assert!(
         failures.is_empty() && seen[0] > 0 && seen[1] > 0 && m2 > 0,
         "asked {asked}, a run on both sides of the chord's plane {m2}, windings {seen:?}: {:?}",
@@ -431,7 +438,7 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
     let mut rng = Rng(0xfedcba9876543210);
     let (mut asked, mut failures) = (0usize, Vec::new());
     let mut built = 0;
-    let target = 18;
+    let (target, mut stood) = (18, 0);
     while built < target {
         let f = frames()[built % 3];
         let r = [1.0, 1e-3, 1e3][(built / 3) % 3];
@@ -467,6 +474,10 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
             continue;
         };
         built += 1;
+        if !read_at(0.1 * r) || 1e-13 * r > band().zero() {
+            stood += 1;
+            continue;
+        }
         let n = island.corners.len();
         for c in 0..n {
             let (mut body, face, key) = sheet(s, true);
@@ -520,6 +531,13 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
                 }
             }
         }
+    }
+    if stood > 0 {
+        test_utils::vacuity::stood_down(
+            "a sphere island at scale 1e-3 or 1e3",
+            "its smallest feature is within ten thousand coincidence widths at this ε, or \
+             its arcs, built in f64, certify their ends only to about 1e-13 of its size",
+        );
     }
     assert!(
         failures.is_empty() && asked > 0,
