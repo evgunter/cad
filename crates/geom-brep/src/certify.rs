@@ -1556,7 +1556,7 @@ impl<T: Real> EdgeCurve<T> {
     /// The same certified carrier with its **chart image mirrored in
     /// `v`** ([`crate::Pcurve::mirror_v`]), for a chart whose second
     /// frame axis was negated — the certificate travels verbatim, the
-    /// carrier, interval, authority and seam flag untouched. A
+    /// carrier, interval, authority and wrap flag untouched. A
     /// description that carries no chart image (the two intrinsic
     /// arms and the scaffolding door) states nothing in chart
     /// coordinates, so the map is the identity on it and the curve
@@ -1629,8 +1629,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
     /// `Intersection` keeps its surfaces with each child's witness
     /// re-minted as its own mid-parameter carrier point (the witness
     /// contract, bitwise the certification schedule's middle sample),
-    /// `Seam` is unchanged (a sub-arc of the seam locus is on the seam
-    /// locus).
+    /// a chart image keeps its chart, its parent's image and its wrap flag.
     ///
     /// The children are *specs*, not certified carriers: the caller
     /// must run each through [`EdgeCurve::certify`] against its own

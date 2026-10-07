@@ -291,11 +291,10 @@ pub(crate) fn normalize_shell(
 /// rim, and the generator again reversed — the seam edge used twice,
 /// the shape a natively revolved wall carries.
 ///
-/// The seam azimuth is the surface's own `u_ref` azimuth, ALWAYS
-/// (spec D1): the seam chart image is defined spatially as the locus
-/// in the closed u_ref half-plane and certification meters
-/// SeamHalfplane/SeamSide against it, so re-charting `u_ref` to dodge
-/// a split would mutate imported geometry beyond need. Where a rim
+/// The seam azimuth is the surface's own `u_ref` azimuth: a wrap
+/// edge may sit at any azimuth (D1), and cutting at `u_ref` keeps the
+/// imported surface as stated, where re-charting `u_ref` to dodge a
+/// split would mutate imported geometry beyond need. Where a rim
 /// has no vertex at that azimuth, the rim is split there
 /// ([`split_at_param`]) and the split propagates to EVERY face
 /// sharing the rim ([`expand_split_uses`]) — load-bearing for shared

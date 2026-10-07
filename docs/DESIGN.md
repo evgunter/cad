@@ -623,7 +623,7 @@ EdgeDescription =
   | TangentIntersection { s1, s2, witness }  -- tangential contact locus; same
                                              -- shape, margin one order up
   | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
-                                             -- (surface, Pcurve) with a `seam` flag
+                                             -- (surface, Pcurve) with a `wrap` flag
                                              -- (iso-lines, seams, user splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest

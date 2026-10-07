@@ -41,7 +41,7 @@
 //!
 //! The curved lane additionally reads the surface's fields (the chart),
 //! the face's `sense` (the pole-to-pole band's azimuth choice), each
-//! edge description's `seam` flag (`topo::chart_iso::classify_kind`
+//! edge description's `wrap` flag (`topo::chart_iso::classify_kind`
 //! reads it before the carrier) and the identity structure of the
 //! edges' split-lineage carriers (`geom_brep::props`' torus folding
 //! asks whether two arcs are pieces of one original edge) — the last
@@ -701,9 +701,9 @@ pub(crate) struct EdgeInputs {
     pub(crate) chord_params: Vec<f64>,
     /// The half-edge's stored pcurve, if any (the trimmed lane's).
     pub(crate) pcurve: Option<Pcurve<f64>>,
-    /// Whether the edge's description marks it a chart seam (the
+    /// Whether the edge's description marks it a wrap edge (the
     /// curved lane's classification reads this before the carrier).
-    pub(crate) seam: bool,
+    pub(crate) wrap: bool,
     /// The edge's split-lineage root, as an identity: `None` where the
     /// lineage does not resolve. Folded as a relabeling, never as the
     /// key it is.
@@ -801,7 +801,7 @@ impl FaceInputs {
                     ids,
                     chord_params,
                     pcurve: lifted.remove(&hek),
-                    seam: matches!(curve.description(), EdgeDescription::Chart(c) if c.wrap),
+                    wrap: matches!(curve.description(), EdgeDescription::Chart(c) if c.wrap),
                     lineage,
                 });
             }
@@ -899,7 +899,7 @@ impl FaceInputs {
                         w.p3(*p);
                     }
                     if curved {
-                        w.bool(e.seam);
+                        w.bool(e.wrap);
                         match e.lineage {
                             None => w.u8(0),
                             Some(c) => {
@@ -1208,7 +1208,7 @@ mod tests {
                 p0: Point2::new(seed, 0.0),
                 pl: Vec2::new(0.0, 1.0),
             }),
-            seam: false,
+            wrap: false,
             lineage: Some(ids[0]),
         }
     }
@@ -1388,8 +1388,8 @@ mod tests {
             [false, false, true],
         ),
         (
-            "an edge's seam flag",
-            |f| f.loops[0][1].seam = true,
+            "an edge's wrap flag",
+            |f| f.loops[0][1].wrap = true,
             [false, true, false],
         ),
         (
