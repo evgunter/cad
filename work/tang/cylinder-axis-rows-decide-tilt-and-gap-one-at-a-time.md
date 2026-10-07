@@ -2,10 +2,11 @@
 id: cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time
 kind: issue
 title: the cylinder and cone×cylinder classifiers decide the axis tilt and the gap one at a time, not their sum
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
+closed: 2026-10-07
 ---
 
 
@@ -55,3 +56,20 @@ Decide the served verdict on one margin that carries both terms
 a bracket, keeping the tilt row only to route between the parallel and
 crossing lanes. The witness lane (`locus.rs`) reads the same helpers
 and follows.
+
+## Outcome (2026-10-07)
+
+Each section row that serves a verdict on a position datum beside a
+tilt its routing row admitted decides it across the reach
+(`decide_across`, `crates/geom-brep/src/intersect.rs`): the zero side
+on `|datum| + tilt·lever` (the farthest a consumed point of the served
+ruling or circle stands off), each definite side on the datum shrunk
+toward zero by the tilt (its `_floor` row), a straddle escalating
+through the gate. The tilt row only routes, and the lever is the
+row's own. Applied to `pc_parallel_gap`, `cc_coaxial`,
+`cc_parallel_gap`, `coc_coaxial`, the witness's
+`tangent_locus_internal_gap`, and the sweep's siblings in the same
+file: `pt_axis_plane_gap`, `pt_spiric_two_ovals`, `pt_cap_gap` and
+`pn_apex_section`. Rows: `axis_rows_read_as_one_sum`. The sweep's
+siblings outside these files are filed on this slate (`work/tang/`,
+the items naming this one).

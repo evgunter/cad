@@ -12,7 +12,9 @@
 //! every point the ball covers is at most the position datum plus the
 //! tilt levered there: a reader that bridges a residue decides that
 //! SUM, never the two terms one at a time (each just inside the band
-//! would sum to nearly twice it). The tightest lever reads the position
+//! would sum to nearly twice it); a section classifier's two-sided row
+//! reads that sum on each verdict's own side (`decide_across` in
+//! `crate::intersect`). The tightest lever reads the position
 //! datum at the pivot nearest the ball's centre ([`ExtentBall::foot_on`]
 //! for an axis), where the lever is little more than the ball's radius.
 //!

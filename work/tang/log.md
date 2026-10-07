@@ -710,3 +710,20 @@ size. Closes `chord-join-face-reach-misses-a-curved-edges-bulge` and
 `germ-cylinder-pair-span-misses-a-curved-edges-bulge`,
 `spiric-and-spline-axial-levers-read-past-the-span` and
 `whole-turn-conic-reach-over-states-a-rim-faces-lever`.
+
+## 2026-10-07 — position and tilt as one sum (TANG implementer)
+
+The section classifiers decide a served verdict's position datum and
+the tilt beside it as one margin across the reach (`decide_across`):
+plane×cylinder's gap, the cylinder pair's coaxial and gap rows, the
+witness's internal gap, cone×cylinder's coaxial row, and, from the
+sweep, plane×torus's axis-plane, two-oval and cap rows and plane×cone's
+apex section. Closes `cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`;
+filed `offset-axial-decides-alignment-and-centre-one-at-a-time`,
+`rim-identity-decides-centre-radius-and-axis-one-at-a-time`,
+`chart-region-cylinder-pair-gates-tilt-and-offset-one-at-a-time`,
+`section-cert-axis-pose-decides-tilt-and-offset-one-at-a-time`,
+`coaxial-rim-margins-decide-tilt-and-off-axis-one-at-a-time`,
+`props-rim-incidence-decides-axis-and-centre-one-at-a-time`,
+`census-edge-overlap-decides-parallel-and-line-gap-one-at-a-time` and
+`conic-plane-parallel-offset-omits-the-in-band-amplitude`.
