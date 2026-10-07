@@ -614,3 +614,27 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Unilateral, R2 only: `Reset` is written on an undecided reading on spline charts. That corrects my brief's premise; no code change.
   - Tally candidates: none, since neither review raised a MAJOR.
 - The fix list (the union) has gone to the implementer. The blinded coder is session_01TeTFymE7xDPjooubHwkkPD; the byte is recorded privately.
+
+## 2026-10-07 — PR 3945 merged (4711ad4f): the chart's angle checks are integers, on R
+
+- **What landed:**
+  - Check 5 and the caller's `ChartWindow` are retired.
+  - One decider, `decide_joint`, decides each joint's deck element on TOPO's R storage. Tier 3 checks every stored element against it.
+  - On a sphere the deck element is one orbit integer in half periods, with a quarter period of room. On other surfaces it is whole periods.
+  - Poles are decided as 3-D incidence. `Reset` is written only on a decided incidence or an undecided spline gate.
+  - A room fence: `chart_boundary` builds only where every joint's winding was decided with room.
+  - `split_cache` and `turn_element` refuse rather than store a guess.
+  - `chaintol` is back to `[1.0, 0.370, 0.185, 0.111]`, with `dihedral_wedge` as its wall.
+- **Review:**
+  - Two concurrent pairs. Round 1 on 78e55c70 found a bilateral MAJOR: the zero-margin sphere twin. Round 2 on the R re-port, da1afd1f, found no MAJOR.
+  - Two confirming reviews, each APPROVE-WITH-FIXES 0/2, both fixed.
+  - DR-95, tally 0. It was renumbered from DR-94 at merge, because SSI #4104 took 94 first.
+- **Path:** the usage cap stalled the unit, and main landed R in the meantime. That forced the re-port, plus four merges of main, the last one combining our pins with CARVE #4187's cap orientation.
+- **Rows closed by the PR:**
+  - the unit itself;
+  - `at-rest-trim-containment-…`;
+  - the 3945/R coordination row.
+- **Left open:** TOPO's kill-straddle row, with a note appended.
+- **Next in PCERT:**
+  - `fillet-meridian-radius-term-is-registered-only` (P0) stays parked on PATHS 5b.
+  - pctail's wide-arc row is P2.
