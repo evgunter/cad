@@ -15,7 +15,9 @@ use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 use super::borders::Obstacles;
 use super::canonical;
 use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
-use super::discriminate::{CHORD_ON_RIM, Extent, ON_MEMBER_EDGE, band, order_along};
+use super::discriminate::{
+    CHORD_ON_RIM, Extent, ON_MEMBER_EDGE, ORDER_ALONG, band, extent_before, rank_by,
+};
 use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
     rims_between, vertex_point,
@@ -3067,27 +3069,38 @@ pub(super) fn crossed_edge_orientation<T: geom_core::Real>(
     Ok(seam_pair::a_side_is_first(names[0], names[1], a, b))
 }
 
+/// Edge `e`'s certified carrier in `body`.
+fn crossed_curve<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<&geom_brep::EdgeCurve<T>, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let edge = body
+        .get_edge(e)
+        .ok_or_else(|| bug("a crossed edge is not live in its body"))?;
+    body.get_curve_geom(edge.curve)
+        .ok_or_else(|| bug("a crossed edge's carrier is dangling"))?
+        .certified()
+        .ok_or_else(|| bug("a crossed edge carries no certified carrier"))
+}
+
 /// Where `p`, a point on edge `e` of `body`, lies along it: the edge's
 /// carrier's own parameter, increasing as the edge runs as stored.
 /// `None` for a carrier with no closed-form parameter here (a NURBS
 /// curve). The parameter is read near the middle of the edge's
 /// certified interval, so a closed edge's crossings, which lie inside
 /// it, are read without the period's cut between them.
+///
+/// `p` lies within ε of the carrier, so two readings the band decides
+/// apart, by at least Kε, order the points' feet only where Kε > 2ε:
+/// this reading, like [`chord_along`]'s, relies on K > 2.
 pub(super) fn param_along<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     p: Point3<T>,
 ) -> Result<Option<T>, NamingError> {
     use geom::Curve3;
-    let bug = |what| NamingError::Emission { what };
-    let edge = body
-        .get_edge(e)
-        .ok_or_else(|| bug("a crossed edge is not live in its body"))?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .ok_or_else(|| bug("a crossed edge's carrier is dangling"))?
-        .certified()
-        .ok_or_else(|| bug("a crossed edge carries no certified carrier"))?;
+    let curve = crossed_curve(body, e)?;
     let (t0, t1) = curve.params();
     let near = (t0 + t1) * T::from_f64(0.5);
     Ok(match curve.carrier() {
@@ -3139,7 +3152,10 @@ pub(super) type Crossed<'a, T> = (super::table::EntityRef, Point3<T>, CrossedEdg
 /// coordinates and no piece's name chooses where a closed carrier's
 /// period is cut. Where the carrier has no closed-form parameter, a
 /// crossing spans its piece's interval ([`param_span`]), so crossings
-/// on different pieces still order and two on one piece tie. The
+/// on different pieces order by their pieces, and two on one piece
+/// order by where they lie along its chord when [`chord_along`]
+/// certifies that this is the order of their parameters; otherwise
+/// they tie. The chord is asked for only for such a pair. The
 /// orientation is each piece's [`crossed_edge_orientation`]; with none,
 /// or pieces that disagree, they tie.
 pub(super) fn rank_crossings<T: Decide>(
@@ -3155,7 +3171,7 @@ pub(super) fn rank_crossings<T: Decide>(
         return Ok(put(t, tie, from_tie, base.clone(), *one)?);
     }
     let mut way: Option<bool> = None;
-    let mut extents = Vec::with_capacity(crossings.len());
+    let mut reads = Vec::with_capacity(crossings.len());
     for &(_, p, along) in crossings {
         let CrossedEdge {
             body,
@@ -3169,48 +3185,151 @@ pub(super) fn rank_crossings<T: Decide>(
             _ => return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?),
         };
         way = Some(forward);
-        let (lo, hi) = match param_along(body, edge, p)? {
-            Some(at) => (at, at),
-            None => param_span(body, edge)?,
+        let ((lo, hi), unread) = match param_along(body, edge, p)? {
+            Some(at) => ((at, at), None),
+            None => (param_span(body, edge)?, Some((body, edge))),
         };
-        extents.push(if forward {
+        let extent = if forward {
             Extent { min: lo, max: hi }
         } else {
             Extent { min: -hi, max: -lo }
-        });
+        };
+        reads.push((extent, p, unread));
     }
-    insert_ranked_or_tied(t, tie, from_tie, base, &keys, &extents, bnd, |e| *e)
+    let forward = way.unwrap_or(true);
+    type PieceKey<T> = (*const Body<T>, EdgeKey);
+    let mut chords: Vec<(PieceKey<T>, Option<Chord<T>>)> = Vec::new();
+    let ranks = rank_by(reads.len(), |i, j| match (&reads[i], &reads[j]) {
+        ((_, pi, Some((bi, ei))), (_, pj, Some((bj, ej))))
+            if std::ptr::eq(*bi, *bj) && ei == ej =>
+        {
+            let piece = (std::ptr::from_ref(*bi), *ei);
+            let chord = match chords.iter().find(|(k, _)| *k == piece) {
+                Some(&(_, chord)) => chord,
+                None => {
+                    let chord = chord_along(bi, *ei, bnd)?;
+                    chords.push((piece, chord));
+                    chord
+                }
+            };
+            let Some(chord) = chord else {
+                return Ok(None);
+            };
+            let at = |p: Point3<T>| {
+                let c = chord.along(p);
+                let c = if forward { c } else { -c };
+                Extent { min: c, max: c }
+            };
+            extent_before(&at(*pi), &at(*pj), bnd)
+        }
+        ((xi, _, _), (xj, _, _)) => extent_before(xi, xj, bnd),
+    })?;
+    insert_ranked_or_tied(t, tie, from_tie, base, &keys, ranks, |e| *e)
+}
+
+/// A NURBS piece's chord, certified to order the piece's points as its
+/// carrier's parameter does ([`chord_along`]).
+#[derive(Clone, Copy)]
+pub(super) struct Chord<T: geom_core::Real> {
+    start: Point3<T>,
+    d: Vec3<T>,
+    len: T,
+}
+
+impl<T: geom_core::Real> Chord<T> {
+    /// Where `p` lies along the chord, in meters from the piece's start.
+    pub(super) fn along(&self, p: Point3<T>) -> T {
+        (p - self.start).dot(self.d) / self.len
+    }
+}
+
+/// The chord of edge `e` of `body`, when the edge's carrier is a NURBS
+/// curve and readings along the chord order points as the carrier's
+/// parameter does; `None` for any other carrier, or where that is not
+/// certain. It never escalates: it is a sufficient certificate, so a
+/// step it cannot decide positive, in-band included, is no certificate,
+/// and the pair ties. Only the comparison of two readings decides.
+///
+/// The chord must have a length decided positive (a closed piece has
+/// none), and the control points that shape the edge's certified
+/// interval must advance strictly along it, each step decided positive
+/// through `name_frag_order_along`. The weights are positive, so knot
+/// insertion cuts that polygon down to the interval's own as convex
+/// combinations of neighbours, which keeps it advancing, and variation
+/// diminishing lets no plane across the chord meet the curve there
+/// twice: the interval is a graph over its chord. Two points' readings
+/// then differ with their parameters, and a difference the band
+/// decides is the order of their feet, however each point sits off the
+/// curve within ε, given K > 2 (as for [`param_along`]).
+///
+/// `geom`'s `NurbsCurve3::speed_lower_bound` makes a similar test in
+/// its chord assembly: derivative coefficients projected on a chord.
+/// It bounds the speed of the whole carrier, and certification refuses
+/// a carrier where it collapses; this one asks only the piece's own
+/// control points, along the piece's own chord, and a piece that fails
+/// it ties. A carrier that certifies can still fail this test, on a
+/// piece that folds back along its chord or sways across it.
+pub(super) fn chord_along<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    bnd: geom_core::Band,
+) -> Result<Option<Chord<T>>, NamingError> {
+    let curve = crossed_curve(body, e)?;
+    let geom::Curve3::Nurbs(nurbs) = curve.carrier() else {
+        return Ok(None);
+    };
+    let (t0, t1) = curve.params();
+    nurbs_chord(nurbs, t0, t1, bnd)
+}
+
+/// [`chord_along`]'s certificate for `nurbs` over `(t0, t1)`.
+fn nurbs_chord<T: Decide>(
+    nurbs: &geom::NurbsCurve3<T>,
+    t0: T,
+    t1: T,
+    bnd: geom_core::Band,
+) -> Result<Option<Chord<T>>, NamingError> {
+    let positive = |m: Margin<T>| matches!(decide(ORDER_ALONG, m, bnd), Ok(Sign::Positive));
+    let start = nurbs.eval(t0);
+    let d = nurbs.eval(t1) - start;
+    let len = d.norm();
+    if !positive(Margin::of(len)) {
+        return Ok(None);
+    }
+    let knots = nurbs.knots();
+    let (s0, s1) = (t0.locate_spans(knots), t1.locate_spans(knots));
+    let first = s0.first.first_control().min(s1.first.first_control());
+    let last = s0.last.index().max(s1.last.index());
+    let control = nurbs
+        .control()
+        .get(first..=last)
+        .ok_or(NamingError::Emission {
+            what: "a NURBS carrier's span window runs past its control net",
+        })?;
+    let advances = control
+        .windows(2)
+        .all(|step| positive(Margin::over_lever((step[1] - step[0]).dot(d), len)));
+    Ok(advances.then_some(Chord { start, d, len }))
 }
 
 /// Edge `e`'s certified parameter interval on its carrier, increasing
 /// as the edge runs as stored.
 fn param_span<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<(T, T), NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let edge = body
-        .get_edge(e)
-        .ok_or_else(|| bug("a crossed edge is not live in its body"))?;
-    Ok(body
-        .get_curve_geom(edge.curve)
-        .ok_or_else(|| bug("a crossed edge's carrier is dangling"))?
-        .certified()
-        .ok_or_else(|| bug("a crossed edge carries no certified carrier"))?
-        .params())
+    Ok(crossed_curve(body, e)?.params())
 }
 
-/// Inserts a same-name group ranked by order-along, or tied when
-/// genuinely unordered.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn insert_ranked_or_tied<T: Decide, K: Copy>(
+/// Inserts a same-name group by its `ranks` (`rank_by`), or tied
+/// where they are `None`.
+fn insert_ranked_or_tied<K: Copy>(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,
     base: &StableName,
     keys: &[K],
-    extents: &[Extent<T>],
-    bnd: geom_core::Band,
+    ranks: Option<Vec<u32>>,
     to_ent: impl Fn(&K) -> super::table::EntityRef,
 ) -> Result<(), NamingError> {
-    match order_along(extents, bnd)? {
+    match ranks {
         Some(ranks) => {
             let of = group_count(keys.len())?;
             for (k, rank) in keys.iter().zip(ranks) {
@@ -4650,6 +4769,379 @@ mod crossings_rank_along_the_line {
         let two = rank(&[(ent(y), rim(260.0), on_b), (ent(x), rim(20.0), on_a)]);
         assert_eq!(one, want, "ranks along the line, A {:?} B {:?}", a.2, b.2);
         assert_eq!(two, want, "the order handed in does not rank");
+    }
+}
+
+#[cfg(test)]
+mod nurbs_crossings_rank_by_parameter {
+    //! **Two crossings of one NURBS piece rank by the carrier's
+    //! parameter** (N2, *Vertices*), read along the piece's chord where
+    //! that certifies the order ([`super::chord_along`]), and tie where
+    //! the band cannot part them. A loft through four squares
+    //! whose x offsets alternate has wavy corner edges, NURBS curves a
+    //! plane across them meets three times; the first and third
+    //! crossings have one sense.
+    //!
+    //! Stand-in crossings, because no body the kernel accepts puts a
+    //! face across a NURBS edge: the split refuses a plane that may meet
+    //! one, and the boolean refuses an operand that has one
+    //! (`CurvedEdgeUnsupported`).
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{Crossed, CrossedEdge, param_span, rank_crossings};
+    use crate::edit::DocEdit;
+    use crate::eval::{CancelToken, EvalOptions, ValuePayload, evaluate};
+    use crate::ident::DocumentId;
+    use crate::names::defer::TieRows;
+    use crate::names::role::{EntityKind, Qualifier, RoleSeg, StableName};
+    use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
+    use crate::node::{Node, RecipeNodeId};
+    use crate::program::{LoopProgram, ProfileProgram};
+    use crate::test_support::frame;
+    use crate::{Formula, ProfileDoc, RefusingReach};
+    use geom_core::{Point3, Tol};
+    use topo::{Body, EdgeKey};
+
+    fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
+        let a = crate::apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("inserts");
+        (a.doc, a.record.minted.expect("a node"))
+    }
+
+    /// The loft through 2 × 2 squares at z = 0, 1, 2, 3 whose x offsets
+    /// alternate `−a, a, −a, a`, skinned at v-degree 2: its value.
+    fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>) {
+        let mut doc = ProfileDoc::empty(DocumentId::derive("nurbs-crossings"), Tol::witness());
+        let mut profiles = Vec::new();
+        for (k, dx) in [-a, a, -a, a].into_iter().enumerate() {
+            let z = [0.0, 1.0, 2.0, 3.0][k];
+            let (d, plane) = ins(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+            let square = [
+                (dx - 1.0, -1.0),
+                (dx + 1.0, -1.0),
+                (dx + 1.0, 1.0),
+                (dx - 1.0, 1.0),
+            ];
+            let (d, profile) = ins(
+                d,
+                Node::Profile(ProfileProgram {
+                    plane,
+                    loops: vec![LoopProgram::polygon(square).expect("finite")],
+                    ids: Vec::new(),
+                }),
+            );
+            doc = d;
+            profiles.push(profile);
+        }
+        let (doc, loft) = ins(
+            doc,
+            Node::Loft {
+                profiles,
+                v_degree: Formula::count(2),
+            },
+        );
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let value = ev.value(loft).expect("the loft evaluates").clone();
+        (loft, value)
+    }
+
+    fn body_of(value: &crate::eval::NodeValue<f64>) -> &Body<f64> {
+        let ValuePayload::Body(body) = &value.payload else {
+            panic!("a body");
+        };
+        body
+    }
+
+    /// A corner edge — one whose carrier is a NURBS curve and whose ends
+    /// lie on the first and last sections — with its name.
+    fn corner(body: &Body<f64>, table: &NameTable) -> (EdgeKey, StableName) {
+        table
+            .iter()
+            .find_map(|(name, entry)| {
+                let Entry::Unique(r) = entry else { return None };
+                let EntityKey::Edge(e) = r.key else {
+                    return None;
+                };
+                let edge = body.get_edge(e)?;
+                let carrier = body.get_curve_geom(edge.curve)?.certified()?.carrier();
+                let (v0, v1) = super::edge_ends(body, e).ok()?;
+                let z = |v| super::vertex_point(body, v).unwrap().z;
+                let spans = (z(v0) - z(v1)).abs() > 2.5;
+                (matches!(carrier, geom::Curve3::Nurbs(_)) && spans).then(|| (e, name.clone()))
+            })
+            .expect("a NURBS corner edge")
+    }
+
+    /// The parameters at which the corner's carrier crosses the plane
+    /// `x = c` its two ends straddle evenly, with the sign of `x − c`
+    /// after each: test-side root finding, the subject being the ranks.
+    fn crossings_of(body: &Body<f64>, e: EdgeKey) -> Vec<(f64, bool)> {
+        let carrier = carrier(body, e);
+        let (t0, t1) = param_span(body, e).unwrap();
+        let c = (carrier.eval(t0).x + carrier.eval(t1).x) / 2.0;
+        let f = |t: f64| carrier.eval(t).x - c;
+        let n = 4096;
+        let at = |k: usize| t0 + (t1 - t0) * k as f64 / n as f64;
+        let mut roots = Vec::new();
+        for k in 0..n {
+            let (mut lo, mut hi) = (at(k), at(k + 1));
+            if (f(lo) < 0.0) == (f(hi) < 0.0) {
+                continue;
+            }
+            let rising = f(hi) > 0.0;
+            for _ in 0..80 {
+                let mid = (lo + hi) / 2.0;
+                if (f(mid) > 0.0) == rising {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+            roots.push(((lo + hi) / 2.0, rising));
+        }
+        roots
+    }
+
+    /// The ranks of two stand-in crossings at `p` and `q` on `e`, or
+    /// `None` where they tie; handed in both ways round, which must
+    /// agree.
+    fn ranks(
+        node: RecipeNodeId,
+        (body, table): (&Body<f64>, &NameTable),
+        e: EdgeKey,
+        name: &StableName,
+        p: Point3<f64>,
+        q: Point3<f64>,
+    ) -> Option<(u32, u32)> {
+        let on = CrossedEdge {
+            body,
+            table,
+            edge: e,
+            name,
+        };
+        let mut vs = body.vertices().map(|(v, _)| v);
+        let (x, y) = (vs.next().unwrap(), vs.next().unwrap());
+        let ent = |v| EntityRef {
+            body: 0,
+            key: EntityKey::Vertex(v),
+        };
+        let base = StableName {
+            kind: EntityKind::Vertex,
+            node,
+            path: vec![RoleSeg::OutputBody],
+        };
+        let rank = |crossings: &[Crossed<'_, f64>]| {
+            let mut t = NameTable::new();
+            let mut tie = TieRows::default();
+            rank_crossings(
+                &mut t,
+                &mut tie,
+                false,
+                &base,
+                crossings,
+                geom_core::Band::linear(Tol::witness()).unwrap(),
+            )
+            .unwrap();
+            tie.flush(&mut t).unwrap();
+            if t.is_tied(&base) {
+                return None;
+            }
+            let rank_of = |v| match t.name_of(&ent(v)).and_then(|n| n.path.last().cloned()) {
+                Some(RoleSeg::Fragment(Qualifier::OrderAlong { rank, .. })) => rank,
+                other => panic!("a ranked or tied crossing, not {other:?}"),
+            };
+            Some((rank_of(x), rank_of(y)))
+        };
+        let one = rank(&[(ent(x), p, on), (ent(y), q, on)]);
+        let two = rank(&[(ent(y), q, on), (ent(x), p, on)]);
+        assert_eq!(one, two, "the order handed in does not rank");
+        one
+    }
+
+    fn carrier(body: &Body<f64>, e: EdgeKey) -> &geom::Curve3<f64> {
+        let edge = body.get_edge(e).unwrap();
+        body.get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .carrier()
+    }
+
+    fn point_at(body: &Body<f64>, e: EdgeKey, t: f64) -> Point3<f64> {
+        carrier(body, e).eval(t)
+    }
+
+    #[test]
+    fn two_crossings_of_one_nurbs_piece_rank_by_its_parameter() {
+        let (loft, value) = wavy(0.25);
+        let body = body_of(&value);
+        let (e, name) = corner(body, &value.name_table);
+        let (t0, t1) = param_span(body, e).unwrap();
+        assert!(t0 < t1, "the corner runs as its carrier: {t0} to {t1}");
+        let roots = crossings_of(body, e);
+        assert_eq!(
+            roots.len(),
+            3,
+            "the plane meets the corner three times: {roots:?}"
+        );
+        let ((first, s0), (third, s2)) = (roots[0], roots[2]);
+        assert_eq!(s0, s2, "the first and third crossings have one sense");
+        let (p, q) = (point_at(body, e, first), point_at(body, e, third));
+        assert_eq!(
+            ranks(loft, (body, &value.name_table), e, &name, p, q),
+            Some((0, 1)),
+            "the crossing at the lesser parameter ranks first: t {first} and {third}"
+        );
+    }
+
+    #[test]
+    fn two_crossings_of_one_nurbs_piece_the_band_cannot_part_tie() {
+        let (loft, value) = wavy(0.25);
+        let body = body_of(&value);
+        let (e, name) = corner(body, &value.name_table);
+        let first = crossings_of(body, e)[0].0;
+        let p = point_at(body, e, first);
+        let along = carrier(body, e).deriv(first);
+        let zero = geom_core::Band::linear(Tol::witness()).unwrap().zero();
+        let apart = zero / 4.0;
+        let q = p + along * (apart / along.norm());
+        assert_eq!(
+            ranks(loft, (body, &value.name_table), e, &name, p, q),
+            None,
+            "{apart} m apart"
+        );
+        assert_eq!(
+            ranks(loft, (body, &value.name_table), e, &name, p, p),
+            None,
+            "one point"
+        );
+    }
+
+    /// The unit cube with its bottom front edge (`mevs[0]`, between the
+    /// bottom and front walls) carried by a degree-1 NURBS curve whose
+    /// control points lie along that edge at fractions `along` of it, on
+    /// `knots`: the edge, with the body.
+    fn cube_piece(along: [f64; 4], knots: [f64; 6]) -> (Body<f64>, EdgeKey) {
+        use topo::test_support::{describe_as_intersections, geometric_cube};
+        let mut cube = geometric_cube::<f64>(Tol::witness());
+        describe_as_intersections(&mut cube.body, Tol::witness());
+        let e = cube.mevs[0].edge;
+        let body = &mut cube.body;
+        let (v0, v1) = super::edge_ends(body, e).unwrap();
+        let (a, b) = (
+            super::vertex_point(body, v0).unwrap(),
+            super::vertex_point(body, v1).unwrap(),
+        );
+        let control = along.iter().map(|&s| a.lerp(b, s)).collect();
+        let nurbs = geom::NurbsCurve3::new(
+            geom_core::KnotVector::clamped(knots.to_vec(), 1).unwrap(),
+            control,
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let curve = body.get_edge(e).unwrap().curve;
+        let mut spec = body
+            .get_curve_geom(curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .restated_spec();
+        let geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, .. } = spec.description else {
+            panic!("the cube's edges are described as intersections");
+        };
+        spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
+            s1,
+            s2,
+            witness: nurbs.eval(0.5),
+        };
+        spec.carrier = geom::Curve3::Nurbs(std::sync::Arc::new(nurbs));
+        spec.param_start = 0.0;
+        spec.param_end = 1.0;
+        body.set_edge_curve(e, spec, Tol::witness())
+            .expect("the NURBS edge certifies");
+        (cube.body, e)
+    }
+
+    fn cube_name() -> StableName {
+        StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId::new(0, 0),
+            path: vec![RoleSeg::OutputBody],
+        }
+    }
+
+    /// A control step in the band is no certificate, not a refusal: the
+    /// two crossings tie.
+    #[test]
+    fn a_nurbs_piece_with_a_control_step_in_the_band_ties_its_crossings() {
+        let zero = geom_core::Band::linear(Tol::witness()).unwrap().zero();
+        let (body, e) = cube_piece(
+            [0.0, 0.4, 0.4 + 3.0 * zero, 1.0],
+            [0.0, 0.0, 0.45, 0.45 + 1e-6, 1.0, 1.0],
+        );
+        let (p, q) = (point_at(&body, e, 0.2), point_at(&body, e, 0.9));
+        let table = NameTable::new();
+        let name = cube_name();
+        assert_eq!(
+            ranks(RecipeNodeId::new(0, 0), (&body, &table), e, &name, p, q),
+            None
+        );
+    }
+
+    /// A piece that folds back along its chord ties: at t = 0.25 it is
+    /// 0.6 along, and at t = 0.6 only 0.4, so the chord would rank the
+    /// two the wrong way round.
+    #[test]
+    fn a_nurbs_piece_folding_back_along_its_chord_ties_its_crossings() {
+        let (body, e) = cube_piece(
+            [0.0, 0.8, 0.3, 1.0],
+            [0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0],
+        );
+        let (p, q) = (point_at(&body, e, 0.25), point_at(&body, e, 0.6));
+        let (a, b) = (point_at(&body, e, 0.0), point_at(&body, e, 1.0));
+        let at = |x: Point3<f64>| (x - a).norm() / (b - a).norm();
+        assert!(
+            (at(p) - 0.6).abs() < 1e-12 && (at(q) - 0.4).abs() < 1e-12,
+            "the fold"
+        );
+        let table = NameTable::new();
+        let name = cube_name();
+        assert_eq!(
+            ranks(RecipeNodeId::new(0, 0), (&body, &table), e, &name, p, q),
+            None
+        );
+    }
+
+    /// A closed piece has no chord: no certificate, and no refusal.
+    #[test]
+    fn a_closed_nurbs_piece_has_no_chord() {
+        let control = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0)]
+            .map(|(x, y)| Point3::new(x, y, 0.0))
+            .to_vec();
+        let nurbs = geom::NurbsCurve3::new(
+            geom_core::KnotVector::clamped(vec![0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0], 1)
+                .unwrap(),
+            control,
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let bnd = geom_core::Band::linear(Tol::witness()).unwrap();
+        let chord = super::nurbs_chord(&nurbs, 0.0, 1.0, bnd).expect("no refusal");
+        assert!(chord.is_none(), "a closed piece certifies nothing");
     }
 }
 
