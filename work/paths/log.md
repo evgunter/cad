@@ -671,3 +671,8 @@ Signed: (CARVE orchestrator)
 - 2026-10-07 — `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0, M) is dispatched on `claude/clever-bardeen-4itqb3`.
   - D10 check: it is validation's contact reading. It records and verifies no declared contact, so it may start under the hold; the lane stops if the fix needs that.
   - Review tier: dual. Difficulty letter M. The arm is drawn by `/dev/urandom` byte 208 (mod 3 = 1): SEQUENTIAL.
+- 2026-10-07 — `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0) closed on `claude/clever-bardeen-4itqb3`.
+  - A whole profile reaches the hole: two holes touching at a vertex whose two arcs each miss their own tangency with the other edge. It validated on `main` at both scalars and three ε.
+  - A candidate that a span definitely misses now leaves the pair's segment ends to read (`seg::end_touches`, new predicate `circle_side`). This applies in the tangent arms and in the secant arms; the widened sweep showed that a shallow crossing has the same hole.
+  - D10's hold did not bind.
+
