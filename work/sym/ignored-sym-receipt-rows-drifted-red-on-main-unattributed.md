@@ -215,6 +215,7 @@ before each is the reading at the commit before the merge.
 | #3759 `82b52c36cb` PCERT | sz +136, reg +8, num +236, frozen +24 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +68, reg +4, num +118, frozen +12 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +87, reg +4, num +176, frozen +77; refuses at `pcurve_envelope` | `(1036,2,152,1188,2587)`, refuses at `pcurve_envelope` | `Study`, rule-F row; `frozen` judged below |
 | #3981 `6d1cef94cf` check 5's escape | sz +8, num −8 | sg +8, num −8 | sz +4, num −4 | sg +8, num −8 | sz +4, num −4 | sz +4, num −4 | `Study` (plate, link, pad) |
 | #4037 `201239b0e4` joint elements | num +14 | num +14 | num +7 | num +14 | num +10 | num +10 | **not credited** |
+| #4187 (CARVE) `cap_plane_orientation`, one decision per extruded cap | num +6 | num +4 | num +3, frozen +2 | num +4 | num +2 | num +4, frozen +48 | both rows, at the PR |
 
 Every other stretch reads the same at both ends. #4011 (INTENT-VARS-1
 PR 2) moves nothing past the ceiling. #3804 (SYM-15, `810bc55336`)

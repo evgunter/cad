@@ -513,7 +513,9 @@ which is what actually moves the number.
 | sector_shape.rs (the three rungs) | sector_arm / sector_reflex / sector_straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit, and since #652 ONE name set: the former `bool_sector_*` / `split_sector_*` pairs were the same computation on the same quantity, which is why this was already one row |
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
 | splitting/classify.rs `reach_clears` | split_gate_box_side | an unarmed entity's reach, read in the plane's own frame, against the plane: its gap from the plane's offset along the unit normal, less the sweep pad (metres) | m | OK |
-| splitting/classify.rs `sphere_zone_reach` | split_gate_sphere_axis | a sphere's polar axis read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
+| boolean/boxes.rs `sphere_window` | bool_box_sphere_axis | a sphere's polar axis, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
+| boolean/boxes.rs `sphere_window` | bool_box_sphere_seam_unit | a sphere's seam direction, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
+| boolean/boxes.rs `sphere_window` | bool_box_sphere_seam | a sphere's seam direction against its polar axis: their cosine, levered by the radius | m | OK |
 | splitting/classify.rs `torus_window_reach` | split_gate_torus_ring | a torus's major radius less its minor, the ring convention `R > r` its chart rectangle's closed form reads | m | OK |
 | ray_walk.rs (via `containment.rs`'s `ROWS`) | point_in_loop_segment | a loop segment's own length — the degeneracy gate, through the `Margin::norm3` door | m | OK (split off `point_in_loop_boundary` by #712, which was deciding two questions under one name) |
 | ray_walk.rs (via `containment.rs`'s `ROWS`) | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
