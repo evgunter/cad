@@ -1973,6 +1973,28 @@ The builder sits beside `band_rim` (`names/role.rs`). It is exported through `pn
 
 `add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.
 
+## 2026-10-06 — PR 4183: a label refuses direction scopes and needs a character that shows
+
+A blinded designer pair (byte 192, A = Opus, B = Fable, recorded on
+`analysis/design-fork/emit-label-invisible-chars`) converged in its first
+reports. No ratified text changed: DESIGN.md has no character rule, and
+the rule lives in `label.rs`. So it was built without an `[ev]`; the PR
+body says it extends the rule approved on #3565.
+
+`Label::new` refuses, in this order:
+- a line break;
+- a control character;
+- one of the nine bidi embedding, override or isolate characters
+  (`LabelFault::Direction`, Python tag `label_direction_control`);
+- `Blank`: every character is whitespace or Unicode
+  `Default_Ignorable_Code_Point`. The 17 ranges are verified against
+  Unicode 16 and 18 (4174 code points).
+
+Joiners, bidi marks and emoji sequences pass. The viewer clears a field
+on `Label::is_blank`, the same predicate, so a field that shows nothing
+clears rather than refusing. Review folds: ALM and control-order rows, a
+full-range direction scan, narrowed docs, and the range test's stated
+re-derivation rule.
 ## 2026-10-06 — the strict-tolerance reds, traced
 
 Several PRs failed CI's strict-tolerance step today (#4164 among them).
@@ -1988,3 +2010,35 @@ Two nightly-only reds remain, both stale test pins, fixed on
 
 Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
 with `return_content=false` returns a signed URL that `curl` fetches.
+
+## 2026-10-06 — PR 4203: every crossing carries its sense
+
+The ruled row from PR 4134, the sense half.
+- The boolean records each operand edge piece's in/on/out class at its
+  vertex (`EdgePieceClass`). The vertex-on-face rows are the side codes
+  that pass decided (D5). The vertex-vertex rows are measured beside the
+  classification by `sectors::wedge_classes`.
+- Null-edge copies are exposed (`BooleanNaming::null_copies`), so an edge
+  that ends at a copy ends at the vertex. A side with no row refuses unless
+  the edge ends there.
+- The boolean and union name an edge × face vertex
+  `Crossing { edge, face, sense }` and an edge × edge vertex
+  `EdgeCrossing { a, a_sense, b, b_sense }`. The Split's `CrossingVertex`
+  gains `sense`.
+- Ranks run per sense.
+- Senses ride a union's fold. They flip under `RankRule::Reverse`, a
+  Split's crossings included, and a union rewrite re-reads them side by
+  side by image.
+
+`Ends` on every piece of a divided edge was built and reverted in the same
+PR. The review measured names growing about 2.41× per cut along a chain of
+trims (8.3M words at fourteen trims). It waits on
+`a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially`.
+
+The pinned test is rebuilt as one document edited in place; it pins the
+crossing, and not the lone piece.
+
+Filed:
+- the touch and edge × edge spelling (design);
+- the unoriented-seam refusal (design);
+- the end-touch row, which main's edge joins left without a witness.

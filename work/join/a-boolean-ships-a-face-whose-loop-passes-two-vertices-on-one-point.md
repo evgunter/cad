@@ -2,14 +2,14 @@
 id: a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point
 kind: issue
 title: A boolean ships a SOUND body whose one face passes two distinct vertices on one point (cube minus prism with a notch corner on a cube edge)
-status: parked
+status: closed
 opened: 2026-10-05
 priority: P0
 cost: M
 refs: [boolean-declares-no-touching-between-copies-of-one-operand-vertex, a-pinch-no-kept-face-can-cross-refuses]
-blocked_on: [a-pinch-no-kept-face-can-cross-refuses]
 rides_with: a-pinch-no-kept-face-can-cross-refuses
 parent: a-pinch-no-kept-face-can-cross-refuses
+closed: 2026-10-06
 ---
 
 
@@ -58,3 +58,17 @@ no face crosses between cones. See
 `work/join/a-pinch-no-kept-face-can-cross-refuses.md`, "The shape to
 give". This row is settled by that unit.
 Under the ruling, a face meeting two vertices on one point is a right body when each vertex is a manifold cone. The check this row asked for becomes a tier-3 check that every corner is a slice of its own face.
+
+## Built (branch `join/pinch-one-vertex-per-cone-build`)
+
+Under the ruling these bodies are right. Since PR 4074 they mesh:
+`sweep::all pinch_faces_tessellate` pins the row's poses, every one
+tessellating and passing `check_mesh`, with exact volumes. The pinch
+unit now builds this shape at every pinch it used to cross or refuse.
+`join_pierce_runs_sweep::a_pinch_round_a_notch_on_a_faces_outer_loop_is_one_vertex_per_cone`
+asserts a face through two vertices on one point key.
+
+The check this row's ruling asks for (every corner is a slice of its own
+face) is filed as `a-corner-is-a-slice-of-its-face-tier-3-check`. The
+unit's batteries meet no crossing: the mesher's `PinchWedge`, which
+refuses one, fires on no line.

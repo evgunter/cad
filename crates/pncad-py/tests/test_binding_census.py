@@ -2561,6 +2561,9 @@ NOT_BOUND = {
     "RoleSeg": SHAPE,
     "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
+    # A crossing's sense: a field of a `RoleSeg`, the inside of a name,
+    # for `RoleSeg`'s reason.
+    "Sense": SHAPE,
     "Side": SHAPE,
     "SolidName": SHAPE,
     "SplitSide": SHAPE,
@@ -3112,7 +3115,8 @@ NOT_BOUND = {
     # `str`: `Doc.label` answers one, and `DocEdit.set_label` and
     # `label=` at insert call the constructor at the boundary and
     # publish its refusal as `EditError.variant` (`label_blank`,
-    # `label_line_break`, `label_control_character`); neither type
+    # `label_line_break`, `label_control_character`,
+    # `label_direction_control`); neither type
     # crosses, for `NotAFaceName`'s reason.
     "Label": SHAPE,
     "LabelFault": SHAPE,
