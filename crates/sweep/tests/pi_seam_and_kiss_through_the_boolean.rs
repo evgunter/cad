@@ -1145,6 +1145,24 @@ fn a_puck_and_its_rounding_ring_build_with_the_top_declared_a_seam() {
             "{label}: {v} vs Pappus {want}"
         );
         assert_eq!(c, (3, 3, 2, 1), "{label}: top disc, torus, floor");
+        // The join closes the torus's rim, and its survivor stays on the
+        // seam strut: a vertex of a closed edge, but not conventional.
+        let Ok(BooleanResult::Body(bb)) = topo::union_with(x, y, &d, tol) else {
+            panic!("{label}: builds")
+        };
+        let b = &bb.body;
+        let closed: Vec<_> = b
+            .edges()
+            .filter_map(|(_, e)| {
+                let v = b.get_half_edge(e.he_plus)?.start;
+                (b.get_half_edge(e.he_minus)?.start == v).then_some(v)
+            })
+            .collect();
+        assert!(!closed.is_empty(), "{label}: a closed edge");
+        assert!(
+            closed.iter().all(|&v| !topo::is_conventional_vertex(b, v)),
+            "{label}: every closed edge's vertex keeps a strut"
+        );
     }
 }
 

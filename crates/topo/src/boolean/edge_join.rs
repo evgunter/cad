@@ -608,3 +608,51 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
         tol,
     )
 }
+
+#[cfg(test)]
+mod conventional {
+    //! **[`is_conventional_vertex`] is structural**: a vertex whose
+    //! only edge is one closed edge, at both its ends. A self-loop's
+    //! lone vertex is conventional; an open edge's end is not, and nor
+    //! is a self-loop's vertex once another edge leaves it (a seam
+    //! strut on the rim it closes, as `pi_seam`'s puck keeps).
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::{Point3, Tol};
+
+    use super::is_conventional_vertex;
+    use crate::{Body, MefSite, MevSite};
+
+    #[test]
+    fn only_a_lone_self_loops_vertex_is_conventional() {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let born = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+        assert!(!is_conventional_vertex(&body, born.vertex), "a lone vertex");
+        let closed = body
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        assert!(is_conventional_vertex(&body, born.vertex), "a self-loop's");
+        let he = body.get_edge(closed.edge).unwrap().he_plus;
+        let strut = body
+            .mev_line(
+                MevSite::Fan { he1: he, he2: he },
+                Point3::new(0.0, 0.0, 1.0),
+                tol,
+            )
+            .unwrap();
+        assert!(
+            !is_conventional_vertex(&body, born.vertex),
+            "a self-loop's vertex another edge leaves"
+        );
+        let far = body
+            .half_edge_end(body.get_edge(strut.edge).unwrap().he_plus)
+            .unwrap();
+        assert!(!is_conventional_vertex(&body, far), "an open edge's end");
+    }
+}
