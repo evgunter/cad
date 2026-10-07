@@ -644,3 +644,7 @@ Signed (CLEAVE orchestrator).
 - **PR 4213 merged** (revolve-seam 1e-6 volumes; tracker only). Main had already fixed it in PR
   4083's `6ac174bf1a`, and the row is closed. Two `props_quad_converged` witnesses were added to
   QUAD's convergence row.
+- **Dispatched** two P3 measure-first lanes: `a-rim-touching-split-escalates-on-the-side-of-plane-band`
+  (`cleave/rim-touch`) and `interval-steep-cut-through-cylinder-caps-refuses-order-escalated`
+  (`cleave/interval-join-order`). Review tier for each: single FULL if code moves, orchestrator read
+  if not.

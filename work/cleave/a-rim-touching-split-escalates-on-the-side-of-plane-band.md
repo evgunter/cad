@@ -2,10 +2,11 @@
 id: a-rim-touching-split-escalates-on-the-side-of-plane-band
 kind: issue
 title: a tube split by a plane whose section touches a rim at azimuth 0.3 escalates on the side-of-plane band
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P3
 cost: E
+branch: cleave/rim-touch
 ---
 
 
