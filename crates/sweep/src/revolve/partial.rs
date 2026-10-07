@@ -14,7 +14,6 @@
 //! latitude-join classification), end cap plane, then the upgrade pass
 //! (cap–wall meridians, cap–cap axis edges).
 
-use geom_brep::newell_plane;
 use geom_core::{Affine3, Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MevSite};
 
@@ -23,7 +22,9 @@ use super::chain::build_chain;
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
-use crate::swept::{cap_points, face_surface_key, placed_segment_spec, turn_axis};
+use crate::swept::{
+    CapEnd, cap_plane, cap_points, face_surface_key, placed_segment_spec, turn_axis,
+};
 use geom_core::Tol;
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
@@ -86,21 +87,17 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0], true)?;
-    // Start cap plane: the mef face's loop runs the chain reversed;
-    // first point kept, rest reversed (extrude's bottom-cap order).
-    // Derived from the sketch data alone — it reads no entity and
-    // mints none — so the closing surface can be in hand before the
-    // chain that will carry it.
-    let forward = cap_points(outer, qs, place);
-    let mut start_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
-    if let Some(&p0) = forward.first() {
-        start_order.push(p0);
-    }
-    for &p in forward.iter().skip(1).rev() {
-        start_order.push(p);
-    }
-    let start_plane =
-        newell_plane(&start_order, band).map_err(|source| RevolveError::CapPlane { source })?;
+    // Start cap plane: derived from the sketch data alone — it reads no
+    // entity and mints none — so the closing surface can be in hand
+    // before the chain that will carry it.
+    let start_plane = cap_plane(
+        &cap_points(outer, qs, place),
+        place,
+        reverse,
+        CapEnd::Start,
+        band,
+    )
+    .map_err(|source| RevolveError::CapPlane { source })?;
     let start = build_chain(
         &mut body,
         frame,
@@ -108,7 +105,6 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
         seed.vertex,
         outer,
         qs,
-        // Newell over the loop the cap runs: outward, as extrude's.
         FaceSurface::New {
             surface: start_plane,
             sense: true,
@@ -195,9 +191,14 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     }
 
     // ---- Phase 4: the swept face survives as the end cap. ----
-    let far_loop = cap_points(&loops[0], &rpoints[0], place_end);
-    let end_plane =
-        newell_plane(&far_loop, band).map_err(|source| RevolveError::CapPlane { source })?;
+    let end_plane = cap_plane(
+        &cap_points(&loops[0], &rpoints[0], place_end),
+        place_end,
+        reverse,
+        CapEnd::End,
+        band,
+    )
+    .map_err(|source| RevolveError::CapPlane { source })?;
     let end_surface = body.set_face_surface(
         end_face,
         FaceSurface::New {

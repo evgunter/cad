@@ -101,6 +101,26 @@ refusal by type at exactly 1e-6 (`QUAD_ESCALATES_AT`;
 asserts nothing past "the lower piece is non-empty". The pin goes red
 when this lands, and the row's assertions then come back at 1e-6.
 
+## Third witness (REACH, branch `reach/split-gate-sphere-azimuth`, 2026-10-06)
+
+Halves of a split, measured by `topo::props::mass_properties`, at ε
+1e-9: the capped cylinder of `crates/sweep/tests/reach_split_gate_azimuth.rs`
+(the unit cylinder under the cap of the sphere of radius 5/4 about
+`(0, 1/4)`, revolved through 2.0 rad about `y`), in all three poses.
+
+- Scale 1, `n = (0.0791, 0.9553, 0.2848)`, `d = 0.19107`: the `above`
+  half refuses `Converged` in band (margin `−3.70e-9`, band
+  `(1e-9, 1e-8)`). It refuses on `main` too.
+- Scale 1, `n = (0.6442, 0.7648, 0)`, `d = 0.15297`: the `above` half,
+  the same arm.
+- Scale `1e3`, `n = (0.2432, −0.4161, 0.8762)`, `d = −0.16291·s`: the
+  `above` half, the same arm.
+
+The second and third cuts refused at the split gate on `main`, so their
+halves were never measured. That row stands these halves down loudly,
+with a floor of two per pose, and holds every other half to a slice
+integral.
+
 ## 2026-10-06 — a counterbored tube's split half (CLEAVE)
 
 Found by `cleave/tube-across-axis`'s sweep. The counterbored tube
