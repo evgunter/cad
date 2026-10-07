@@ -499,6 +499,57 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-06 — the section classifiers read their gap at the reach (TANG implementer)
+
+`plane_cylinder_section` and `cylinder_cylinder_section` take an
+`ExtentBall` and read their gap at the feet of its centre, the tilt
+levered from the foot nearer it, so a verdict no longer moves with a
+cylinder's stored origin or with operand order, and the witness reads
+the same rows through the same helpers. Every caller hands a ball. One
+issue filed: three sibling offset rows that read a cylinder's stored
+origin against another carrier's axis.
+
+**Closed in the PR.** `plane-cylinder-section-reads-its-gap-at-the-stored-origin`.
+
+**Fix pass 1** (the single FULL review: two MAJORs). `route_pose` takes
+the exact scalar reach back for its scalar arms and the ball for the
+cylinder pair only. The germ frame reads the smaller face's ball. Each
+fix comes with its probe row, red before and green after. The crossing
+lane reads its gap between the feet. The frame asks the table's own
+`cc_axes_parallel`, which closes JOIN's
+`cylinder-axes-parallel-is-spelled-at-two-sites`. Two issues filed:
+`chord-join-face-reach-misses-a-curved-edges-bulge` and
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
+
+**Fix pass 2** (the second full review: three MAJORs, one class). Every
+caller's ball lever had decided an in-band tilt as served. The
+classifiers now take a `Reach`, a reading point and a lever that is a
+distance to consumed points or the length the caller levered by
+before, never a ball around them. `germ_reach` and its unlogged F21 check are gone. The
+frame's coplanarity row is the table's `cc_axes_coplanar`. Rows A, B and
+C were red on the ball levers and are green; every lever mutant is
+killed.
+
+**Fix pass 3** (the third full review: one MAJOR). A NURBS ruling's span
+was read at its control-point mean, which levered it longer than main.
+A line or NURBS span is now read on each axis at the point whose
+farthest distance to it is least, and that distance is exact
+(`minimax_on_axis`, 1-D Helly). A measured lever is floored at the
+pivot's distance from where it was measured. Stored-origin rows pin
+both topo callers. Filed: `germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`.
+
+**Fix pass 4** (the fourth full review: one MAJOR). The measured lever's
+floor over-levered chord_join's plane×cylinder row past main on a face
+shorter than the radius. It moves to `Reach::lever_between`, the
+cylinder pair's foot-to-foot gap, which is the one reading that needs
+it. A short-face row pins the lane. The interval minimax stays bounded
+where axial points coincide.
+
+**Fix pass 5** (the fifth full review: approve with fixes, no MAJOR).
+Rows now pin the germ frame's reading face, the walls' span at half its
+length, and `route_pose`'s farthest anchor. The docs state the rule
+positively. Filed: `extent-ball-and-reach-are-two-statements-of-one-extent`.
+
 ## 2026-10-06 — in-face rings pair along the wall: fixed upstream by PR 4008; the sweep row lands (TANG implementer)
 
 `in-face-pierce-rings-pair-across-the-gap` (P0) closes with no kernel

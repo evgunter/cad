@@ -302,6 +302,8 @@ mod ladder_split_key;
 mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
+#[path = "loft_v_is_the_section_set.rs"]
+mod loft_v_is_the_section_set;
 #[path = "m3_pr5_extrude_booleans.rs"]
 mod m3_pr5_extrude_booleans;
 #[path = "m5_pr10_frontier.rs"]
@@ -973,3 +975,5 @@ mod rest_zip_admission;
 
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
+#[path = "shell_curved_mouth.rs"]
+mod shell_curved_mouth;
