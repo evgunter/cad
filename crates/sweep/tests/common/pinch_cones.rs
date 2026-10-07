@@ -317,9 +317,25 @@ pub fn cone_finding(
     }
 }
 
-/// Where `body`'s vertices at `at` do not all share one point key, the
-/// finding, else `None`.
+/// Where `body` does not hold a pinch at `at` whose vertices share one
+/// point key, the finding, else `None`: fewer than two vertices there is
+/// a finding too, so a pinch row cannot pass on a point it lost.
+/// [`shared_point_finding`] is the reading for a point that may hold one.
 pub fn point_key_finding(body: &Body<f64>, at: V3) -> Option<String> {
+    let at_v = vertices_at(body, at);
+    if at_v.len() < 2 {
+        return Some(format!(
+            "{} vertices at {at:?}: no pinch to share a key",
+            at_v.len()
+        ));
+    }
+    shared_point_finding(body, at)
+}
+
+/// Where `body`'s vertices at `at`, if several, do not all share one
+/// point key, the finding, else `None`. A point holding one vertex or
+/// none passes: [`cone_finding`] counts them.
+pub fn shared_point_finding(body: &Body<f64>, at: V3) -> Option<String> {
     let at_v = vertices_at(body, at);
     let point = |k| body.get_vertex(k).unwrap().point;
     at_v.iter()

@@ -21,7 +21,7 @@ use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, m
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
     Op as Cones, Pieces, Plane, cone_finding, faces_through_two_vertices_at, point_key_finding,
-    vertices_at,
+    shared_point_finding, vertices_at,
 };
 
 const PROFILE: [(f64, f64); 6] = [
@@ -392,7 +392,8 @@ fn pierce_point_finding(
     at: [f64; 3],
     cones: (&[Vec<Plane>], &[Vec<Plane>], Cones),
 ) -> Option<String> {
-    if let Some(finding) = point_key_finding(body, at).or_else(|| cone_finding(body, at, cones)) {
+    if let Some(finding) = shared_point_finding(body, at).or_else(|| cone_finding(body, at, cones))
+    {
         return Some(finding);
     }
     match mesh::tessellate(body, 0.05, tol()).map(|m| mesh::validate::check_mesh(&m)) {
@@ -1826,10 +1827,11 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
 
 /// **A pinch's cones sit on one point key** (`zip::share_points`). Six
 /// of [`dbl`]'s poses whose union with the cube pinches at `v` in two
-/// cones: one cone's vertex descends from the pinched operand's own two
-/// vertices, which the corners' union left on two keys, the other's
-/// from the cube's pierce copies. The seam correspondence ties all of
-/// them, so after the zips the two cones' vertices move onto one key.
+/// cones. Both cones' vertices are the pinched operand's own, which the
+/// corners' union left on two keys; the cube's copies of `v` sit on a
+/// third, which the zips fuse away. The seam correspondence pairs each
+/// operand vertex with a cube copy, so it ties all three keys, and after
+/// the zips the two cones' vertices move onto one key.
 /// Both unions build `SOUND` at the clipped volume, with one vertex per
 /// cone at `v`, on one key, and mesh. Red without the move: tier 3′
 /// refuses `UndeclaredContact { VertexVertex }` at `v`, and the output

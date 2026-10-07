@@ -664,6 +664,8 @@ impl<T: Real> Body<T> {
     /// `point`, rebinds every vertex in `vertices` to it, and frees each
     /// old point that no vertex sits on any longer. Returns the new
     /// key, or `None` (body untouched) if a vertex does not resolve.
+    /// Its sibling [`Body::share_point`] rebinds vertices too, but onto
+    /// an existing point they already sit at, so it moves none.
     ///
     /// It never writes an old point in place: an op's copies of one
     /// vertex share its point (`Body::mev_null`, D1 tier 3′), so an
@@ -694,11 +696,13 @@ impl<T: Real> Body<T> {
     /// `onto`, and frees each old point no vertex sits on any longer.
     /// `None` (body untouched) if a vertex or `onto` does not resolve.
     ///
-    /// No coordinate is read or written: the caller vouches, by its own
-    /// records, that the vertices already sit at `onto`'s point (for the
-    /// boolean, the seam correspondence the zips fuse, which they require
-    /// coincident). Where they do not, [`Body::move_vertices`] is the
-    /// door that moves vertices.
+    /// The sibling of [`Body::move_vertices`], the one door that moves
+    /// vertices: this one changes which key a vertex sits on, never
+    /// where. No coordinate is read or written, so the premise that the
+    /// vertices already sit at `onto`'s point is the caller's, held by
+    /// its own records. The boolean's one caller (`zip::share_points`)
+    /// passes the keys the seam correspondence ties, whose pairs the
+    /// zips' scaffolding certifies coincident before any rebind.
     pub(crate) fn share_point(&mut self, vertices: &[VertexKey], onto: PointKey) -> Option<()> {
         self.points.get(onto)?;
         let old: Vec<PointKey> = vertices

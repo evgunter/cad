@@ -32,10 +32,13 @@
 //!
 //! **A pinch is one vertex per cone** ([`split_cones`]): before any
 //! zip, each operand vertex whose section corners lead into several
-//! cones of the result is split per cone, on its own point key. The
-//! transient edge each split leaves lies on the section faces the zips
-//! consume, so no kept face's topology changes. The split and the zip
-//! read one alignment ([`align`]).
+//! cones of the result is split per cone, each new vertex on the split
+//! vertex's point key. The transient edge each split leaves lies on the
+//! section faces the zips consume, so no kept face's topology changes.
+//! The split and the zip read one alignment ([`align`]). After the zips,
+//! [`share_points`] puts the cones of a pinch that still sit on several
+//! keys onto one: the keys the correspondence ties ([`point_classes`]),
+//! read before the split.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -232,6 +235,32 @@ pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
     core::iter::once(0).chain((1..n).rev())
 }
 
+/// A union-find over keys, as a parent map: a key with no entry is its
+/// own root, and a class is rooted at its smallest key.
+struct Roots<K>(BTreeMap<K, K>);
+
+impl<K: Ord + Copy> Roots<K> {
+    fn new() -> Self {
+        Self(BTreeMap::new())
+    }
+
+    fn find(&self, mut k: K) -> K {
+        while let Some(&up) = self.0.get(&k) {
+            k = up;
+        }
+        k
+    }
+
+    /// Joins the classes of `a` and `b`; `false` where they were one.
+    fn union(&mut self, a: K, b: K) -> bool {
+        let (ra, rb) = (self.find(a), self.find(b));
+        if ra != rb {
+            self.0.insert(ra.max(rb), ra.min(rb));
+        }
+        ra != rb
+    }
+}
+
 /// **The point keys the seams tie are one point**: a pinch is several
 /// vertices on one point key (Ev, PR 4057).
 ///
@@ -255,25 +284,16 @@ pub(super) fn point_classes<T: geom_core::Real>(
         what: "a seam correspondent no longer resolves",
     };
     let key = |v: VertexKey| body.get_vertex(v).map(|d| d.point).ok_or_else(corr);
-    let mut root: BTreeMap<PointKey, PointKey> = BTreeMap::new();
-    let find = |root: &BTreeMap<PointKey, PointKey>, mut k: PointKey| {
-        while let Some(&up) = root.get(&k) {
-            k = up;
-        }
-        k
-    };
+    let mut roots = Roots::new();
     for (&a, bs) in vmap {
         let ka = key(a)?;
         for &b in bs {
-            let (ra, rb) = (find(&root, ka), find(&root, key(b)?));
-            if ra != rb {
-                root.insert(ra.max(rb), ra.min(rb));
-            }
+            roots.union(ka, key(b)?);
         }
     }
     let mut classes: BTreeMap<PointKey, BTreeSet<PointKey>> = BTreeMap::new();
-    for &k in root.keys() {
-        let r = find(&root, k);
+    for &k in roots.0.keys() {
+        let r = roots.find(k);
         classes
             .entry(r)
             .or_insert_with(|| BTreeSet::from([r]))
@@ -286,22 +306,23 @@ pub(super) fn point_classes<T: geom_core::Real>(
 /// the zips, the vertices of one point fused where they lie in one cone,
 /// and a fused vertex keeps one key; the vertices of a pinch's other
 /// cones keep theirs. So where a class's live vertices still sit on
-/// several keys (an operand's own pinch, built by an earlier op on two
-/// keys; a pierce's ring copies, minted on the pierce point's value in
-/// the other operand's arena), each such class moves onto its smallest
-/// live key ([`Body::share_point`]). Elsewhere the zips left one vertex,
-/// and nothing moves. The census's same-point rung and the output
-/// stage's join then read the pinch from its keys.
+/// several keys (an operand's own pinch, which an earlier op left on
+/// several keys, tied through the other operand's copy of the point),
+/// they move onto the class's smallest live key
+/// ([`Body::share_point`]). Elsewhere the zips left one vertex, and
+/// nothing moves. The census's same-point rung and the output stage's
+/// join then read the pinch from its keys.
 ///
 /// # Errors
 ///
 /// [`BooleanError::ZipCorrespondence`] where a vertex no longer
-/// resolves.
+/// resolves, which the index built just before rules out.
 pub(super) fn share_points<T: geom_core::Real>(
     body: &mut Body<T>,
     classes: &[BTreeSet<PointKey>],
 ) -> Result<(), BooleanError> {
-    // The classes are disjoint, so one index serves them all.
+    // The classes are disjoint (`point_classes` builds them as a
+    // partition), so one index serves them all.
     let mut on_key: BTreeMap<PointKey, Vec<VertexKey>> = BTreeMap::new();
     for (v, d) in body.vertices() {
         on_key.entry(d.point).or_default().push(v);
@@ -316,6 +337,7 @@ pub(super) fn share_points<T: geom_core::Real>(
             continue;
         };
         let vertices: Vec<VertexKey> = keys.iter().flat_map(|k| on_key[k].clone()).collect();
+        // Unreachable: `on_key` holds live vertices and live keys only.
         body.share_point(&vertices, onto)
             .ok_or(BooleanError::ZipCorrespondence {
                 what: "a pinch vertex no longer resolves",
@@ -408,19 +430,11 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let fused: Vec<(VertexKey, VertexKey)> = (0..pairs.len())
         .map(|k| Ok((start_of(body, pairs[k].0)?, end_of(body, pairs[next[k]].1)?)))
         .collect::<Result<_, BooleanError>>()?;
-    let mut root: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
-    let find = |root: &BTreeMap<VertexKey, VertexKey>, mut v: VertexKey| {
-        while let Some(&up) = root.get(&v) {
-            v = up;
-        }
-        v
-    };
+    let mut roots = Roots::new();
     for &(a, b) in &fused {
-        let (ra, rb) = (find(&root, a), find(&root, b));
-        if ra == rb {
+        if !roots.union(a, b) {
             return Err(corr("a cone the seams meet twice fuses a vertex to itself"));
         }
-        root.insert(rb, ra);
     }
     if !moved {
         return Ok(paired);
