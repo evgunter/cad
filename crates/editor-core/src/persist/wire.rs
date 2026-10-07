@@ -6,8 +6,8 @@
 //!
 //! - [`Expr`] persists as a plain AST tree and is REBUILT through the
 //!   dimension-checking smart constructors on load — a corrupt or
-//!   hand-edited file can never smuggle an ill-dimensioned tree (or a
-//!   non-finite literal) past the construction door, and the
+//!   hand-edited file can never smuggle an ill-dimensioned tree (or an
+//!   unreduced constant) past the construction door, and the
 //!   checker's refusal reaches the caller WHOLE rather than as
 //!   prose — how a typed value leaves a `Deserialize` impl at all
 //!   is [`super::refusal`]'s subject. The cached
@@ -90,24 +90,18 @@ macro_rules! wire_tree {
         #[derive(Debug, Serialize, Deserialize)]
         #[serde(deny_unknown_fields)]
         pub(crate) enum $wire {
-            /// A continuous literal with its dimension and the display
-            /// unit it was authored in (LIB-SWITCH §4g — presentation
-            /// metadata; the value stays canonical meters/radians).
-            Literal {
-                /// The exact value (D2: bit-exact round-trip), canonical units.
-                value: f64,
-                /// The literal's dimension.
-                dim: Dimension,
-                /// The display-unit symbol (quantity's closed table).
-                /// Always written, because every literal names the
-                /// notation it was authored in — the dimensionless
-                /// row's symbol is the empty string, which is what a
-                /// `Scalar` literal carries. An unknown symbol refuses
-                /// typed at rebuild.
-                unit: String,
+            /// An exact rational constant, in lowest terms (a ratio that
+            /// reduces refuses at rebuild).
+            Ratio {
+                /// The numerator, carrying the sign.
+                num: i64,
+                /// The denominator, at least 1.
+                den: u64,
             },
-            /// An exact integer Count literal.
-            Count(i64),
+            /// An exact integer constant (a count).
+            Integer(i64),
+            /// One full rotation.
+            Turn,
             /// A reader of a variable, by id, with the kind it caches.
             Var {
                 /// The variable read.
@@ -149,12 +143,12 @@ macro_rules! wire_tree {
             fn from(e: &$form) -> Self {
                 let b = |x: &$form| Child::new($wire::from(x));
                 match e.kind() {
-                    ExprKind::Literal(lit) => $wire::Literal {
-                        value: lit.value,
-                        dim: e.dim(),
-                        unit: lit.unit_def().symbol().to_string(),
+                    ExprKind::Ratio(r) => $wire::Ratio {
+                        num: r.num(),
+                        den: r.den(),
                     },
-                    ExprKind::CountLiteral(v) => $wire::Count(*v),
+                    ExprKind::Integer(v) => $wire::Integer(*v),
+                    ExprKind::Turn => $wire::Turn,
                     ExprKind::Var(var) => $wire::Var {
                         var: *var,
                         dim: e.dim(),
@@ -181,23 +175,16 @@ macro_rules! wire_tree {
 
         impl $wire {
             /// Rebuilds the checked tree, re-running every dimension
-            /// check and the non-finite-literal refusal (load door;
+            /// check and the constant's range and reduction (load door;
             /// module docs).
             pub(crate) fn rebuild(&self) -> Result<$form, DimensionError> {
                 let b = |x: &$wire| x.rebuild();
                 match self {
-                    // Strict door: the symbol must be in quantity's
-                    // closed table and its quantity must match the
-                    // dimension — both re-checked by the same
-                    // constructor authoring uses (never a
-                    // field-by-field trust).
-                    $wire::Literal { value, dim, unit } => match quantity::unit_by_symbol(unit) {
-                        None => Err(DimensionError::UnknownDisplayUnit {
-                            symbol: unit.clone(),
-                        }),
-                        Some(u) => <$form>::literal_leaf_with_unit(*value, *dim, u),
-                    },
-                    $wire::Count(v) => Ok(<$form>::count_leaf(*v)),
+                    $wire::Ratio { num, den } => {
+                        crate::expr::Ratio::reduced(*num, *den).map(<$form>::ratio_leaf)
+                    }
+                    $wire::Integer(v) => Ok(<$form>::integer_leaf(*v)),
+                    $wire::Turn => Ok(<$form>::turn_leaf()),
                     $wire::Var { var, dim } => Ok(<$form>::var(*var, *dim)),
                     $($rebuild)*
                     $wire::Add(x, y) => <$form>::add(b(x)?, b(y)?),
@@ -295,8 +282,8 @@ wire_tree! {
 
 wire_tree! {
     /// The persisted authored formula, as an edit log carries it: the
-    /// stored vocabulary plus a variable by name and a fresh-table
-    /// read.
+    /// stored vocabulary plus a variable by name, a fresh-table read
+    /// and a written quantity.
     WireFormula for Formula {
         /// A variable by name, with the dimension it is read at.
         Name {
@@ -313,6 +300,25 @@ wire_tree! {
             /// The dimension it is read at.
             dim: Dimension,
         }
+        /// A written quantity with its dimension, the display unit it
+        /// was authored in (LIB-SWITCH §4g — presentation metadata;
+        /// the value stays canonical meters/radians) and its
+        /// distribution.
+        Quantity {
+            /// The exact value (D2: bit-exact round-trip), canonical units.
+            value: f64,
+            /// The quantity's dimension.
+            dim: Dimension,
+            /// The display-unit symbol (quantity's closed table).
+            /// Always written, because every quantity names the
+            /// notation it was authored in — the dimensionless row's
+            /// symbol is the empty string. An unknown symbol refuses
+            /// typed at rebuild.
+            unit: String,
+            /// Its distribution, if one was written.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            distribution: Option<crate::distribution::Distribution>,
+        }
     }
     to_wire(leaf, dim) => match leaf {
         AuthoredLeaf::Name(name) => WireFormula::Name {
@@ -320,10 +326,30 @@ wire_tree! {
             dim,
         },
         &AuthoredLeaf::Fresh(index) => WireFormula::Fresh { index, dim },
+        AuthoredLeaf::Quantity(q) => WireFormula::Quantity {
+            value: q.value(),
+            dim,
+            unit: q.unit().symbol().to_string(),
+            distribution: q.distribution().copied(),
+        },
     };
     rebuild {
         WireFormula::Name { name, dim } => Ok(Formula::named(name.clone(), *dim)),
         WireFormula::Fresh { index, dim } => Ok(Formula::fresh(*index, *dim)),
+        // Strict door: the symbol must be in quantity's closed table
+        // and its quantity must match the dimension — re-checked by the
+        // same constructor authoring uses (never a field-by-field
+        // trust). The distribution is the variable's: the door that
+        // mints it refuses one breaking E2, as it does a declared one.
+        WireFormula::Quantity { value, dim, unit, distribution } => {
+            match quantity::unit_by_symbol(unit) {
+                None => Err(DimensionError::UnknownDisplayUnit {
+                    symbol: unit.clone(),
+                }),
+                Some(u) => Formula::literal_with_unit(*value, *dim, u)
+                    .map(|q| q.carrying(*distribution)),
+            }
+        }
     }
 }
 

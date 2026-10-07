@@ -1079,7 +1079,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole)",
             NodeErrorKind::FullRangeStep {
-                step: stored("360 deg"),
+                step: formula("360 deg"),
                 evaluated: None,
                 turns: StepTurns::Whole,
             },
@@ -1087,7 +1087,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: stored("720 deg * scalar(blades)"),
+                step: formula("720 deg * scalar(blades)"),
                 evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
                 turns: StepTurns::Whole,
             },
@@ -1095,7 +1095,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within)",
             NodeErrorKind::FullRangeStep {
-                step: stored("760 deg"),
+                step: formula("760 deg"),
                 evaluated: None,
                 turns: StepTurns::Within(formula("40 deg")),
             },
@@ -1103,7 +1103,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: stored("360 deg / scalar(blades) - 400 deg"),
+                step: formula("360 deg / scalar(blades) - 400 deg"),
                 evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
                 turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
             },
@@ -1111,7 +1111,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(unresolved)",
             NodeErrorKind::FullRangeStep {
-                step: stored("1e20 rad"),
+                step: formula("1e20 rad"),
                 evaluated: None,
                 turns: StepTurns::Unresolved,
             },
@@ -5081,12 +5081,3 @@ fn formula(text: &str) -> editor_core::Formula {
     editor_core::parse_formula(text, &names).expect("the formula parses")
 }
 
-/// [`formula`] as a document stores it, `blades` a count variable.
-fn stored(text: &str) -> editor_core::Expr {
-    formula(text)
-        .lower(&|name| {
-            (name.as_str() == "blades")
-                .then_some((editor_core::VarId(tagged(9)), editor_core::Dimension::Count))
-        })
-        .expect("the formula lowers")
-}

@@ -264,24 +264,10 @@ enum Binop {
 /// `Expr` constructor over them: whatever dimension comes out is this
 /// language's, and whatever [`DimensionError`] comes out is this
 /// language's refusal, in the same words a document expression would
-/// have earned. Probe construction is total for every `Dimension` —
-/// `Formula::literal` refuses only `Count` (which takes `Formula::count`)
-/// and non-finite values (1.0 is finite) — so the impossible branch is
-/// announced as the kernel bug it would be rather than carried as a
-/// refusal a caller could believe in.
+/// have earned. A probe is a reader of a variable at the dimension, which
+/// every dimension has.
 fn lattice(op: Binop, left: Dimension, right: Dimension) -> Result<Dimension, DimensionError> {
-    fn probe(dim: Dimension) -> Expr {
-        if dim == Dimension::Count {
-            return Expr::count(1);
-        }
-        match Expr::literal(1.0, dim) {
-            Ok(e) => e,
-            Err(refusal) => unreachable!(
-                "a unit literal at {dim:?} is constructible — `Expr::literal` refuses only \
-                 Count (taken above) and non-finite values — yet it refused: {refusal}"
-            ),
-        }
-    }
+    let probe = |dim| Expr::var(crate::var::VarId(0), dim);
     let (a, b) = (probe(left), probe(right));
     match op {
         Binop::Add => Expr::add(a, b),
@@ -578,7 +564,7 @@ where
 
     /// Every embedded value leaf's float literal BITS, pre-order — the
     /// bit-semantic comparison substrate (D7), delegating each leaf to
-    /// [`Expr::literal_bits`] rather than re-walking `Expr`.
+    /// [`crate::expr::ExprTree::literal_bits`] rather than re-walking the tree.
     pub fn literal_bits(&self, out: &mut Vec<u64>) {
         match &self.kind {
             MeasureKind::Primitive(_) => {}

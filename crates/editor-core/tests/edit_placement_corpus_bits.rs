@@ -31,6 +31,10 @@ use editor_core::Node;
 /// and with it every row this hashes. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched across the change.
+///
+/// **Re-pinned for INTENT-LITERALS PR D** (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own; every other row held its word.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 7737271460520352144, 0xe80400cf98834e8a),
     ("die", 17378071859743756397, 0x0ca5a266b8fb4528),
@@ -58,7 +62,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("heat_sink", 5378097503098638365, 0x53f657e4f6c62101),
     ("heat_sink", 4217065770962140755, 0x8d91d0b1081ae001),
     ("heat_sink", 6728457609622360334, 0x7ff3479ca4d55648),
-    ("kitchen_sink", 2716691094503816113, 0x3068bc9dfd54a5aa),
+    ("kitchen_sink", 1002884793474252668, 0x1545911d0f1bbf51),
     ("die_pips", 3616840321126588636, 0x8ace02c55b153ded),
     ("part_select", 9397978846600865866, 0xa6a76d525e40e428),
     ("die_composed", 3616840321126588636, 0x8ace02c55b153ded),

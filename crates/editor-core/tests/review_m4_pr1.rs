@@ -286,7 +286,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
         },
     );
     assert!(matches!(
-        eval::<f64>(&editor_core::test_support::stored_expr(&by_id), &env),
+        eval::<f64>(&Clone::clone(&by_id), &env),
         Err(editor_core::EvalError::VarKindMismatch { .. })
     ));
     // apply: a slot carrying the contradiction is refused whichever
@@ -329,7 +329,7 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
     ] {
         let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
         let outcome = std::panic::catch_unwind(|| {
-            eval::<f64>(&editor_core::test_support::stored_expr(&e), &env)
+            eval::<f64>(&Clone::clone(&e), &env)
         });
         let r = outcome.expect("must never panic");
         assert_eq!(
@@ -344,7 +344,7 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
         #[allow(clippy::cast_precision_loss)] // |n| ≤ 2^31: exact
         let expected = n as f64;
         assert_eq!(
-            eval::<f64>(&editor_core::test_support::stored_expr(&e), &env).unwrap(),
+            eval::<f64>(&Clone::clone(&e), &env).unwrap(),
             expected
         );
     }
@@ -781,8 +781,8 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     let expr = Formula::div(len(0.1), scl(0.3)).unwrap();
     let env = VarEnv::<f64>::default();
     let (v1, v2) = (
-        eval::<f64>(&editor_core::test_support::stored_expr(&expr), &env).unwrap(),
-        eval::<f64>(&editor_core::test_support::stored_expr(&expr), &env).unwrap(),
+        eval::<f64>(&Clone::clone(&expr), &env).unwrap(),
+        eval::<f64>(&Clone::clone(&expr), &env).unwrap(),
     );
     assert_eq!(v1.to_bits(), v2.to_bits());
 }
@@ -801,7 +801,7 @@ fn r6_nonfinite_doors_closed() {
     // Door 2: pole and indeterminate-form conduits refused.
     assert_eq!(
         eval::<f64>(
-            &editor_core::test_support::stored_expr(&Formula::div(len(1.0), scl(0.0)).unwrap()),
+            &Clone::clone(&Formula::div(len(1.0), scl(0.0)).unwrap()),
             &env
         ),
         Err(EvalError::NonFiniteResult),
@@ -809,7 +809,7 @@ fn r6_nonfinite_doors_closed() {
     );
     assert_eq!(
         eval::<f64>(
-            &editor_core::test_support::stored_expr(&Formula::div(len(0.0), scl(0.0)).unwrap()),
+            &Clone::clone(&Formula::div(len(0.0), scl(0.0)).unwrap()),
             &env
         ),
         Err(EvalError::NonFiniteResult),
@@ -818,9 +818,7 @@ fn r6_nonfinite_doors_closed() {
     // Arithmetic overflow to inf from finite literals: also refused.
     assert_eq!(
         eval::<f64>(
-            &editor_core::test_support::stored_expr(
-                &Formula::mul(len(f64::MAX), scl(2.0)).unwrap()
-            ),
+            &Formula::mul(len(f64::MAX), scl(2.0)).unwrap(),
             &env
         ),
         Err(EvalError::NonFiniteResult),
@@ -831,7 +829,7 @@ fn r6_nonfinite_doors_closed() {
     // min(inf, 1) = 1 → finite → Ok (poison-flows-through-values).
     let cancelled = Formula::min(Formula::div(len(1.0), scl(0.0)).unwrap(), len(1.0)).unwrap();
     assert_eq!(
-        eval::<f64>(&editor_core::test_support::stored_expr(&cancelled), &env),
+        eval::<f64>(&Clone::clone(&cancelled), &env),
         Ok(1.0),
         "finite final value passes"
     );
@@ -895,8 +893,8 @@ fn r8_interval_lane_representative_and_zero_divisor() {
             .expect("a shallow negation"),
     ];
     for (i, e) in cases.iter().enumerate() {
-        let vf = eval::<f64>(&editor_core::test_support::stored_expr(e), &env_f).unwrap();
-        let vi = eval::<Interval>(&editor_core::test_support::stored_expr(e), &env_i).unwrap();
+        let vf = eval::<f64>(&Clone::clone(e), &env_f).unwrap();
+        let vi = eval::<Interval>(&Clone::clone(e), &env_i).unwrap();
         let (lo, hi, dec) = vi.repr_bits();
         let (lo, hi) = (f64::from_bits(lo), f64::from_bits(hi));
         assert!(dec >= 2, "case {i}: decoration {dec} (poisoned?)");
@@ -912,7 +910,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
     let div0 = Formula::div(len(1.0), scl(0.0)).unwrap();
     assert!(
         matches!(
-            eval::<Interval>(&editor_core::test_support::stored_expr(&div0), &env_i),
+            eval::<Interval>(&Clone::clone(&div0), &env_i),
             Err(editor_core::EvalError::NonFiniteResult)
         ),
         "interval 1/[0,0] refused at the boundary"

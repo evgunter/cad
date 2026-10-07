@@ -4,16 +4,23 @@
 //!
 //! A [`Formula`] is the same dimension-checked tree as the stored
 //! [`Expr`], with the leaves only an author writes beside the shared
-//! ones: a variable by name ([`Formula::named`]). The edit door lowers
-//! it against the document's names ([`Formula::lower`]), and the
-//! stored form has no name leaf to hold, so a stored document reads
-//! every variable by id as a fact of its types.
+//! ones: a variable by name ([`Formula::named`]), a fresh-table entry
+//! ([`Formula::fresh`]) and a written quantity ([`Formula::length_in`]
+//! and its siblings). The edit door lowers it against the document's
+//! names, minting an anonymous free variable for each written quantity
+//! ([`Formula::lower_with`]), and the stored form has none of those
+//! leaves to hold, so a stored document reads every variable by id and
+//! holds no float in an expression, as facts of its types.
 
 use crate::doc::VarName;
-use crate::expr::{AuthoredLeaf, Dimension, DimensionError, Expr, ExprTree, StoredLeaf, Unlowered};
+use crate::expr::{
+    AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, ExprTree, Quantity, StoredLeaf,
+    Terminal, UnitSym, Unlowered,
+};
 use crate::var::VarId;
 
-/// The authored expression: the shared leaves, plus a variable by name.
+/// The authored expression: the shared leaves, plus a variable by name,
+/// a fresh-table entry and a written quantity.
 pub type Formula = ExprTree<AuthoredLeaf>;
 
 /// **A name leaf the lowering did not resolve**, the first in
@@ -75,13 +82,20 @@ impl core::fmt::Display for FreshFault {
     }
 }
 
-/// **Why a formula did not lower**: a name, or a fresh-table read.
+/// **Why a formula did not lower**: a name, a fresh-table read, or a
+/// written quantity lowered where nothing mints.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LowerFault {
     /// A name leaf the scope does not resolve.
     Name(NameFault),
     /// A fresh leaf the edit's table does not resolve.
     Fresh(FreshFault),
+    /// A written quantity, read at `dim`, where the lowering mints no
+    /// variable for it: only an edit's door mints.
+    Quantity {
+        /// The dimension the quantity is read at.
+        dim: Dimension,
+    },
 }
 
 impl core::fmt::Display for LowerFault {
@@ -89,6 +103,10 @@ impl core::fmt::Display for LowerFault {
         match self {
             Self::Name(fault) => fault.fmt(f),
             Self::Fresh(fault) => fault.fmt(f),
+            Self::Quantity { dim } => write!(
+                f,
+                "a written {dim} is a variable the edit door mints, and nothing mints here"
+            ),
         }
     }
 }
@@ -123,17 +141,20 @@ pub(crate) enum SlotRoot<'a> {
 // `Expr`'s do.
 #[allow(clippy::should_implement_trait)]
 impl Formula {
-    /// A continuous dimensioned literal in canonical kernel units.
-    /// Refuses [`Dimension::Count`] — Count literals are integers
-    /// ([`Formula::count`]) — and NON-FINITE values (ruled door 1 of the
-    /// non-finite policy: the kernel never produces NaN/inf
-    /// legitimately, so recipe data must not admit them; F3's
-    /// persist-time refusal then has nothing to catch).
+    /// A written quantity in canonical kernel units, remembering the
+    /// canonical unit for its dimension. Refuses [`Dimension::Count`] —
+    /// a count is an integer ([`Formula::count`]) — and NON-FINITE
+    /// values (ruled door 1 of the non-finite policy: the kernel never
+    /// produces NaN/inf legitimately, so recipe data must not admit
+    /// them).
     pub fn literal(value: f64, dim: Dimension) -> Result<Self, DimensionError> {
-        Self::literal_leaf(value, dim)
+        if dim == Dimension::Count {
+            return Err(DimensionError::LiteralCountIsInteger);
+        }
+        Self::literal_with_unit(value, dim, UnitSym::canonical_for(dim).def())
     }
 
-    /// A continuous literal that REMEMBERS the display unit it was
+    /// A written quantity that REMEMBERS the display unit it was
     /// authored in (LIB-SWITCH §4g; the text door's `25 mm` row).
     /// `value` is already canonical (meters/radians) — the parser does
     /// its one multiply before this door. The unit's quantity must
@@ -142,23 +163,66 @@ impl Formula {
     ///
     /// The unit is presentation metadata (DESIGN.md D6): it round-trips
     /// through persistence and feeds the display formatter, but never
-    /// enters [`Formula::bit_eq`], [`Formula::literal_bits`], content/naming
+    /// enters [`Formula::bit_eq`], [`Formula::literal_bits`], content
     /// keys, or evaluation.
     pub fn literal_with_unit(
         value: f64,
         dim: Dimension,
         unit: quantity::UnitDef,
     ) -> Result<Self, DimensionError> {
-        Self::literal_leaf_with_unit(value, dim, unit)
+        let unit = UnitSym::checked_for(dim, unit)?;
+        if dim == Dimension::Count {
+            return Err(DimensionError::LiteralCountIsInteger);
+        }
+        if !value.is_finite() {
+            return Err(DimensionError::NonFiniteLiteral);
+        }
+        Ok(Self::own_leaf(
+            AuthoredLeaf::Quantity(Quantity {
+                value,
+                unit,
+                distribution: None,
+            }),
+            dim,
+        ))
     }
 
-    /// A continuous literal from an AUTHORED length — the value and
+    /// A written dimensionless value, in the dimensionless unit: the
+    /// edit door mints a free `Scalar` variable holding it.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn scalar(value: f64) -> Result<Self, DimensionError> {
+        Self::literal(value, Dimension::Scalar)
+    }
+
+    /// **A bare number, as the text door reads one**: the exact
+    /// rational constant its shortest decimal spells, where that is one
+    /// in range whose value has `value`'s bits (`2.0`, `0.1`), and a
+    /// written dimensionless value otherwise (`0.30000000000000004`,
+    /// `-0.0`). Inside a formula the one is a constant and the other a
+    /// variable; at a slot's root either mints a free `Scalar` (VR6).
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn number(value: f64) -> Result<Self, DimensionError> {
+        match crate::expr::Ratio::from_decimal(&format!("{value:?}")) {
+            Ok(ratio) if ratio.eval::<f64>().to_bits() == value.to_bits() => {
+                Ok(Self::ratio_leaf(ratio))
+            }
+            _ => Self::scalar(value),
+        }
+    }
+
+    /// A written quantity from an AUTHORED length — the value and
     /// the notation it was written in, together
     /// ([`quantity::WrittenLength`]).
     ///
     /// The door library and GUI authoring should reach for. A caller
     /// never spells the dimension — a `WrittenLength` is a length, so
-    /// there is no second fact to keep in step — and the literal
+    /// there is no second fact to keep in step — and the quantity
     /// ALWAYS remembers a unit, because an authored quantity always
     /// names the one it is written in (`quantity::written`'s module
     /// docs). [`Formula::literal`] remains the door for a value whose
@@ -182,7 +246,7 @@ impl Formula {
         Self::literal_with_unit(written.meters(), Dimension::Length, written.unit().def())
     }
 
-    /// A continuous literal from an AUTHORED angle —
+    /// A written quantity from an AUTHORED angle —
     /// [`Formula::written_length`]'s mirror, and everything that door's
     /// docs say holds here with `AngleUnit` and `Dimension::Angle`.
     ///
@@ -193,18 +257,11 @@ impl Formula {
         Self::literal_with_unit(written.radians(), Dimension::Angle, written.unit().def())
     }
 
-    /// A continuous literal from a length authored as `value` in
+    /// A written quantity from a length authored as `value` in
     /// `unit` — exactly
     /// `Formula::written_length(WrittenLength::in_unit(value, unit))`,
     /// the composition an authoring caller holding a number and a unit
     /// writes at every authored length.
-    ///
-    /// Sugar over [`Formula::written_length`] and
-    /// [`quantity::WrittenLength::in_unit`], and nothing besides: it
-    /// stores the notation the same way, refuses exactly what
-    /// `written_length` refuses, and mints no type of its own. The two
-    /// halves stay the doors — reach for them when the
-    /// [`quantity::WrittenLength`] is already in hand.
     ///
     /// # Errors
     ///
@@ -213,11 +270,8 @@ impl Formula {
         Self::written_length(quantity::WrittenLength::in_unit(value, unit))
     }
 
-    /// A continuous literal from an angle authored as `value` in
-    /// `unit` — [`Formula::length_in`]'s mirror, exactly
-    /// `Formula::written_angle(WrittenAngle::in_unit(value, unit))`, and
-    /// everything that door's docs say holds here with an
-    /// [`quantity::AngleUnit`].
+    /// A written quantity from an angle authored as `value` in
+    /// `unit` — [`Formula::length_in`]'s mirror.
     ///
     /// # Errors
     ///
@@ -225,9 +279,73 @@ impl Formula {
     pub fn angle_in(value: f64, unit: quantity::AngleUnit) -> Result<Self, DimensionError> {
         Self::written_angle(quantity::WrittenAngle::in_unit(value, unit))
     }
-    /// A `Count` literal — an exact integer.
+
+    /// The integer `value`: a constant inside a formula, and at a
+    /// slot's root a written count, which mints a free `Count`
+    /// variable (VR6).
     pub fn count(value: i64) -> Self {
-        Self::count_leaf(value)
+        Self::integer(value)
+    }
+
+    /// This lone written quantity carrying `distribution` (ERROR-DESIGN
+    /// E1/E2): the variable the door mints for it carries it.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::DistributionRefusal::NotAWrittenValue`] where this is
+    /// not one written quantity, and
+    /// [`crate::DistributionRefusal::Invalid`] for a distribution that
+    /// breaks an E2 invariant.
+    pub fn with_distribution(
+        mut self,
+        distribution: Option<crate::distribution::Distribution>,
+    ) -> Result<Self, crate::DistributionRefusal> {
+        if let Some(d) = &distribution
+            && let Err(fault) = d.check()
+        {
+            return Err(crate::DistributionRefusal::Invalid { fault });
+        }
+        match self.kind_mut() {
+            ExprKind::Leaf(AuthoredLeaf::Quantity(q)) => {
+                q.distribution = distribution;
+                Ok(self)
+            }
+            _ => Err(crate::DistributionRefusal::NotAWrittenValue),
+        }
+    }
+
+    /// This formula with a lone written quantity's distribution set to
+    /// `distribution`, unchecked: the door that mints its variable
+    /// checks it.
+    pub(crate) fn carrying(
+        mut self,
+        distribution: Option<crate::distribution::Distribution>,
+    ) -> Self {
+        if let ExprKind::Leaf(AuthoredLeaf::Quantity(q)) = self.kind_mut() {
+            q.distribution = distribution;
+        }
+        self
+    }
+
+    /// The written quantity this formula is, where it is one alone.
+    pub fn as_quantity(&self) -> Option<&Quantity> {
+        match self.kind() {
+            ExprKind::Leaf(AuthoredLeaf::Quantity(q)) => Some(q),
+            _ => None,
+        }
+    }
+
+    /// A lone written quantity's exact canonical-units value (`None`
+    /// for any other formula) — with [`Formula::display_unit`], the
+    /// display formatter's read surface.
+    pub fn literal_value(&self) -> Option<f64> {
+        self.as_quantity().map(Quantity::value)
+    }
+
+    /// The display unit of a lone written quantity — `None` for every
+    /// other formula, because only a quantity is WRITTEN in a unit.
+    pub fn display_unit(&self) -> Option<quantity::UnitDef> {
+        self.as_quantity().map(Quantity::unit)
     }
 
     /// A variable by name, read at `dim`: lowered to a reader of the
@@ -249,13 +367,15 @@ impl Formula {
             K::Var(var) => SlotRoot::Var(*var),
             K::Leaf(AuthoredLeaf::Name(name)) => SlotRoot::Name(name, self.dim()),
             K::Leaf(AuthoredLeaf::Fresh(index)) => SlotRoot::Fresh(*index, self.dim()),
-            K::Literal(lit) => SlotRoot::Value(crate::doc::FreeVar::Continuous {
-                dim: self.dim(),
-                value: lit.value,
-                display_unit: lit.display_unit,
+            K::Leaf(AuthoredLeaf::Quantity(q)) => SlotRoot::Value(q.free_var(self.dim())),
+            // A lone number is a typed value, not a constant (Q1).
+            K::Integer(value) => SlotRoot::Value(crate::doc::FreeVar::Count { value: *value }),
+            K::Ratio(ratio) => SlotRoot::Value(crate::doc::FreeVar::Continuous {
+                dim: Dimension::Scalar,
+                value: ratio.eval(),
+                display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
             }),
-            K::CountLiteral(value) => SlotRoot::Value(crate::doc::FreeVar::Count { value: *value }),
             _ => SlotRoot::Formula,
         }
     }
@@ -288,16 +408,76 @@ impl Formula {
                     _ => Formula::named(name.clone(), dim),
                 },
                 AuthoredLeaf::Fresh(index) => Formula::fresh(*index, dim),
+                AuthoredLeaf::Quantity(q) => Formula::own_leaf(AuthoredLeaf::Quantity(*q), dim),
             })
         });
         held
     }
 
+    /// **The written quantities this formula holds**, with the
+    /// dimension each is read at, in pre-order: what the edit door
+    /// mints, one anonymous free variable each, before it lowers the
+    /// formula ([`Self::lower_with`]).
+    pub(crate) fn quantities(&self) -> Vec<crate::doc::FreeVar> {
+        let mut out = Vec::new();
+        self.visit_leaves(&mut |leaf, dim| {
+            if let AuthoredLeaf::Quantity(q) = leaf {
+                out.push(q.free_var(dim));
+            }
+        });
+        out
+    }
+
+    /// **The variables this formula reads once lowered**, with the
+    /// dimension each is read at, in pre-order: every reader by id, and
+    /// every name and fresh entry that lowers, read as the variable it
+    /// lowers to. A written quantity reads nothing yet: the variable it
+    /// lowers to is minted for it.
+    pub(crate) fn lowered_reads(
+        &self,
+        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        fresh: &[(VarId, Dimension)],
+    ) -> Vec<(VarId, Dimension)> {
+        let mut out = Vec::new();
+        self.visit_terminals(&mut |terminal, dim| match terminal {
+            Terminal::Var(var) => out.push((var, dim)),
+            Terminal::Leaf(leaf) => out.extend(leaf_fault(leaf, dim, scope, fresh).ok().map(|var| (var, dim))),
+            Terminal::Constant => {}
+        });
+        out
+    }
+
+    /// **The first leaf only a document's edit door resolves**, in
+    /// pre-order — a name, or a fresh-table read — as it refuses where
+    /// no name is held and no table is read; `None` for a formula that
+    /// evaluates as it stands ([`crate::eval`]).
+    #[must_use]
+    pub fn unresolvable(&self) -> Option<LowerFault> {
+        self.unresolved(&|_| None, &[])
+    }
+
+    /// **The first name or fresh read that does not lower**, in
+    /// pre-order — what [`Self::lower_with`] would refuse, asked before
+    /// anything is minted for the formula's quantities.
+    pub(crate) fn unresolved(
+        &self,
+        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        fresh: &[(VarId, Dimension)],
+    ) -> Option<LowerFault> {
+        let mut first = None;
+        self.visit_leaves(&mut |leaf, dim| {
+            if first.is_none() && !matches!(leaf, AuthoredLeaf::Quantity(_)) {
+                first = leaf_fault(leaf, dim, scope, fresh).err();
+            }
+        });
+        first
+    }
+
     /// **The stored expression this formula lowers to** in `scope`: every
     /// name leaf a reader of the variable `scope` resolves it to, where
     /// that variable's kind is the dimension the leaf reads it at — the
-    /// one lowering rule. Nothing is minted, and a fresh-table read
-    /// does not lower ([`Self::lower_with`]).
+    /// one lowering rule. Nothing is minted, so neither a fresh-table
+    /// read nor a written quantity lowers ([`Self::lower_with`]).
     ///
     /// # Errors
     ///
@@ -306,11 +486,14 @@ impl Formula {
         &self,
         scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
     ) -> Result<Expr, LowerFault> {
-        self.lower_with(scope, &[])
+        self.lower_with(scope, &[], &[])
     }
 
     /// [`Self::lower`], each fresh leaf `i` a reader of `fresh[i]`, the
-    /// variable the edit minted for entry `i`, with its dimension.
+    /// variable the edit minted for entry `i`, with its dimension, and
+    /// the `k`-th written quantity, in pre-order, a reader of
+    /// `minted[k]`, the variable the door minted for it
+    /// ([`Self::quantities`]).
     ///
     /// # Errors
     ///
@@ -319,34 +502,54 @@ impl Formula {
         &self,
         scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
         fresh: &[(VarId, Dimension)],
+        minted: &[VarId],
     ) -> Result<Expr, LowerFault> {
+        let mut quantities = minted.iter();
         self.try_map_leaves(&mut |leaf, dim| match leaf {
-            AuthoredLeaf::Name(name) => match scope(name) {
-                Some((var, declared)) if declared == dim => Ok(Expr::var(var, dim)),
-                Some((var, declared)) => Err(LowerFault::Name(NameFault {
-                    name: name.clone(),
-                    dim,
-                    why: Unlowered::Kind { var, declared },
-                })),
-                None => Err(LowerFault::Name(NameFault {
-                    name: name.clone(),
-                    dim,
-                    why: Unlowered::Unheld,
-                })),
-            },
-            &AuthoredLeaf::Fresh(index) => match fresh.get(usize::from(index)) {
-                Some(&(var, held)) if held == dim => Ok(Expr::var(var, dim)),
-                held => Err(LowerFault::Fresh(FreshFault {
-                    index,
-                    dim,
-                    held: held.map(|&(_, held)| held),
-                })),
-            },
+            AuthoredLeaf::Quantity(_) => quantities
+                .next()
+                .map(|&var| Expr::var(var, dim))
+                .ok_or(LowerFault::Quantity { dim }),
+            other => leaf_fault(other, dim, scope, fresh).map(|var| Expr::var(var, dim)),
         })
     }
 }
 
-/// **Re-authoring**: a stored expression is a formula with no name
+/// **The variable a name or fresh leaf lowers to**, read at `dim`, or
+/// why it does not.
+fn leaf_fault(
+    leaf: &AuthoredLeaf,
+    dim: Dimension,
+    scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+    fresh: &[(VarId, Dimension)],
+) -> Result<VarId, LowerFault> {
+    match leaf {
+        AuthoredLeaf::Name(name) => match scope(name) {
+            Some((var, declared)) if declared == dim => Ok(var),
+            Some((var, declared)) => Err(LowerFault::Name(NameFault {
+                name: name.clone(),
+                dim,
+                why: Unlowered::Kind { var, declared },
+            })),
+            None => Err(LowerFault::Name(NameFault {
+                name: name.clone(),
+                dim,
+                why: Unlowered::Unheld,
+            })),
+        },
+        &AuthoredLeaf::Fresh(index) => match fresh.get(usize::from(index)) {
+            Some(&(var, held)) if held == dim => Ok(var),
+            held => Err(LowerFault::Fresh(FreshFault {
+                index,
+                dim,
+                held: held.map(|&(_, held)| held),
+            })),
+        },
+        AuthoredLeaf::Quantity(_) => Err(LowerFault::Quantity { dim }),
+    }
+}
+
+/// **Re-authoring**: a stored expression is a formula with no authored
 /// leaf, reading every variable by id.
 impl From<&Expr> for Formula {
     fn from(stored: &Expr) -> Self {
@@ -367,9 +570,8 @@ impl From<Expr> for Formula {
 }
 
 /// **A stored expression equals the formula that re-authors it**: the
-/// same tree, reading the same variables by id and holding no name.
-/// The comparison `PartialEq` makes within either form (IEEE on
-/// literals, display units unread).
+/// same tree, reading the same variables by id and holding no authored
+/// leaf.
 impl PartialEq<Formula> for Expr {
     fn eq(&self, formula: &Formula) -> bool {
         Self::try_from(formula).is_ok_and(|stored| *self == stored)
@@ -382,8 +584,8 @@ impl PartialEq<Expr> for Formula {
     }
 }
 
-/// A formula with no name leaf is already stored: the lowering in a
-/// scope that holds no name.
+/// A formula with no authored leaf is already stored: the lowering in
+/// a scope that holds no name, minting nothing.
 impl TryFrom<&Formula> for Expr {
     type Error = LowerFault;
     fn try_from(formula: &Formula) -> Result<Self, LowerFault> {

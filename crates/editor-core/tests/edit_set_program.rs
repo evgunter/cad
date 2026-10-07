@@ -1023,7 +1023,7 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     let wire = serde_json::to_string(&edit).expect("serializes");
     assert_eq!(
         wire,
-        r#"{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
+        r#"{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Quantity":{"value":0.0,"dim":"Length","unit":"m"}},{"Quantity":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Quantity":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
     );
 
     let r = rod("set-program-old-file", &[CREASE]);

@@ -860,10 +860,7 @@ mod tests {
             C::DegenerateSpacing => K::DegenerateSpacing,
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
-                step: crate::expr::Expr::try_from(
-                    crate::Formula::angle_in(400.0, quantity::DEG).expect("a literal angle"),
-                )
-                .expect("a literal holds no name"),
+                step: crate::Formula::angle_in(400.0, quantity::DEG).expect("a literal angle"),
                 evaluated: None,
                 turns: crate::StepTurns::Within(
                     crate::Formula::angle_in(40.0, quantity::DEG).expect("a literal angle"),

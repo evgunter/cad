@@ -124,6 +124,10 @@ fn sans_epsilon(t: &str) -> String {
 /// and with it every row this hashes. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched across the change.
+///
+/// **Re-pinned for INTENT-LITERALS PR D** (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own; every other row held its word.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x9337a274a3acb726, 0x46506aec78b12bc0),
     ("corner_table", 0x140365cafb44d051, 0xd814d9aa6a09ba37),
@@ -141,7 +145,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xd035d9e7fe10f038,
     ),
     ("declared_tangency", 0x1d76ad1c387f0f76, 0x9fd2c3709cf881a5),
-    ("kitchen_sink", 0xae8b443f94575e7f, 0x48f8b57f8486ab4f),
+    ("kitchen_sink", 0x3783153e0d6e3957, 0xd784b5102147178d),
     ("cut_cylinder", 0xe342de298cf51515, 0x5134a93fc0fc00d8),
     ("measured_web", 0x6fe2b289032f2c02, 0xaaf9fe407ce9511d),
     ("boss_union", 0xc91fa148488b772d, 0xcba022cd02d011f3),

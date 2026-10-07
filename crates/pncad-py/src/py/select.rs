@@ -705,17 +705,18 @@ impl GeomPred {
     /// `SelectRefusal` with reason `not_a_length`), where the
     /// predicate is prepared.
     ///
-    /// Nor is there a document to read a name against: the value is
-    /// lowered with none in scope, so a formula that writes a name
-    /// refuses here, `EvalError` with variant `unlowered_name`.
+    /// Nor is there a document to read a name against, so a formula
+    /// that writes a name refuses here, `EvalError` with variant
+    /// `unlowered_name`.
     #[staticmethod]
     fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: &Formula) -> PyResult<Self> {
-        let value = pncad::document::Expr::try_from(&value.0)
-            .map_err(|fault| lower_fault_err(py, &fault))?;
+        if let Some(fault) = value.0.unresolvable() {
+            return Err(lower_fault_err(py, &fault));
+        }
         Ok(Self(s::GeomPred::DatumDistance {
             datum: datum.0,
             cmp: cmp.to_kernel(),
-            value,
+            value: value.0.clone(),
         }))
     }
 

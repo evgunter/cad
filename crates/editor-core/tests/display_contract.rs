@@ -833,6 +833,7 @@ test_utils::f6_variants! {
         NotAnIdentifier,
         NotOneToken,
         Padded,
+        Keyword,
     ];
 }
 
@@ -859,6 +860,7 @@ fn param_name_reason_display_names_its_content_not_its_struct() {
             vec!["byte 1", "\"+\"", "after the identifier"],
         ),
         (VarNameReason::Padded, vec!["padded", "whitespace"]),
+        (VarNameReason::Keyword, vec!["keyword", "reads as itself"]),
     ];
     assert_f6_every_variant(&cases, &PARAM_NAME_REASON, &[]);
     // The wrapper frames the reason after the quoted text, and quotes

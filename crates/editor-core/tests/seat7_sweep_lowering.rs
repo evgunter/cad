@@ -313,6 +313,11 @@ fn both_sweeps_evaluate_in_one_document() {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -320,7 +325,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0x2c54_ec43_5595_dc12),
         ("cut_cylinder", 0x5c36_b5b4_37a0_06a4),
         ("boss_union", 0x3c93_af35_a878_6cc3),
-        ("kitchen_sink", 0xae52_cf84_2852_caa0),
+        ("kitchen_sink", 0x6a16_0e90_8bf4_7d95),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

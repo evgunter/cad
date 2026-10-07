@@ -11,7 +11,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::Expr;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
@@ -166,7 +165,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         path: vec![0],
     };
     assert_eq!(
-        doc.expr_at(&path).as_ref().and_then(Expr::literal_value),
+        doc.expr_at(&path).as_ref().and_then(Formula::literal_value),
         Some(0.5),
         "expr_at descends into the program slot"
     );
@@ -182,9 +181,15 @@ fn set_expression_and_expr_at_route_into_programs() {
         .expect("sub-path edit applies")
         .doc;
     assert_eq!(
-        doc.expr_at(&path).as_ref().and_then(Expr::literal_value),
+        doc.expr_at(&path).as_ref().and_then(Formula::literal_value),
         Some(0.375)
     );
+}
+
+/// The value a constant formula evaluates to: a written quantity's, or
+/// a bare number's.
+fn value_of(formula: &Formula) -> Option<f64> {
+    editor_core::eval::<f64>(formula, &editor_core::VarEnv::default()).ok()
 }
 
 /// Dimension discipline at the door: a program slot refuses an
@@ -481,7 +486,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // …and the arrival role addresses the ARRIVAL spec's argument,
         // which is the whole of issue #829.
         assert_eq!(
-            program.expr(fused).and_then(Formula::literal_value),
+            program.expr(fused).and_then(value_of),
             Some(authored),
             "{arrival:?} addresses the arrival spec's argument"
         );
@@ -496,13 +501,13 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 step: 1,
                 arg: incoming,
             })
-            .and_then(Formula::literal_value);
+            .and_then(value_of);
         *program
             .expr_mut(fused)
             .expect("the arrival role is writable") = replacement.clone();
         assert_eq!(
-            program.expr(fused).and_then(Formula::literal_value),
-            replacement.literal_value()
+            program.expr(fused).and_then(value_of),
+            value_of(&replacement)
         );
         assert_eq!(
             program
@@ -511,7 +516,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                     step: 1,
                     arg: incoming,
                 })
-                .and_then(Formula::literal_value),
+                .and_then(value_of),
             incoming_before,
             "writing the arrival argument moved the incoming one"
         );

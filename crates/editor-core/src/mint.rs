@@ -166,17 +166,16 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
 
 /// **What an anonymous variable holds, as its mint reads it**
 /// ([`MintingEdit::DeclareAnonymous`]): a continuous value's bits, a
-/// count, or a definition with every literal in its canonical unit. A
-/// display unit is never in it (D6): a value's carries none, and a
-/// definition's literals are read canonical, so `w + 125 mm` and
-/// `w + 0.125 m` mint one id.
+/// count, or a definition. A display unit is never in it (D6): a
+/// value's carries none, and a definition holds no float, its written
+/// quantities being variables minted before it.
 #[derive(Serialize)]
 pub(crate) enum Held {
     /// A continuous value, by its bits.
     Value(u64),
     /// A count.
     Count(i64),
-    /// A definition, its display units erased.
+    /// A definition.
     Defined(crate::Expr),
 }
 
@@ -188,11 +187,7 @@ impl Held {
                 Self::Value(value.to_bits())
             }
             crate::var::VarDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
-            crate::var::VarDef::Defined(expr) => {
-                let mut canonical = expr.clone();
-                canonical.erase_display_units();
-                Self::Defined(canonical)
-            }
+            crate::var::VarDef::Defined(expr) => Self::Defined(expr.clone()),
         }
     }
 }
@@ -780,10 +775,10 @@ mod tests {
         );
     }
 
-    const PIN_NODE: u64 = 14_781_035_785_231_637_513;
-    const PIN_FIRST: u64 = 14_986_585_060_459_383_076;
-    const PIN_LAST: u64 = 1_356_137_351_626_931_182;
-    const PIN_CHAIN: &str = "12d1f7bc765cbbee68bd2a7bb046ab2b1a0027e350a1c8d5d66eb8bf72e7d5ba";
+    const PIN_NODE: u64 = 17_256_259_864_915_814_436;
+    const PIN_FIRST: u64 = 5_791_587_197_423_663_483;
+    const PIN_LAST: u64 = 6_517_970_377_860_469_354;
+    const PIN_CHAIN: &str = "5a747b8664e4526a15b0cb9936bea2775190ffb8fe8cb3810aa0d5be00cc8865";
 
     const LEN: VarKind = VarKind::Length;
 

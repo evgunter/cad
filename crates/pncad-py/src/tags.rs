@@ -2275,6 +2275,8 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
         DimensionError::NestedTooDeep { .. } => "nested_too_deep",
+        DimensionError::ConstantOutOfRange { .. } => "constant_out_of_range",
+        DimensionError::RatioNotReduced { .. } => "ratio_not_reduced",
     }
 }
 
@@ -2347,6 +2349,17 @@ pub fn fresh_fault_tag(fault: &pncad::document::FreshFault) -> &'static str {
     }
 }
 
+/// The stable tag for a formula that does not lower: a name
+/// ([`name_fault_tag`]), a fresh-table read ([`fresh_fault_tag`]), or a
+/// written quantity where nothing mints its variable.
+pub fn lower_fault_tag(fault: &pncad::document::LowerFault) -> &'static str {
+    match fault {
+        pncad::document::LowerFault::Name(fault) => name_fault_tag(fault),
+        pncad::document::LowerFault::Fresh(fault) => fresh_fault_tag(fault),
+        pncad::document::LowerFault::Quantity { .. } => "quantity_unminted",
+    }
+}
+
 /// The stable tag for an evaluation refusal (`eval` / `eval_count`).
 ///
 /// Note what is NOT here: division by zero and out-of-domain trig.
@@ -2364,6 +2377,7 @@ pub fn eval_error_tag(err: &EvalError) -> &'static str {
         EvalError::CountOverflow => "count_overflow",
         EvalError::CountToScalarOutOfRange(_) => "count_to_scalar_out_of_range",
         EvalError::NonFiniteResult => "non_finite_result",
+        EvalError::Unlowered(fault) => lower_fault_tag(fault),
     }
 }
 

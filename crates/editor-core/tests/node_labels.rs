@@ -1155,7 +1155,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let from_extrude = [editor_core::GeomPred::DatumDistance {
         datum: extrude,
         cmp: Cmp::Approx,
-        value: editor_core::test_support::stored_expr(&fixture::len(0.0)),
+        value: fixture::len(0.0),
     }];
     let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
     let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.var_env(), tol)

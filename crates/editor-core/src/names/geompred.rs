@@ -67,7 +67,7 @@ use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
 use crate::eval::{DatumValue, Evaluation, NodeStanding, ValuePayload};
-use crate::expr::{Dimension, Expr, VarEnv};
+use crate::expr::{Dimension, VarEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
 use crate::names::table::EntityKey;
@@ -159,9 +159,11 @@ pub enum GeomPred {
         datum: RecipeNodeId,
         /// Which side of the value a candidate must land on.
         cmp: Cmp,
-        /// The stated length. `Dimension::Length` — any other
-        /// dimension refuses.
-        value: Expr,
+        /// The stated length, as written: a quantity, or a formula
+        /// over the document's variables by id. `Dimension::Length` —
+        /// any other dimension refuses, and so does a name, which only
+        /// a document's edit door resolves.
+        value: crate::Formula,
     },
     // RESERVED, unbuilt (GS-Q2): `Convex` / `Reflex`. See the module
     // docs — the slot is named there so the door is visibly open.

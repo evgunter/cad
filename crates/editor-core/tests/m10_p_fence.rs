@@ -197,6 +197,16 @@
 //! [`the_corpus_geometry_is_bit_identical_with_ids_masked`], which
 //! masks every id, held its number across the change untouched.
 //!
+//! RE-BLESSED FOR AN `Expr` THAT HOLDS NO FLOAT (INTENT-LITERALS PR D),
+//! all three rows, for ids alone: a written quantity inside a formula
+//! mints an anonymous variable of its own, so `kitchen_sink`, the one
+//! document whose formulas hold one, mints other ids
+//! (`lib_g16_corpus_name_digests` moved on that row alone). No outcome or point moved: the id-free
+//! row held, and an id-free dump of every outcome and point at `f64`
+//! AND at `Interval`, taken on PR C's head and on this one, is
+//! byte-identical — no constant the corpus's geometry reads is
+//! non-dyadic, so no enclosure widened.
+//!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
 //! out here rather than folded in with the roster moves.
@@ -769,7 +779,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x71a0_ec4a_f2dc_5759, 0x3543_1b6f_a4f8_31ad),
+        (0x3f49_2cf6_4329_026b, 0xcd14_b491_ccf2_d007),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -795,7 +805,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x08b0_7030_4ba2_d22a, 0x0072_4762_032d_27de),
+        (0x2231_aaf2_6728_dc90, 0x0cd2_ed68_6793_9bdc),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -819,7 +829,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x71a0_ec4a_f2dc_5759, 0x3543_1b6f_a4f8_31ad),
+        (0x3f49_2cf6_4329_026b, 0xcd14_b491_ccf2_d007),
         "the corpus's Probe evaluation moved"
     );
 }

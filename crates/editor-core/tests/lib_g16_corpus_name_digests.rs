@@ -135,6 +135,10 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// and with it every row this hashes. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched across the change.
+///
+/// **Re-pinned for INTENT-LITERALS PR D** (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own; every other row held its word.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xc1c07d29e5e45713),
     ("corner_table", 0x8062341aeedb234c),
@@ -144,7 +148,7 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0xf575558525fdc545),
     ("nested_islands_106_depth2", 0x28d3195271cbb85b),
     ("declared_tangency", 0x84cd6a5097c4d15b),
-    ("kitchen_sink", 0xb88d5f9178ec62f5),
+    ("kitchen_sink", 0xa9bcf0315c2331e8),
     ("cut_cylinder", 0x10480e5d7b09ca38),
     ("measured_web", 0x5a25069ba9098f92),
     ("boss_union", 0x5cb7ad10c382efcf),

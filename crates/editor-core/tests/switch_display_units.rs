@@ -129,17 +129,17 @@ fn mismatched_display_unit_refuses_at_construction() {
 /// unit-less literal to spell.
 #[test]
 fn wire_door_refuses_unknown_units_and_writes_every_one() {
-    let bad_symbol = r#"{"Literal":{"value":0.025,"dim":"Length","unit":"furlong"}}"#;
+    let bad_symbol = r#"{"Quantity":{"value":0.025,"dim":"Length","unit":"furlong"}}"#;
     let err = serde_json::from_str::<Formula>(bad_symbol).unwrap_err();
     assert!(
         err.to_string().contains("furlong"),
         "unknown symbol names itself: {err}"
     );
-    let bad_field = r#"{"Literal":{"value":0.025,"dim":"Length","units":"mm"}}"#;
+    let bad_field = r#"{"Quantity":{"value":0.025,"dim":"Length","units":"mm"}}"#;
     assert!(serde_json::from_str::<Formula>(bad_field).is_err());
     // A MISSING unit refuses too: it is a v19 spelling, and the field
     // is no longer optional.
-    let absent = r#"{"Literal":{"value":0.025,"dim":"Length"}}"#;
+    let absent = r#"{"Quantity":{"value":0.025,"dim":"Length"}}"#;
     assert!(
         serde_json::from_str::<Formula>(absent).is_err(),
         "a literal with no unit is a pre-v20 spelling and has no meaning now"
@@ -185,17 +185,17 @@ fn wire_door_refuses_unknown_units_and_writes_every_one() {
 fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
     for (json, unit_dim, literal_dim) in [
         (
-            r#"{"Literal":{"value":0.5,"dim":"Angle","unit":"mm"}}"#,
+            r#"{"Quantity":{"value":0.5,"dim":"Angle","unit":"mm"}}"#,
             "length",
             "angle",
         ),
         (
-            r#"{"Literal":{"value":0.5,"dim":"Length","unit":"deg"}}"#,
+            r#"{"Quantity":{"value":0.5,"dim":"Length","unit":"deg"}}"#,
             "angle",
             "length",
         ),
         (
-            r#"{"Literal":{"value":0.5,"dim":"Scalar","unit":"mm"}}"#,
+            r#"{"Quantity":{"value":0.5,"dim":"Scalar","unit":"mm"}}"#,
             "length",
             "scalar",
         ),
@@ -288,8 +288,18 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         // The text parser reaches the same row from the suffix, and
         // the canonical value is the decimal times the row's factor,
         // one multiply (the parser's stated contract).
-        let parsed = parse_formula(&format!("2.5 {}", row.symbol()), &no_params())
-            .unwrap_or_else(|err| panic!("`2.5 {}` must parse: {err:?}", row.symbol()));
+        let text = format!("2.5 {}", row.symbol());
+        let read = parse_formula(&text, &no_params())
+            .unwrap_or_else(|err| panic!("`{text}` must parse: {err:?}"));
+        // The dimensionless row has no suffix to read, and bare digits
+        // spell the constant they equal: the written value is the
+        // constructor's alone.
+        let parsed = if row.symbol().is_empty() {
+            assert_eq!(read.as_ratio(), editor_core::Ratio::new(5, 2).ok(), "{text}");
+            e.clone()
+        } else {
+            read
+        };
         assert_eq!(
             parsed.dim(),
             dim,
@@ -356,36 +366,36 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
 const UNIT_WIRE_GOLDEN: [(&str, &str); 8] = [
     (
         "mm",
-        r#"{"Literal":{"value":0.0025,"dim":"Length","unit":"mm"}}"#,
+        r#"{"Quantity":{"value":0.0025,"dim":"Length","unit":"mm"}}"#,
     ),
     (
         "cm",
-        r#"{"Literal":{"value":0.025,"dim":"Length","unit":"cm"}}"#,
+        r#"{"Quantity":{"value":0.025,"dim":"Length","unit":"cm"}}"#,
     ),
     (
         "m",
-        r#"{"Literal":{"value":2.5,"dim":"Length","unit":"m"}}"#,
+        r#"{"Quantity":{"value":2.5,"dim":"Length","unit":"m"}}"#,
     ),
     (
         "in",
-        r#"{"Literal":{"value":0.0635,"dim":"Length","unit":"in"}}"#,
+        r#"{"Quantity":{"value":0.0635,"dim":"Length","unit":"in"}}"#,
     ),
     (
         "deg",
-        r#"{"Literal":{"value":0.04363323129985824,"dim":"Angle","unit":"deg"}}"#,
+        r#"{"Quantity":{"value":0.04363323129985824,"dim":"Angle","unit":"deg"}}"#,
     ),
     (
         "rad",
-        r#"{"Literal":{"value":2.5,"dim":"Angle","unit":"rad"}}"#,
+        r#"{"Quantity":{"value":2.5,"dim":"Angle","unit":"rad"}}"#,
     ),
     (
         "pi rad",
-        r#"{"Literal":{"value":7.853981633974483,"dim":"Angle","unit":"pi rad"}}"#,
+        r#"{"Quantity":{"value":7.853981633974483,"dim":"Angle","unit":"pi rad"}}"#,
     ),
     // The dimensionless row: its symbol is the empty string, and it is
     // on the wire exactly as every other unit is. `2.5` with no
     // multiply — the factor is 1.0 and there is nothing to convert.
-    ("", r#"{"Literal":{"value":2.5,"dim":"Scalar","unit":""}}"#),
+    ("", r#"{"Quantity":{"value":2.5,"dim":"Scalar","unit":""}}"#),
 ];
 
 fn golden_wire_form(symbol: &str) -> &'static str {

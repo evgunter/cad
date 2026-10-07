@@ -180,13 +180,18 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x5c36_b5b4_37a0_06a4u64),
         ("part_select", 0xe9fb_5d4a_bcb6_2f71),
-        ("kitchen_sink", 0xae52_cf84_2852_caa0),
+        ("kitchen_sink", 0x6a16_0e90_8bf4_7d95),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

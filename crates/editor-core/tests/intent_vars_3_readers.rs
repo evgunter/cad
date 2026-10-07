@@ -142,7 +142,7 @@ fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
 }
 
 /// What `node`'s `slot` reads, as written (`Doc::slot_expansion`).
-fn slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId) -> editor_core::Expr {
+fn slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId) -> editor_core::Formula {
     doc.slot_expansion(node, slot).expect("the slot is there")
 }
 

@@ -132,7 +132,7 @@
 
 use pncad::document::Formula;
 use pncad::document::{
-    Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
+    Dimension, DimensionError, Doc, DocEdit, EvalError, FreeValue, FreeVar, Node,
     ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VectorSlot, eval,
     eval_count,
 };
@@ -508,7 +508,7 @@ impl SlotDriver {
     /// arithmetic, however constant — is driven, which is the
     /// conservative direction: refusing to overwrite a computed slot
     /// is recoverable, silently flattening one to a number is not.
-    pub fn of(doc: &Doc<ProfileProgram>, expr: &Expr) -> Self {
+    pub fn of(doc: &Doc<ProfileProgram>, expr: &Formula) -> Self {
         let mut refs = Vec::new();
         expr.var_reads(&mut refs);
         if refs.is_empty() && expr.child(0).is_none() {

@@ -23,21 +23,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
             "Frame": {
               "origin": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Length",
                     "unit": "mm"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Length",
                     "unit": "mm"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Length",
                     "unit": "mm"
@@ -46,21 +46,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               ],
               "u": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
@@ -69,21 +69,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               ],
               "v": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
@@ -106,14 +106,14 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   {
                     "At": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Length",
                           "unit": "m"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Length",
                           "unit": "m"
@@ -125,14 +125,14 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     "LineTo": {
                       "Point": [
                         {
-                          "Literal": {
+                          "Quantity": {
                             "value": 1.0,
                             "dim": "Length",
                             "unit": "m"
                           }
                         },
                         {
-                          "Literal": {
+                          "Quantity": {
                             "value": 0.0,
                             "dim": "Length",
                             "unit": "m"
@@ -145,14 +145,14 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     "LineTo": {
                       "Point": [
                         {
-                          "Literal": {
+                          "Quantity": {
                             "value": 1.0,
                             "dim": "Length",
                             "unit": "m"
                           }
                         },
                         {
-                          "Literal": {
+                          "Quantity": {
                             "value": 1.0,
                             "dim": "Length",
                             "unit": "m"
@@ -165,14 +165,14 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     "LineTo": {
                       "Point": [
                         {
-                          "Literal": {
+                          "Quantity": {
                             "value": 0.0,
                             "dim": "Length",
                             "unit": "m"
                           }
                         },
                         {
-                          "Literal": {
+                          "Quantity": {
                             "value": 1.0,
                             "dim": "Length",
                             "unit": "m"
@@ -198,7 +198,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "Extrude": {
             "profile": 7833783628503501004,
             "distance": {
-              "Literal": {
+              "Quantity": {
                 "value": 1.0,
                 "dim": "Length",
                 "unit": "mm"
@@ -215,7 +215,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "Fillet": {
             "target": 11878331562246191001,
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.12,
                 "dim": "Length",
                 "unit": "mm"
@@ -426,21 +426,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
             "Frame": {
               "origin": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Length",
                     "unit": "mm"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Length",
                     "unit": "mm"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Length",
                     "unit": "mm"
@@ -449,21 +449,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               ],
               "u": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
@@ -472,21 +472,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               ],
               "v": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Scalar",
                     "unit": ""
@@ -506,14 +506,14 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               "plane": 14041478596559452322,
               "origin": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Length",
                     "unit": "mm"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Length",
                     "unit": "mm"
@@ -522,14 +522,14 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               ],
               "direction": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.0,
                     "dim": "Scalar",
                     "unit": ""
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Scalar",
                     "unit": ""
@@ -552,14 +552,14 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   {
                     "At": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.09,
                           "dim": "Length",
                           "unit": "mm"
@@ -573,14 +573,14 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "target": {
                           "Point": [
                             {
-                              "Literal": {
+                              "Quantity": {
                                 "value": 0.0,
                                 "dim": "Length",
                                 "unit": "mm"
                               }
                             },
                             {
-                              "Literal": {
+                              "Quantity": {
                                 "value": 0.09,
                                 "dim": "Length",
                                 "unit": "mm"
@@ -589,7 +589,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                           ]
                         },
                         "b": {
-                          "Literal": {
+                          "Quantity": {
                             "value": 1.0,
                             "dim": "Scalar",
                             "unit": ""
@@ -616,7 +616,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
             "profile": 3833450864813476675,
             "axis": 5112629017125083311,
             "angle": {
-              "Literal": {
+              "Quantity": {
                 "value": 6.283185307179586,
                 "dim": "Angle",
                 "unit": "deg"
@@ -637,21 +637,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.04,
                           "dim": "Length",
                           "unit": "mm"
@@ -660,21 +660,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -682,7 +682,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 0.0,
                         "dim": "Angle",
                         "unit": "deg"
@@ -707,21 +707,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
@@ -730,21 +730,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -752,7 +752,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 3.141592653589793,
                         "dim": "Angle",
                         "unit": "deg"
@@ -777,21 +777,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
@@ -800,21 +800,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -822,7 +822,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 3.141592653589793,
                         "dim": "Angle",
                         "unit": "deg"
@@ -847,21 +847,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
@@ -870,21 +870,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -892,7 +892,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 3.141592653589793,
                         "dim": "Angle",
                         "unit": "deg"
@@ -917,21 +917,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
@@ -940,21 +940,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -962,7 +962,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 3.141592653589793,
                         "dim": "Angle",
                         "unit": "deg"
@@ -987,21 +987,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
@@ -1010,21 +1010,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1032,7 +1032,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 3.141592653589793,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1057,21 +1057,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
@@ -1080,21 +1080,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1102,7 +1102,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 3.141592653589793,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1127,21 +1127,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.04,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
@@ -1150,21 +1150,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1172,7 +1172,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1197,21 +1197,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.04,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
@@ -1220,21 +1220,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1242,7 +1242,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1267,21 +1267,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
@@ -1290,21 +1290,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1312,7 +1312,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": -1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1337,21 +1337,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
@@ -1360,21 +1360,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1382,7 +1382,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": -1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1407,21 +1407,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
@@ -1430,21 +1430,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1452,7 +1452,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": -1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1477,21 +1477,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
@@ -1500,21 +1500,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1522,7 +1522,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": -1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1547,21 +1547,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Length",
                           "unit": "mm"
@@ -1570,21 +1570,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1592,7 +1592,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": -1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1617,21 +1617,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.04,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
@@ -1640,21 +1640,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1662,7 +1662,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": -1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1687,21 +1687,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.04,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
@@ -1710,21 +1710,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1732,7 +1732,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": -1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1757,21 +1757,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.04,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Length",
                           "unit": "mm"
@@ -1780,21 +1780,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1802,7 +1802,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": -1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1827,21 +1827,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
@@ -1850,21 +1850,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1872,7 +1872,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1897,21 +1897,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
@@ -1920,21 +1920,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -1942,7 +1942,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -1967,21 +1967,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
@@ -1990,21 +1990,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -2012,7 +2012,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -2037,21 +2037,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "Rigid": {
                     "translation": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.28,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": -0.040000000000000036,
                           "dim": "Length",
                           "unit": "mm"
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.72,
                           "dim": "Length",
                           "unit": "mm"
@@ -2060,21 +2060,21 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     ],
                     "axis": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 1.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
                         }
                       },
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.0,
                           "dim": "Scalar",
                           "unit": ""
@@ -2082,7 +2082,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       }
                     ],
                     "angle": {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.5707963267948966,
                         "dim": "Angle",
                         "unit": "deg"
@@ -2146,7 +2146,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "Fillet": {
             "target": 16258523662019863458,
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.12,
                 "dim": "Length",
                 "unit": "mm"
@@ -2452,7 +2452,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "Fillet": {
             "target": 16857060861742796564,
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.02,
                 "dim": "Length",
                 "unit": "mm"

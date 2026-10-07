@@ -291,6 +291,10 @@ pub enum DistributionRefusal {
         /// The invariant that failed.
         fault: DistributionFault,
     },
+    /// The formula is not one written value: a formula's uncertainty
+    /// is the pushforward of its inputs', so only a written quantity
+    /// carries one ([`crate::Formula::with_distribution`]).
+    NotAWrittenValue,
 }
 
 // The refusal's own prose, for a caller holding the door's `Err`
@@ -304,6 +308,9 @@ impl core::fmt::Display for DistributionRefusal {
                 "a count is a structural parameter, fixed under any error analysis, so it takes no distribution",
             ),
             Self::Invalid { fault } => write!(f, "{fault}"),
+            Self::NotAWrittenValue => f.write_str(
+                "only a written value takes a distribution; a formula's uncertainty is its inputs'",
+            ),
         }
     }
 }
@@ -1089,6 +1096,12 @@ impl<P> Doc<P> {
     pub(crate) fn var_read_faults(&self, expr: &Expr) -> Vec<VarReadFault> {
         let mut reads = Vec::new();
         expr.var_reads(&mut reads);
+        self.var_read_faults_of(reads)
+    }
+
+    /// [`Self::var_read_faults`] of the reads `reads`, each a variable
+    /// and the dimension it is read at, in order.
+    pub(crate) fn var_read_faults_of(&self, reads: Vec<(VarId, Dimension)>) -> Vec<VarReadFault> {
         reads
             .into_iter()
             .filter_map(|(var, referenced)| match self.vars.get(&var) {
@@ -1236,8 +1249,9 @@ impl<P> Doc<P> {
     /// **The anonymous variables [`Node::written`] would not reproduce**:
     /// one read more than once — by two slots, as a fresh entry shared
     /// within one edit, or by a slot and a definition — which a written
-    /// re-insert splits into one per reader, and one that carries a
-    /// distribution, which a value written at a slot cannot carry.
+    /// re-insert splits into one per reader, and a bare number read by
+    /// a definition — a count, or an untoleranced scalar — which written
+    /// there can read back as a constant.
     /// Rebuilding a document by re-inserting its nodes as written is
     /// the document only where this is empty and no anonymous variable
     /// was value-edited after its insert (whose mint read the old
@@ -1254,12 +1268,14 @@ impl<P> Doc<P> {
                 *reads.entry(var).or_default() += 1;
             }
         }
+        let mut defining = std::collections::BTreeSet::new();
         for held in self.vars.values() {
             if let crate::VarDef::Defined(defined) = held.def() {
                 let mut read = Vec::new();
                 defined.var_reads(&mut read);
                 for (var, _) in read {
                     *reads.entry(var).or_default() += 1;
+                    defining.insert(var);
                 }
             }
         }
@@ -1269,7 +1285,18 @@ impl<P> Doc<P> {
             .filter(|var| !self.var_names.contains_key(var))
             .filter(|var| {
                 reads.get(var).copied().unwrap_or(0) > 1
-                    || self.free(*var).and_then(FreeVar::distribution).is_some()
+                    || (defining.contains(var)
+                        && matches!(
+                            self.free(*var),
+                            Some(
+                                FreeVar::Count { .. }
+                                    | FreeVar::Continuous {
+                                        dim: Dimension::Scalar,
+                                        distribution: None,
+                                        ..
+                                    }
+                            )
+                        ))
             })
             .collect()
     }
@@ -1445,6 +1472,24 @@ impl<P> Doc<P> {
     /// read at ([`crate::NameFault`]).
     pub fn lowered(&self, formula: &crate::Formula) -> Result<Expr, crate::LowerFault> {
         formula.lower(&|name| self.lowering_scope(name))
+    }
+
+    /// **`formula` with its names read by id**: every name replaced by
+    /// a reader of the variable this document names so, its written
+    /// quantities kept — the formula a slot's [`Self::slot_expansion`]
+    /// is compared against, and the one a caller evaluates against this
+    /// document without storing it.
+    ///
+    /// # Errors
+    ///
+    /// The first name, in pre-order, the document does not hold at the
+    /// kind it is read at, or fresh-table read ([`crate::LowerFault`]).
+    pub fn resolve(&self, formula: &crate::Formula) -> Result<crate::Formula, crate::LowerFault> {
+        let scope = |name: &VarName| self.lowering_scope(name);
+        match formula.unresolved(&scope, &[]) {
+            Some(fault) => Err(fault),
+            None => Ok(formula.lower_held(&scope)),
+        }
     }
 
     /// **The text of `expr`**, its readers written by the names this
@@ -1714,13 +1759,13 @@ impl<P> Doc<P> {
 
     /// **What a node's slot reads, as written**: a reader of its
     /// variable, each anonymous variable it reaches replaced by what it
-    /// holds — a free one by its value in the unit it was written in, a
-    /// defined one by its definition, expanded the same way — so the
-    /// formula the slot was written as, every name read by id. `None`
-    /// if the node is gone or the slot absent; a reader of the slot's
-    /// variable where the expansion would nest past the bound every
-    /// expression is held to.
-    pub fn slot_expansion(&self, node: RecipeNodeId, slot: SlotId) -> Option<Expr>
+    /// holds — a free one by the quantity it holds, in the unit it was
+    /// written in and with its distribution, a defined one by its
+    /// definition, expanded the same way — so the formula the slot was
+    /// written as, every name read by id. `None` if the node is gone or
+    /// the slot absent; a reader of the slot's variable where the
+    /// expansion would nest past the bound every expression is held to.
+    pub fn slot_expansion(&self, node: RecipeNodeId, slot: SlotId) -> Option<crate::Formula>
     where
         P: crate::ProfilePayload,
     {
@@ -1735,9 +1780,9 @@ impl<P> Doc<P> {
     /// **`expr` as written**: each anonymous variable it reaches
     /// replaced by what it holds ([`Self::slot_expansion`]); `expr`
     /// itself where that would nest past the bound.
-    pub fn written(&self, expr: &Expr) -> Expr {
+    pub fn written(&self, expr: &Expr) -> crate::Formula {
         self.anonymous_expansion(expr)
-            .unwrap_or_else(|_| expr.clone())
+            .unwrap_or_else(|_| crate::Formula::from(expr))
     }
 
     /// **`expr` expanded only along `path`**: each anonymous definition
@@ -1767,19 +1812,33 @@ impl<P> Doc<P> {
 
     /// `expr` with every reader of an anonymous variable replaced by
     /// what it holds ([`Self::slot_expansion`]).
-    fn anonymous_expansion(&self, expr: &Expr) -> Result<Expr, crate::DimensionError> {
-        expr.substitute_vars(&mut |var| {
+    fn anonymous_expansion(&self, expr: &Expr) -> Result<crate::Formula, crate::DimensionError> {
+        crate::Formula::from(expr).substitute_vars(&mut |var| {
             if self.var_names.contains_key(&var) {
                 return None;
             }
             match self.vars.get(&var)?.def() {
+                // A bare number, as the text door reads its text back.
+                crate::VarDef::Free(FreeVar::Continuous {
+                    dim: Dimension::Scalar,
+                    value,
+                    distribution: None,
+                    ..
+                }) => crate::Formula::number(*value).ok(),
                 crate::VarDef::Free(FreeVar::Continuous {
                     dim,
                     value,
                     display_unit,
-                    ..
-                }) => Expr::literal_leaf_with_unit(*value, *dim, display_unit.def()).ok(),
-                crate::VarDef::Free(FreeVar::Count { value }) => Some(Expr::count(*value)),
+                    distribution,
+                }) => Some(crate::Formula::own_leaf(
+                    crate::expr::AuthoredLeaf::Quantity(crate::expr::Quantity {
+                        value: *value,
+                        unit: *display_unit,
+                        distribution: *distribution,
+                    }),
+                    *dim,
+                )),
+                crate::VarDef::Free(FreeVar::Count { value }) => Some(crate::Formula::count(*value)),
                 crate::VarDef::Defined(defined) => self.anonymous_expansion(defined).ok(),
             }
         })
@@ -1788,7 +1847,7 @@ impl<P> Doc<P> {
     /// The expression subtree an [`ExprPath`] addresses in its slot's
     /// expansion ([`Self::slot_expansion`]), or `None` if the node is
     /// gone, the slot absent, or the path off the tree (spec D5).
-    pub fn expr_at(&self, path: &ExprPath) -> Option<Expr>
+    pub fn expr_at(&self, path: &ExprPath) -> Option<crate::Formula>
     where
         P: crate::ProfilePayload,
     {
@@ -2276,7 +2335,7 @@ mod tests {
         );
     }
 
-    /// A document holding `a := b + 1 mm` and `b := a`, written past
+    /// A document holding `a := b + c` and `b := a`, written past
     /// the doors (which refuse it, as the load walk does), both named
     /// (an unnamed definition is a slot's formula, whose refusal is the
     /// slot's own — `VarEnv::written`): the shape
@@ -2288,7 +2347,7 @@ mod tests {
         let mut doc = ProfileDoc::empty_derived("doc-cyclic", Tol::witness());
         let (a, b) = (VarId(1), VarId(2));
         let read = |var| Expr::var(var, Dimension::Length);
-        let one = Expr::literal(0.001, Dimension::Length).expect("a length");
+        let one = read(VarId(3));
         doc.vars.insert(
             a,
             Var::new(VarDef::Defined(

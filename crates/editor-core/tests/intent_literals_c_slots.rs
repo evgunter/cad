@@ -222,16 +222,37 @@ fn a_rewritten_slot_retires_the_variable_its_formula_minted() {
             fresh: Vec::new(),
         },
     );
+    // The typed 5 mm is a variable of its own (VR6), read only by the
+    // definition: it retires after it, and the log keeps both ids.
+    let mut reads = Vec::new();
+    doc.var(formula)
+        .and_then(|v| v.def().defined())
+        .expect("the slot's definition")
+        .var_reads(&mut reads);
+    let five = reads
+        .iter()
+        .map(|&(var, _)| var)
+        .find(|&var| Some(var) != doc.var_named("w"))
+        .expect("the definition reads its typed quantity");
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::AnonymousVarRemoved {
-            var: doc.spoken_var(formula),
-            distribution: None,
-        }]
+        vec![
+            Maintenance::AnonymousVarRemoved {
+                var: doc.spoken_var(formula),
+                distribution: None,
+            },
+            Maintenance::AnonymousVarRemoved {
+                var: doc.spoken_var(five),
+                distribution: None,
+            },
+        ],
+        "the definition, then its free variable"
     );
     assert_eq!(applied.doc.slot(blend, SlotId::Radius), doc.var_named("w"));
     assert!(applied.doc.var(formula).is_none());
+    assert!(applied.doc.var(five).is_none());
     assert!(applied.doc.has_minted_var(formula), "the log keeps its id");
+    assert!(applied.doc.has_minted_var(five), "and the quantity's");
 }
 
 /// Row 7's load half: a file whose slot's own anonymous definition is
@@ -1011,8 +1032,8 @@ fn stackup_and_monte_carlo_list_only_toleranced_variables() {
     let w = doc.var_named("w").unwrap();
     assert_eq!(
         crate::fixture::continuous_vars(&doc),
-        5,
-        "the premise: w, v and the point's three typed lengths"
+        6,
+        "the premise: w, v, the measure's typed 5 mm and the point's three typed lengths"
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(

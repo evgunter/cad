@@ -751,7 +751,25 @@ fn lower_refusal<P>(
     match fault {
         LowerFault::Name(fault) => name_refusal(doc, node, site, fault),
         LowerFault::Fresh(fault) => fresh_refusal(fault),
+        LowerFault::Quantity { dim } => quantity_unminted(dim),
     }
+}
+
+/// D2 addendum row 4: the door mints a variable for every written
+/// quantity before it lowers the formula holding it.
+fn quantity_unminted(dim: Dimension) -> EditError {
+    unreachable!("the door lowered a written {dim} it minted no variable for")
+}
+
+/// **The variables minted for `formula`'s written quantities**, one
+/// anonymous free variable each, in pre-order (VR6): what
+/// [`Formula::lower_with`] reads them as.
+fn mint_quantities<P>(new: &mut Doc<P>, formula: &Formula) -> Result<Vec<VarId>, EditError> {
+    formula
+        .quantities()
+        .into_iter()
+        .map(|free| mint_anonymous(new, VarDef::Free(free)))
+        .collect()
 }
 
 /// **A fresh-table read that does not resolve**, as this door refuses it.
@@ -842,20 +860,27 @@ impl Lowering {
     }
 
     /// A definition's formula lowered in `new`'s names and this edit's
-    /// fresh table, a name that does not lower refusing in the words a
-    /// faulty read of `var`'s definition takes.
+    /// fresh table, each written quantity minted as an anonymous free
+    /// variable first, a name that does not lower refusing in the words
+    /// a faulty read of `var`'s definition takes.
     fn lower_definition<P>(
         &self,
-        new: &Doc<P>,
+        new: &mut Doc<P>,
         var: &SpokenVar,
         formula: &Formula,
     ) -> Result<Expr, EditError> {
+        let refuse = |new: &Doc<P>, fault| match fault {
+            LowerFault::Fresh(fault) => fresh_refusal(fault),
+            LowerFault::Name(fault) => definition_name_refusal(new, var, fault),
+            LowerFault::Quantity { dim } => quantity_unminted(dim),
+        };
+        if let Some(fault) = formula.unresolved(&|name| new.lowering_scope(name), &self.fresh) {
+            return Err(refuse(new, fault));
+        }
+        let minted = mint_quantities(new, formula)?;
         formula
-            .lower_with(&|name| new.lowering_scope(name), &self.fresh)
-            .map_err(|fault| match fault {
-                LowerFault::Fresh(fault) => fresh_refusal(fault),
-                LowerFault::Name(fault) => definition_name_refusal(new, var, fault),
-            })
+            .lower_with(&|name| new.lowering_scope(name), &self.fresh, &minted)
+            .map_err(|fault| refuse(new, fault))
     }
 
     /// **Why a slot formula would not lower**, asked of nothing but the
@@ -864,14 +889,13 @@ impl Lowering {
     /// where it lowers and every read holds. What [`lower_value`] asks
     /// of each addressed formula to find the one a walk refused.
     fn fault<P>(&self, doc: &Doc<P>, formula: &Formula) -> Option<SlotFault> {
-        match formula.lower_with(&|name| doc.lowering_scope(name), &self.fresh) {
-            Ok(expr) => doc
-                .var_read_faults(&expr)
-                .into_iter()
-                .next()
-                .map(SlotFault::Read),
-            Err(fault) => Some(SlotFault::Lower(fault)),
+        if let Some(fault) = formula.unresolved(&|name| doc.lowering_scope(name), &self.fresh) {
+            return Some(SlotFault::Lower(fault));
         }
+        doc.var_read_faults_of(formula.lowered_reads(&|name| doc.lowering_scope(name), &self.fresh))
+            .into_iter()
+            .next()
+            .map(SlotFault::Read)
     }
 
     /// **The variable a slot formula lowers to** (spec §1's slot-root
@@ -882,16 +906,22 @@ impl Lowering {
     /// the document cannot answer, is refused before anything is
     /// minted for it.
     fn slot<P>(&self, new: &mut Doc<P>, formula: &Formula) -> Result<VarId, SlotFault> {
-        let expr = formula
-            .lower_with(&|name| new.lowering_scope(name), &self.fresh)
-            .map_err(SlotFault::Lower)?;
-        if let Some(fault) = new.var_read_faults(&expr).into_iter().next() {
-            return Err(SlotFault::Read(fault));
+        let root = formula.slot_root();
+        if let SlotRoot::Value(free) = root {
+            return mint_anonymous(new, VarDef::Free(free)).map_err(SlotFault::Mint);
         }
-        match (formula.slot_root(), expr.as_var()) {
-            (SlotRoot::Value(free), _) => {
-                mint_anonymous(new, VarDef::Free(free)).map_err(SlotFault::Mint)
-            }
+        // Every fault is asked before anything is minted for the
+        // formula's quantities: a formula that does not lower, or reads
+        // what the document cannot answer, mints nothing.
+        if let Some(fault) = self.fault(new, formula) {
+            return Err(fault);
+        }
+        let minted = mint_quantities(new, formula).map_err(SlotFault::Mint)?;
+        let expr = formula
+            .lower_with(&|name| new.lowering_scope(name), &self.fresh, &minted)
+            .map_err(SlotFault::Lower)?;
+        match (root, expr.as_var()) {
+            (SlotRoot::Value(_), _) => unreachable!("a value is minted above"),
             (SlotRoot::Formula, _) => {
                 self.defined.set(true);
                 mint_anonymous(new, VarDef::Defined(expr)).map_err(SlotFault::Mint)
@@ -1098,7 +1128,7 @@ fn definition_name_refusal<P>(
 /// edit's fresh table, a name that does not lower refusing in the words
 /// [`check_definition`] gives a faulty read of `var`'s definition.
 fn lower_decl<P>(
-    doc: &Doc<P>,
+    doc: &mut Doc<P>,
     lowering: &Lowering,
     var: &SpokenVar,
     decl: &VarDecl,
@@ -4797,8 +4827,8 @@ fn distribution_fault_error(var: &SpokenVar, fault: DistributionFault) -> EditEr
 /// definitions; only this door can name the structural/continuous
 /// divide as the reason.
 fn check_var_def(var: &SpokenVar, def: &VarDef) -> Result<(), EditError> {
-    // A definition's floats are its expression's literals, finite by
-    // construction; what it reads is `check_definition`'s.
+    // A definition holds no float; what it reads is
+    // `check_definition`'s.
     let VarDef::Free(value) = def else {
         return Ok(());
     };
@@ -6021,12 +6051,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             if let VarDecl::Free(free) = def {
                 check_var_def(&spoken, &VarDef::Free(free.clone()))?;
             }
-            let mut mint = new.mint.clone();
-            let id = mint
+            let id = new
+                .mint
                 .declare(def.kind())
                 .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
-            let def = lower_decl(doc, &Lowering::none(), &spoken, def)?;
-            new.mint = mint;
+            // The declared variable mints first, so the id a refusal
+            // speaks it by is the one it holds; its definition's
+            // written quantities mint after it.
+            let def = lower_decl(new, &Lowering::none(), &spoken, def)?;
             new.vars.insert(id, Var::new(def.clone()));
             new.var_names.insert(id, name.clone());
             new.var_order.push(id);
@@ -6121,6 +6153,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     }
                     DistributionRefusal::Invalid { fault } => {
                         distribution_fault_error(&spoken, fault)
+                    }
+                    DistributionRefusal::NotAWrittenValue => {
+                        unreachable!("a free variable's own distribution is a written value's")
                     }
                 })?;
             write_free(new, id, &spoken, written)?

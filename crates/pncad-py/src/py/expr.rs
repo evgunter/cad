@@ -420,13 +420,6 @@ impl Expr {
         d::unparse(&self.0, &|_| None)
     }
 
-    /// The number a BARE literal carries, in canonical kernel units,
-    /// or `None` for anything else ([`Formula::literal_value`]'s rule).
-    #[getter]
-    fn literal_value(&self) -> Option<f64> {
-        self.0.literal_value()
-    }
-
     fn __repr__(&self) -> String {
         format!("Expr({:?}, {})", self.text(), self.dimension())
     }
@@ -494,6 +487,18 @@ pub(crate) fn lower_fault_err(py: Python<'_>, fault: &d::LowerFault) -> PyErr {
                         .held
                         .map_or_else(none, |held| text(dimension_tag(held))),
                 ),
+                ("count", none()),
+            ];
+            typed_err(py, ErrorClass::Eval, fault.to_string(), &fields)
+        }
+        d::LowerFault::Quantity { dim } => {
+            let none = || py.None();
+            let text = |s: &str| PyString::new(py, s).unbind().into_any();
+            let fields = [
+                ("variant", text(crate::tags::lower_fault_tag(fault))),
+                ("name", none()),
+                ("expected", text(dimension_tag(*dim))),
+                ("found", none()),
                 ("count", none()),
             ];
             typed_err(py, ErrorClass::Eval, fault.to_string(), &fields)
@@ -706,6 +711,8 @@ pub(crate) fn eval_err(
     };
 
     let (name, expected, found, count) = match err {
+        // A leaf only the edit door resolves: the lowering's own words.
+        E::Unlowered(fault) => return lower_fault_err(py, fault),
         // The defined variable read; its definition's own refusal is
         // the sentence's.
         E::UnresolvedVar { var } | E::DefinitionRefused { var, .. } => {
