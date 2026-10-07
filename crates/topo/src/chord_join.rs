@@ -31,7 +31,7 @@
 //!   face that still owns rings, the rings are re-homed by trilean
 //!   containment ([`crate::splitting::containment`] on a plane,
 //!   [`chart_ring_side`] on a cylinder wall's chart,
-//!   [`sphere_ring_side`] on a sphere) +
+//!   [`path_ring_side`] on a sphere or a cone) +
 //!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
 //!   mirror site).
 //!
@@ -112,6 +112,7 @@ use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
+use crate::ring_path::{LoopArc, Quadric, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
@@ -2389,8 +2390,9 @@ fn ring_island_unread<T: Real>(face: FaceKey, surface: &geom::Surface<T>) -> Spl
 /// (`R·A_chart`) and `P` an upper bound on the boundary length in
 /// metres (`R·|Δu|` plus the axial variation, per piece).
 ///
-/// A sphere face winds without a chart ([`sphere_island_winding`]);
-/// any other curved kind refuses typed ([`ring_island_unread`]).
+/// A sphere or a cone face winds without a chart
+/// ([`path_island_winding`]); any other curved kind refuses typed
+/// ([`ring_island_unread`]).
 pub(crate) fn chart_island_winding<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2480,62 +2482,35 @@ pub(crate) fn chart_island_winding<T: Decide>(
     Ok(wound.map(|d| if sense { d.sign } else { d.sign.flip() }))
 }
 
-/// A sphere face's centre and radius; `None` for any other kind.
-fn sphere_frame<T: Real>(surface: &geom::Surface<T>) -> Option<(Point3<T>, T)> {
-    match *surface {
-        geom::Surface::Sphere { center, radius, .. } => Some((center, radius)),
+/// The loop arc of an edge on `quadric` over `params`; `None` on a
+/// carrier its loops do not carry: on a sphere any but a circle (a
+/// cylinder's or a torus's section), on a cone a spiric or a spline.
+fn quadric_loop_arc<T: Decide>(
+    quadric: &Quadric<T>,
+    carrier: &geom::Curve3<T>,
+    params: (T, T),
+) -> Option<LoopArc<T>> {
+    match (quadric, carrier) {
+        (Quadric::Sphere { .. }, geom::Curve3::Circle { .. })
+        | (
+            Quadric::Cone { .. },
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line { .. },
+        ) => LoopArc::of(carrier, params),
         _ => None,
     }
 }
 
-/// A circle arc of a loop on a sphere: its carrier's centre, unit axis,
-/// radius and seam direction, and its increasing parameter span.
-#[derive(Clone, Copy)]
-struct SphereArc<T: Real> {
-    centre: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    span: (T, T),
-}
-
-impl<T: Real> SphereArc<T> {
-    /// The point at parameter `t`.
-    fn at(&self, t: T) -> Point3<T> {
-        let (s, c) = t.sin_cos();
-        self.centre + (self.u_ref * c + self.axis.cross(self.u_ref) * s) * self.radius
-    }
-
-    /// The arc of `carrier` over `span`; `None` off a circle.
-    fn of(carrier: &geom::Curve3<T>, (t0, t1): (T, T)) -> Option<Self> {
-        match *carrier {
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Some(Self {
-                centre: center,
-                axis,
-                radius,
-                u_ref,
-                span: (t0, t1),
-            }),
-            _ => None,
-        }
-    }
-}
-
-/// The arcs of the half-edges `run` on the sphere face `face`: a null
-/// edge (a pierce point's scaffolding, no length) contributes none, and
-/// an edge on any carrier but a circle (a cylinder's or a torus's
-/// section) is a ring the lane does not read
+/// The loop arcs of the half-edges `run` on the face `face` of
+/// `surface`: a null edge (a pierce point's scaffolding, no length)
+/// contributes none, and an edge on a carrier the surface's loops do
+/// not carry ([`quadric_loop_arc`]) is a ring the lane does not read
 /// ([`SplitJoinError::RingIslandUnread`]).
-fn sphere_run_arcs<T: Decide>(
+fn run_loop_arcs<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
+    (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
     run: &[HalfEdgeKey],
-) -> Result<Vec<SphereArc<T>>, SplitJoinError> {
+) -> Result<Vec<LoopArc<T>>, SplitJoinError> {
     let mut arcs = Vec::with_capacity(run.len());
     for &he in run {
         let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
@@ -2543,111 +2518,18 @@ fn sphere_run_arcs<T: Decide>(
         let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
             continue;
         };
-        arcs.push(SphereArc::of(curve.carrier(), curve.params()).ok_or(
-            SplitJoinError::RingIslandUnread {
-                face,
-                kind: geom::SurfaceKind::Sphere,
-            },
-        )?);
+        arcs.push(
+            quadric_loop_arc(quadric, curve.carrier(), curve.params())
+                .ok_or_else(|| ring_island_unread(face, surface))?,
+        );
     }
     Ok(arcs)
 }
 
-/// **Whether the short great-circle arc from `from` to `to` on the
-/// sphere `(centre, radius)` crosses the arcs `loop_arcs` an odd number
-/// of times**: whether the two points lie on opposite sides of the
-/// closed curve the arcs make, read without a chart.
-///
-/// The path lies in the plane through the centre with normal
-/// `m̂ = â × b̂`. A circle arc meets that plane where
-/// `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
-/// on the arc's frame, `D` its centre's offset from the plane), so at
-/// two parameters when `r·√(A² + B²) > |D|`; each counts when it lies
-/// strictly inside the arc's span and strictly between the path's ends,
-/// and is passed over when any of the four readings is decided against
-/// it. Each comparison is a named trilean metered in metres. `None`
-/// when a reading of a crossing not passed over lands in the zero band
-/// — the path's ends coincide or are antipodal, it grazes a circle, or
-/// meets the curve at an arc's end or its own — and the caller asks
-/// another path.
-fn sphere_path_parity<T: Decide>(
-    face: FaceKey,
-    (centre, radius): (Point3<T>, T),
-    (from, to): (Point3<T>, Point3<T>),
-    loop_arcs: &[SphereArc<T>],
-    band: Band,
-) -> Result<Option<bool>, SplitJoinError> {
-    let decide_m = |name, margin| {
-        decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face, diag })
-    };
-    let a = (from - centre) / radius;
-    let b = (to - centre) / radius;
-    let m = a.cross(b);
-    let m_len = m.norm();
-    if decide_m("split_sphere_path_span", Margin::levered(m_len, radius))? != Sign::Positive {
-        return Ok(None);
-    }
-    let m = m / m_len;
-    let tau = T::tau();
-    let mut odd = false;
-    for arc in loop_arcs {
-        let v_ref = arc.axis.cross(arc.u_ref);
-        let (ca, cb) = (m.dot(arc.u_ref), m.dot(v_ref));
-        let d = m.dot(arc.centre - centre);
-        let rho = (ca.powi(2) + cb.powi(2)).sqrt();
-        match decide_m(
-            "split_sphere_path_meets_circle",
-            Margin::of(arc.radius * rho - d.abs()),
-        )? {
-            Sign::Negative => continue,
-            Sign::Zero => return Ok(None),
-            Sign::Positive => {}
-        }
-        let phase = cb.atan2(ca);
-        let offset = (-d / (arc.radius * rho))
-            .max(-T::one())
-            .min(T::one())
-            .acos();
-        for theta in [phase + offset, phase - offset] {
-            let (lo, hi) = arc.span;
-            let mid = (lo + hi) * T::from_f64(0.5);
-            let t = theta + (mid - theta).periodic_branch(tau) * tau;
-            let (s, c) = t.sin_cos();
-            let x = (arc.centre + (arc.u_ref * c + v_ref * s) * arc.radius - centre) / radius;
-            let readings = [
-                decide_m(
-                    "split_sphere_path_along",
-                    Margin::levered(a.cross(x).dot(m), radius),
-                )?,
-                decide_m(
-                    "split_sphere_path_along",
-                    Margin::levered(x.cross(b).dot(m), radius),
-                )?,
-                decide_m(
-                    "split_sphere_path_in_span",
-                    Margin::levered(t - lo, arc.radius),
-                )?,
-                decide_m(
-                    "split_sphere_path_in_span",
-                    Margin::levered(hi - t, arc.radius),
-                )?,
-            ];
-            if readings.contains(&Sign::Negative) {
-                continue;
-            }
-            if readings.contains(&Sign::Zero) {
-                return Ok(None);
-            }
-            odd = !odd;
-        }
-    }
-    Ok(Some(odd))
-}
-
-/// The reference points a sphere-face path may run to from `face`'s
-/// outer loop: its vertices, then the midpoints of its edges other than
-/// `skip`. A midpoint lies off a run that shares its edge's vertices
-/// but not the edge, where every vertex reads on the run.
+/// The reference points a path may run to from `face`'s outer loop:
+/// its vertices, then the midpoints of its edges other than `skip`. A
+/// midpoint lies off a run that shares its edge's vertices but not the
+/// edge, where every vertex reads on the run.
 fn outer_references<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2678,82 +2560,37 @@ fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, 
         .collect())
 }
 
-/// The points of `arc` that say which side of a plane with unit normal
-/// `n` it reaches: its ends, its midpoint, and the extremes of `n·x`
-/// along it where its span holds them strictly. `n·x` is a sinusoid
-/// along a circle, so an arc on one side of the plane at all of these
-/// is on that side throughout.
-fn arc_probes<T: Decide>(
-    arc: &SphereArc<T>,
-    n: Vec3<T>,
-    band: Band,
-) -> Result<Vec<Point3<T>>, Indeterminate> {
-    let (lo, hi) = arc.span;
-    let mid = (lo + hi) * T::from_f64(0.5);
-    let mut probes = vec![arc.at(lo), arc.at(mid), arc.at(hi)];
-    let peak = n.dot(arc.axis.cross(arc.u_ref)).atan2(n.dot(arc.u_ref));
-    let tau = T::tau();
-    for extreme in [peak, peak + tau * T::from_f64(0.5)] {
-        let t = extreme + (mid - extreme).periodic_branch(tau) * tau;
-        let within = [
-            decide(
-                "split_sphere_ring_extreme_in_span",
-                Margin::levered(t - lo, arc.radius),
-                band,
-            )?,
-            decide(
-                "split_sphere_ring_extreme_in_span",
-                Margin::levered(hi - t, arc.radius),
-                band,
-            )?,
-        ];
-        if within == [Sign::Positive, Sign::Positive] {
-            probes.push(arc.at(t));
-        }
-    }
-    Ok(probes)
-}
-
-/// **The winding of a ring-lane island on a sphere face**, about the
-/// face's OUTWARD normal, read without a chart: whether the open run
-/// `h1 → h2` (`next` order, through `h2`), closed by `closing` (the
-/// chord's arc from `h2`'s site back to `h1`'s, in the section plane
-/// `section`), bounds on its left the patch holding none of the face's
-/// outer loop — the island, since the ring is a hole and the run's left
-/// is the face's side of it.
+/// **The winding of a ring-lane island on a sphere or a cone face**,
+/// about the face's OUTWARD normal, read without a chart: whether the
+/// open run `h1 → h2` (`next` order, through `h2`), closed by `closing`
+/// (the chord from `h2`'s site back to `h1`'s; `None`, the straight
+/// chord, which only a cone's ruling is), bounds on its left the patch
+/// holding none of the face's outer loop — the island, since the ring is
+/// a hole and the run's left is the face's side of it.
 ///
-/// - The run lies in one closed cap of the section plane, the side `σ`
-///   every point [`arc_probes`] names on its arcs is decided on (or on
-///   the plane), so the
-///   closed curve bounds one region inside that cap (the INNER one) and
-///   one holding the whole other cap. Its left is the inner one exactly
-///   when the arc's left normal at its midpoint, `N × t` (`N` the
-///   outward normal, `t` the direction of travel), points to `σ`. A
-///   run with no edge off the plane lies on the section circle with
-///   the arc, and bounds the cap that normal points into: `σ` is read
-///   off the arc.
-/// - The island is the region holding none of the outer loop. A point
-///   `w` of it (a vertex, or an edge midpoint: [`outer_references`])
-///   strictly on the side opposite `σ` is outside the inner region;
-///   otherwise the great-circle path from `w` to the pole of the other
-///   cap (outside the inner region) says, by its crossings' parity,
-///   whether `w` is inside it ([`sphere_path_parity`]). A path with a
-///   reading in the zero band (it runs through a run vertex) says
-///   nothing, and the next `w` is asked.
+/// A path ([`Quadric::paths`]) runs from an outer-loop point `w` (a
+/// vertex, or an edge midpoint: [`outer_references`]) to the closing
+/// chord's midpoint `q`, where it arrives across the chord. Its
+/// crossings of the curve before `q` ([`crate::ring_path::path_parity`])
+/// say whether `w` lies on the side it arrives from, and the arrival
+/// says which side that is: the left one exactly when the path arrives
+/// against the chord's left normal `N × t` (`N` the outward normal at
+/// `q`, `t` the chord's direction of travel), the lean
+/// **`split_ring_path_lean`** (the cosine between the arrival and the
+/// left normal, levered at [`Quadric::lever`]). CCW is `w` off the left.
 ///
-/// CCW is `left is inner` exactly when `w` is outside the inner region.
-/// Positive for CCW, as the cylinder arm's chart sign. A run reaching
-/// both sides of the plane, or bounded by an edge that is not a circle,
-/// is a ring the lane does not read ([`SplitJoinError::RingIslandUnread`]);
-/// an outer loop no point of which a path decides refuses typed. A
-/// reading in the zero band moves to the next outer point; one in the
-/// escalation band escalates.
-pub(crate) fn sphere_island_winding<T: Decide>(
+/// Positive for CCW, as the cylinder arm's chart sign. A path whose lean
+/// or crossings land in the zero band says nothing, and the next path or
+/// `w` is asked; a reading in the escalation band escalates. A run
+/// bounded by an edge the face's loops do not carry, or a chord through
+/// a cone's apex, is a ring the lane does not read
+/// ([`SplitJoinError::RingIslandUnread`]); an outer loop no point of
+/// which a path decides refuses typed.
+pub(crate) fn path_island_winding<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
-    (origin, normal): (Point3<T>, UnitVec3<T>),
-    closing: &EdgeCurveSpec<T>,
+    closing: Option<&EdgeCurveSpec<T>>,
     band: Band,
 ) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
     let invariant = |what| SplitJoinError::SectionInvariant { face, what };
@@ -2761,123 +2598,110 @@ pub(crate) fn sphere_island_winding<T: Decide>(
     let surface = body
         .get_surface(face_data.surface)
         .ok_or_else(|| corrupt_face(face))?;
-    let (centre, radius) =
-        sphere_frame(surface).ok_or_else(|| ring_island_unread(face, surface))?;
-    let n = normal.get();
-    let side = |p: Point3<T>| {
-        decide(
-            "split_sphere_ring_side",
-            Margin::of(n.dot(p - origin)),
-            band,
-        )
-    };
+    let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
     let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
     let end = cycle
         .iter()
         .position(|&he| he == h2)
         .ok_or_else(|| corrupt_he(h2))?;
-    let run_arcs = sphere_run_arcs(body, face, &cycle[..=end])?;
-    let mut sigma = None;
-    for arc in &run_arcs {
-        let probes = match arc_probes(arc, n, band) {
-            Ok(probes) => probes,
-            Err(diag) => return Ok(Err(diag)),
-        };
-        for p in probes {
-            match (side(p), sigma) {
-                (Err(diag), _) => return Ok(Err(diag)),
-                (Ok(Sign::Zero), _) => {}
-                (Ok(at), None) => sigma = Some(at),
-                (Ok(at), Some(was)) if at == was => {}
-                _ => {
-                    return Err(SplitJoinError::RingIslandUnread {
-                        face,
-                        kind: geom::SurfaceKind::Sphere,
-                    });
-                }
-            }
+    let mut arcs = run_loop_arcs(body, face, (surface, &quadric), &cycle[..=end])?;
+    let (chord, q, travel) = match closing {
+        Some(spec) => {
+            let (t0, t1) = (spec.param_start, spec.param_end);
+            let chord = quadric_loop_arc(&quadric, &spec.carrier, (t0, t1))
+                .ok_or_else(|| ring_island_unread(face, surface))?;
+            let travel = spec.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0);
+            (chord, spec.carrier.mid_point(t0, t1), travel)
         }
-    }
-    let (t0, t1) = (closing.param_start, closing.param_end);
-    let mid = closing.carrier.mid_point(t0, t1);
-    let travel = closing.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0);
-    let outward = match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
-        Ok(Some(outward)) => outward.vec(),
-        Ok(None) => return Err(corrupt_face(face)),
-        Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => return Ok(Err(diag)),
-        Err(_) => {
+        None if matches!(quadric, Quadric::Sphere { .. }) => {
             return Err(invariant(
-                "a sphere ring run's closing arc leaves its face's sphere",
+                "a sphere ring run is closed by a straight chord (the section lanes mint an arc \
+                 on a sphere)",
             ));
         }
+        None => {
+            let after = cycle[(end + 1) % cycle.len()];
+            let at = |he: HalfEdgeKey| {
+                Ok::<_, SplitJoinError>(vertex_point(
+                    body,
+                    body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
+                ))
+            };
+            let (from, to) = (at(after)?, at(h1)?);
+            (
+                LoopArc::segment(from, to),
+                from + (to - from) * T::from_f64(0.5),
+                to - from,
+            )
+        }
     };
-    let left = outward.cross(travel);
-    let lean = match decide(
-        "split_sphere_ring_arc_lean",
-        Margin::levered(n.dot(left) / left.norm(), radius),
-        band,
-    ) {
-        Ok(Sign::Zero) => return Ok(Ok(Sign::Zero)),
-        Ok(lean) => lean,
+    match quadric.off_apex(q, band) {
+        Ok(true) => {}
+        Ok(false) => return Err(ring_island_unread(face, surface)),
         Err(diag) => return Ok(Err(diag)),
-    };
-    let sigma = sigma.unwrap_or(lean);
-    let left_is_inner = lean == sigma;
-    let mut loop_arcs = run_arcs;
-    loop_arcs.push(SphereArc::of(&closing.carrier, (t0, t1)).ok_or(invariant(
-        "a sphere ring run is closed by a chord that is not an arc",
-    ))?);
-    let toward = if sigma == Sign::Positive {
-        radius
-    } else {
-        -radius
-    };
-    let pole = centre - n * toward;
+    }
+    let arrives_on = arcs.len();
+    arcs.push(chord);
+    let chart = quadric.chart_normal(q);
+    let outward = if face_data.sense { chart } else { -chart };
+    let left = outward.cross(travel);
+    let lever = quadric.lever(q);
     for w in outer_references(body, face, &[])? {
-        let w_inside = match side(w) {
+        let paths = match quadric.paths((w, q), band) {
+            Ok(paths) => paths,
             Err(diag) => return Ok(Err(diag)),
-            Ok(at) if at != Sign::Zero && at != sigma => false,
-            Ok(_) => match sphere_path_parity(face, (centre, radius), (w, pole), &loop_arcs, band)?
-            {
-                Some(odd) => odd,
-                None => continue,
-            },
         };
-        return Ok(Ok(if left_is_inner != w_inside {
-            Sign::Positive
-        } else {
-            Sign::Negative
-        }));
+        for path in paths {
+            let lean = match decide(
+                "split_ring_path_lean",
+                Margin::levered(-path.arrival.dot(left) / left.norm(), lever),
+                band,
+            ) {
+                Ok(Sign::Zero) => continue,
+                Ok(lean) => lean,
+                Err(diag) => return Ok(Err(diag)),
+            };
+            let Some(odd) = path_parity(face, &path, &arcs, Some(arrives_on), band)? else {
+                continue;
+            };
+            let w_left = (lean == Sign::Positive) != odd;
+            return Ok(Ok(if w_left {
+                Sign::Negative
+            } else {
+                Sign::Positive
+            }));
+        }
     }
     Err(invariant(
-        "no outer-loop point of a sphere face reads which side of a ring-lane island it is on \
-         (every path to the far pole meets the island's boundary in the zero band)",
+        "no outer-loop point of a sphere or cone face reads which side of a ring-lane island it \
+         is on (every path to the closing chord meets the island's boundary in the zero band)",
     ))
 }
 
-/// [`ring_side`] on a sphere face, without a chart: whether `ring`
-/// lies inside `newf`'s outer loop (the run a `mef` just walled off
-/// `oldf`), by the parity of the great-circle path from a ring vertex to
-/// a point outside the new face: a vertex of `oldf`'s outer loop, or the
-/// midpoint of one of its edges the run does not share, which lies off
-/// the run even where every vertex of that loop is a copy of a run
-/// vertex ([`sphere_path_parity`]). A path with a reading in the zero
-/// band says nothing and the next pair is asked: one ending on the run
-/// does, so a ring vertex on the run never decides. A reading in the
-/// escalation band escalates. A ring no pair decides is
-/// [`RingSide::Undecided`], as on a wall's chart ([`chart_ring_side`]).
-fn sphere_ring_side<T: Decide>(
+/// [`ring_side`] on a sphere or a cone face, without a chart: whether
+/// `ring` lies inside `newf`'s outer loop (the run a `mef` just walled
+/// off `oldf`), by the parity of a path ([`Quadric::paths`]) from a ring
+/// vertex to a point outside the new face: a vertex of `oldf`'s outer
+/// loop, or the midpoint of one of its edges the run does not share,
+/// which lies off the run even where every vertex of that loop is a
+/// copy of a run vertex ([`crate::ring_path::path_parity`]). A path with
+/// a reading in the zero band says nothing and the next path or pair is
+/// asked: one ending on the run does, so a ring vertex on the run never
+/// decides. A reading in the escalation band escalates. A ring no pair
+/// decides is [`RingSide::Undecided`], as on a wall's chart
+/// ([`chart_ring_side`]).
+fn path_ring_side<T: Decide>(
     body: &Body<T>,
-    sphere: (Point3<T>, T),
+    (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
     (oldf, newf): (FaceKey, FaceKey),
     ring: LoopKey,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
     let cycle = outer_cycle(body, newf)?.ok_or(SplitJoinError::SectionInvariant {
         face: newf,
-        what: "ring re-homing on a sphere: the run is not a cycle",
+        what: "ring re-homing on a sphere or a cone: the run is not a cycle",
     })?;
-    let loop_arcs = sphere_run_arcs(body, newf, &cycle)?;
+    let arcs = run_loop_arcs(body, newf, (surface, quadric), &cycle)?;
     let run_edges = cycle
         .iter()
         .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
@@ -2885,8 +2709,13 @@ fn sphere_ring_side<T: Decide>(
     let outside = outer_references(body, oldf, &run_edges)?;
     for p in loop_points(body, ring)? {
         for &w in &outside {
-            if let Some(odd) = sphere_path_parity(newf, sphere, (p, w), &loop_arcs, band)? {
-                return Ok(if odd { RingSide::In } else { RingSide::Out });
+            let paths = quadric
+                .paths((p, w), band)
+                .map_err(|diag| SplitJoinError::Escalated { face: newf, diag })?;
+            for path in paths {
+                if let Some(odd) = path_parity(newf, &path, &arcs, None, band)? {
+                    return Ok(if odd { RingSide::In } else { RingSide::Out });
+                }
             }
         }
     }
@@ -3428,25 +3257,30 @@ impl ChordJoiner {
             .and_then(|f| body.get_surface(f.surface))
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
-        let chart = matches!(
-            surface,
-            geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
-        );
-        let normal = if chart {
-            None
-        } else {
-            Some(face_plane_normal(body, oldf)?)
+        // How a ring's side is read: off the plane, on a cylinder's
+        // chart, or by a path on a sphere or a cone.
+        enum Homing<T: geom_core::Real> {
+            Plane(Vec3<T>),
+            Chart,
+            Path(Quadric<T>),
+        }
+        let homing = match &surface {
+            geom::Surface::Plane { .. } => Homing::Plane(face_plane_normal(body, oldf)?),
+            geom::Surface::Cylinder { .. } => Homing::Chart,
+            other => {
+                Homing::Path(Quadric::of(other).ok_or_else(|| ring_island_unread(newf, other))?)
+            }
         };
         for ring in rings {
             if ring == remainder {
                 continue;
             }
-            let side = match (normal, sphere_frame(&surface)) {
-                (Some(normal), _) => ring_side(body, ring, run, normal, self.band)?,
-                (None, Some(sphere)) => {
-                    sphere_ring_side(body, sphere, (oldf, newf), ring, self.band)?
+            let side = match &homing {
+                Homing::Plane(normal) => ring_side(body, ring, run, *normal, self.band)?,
+                Homing::Chart => chart_ring_side(body, &surface, newf, ring, self.band)?,
+                Homing::Path(quadric) => {
+                    path_ring_side(body, (&surface, quadric), (oldf, newf), ring, self.band)?
                 }
-                (None, None) => chart_ring_side(body, &surface, newf, ring, self.band)?,
             };
             match side {
                 RingSide::In => body.ring_move(ring, newf)?,
@@ -3535,8 +3369,8 @@ fn face_plane_normal<T: Decide>(
         None => Err(corrupt_face(face)),
         Some(_) => Err(SplitJoinError::SectionInvariant {
             face,
-            what: "ring re-homing reads the divided face's plane; this face's carrier is not \
-                   a plane (arm not wired)",
+            what: "ring re-homing read a plane off a face whose carrier is not a plane (re-homing \
+                   sends every other kind to its own reading)",
         }),
     }
 }
@@ -3648,11 +3482,11 @@ fn ring_vertices<T: Decide>(
 /// vertices is decided is [`RingSide::Undecided`], never
 /// [`RingSide::OnRun`]: a pierce strut at a pinch, whose point is a run
 /// vertex, always reads so here, and refuses rather than waiting.
-/// A sphere face reads without a chart ([`sphere_ring_side`]); any
-/// other curved kind refuses typed ([`ring_island_unread`]).
+/// A sphere or a cone face reads without a chart ([`path_ring_side`]);
+/// [`ChordJoiner::rehome_rings`] sends no other kind here.
 ///
 /// It is one of several point-in-region routines, beside [`ring_side`]
-/// (on a plane), [`sphere_ring_side`] (on a sphere), `solid_contain`'s
+/// (on a plane), [`path_ring_side`] (on a sphere or a cone), `solid_contain`'s
 /// wall outline (a point against a whole wall face's outline, inside the
 /// containment gate) and `boolean::sphere_region` (a point against a
 /// trimmed sphere face): a known split, each reading the region it is
@@ -3773,6 +3607,10 @@ pub(crate) fn ring_representative<T: Decide>(
     };
     Ok(vertex_point(body, v))
 }
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod cone_ring_rows;
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
