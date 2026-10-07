@@ -83,6 +83,8 @@ pose, since PR 4249 (JOIN's one vertex per cone at insertion) let it
 build; before that it refused `ClassificationInvariant` in the boolean.
 
 The boolean's edge classes at the vertex hold against an analytic germ
-in `x ∪ y`. `crates/editor-core/src/names/emit_topo.rs`,
+in `x ∪ y`, and every op in both orders builds sound in both scenes at
+every pose (`a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_refuses_typed_at_every_pose`),
+so the refusal is the emitter's. `crates/editor-core/src/names/emit_topo.rs`,
 `touch_reread_rows::no_rule`, allows exactly these cells and cites this
 item.

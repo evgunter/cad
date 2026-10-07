@@ -30,6 +30,8 @@
 //! - **several partners**: two pyramids united at their apexes, against
 //!   the arch, the arch above a void, and the arch alone; a pyramid
 //!   inside an island in the void, and one inside a void in the arch;
+//!   a pyramid over a void in a quadrilateral arch, with the plate and
+//!   without;
 //! - a pyramid with an edge lying **along** the arch's face;
 //! - a pyramid **lying** on the plate, an edge on its top, which a
 //!   touching vertex refuses to pair with (`vtxfac::partner_side`), and
@@ -51,8 +53,8 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, leaned, mix, nest, orders, posed_box,
-    posed_boxes, posed_prism, poses, wedge,
+    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, leaned, mix, nest, nest_polygon, orders,
+    posed_box, posed_boxes, posed_prism, poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
@@ -447,6 +449,8 @@ struct Scene {
     dart: AtRestBody<f64>,
     dart_void: AtRestBody<f64>,
     flat_voids: [AtRestBody<f64>; 2],
+    quad_hollow: AtRestBody<f64>,
+    bare_quad_hollow: AtRestBody<f64>,
     blocks: AtRestBody<f64>,
     prism: AtRestBody<f64>,
     leaned: AtRestBody<f64>,
@@ -469,6 +473,16 @@ impl Scene {
             "a void in the arch",
             subtract(&one, &tet(nest(arch(), 0.7), pose), t()),
         );
+        // A quadrilateral arch and the void in it: the void's apex
+        // reads through two hollow quadrilateral corners.
+        let quad = [
+            bearing(40.0, 0.45, 0.5),
+            bearing(80.0, 0.45, 0.5),
+            bearing(80.0, 0.25, 0.5),
+            bearing(40.0, 0.25, 0.5),
+        ];
+        let quad_arch = apex_pyramid(&quad, pose, t());
+        let quad_void = apex_pyramid(&nest_polygon(&quad, 0.7), pose, t());
         let pair = |what, [x, y]: [[[f64; 3]; 3]; 2]| {
             built(what, union(&tet(x, pose), &tet(y, pose), t()))
         };
@@ -579,6 +593,21 @@ impl Scene {
                     subtract(&plate, &apex_pyramid(&near_flat(dent), pose, t()), t()),
                 )
             }),
+            quad_hollow: built(
+                "a void in a quadrilateral arch",
+                subtract(
+                    &built(
+                        "the plate and a quadrilateral arch",
+                        union(&plate, &quad_arch, t()),
+                    ),
+                    &quad_void,
+                    t(),
+                ),
+            ),
+            bare_quad_hollow: built(
+                "a void in a bare quadrilateral arch",
+                subtract(&quad_arch, &quad_void, t()),
+            ),
             blocks: posed_boxes(
                 "two blocks in face contact",
                 &[PLATE, [(0.5, 2.5), (0.5, 1.5), (1.0, 1.5)]],
@@ -765,7 +794,7 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
 }
 
 /// **Every scene, at every pose, in every op and both orders, builds
-/// sound or refuses typed**: 51 scenes, 1530 op cells.
+/// sound or refuses typed**: 53 scenes, 1590 op cells.
 #[test]
 fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     let mut held = 0;
@@ -819,6 +848,12 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
                 "standing over a nearer-flat void",
                 &s.cone,
                 &s.flat_voids[1],
+            ),
+            ("over a quad void in a quad arch", &s.over, &s.quad_hollow),
+            (
+                "over a quad void in a bare quad arch",
+                &s.over,
+                &s.bare_quad_hollow,
             ),
         ] {
             held += builds(label, x, y, &pose);
