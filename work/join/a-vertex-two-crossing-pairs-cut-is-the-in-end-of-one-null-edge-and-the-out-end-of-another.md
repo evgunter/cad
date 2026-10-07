@@ -92,3 +92,15 @@ directions × 6 turns, every op, both orders), in release:
   so no vertex is shared) is the final state in front of Ev on PR
   4057. Options 1 (re-pair a plan whole) and 3 (refuse typed at the
   plan) wait on that ruling.
+
+## Measured (pinch unit, branch `join/pinch-one-vertex-per-cone-build`)
+
+One vertex per cone is built as a split before the zips
+(`zip::split_cones`). These 217 lines refuse earlier, at insertion
+(`insert::mint_directed`'s hung-ends check), so the split does not reach
+them. `pinch_runs_battery` is line-identical on main `f9bf3bca` and the
+unit's head: all 217 still refuse `ClassificationInvariant` "a vertex at
+a shared point is the In end of one null edge and the Out end of
+another". Option 2 for this row would split the shared vertex per cone
+at insertion, where the two plans meet. That is not what the unit built,
+so the row stays open on its own question.

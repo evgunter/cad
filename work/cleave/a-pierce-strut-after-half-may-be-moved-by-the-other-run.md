@@ -2,10 +2,13 @@
 id: a-pierce-strut-after-half-may-be-moved-by-the-other-run
 kind: issue
 title: vtxfac's bisector-only pierce run reads its strut corner 'after' off the entry table after the other run's fan may have moved it
-status: open
+status: closed
 opened: 2026-10-05
 priority: P2
 cost: M
+branch: cleave/pierce-strut-after
+closed: 2026-10-06
+pr: 4096
 ---
 
 
@@ -44,3 +47,60 @@ sector this way, or the same typed refusal `insert.rs` `mint_directed`
 gives (`ClassificationInvariant`, "an earlier run at the vertex carried
 a strut's corner to its copy") when `after` no longer starts at
 `vertex`, with a witness pose if one exists.
+
+## Built (branch cleave/pierce-strut-after)
+
+**Proved, not refused: the two runs never share a physical sector this
+way.** The witness above does not exist. A bisector-only run is one
+entry, the end bound of physical sector P's second piece (a sector
+holds one bisector), so `after = entries[(run.0 + run.1) % n].he` is
+the chord of P's orbit successor Q, not of P; and since runs are
+maximal, neither P's real entry nor Q's is Out. The pose described
+(the first run's last real member is X's chord, the second run X's
+bisector, a non-Out twin between) cannot occur: X's chord and X's
+bisector are adjacent entries, so both Out makes them one run. The
+other run's mint moves only halves whose real entries are Out and
+splices only before its first half and before the orbit successor of
+its last (or, if it is a bisector run too, before its own `after`, the
+successor of a different sector), and none of those is Q.
+
+`vtxfac.rs`'s bisector arm states that invariant at the site and
+checks it: `after` still starts at `vertex` and is still the orbit
+step from the run's own sector half, else `unreachable!`. A fan that
+moves one half past its run's last member trips it (mutation, run
+once and reverted).
+
+**Measured.** Main's suites never mint a bisector run second: with a
+probe at the arm, all 508 sweep-suite hits, the 162 in
+`pierce_runs_battery`, the 114 in `corner_pairs_battery`, the prism
+profile turned through its six starts and mirrored, and the L
+prism built by a subtraction all mint it first, because the fixtures'
+orbit start puts the reflex sector's bisector at entry 2 of 4.
+`vtxfac.rs` `a_bisector_run_after_the_other_run_keeps_its_corner`
+moves the reflex corner's orbit start through all three halves. One
+start puts the bisector entry last, so the bisector run mints after
+the fan (the probe confirmed it, 6 of the 18 ops). Every op in both
+orders, at every start, gives the same volume and keeps
+inclusion-exclusion. The check only reads, so these are main's answers
+too.
+
+**Review fix pass.**
+- The splitting twin had the same read:
+  `crates/topo/src/splitting/insert.rs` `insert_null_edges`'s
+  duplicate-only run, which allows any number of runs. The same proof
+  holds there, and it now carries the same invariant and check, with a
+  test (`a_duplicate_run_after_another_run_keeps_its_corner`).
+- Both tests now read the mint order off the records, as `dangling`
+  `[false, true]` at exactly one orbit start.
+- Both checks fire under the over-reaching-fan mutant.
+- `boolean/insert.rs` `mint_directed` now anchors every strut through
+  `corner_bound`, so `mint_run` no longer reads `sectors[from].he`
+  after a mint.
+
+## Closed (PR 4096, 2026-10-06)
+
+Closed by a proof, not a refusal: no witness exists. The invariant is stated and checked
+(`unreachable!`, D9) at both sites, `vtxfac.rs` and its twin in `splitting/insert.rs`. Two tests
+observe the strut-second order directly. `insert.rs`'s `mint_run` now anchors every dangling strut
+through `corner_bound`. Review tier: single FULL (APPROVE-WITH-FIXES, no MAJOR), confirmed by a
+battery of 5,184 booleans. The fix pass extended the proof and check to the splitting twin.

@@ -54,6 +54,19 @@ whole has no measured document consumer. The `abs` atom the new basis
 still mints (`|n.z|` in its axis comparison) is evidently not one the
 arms need to open on these documents.
 
+**On `main` the pad stopped answering to rule F before the basis
+changed** (SYM-16's bisect, 2026-10-06). That bisect ran the pad's
+rule-F row, `m10_9_the_pads_four_at_both_dials` (release, ε = 1e-9),
+along `main`'s first parent. The two dials read differently at #3254's
+parent (`69b0ce3b4a`): off `(886, 104, 1083)`, on `(882, 128, 1063)`
+as `(symbolic_zero, registered, numeric)`. At #3254 (`b5b7dcc342`)
+they read the same, `(882, 128, 1063)`. That merge spelled the
+carrier's span as the stored sweep, replacing `4·atan|b|`. It landed
+two days before #2468 brought the axis-order basis. That is consistent
+with the `abs` rule F opened on the pad being the span's, not the basis's
+(`ignored-sym-receipt-rows-drifted-red-on-main-unattributed`, "What
+Phase 1 found").
+
 ## The question
 
 Does the negative arm (and rule F) still earn its place? It costs one

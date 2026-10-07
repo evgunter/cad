@@ -331,7 +331,9 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "InsideOutOperand",
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
-                solid: topo::SolidKey::default(),
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
             },
         ),
         (
@@ -647,12 +649,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
                 runs: 3,
-            },
-        ),
-        (
-            "PinchUncrossed",
-            BooleanError::PinchUncrossed {
-                vertex: VertexKey::default(),
             },
         ),
         (

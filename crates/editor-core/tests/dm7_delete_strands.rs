@@ -43,7 +43,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
     applied
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
+            Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::LabelDropped { .. }
@@ -58,7 +58,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
     applied
         .iter()
         .filter_map(|row| match row {
-            Maintenance::StrandedAppearance { name } => Some(name.name().clone()),
+            Maintenance::StrandedAppearance { name, .. } => Some(name.name().clone()),
             Maintenance::Strand { .. }
             | Maintenance::OffsetCleared { .. }
             | Maintenance::LabelDropped { .. }
@@ -701,9 +701,11 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
             Maintenance::Strand {
                 node: doc.spoken(fillet),
                 name: doc.spoken_name(&carried),
+                took: editor_core::Took::Node
             },
             Maintenance::StrandedAppearance {
                 name: doc.spoken_name(&painted),
+                took: editor_core::Took::Node
             },
         ],
         "the payload carriers are walked before the store"
@@ -712,20 +714,14 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
 
 /// **A delete's report is its strands alone, payload then store; the
 /// only placement row an edit reports is the mate door's, on an
-/// insert** — the boundary main's
-/// `an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
-/// pinned, re-expressed for gauges.
+/// insert.**
 ///
-/// That row held the strands ahead of the registry acts a delete
-/// forced. Under gauges a delete forces none: deleting a member leaves
-/// its group's offsets where they are (ASSEMBLY.md A11 (2)), so the
-/// one placement row left, [`Maintenance::OffsetCleared`], comes only
-/// from a mate's insert — and an insert strands nothing. The boundary
-/// therefore holds by construction, and this row pins both halves on
-/// the edit that used to produce all three kinds: the mate's insert
-/// reports its clear and no strand, and the delete of the painted,
-/// mated instance reports the payload strand, then the appearance
-/// strand, and nothing after them.
+/// Deleting a member leaves its group's offsets where they are
+/// (ASSEMBLY.md A11 (2)), so [`Maintenance::OffsetCleared`] comes only
+/// from a mate's insert, and an insert strands nothing. This row pins
+/// both halves: the mate's insert reports its clear and no strand, and
+/// the delete of the painted, mated instance reports the payload
+/// strand, then the appearance strand, and nothing after them.
 #[test]
 fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() {
     let mut store = PartStore::new();
@@ -777,9 +773,11 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
             Maintenance::Strand {
                 node: doc.spoken(mate),
                 name: doc.spoken_name(&head_a),
+                took: editor_core::Took::Node
             },
             Maintenance::StrandedAppearance {
                 name: doc.spoken_name(&painted),
+                took: editor_core::Took::Node
             },
         ],
         "both strand kinds are read at the door, and the delete reports no placement row"

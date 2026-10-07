@@ -299,7 +299,18 @@ pub(crate) fn tessellate_curved(
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
         }
-        Ok(h)
+        // Two mesh ids at one point (two vertices, or two coincident
+        // edges' chord points) would share this handle's one id. A walk
+        // that is its own UV box (`require_swept_rectangle`) passes no
+        // point twice but at a pole, where one id repeats; the pinch read
+        // is `planar::Pinches`, and this lane refuses rather than mesh
+        // the second id's triangles under the first.
+        match (meta[h.index()].2, id) {
+            (PatchVertex::Shared(was), PatchVertex::Shared(now)) if was != now => {
+                Err(TessellateError::PinchWedge { face: fk })
+            }
+            _ => Ok(h),
+        }
     };
     let mut handles = Vec::with_capacity(polygon.len());
     for e in &polygon {
@@ -1736,7 +1747,7 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 250;
+    const TOTAL_MESHED: usize = 246;
     /// Typed refusals in the same sweep: four `CertificateExceeded` on
     /// the mirror nappe, whose split geometry exceeds the chord
     /// certificate at δ = 0.1. The donut contributes none — a split

@@ -2212,12 +2212,7 @@ pub enum Node<P, S: Slot = Expr> {
     /// selection means re-authoring the node with a new set — a
     /// deliberate act, which is the point of freezing.
     ///
-    /// Note also that nothing today can quietly widen a selection
-    /// even if it wanted to: the kernel's assembly admits only a
-    /// fully-requested chain set (`sweep::fillet`'s front door), so a
-    /// partially-grown selection refuses typed rather than blending
-    /// something the author never picked. Freeze is enforced
-    /// structurally, and its breaks are loud.
+    /// Freeze is enforced structurally, and its breaks are loud.
     ///
     /// # Canonical form
     ///
@@ -4623,6 +4618,66 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Boolean { declare, .. } | Node::Union { declare, .. } => declare,
             _ => &[],
+        }
+    }
+
+    /// **Which of this payload's references a refusal is about, as a
+    /// person reads it**: the node's own noun and the slot — `("fillet",
+    /// "edge 2")`, `("frame", "face")` — for a refusal that says a
+    /// reference that stopped resolving by where it sits rather than by
+    /// its words. `reference` is the slot's place among
+    /// [`Node::payload_names`]; a reference is (site, name), so two
+    /// slots holding one name are told apart by it. `None` where the
+    /// slot there does not hold `name` — as authored, or as node `id`'s
+    /// union reads it in member space — or no slot of a node that
+    /// resolves names is there.
+    pub(crate) fn reference_slot(
+        &self,
+        id: RecipeNodeId,
+        reference: usize,
+        name: &StableName,
+    ) -> Option<(&'static str, String)> {
+        let at = |names: &[StableName]| (names.get(reference)? == name).then_some(reference);
+        match self {
+            Node::Fillet { selection, .. } => Some(("fillet", format!("edge {}", at(selection)?))),
+            Node::Chamfer { selection, .. } => {
+                Some(("chamfer", format!("edge {}", at(selection)?)))
+            }
+            Node::Shell { open, .. } => Some(("shell", format!("open face {}", at(open)?))),
+            Node::Datum(Datum::FaceFrame { face, .. }) => {
+                (reference == 0 && face == name).then(|| ("frame", "face".to_owned()))
+            }
+            Node::Measure { refs, .. } => {
+                let held = refs.get(reference)?;
+                (held.name == *name).then(|| ("measure", format!("reference {reference}")))
+            }
+            Node::Boolean { declare, .. } | Node::Union { declare, .. } => {
+                let ((a, b), _) = declare.get(reference / 2)?;
+                let (held, side) = if reference.is_multiple_of(2) {
+                    (a, "first")
+                } else {
+                    (b, "second")
+                };
+                let holds = held.name == *name
+                    || (matches!(self, Node::Union { .. })
+                        && crate::names::member_name(id, held.at, &held.name) == *name);
+                let noun = if matches!(self, Node::Boolean { .. }) {
+                    "boolean"
+                } else {
+                    "union"
+                };
+                holds.then(|| {
+                    (
+                        noun,
+                        format!(
+                            "declared pair {}'s {side} {}",
+                            reference / 2,
+                            held.name.kind.noun()
+                        ),
+                    )
+                })
+            }
+            _ => None,
         }
     }
 

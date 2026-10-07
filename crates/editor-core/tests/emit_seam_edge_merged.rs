@@ -65,12 +65,11 @@ fn document(rest: &[Bx]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, ids)
 }
 
-/// **The chord is `a`'s top/far-wall rim edge, ranked along it**, in
-/// `[b, c, a]` and `[c, b, a]` — each order pinned by name and by the
-/// span the name answers to, so two orders wrong the same way cannot
-/// agree their way past it — and the two orders publish one name set,
-/// which covers every other entity of the body. On main both refused
-/// `Emission("seam edge between two merged faces (unsupported)")`.
+/// **The chord is `a`'s top/far-wall rim edge**, in `[b, c, a]` and
+/// `[c, b, a]` — each order pinned by name and by the span the name
+/// answers to, so two orders wrong the same way cannot agree their way
+/// past it — and the two orders publish one name set, which covers
+/// every other entity of the body.
 #[test]
 fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     let (doc, ids) = document(&[CORNER]);
@@ -84,7 +83,7 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
             "{order:?}: {:?}",
             failure(&ev, union)
         );
-        assert_rim_pieces(&doc, &ev, union, a, a < b, &order);
+        assert_rim_pieces(&doc, &ev, union, (a, b), &order);
         name_sets.push(
             table(&ev, union)
                 .iter()
@@ -98,34 +97,30 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     );
 }
 
-/// `a`'s rim between its top cap and its y = 1 wall publishes its
-/// pieces at y = z = 1, each named by its ends: the body's vertices cut
-/// the rim at 0.5, 0.4 and 0.3, x = 0.3..0.4 is inside `c`, and x =
-/// 0.5..1.0, where `a` runs flush with `b`, is named for the lesser
-/// member (`emit_union::Flush`) — `a`'s piece when `lesser` says so.
+/// `a`'s rim between its top cap and its y = 1 wall publishes one
+/// piece at y = z = 1, x = 0.0..0.3, named by its ends: x = 0.3..0.4 is
+/// inside `c`, and x = 0.4..1.5 runs along `a`'s rim and on along
+/// `b`'s, one edge named for the set of the two (`emit_union::Flush`),
+/// which holds the rest of the rim, so the lone piece is not the rim
+/// whole (N3).
 fn assert_rim_pieces(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
     union: RecipeNodeId,
-    a: RecipeNodeId,
-    lesser: bool,
+    (a, b): (RecipeNodeId, RecipeNodeId),
     order: &[RecipeNodeId],
 ) {
-    let rim = StableName {
+    let rim = |m: RecipeNodeId| StableName {
         kind: EntityKind::Edge,
-        node: a,
+        node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(doc, a, 0, 2),
+            crate::fixture::piece(doc, m, 0, 2).into(),
         )],
     };
     let t = table(ev, union);
-    let pieces: Vec<StableName> = t
-        .iter()
-        .filter(|(n, _)| is_rim_piece(n, a, &rim))
-        .map(|(n, _)| n.clone())
-        .collect();
     let body = body_of(ev, union);
+    let micro = |x: f64| (x * 1e6).round() as i64;
     let span = |n: &StableName| {
         let e = edge_of(t, "the rim piece", n);
         let edge = body.get_edge(e).unwrap();
@@ -139,30 +134,40 @@ fn assert_rim_pieces(
             p.x
         };
         let (x0, x1) = (x(edge.he_plus), x(edge.he_minus));
-        (x0.min(x1), x0.max(x1))
+        (micro(x0.min(x1)), micro(x0.max(x1)))
     };
-    let micro = |x: f64| (x * 1e6).round() as i64;
-    let mut spans: Vec<(i64, i64)> = pieces
+    let pieces: Vec<StableName> = t
         .iter()
-        .map(|n| {
-            assert!(
-                matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))),
-                "{order:?}: a piece of a's rim is named by its ends: {n:?}"
-            );
-            let (x0, x1) = span(n);
-            (micro(x0), micro(x1))
-        })
+        .filter(|(n, _)| is_rim_piece(n, a, &rim(a)))
+        .map(|(n, _)| n.clone())
         .collect();
-    spans.sort_unstable();
-    let mut want = vec![(0.0, 0.3), (0.4, 0.5)];
-    if lesser {
-        want.push((0.5, 1.0));
-    }
-    let want: Vec<(i64, i64)> = want
-        .into_iter()
-        .map(|(p, q)| (micro(p), micro(q)))
-        .collect();
-    assert_eq!(spans, want, "{order:?}: a's rim pieces");
+    let whole = crate::fixture::member_entity(union, a, rim(a), EntityKind::Edge);
+    let [piece] = pieces.as_slice() else {
+        panic!("{order:?}: a's rim stands alone once: {pieces:?}");
+    };
+    assert!(
+        matches!(
+            piece.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+        ),
+        "{order:?}: the piece is named by its ends: {piece:?}"
+    );
+    assert_eq!(span(piece), (0, micro(0.3)), "{order:?}: a's rim");
+    let mut set = vec![
+        whole,
+        crate::fixture::member_entity(union, b, rim(b), EntityKind::Edge),
+    ];
+    set.sort();
+    let joined = StableName {
+        kind: EntityKind::Edge,
+        node: union,
+        path: vec![RoleSeg::Merged(set)],
+    };
+    assert_eq!(
+        span(&joined),
+        (micro(0.4), micro(1.5)),
+        "{order:?}: the set-named edge"
+    );
 }
 
 /// **No order of the row's documents refuses with an `Emission`.**

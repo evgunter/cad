@@ -42,14 +42,14 @@
 //! - **each window**, on the face class that carries it: a point on the
 //!   torus CARRIER but outside the face's own window is outside the
 //!   solid, not on its boundary;
-//! - **the uncertain root count escalates rather than answering**, at
-//!   the tube's top circle — the tangency locus, where the plane
-//!   `h = r` touches the torus along a whole circle and the quartic's
-//!   roots merge;
-//! - **the tangency shell**, measured and guarded, because it is a
-//!   CUBE-root shell in ε — wider than the linear one by three orders at
-//!   the default row — and a caller reading "a tangent ray grazes" will
-//!   assume a measure-zero nuisance;
+//! - **an uncertain root count sets its ray aside rather than
+//!   answering**, at the tube's top circle — the tangency locus, where
+//!   the plane `h = r` touches the torus along a whole circle and the
+//!   quartic's roots merge — and another ray answers;
+//! - **the shell about that circle is the residual one**, measured and
+//!   guarded: the rays the quartic cannot count there are set aside
+//!   rather than refusing the query, so the circle leaves no shell of
+//!   its own;
 //! - **the consumer unlock**: a disjoint union whose no-crossings
 //!   fallback walks a containment door. Red on main as
 //!   `KindUnsupported { kind: Torus }`, green here;
@@ -80,7 +80,7 @@ const DONUT_MINOR: f64 = 0.3;
 /// unit revolve about the y axis: nothing is further than `R + r = 1.3`
 /// from the axis and nothing reaches beyond `y = ±1`. [`away`]'s ceiling
 /// is stated against that, and
-/// [`the_clamp_floor_clears_the_torus_tangency_shell`] asserts it from
+/// [`the_clamp_floor_clears_the_shell_about_the_top_circle`] asserts it from
 /// the body's own vertices rather than leaving it as prose a later
 /// fixture edit could falsify.
 const FIXTURE_EXTENT: f64 = DONUT_R + DONUT_MINOR;
@@ -186,52 +186,22 @@ fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
 /// step. What differs is the shell it has to clear, and that is derived
 /// and measured here rather than inherited.
 ///
-/// # The torus's own shells
+/// # The torus's one shell
 ///
-/// - the **residual** shell, where the boundary pre-pass's exact signed
-///   distance to the tube compares against `Zero`: linear in ε, about
-///   `K·ε`. **Measured 9.7e-9 at the default row**, at both equators and
-///   at a generic 45° surface point alike. Every probe in this suite but
-///   one sits against this shell and clears it by five orders;
-/// - the **tangency** shell, where the quartic's discriminant escalates.
-///   It is NOT everywhere: the quartic degenerates on a locus of
-///   (point, direction) pairs, and what makes part of it a shell around
-///   the BODY is the tube's top and bottom circles, where the tangent
-///   plane is perpendicular to the axis.
+/// The **residual** shell, where the boundary pre-pass's exact signed
+/// distance to the tube compares against `Zero`: linear in ε, about
+/// `K·ε`. **Measured 9.7e-9 at the default row**, at both equators, at a
+/// generic 45° surface point and above the tube's top circle alike.
+/// Every probe in this suite clears it by five orders.
 ///
-/// # The tangency shell is a CUBE root, and that exponent is measured
-///
-/// The cone arm's apex shell is `√(K·ε·v_ext)` because the discriminant
-/// there has a simple zero in the root gap: one pair of roots merges.
-/// The obvious guess here is the same law, and **it is wrong** — the
-/// plane `h = r` touches the torus along a whole CIRCLE rather than at a
-/// point, so two root pairs merge together and the discriminant's zero
-/// on that locus is of higher order. Measured, walking a probe in toward
-/// the top circle until the door stops answering:
-///
-/// | ε | `away()` | tangency shell | `(K·ε·ext²)^⅓` | clearance |
-/// |---|---|---|---|---|
-/// | 1e-12 | 1e-3 (floor) | 3.69e-5 | 2.57e-4 | 27.1× |
-/// | 1e-9 (default) | 1e-3 (floor) | 3.66e-4 | 2.57e-3 | **2.7×** |
-/// | 1e-6 | 1e-1 (ceiling) | 3.62e-3 | 2.57e-2 | 27.6× |
-///
-/// The shell falls by a factor of **9.905 per three decades of ε** —
-/// twice — which is `1000^(1/3)`, not `√1000`. Against `(K·ε·ext²)^⅓`
-/// the ratio is 0.1439 / 0.1425 / 0.1412 across the three rows: constant
-/// to **two** digits, drifting slowly in the third. The exponent is
-/// therefore **measured, not derived** — what is claimed here is the law
-/// the numbers show, and the guard row below re-measures the constant at
-/// the drawn ε and the exponent at two FIXED bands, so that second check
-/// does not depend on the draw. Which matters: the two laws cross near
-/// ε = 1e-6 and differ by 1.005× there, so a run drawing that row — the
-/// row the gated head drew — could not have told them apart at all. At
-/// 1e-12 the separation is 10.2×, and that is where the first draft of
-/// this guard went red and the wrong exponent was found.
-///
-/// So the default row is the tight one and the floor clears it by a
-/// factor of under three. It scales as `K^⅓` too, so raising
-/// `CAD_AMBIGUITY_K` three decades puts the shell past this floor; the
-/// guard row goes red saying so, and the fix is to raise the FLOOR.
+/// The quartic degenerates on a locus of (point, direction) pairs, and
+/// the tube's top and bottom circles, where the tangent plane is
+/// perpendicular to the axis, put part of that locus about the BODY: a
+/// near-horizontal ray from a point above the top circle has two root
+/// pairs merging. Such a ray is set aside and another ray of the
+/// schedule answers, so the locus leaves no shell wider than the
+/// residual one, which
+/// [`the_clamp_floor_clears_the_shell_about_the_top_circle`] measures.
 ///
 /// The clamp saturates at every shipped ε row (floor at 1e-9 and 1e-12,
 /// ceiling at 1e-6), exactly as BOOL-2 records: `1e6·ε` lands inside
@@ -501,63 +471,49 @@ fn both_windows_trim_the_quarter_spool() {
     );
 }
 
-/// **The uncertain root count escalates rather than answering.**
+/// **An uncertain root count sets its ray aside rather than answering.**
 ///
 /// The plane `h = r` is TANGENT to the torus along its whole top circle,
 /// so a query point on the axis-parallel line through that circle sees
-/// near-horizontal rays whose two roots have merged: the quartic's
-/// discriminant lands in the band, and this door answers only on a
-/// count it can certify. What comes back is the typed escalation naming
-/// the predicate — not a guessed parity, and not a miss.
-///
-/// This row is the posture, not an anecdote: it walks in from a distance
-/// the door answers at, and asserts that somewhere on the way in the
-/// answer becomes a refusal that names `bool_ray_torus_disc`.
+/// near-horizontal rays whose root pairs have merged: the quartic's
+/// discriminant lands in the band (`topo`'s `torus_predicate_rows` reaches
+/// it at the tangent pose). Such a ray answers nothing — not a guessed
+/// parity, and not a miss — and another ray of the schedule answers.
+/// Walked in from a distance the door answers at, every probe clear of
+/// the residual band reads `Out` above the circle and `In` below it. The
+/// probes below are the ones a miss would get wrong: there the `+x` ray,
+/// grazing the tube's inner wall from inside, is the uncertain one, and
+/// read as meeting nothing it would answer the side at infinity.
 #[test]
-fn an_uncertain_root_count_escalates_naming_its_predicate() {
+fn an_uncertain_root_count_sets_its_ray_aside() {
     let body = donut();
-    let mut named = None;
     let mut d = 1e-2_f64;
-    while d > 1e-12 {
-        let q = Point3::new(0.0, DONUT_MINOR + d, DONUT_R);
-        if let Err(PointInSolidError::Escalated { diag, .. }) =
-            point_in_solid(&body, q, band(), Tol::witness())
-            && diag.predicate == Some("bool_ray_torus_disc")
-        {
-            named = Some((d, diag));
-            break;
-        }
+    while d > band().escalate() {
+        let above = Point3::new(0.0, DONUT_MINOR + d, DONUT_R);
+        assert_eq!(
+            pis(&body, above),
+            SolidContainment::Out,
+            "{d:e} above the tube's top circle"
+        );
+        let below = Point3::new(0.0, DONUT_MINOR - d, DONUT_R);
+        assert_eq!(
+            pis(&body, below),
+            SolidContainment::In,
+            "{d:e} below the tube's top circle"
+        );
         d /= 1.02;
     }
-    let (d, diag) = named.expect(
-        "approaching the tube's tangency circle must reach an uncertain root count, \
-         not a guessed one",
-    );
-    assert!(
-        d < 1e-2,
-        "the escalation is a shell about the tangency circle, not the whole body"
-    );
-    assert!(
-        format!("{diag:?}").contains("bool_ray_torus_disc"),
-        "the refusal must name the predicate that could not certify the count"
-    );
-    // And the door recovers at the probe offset the rest of the suite
-    // uses: the shell is narrow, which is what the guard row measures.
-    assert_eq!(
-        pis(&body, Point3::new(0.0, DONUT_MINOR + away(), DONUT_R)),
-        SolidContainment::Out
-    );
 }
 
-/// The tangency shell at a given band: the OUTERMOST offset above the
-/// tube's top circle at which the door declines to answer, walked
+/// The shell about the tube's top circle at a given band: the OUTERMOST
+/// offset above it at which the door declines to answer, walked
 /// multiplicatively inward from an offset it answers at.
 ///
 /// **A wrong answer is not a shell**, and the walk says which is which
 /// rather than folding every non-`Out` into the measurement. Every probe
 /// here is outside the tube by construction, so:
 ///
-/// * a refusal is the escalation this row is measuring;
+/// * a refusal counts toward the shell;
 /// * `OnBoundary` is HONEST while the probe is inside the residual
 ///   band — the boundary pre-pass compares an exact signed distance
 ///   against `Zero`, and this walk runs down to offsets far below it —
@@ -566,7 +522,7 @@ fn an_uncertain_root_count_escalates_naming_its_predicate() {
 /// * `In` is a wrong answer at any offset and fails the row, because
 ///   folding one into `shell` would let a defect WIDEN the measured
 ///   shell instead of going red.
-fn tangency_shell(body: &Body<f64>, b: Band) -> f64 {
+fn top_circle_shell(body: &Body<f64>, b: Band) -> f64 {
     let mut shell = 0.0_f64;
     let mut d = 0.1_f64;
     while d > 1e-13 {
@@ -575,7 +531,7 @@ fn tangency_shell(body: &Body<f64>, b: Band) -> f64 {
             Ok(SolidContainment::Out) => {}
             Ok(SolidContainment::In) => panic!(
                 "the door answered In at {q:?}, which is {d:e} OUTSIDE the tube — a \
-                 wrong answer, not an escalation shell"
+                 wrong answer, not a shell"
             ),
             Ok(SolidContainment::OnBoundary) => {
                 assert!(
@@ -600,19 +556,14 @@ fn tangency_shell(body: &Body<f64>, b: Band) -> f64 {
 ///
 /// 1. the fixture is still the size the ceiling is stated against, read
 ///    off the body's own vertices;
-/// 2. the measured tangency shell still obeys the CUBE law
-///    `0.143·(K·ε·ext²)^⅓` — if the quartic's metering changes, the
-///    shell moves and [`away`]'s numbers become fiction. Its EXPONENT is
-///    pinned separately, at two fixed bands, for the reason under (2b);
-/// 3. the floor still CLEARS that shell, asserted at 2× against a
-///    measured 2.7× at the default row — which is the tightest of the
-///    three and leaves the least headroom of any margin in this suite.
-///    This is the assertion that goes red when `CAD_AMBIGUITY_K` is
-///    raised: the shell grows like `K^⅓`.
-///    The fix is then to raise the floor — never to widen the band, and
-///    never to move a probe off the geometry it means.
+/// 2. the shell about the top circle is still the residual one — no
+///    wider than the band — at the drawn ε, and LINEAR in ε at two
+///    fixed bands: a ray the quartic cannot count that refused the query
+///    again would widen it past the band, by the cube root of `K·ε` it
+///    measured when it did;
+/// 3. the floor still CLEARS that shell.
 #[test]
-fn the_clamp_floor_clears_the_torus_tangency_shell() {
+fn the_clamp_floor_clears_the_shell_about_the_top_circle() {
     let body = donut();
     // (1) the fixture-size invariant, from the geometry itself.
     for (_, p) in body.points() {
@@ -622,48 +573,29 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
         );
     }
     // (2) the shell, measured at the band the run drew.
-    let shell = tangency_shell(&body, band());
-    // The measured law (see [`away`]): `C·(K·ε·ext²)^⅓` with C ≈ 0.143.
-    // K·ε read off the band the shell above was MEASURED at, so the
-    // law and the measurement are stated at one tolerance. Spelled as
-    // a literal `10 · ε` this was the run's K·ε only at the default K.
-    let k = band().escalate();
-    let law = (k * FIXTURE_EXTENT.powi(2)).cbrt() * 0.143;
+    let shell = top_circle_shell(&body, band());
     assert!(
-        shell > law / 2.0 && shell < law * 2.0,
-        "the tangency shell {shell:e} no longer tracks the measured law {law:e} — the \
-         quartic's discriminant metering moved, and [`away`]'s table with it"
+        shell <= band().escalate(),
+        "the shell {shell:e} about the tube's top circle is wider than the residual \
+         band {:e}: a ray the quartic cannot count refuses the query again",
+        band().escalate()
     );
-    // (2b) **the EXPONENT, pinned independently of the drawn ε.**
-    //
-    // The window in (2) is a factor of two, and that is not always
-    // enough to tell the cube law from the `√(K·ε·ext)` one this arm
-    // does NOT obey: the two laws happen to cross near ε = 1e-6, where
-    // they differ by 1.005× and the window cannot separate them at all
-    // (they separate by 3.2× at 1e-9 and 10.2× at 1e-12). A run that
-    // draws 1e-6 — which is the row the gated head actually drew — would
-    // therefore check the constant and nothing about the exponent.
-    //
-    // So the exponent is measured here at TWO FIXED bands rather than at
-    // the drawn one. Three decades of ε apart, the cube law predicts a
-    // shell ratio of 10, the rejected square-root law 31.6, a linear law
-    // 1000. The assertion excludes both alternatives by an order and
-    // does it on every run, whichever ε was drawn.
-    let coarse = tangency_shell(&body, Band::new(1e-9, 1e-8).unwrap());
-    let fine = tangency_shell(&body, Band::new(1e-12, 1e-11).unwrap());
+    // (2b) the EXPONENT, at two fixed bands three decades apart: linear
+    // gives 1000, the cube law of a refusing count 10.
+    let coarse = top_circle_shell(&body, Band::new(1e-9, 1e-8).unwrap());
+    let fine = top_circle_shell(&body, Band::new(1e-12, 1e-11).unwrap());
     let ratio = coarse / fine;
     assert!(
-        (7.0..15.0).contains(&ratio),
-        "the tangency shell's ε-exponent moved: three decades of ε change it by \
-         {ratio:.2}×, where the measured CUBE law predicts 10 (a √ε law would give \
-         31.6, a linear one 1000). [`away`]'s table is derived from that exponent"
+        (500.0..2000.0).contains(&ratio),
+        "the shell's ε-exponent moved: three decades of ε change it by {ratio:.2}×, \
+         where the residual band's linear law predicts 1000"
     );
     // (3) the clearance.
     assert!(
         away() > shell * 2.0,
-        "the probe offset {} no longer clears the tangency shell {shell:e} by 2× — \
-         raise the FLOOR in `away`, never widen the band or move the probe off the \
-         geometry it means (the shell grows as the CUBE root of K and of ε)",
+        "the probe offset {} no longer clears the shell {shell:e} by 2× — raise the \
+         FLOOR in `away`, never widen the band or move the probe off the geometry it \
+         means",
         away()
     );
 }
@@ -849,7 +781,7 @@ fn an_analytic_oracle_sweep_over_the_donut() {
                 );
                 let c = donut_clearance(q);
                 // Skip the band the door may honestly call OnBoundary,
-                // widened by the measured tangency shell.
+                // widened to the suite's probe floor ([`away`]).
                 if c.abs() < 1e-3 {
                     continue;
                 }

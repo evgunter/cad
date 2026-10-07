@@ -69,6 +69,7 @@ fn cylinder_body() -> Body<f64> {
 /// The corpus shape (i) cut: a tilted plane through a cylinder.
 fn tilted_cut() -> (Body<f64>, Body<f64>) {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let phi = 0.3f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
@@ -262,6 +263,7 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         Vec3::unit_z(),
         geom_core::Tol::witness(),
     );
+    let prism = sweep::test_support::finished("the prism", prism, Tol::witness());
     let result = split(&prism, &plane, Tol::witness()).unwrap();
     for part in [result.above.body(), result.below.body()]
         .into_iter()
@@ -334,14 +336,7 @@ fn a_tampered_branch_is_refused_at_rest() {
     let band = Band::linear(Tol::witness()).unwrap();
     // A window wide enough that trim containment is not what fires —
     // the finding must be the BRANCH, not the box.
-    let window = topo::ChartWindow {
-        u_min: -100.0,
-        u_max: 100.0,
-        v_min: -100.0,
-        v_max: 100.0,
-    };
-    let tampered =
-        topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, window, band).unwrap();
+    let tampered = topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, band).unwrap();
     above.attach_pcurve(victim, tampered);
     let findings = topo::pcurves::validate_pcurves(&above, band);
     assert!(
@@ -471,6 +466,7 @@ fn caches_certify_on_the_interval_lane() {
     )
     .unwrap()
     .body;
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let phi = 0.3f64;
     let plane = topo::test_support::split_plane(
         interval::p3(0.0, 0.0, 0.5),
@@ -507,44 +503,34 @@ fn caches_certify_on_the_interval_lane() {
 
 /// The seam-closed tube split by a tilted plane: its wall pieces' loops
 /// contain seam-meridian fragments AND section arcs, so the walk must
-/// keep one branch across a boundary that crosses the chart seam.
-/// Whatever the outcome, it must be TYPED — mint success with clean
-/// validation, or a typed refusal; never a wrong branch shipped.
+/// keep one branch across a boundary that crosses the chart seam. Both
+/// halves mint clean caches and hold `0.144π` each: the plane passes
+/// through the tube's centre, whose point reflection swaps the sides.
 #[test]
-fn a_seam_closed_tube_split_is_typed_either_way() {
+fn a_seam_closed_tube_split_mints_clean_halves() {
     let tube = revolved_tube();
+    let tube = sweep::test_support::finished("the tube", tube, Tol::witness());
     let phi = 0.25f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.3, 0.0),
         Vec3::new(phi.sin(), phi.cos(), 0.0),
         geom_core::Tol::witness(),
     );
-    match split(&tube, &plane, Tol::witness()) {
-        Ok(result) => {
-            let band = Band::linear(Tol::witness()).unwrap();
-            for part in [result.above.body(), result.below.body()]
-                .into_iter()
-                .flatten()
-            {
-                let findings = topo::pcurves::validate_pcurves(part, band);
-                assert!(findings.is_empty(), "{findings:?}");
-            }
-        }
-        Err(e) => {
-            // A typed refusal is an acceptable outcome for a frontier
-            // configuration; a panic or a silently wrong body is not.
-            // `split`'s signature is what makes the refusal typed, so
-            // what is left to check at runtime is that it reaches a
-            // human as prose, and none of them renders a payload's
-            // `Debug`. The door is named once, by the layer that
-            // raised the split, so this arm names no stage.
-            let msg = format!("{e}");
-            assert!(
-                !msg.contains("split_reduce") && !msg.contains("split join"),
-                "no stage prefix: {msg}"
-            );
-            assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
-        }
+    let result = split(&tube, &plane, Tol::witness()).unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
+    for part in [&result.above, &result.below] {
+        let part = part.body().expect("material on both sides");
+        let findings = topo::pcurves::validate_pcurves(part, band);
+        assert!(findings.is_empty(), "{findings:?}");
+        // A curved wall's volume is a quadrature read to the band's own
+        // reporting target: within its enclosure, beyond 1e-8.
+        let m = topo::mass_properties(part, Tol::witness()).unwrap();
+        assert!(
+            (m.volume - 0.144 * core::f64::consts::PI).abs() < 1e-8 + m.volume_pad,
+            "{} ± {}",
+            m.volume,
+            m.volume_pad
+        );
     }
 }
 
@@ -555,6 +541,7 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
 #[test]
 fn a_rotated_tilted_cut_mints_branch_consistent_caches() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let phi = 0.3f64;
     let rot = 0.5f64;
     let plane = topo::test_support::split_plane(

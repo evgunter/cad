@@ -63,3 +63,16 @@ the PR and did not absorb the fix (crates/profile is outside its fence).
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to BLEND (the sweep crate and the profile fillet door are BLEND's charter; crates/sweep/src/loft.rs passes to BLEND at this exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## 2026-10-02 — re-checked under 5b (store-constructed-carriers): does not dissolve
+
+The fillet arc now stores the radius as authored, so the stored radius is
+the requested `0.07525705177877821` exactly. The seed still reds at 1e-6,
+and the stored arc shows why: at iteration 380 the fillet is a
+near-half-turn (sweep `π + 8.2e-7`), its rim at `t1` is `3.1e-8` off the
+radius and its rim at `t2` is `-5.6e-7` off, and turning `t1` through the
+sweep lands `(5.6e-7, -2.0e-7)` from `t2`. The construction's tangent point
+`t2` sits off its own fillet circle by about ε/2; the oracle's recovered
+radius (chord and stored sweep) reports that inconsistency. Measured on
+`claude/clever-bardeen-4itqb3` with
+`CAD_FUZZ_SEED=0x063fda568e08fb0f CAD_TOLERANCE_EPS=1e-6`.

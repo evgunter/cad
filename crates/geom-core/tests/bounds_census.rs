@@ -326,14 +326,63 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/sweep/src/blend/open/ruled.rs",
+        path: "crates/sweep/src/blend/open/end_face.rs",
         subject: "impl<T: Bounds> CapSliver<T>",
         why: Selection(
-            "the ruled cut-off's cap meter `clearance`. It reads no bracket itself — its \
+            "the cut-off's end-face sliver meter `clearance`. It reads no bracket itself — its \
              reads are `CircleFrame::misses`' and the on-axis guards', reached through \
              `piece_distance` and `piece_along` in `surgery.rs` — and its result is the \
              margin `ring_clearance` decides, so it inherits that door's DL5(b) \
              disposition and no other",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "canonical_axis",
+        why: Selection(
+            "picks the sign of a band's axis (its largest component positive) and the \
+             axis point nearest the origin, so coaxial bands share one sheet frame. \
+             Either sign is a valid frame, the construction is the same on both, and \
+             nothing decided reads which was taken",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "same_frame",
+        why: Selection(
+            "bit-equality of two sheet frames, which selects whether one band's sheet \
+             bounds may be read on the other's sheet rectangles. Unequal bits only drop \
+             a clearing term — the cell is then read in space — so the selection moves \
+             cost, never what a margin encloses",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "same_sheet",
+        why: Selection("`same_frame` over two reaches' frames; the same disposition"),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "impl<T: Bounds> Least<T>",
+        why: Selection(
+            "the blend reach meter's cell driver. The read decides whether a cell is \
+             clear, which selects whether it is halved and which of two lower bounds it \
+             gives the face: the larger, when the face's own surface or a bound of the \
+             reach clears the cell, and the reach's bound alone otherwise, which is the \
+             smaller. Every contribution is a lower bound of the face's clearance over \
+             the face points the cell can hold, so the selection moves tightness and \
+             cost, never what the least bound encloses, and the funnel decides that \
+             least bound",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/open/end_face.rs",
+        subject: "impl<T: Bounds> SectionFrame<T>",
+        why: Selection(
+            "the cut-off's round-section depth (`scaled`, `depth`) for the sliver meter. It \
+             reads no bracket itself — scaled radii by arithmetic alone — and its result is \
+             one term of `CapSliver::clearance`, the margin `ring_clearance` decides, so it \
+             inherits that door's DL5(b) disposition and no other",
         ),
     },
     Site {
@@ -353,6 +402,17 @@ const ROSTER: &[Site] = &[
              lies. The on-axis `lo() <= 0` guards select the whole-circle pair, which \
              bounds the arc's wherever `c` is and equals the ends' pair where a point \
              scalar takes it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "worse",
+        why: Selection(
+            "the worse of two margins of one ring cycle: the margin is `min`, value \
+             arithmetic, and the one bracket read (the `lo()` comparison) only SELECTS \
+             which input's `bounded` flag rides with it. Both go to `ring_clearance`, \
+             which decides the margin, so it inherits that door's DL5(b) disposition \
+             and no other",
         ),
     },
     Site {
@@ -415,11 +475,11 @@ const ROSTER: &[Site] = &[
         why: Payload("as `bracket_vector`, over a decided unit direction (`UnitSpanBox`)"),
     },
     Site {
-        path: "crates/topo/src/boolean/ops.rs",
+        path: "crates/topo/src/boolean/boxes.rs",
         subject: "centred_box",
         why: Payload(
-            "the extent scan's ball box: a centre's and a radius's brackets into an f64 \
-             `bvh::Aabb`, padded, and stop",
+            "a ball's box, for the extent scan and the crossing layer's touch reading: a \
+             centre's and a radius's brackets into an f64 `bvh::Aabb`, padded, and stop",
         ),
     },
     Site {

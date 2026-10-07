@@ -257,6 +257,20 @@ impl Drop for PanicCapture {
     }
 }
 
+/// Gives `face` a ring link that does not resolve, and names it.
+pub(crate) fn tear_ring(body: &mut Body<f64>, face: FaceKey) -> String {
+    let outer = body.get_face(face).unwrap().outer;
+    let record = body.get_loop(outer).unwrap().clone();
+    let ring = body.loops.insert(record);
+    body.loops.remove(ring);
+    body.faces.get_mut(face).unwrap().rings.push(ring);
+    format!(
+        "{}'s rings names {}",
+        EntityId::Face(face),
+        EntityId::Loop(ring)
+    )
+}
+
 /// Runs `op` on the torn `body` and asserts it panics with a report
 /// containing every fragment of `premise`, in its plan phase: the body
 /// is deep-equal afterwards. Returns the report. It runs inside a
@@ -2315,7 +2329,7 @@ fn kill_anchors_on_torn_bodies() {
 
 /// The valid bodies [`revert_anchor_rows`] and [`revert_rename_rows`]
 /// tear and
-/// [`valid_fixtures_never_refuse_a_revert_anchor`] reverts: those
+/// [`valid_fixtures_never_panic_a_revert_anchor`] reverts: those
 /// [`kill_anchor_rows`] tears, among them the holed box and the genus-2
 /// body, whose faces carry rings, and the bodies with a lone vertex or
 /// an `Empty` loop.
@@ -2330,7 +2344,7 @@ const REVERT_BODIES: [(&str, BuildFixture); 8] = [
     RING_ABOUT_AN_EMPTY_OUTER,
 ];
 
-/// No over-refusal of `revert`'s start and anchor proofs: every valid
+/// No over-panic of `revert`'s start and anchor proofs: every valid
 /// body [`REVERT_BODIES`] builds, the geometric cube, a planar block
 /// with two through-holes, the pillows, a raw prism and the lone `mvfs`
 /// seed reverts, and so does its reversal. An enumeration, not a
@@ -2339,7 +2353,7 @@ const REVERT_BODIES: [(&str, BuildFixture); 8] = [
 /// the segment hold half-edges whose mate is their own `next` or
 /// `prev`.
 #[test]
-fn valid_fixtures_never_refuse_a_revert_anchor() {
+fn valid_fixtures_never_panic_a_revert_anchor() {
     use crate::fixtures::{mvfs_state, ngon_pillow, pillow, raw_prism};
     use crate::test_support_fixtures::{geometric_cube, holed_block};
     let tol = Tol::witness();
@@ -2368,12 +2382,7 @@ fn valid_fixtures_never_refuse_a_revert_anchor() {
             fixture == "mvfs_state" || (anchored && cycled),
             "{fixture} asks both proofs something"
         );
-        let reverted = body
-            .revert()
-            .unwrap_or_else(|e| panic!("the valid {fixture} refuses {e:?}"));
-        reverted
-            .revert()
-            .unwrap_or_else(|e| panic!("the reversed {fixture} refuses {e:?}"));
+        drop(body.revert().revert());
     }
 }
 
@@ -2404,7 +2413,7 @@ fn each_revert_tear(
     tear: RevertTear,
     mut visit: impl FnMut(Body<f64>, Option<Body<f64>>),
 ) {
-    let reverted = body.revert().expect("the intact body reverts");
+    let reverted = body.revert();
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let vertices: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
     let targets = match tear {
@@ -2439,18 +2448,25 @@ fn each_revert_tear(
 }
 
 /// Every single `tear` of `body`, then `revert` on it. Returns calls,
-/// `Err`, and the `Ok` results carrying a [`kill_anchor_faults`] fault
-/// the tear did not plant, which is one `revert` wrote. Release-only,
-/// as the module docs say: a debug build's postcondition answers every
-/// torn `Ok` first.
+/// row-4 premise panics, and the results carrying a
+/// [`kill_anchor_faults`] fault the tear did not plant, which is one
+/// `revert` wrote. A panic naming no premise fails. Release-only, as the
+/// module docs say: a debug build's postcondition answers every torn
+/// result first.
 #[cfg(not(debug_assertions))]
-fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear) -> [usize; 3] {
+fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear, capture: &PanicCapture) -> [usize; 3] {
     let mut cells = [0usize; 3];
     each_revert_tear(body, tear, |torn, _| {
         let planted = kill_anchor_faults(&torn);
         cells[0] += 1;
-        match torn.revert() {
-            Err(_) => cells[1] += 1,
+        match capture.run(|| torn.revert()) {
+            Err(report) => {
+                assert!(
+                    report.contains(ROW_FOUR),
+                    "revert panicked naming no premise: {report}"
+                );
+                cells[1] += 1;
+            }
             Ok(reverted) => {
                 let wrote = kill_anchor_faults(&reverted)
                     .into_iter()
@@ -2463,25 +2479,30 @@ fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear) -> [usize; 3] {
 }
 
 /// **`revert` writes no anchor off a torn `next` or `prev`**: every
-/// single tear of each [`REVERT_BODIES`] body, and no `Ok` carries an
+/// single tear of each [`REVERT_BODIES`] body, and no result carries an
 /// anchor fault the tear did not plant. An enumeration, not a sample.
-/// `Next` tears are refused somewhere, so they reach the proofs. A
-/// `Prev` tear reaches none: `revert` follows no `prev` (it moves no
-/// loop's `first`), so the tear is carried, swapped into the result's
-/// `next`, and the row reads only that it writes no fault.
+/// `Next` tears panic on their premise somewhere, so they reach the
+/// proofs. A `Prev` tear reaches none: `revert` follows no `prev` (it
+/// moves no loop's `first`), so the tear is carried, swapped into the
+/// result's `next`, and the row reads only that it writes no fault.
 #[test]
 #[cfg(not(debug_assertions))]
 fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
     let tol = Tol::witness();
     let tears = [RevertTear::Next, RevertTear::Prev];
+    let capture = PanicCapture::install();
     let rows: Vec<(&str, [[usize; 3]; 2])> = REVERT_BODIES
         .iter()
         .map(|&(name, build)| {
             let body = build(tol);
-            (name, tears.map(|tear| revert_anchor_rows(&body, tear)))
+            (
+                name,
+                tears.map(|tear| revert_anchor_rows(&body, tear, &capture)),
+            )
         })
         .collect();
-    println!("| body | tear | calls | `Err` | `Ok`, anchor fault written |");
+    drop(capture);
+    println!("| body | tear | calls | premise panics | anchor fault written |");
     println!("| --- | --- | --- | --- | --- |");
     for (name, cells) in &rows {
         for (tear, [calls, refused, wrote]) in tears.iter().zip(cells) {
@@ -2495,14 +2516,14 @@ fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
         {
             assert_eq!(
                 *wrote, 0,
-                "`revert` wrote an anchor fault through `Ok` on {wrote} of {calls} `{tear:?}` tears of {name}"
+                "`revert` wrote an anchor fault on {wrote} of {calls} `{tear:?}` tears of {name}"
             );
             *per_tear += refused;
         }
     }
     assert!(
         refused_per_tear[0] > 0 && refused_per_tear[1] == 0,
-        "refusals per tear kind {tears:?}: {refused_per_tear:?}"
+        "premise panics per tear kind {tears:?}: {refused_per_tear:?}"
     );
 }
 
@@ -2538,7 +2559,7 @@ fn validator_kinds(body: &Body<f64>) -> BTreeSet<String> {
 /// it to. The validator walks a cycle by `next` and reads a vertex
 /// orbit through `prev`, so a torn `prev` moved into `next` is reported
 /// by other kinds than the same link in `prev`. A `next` or `start` tear
-/// that `revert` does not refuse carries no new kind.
+/// that `revert` does not panic on carries no new kind.
 #[cfg(not(debug_assertions))]
 const RENAMED_KINDS: [(RevertTear, &[&str]); 3] = [
     (RevertTear::Next, &[]),
@@ -2560,28 +2581,36 @@ const RENAMED_KINDS: [(RevertTear, &[&str]); 3] = [
 #[derive(Default)]
 struct RenameCells {
     calls: usize,
+    /// Row-4 premise panics.
     refused: usize,
-    /// `Ok` results that are the tear's image and carry a kind the
-    /// torn source does not.
+    /// Results that are the tear's image and carry a kind the torn
+    /// source does not.
     renamed: usize,
     /// Those kinds.
     renamed_kinds: BTreeSet<String>,
-    /// `Ok` results that are not the tear's image, or, for a tear with
-    /// no image, carry a kind the torn source does not: a fault
-    /// `revert` wrote.
+    /// Results that are not the tear's image, or, for a tear with no
+    /// image, carry a kind the torn source does not: a fault `revert`
+    /// wrote.
     written: usize,
 }
 
 /// Every single `tear` of `body`, then `revert` on it, tallied into
 /// [`RenameCells`]. Release-only, as [`revert_anchor_rows`].
 #[cfg(not(debug_assertions))]
-fn revert_rename_rows(body: &Body<f64>, tear: RevertTear) -> RenameCells {
+fn revert_rename_rows(body: &Body<f64>, tear: RevertTear, capture: &PanicCapture) -> RenameCells {
     let mut cells = RenameCells::default();
     each_revert_tear(body, tear, |torn, image| {
         cells.calls += 1;
-        let Ok(reverted) = torn.revert() else {
-            cells.refused += 1;
-            return;
+        let reverted = match capture.run(|| torn.revert()) {
+            Ok(reverted) => reverted,
+            Err(report) => {
+                assert!(
+                    report.contains(ROW_FOUR),
+                    "revert panicked naming no premise: {report}"
+                );
+                cells.refused += 1;
+                return;
+            }
         };
         let source = validator_kinds(&torn);
         let new: BTreeSet<String> = validator_kinds(&reverted)
@@ -2602,28 +2631,31 @@ fn revert_rename_rows(body: &Body<f64>, tear: RevertTear) -> RenameCells {
 }
 
 /// **`revert` writes no fault off a torn `next`, `prev` or `start`**:
-/// every single tear of each [`REVERT_BODIES`] body, and every `Ok` of
-/// a `next` or `prev` tear is the tear's image, and no `Ok` of a `start`
-/// tear carries a validator kind its torn source does not. The kinds
-/// the images carry beyond their sources are [`RENAMED_KINDS`], pinned
-/// per tear kind. An enumeration, not a sample; `next` and `start`
-/// tears are refused somewhere, so they reach the proofs, and a `prev`
-/// tear, which no proof follows, is carried as its image.
+/// every single tear of each [`REVERT_BODIES`] body either panics naming
+/// its row-4 premise or answers, every answer to a `next` or `prev` tear
+/// is the tear's image, and no answer to a `start` tear carries a
+/// validator kind its torn source does not. The kinds the images carry
+/// beyond their sources are [`RENAMED_KINDS`], pinned per tear kind. An
+/// enumeration, not a sample; `next` and `start` tears panic somewhere,
+/// so they reach the proofs, and a `prev` tear, which no proof follows,
+/// is carried as its image.
 #[test]
 #[cfg(not(debug_assertions))]
 fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
     let tol = Tol::witness();
+    let capture = PanicCapture::install();
     let rows: Vec<(&str, [RenameCells; 3])> = REVERT_BODIES
         .iter()
         .map(|&(name, build)| {
             let body = build(tol);
             (
                 name,
-                REVERT_TEARS.map(|tear| revert_rename_rows(&body, tear)),
+                REVERT_TEARS.map(|tear| revert_rename_rows(&body, tear, &capture)),
             )
         })
         .collect();
-    println!("| body | tear | calls | `Err` | `Ok`, renamed | `Ok`, written | renamed kinds |");
+    drop(capture);
+    println!("| body | tear | calls | premise panics | renamed | written | renamed kinds |");
     println!("| --- | --- | --- | --- | --- | --- | --- |");
     for (name, cells) in &rows {
         for (tear, c) in REVERT_TEARS.iter().zip(cells) {
@@ -2644,7 +2676,7 @@ fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
         {
             assert_eq!(
                 c.written, 0,
-                "`revert` wrote a fault through `Ok` on {} of {} `{tear:?}` tears of {name}",
+                "`revert` wrote a fault on {} of {} `{tear:?}` tears of {name}",
                 c.written, c.calls
             );
             kinds.extend(c.renamed_kinds.iter().cloned());
@@ -2664,7 +2696,7 @@ fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
     assert_eq!(
         refused_per_tear.map(|n| n > 0),
         [true, false, true],
-        "refusals per tear kind {REVERT_TEARS:?}: {refused_per_tear:?}"
+        "premise panics per tear kind {REVERT_TEARS:?}: {refused_per_tear:?}"
     );
 }
 
@@ -3406,7 +3438,7 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 18] = [
+const READ_DOORS: [&str; 20] = [
     "face_carrier",
     "carrier_pair_relation",
     "carrier_pair_verdict",
@@ -3425,20 +3457,26 @@ const READ_DOORS: [&str; 18] = [
     "contfp",
     "curved_face_containment",
     "classify_neighborhood",
+    "face_azimuth_window_traces",
+    "revert",
 ];
 
 /// The doors the read sweep floors on a premise panic: the split, which
 /// reads every face, edge and vertex before it builds, the containment
-/// and neighborhood doors, whose walks a torn loop or orbit reaches,
-/// and the carrier doors, which a dropped surface reaches.
+/// and neighborhood doors and the azimuth window walk, whose walks a
+/// torn loop or orbit reaches, the carrier doors, which a dropped
+/// surface reaches, and `revert`, which follows every `next` and every
+/// mate.
 #[cfg(not(debug_assertions))]
-const PREMISE_DOORS: [&str; 6] = [
+const PREMISE_DOORS: [&str; 8] = [
     "split_reduce",
     "contfp",
     "classify_neighborhood",
     "face_carrier",
     "carrier_pair_verdict",
     "flush_pair_relation",
+    "face_azimuth_window_traces",
+    "revert",
 ];
 
 /// The read sweep's bodies: [`FIXTURES`], whose faces decline their
@@ -3650,6 +3688,24 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             "{door} wrote to a torn body it did not finish"
         );
     }
+    // `revert` reads every link it follows before it builds, on a clone
+    // a premise panic leaves as found; an answer over a link it follows
+    // that does not resolve is a miss it skipped.
+    let trial = body.clone();
+    let skipped = std::cell::Cell::new(false);
+    judge_read(capture, &mut census, "revert", || {
+        drop(trial.revert());
+        skipped.set(!revert_reads_whole(&trial));
+        Ok(true)
+    });
+    assert!(
+        !skipped.get(),
+        "revert answered over a link it follows that does not resolve"
+    );
+    assert!(
+        deep_snapshot(&trial) == snapshot,
+        "revert wrote to the torn body it read"
+    );
     // A torn body never finishes, so it reaches the boolean the one way
     // the gate is still asked: carried with no verdict.
     let other = crate::AtRestBody::not_run(
@@ -3695,6 +3751,15 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         judge_read(capture, &mut census, "curved_face_containment", || {
             contain(crate::boolean::curved_face_containment(body, face, q, band).map(|_| true))
         });
+        // The window walk: the face is the caller's key; a record past
+        // it that does not resolve had to panic.
+        judge_read(capture, &mut census, "face_azimuth_window_traces", || {
+            use crate::chord_join::SplitJoinError;
+            match crate::chord_join::face_azimuth_window_traces(body, face, band) {
+                Err(e @ SplitJoinError::Corrupt { .. }) => Err(e.to_string()),
+                answer => Ok(answer.is_ok()),
+            }
+        });
     }
     // The split plane crosses every fixture; the side map holds a
     // verdict for every live vertex, so a vertex it lacks is a dangling
@@ -3718,7 +3783,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         });
     }
     judge_read(capture, &mut census, "split_reduce", || {
-        Ok(crate::splitting::split_reduce(body, &plane, Tol::witness()).is_ok())
+        Ok(crate::splitting::reduce(body, &plane, Tol::witness()).is_ok())
     });
     census
 }
@@ -3743,6 +3808,46 @@ fn loop_reads_whole(body: &Body<f64>, lk: crate::entity::LoopKey) -> bool {
             })
         })
     })
+}
+
+/// Whether every link [`Body::revert`] follows on `body` resolves and
+/// meets its partner: each half-edge's `next`, its mate, and its mate's
+/// start at its end; each anchored vertex's `emanating`, its mate, and
+/// that mate's end at the vertex; each face's surface and each chart
+/// image's; and the face of each pcurve row whose half-edge resolves.
+#[cfg(not(debug_assertions))]
+fn revert_reads_whole(body: &Body<f64>) -> bool {
+    let start_of = |he| body.get_half_edge(he).map(|h| h.start);
+    let halves = body.half_edges().all(|(he, _)| {
+        let end = body.half_edge_end(he);
+        end.is_some() && body.mate(he).and_then(start_of) == end
+    });
+    let anchors = body.vertices().all(|(v, data)| {
+        data.emanating.is_none_or(|e| {
+            body.mate(e)
+                .is_some_and(|m| body.half_edge_end(m) == Some(v))
+        })
+    });
+    let rows = body.pcurves.iter().all(|(he, _)| {
+        body.get_half_edge(he).is_none()
+            || body
+                .face_of_half_edge(he)
+                .and_then(|f| body.get_face(f))
+                .is_some()
+    });
+    let charts = body
+        .faces()
+        .all(|(_, f)| body.get_surface(f.surface).is_some())
+        && body.curves.values().all(|geom| {
+            let crate::null::CurveGeom::Certified(curve) = geom else {
+                return true;
+            };
+            curve
+                .description()
+                .chart()
+                .is_none_or(|chart| body.get_surface(chart.surface).is_some())
+        });
+    halves && anchors && rows && charts
 }
 
 /// The arenas a read-sweep removal tear drops one live record of,

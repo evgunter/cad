@@ -218,17 +218,18 @@ fn full_length_flats_build_at_the_analytic_volume() {
 /// `y ≥ 0.2` cuts each cap along a chord with one ellipse arc between
 /// its ends, so every conic that arm meets is an ellipse.
 ///
-/// The arm mints both chords; the result then refuses
-/// `Containment(VolumeUncertified)`, because the containment door's
-/// orientation probe measures the body in closed form and an
-/// obliquely trimmed wall has none; the boolean's volume backstop
-/// measures the same shapes through the certified quadrature
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only`).
+/// The arm mints both chords, and the result builds at its analytic
+/// volume: over each point of the disc segment `y ≥ 0.2` the two caps
+/// are 3 apart along `z`. The containment door's orientation probe
+/// measures the body in closed form, which an obliquely trimmed wall
+/// has none of, so a probe ray meeting nothing cannot side its point
+/// (`work/contact/at-infinity-probe-measures-in-closed-form-only`); that
+/// ray is set aside, and one meeting the boundary answers.
 #[test]
 fn an_oblique_cap_flats_through_its_ellipse_arc() {
     let theta = 20f64.to_radians();
     let normal = Vec3::new(0.0, -theta.sin(), theta.cos());
-    let part = |body: &Body<f64>, z0: f64, above: bool| -> Body<f64> {
+    let part = |body: &AtRestBody<f64>, z0: f64, above: bool| -> Body<f64> {
         let split = topo::split(
             body,
             &topo::test_support::split_plane(
@@ -246,18 +247,28 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
     };
     let capped = finished(
         "the oblique-capped rod",
-        part(&part(&rod(), 3.5, false), 0.5, true),
+        part(
+            &finished("the rod's lower part", part(&rod(), 3.5, false), tol()),
+            0.5,
+            true,
+        ),
         tol(),
     );
     // Between two parallel planes 3 apart along z, over the disc.
     assert_sound(&capped, 3.0 * PI * R * R, "the oblique-capped rod");
-    let err = cut(&capped, ACROSS, (0.2, 1.0), FLAT).expect_err("the flat refuses");
+    let flatted = cut(&capped, ACROSS, (0.2, 1.0), FLAT)
+        .unwrap_or_else(|e| panic!("the oblique-capped rod flats: {e:?}"));
+    topo::validate_geometric_certificate(&flatted, tol())
+        .unwrap_or_else(|e| panic!("the flat does not certify at rest: {e:?}"));
+    // Its wall is trimmed by ellipse arcs, so its volume is a certified
+    // quadrature: the slack is the enclosure's own half-width.
+    let m = topo::mass_properties(&flatted, tol()).unwrap();
+    let expect = 3.0 * (PI * R * R - segment(0.2));
     assert!(
-        matches!(
-            err,
-            BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)
-        ),
-        "{err:?}"
+        (m.volume - expect).abs() <= m.volume_pad + 1e-12,
+        "the flat: volume {} ± {} against the analytic {expect}",
+        m.volume,
+        m.volume_pad
     );
 }
 

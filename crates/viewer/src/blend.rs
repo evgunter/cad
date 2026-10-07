@@ -274,8 +274,8 @@ pub enum BlendEvent {
     TargetLost {
         /// The body the set was about.
         target: BlendTarget,
-        /// The target's node as the document spoke it when the target
-        /// was fixed: the node is gone, so no later document says it.
+        /// The target's node by the last label the document gave it:
+        /// the node is gone, so no later document says it.
         node: SpokenNode,
         /// How many edges went with it.
         edges: usize,
@@ -379,9 +379,9 @@ pub struct BlendTool {
     edges: BTreeSet<StableName>,
 }
 
-/// The body the held edges are on, and its node as the document spoke
-/// it when the target was fixed: what [`BlendEvent::TargetLost`] names
-/// it by once the node is gone.
+/// The body the held edges are on, and its node as the document last
+/// spoke it ([`BlendTool::respeak`]): what [`BlendEvent::TargetLost`]
+/// names it by once the node is gone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HeldTarget {
     at: BlendTarget,
@@ -514,10 +514,10 @@ impl BlendTool {
     ///
     /// # Loading a set is not a promise that it builds
     ///
-    /// The kernel's blend assembly admits a fully-requested chain set
-    /// and refuses the rest by name — mixed convexity, tangential
-    /// runs, and a blend of a blend are all typed refusals on the
-    /// node's own badge. This door hands over the edges that EXIST,
+    /// The kernel's blend assembly refuses what it does not build by
+    /// name — mixed convexity, a turn of two edges at a corner,
+    /// tangential runs, and a blend of a blend are all typed refusals
+    /// on the node's own badge. This door hands over the edges that EXIST,
     /// which is a different claim, and the panel says so beside the
     /// button rather than implying every loaded set is buildable.
     pub fn load_all_edges(
@@ -561,6 +561,15 @@ impl BlendTool {
             at: target,
             node: doc.spoken(target.node),
         });
+    }
+
+    /// **The target's node, spoken again from `doc`**, the shown
+    /// document after an operation ([`SpokenNode::respoken`]'s rule), so
+    /// a lost target is named by the last label it had.
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        if let Some(held) = &mut self.target {
+            held.node = held.node.respoken(doc);
+        }
     }
 
     /// Drop every pick — the panel's `Clear picks` button, and what

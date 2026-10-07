@@ -443,6 +443,20 @@ plane×cylinder section reads its gap at the stored origin.
 
 **Closed in the PR.** `tangent-locus-re-meters-the-section-classifiers-tangency`.
 
+## 2026-10-03 — a pierce strut at a pinch is placed with its own polygon (TANG implementer)
+
+A pierce ring that is all null edges and on the run at every vertex is
+left pending by ring re-homing. It is placed by the join that reaches
+it, in its partner's face. Three cases refuse loud: two pending rings
+in different faces, a join inside a pending loop, and a ring still
+pending at quiescence. The corner-holes and notch-and-hole unions build
+in every member order. The staircase, the bare pinch, a wedge in a
+reflex corner and the pinch on a face build in every op. The split is
+unchanged. Review tier: single, full.
+
+**Filed.** `a-chorded-ring-on-the-run-at-every-vertex-has-no-homing-reading`.
+
+**Closed in the PR.** `a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run`.
 ## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
 
 Ev has opened a redesign of how a document says that one thing depends
@@ -484,3 +498,97 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — in-face rings pair along the wall: fixed upstream by PR 4008; the sweep row lands (TANG implementer)
+
+`in-face-pierce-rings-pair-across-the-gap` (P0) closes with no kernel
+change: JOIN's PR 4008 ranks each germ's partners along the section
+conic, which is this item's fix. Bisected (216 of 1320 probe ops refuse
+at its parent, none at its merge). The unit lands the arc-against-gap
+sweep over the pipe and the bored block, every op in both member
+orders, at tiers 3 and 3′, closed-form volume and exact census.
+## 2026-10-06 — the planar ring closes on the arc: fixed upstream by PR 3895; the slab sweep lands (TANG implementer)
+
+`planar-ring-lane-closes-its-island-with-a-straight-chord` (P0) closes
+with no kernel change: JOIN-3 (PR 3895) closes a run along its
+segment's curve, which is this item's fix. Bisected (150 of 330 probe
+ops refuse at its parent, none at its merge). The unit lands the D,
+crescent, lens and split-arc sweep through a slab at five poses, every
+op in both member orders, at tiers 3 and 3′, closed-form volume and
+exact census. The tilted two-stub results add a witness to CONTACT's
+cross-solid census row.
+## 2026-10-06 — the D10 hold reaches TANG; triage; the next slate
+
+The weekly limit stopped every lane on 2026-10-03, before TANG parked
+its rows under the D10 hold, so they are parked here. PR 3954's fix
+pass resumes: it is a unit already started.
+
+**Parked on `d10-one-way-to-say-intent-is-unbuilt`.** Each of these
+uses declared pairs or contact, or a declaration-offer or
+undeclared-coincidence refusal:
+
+- the declared-cusps arm;
+- the banked torus Rest lane;
+- levering a declared pair by its patch;
+- the seam's subtract and intersect;
+- the torus seam graze;
+- the flush detector's continuation offers;
+- the flush pair with no typed finding;
+- the dropped Tangent offer;
+- the decided coincidence's synthetic margin;
+- the rim routing's sense guard;
+- the half-band rim offset (discs declared Rest);
+- the turned lens (discs declared Rest);
+- the torus meridian (a Seam-declared chain);
+- the turned hemisphere (a declared Seam);
+- the valence-4 pinch, gated on a declared radius-equality channel that
+  D10 replaces with construction.
+
+A designer pair dispatched on declared cusps before the hold was read
+was withdrawn within minutes, with no report. No row is recorded:
+nothing went to Ev. Its blinding branch,
+`analysis/design-fork/declared-cusps-routing-and-emission`, stays as
+the record of the dispatch.
+
+**Banded and open** (fourteen lane-filed rows had no band):
+
+- **P0**:
+  - `in-face-pierce-rings-pair-across-the-gap` (a bar through a pipe);
+  - `planar-ring-lane-closes-its-island-with-a-straight-chord` (a
+    D-prism through a slab).
+- **P1**:
+  - the rim lying across a seam ruling (an undeclared build);
+  - three wedges meeting at a point;
+  - the strut cover on cylinder pairs.
+- **P3**: the valence-2 vertices on the tube's seam rulings.
+
+**Dispatched:**
+`plane-cylinder-section-reads-its-gap-at-the-stored-origin`, tier SINGLE
+FULL. It is classifier geometry, and the hold does not cover it.
+## 2026-10-06 — a rim lying across a seam ruling splits there (TANG implementer)
+
+`a-rim-lying-on-a-wall-across-its-seam-ruling-keeps-the-door` (P1)
+closes. When certificates (a) and (b) decline, `reduce::lying_on` asks
+where the arc meets the face's boundary mid-span
+(`carrier_cross::boundary_crossing`) and splits it there. It meets any
+line or circle boundary edge and any boundary vertex. The census
+confirms a v-f record on a curved face (CONTACT's ground, announced in
+the PR). The turned sunk dome, on a two-face and a four-face tube,
+builds every op in both member orders at tiers 3 and 3′. Filed:
+`a-line-edge-lying-on-a-wall-keeps-the-door` (P1).
+
+## 2026-10-06 — a ruling lying on a wall is an ON event (TANG implementer)
+
+`a-line-edge-lying-on-a-wall-keeps-the-door` (P1) closes. The
+`(Zero, Zero)` arm takes a line's `Constant` (both ends on the wall,
+its axis distance constant) as it takes an arc's `LiesOn`, when every
+parent is decided distinct from the wall, and `lying_on` reads the
+ruling through `carrier_cross::boundary_crossing`. The prism edge on
+the tube's wall builds every op in both member orders, at two poses,
+on both seam rulings, inside a wall face and across the rim, at tiers
+3 and 3′. A line in band of the wall but not on it escalates or keeps
+the door. `carrier_cross::meetings` now meets a boundary ellipse at its
+plane; its two fixtures, the turned dome and the prism on the slanted
+tube, build every op at their closed forms; the declared one-carrier
+arms do not read ellipses, so the D10 hold leaves their reach where it
+was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).

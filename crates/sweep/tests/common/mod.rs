@@ -84,6 +84,13 @@
 //!   their one per-pose `outcome` line and the reflex-corner pose: a
 //!   truth derived without the kernel plus the check every battery
 //!   prints, so beside [`oracles`];
+//! - [`stations`] — a station cut back into a rim by hand, and the
+//!   reader that finds stations on a body: body authoring plus the one
+//!   reader its rows check with, as [`cone_nappe`];
+//! - [`pinch_cones`] — a boolean's cones at a point from the operands'
+//!   convex pieces, and the vertices a built body holds there: a truth
+//!   derived without the kernel plus the check against it, so beside
+//!   [`differential`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -250,15 +257,26 @@ pub mod certificates;
 /// The differential batteries' polygon oracles, per-pose outcome line
 /// and reflex-corner pose.
 pub mod differential;
+/// The cones of a boolean's boundary at a point, read without the
+/// kernel from the operands' convex pieces, and the vertices a built
+/// body holds there: a truth plus the check of a body against it, so
+/// beside [`differential`].
+pub mod pinch_cones;
 /// The pairs of two face sets that meet along a curve, kept from a
 /// cross product of seam or `Tangent` declarations. What a suite drives
 /// a door WITH, so it routes here.
 pub mod seam_pairs;
 
+/// A station cut back into a rim by hand, and the reader that finds a
+/// body's stations, curved carriers included. Body authoring plus the
+/// one reader the run-wall and blend rows check with, so it routes
+/// here.
+pub mod stations;
+
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, SketchPlane};
+use profile::{Open, Profile, SketchPlane, Start};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{ProfileLoop, Section};
@@ -350,6 +368,40 @@ pub fn three_arc(centre: Point2<f64>, radius: f64, first: f64) -> ProfileLoop<f6
         (at(first + 120.0), b120),
         (at(first + 240.0), b120),
     ])
+}
+
+/// **The rounded rectangle**: `w × h` with its lower-left corner at the
+/// sketch origin, each corner a tangent fillet of radius `r`. Its
+/// straight walls end where the fillets start, which is the flush site
+/// the join refuses when another solid's wall lies on that line.
+pub fn rounded(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
+    let t = Tol::witness();
+    Open.at(Point2::new(w / 2.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(w, h / 2.0), t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(w / 2.0, h), t)
+        .unwrap()
+        .toward(-1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(0.0, h / 2.0), t)
+        .unwrap()
+        .toward(0.0, -1.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .to(Start, t)
+        .unwrap()
+        .into()
 }
 
 /// **The bulge of the minor arc from `a` to `b` about `c`**:
@@ -477,6 +529,7 @@ pub fn tilted_cut_upper() -> Body<f64> {
     )
     .expect("the cylinder extrudes")
     .body;
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, Tol::witness());
     let phi = 0.3f64;
     let result = topo::splitting::split(
         &cylinder,
@@ -525,6 +578,7 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         2.5,
         tol,
     );
+    let tall = sweep::test_support::finished("the tall", tall, tol);
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),
         tilted_cut_normal(),
@@ -548,6 +602,31 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         "the cut face is bounded by ellipse arcs"
     );
     half
+}
+
+/// **A bore tilted 0.4 rad about `x`**: a radius-0.1 disc prism of
+/// height 0.8 turned about the `x` axis and centred at `(0.5, 0.5,
+/// 0.5)`, so cut from a unit cube it pierces the top face (and the
+/// bottom) in ELLIPSES — a ring no clearance meter of the blend reads.
+pub fn tilted_bore() -> Body<f64> {
+    let tol = Tol::witness();
+    let bore = sweep::test_support::prism(
+        vec![(Point2::new(-0.1, 0.0), 1.0), (Point2::new(0.1, 0.0), 1.0)],
+        0.8,
+        tol,
+    );
+    let tilt = geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        0.4,
+    );
+    let bore = topo::transform_rigid(&bore, &tilt, tol).expect("the bore turns");
+    topo::transform_rigid(
+        &bore,
+        &geom_core::Affine3::translation(Vec3::new(0.5, 0.5, 0.5)),
+        tol,
+    )
+    .expect("the bore moves")
 }
 
 /// The bulged extrusion: an analytic cylinder wall with a CURVED trim

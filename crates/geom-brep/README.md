@@ -51,9 +51,11 @@ first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
 `Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
 equal-radius cylinder×cylinder)
 and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
-section, one oval in the torus's own minor angle — minted by the
-offset-axial door for a hollowed partial revolve's rim, not by the C5
-table), whose residuals are zero by construction; rung 3, a fitted cubic
+section, one oval in the torus's own minor angle — minted by
+`plane_torus_section`'s axis-parallel arm, which the offset-axial
+door's rim mint calls; a plane through the axis cuts the more exact
+`Circle`, and `Curve3::spiric` refuses it), whose residuals are zero by
+construction; rung 3, a fitted cubic
 `Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
 outside the inventory by decision: a plane×cone section of either kind
 refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
@@ -195,14 +197,19 @@ Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
 (`geom_brep::boundary_section`: plane × one boundary curve of the
-wall, the same door the boolean's NURBS crossing layer reads). A side
+wall). A side
 either lies within the band of the plane, or meets it at isolated
 crossings, each found to the sweep floor and decided transversal along
 the side, or refused as a graze, the locus tangent to the side, naming
 the side (`SsiError::BoundaryGraze`). A side within the band is
 decided over a strip beside it where the wall's slope across it is
-one-signed: nothing where the strip is clear of the plane, a `Side`
-region where the locus is coincident with the side (below); where that
+one-signed: nothing where the strip is clear of the plane (its plane
+distance one-signed and the wall moving further that way inward; a
+piece of the side whose Bernstein hull straddles zero is halved until
+one-signed, the side reads in band at opposite signs or a halving that
+does not narrow a hull, and it refuses past its halvings,
+`SsiError::SideSignBudget`), a `Side` region where the locus is
+coincident with the side (below); where that
 slope does not clear the band the surfaces may be tangent along the
 side, and it refuses toward C7 (`SsiError::BoundaryTangent`); where no
 strip has it one-signed, or none holds the locus's certified zero set
@@ -331,7 +338,9 @@ chart. Its home is the half-edge (`Body::pcurves`, a
 a function of the edge and the chart alone, plus the half-edge's
 **joint element**, the integer (whole periods, a torus's second period,
 a sphere's twin bit) that carries its image onto the end of the
-half-edge before it in its loop, or a reset marker at a pole or apex.
+half-edge before it in its loop, or a reset marker at a pole or apex
+(and on a spline chart where the net's own `u` stretch is not decided
+past the band).
 A loop's lift is derived by summing elements from its `first`, so no
 stored byte depends on which half-edge is `first`. A seam edge has both
 half-edges on one surface with one image and two joint elements, so no
@@ -375,14 +384,28 @@ certifies against its carrier and chart alone, on one branch (a τ jump
 is unrepresentable in `Harmonic`'s `α + β·t`); no caller's window enters
 it. The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
-of periods, and on a sphere the involution twin) as an integer with
-half a period of room; the joint's 3-D coincidence is not decided again
-in the chart, since it follows from the two rows' envelopes and the
-edge certificate's pinning of each carrier's ends to the vertex. Each
-loop winds 0 or ±1 period, and a closed chart polygon is built only
-where it winds 0. A vertex on the chart's singular set (a sphere's pole,
-a cone's apex) is decided as 3-D incidence of the vertex on that set;
-a chart with no singular set decides nothing there. On a spline chart,
+of periods, and on a sphere the involution twin) as an integer, with
+half the step to the next point of the joint's orbit as room: half a
+period on a cylinder, cone or torus, and a quarter period on a sphere,
+whose twin sits half a period over in azimuth. Where two points as far
+from the axis as the joint's chart ends can be (the vertex's distance
+less the two ε that bound each end) and that half step apart in azimuth
+are farther apart than the joint bound, the integer names the joint's
+own orbit point; nearer a pole or a narrow cone's apex it may name
+another lift of the same point. The joint's
+3-D coincidence is not decided again in the chart, since it follows
+from the two rows' envelopes and the edge certificate's pinning of each
+carrier's ends to the vertex. A loop's winding is its elements composed
+once around, read off the invariants a change of starting half-edge
+leaves alone: off the twin, at most one period on each periodic
+channel; through the twin, an odd number of half turns of azimuth, at
+most three, and no bound on the second channel, whose periods are not
+such an invariant there; and no azimuth winding counted across a reset.
+A closed chart polygon is built only where the winding is zero and
+every joint's integer was decided with room past the joint bound. A
+vertex on the chart's singular set (a sphere's pole, a cone's apex) is
+decided as 3-D incidence of the vertex on that set; a chart with no
+singular set decides nothing there. On a spline chart,
 where a net can fold and a 3-D coincidence does not name the sheet, each
 joint also states its chart-space gap. Planar faces store nothing; `chart_pcurve` derives on
 demand. On every other chart the row is mandatory at rest: every
@@ -428,9 +451,10 @@ classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, not `Nurbs`: a locus claim against an approximating surface is
 a claim about the fit, and `Approx × anything` refuses because composing
 the fit's precision claim with the SSI limbs is not a ratified rule.
-Implemented: plane×plane, plane×sphere, sphere×sphere, axis-aligned
-plane×torus (rung 1); plane×cylinder, plane×cone (all but the parabola
-and hyperbola), declared-equal cylinder×cylinder (rung 2); cylinder×sphere and
+Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
+plane×cylinder, plane×cone (all but the parabola and hyperbola),
+declared-equal cylinder×cylinder, axis-aligned plane×torus (its
+axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere and
 plane×NURBS (rung 3). Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 
@@ -473,20 +497,35 @@ contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 construction; blends are analytic-first.** Implemented in
 `crates/sweep/src/blend/`; `crates/sweep/README.md` is the reference.
 What binds from here: the six named margined predicates over the inputs
-run in order before any ball exists (radius vs `1/κ_max` of each
-support, face clearance, spine regularity, chain G1, convexity-sign
-consistency, corner configuration), which is what lets an interval
-replay certify validity over a parameter box. Every constant-radius arm
+(radius vs `1/κ_max` of each support, face clearance, spine regularity,
+chain G1, convexity-sign consistency, corner configuration) all answer
+before anything is built, which is what lets an interval replay certify
+validity over a parameter box. They run in that order, except face
+clearance's reach arm (every band against every face of the body it
+does not blend), which needs the plan's feet: it runs in the surgery
+after predicate 6 and before any mutation. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
-Trimlines are stored as `TangentIntersection`. Scope: the
-three-convex-edge sphere-octant corner is in, and so is the ruled band's
-transverse cap (a plane face perpendicular to the ruling, where the
-band ends in the cap's own section of it — `CornerConfig::TransverseCap`,
-`RunOutPolicy::CutOffAtTransverseCap`, decided by
-`fillet3_cap_transverse` at the link's extent); every other corner
-refuses with a `CornerConfig` tag and the `RunOutPolicy` that would
-handle it (`RunOutStopAtVertex`, `RunOutFeather`), refusal-payload names
+Trimlines are stored as `TangentIntersection`. Scope: a straight band
+(plane–plane, or the ruled band about a straight spine) ends at a
+trivalent vertex of one convexity between planes as the request decides
+— by how many of the vertex's three edges it names. All three: the
+corner patch (the sphere octant; the chamfer's plane through the three
+feet). One: the cut-off — the band ends in the end face's plane section
+of it, a chord for a chamfer, and for a fillet a circle where the end
+face is perpendicular to the edge and an ellipse otherwise
+(`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`;
+`fillet3_cap_transverse` picks the kind). Two: the mitre — each band is
+cut off by the other's support, so the two meet along their
+intersection, a line for a chamfer and a planar ellipse for a fillet
+(`CornerConfig::Turn`, `RunOutPolicy::Mitre`). Chain G1 classifies a
+junction of two plane–plane links rather than refusing it: Zero, one
+band runs through a joint; definite, the chain breaks into two ends at
+a turn; the sliver band escalates. It still refuses at a junction that
+involves a curved link. Every other end refuses — a curved end face, a
+foot landing inside a support rather than on a rim edge, an end vertex
+of valence other than three, mixed convexity — with a `CornerConfig`
+tag and the `RunOutPolicy` that would handle it, refusal-payload names
 only. A
 spine that is neither line nor circle refuses `SpineUnsupported`: the
 canal-surface blend, an approximating surface per O2, is not

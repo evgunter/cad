@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Formula, Label, LabelFault, LoopProgram,
+    BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
 };
 use pncad::geom_core::Point2;
@@ -156,6 +156,12 @@ pub(crate) struct Drafts {
     /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
     /// carries them.
     pub(crate) datum_face: Option<FaceSelection>,
+    /// The nodes [`Self::datum_face`] names, as the last document that
+    /// held them spoke them: the selection's when the face was copied
+    /// from it (`DocSession::selection_said`), spoken again from each
+    /// later document ([`Self::respeak`]). The form holds its face
+    /// after the selection moves on, so it keeps its own.
+    datum_face_said: HeldNodes,
     /// The frame-on-face form's spin, radians — sketch +x's rotation
     /// about the face's outward normal. Opens at zero, the
     /// carrier's own u-reference.
@@ -264,15 +270,15 @@ pub(crate) struct Drafts {
     pub(crate) creation_labels: BTreeMap<&'static str, String>,
 }
 
-/// **A label field's text, as the document's label**: blank clears
-/// (`None`); anything else is held to the label rule.
+/// **A label field's text, as the document's label**: a field that
+/// shows nothing ([`Label::is_blank`]) clears (`None`); anything else
+/// is held to the label rule.
 ///
 /// # Errors
 ///
-/// [`LabelFault`] for a text the rule refuses — one with a line break
-/// or another control character.
+/// [`LabelFault`] for a text the rule refuses.
 pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
-    if text.trim().is_empty() {
+    if Label::is_blank(text) {
         return Ok(None);
     }
     Label::new(text).map(Some)
@@ -631,6 +637,7 @@ impl Default for Drafts {
             datum_in_frame_origin: Point2::origin(),
             datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
+            datum_face_said: HeldNodes::default(),
             datum_spin: 0.0,
             profile_shape: None,
             profile_path: vec![
@@ -928,6 +935,28 @@ impl Drafts {
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
         self.datum_face = None;
+        self.datum_face_said = HeldNodes::default();
+    }
+
+    /// **The face-frame form takes the selection's face**, with its
+    /// nodes as the session has them spoken (`DocSession::selection_said`).
+    pub(crate) fn hold_datum_face(&mut self, face: FaceSelection, said: &HeldNodes) {
+        self.datum_face = Some(face);
+        self.datum_face_said = said.clone();
+    }
+
+    /// The held face's nodes as the last document that held them spoke
+    /// them; empty with no face held.
+    pub(crate) fn datum_face_said(&self) -> &HeldNodes {
+        &self.datum_face_said
+    }
+
+    /// **The held picks' nodes, spoken again from `doc`**, the session's
+    /// shown document after an operation (`SpokenNode::respoken`'s
+    /// rule): a node `doc` holds takes its label now, and one it no
+    /// longer holds keeps the last it had.
+    pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.datum_face_said = self.datum_face_said.respoken(doc);
     }
 
     /// **The face this form holds**: [`Self::datum_face`] while the
@@ -1333,6 +1362,11 @@ mod tests {
     fn a_label_field_reads_blank_as_clear_and_holds_the_rest_to_the_rule() {
         assert_eq!(super::label_typed(" \t "), Ok(None));
         assert_eq!(
+            super::label_typed("\u{200b}"),
+            Ok(None),
+            "a field of a zero-width space shows nothing, so it clears"
+        );
+        assert_eq!(
             super::label_typed(" lid ").map(|label| label.map(|l| l.as_str().to_owned())),
             Ok(Some(" lid ".to_owned()))
         );
@@ -1551,7 +1585,7 @@ mod tests {
         };
         assert_eq!(at, seat.0, "the node the gate admitted");
         assert_ne!(at, held.node, "and not the node the form is displaying");
-        assert_ne!(at, held.feature(), "nor the feature that minted the name");
+        assert_ne!(at, held.feature(), "nor the feature that made the entity");
         assert_eq!(name, seat.1);
         let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,

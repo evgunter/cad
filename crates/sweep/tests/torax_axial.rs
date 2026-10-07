@@ -52,8 +52,10 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 
 use crate::common::charts::hollow_moves;
+use crate::common::latitude_seam::latitude_on_partial_wall;
 use crate::common::poses::torax_pose;
 use crate::common::torus_walls::{klein_elbow, props_door, torus_barrel, torus_belly};
+use sweep::test_support::finished;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -121,7 +123,7 @@ fn has_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
 
 /// The sealed hollow, with tier 3 and the two-shell shape first.
 fn hollowed(what: &str, body: &Body<f64>) -> Body<f64> {
-    let out = topo::shell(body, T, tol())
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
         .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"))
         .body;
     assert_eq!(
@@ -308,9 +310,13 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
             .unwrap_or_else(|e| panic!("{what}: the hollow re-poses, got {e}"));
         let posed_first = transform_rigid(&body, &map, tol())
             .unwrap_or_else(|e| panic!("{what}: the operand re-poses, got {e}"));
-        let hollow_after = topo::shell(&posed_first, T, tol())
-            .unwrap_or_else(|e| panic!("{what}, re-posed: {e}"))
-            .body;
+        let hollow_after = topo::shell(
+            &finished("the operand", posed_first.clone(), tol()),
+            T,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}, re-posed: {e}"))
+        .body;
         let want: Vec<Point3<f64>> = posed_after.vertex_points().map(|(_, p)| p).collect();
         let mut pool: Vec<Point3<f64>> = hollow_after.vertex_points().map(|(_, p)| p).collect();
         assert_eq!(want.len(), pool.len(), "{what}: vertex count under re-pose");
@@ -404,8 +410,12 @@ fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
 /// below.
 #[test]
 fn torax_a_wall_thicker_than_the_tube_refuses_typed() {
-    let e = topo::shell(&torus_barrel(), 6.0 / 64.0, tol())
-        .expect_err("a wall thicker than the tube has no cavity");
+    let e = topo::shell(
+        &finished("the operand", torus_barrel(), tol()),
+        6.0 / 64.0,
+        tol(),
+    )
+    .expect_err("a wall thicker than the tube has no cavity");
     println!("[torax] the over-thick wall refuses: {e}");
     let ShellError::WallClearance {
         gap,
@@ -450,8 +460,12 @@ fn torax_the_torus_arms_floor_is_the_ring_closing() {
 
     // At it. `r + t` reaches `R`, so the offset tube would swallow its
     // own hole.
-    let e = topo::shell(&torus_barrel(), 2.0 / 128.0, tol())
-        .expect_err("an offset tube that reaches the major radius has no ring left");
+    let e = topo::shell(
+        &finished("the operand", torus_barrel(), tol()),
+        2.0 / 128.0,
+        tol(),
+    )
+    .expect_err("an offset tube that reaches the major radius has no ring left");
     println!("[torax] the closed ring refuses: {e:?}");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
@@ -518,7 +532,7 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 /// parallel to it, and cuts the moved torus in a SPIRIC — sampled
 /// below as the oval's own half-width against its half-height, which
 /// a circle would make equal — so the rim mints as `Curve3::Spiric`,
-/// its window read forward of its start (`offset_axial_rim_window`).
+/// its window read forward of its start (`offset_axial_edge_window`).
 /// The disc's two profile vertices revolve into `RevolvedPoint`-declared
 /// equator seams whose ends the moved caps turn about the axis, and the
 /// declarations follow the corners. The hollow assembles, passes checks
@@ -532,7 +546,8 @@ fn torax_the_klein_elbow_hollows_to_the_props_door() {
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
     ])]);
-    let e = topo::shell(&elbow, 0.05, tol()).expect_err("check 7's volume");
+    let e = topo::shell(&finished("the operand", elbow.clone(), tol()), 0.05, tol())
+        .expect_err("check 7's volume");
     println!("[torax] the elbow's next door: {e:?}");
     let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
     assert_eq!(
@@ -562,8 +577,10 @@ fn torax_the_klein_elbow_hollows_to_the_props_door() {
 }
 
 /// **A two-arc lune's equator seam re-authors, certifies, and the
-/// hollow measures as the plain lune's does.** The half-disc's arc
-/// is split at the equator, so its vertex revolves into a
+/// hollow measures as the plain lune's does.** The half-disc's arc is
+/// split at the equator; the revolve builds the run as one sphere wall,
+/// so the seam its vertex would revolve into is cut by hand
+/// (`common::latitude_seam::latitude_on_partial_wall`): a
 /// `RevolvedPoint`-declared chart seam between two sphere faces, and
 /// the moved meridian caps turn both of its ends off their old sketch
 /// planes about the axis. The rims here are circles (a plane cuts a
@@ -597,6 +614,26 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows() {
     )
     .expect("the two-arc lune revolves")
     .body;
+    let mut body = body;
+    let sphere = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Sphere { .. })
+            )
+        })
+        .expect("the sphere wall")
+        .1
+        .surface;
+    latitude_on_partial_wall(
+        &mut body,
+        sphere,
+        Point2::new(r, 0.0),
+        core::f64::consts::FRAC_PI_2,
+    );
+    let walls = body.faces().filter(|(_, f)| f.surface == sphere).count();
+    assert_eq!(walls, 2, "the seam splits the sphere wall in two");
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
     assert_hollow_lune("the two-arc lune", &body, r, 0.05);
 }
@@ -808,6 +845,63 @@ fn torax_the_sphere_lune_hollows_to_its_closed_form() {
     assert_hollow_lune("the one-arc lune", &body, r, 0.05);
 }
 
+/// **The sphere lune's LIFT.** Opening the quarter-turn lune at a
+/// meridian cap lifts that cap's cavity counterpart back onto the
+/// cap's own plane, through the axis, so the rim the lift mints there
+/// is the moved pair's GREAT circle where the cavity's was a small one.
+/// The cavity then reaches that plane and keeps the other cap's slab:
+/// the ball of radius `R = r − t` on `{x ≥ t, z ≥ 0}`,
+/// `(π/2)(2R³/3 − R²t + t³/3)`.
+///
+/// **Both caps** lift too — the second lift moves the rim corner the
+/// two cavity caps met at ONTO the axis, the pole the two moved caps
+/// now meet at — and stop at the rim glue: the two mouths are adjacent
+/// across the axis, so a counterpart's boundary meets its designated
+/// face's, which a box opened at two adjacent faces meets the same way
+/// (`ShellError::OpenFaceRimNotExpressible`'s own scope; scheduled as
+/// `work/shelf/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md`).
+#[test]
+fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
+    let (r, t) = (0.3, 0.05);
+    let body = lune(r, core::f64::consts::FRAC_PI_2);
+    let caps: Vec<FaceKey> = body
+        .faces()
+        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(caps.len(), 2, "a partial revolve has two meridian caps");
+    let open = |designated: &[FaceKey]| {
+        topo::shell_open(
+            &finished("the operand", body.clone(), tol()),
+            t,
+            designated,
+            tol(),
+        )
+    };
+
+    let one = open(&caps[..1])
+        .unwrap_or_else(|e| panic!("the lune opens at one cap, got {e:?}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&one, tol()), Ok(()));
+    let got = topo::mass_properties(&one, tol())
+        .expect("the opened lune measures")
+        .volume;
+    let (pi, big_r) = (core::f64::consts::PI, r - t);
+    let cavity = pi / 2.0 * (2.0 * big_r.powi(3) / 3.0 - big_r * big_r * t + t.powi(3) / 3.0);
+    let want = pi * r * r * r / 3.0 - cavity;
+    println!("[torax] the lune opened at one cap: {got}, closed form {want}");
+    assert!(
+        (got - want).abs() / want < 1e-12,
+        "opened wall {got:.15e} != {want:.15e}"
+    );
+
+    let both = open(&caps[..]).expect_err("two mouths adjacent across the axis");
+    assert!(
+        matches!(both, ShellError::OpenFaceRimNotExpressible { .. }),
+        "the lifts pass and the glue refuses, got {both:?}"
+    );
+}
+
 /// The cavity a hollow of thickness `t` leaves in the quarter-turn
 /// lune of radius `r`: the ball of radius `R = r − t` on the inner side
 /// of two perpendicular planes each `a = t` from its centre, from the
@@ -825,7 +919,7 @@ fn lune_cavity_volume(r: f64, t: f64) -> f64 {
 /// `shell` hollows the quarter-turn lune `body` to a tier-3 body whose
 /// wall is the quarter ball less [`lune_cavity_volume`].
 fn assert_hollow_lune(label: &str, body: &Body<f64>, r: f64, t: f64) {
-    let hollow = topo::shell(body, t, tol())
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
         .unwrap_or_else(|e| panic!("{label}: the hollow builds, got {e:?}"))
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()), "{label}");
@@ -848,8 +942,12 @@ fn assert_hollow_lune(label: &str, body: &Body<f64>, r: f64, t: f64) {
 /// family's refusal REACHABLE now that the quarter lune solves.
 #[test]
 fn torax_the_half_turn_lune_refuses_the_parallel_cap_pair() {
-    let e = topo::shell(&lune(0.3, core::f64::consts::PI), 0.05, tol())
-        .expect_err("parallel moved caps leave the rim corner under-determined");
+    let e = topo::shell(
+        &finished("the operand", lune(0.3, core::f64::consts::PI), tol()),
+        0.05,
+        tol(),
+    )
+    .expect_err("parallel moved caps leave the rim corner under-determined");
     println!("[torax] the half-turn lune: {e}");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");

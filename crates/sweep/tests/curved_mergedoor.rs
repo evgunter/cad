@@ -387,12 +387,13 @@ fn mixed_list_classifies_each_pair_by_its_own_kind() {
 }
 
 /// A prism whose y = 0 wall is split in two coplanar faces at a
-/// straight-angle vertex (the extrude builds that run as ONE wall and
-/// keeps the vertex on both caps; a chord `mef` between the two copies
-/// splits it), and whose right end is two arcs of one
+/// straight-angle vertex, and whose right end is two arcs of one
 /// circle (centre (2.25, 0.5), meeting the straight walls at 26.6°, so
-/// no joint is tangent). Returns the two wall keys (made distinct)
-/// and two keys of the one cylinder (made distinct).
+/// no joint is tangent), split in two cylinder faces at their shared
+/// vertex. The extrude builds each run as ONE wall with one rim edge
+/// on each cap; the station is cut into both rims and a chord `mef`
+/// between the two copies splits the wall. Returns the two wall keys
+/// (made distinct) and two keys of the one cylinder (made distinct).
 fn d_prism_with_split_keys() -> (
     Body<f64>,
     (topo::SurfaceKey, topo::SurfaceKey),
@@ -425,26 +426,40 @@ fn d_prism_with_split_keys() -> (
     )
     .unwrap();
     let mut body = built.body;
-    let run = &built.walls[0][0];
-    assert_eq!(run.segments, vec![0, 1], "the y = 0 side is one run");
-    let station = |rims: &[topo::EdgeKey]| {
-        let ends = |e: topo::EdgeKey| {
-            let edge = body.get_edge(e).unwrap();
-            [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).unwrap().start)
+    // Each run wall split at its station by a chord `mef` between the
+    // station's two copies (the straight ruling, on the plane or the
+    // cylinder alike). The sweep carries each rim as one edge over the
+    // run, so the station is cut into both rims first: it is each run's
+    // midpoint (the line run's two sides are equal, as are its arcs).
+    let mut split_at_station = |run: &sweep::SideWall| {
+        let mut station = |rim: topo::EdgeKey| {
+            let curve = body.get_edge(rim).unwrap().curve;
+            let (t0, t1) = body
+                .get_curve_geom(curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .params();
+            body.split_edge(rim, (t0 + t1) * 0.5, Tol::witness())
+                .unwrap()
+                .vertex
         };
-        let (a, b) = (ends(rims[0]), ends(rims[1]));
-        *a.iter().find(|v| b.contains(v)).unwrap()
+        let (bottom, top) = (station(run.bottom_rim), station(run.top_rim));
+        let leaving = |v: topo::VertexKey| {
+            body.half_edges()
+                .find(|(h, he)| he.start == v && body.face_of_half_edge(*h) == Some(run.face))
+                .unwrap()
+                .0
+        };
+        let (he1, he2) = (leaving(bottom), leaving(top));
+        body.mef_chord(topo::MefSite::Chords { he1, he2 }, Tol::witness())
+            .unwrap();
     };
-    let (bottom, top) = (station(&run.bottom_rims), station(&run.top_rims));
-    let leaving = |v: topo::VertexKey| {
-        body.half_edges()
-            .find(|(h, he)| he.start == v && body.face_of_half_edge(*h) == Some(run.face))
-            .unwrap()
-            .0
-    };
-    let (he1, he2) = (leaving(bottom), leaving(top));
-    body.mef_chord(topo::MefSite::Chords { he1, he2 }, Tol::witness())
-        .unwrap();
+    let (line_run, arc_run) = (&built.walls[0][0], &built.walls[0][1]);
+    assert_eq!(line_run.segments, vec![0, 1], "the y = 0 side is one run");
+    assert_eq!(arc_run.segments, vec![2, 3], "the two arcs are one run");
+    split_at_station(line_run);
+    split_at_station(arc_run);
     let y0_walls: Vec<_> = body
         .faces()
         .filter(|(_, f)| match body.get_surface(f.surface) {

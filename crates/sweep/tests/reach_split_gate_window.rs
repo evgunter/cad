@@ -349,7 +349,15 @@ fn a_cut_into_the_faces_window_refuses_at_the_gate() {
                 for depth in [1e-4 * s, 1e-7 * s] {
                     for d in [lo + depth, hi - depth] {
                         let what = format!("{}, {pose}, n = {n:?}, {depth:e} in", f.name);
-                        match split(&posed, &posed_plane(map, n, d), Tol::witness()) {
+                        match split(
+                            &sweep::test_support::finished(
+                                "the operand",
+                                posed.clone(),
+                                Tol::witness(),
+                            ),
+                            &posed_plane(map, n, d),
+                            Tol::witness(),
+                        ) {
                             Err(SplitError::Reduce(
                                 SplitReduceError::CurvedBooleanUnsupported { face, kind },
                             )) => {
@@ -375,9 +383,8 @@ fn a_cut_into_the_faces_window_refuses_at_the_gate() {
 /// **A cut clear of the face's window splits, and its halves are
 /// right**: `10⁻⁴` of the size plus `20 ε` beyond the face's least and
 /// greatest support (clear of the gate's `12 ε` pad), along thirteen
-/// directions, in two poses. The zones' fixtures are full turns: a
-/// sphere face's azimuth window is not read
-/// (`reach/split-gate-zone-ignores-the-azimuth-window`). Each half's
+/// directions, in two poses. The zones' fixtures are full turns; their
+/// partial turns are `reach_split_gate_azimuth`'s. Each half's
 /// volume is held to the grid within `2·10⁻³` of the body's, whose own
 /// volume is first held to the same grid.
 #[test]
@@ -413,8 +420,16 @@ fn a_cut_clear_of_the_faces_window_splits() {
                 let clear = 1e-4 * s + 20.0 * eps;
                 for d in [lo - clear, hi + clear] {
                     let what = format!("{}, {pose}, n = {n:?}, d = {d}", f.name);
-                    let result = split(&posed, &posed_plane(map, n, d), Tol::witness())
-                        .unwrap_or_else(|e| panic!("{what}: a cut clear of the face splits: {e}"));
+                    let result = split(
+                        &sweep::test_support::finished(
+                            "the operand",
+                            posed.clone(),
+                            Tol::witness(),
+                        ),
+                        &posed_plane(map, n, d),
+                        Tol::witness(),
+                    )
+                    .unwrap_or_else(|e| panic!("{what}: a cut clear of the face splits: {e}"));
                     for (part, sign, side) in [
                         (&result.above, 1.0, "above"),
                         (&result.below, -1.0, "below"),

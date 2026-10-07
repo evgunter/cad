@@ -43,10 +43,10 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
 const KERNEL_KEYED: &[&str] = &[
     "Revolve/VoidInsertion",
     "Revolve/Pcurve",
-    "Split/Reduce/ScaffoldingOperand",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
     "Split/Reduce/CrossingInsertion",
@@ -77,7 +77,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
-    "Shell/Pcurve",
 ];
 
 /// The clause labels a surface legitimately opens with that read, by
@@ -104,10 +103,6 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
 /// a new prefix on the same row, or the same prefix on another row, is
 /// still red.
 pub(crate) const FILED: &[(&str, &str)] = &[
-    // `topo/src/replace_face.rs`, SHELL's:
-    // work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
-    ("Shell/Face", "replace_face_offset"),
-    ("Shell/Lift", "replace_face_offset"),
     // `geom/src/curves.rs` (#2861): `EllipseInvalid` opens with
     // "ellipse construction:" and offers "declare" under a split:
     // work/chrome/the-refusal-shape-guard-has-blind-spots.md
@@ -115,19 +110,12 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ("Boolean/Join/Section(Carrier)", "ellipse construction"),
     // A stage for a subject (`<gerund> … refused:`), each on its
     // owner's row:
-    // work/shell/shell-refusals-short-of-the-shape-guard.md
-    ("Shell/Face", "offsetting a face inward refused"),
-    (
-        "Shell/Lift",
-        "lifting the rim back onto a designated open face refused",
-    ),
-    ("Shell/Insert", "inserting the cavity refused"),
     // work/hone/reach-refusals-short-of-the-shape-guard.md
     (
         "Split/Reduce/CrossingInsertion",
         "inserting the plane crossing on edge EdgeKey    refused",
     ),
-    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
     (
         "Revolve/VoidInsertion",
         "inserting the cavity of hole loop 1 refused",
@@ -155,7 +143,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Boolean/Join/SectionInvariant",
         "curved-section invariant at face FaceKey",
     ),
-    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
@@ -172,14 +160,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
 /// row, each with the one label its rows may carry, and — where the
 /// flag says so — leave to name a key. Any other prefix, a `Debug`
 /// struct, or a row outside the namespace is still red.
-pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[
-    // A generated family, one row per `OffsetFitError` sample
-    // ([`offset_fit_routes`]), whose wrapper sits in
-    // `topo/src/replace_face.rs`, SHELL's:
-    // work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
-    ("Shell/Face/Fit/", "replace_face_offset", true),
-    ("Shell/Face/Fit/", "offsetting a face inward refused", false),
-];
+pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[];
 
 /// The split rows that may still offer "declare", which a split has no
 /// door for, each filed with its owner (the note above `FILED`'s
@@ -216,12 +197,10 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "BlendSelectionEmpty",
     "BlendSelectionKind",
     "BlendSelectionResolve/Ambiguous",
-    "BlendSelectionResolve/NodeGone",
     "BlendSelectionResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DeclareResolve/Ambiguous",
-    "DeclareResolve/NodeGone",
     "DeclareResolve/Vanished",
     "DeclareSiteNotAnOperand",
     "DeclareUnsupportedPair",
@@ -243,7 +222,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "FaceFrameReadback/NoCanonicalFrame",
     "FaceFrameReadback/NoCarrier",
     "FaceFrameResolve/Ambiguous",
-    "FaceFrameResolve/NodeGone",
     "FaceFrameResolve/Vanished",
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
@@ -252,7 +230,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureNonFinite",
     "MeasureNotParallel",
     "MeasureRefResolve/Ambiguous",
-    "MeasureRefResolve/NodeGone",
     "MeasureRefResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
@@ -298,7 +275,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ShellLaneUnsupported",
     "ShellOpenKind",
     "ShellOpenResolve/Ambiguous",
-    "ShellOpenResolve/NodeGone",
     "ShellOpenResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
@@ -307,6 +283,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "WrongOperand",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
+    "Profile/EmptyLoop",
     "Profile/EmptyProfile",
     "Profile/MultipleOuterLoops",
     "Profile/NearFullArc",
@@ -317,7 +294,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/Structure",
     "Profile/TangencyContradicted",
     "Profile/TangentJointOutOfRange",
-    "Profile/TooFewVertices",
     "Profile/UndeclaredTangency",
     "ProfileReplay/Path/ArcCenterNotEquidistant",
     "ProfileReplay/Path/ArcLegOnOpenFillet",
@@ -326,6 +302,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/DegenerateArcCenter",
     "ProfileReplay/Path/DegenerateArcChord",
     "ProfileReplay/Path/DegenerateArcSpec",
+    "ProfileReplay/Path/ArcSweepNotShortOfFullTurn",
     "ProfileReplay/Path/NoCornerForFillet",
     "ProfileReplay/Path/NoCornerForFillet(disjoint)",
     "ProfileReplay/Path/NoCornerOfPair",
@@ -359,10 +336,10 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    "Split/Reduce/ScaffoldingOperand",
-    // work/carve/carve-refusals-short-of-the-shape-guard.md
+    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
     "Extrude/SidePlane",
@@ -376,14 +353,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
-    // work/shell/shell-refusals-short-of-the-shape-guard.md
-    "Shell/ChartSenseMixed",
-    "Shell/Insert",
-    "Shell/NoSolid",
-    "Shell/NotValid",
-    "Shell/OpenFaceRimNotExpressible",
-    "Shell/OpenFaceStale",
-    "Shell/OperandOuterShells",
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
@@ -648,6 +617,8 @@ const DRIVER_CARRIED: &[&str] = &[
     "Extrude/Op",
     "Loft/Euler",
     "Revolve/Op",
+    "Shell/Face/Op",
+    "Shell/Face/Op(rechart)",
     "Shell/Partition",
     "Shell/Rim",
     "Split/Finish/Euler",
@@ -788,6 +759,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
         doc_ref: doc_ref(),
         fault: PartFault::PartRootFailed {
+            held: Default::default(),
             node: RecipeNodeId(tagged(node)),
             refusal: refusal.into(),
         },
@@ -857,20 +829,14 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     let in_part = part(7, placer(editor_core::PlacerRow::Silent));
     let documents: Vec<_> = in_part
         .carried_chain()
-        .map(|level| (level.document, level.node))
+        .map(|level| (level.document.doc_ref(), level.node))
         .collect();
     let part_ref = doc_ref();
     assert_eq!(
         documents,
         vec![
-            (
-                editor_core::CarriedIn::Part(&part_ref),
-                RecipeNodeId(tagged(7))
-            ),
-            (
-                editor_core::CarriedIn::Part(&part_ref),
-                RecipeNodeId(tagged(4))
-            ),
+            (Some(&part_ref), RecipeNodeId(tagged(7))),
+            (Some(&part_ref), RecipeNodeId(tagged(4))),
         ],
         "the placer's level is in the part the mate is in"
     );
@@ -1276,7 +1242,24 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
                 source: diag(),
             },
         ),
-        ("CapPlane", E::CapPlane { source: newell() }),
+        (
+            "CapPlane",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Newell(newell()),
+            },
+        ),
+        (
+            "CapPlaneOrientation",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
+            },
+        ),
+        (
+            "CapPlaneEdgeOn",
+            E::CapPlane {
+                source: sweep::CapPlaneError::EdgeOn,
+            },
+        ),
         (
             "SidePlane",
             E::SidePlane {
@@ -1383,7 +1366,24 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
                 source: diag(),
             },
         ),
-        ("CapPlane", E::CapPlane { source: newell() }),
+        (
+            "CapPlane",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Newell(newell()),
+            },
+        ),
+        (
+            "CapPlaneOrientation",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
+            },
+        ),
+        (
+            "CapPlaneEdgeOn",
+            E::CapPlane {
+                source: sweep::CapPlaneError::EdgeOn,
+            },
+        ),
         ("Op", E::Op { source: euler() }),
         ("Pcurve", E::Pcurve(pcurve())),
     ]
@@ -1457,7 +1457,27 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "TangencyUnsupported",
             R::TangencyUnsupported { face, vertex },
         ),
-        ("ScaffoldingOperand", R::ScaffoldingOperand { edge }),
+        (
+            "KnifeEdge",
+            R::KnifeEdge(topo::KnifeEdge {
+                wall: face,
+                at: topo::KnifeEdgeSite::Vertex(vertex),
+            }),
+        ),
+        (
+            "ScaffoldingOperand",
+            R::ScaffoldingOperand {
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            R::InsideOutOperand {
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
         (
             "SliverVertex",
             R::SliverVertex {
@@ -1484,6 +1504,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
         ("LoneVertex", R::LoneVertex { vertex }),
+        (
+            "NullEdgeAtVertex",
+            R::NullEdgeAtVertex {
+                vertex,
+                edge: topo::EdgeKey::default(),
+            },
+        ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
         ("UnboundedFace", R::UnboundedFace { face, vertex }),
         (
@@ -1563,7 +1590,9 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "Section(Carrier)",
                 J::Section {
                     face,
-                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes),
+                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes(
+                        payloads::named("ellipse_axes_distinct"),
+                    )),
                 },
             ),
             ("ApexUnlifted", J::ApexUnlifted { face }),
@@ -1619,7 +1648,18 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "DescribeEscalated",
             F::DescribeEscalated { edge, diag: diag() },
         ),
-        ("SectionCusp", F::SectionCusp { edge, face }),
+        (
+            "DescribeBendEscalated",
+            F::DescribeBendEscalated { edge, diag: diag() },
+        ),
+        ("SmoothJoinRefuted", F::SmoothJoinRefuted { edge }),
+        (
+            "KnifeEdge",
+            F::KnifeEdge(topo::KnifeEdge {
+                wall: face,
+                at: topo::KnifeEdgeSite::Edge(edge),
+            }),
+        ),
         (
             "SectionWindingUndecided",
             F::SectionWindingUndecided {
@@ -1942,11 +1982,7 @@ fn meter_verdicts() -> [(&'static str, String); 4] {
 ///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route and by the
-///   transform's re-fit. Its wrapper still opens with a stage prefix and names the face by key;
-///   both are SHELL's and filed
-///   (`work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md`),
-///   so [`FILED_NAMESPACES`] admits exactly that label and that key on
-///   these rows and nothing else.
+///   transform's re-fit.
 /// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
 ///   certifier's arms on the image — `certify_offset_over` runs the
 ///   meters and the certificate limbs on a fit it did not make, so
@@ -2097,6 +2133,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
             "Fit",
             E::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 }),
@@ -2129,7 +2166,17 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
         ),
         ("Euler", E::Euler(euler())),
-        ("CapPlane", E::CapPlane(newell())),
+        (
+            "CapPlane",
+            E::CapPlane(sweep::CapPlaneError::Newell(newell())),
+        ),
+        (
+            "CapPlaneOrientation",
+            E::CapPlane(sweep::CapPlaneError::Orientation(named(
+                "cap_plane_orientation",
+            ))),
+        ),
+        ("CapPlaneEdgeOn", E::CapPlane(sweep::CapPlaneError::EdgeOn)),
         ("Pcurve", E::Pcurve(pcurve())),
         (
             "SeamStructure",
@@ -2140,6 +2187,14 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         ("SectionStructure", E::SectionStructure),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
+        ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
+        (
+            "FarStackingEscalated",
+            E::FarStackingEscalated {
+                slab: 1,
+                source: diag(),
+            },
+        ),
         (
             "StackingEscalated",
             E::StackingEscalated {
@@ -2198,6 +2253,24 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
                 gap: MarginDiag::value(0.2),
                 cross_chain: true,
+            },
+        ),
+        (
+            "FaceClearance",
+            E::FaceClearance {
+                at: topo::EntityId::Face(face),
+                chain: sweep::blend::Convexity::Concave,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: false,
+            },
+        ),
+        (
+            "FaceClearance(bounded, another band)",
+            E::FaceClearance {
+                at: topo::EntityId::Edge(edge),
+                chain: sweep::blend::Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: true,
             },
         ),
         (
@@ -2319,13 +2392,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
         ("RepeatedEdge", E::RepeatedEdge { edge }),
         ("NonpositiveSize", E::NonpositiveSize { size: 0.0 }),
         (
-            "UnsupportedBody",
-            E::UnsupportedBody {
-                solids: 2,
-                shells: 2,
-            },
-        ),
-        (
             "UnsupportedChain",
             E::UnsupportedChain {
                 edge,
@@ -2340,8 +2406,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedRunOut",
             E::UnsupportedRunOut {
                 at: EntityId::Vertex(vertex),
-                detail: "a chain terminates at a trivalent vertex whose three edges are not all \
-                         requested; run-outs at such corners are not implemented",
+                detail: sweep::blend::battery::END_FACE_CURVED,
             },
         ),
         (
@@ -2419,13 +2484,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("EmptyProfile", E::EmptyProfile),
-        (
-            "TooFewVertices",
-            E::TooFewVertices {
-                loop_index: 0,
-                count: 2,
-            },
-        ),
+        ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
         ("NearFullArc", E::NearFullArc(a)),
         (
@@ -2442,6 +2501,10 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
                 first: a,
                 second: b,
             },
+        ),
+        (
+            "TangentJointOnFullTurn",
+            E::TangentJointOnFullTurn { loop_index: 0 },
         ),
         (
             "TangentJointOutOfRange",
@@ -2638,6 +2701,10 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::NonpositiveCircleRadius { radius: -0.1 },
         ),
         ("DegenerateArcSpec", P::DegenerateArcSpec { value: 0.0 }),
+        (
+            "ArcSweepNotShortOfFullTurn",
+            P::ArcSweepNotShortOfFullTurn { angle: 7.0 },
+        ),
         ("CircleSplitCount", P::CircleSplitCount { n: 1 }),
         (
             "PolygonTooFewVertices",
@@ -3145,21 +3212,29 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     let wraps: [(&str, Wrap); 5] = [
         ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
             error,
+            reference: 0,
         }),
         ("BlendSelectionResolve", |error| {
             NodeErrorKind::BlendSelectionResolve {
                 verb: sweep::blend::BlendKind::Chamfer,
                 error,
+                reference: 0,
             }
         }),
         ("ShellOpenResolve", |error| {
-            NodeErrorKind::ShellOpenResolve { error }
+            NodeErrorKind::ShellOpenResolve {
+                error,
+                reference: 0,
+            }
         }),
         ("FaceFrameResolve", |error| {
             NodeErrorKind::FaceFrameResolve { error }
         }),
         ("MeasureRefResolve", |error| {
-            NodeErrorKind::MeasureRefResolve { error }
+            NodeErrorKind::MeasureRefResolve {
+                error,
+                reference: 0,
+            }
         }),
     ];
     for (wrap, build) in wraps {
@@ -3405,6 +3480,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootFailed",
             PartFault::PartRootFailed {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
@@ -3412,6 +3488,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootFailed(part)",
             PartFault::PartRootFailed {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Part {
                     doc_ref: doc_ref(),
@@ -3423,6 +3500,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartRootPoisoned",
             PartFault::PartRootPoisoned {
+                held: Default::default(),
                 root: RecipeNodeId(tagged(8)),
                 through: RecipeNodeId(tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
@@ -3431,6 +3509,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "RootFailureUnrecorded",
             PartFault::RootFailureUnrecorded {
+                held: Default::default(),
                 node: RecipeNodeId(tagged(7)),
             },
         ),
@@ -3562,7 +3641,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 Some(NodeResult::Failed(error)) => match &error.kind {
                     NodeErrorKind::Part {
                         doc_ref,
-                        fault: fault @ PartFault::PartProduct { refusal },
+                        fault: fault @ PartFault::PartProduct { refusal, .. },
                     } if refusal.kind() == class => row(
                         name,
                         NodeErrorKind::Part {
@@ -3623,6 +3702,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Part {
                 doc_ref: doc_ref(),
                 fault: PartFault::PartProduct {
+                    held: Default::default(),
                     refusal: error.into(),
                 },
             },
@@ -3832,130 +3912,471 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
-    // `Band`, a `ReplaceFaceError` arm that names no key: the wrapper's
-    // own sentence names none either, so a key on this row would be the
-    // wrapper's.
-    let replace = || {
-        Box::new(ReplaceFaceError::<f64>::Band {
-            error: band_error(),
+    let mut rows: Vec<(String, S<f64>)> = replace_face()
+        .into_iter()
+        .map(|(arm, error)| {
+            (
+                format!("Face/{arm}"),
+                S::Face {
+                    face,
+                    error: Box::new(error),
+                },
+            )
         })
-    };
-    [
-        (
-            "Band",
-            S::Band {
-                error: band_error(),
-            },
-        ),
-        ("Thickness", S::Thickness { thickness: -0.1 }),
-        ("NoSolid", S::NoSolid),
-        (
-            "Roles",
-            S::Roles {
-                error: payloads::zero_volume(shell),
-            },
-        ),
-        (
-            "Pieces",
-            S::Pieces {
-                error: topo::PieceSortError::Crossing { shell },
-            },
-        ),
-        (
-            "OperandOuterShells",
-            S::OperandOuterShells {
-                solid: SolidKey::default(),
-                outer: 0,
-            },
-        ),
-        (
-            "Partition",
-            S::Partition {
-                shell,
-                error: euler(),
-            },
-        ),
-        (
-            "WallClearance",
-            S::WallClearance {
-                face,
-                other,
-                gap: 0.001,
-                needed: 0.002,
-            },
-        ),
-        ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
-        (
-            "Face",
-            S::Face {
-                face,
-                error: replace(),
-            },
-        ),
-        ("OpenFaceStale", S::OpenFaceStale { face }),
-        ("OpenFaceRepeated", S::OpenFaceRepeated { face }),
-        ("OpenFacesExhaustShell", S::OpenFacesExhaustShell { shell }),
-        (
-            "OpenFacesDisconnect",
-            S::OpenFacesDisconnect {
-                shell,
-                components: 2,
-            },
-        ),
-        (
-            "OpenFaceRingUnsupported",
-            S::OpenFaceRingUnsupported {
-                face,
-                kind: geom::SurfaceKind::Torus,
-            },
-        ),
-        (
-            "OpenFaceChartPartial",
-            S::OpenFaceChartPartial { face, other },
-        ),
-        (
-            "Lift",
-            S::Lift {
-                face,
-                error: replace(),
-            },
-        ),
-        (
-            "Insert",
-            S::Insert {
-                error: topo::VoidInsertError::NotStrictlyContained { shell },
-            },
-        ),
-        (
-            "OpenFaceRimNotExpressible",
-            S::OpenFaceRimNotExpressible {
-                face,
-                what: "a rim on a cone that is not a circle",
-            },
-        ),
-        (
-            "Rim",
-            S::Rim {
-                face,
-                error: euler(),
-            },
-        ),
-        ("Escalated", S::Escalated { source: diag() }),
-        ("Pcurve", S::Pcurve { source: pcurve() }),
-        (
-            "NotValid",
-            S::NotValid {
-                errors: vec![topo::ValidationError::ShellDisconnected {
+        .collect();
+    // The lift's refusals are the same door's; one that names an edge
+    // stands for them.
+    rows.push((
+        "Lift".into(),
+        S::Lift {
+            face,
+            error: Box::new(ReplaceFaceError::ReanchorPastCarrierEnd {
+                edge: topo::EdgeKey::default(),
+                gap: 0.25,
+            }),
+        },
+    ));
+    rows.extend(
+        [
+            (
+                "Band",
+                S::Band {
+                    error: band_error(),
+                },
+            ),
+            ("Thickness", S::Thickness { thickness: -0.1 }),
+            ("NoSolid", S::NoSolid),
+            (
+                "Roles",
+                S::Roles {
+                    error: payloads::zero_volume(shell),
+                },
+            ),
+            (
+                "Pieces",
+                S::Pieces {
+                    error: topo::PieceSortError::Crossing { shell },
+                },
+            ),
+            (
+                "OperandOuterShells",
+                S::OperandOuterShells {
+                    solid: SolidKey::default(),
+                },
+            ),
+            (
+                "Partition",
+                S::Partition {
+                    shell,
+                    error: euler(),
+                },
+            ),
+            (
+                "WallClearance",
+                S::WallClearance {
+                    face,
+                    other,
+                    gap: 0.001,
+                    needed: 0.002,
+                },
+            ),
+            ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
+            ("OpenFaceStale", S::OpenFaceStale { face }),
+            ("OpenFaceRepeated", S::OpenFaceRepeated { face }),
+            ("OpenFacesExhaustShell", S::OpenFacesExhaustShell { shell }),
+            (
+                "OpenFacesDisconnect",
+                S::OpenFacesDisconnect {
                     shell,
                     components: 2,
-                }],
+                },
+            ),
+            (
+                "OpenFaceRingUnsupported",
+                S::OpenFaceRingUnsupported {
+                    face,
+                    kind: geom::SurfaceKind::Torus,
+                },
+            ),
+            (
+                "OpenFaceChartPartial",
+                S::OpenFaceChartPartial { face, other },
+            ),
+            (
+                "Insert",
+                S::Insert {
+                    error: topo::VoidInsertError::NotStrictlyContained { shell },
+                },
+            ),
+            (
+                "OpenFaceRimNotExpressible",
+                S::OpenFaceRimNotExpressible {
+                    face,
+                    what: "a rim on a cone that is not a circle",
+                },
+            ),
+            (
+                "Rim",
+                S::Rim {
+                    face,
+                    error: euler(),
+                },
+            ),
+            ("Escalated", S::Escalated { source: diag() }),
+            ("Pcurve", S::Pcurve { source: pcurve() }),
+            (
+                "NotValid",
+                S::NotValid {
+                    errors: vec![topo::ValidationError::ShellDisconnected {
+                        shell,
+                        components: 2,
+                    }],
+                },
+            ),
+        ]
+        .map(|(n, e)| (n.to_owned(), e)),
+    );
+    rows.into_iter()
+        .map(|(n, e)| row(&format!("Shell/{n}"), NodeErrorKind::Shell(Box::new(e))))
+        .collect()
+}
+
+/// Every `topo::ReplaceFaceError` arm but `Fit` ([`offset_fit_routes`]
+/// renders that one per fit refusal), and every `OffsetError` arm
+/// through `Offset`. `TogetherAxialCorner` carries the longest `what`
+/// any raise site passes.
+fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
+    use geom::SurfaceKind::{Cone, Plane, Torus};
+    use geom_brep::OffsetError as O;
+    use payloads::*;
+    use topo::{EdgeKey, FaceKey, ReplaceFaceError as R, VertexKey};
+    let (face, other) = (FaceKey::default(), FaceKey::default());
+    let (edge, vertex) = (EdgeKey::default(), VertexKey::default());
+    let offset = |arm: &str, error| (format!("Offset/{arm}"), R::Offset { face, error });
+    let mut rows = vec![
+        offset(
+            "RadiusFloor",
+            O::RadiusFloor {
+                kind: geom::SurfaceKind::Cylinder,
+                realized: -0.1,
             },
         ),
-    ]
-    .into_iter()
-    .map(|(n, e)| row(&format!("Shell/{n}"), NodeErrorKind::Shell(Box::new(e))))
-    .collect()
+        offset(
+            "TorusRing",
+            O::TorusRing {
+                realized_minor: 2.0,
+            },
+        ),
+        offset("NotClosedUnderOffset", O::NotClosedUnderOffset),
+        offset("ApproxNesting", O::ApproxNesting),
+        offset("Escalated", O::Escalated { source: diag() }),
+    ];
+    rows.extend(
+        [
+            (
+                "Band",
+                R::Band {
+                    error: band_error(),
+                },
+            ),
+            ("StaleFace", R::StaleFace { face }),
+            (
+                "ApproxLaneUnsupported",
+                R::ApproxLaneUnsupported {
+                    face,
+                    scalar: "interval",
+                },
+            ),
+            ("SharedSurfaceKey", R::SharedSurfaceKey { face, other }),
+            ("EmptyGroup", R::EmptyGroup),
+            ("GroupChartsDiffer", R::GroupChartsDiffer { face, other }),
+            ("PlaceholderSurface", R::PlaceholderSurface { face }),
+            (
+                "ApexWindow",
+                R::ApexWindow {
+                    face,
+                    v_min: 0.5,
+                    v_max: 2.0,
+                    shift: -0.75,
+                },
+            ),
+            (
+                "NappeStraddles",
+                R::NappeStraddles {
+                    face,
+                    station_min: -0.5,
+                    station_max: 1.5,
+                    what: "faces of one cone that do not all lie on the same side of its apex, so \
+                           one offset cannot move them all the same way",
+                },
+            ),
+            ("ApexWindowUnknown", R::ApexWindowUnknown { face }),
+            (
+                "NeighborPairUnroutable",
+                R::NeighborPairUnroutable {
+                    edge,
+                    kind: Torus,
+                    other_kind: Cone,
+                },
+            ),
+            (
+                "NeighborPoseUnroutable",
+                R::NeighborPoseUnroutable {
+                    edge,
+                    kind: Plane,
+                    other_kind: Cone,
+                    why: "the plane no longer passes through the cone's apex",
+                },
+            ),
+            (
+                "FittedBoundaryUnsupported",
+                R::FittedBoundaryUnsupported {
+                    edge,
+                    what: "a seam shared with another fitted face",
+                },
+            ),
+            (
+                "CarrierLaneUnsupported",
+                R::CarrierLaneUnsupported {
+                    edge,
+                    what: "it is drawn on a fitted or cone surface, where the offset has no exact \
+                           shift for it",
+                },
+            ),
+            (
+                "IsoRow",
+                R::IsoRow {
+                    edge,
+                    error: geom_brep::IsoRowError::Escalated { source: diag() },
+                },
+            ),
+            (
+                "Structure",
+                R::Structure {
+                    edge,
+                    error: geom_core::spline::SplineError::WeightCountMismatch {
+                        weights: 3,
+                        control: 4,
+                    },
+                },
+            ),
+            (
+                "VertexDisagreement",
+                R::VertexDisagreement { vertex, gap: 0.01 },
+            ),
+            (
+                "ReanchorOffCarrier",
+                R::ReanchorOffCarrier { edge, gap: 0.01 },
+            ),
+            (
+                "ReanchorPastCarrierEnd",
+                R::ReanchorPastCarrierEnd { edge, gap: 0.25 },
+            ),
+            (
+                "ReanchorCollapse",
+                R::ReanchorCollapse { edge, offset: -1.0 },
+            ),
+            (
+                "ReanchorInconclusive",
+                R::ReanchorInconclusive {
+                    edge,
+                    error: geom::ProjectionInconclusive {
+                        iterations: 50,
+                        last_t: 0.5,
+                        last_orthogonality: 1e-3,
+                        last_distance: 0.1,
+                    },
+                },
+            ),
+            (
+                "NurbsLaneUnsupported",
+                R::NurbsLaneUnsupported {
+                    edge,
+                    scalar: "interval",
+                },
+            ),
+            (
+                "TogetherNonPlanar",
+                R::TogetherNonPlanar { face, kind: Torus },
+            ),
+            ("TogetherPartialSet", R::TogetherPartialSet { face }),
+            (
+                "TogetherCorner",
+                R::TogetherCorner {
+                    vertex,
+                    planes: 2,
+                    what: "fewer than three distinct planes meet here, so no point is \
+                           determined",
+                },
+            ),
+            ("TogetherChartMixed", R::TogetherChartMixed { face, other }),
+            ("TogetherFaceRepeated", R::TogetherFaceRepeated { face }),
+            (
+                "TogetherEdgeDisagreement",
+                R::TogetherEdgeDisagreement { edge, gap: 0.05 },
+            ),
+            (
+                "TogetherAxialUnsupported",
+                R::TogetherAxialUnsupported {
+                    face,
+                    kind: geom::SurfaceKind::Nurbs,
+                },
+            ),
+            (
+                "TogetherNotAxial",
+                R::TogetherNotAxial {
+                    face,
+                    what: "a cylinder whose axis is skew to the body's",
+                },
+            ),
+            (
+                "TogetherAxialCorner",
+                R::TogetherAxialCorner {
+                    vertex,
+                    surfaces: 2,
+                    what: "a line profile and a plane parallel to the axis meet here off the \
+                           axis: the plane fixes an azimuth and the line one coordinate, and \
+                           nothing records where along the line the corner stands",
+                },
+            ),
+            (
+                "TogetherAxialEdge",
+                R::TogetherAxialEdge {
+                    edge,
+                    what: "a rim whose moved cap stands at or past the torus wall's inner equator, \
+                           or out of its reach — the section there is a node, one folded loop or \
+                           nothing, not two ovals",
+                },
+            ),
+            ("Escalated", R::Escalated { source: diag() }),
+            (
+                "Op",
+                R::Op {
+                    edge: Some(edge),
+                    error: euler(),
+                },
+            ),
+            (
+                "Op(rechart)",
+                R::Op {
+                    edge: None,
+                    error: euler(),
+                },
+            ),
+            ("Pcurve", R::Pcurve { source: pcurve() }),
+            (
+                "ResultNotClosed",
+                R::ResultNotClosed {
+                    errors: vec![topo::ValidationError::ShellDisconnected {
+                        shell: topo::ShellKey::default(),
+                        components: 2,
+                    }],
+                },
+            ),
+        ]
+        .map(|(n, e)| (n.to_owned(), e)),
+    );
+    // `Fit` is `offset_fit_routes`'s; every other arm is rendered here.
+    let rendered: std::collections::BTreeSet<&str> =
+        rows.iter().map(|(_, e)| replace_face_arm(e)).collect();
+    let missing: Vec<&str> = REPLACE_FACE_ARMS
+        .into_iter()
+        .filter(|arm| *arm != "Fit" && !rendered.contains(arm))
+        .collect();
+    assert!(missing.is_empty(), "the census renders no {missing:?} row");
+    rows
 }
+
+/// `ReplaceFaceError`'s variant name. An exhaustive match, so an arm
+/// added to the enum does not compile until it is named here; named
+/// here and in [`REPLACE_FACE_ARMS`], [`replace_face`]'s census is red
+/// until it renders the arm.
+fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
+    use topo::ReplaceFaceError as R;
+    match error {
+        R::Band { .. } => "Band",
+        R::StaleFace { .. } => "StaleFace",
+        R::Offset { .. } => "Offset",
+        R::Fit { .. } => "Fit",
+        R::ApproxLaneUnsupported { .. } => "ApproxLaneUnsupported",
+        R::SharedSurfaceKey { .. } => "SharedSurfaceKey",
+        R::EmptyGroup => "EmptyGroup",
+        R::GroupChartsDiffer { .. } => "GroupChartsDiffer",
+        R::PlaceholderSurface { .. } => "PlaceholderSurface",
+        R::ApexWindow { .. } => "ApexWindow",
+        R::NappeStraddles { .. } => "NappeStraddles",
+        R::ApexWindowUnknown { .. } => "ApexWindowUnknown",
+        R::NeighborPairUnroutable { .. } => "NeighborPairUnroutable",
+        R::NeighborPoseUnroutable { .. } => "NeighborPoseUnroutable",
+        R::FittedBoundaryUnsupported { .. } => "FittedBoundaryUnsupported",
+        R::CarrierLaneUnsupported { .. } => "CarrierLaneUnsupported",
+        R::IsoRow { .. } => "IsoRow",
+        R::Structure { .. } => "Structure",
+        R::VertexDisagreement { .. } => "VertexDisagreement",
+        R::ReanchorOffCarrier { .. } => "ReanchorOffCarrier",
+        R::ReanchorPastCarrierEnd { .. } => "ReanchorPastCarrierEnd",
+        R::ReanchorCollapse { .. } => "ReanchorCollapse",
+        R::ReanchorInconclusive { .. } => "ReanchorInconclusive",
+        R::NurbsLaneUnsupported { .. } => "NurbsLaneUnsupported",
+        R::TogetherNonPlanar { .. } => "TogetherNonPlanar",
+        R::TogetherPartialSet { .. } => "TogetherPartialSet",
+        R::TogetherCorner { .. } => "TogetherCorner",
+        R::TogetherChartMixed { .. } => "TogetherChartMixed",
+        R::TogetherFaceRepeated { .. } => "TogetherFaceRepeated",
+        R::TogetherEdgeDisagreement { .. } => "TogetherEdgeDisagreement",
+        R::TogetherAxialUnsupported { .. } => "TogetherAxialUnsupported",
+        R::TogetherNotAxial { .. } => "TogetherNotAxial",
+        R::TogetherAxialCorner { .. } => "TogetherAxialCorner",
+        R::TogetherAxialEdge { .. } => "TogetherAxialEdge",
+        R::Escalated { .. } => "Escalated",
+        R::Op { .. } => "Op",
+        R::Pcurve { .. } => "Pcurve",
+        R::ResultNotClosed { .. } => "ResultNotClosed",
+    }
+}
+
+/// Every `ReplaceFaceError` variant, in declaration order: the names
+/// [`replace_face_arm`] answers.
+const REPLACE_FACE_ARMS: [&str; 38] = [
+    "Band",
+    "StaleFace",
+    "Offset",
+    "Fit",
+    "ApproxLaneUnsupported",
+    "SharedSurfaceKey",
+    "EmptyGroup",
+    "GroupChartsDiffer",
+    "PlaceholderSurface",
+    "ApexWindow",
+    "NappeStraddles",
+    "ApexWindowUnknown",
+    "NeighborPairUnroutable",
+    "NeighborPoseUnroutable",
+    "FittedBoundaryUnsupported",
+    "CarrierLaneUnsupported",
+    "IsoRow",
+    "Structure",
+    "VertexDisagreement",
+    "ReanchorOffCarrier",
+    "ReanchorPastCarrierEnd",
+    "ReanchorCollapse",
+    "ReanchorInconclusive",
+    "NurbsLaneUnsupported",
+    "TogetherNonPlanar",
+    "TogetherPartialSet",
+    "TogetherCorner",
+    "TogetherChartMixed",
+    "TogetherFaceRepeated",
+    "TogetherEdgeDisagreement",
+    "TogetherAxialUnsupported",
+    "TogetherNotAxial",
+    "TogetherAxialCorner",
+    "TogetherAxialEdge",
+    "Escalated",
+    "Op",
+    "Pcurve",
+    "ResultNotClosed",
+];
 
 /// The four arms that say what a designation turned out to be carry a
 /// `Found` only the entity door can mint, so they are raised through

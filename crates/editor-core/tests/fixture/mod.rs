@@ -1160,7 +1160,7 @@ pub fn vname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// **A cap RIM edge of an extrude**, by name — the arc cap `end`
 /// shares with the wall over outer- or hole-loop segment `edge`.
 pub fn rim_edge(node: RecipeNodeId, end: CapEnd, edge: ProfileEdgeRef) -> StableName {
-    ename(node, RoleSeg::RimEdge(end, edge))
+    ename(node, RoleSeg::RimEdge(end, edge.into()))
 }
 
 /// **A cap VERTEX of an extrude**, by name — the corner cap `end`
@@ -1424,6 +1424,19 @@ pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
             None => panic!("node {} sweeps no profile: {other:?}", node.0),
         },
         None => panic!("node {} is not live", node.0),
+    }
+}
+
+/// **The step that drew `piece`**, whose tag a name's words say where
+/// no document is at hand.
+///
+/// # Panics
+///
+/// Where `piece` is a kernel-built section's, which no step drew.
+pub fn step_of(piece: &ProfileEdgeRef) -> editor_core::StepId {
+    match piece {
+        ProfileEdgeRef::Piece { step, .. } => *step,
+        ProfileEdgeRef::Section { .. } => panic!("a section's piece has no step"),
     }
 }
 
@@ -1729,6 +1742,10 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
         RoleSeg::Seam { a: x, b: y }
+        | RoleSeg::Crossing {
+            edge: x, face: y, ..
+        }
+        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,

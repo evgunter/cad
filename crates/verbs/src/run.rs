@@ -386,10 +386,11 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
 
     /// **Run this parting verb against its operand body.**
     ///
-    /// The operand comes in borrowed, never in the payload, exactly as
-    /// at [`Verb::run`]; what differs is what comes back. A split hands
-    /// back TWO sides, each a body or the typed empty, and the one-body
-    /// out-type cannot carry them — so this is the split's own door
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]), as at [`Verb::run_pair`]; what differs is what
+    /// comes back. A split hands back TWO sides, each a body or the typed
+    /// empty, and the one-body out-type cannot carry them — so this is
+    /// the split's own door
     /// with its own out-type ([`SplitOut`]), and the D7 pinch lane
     /// inside the kernel door (`topo::split` reruns a one-sided pinch
     /// mirrored and swaps the sides back) is the door's, reached here
@@ -402,7 +403,11 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// verbatim (`topo::split` enumerates the cases — every stage's
     /// typed refusal passed through whole); [`VerbError::Arity`] if
     /// this verb answers another door.
-    pub fn run_split(&self, operand: &Body<T>, tol: Tol) -> Result<SplitOut<T>, VerbError<T>> {
+    pub fn run_split(
+        &self,
+        operand: &AtRestBody<T>,
+        tol: Tol,
+    ) -> Result<SplitOut<T>, VerbError<T>> {
         match self {
             Self::Split { plane } => {
                 // Exhaustive destructure, deliberately: a field grown
@@ -452,9 +457,12 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// handed to [`Verb::run`], [`Verb::run_pair`],
     /// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
     ///
-    /// The operand comes in borrowed, never in the payload, exactly as
-    /// at [`Verb::run`]; an EMPTY `open` is the sealed hollow, which is
-    /// the kernel door's own contract and not a case decided here.
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]). Unlike [`Verb::run_split`]'s door, the shell's
+    /// reads no verdict of its own: only a dual carries an operand with
+    /// none, and no dual holds the door. An EMPTY `open` is the sealed
+    /// hollow, which is the kernel door's own contract and not a case
+    /// decided here.
     /// Every check, every refusal and every minted entity is the
     /// door's — this dispatches and re-wraps, and adds no decision of
     /// its own; the tolerance witness travels down unaltered and no
@@ -470,7 +478,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// door.
     pub fn run_shell(
         &self,
-        operand: &Body<T>,
+        operand: &AtRestBody<T>,
         tol: Tol,
         door: ShellDoor<T>,
     ) -> Result<VerbOut<T>, VerbError<T>> {

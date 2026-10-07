@@ -70,6 +70,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<(topo::EdgeKey, geom_brep::EdgeCurve<f
 #[test]
 fn tilted_cut_mints_exact_ellipse_carriers() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let phi = 0.3f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
@@ -136,6 +137,7 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
 #[test]
 fn perpendicular_cut_stays_rung_1_circles() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
         Vec3::unit_z(),
@@ -173,6 +175,7 @@ fn perpendicular_cut_stays_rung_1_circles() {
 #[test]
 fn axis_parallel_cut_splits_through_rim_crossings() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::origin(),
         Vec3::unit_x(),
@@ -199,6 +202,7 @@ fn axis_parallel_cut_splits_through_rim_crossings() {
 #[test]
 fn seam_coincident_cut_splits_along_the_seams() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::origin(),
         Vec3::unit_y(),
@@ -218,6 +222,7 @@ fn seam_coincident_cut_splits_along_the_seams() {
 fn tilted_cut_replays_bit_identically() {
     let run = || {
         let body = cylinder_body();
+        let body = sweep::test_support::finished("the body", body, Tol::witness());
         let phi = 0.3f64;
         let plane = topo::test_support::split_plane(
             Point3::new(0.0, 0.0, 0.5),
@@ -263,6 +268,7 @@ fn lands_whole(label: &str, above: &SplitPart<f64>, below: &SplitPart<f64>) {
 #[test]
 fn tangent_plane_lands_the_cylinder_below() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.5, 0.0, 0.0),
         Vec3::unit_x(),
@@ -298,6 +304,7 @@ mod interval {
         )
         .unwrap()
         .body;
+        let body = sweep::test_support::finished("the body", body, Tol::witness());
         let phi = 0.3f64;
         let plane = topo::test_support::split_plane(
             p3(0.0, 0.0, 0.5),
@@ -370,6 +377,7 @@ fn assert_two_sided(result: &topo::splitting::SplitResult<f64>) -> (Body<f64>, B
 #[test]
 fn even_crossing_recovers_the_sliver() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.25, 0.0),
         Vec3::unit_y(),
@@ -489,6 +497,7 @@ fn wall_contained_ellipse_spans(part: &Body<f64>, height: f64) -> Vec<f64> {
 #[test]
 fn tilted_belly_cut_mints_wall_contained_section_arcs() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let n = 1.0 / 5.0f64.sqrt();
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.1, 0.5),
@@ -538,6 +547,7 @@ fn tilted_belly_cut_mints_wall_contained_section_arcs() {
 #[test]
 fn rotated_belly_cut_is_seam_placement_independent() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let a = 0.7f64;
     let (s, c) = (a.sin(), a.cos());
     let n0 = Vec3::new(0.0, 2.0, 1.0).normalize();
@@ -607,6 +617,7 @@ fn rotated_belly_cut_is_seam_placement_independent() {
 #[test]
 fn on_endpoint_belly_cut_splits() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let n = Vec3::new(0.3, 1.0, 0.2).normalize();
     let plane =
         topo::test_support::split_plane(Point3::new(0.5, 0.0, 0.0), n, geom_core::Tol::witness());
@@ -637,6 +648,7 @@ fn on_endpoint_belly_cut_splits() {
 #[test]
 fn repaired_belly_bodies_mint_certified_pcurves() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let n = 1.0 / 5.0f64.sqrt();
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.1, 0.5),
@@ -690,6 +702,7 @@ fn even_crossing_belly_cut_at_interval() {
     )
     .unwrap()
     .body;
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     // The tilted-belly even-crossing configuration (both rims crossed
     // twice + both seams once). Axis-parallel even-crossing planes put
     // crossing-vertex PAIRS at equal in-plane u (vertically aligned),
@@ -783,6 +796,7 @@ fn even_crossing_belly_cut_at_interval() {
 #[test]
 fn root_at_endpoint_inserts_nothing() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let originals: std::collections::BTreeSet<_> = body.vertices().map(|(k, _)| k).collect();
     let plane = topo::test_support::split_plane(
         Point3::origin(),
@@ -801,6 +815,7 @@ fn root_at_endpoint_inserts_nothing() {
 #[test]
 fn definite_roots_mint_four_crossings() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let originals: std::collections::BTreeSet<_> = body.vertices().map(|(k, _)| k).collect();
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.25, 0.0),
@@ -820,6 +835,7 @@ fn definite_roots_mint_four_crossings() {
 #[test]
 fn near_graze_escalates_typed() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let eps = Tol::witness().get().eps;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.5 + 3.0 * eps, 0.0),
@@ -848,6 +864,7 @@ fn near_graze_escalates_typed() {
 #[test]
 fn exact_graze_lands_the_cylinder_below() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.5, 0.0),
         Vec3::unit_y(),

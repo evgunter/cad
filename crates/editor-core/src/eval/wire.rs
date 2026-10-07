@@ -478,42 +478,47 @@ where
     // and the identity fast path clones keys verbatim. Re-deriving them
     // from the placed geometry is the scan-to-bless move F1 bans. The
     // bookkeeping rows ride unchanged for the same reason; what is
-    // added here is each row's ROUTE ([`carry_up`]).
+    // added here is each row's first hop, this instance
+    // ([`crate::assembly::PartRow::through`]).
     let carried = crate::assembly::CarriedDeclarations {
-        minted: carry_up(
-            &part.minted,
-            part.carried
-                .iter()
-                .map(|r| (&r.route, r.declaration.clone())),
-            id,
-            doc_ref.id,
-        )
-        .map(|(route, declaration)| crate::assembly::CarriedDeclaration { route, declaration })
-        .collect(),
-        unminted: carry_up(
-            &part.unminted,
-            part.carried_unminted
-                .iter()
-                .map(|r| (&r.route, r.refusal.clone())),
-            id,
-            doc_ref.id,
-        )
-        .map(|(route, refusal)| crate::assembly::CarriedRefusal { route, refusal })
-        .collect(),
-        unplaced: carry_up(
-            &part.unplaced,
-            part.carried_unplaced
-                .iter()
-                .map(|r| (&r.route, (r.group, r.cause))),
-            id,
-            doc_ref.id,
-        )
-        .map(|(route, (group, cause))| crate::assembly::CarriedUnplaced {
-            route,
-            group,
-            cause,
-        })
-        .collect(),
+        minted: part
+            .minted
+            .iter()
+            .map(|row| {
+                let (route, declaration, held) = row.through(id);
+                crate::assembly::CarriedDeclaration {
+                    route,
+                    declaration,
+                    held,
+                }
+            })
+            .collect(),
+        unminted: part
+            .unminted
+            .iter()
+            .map(|row| {
+                let (route, refusal, held) = row.through(id);
+                crate::assembly::CarriedRefusal {
+                    route,
+                    refusal,
+                    held,
+                }
+            })
+            .collect(),
+        unplaced: part
+            .unplaced
+            .iter()
+            .map(|row| {
+                let (route, crate::assembly::UnplacedGroup { group, cause }, held) =
+                    row.through(id);
+                crate::assembly::CarriedUnplaced {
+                    route,
+                    group,
+                    cause,
+                    held,
+                }
+            })
+            .collect(),
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
@@ -523,34 +528,6 @@ where
         carried: Arc::new(carried),
         parts: part.parts,
     })
-}
-
-/// One instantiation's worth of routed rows, over one payload kind:
-/// the pinned document's OWN rows first — reached through `node`, `of`
-/// that document, nothing in between — then the rows it carried up
-/// itself, each re-routed through `node`
-/// ([`crate::assembly::Route::through_instance`]).
-///
-/// Generic over the payload so a declaration and a mint refusal share
-/// one route rule.
-fn carry_up<'a, P: Clone + 'a>(
-    own: &'a [P],
-    below: impl Iterator<Item = (&'a crate::assembly::Route, P)> + 'a,
-    node: RecipeNodeId,
-    of: crate::ident::DocumentId,
-) -> impl Iterator<Item = (crate::assembly::Route, P)> + 'a {
-    own.iter()
-        .map(move |payload| {
-            (
-                crate::assembly::Route {
-                    through: node,
-                    of,
-                    via: Vec::new(),
-                },
-                payload.clone(),
-            )
-        })
-        .chain(below.map(move |(route, payload)| (route.through_instance(node), payload)))
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's
@@ -845,7 +822,8 @@ fn body_operand<T: Decide>(
 }
 
 /// **A body operand, finished** for a door that takes finished bodies
-/// (the Boolean's): [`body_operand`]'s body through the at-rest gate
+/// (the Boolean's, the split's and the shell's): [`body_operand`]'s
+/// body through the at-rest gate
 /// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
 /// node. The evaluator holds the bodies its nodes built with no verdict
 /// kept beside them, so the consuming node pays the gate here.
@@ -2095,7 +2073,11 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// hollow, not a refusal. Failure of the op itself is
 /// [`NodeErrorKind::Shell`]; the input body is never passed through. A
 /// scalar that cannot form the door's call at all — a dual — refuses
-/// [`NodeErrorKind::ShellLaneUnsupported`].
+/// [`NodeErrorKind::ShellLaneUnsupported`]. An operand the at-rest gate
+/// refuses is [`NodeErrorKind::UnfinishedOperand`]
+/// ([`finished_operand`]), which no document reaches (every node's door
+/// gates what it ships) and which never meets the lane refusal: a dual's
+/// gate refuses nothing, and a certifying scalar has the door.
 ///
 /// # Naming
 ///
@@ -2113,7 +2095,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, target)?;
+    let body = finished_operand(results, target, tol)?;
     let thickness = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let faces = resolve_open_faces(open, doc, &target_table)?;
@@ -2164,12 +2146,12 @@ fn resolve_open_faces(
     target: &NameTable,
 ) -> Result<Vec<topo::FaceKey>, NodeErrorKind> {
     let mut keys = Vec::with_capacity(open.len());
-    for name in open {
+    for (reference, name) in open.iter().enumerate() {
         keys.push(named_entity(
             name,
             doc,
             target,
-            |error| NodeErrorKind::ShellOpenResolve { error },
+            |error| NodeErrorKind::ShellOpenResolve { error, reference },
             names::EntityKey::face,
             |name, found| NodeErrorKind::ShellOpenKind { name, found },
         )?);
@@ -2359,12 +2341,16 @@ fn resolve_selection(
         return Err(NodeErrorKind::BlendSelectionEmpty { verb });
     }
     let mut keys = Vec::with_capacity(selection.len());
-    for name in selection {
+    for (reference, name) in selection.iter().enumerate() {
         keys.push(named_entity(
             name,
             doc,
             target,
-            |error| NodeErrorKind::BlendSelectionResolve { verb, error },
+            |error| NodeErrorKind::BlendSelectionResolve {
+                verb,
+                error,
+                reference,
+            },
             names::EntityKey::edge,
             |name, found| NodeErrorKind::BlendSelectionKind { verb, name, found },
         )?);
@@ -2487,7 +2473,10 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
         let name = &r.name;
         let value = value_of(results, r.at)?;
         let ent = ladder::resolve_in(name, doc, &value.name_table, |error| {
-            NodeErrorKind::MeasureRefResolve { error }
+            NodeErrorKind::MeasureRefResolve {
+                error,
+                reference: index,
+            }
         })?;
         let body =
             crate::names::interrogate::output_body(&value.payload, ent.body).map_err(|error| {
@@ -2671,7 +2660,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, target)?;
+    let body = finished_operand(results, target, tol)?;
     let tv = value_of(results, tool)?;
     let wrong_tool = || wrong_operand(tv, tool, verb.tool_expected);
     let ValuePayload::Datum(datum) = &tv.payload else {
@@ -3050,7 +3039,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
-                fold.step(rest[step], &naming, &out.body)
+                fold.step(rest[step], &naming, &out.body, &emitted.senses)
                     .map_err(NodeErrorKind::Naming)?;
                 acc_table = emitted.table;
                 step_groups.push(emitted.groups);
@@ -3145,8 +3134,8 @@ fn judge_pairwise_contact(
     // The declared pairs between two DIFFERENT members, lesser node id
     // first. `route_declarations` already sited these pairs through the
     // same door, so a refusal here is a bug.
-    let site = |r: &SitedRef| {
-        member_site(id, members, r, doc).map_err(|_| {
+    let site = |r: &SitedRef, reference: usize| {
+        member_site(id, members, r, reference, doc).map_err(|_| {
             NodeErrorKind::Naming(names::NamingError::Emission {
                 what: PAIRWISE_SITE_UNROUTED,
             })
@@ -3154,8 +3143,8 @@ fn judge_pairwise_contact(
     };
     let mut between: std::collections::BTreeMap<(usize, usize), Vec<SidedPair<'static>>> =
         std::collections::BTreeMap::new();
-    for ((r1, r2), class) in declared {
-        let ((i, n1), (j, n2)) = (site(r1)?, site(r2)?);
+    for (k, ((r1, r2), class)) in declared.iter().enumerate() {
+        let ((i, n1), (j, n2)) = (site(r1, 2 * k)?, site(r2, 2 * k + 1)?);
         if i == j {
             continue;
         }
@@ -3171,10 +3160,11 @@ fn judge_pairwise_contact(
                 topo::Operand::B
             }
         };
-        between
-            .entry((lo, hi))
-            .or_default()
-            .push(((op(i), n1), (op(j), n2), *class));
+        between.entry((lo, hi)).or_default().push((
+            (op(i), n1, 2 * k),
+            (op(j), n2, 2 * k + 1),
+            *class,
+        ));
     }
     let mut links = names::UnionLinks::default();
     let mut by_id: Vec<usize> = (0..members.len()).collect();
@@ -3218,7 +3208,7 @@ const PAIRWISE_SITE_UNROUTED: &str =
 /// absent here was consumed, not mistyped. A pair whose two sites are
 /// one member passes through untouched.
 fn drop_consumed<'n>(bucket: Vec<SidedPair<'n>>, acc_table: &NameTable) -> Vec<SidedPair<'n>> {
-    let consumed = |(op, sided): &(topo::Operand, SidedName<'n>)| {
+    let consumed = |(op, sided, _): &Side<'n>| {
         let face = sided.name();
         *op == topo::Operand::A
             && !acc_table
@@ -3238,11 +3228,12 @@ fn drop_consumed<'n>(bucket: Vec<SidedPair<'n>>, acc_table: &NameTable) -> Vec<S
 /// ([`side_by_operand`]); [`wire_union`] rewrites each into the node's
 /// member space ([`route_declarations`]). Either way
 /// [`resolve_declarations`] gets one shape.
-type SidedPair<'n> = (
-    (topo::Operand, SidedName<'n>),
-    (topo::Operand, SidedName<'n>),
-    topo::BooleanCoincidence,
-);
+type SidedPair<'n> = (Side<'n>, Side<'n>, topo::BooleanCoincidence);
+
+/// One side of a [`SidedPair`]: the operand its site picked, its name,
+/// and its place among the node's payload names
+/// ([`crate::Node::payload_names`]), which a refusal of it carries.
+type Side<'n> = (topo::Operand, SidedName<'n>, usize);
 
 /// One side's name on its way to the shared resolver, and whether
 /// rung 1 is already paid on it.
@@ -3282,12 +3273,13 @@ impl SidedName<'_> {
 /// says it is for a union, whose member LIST `SetMembers` rewrites.
 fn site_operand<'n>(
     r: &'n SitedRef,
+    reference: usize,
     operands: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
     absent: impl FnOnce(&ladder::Live<'n>) -> NodeErrorKind,
 ) -> Result<(usize, ladder::Live<'n>), NodeErrorKind> {
-    let live =
-        ladder::live(&r.name, doc).map_err(|error| NodeErrorKind::DeclareResolve { error })?;
+    let live = ladder::live(&r.name, doc)
+        .map_err(|error| NodeErrorKind::DeclareResolve { error, reference })?;
     match operands.iter().position(|m| *m == r.at) {
         Some(i) => Ok((i, live)),
         None => Err(absent(&live)),
@@ -3306,8 +3298,8 @@ fn side_by_operand<'n>(
     b: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
 ) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
-    let side = |r: &'n SitedRef| -> Result<(topo::Operand, SidedName<'n>), NodeErrorKind> {
-        let (i, live) = site_operand(r, &[a, b], doc, |_| {
+    let side = |r: &'n SitedRef, reference: usize| -> Result<Side<'n>, NodeErrorKind> {
+        let (i, live) = site_operand(r, reference, &[a, b], doc, |_| {
             NodeErrorKind::DeclareSiteNotAnOperand { at: r.at }
         })?;
         let op = if i == 0 {
@@ -3315,11 +3307,12 @@ fn side_by_operand<'n>(
         } else {
             topo::Operand::B
         };
-        Ok((op, SidedName::Live(live)))
+        Ok((op, SidedName::Live(live), reference))
     };
     pairs
         .iter()
-        .map(|((r1, r2), class)| Ok((side(r1)?, side(r2)?, *class)))
+        .enumerate()
+        .map(|(k, ((r1, r2), class))| Ok((side(r1, 2 * k)?, side(r2, 2 * k + 1)?, *class)))
         .collect()
 }
 
@@ -3350,10 +3343,10 @@ fn route_declarations(
 ) -> Result<Vec<Vec<SidedPair<'static>>>, NodeErrorKind> {
     let steps = members.len().saturating_sub(1);
     let mut buckets: Vec<Vec<SidedPair<'static>>> = vec![Vec::new(); steps];
-    for ((r1, r2), class) in pairs {
+    for (k, ((r1, r2), class)) in pairs.iter().enumerate() {
         let ((i, n1), (j, n2)) = (
-            member_site(id, members, r1, doc)?,
-            member_site(id, members, r2, doc)?,
+            member_site(id, members, r1, 2 * k, doc)?,
+            member_site(id, members, r2, 2 * k + 1, doc)?,
         );
         let bucket = i.max(j).saturating_sub(1);
         let joining = bucket + 1;
@@ -3364,7 +3357,7 @@ fn route_declarations(
                 topo::Operand::A
             }
         };
-        buckets[bucket].push(((op(i), n1), (op(j), n2), *class));
+        buckets[bucket].push(((op(i), n1, 2 * k), (op(j), n2, 2 * k + 1), *class));
     }
     Ok(buckets)
 }
@@ -3381,10 +3374,14 @@ fn member_site(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
     r: &SitedRef,
+    reference: usize,
     doc: &crate::doc::Doc<ProfileProgram>,
 ) -> Result<(usize, SidedName<'static>), NodeErrorKind> {
-    let (i, _) = site_operand(r, members, doc, |live| NodeErrorKind::DeclareResolve {
-        error: ladder::vanished(live),
+    let (i, _) = site_operand(r, reference, members, doc, |live| {
+        NodeErrorKind::DeclareResolve {
+            error: ladder::vanished(live),
+            reference,
+        }
     })?;
     Ok((
         i,
@@ -3432,59 +3429,58 @@ fn look_through_fold<'n>(
     acc_table: &NameTable,
 ) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
     use crate::names::RoleSeg;
-    let merged_row_of = |(op, sided): &(topo::Operand, SidedName<'n>)| -> Result<
-        Option<names::StableName>,
-        NodeErrorKind,
-    > {
-        let name = sided.name();
-        if *op == topo::Operand::B || acc_table.lookup(name).is_some() {
-            return Ok(None);
-        }
-        let split = acc_table
-            .iter()
-            .any(|(row, _)| fold_descent(row, name) == Some(FoldConsumption::Split));
-        let mut rows = acc_table
-            .iter()
-            .filter_map(|(row, _)| match row.path.as_slice() {
-                [RoleSeg::Merged(set)] if names::merged::covers(set, name) => Some(row),
-                _ => None,
-            });
-        match (rows.next(), rows.next()) {
-            (Some(row), None) if !split => return Ok(Some(row.clone())),
-            (Some(_), Some(_)) => {
-                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: MEMBER_FACE_IN_TWO_MERGES,
-                }));
+    let merged_row_of =
+        |(op, sided, reference): &Side<'n>| -> Result<Option<names::StableName>, NodeErrorKind> {
+            let name = sided.name();
+            if *op == topo::Operand::B || acc_table.lookup(name).is_some() {
+                return Ok(None);
             }
-            _ => {}
-        }
-        let mut ways = acc_table
-            .iter()
-            .filter_map(|(row, _)| fold_descent(row, name));
-        let by = match ways.next() {
-            Some(first) if ways.all(|w| w == first) => first,
-            Some(_) => {
-                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: MEMBER_FACE_CONSUMED_TWO_WAYS,
-                }));
+            let split = acc_table
+                .iter()
+                .any(|(row, _)| fold_descent(row, name) == Some(FoldConsumption::Split));
+            let mut rows = acc_table
+                .iter()
+                .filter_map(|(row, _)| match row.path.as_slice() {
+                    [RoleSeg::Merged(set)] if names::merged::covers(set, name) => Some(row),
+                    _ => None,
+                });
+            match (rows.next(), rows.next()) {
+                (Some(row), None) if !split => return Ok(Some(row.clone())),
+                (Some(_), Some(_)) => {
+                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                        what: MEMBER_FACE_IN_TWO_MERGES,
+                    }));
+                }
+                _ => {}
             }
-            None => return Ok(None),
+            let mut ways = acc_table
+                .iter()
+                .filter_map(|(row, _)| fold_descent(row, name));
+            let by = match ways.next() {
+                Some(first) if ways.all(|w| w == first) => first,
+                Some(_) => {
+                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                        what: MEMBER_FACE_CONSUMED_TWO_WAYS,
+                    }));
+                }
+                None => return Ok(None),
+            };
+            Err(NodeErrorKind::DeclareResolve {
+                error: Box::new(crate::resolve::ResolveError::Vanished {
+                    name: name.clone(),
+                    diagnosis: crate::resolve::Diagnosis::ConsumedByFold { by },
+                    last_good: None,
+                }),
+                reference: *reference,
+            })
         };
-        Err(NodeErrorKind::DeclareResolve {
-            error: Box::new(crate::resolve::ResolveError::Vanished {
-                name: name.clone(),
-                diagnosis: crate::resolve::Diagnosis::ConsumedByFold { by },
-                last_good: None,
-            }),
-        })
-    };
     bucket
         .iter()
         .map(|(s1, s2, class)| {
-            let rewritten = |s: &(topo::Operand, SidedName<'n>)| {
+            let rewritten = |s: &Side<'n>| {
                 Ok(match merged_row_of(s)? {
-                    Some(row) => (s.0, SidedName::Rewritten(row)),
-                    None => (s.0, s.1.clone()),
+                    Some(row) => (s.0, SidedName::Rewritten(row), s.2),
+                    None => s.clone(),
                 })
             };
             Ok((rewritten(s1)?, rewritten(s2)?, *class))
@@ -3898,17 +3894,17 @@ fn resolve_declarations<'n>(
     b_table: &NameTable,
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
     let mut out = BooleanDeclarations::none();
-    for ((o1, n1), (o2, n2), class) in pairs {
+    for ((o1, n1, r1), (o2, n2, r2), class) in pairs {
         let (o1, o2, class) = (*o1, *o2, *class);
-        let refused = |error| NodeErrorKind::DeclareResolve { error };
+        let refused = |reference| move |error| NodeErrorKind::DeclareResolve { error, reference };
         // Rungs 1 and 3 for both names, the kind question, then rung 2
         // (the order is `ladder`'s doc).
         let table_of = |op| match op {
             topo::Operand::A => a_table,
             topo::Operand::B => b_table,
         };
-        let (live1, l1) = declare_landing(n1, doc, table_of(o1))?;
-        let (live2, l2) = declare_landing(n2, doc, table_of(o2))?;
+        let (live1, l1) = declare_landing(n1, *r1, doc, table_of(o1))?;
+        let (live2, l2) = declare_landing(n2, *r2, doc, table_of(o2))?;
         let (n1, n2) = (n1.name(), n2.name());
         // Asked of the NAMES' kinds, which every `NameTable` door that
         // seats a row makes every candidate's kind, so a tie answers it
@@ -3920,8 +3916,8 @@ fn resolve_declarations<'n>(
         let Some(step) = declared_step((o1, n1.kind), (o2, n2.kind)) else {
             return Err(unsupported((n1.kind, n2.kind)));
         };
-        let k1 = ladder::resolve(live1, l1).map_err(refused)?.key;
-        let k2 = ladder::resolve(live2, l2).map_err(refused)?.key;
+        let k1 = ladder::resolve(live1, l1).map_err(refused(*r1))?.key;
+        let k2 = ladder::resolve(live2, l2).map_err(refused(*r2))?.key;
         // The arms below PROJECT the keys of the step, reading its
         // ORIENTATION off the step's [`sides`] tokens. A projection that
         // fails means a table holds a key of another kind than its
@@ -4131,11 +4127,12 @@ fn declared_step(
 /// [`NodeErrorKind::DeclareResolve`].
 fn declare_landing<'n>(
     sided: &'n SidedName<'n>,
+    reference: usize,
     doc: &crate::doc::Doc<ProfileProgram>,
     table: &NameTable,
 ) -> Result<(ladder::Live<'n>, ladder::Landing), NodeErrorKind> {
     use ladder::Landing;
-    let refused = |error| NodeErrorKind::DeclareResolve { error };
+    let refused = |error| NodeErrorKind::DeclareResolve { error, reference };
     // Rung 1, paid ONCE per name (see [`SidedName`]).
     let live = match sided {
         SidedName::Live(live) => *live,
@@ -4440,10 +4437,10 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// The Sweep node's frontier — the ONE
 /// [`NodeErrorKind::CurvedSolidFrontier`] door, a constant so the
 /// acceptance rows assert the SAME text, which says why.
-pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — always \
-     a closed chain of two or more segments, even at the minimal \
-     two-vertex circle — while §10.4's rigid-profile sweep needs the \
-     path as ONE curve, so every recipe-expressible sweep waits on a \
+pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — a \
+     closed chain of segments, or a full circle as one segment at one \
+     vertex — while §10.4's rigid-profile sweep needs the path as \
+     ONE open curve, so every recipe-expressible sweep waits on a \
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";
 
@@ -4772,7 +4769,7 @@ mod route_tests {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(filled, vec![2]);
-        let ((o1, n1), (o2, n2), _) = &buckets[2][0];
+        let ((o1, n1, _), (o2, n2, _), _) = &buckets[2][0];
         assert_eq!((*o1, *o2), (Operand::A, Operand::B));
         assert_eq!(
             *n1.name(),
@@ -4885,21 +4882,22 @@ mod route_tests {
         };
         // An earlier member against a later one: A then B, and each
         // name is rewritten into the union's member space.
-        let ((o1, n1), (o2, n2), _) = sided(pair(at(ms[1], CapEnd::Start), at(ms[3], CapEnd::End)));
+        let ((o1, n1, _), (o2, n2, _), _) =
+            sided(pair(at(ms[1], CapEnd::Start), at(ms[3], CapEnd::End)));
         assert_eq!(o1, Operand::A);
         assert_eq!(o2, Operand::B);
         assert_eq!(*n1.name(), member_face(union, ms[1], CapEnd::Start));
         assert_eq!(*n2.name(), member_face(union, ms[3], CapEnd::End));
         // The same pair written the other way round: the SITES decide,
         // not the order the author wrote them in.
-        let ((o1, _), (o2, _), _) = sided(pair(at(ms[3], CapEnd::End), at(ms[1], CapEnd::Start)));
+        let ((o1, ..), (o2, ..), _) = sided(pair(at(ms[3], CapEnd::End), at(ms[1], CapEnd::Start)));
         assert_eq!((o1, o2), (Operand::B, Operand::A));
         // One member with itself is that member's CARRIED contact, on
         // the side it enters the step as: operand B at its own step,
         // and operand A for member 0, which is where the fold starts.
-        let ((o1, _), (o2, _), _) = sided(pair(at(ms[2], CapEnd::Start), at(ms[2], CapEnd::End)));
+        let ((o1, ..), (o2, ..), _) = sided(pair(at(ms[2], CapEnd::Start), at(ms[2], CapEnd::End)));
         assert_eq!((o1, o2), (Operand::B, Operand::B));
-        let ((o1, _), (o2, _), _) = sided(pair(at(ms[0], CapEnd::Start), at(ms[0], CapEnd::End)));
+        let ((o1, ..), (o2, ..), _) = sided(pair(at(ms[0], CapEnd::Start), at(ms[0], CapEnd::End)));
         assert_eq!((o1, o2), (Operand::A, Operand::A));
     }
 
@@ -4917,7 +4915,7 @@ mod route_tests {
         assert!(
             matches!(
                 refused,
-                Err(NodeErrorKind::DeclareResolve { ref error })
+                Err(NodeErrorKind::DeclareResolve { ref error, .. })
                     if matches!(**error, crate::resolve::ResolveError::Vanished { .. })
             ),
             "{refused:?}",
@@ -4944,7 +4942,7 @@ mod route_tests {
         assert!(
             matches!(
                 refused,
-                Err(NodeErrorKind::DeclareResolve { ref error })
+                Err(NodeErrorKind::DeclareResolve { ref error, .. })
                     if matches!(**error, crate::resolve::ResolveError::NodeGone { .. })
             ),
             "{refused:?}",
@@ -4989,8 +4987,8 @@ mod route_tests {
     /// in the union's member space, each with the side its site took.
     fn routed(a: (Operand, StableName), b: (Operand, StableName)) -> SidedPair<'static> {
         (
-            (a.0, SidedName::Rewritten(a.1)),
-            (b.0, SidedName::Rewritten(b.1)),
+            (a.0, SidedName::Rewritten(a.1), 0),
+            (b.0, SidedName::Rewritten(b.1), 1),
             BooleanCoincidence::REST,
         )
     }
@@ -5069,7 +5067,7 @@ mod route_tests {
             ),
         ];
         let out = look_through_fold(&bucket, &acc).unwrap();
-        assert_eq!(out[0].0, (Operand::A, SidedName::Rewritten(wide)));
+        assert_eq!(out[0].0, (Operand::A, SidedName::Rewritten(wide), 0));
         assert_eq!(out[1], bucket[1]);
         assert_eq!(out[2], bucket[2]);
     }
@@ -5171,7 +5169,7 @@ mod route_tests {
         refused: Result<Vec<SidedPair<'_>>, NodeErrorKind>,
     ) -> (StableName, FoldConsumption) {
         match refused {
-            Err(NodeErrorKind::DeclareResolve { error }) => match *error {
+            Err(NodeErrorKind::DeclareResolve { error, .. }) => match *error {
                 ResolveError::Vanished {
                     name,
                     diagnosis: Diagnosis::ConsumedByFold { by },

@@ -487,7 +487,7 @@ pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRe
     let meet = volume(topo::intersect(a, b, Tol::witness()).unwrap());
     let whole = mass_properties(a, Tol::witness()).unwrap().volume;
     assert_eq!(minus + meet, whole, "{name}: A∖B and A∩B partition A");
-    let refused = AtRestBody::validate(b.revert().unwrap(), Tol::witness())
+    let refused = AtRestBody::validate(b.revert(), Tol::witness())
         .expect_err("a complement is not a finished body");
     assert!(
         !refused.is_empty()

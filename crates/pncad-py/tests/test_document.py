@@ -6,6 +6,7 @@ test here goes through a document; none reaches into the kernel.
 
 import json
 import math
+import os
 import struct
 import unittest
 
@@ -569,6 +570,40 @@ class TestDetectDeclareDoors(unittest.TestCase):
             "is not a node of the document this evaluation ran over",
             str(caught.exception),
         )
+
+    def test_an_in_band_pair_refuses_naming_both_faces_and_their_nodes(self):
+        # The upper slab floats above the lower by the ambiguity band's
+        # midpoint (ε, Kε), so the pair is neither a finding nor
+        # dropped: `pair_in_band`, its two faces' names and the node
+        # holding each, said in the kernel's sentence.
+        eps = float(os.environ.get("CAD_TOLERANCE_EPS", "1e-9"))
+        k = float(os.environ.get("CAD_AMBIGUITY_K", "10"))
+        gap = 0.5 * (eps + k * eps)
+        doc = Doc()
+        lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        upper = slab(
+            doc,
+            (0.25 * m, 0.75 * m),
+            (0.25 * m, 0.75 * m),
+            ((1 + gap) * m, 1.5 * m),
+        )
+        ev = evaluate(doc)
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.find_flush_candidates(lower, upper)
+        refusal = caught.exception
+        self.assertEqual(refusal.reason, "pair_in_band")
+        self.assertEqual(refusal.at, lower, "the node holding the first face")
+        self.assertEqual(refusal.other_at, upper, "the node holding the second face")
+        self.assertIn(refusal.name, ev.all_faces(lower))
+        self.assertIn(refusal.other, ev.all_faces(upper))
+        self.assertEqual(refusal.predicate, "bool_plane_offset")
+        message = str(refusal)
+        self.assertIn(
+            f"the end cap of Extrude {tag(lower)} and the start cap of Extrude "
+            f"{tag(upper)} may coincide (margin ",
+            message,
+        )
+        self.assertIn("lies inside the ambiguity band", message)
 
     def test_a_flush_refusal_speaks_the_labelled_node_that_has_no_value(self):
         # The binding holds the evaluated document, so the standing in
@@ -2103,6 +2138,8 @@ class TestNodeLabels(unittest.TestCase):
             ("  ", "label_blank"),
             ("two\nlines", "label_line_break"),
             ("tab\there", "label_control_character"),
+            ("\u200b", "label_blank"),
+            ("lid\u202e", "label_direction_control"),
         ]
         for text, variant in cases:
             with self.subTest(text=text):

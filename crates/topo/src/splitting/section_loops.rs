@@ -13,7 +13,7 @@
 //! `n_SP·m < 0` ⇒ **m = −n_SP**; symmetrically the below body's
 //! section face carries **m = +n_SP** ([`section_normal`]).
 
-use geom_core::{Decide, Indeterminate, Point3, Real, Vec3};
+use geom_core::{Decide, Indeterminate, Point3, Real, UnitVec3, Vec3};
 
 use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
@@ -37,13 +37,60 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
     }
 }
 
-/// The in-plane `u` axis a section loop is charted with: its first
-/// chord, normalized — deterministic data, no comparisons. `None` for
-/// a loop of fewer than two corners.
-pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>]) -> Option<Vec3<T>> {
-    match points {
-        [a, b, ..] => Some((*b - *a).normalize()),
-        _ => None,
+/// The in-plane `u` axis a section loop `l` on a plane of normal `n` is
+/// charted with: its first chord, normalized, or for a loop of one
+/// corner the first axis of `n`'s own basis (`orthonormal_basis`, a
+/// fixed function of `n`'s bits). Deterministic data; which `n` it
+/// reads is the caller's to state.
+///
+/// # Panics
+///
+/// On a loop of one corner whose edge is not a whole section conic,
+/// which is a kernel bug. That edge is a self-loop chord, and
+/// [`crate::chord_join`] mints one only as the whole conic or as a lone
+/// site's placeholder; the join refuses a loop of placeholders alone
+/// (`DegenerateSection`) before any frame is read.
+pub(super) fn chord_u_ref<T: Real>(
+    body: &Body<T>,
+    l: LoopKey,
+    points: &[Point3<T>],
+    n: UnitVec3<T>,
+) -> Vec3<T> {
+    if let [a, b, ..] = points {
+        return (*b - *a).normalize();
+    }
+    let first = match body.get_loop(l).map(|lp| lp.boundary) {
+        Some(LoopBoundary::Cycle { first }) => first,
+        other => unreachable!("section loop {l:?} has one corner and is no cycle: {other:?}"),
+    };
+    assert!(
+        one_whole_conic(body, first),
+        "section loop {l:?} has one corner and no whole section conic: the join refuses a loop of \
+         lone-site placeholders before it is charted"
+    );
+    n.orthonormal_basis().0
+}
+
+/// Whether the cycle at `first` is one edge on a section conic that is
+/// no placeholder ([`crate::chord_join::lone_site_placeholder`]).
+fn one_whole_conic<T: Real>(body: &Body<T>, first: crate::entity::HalfEdgeKey) -> bool {
+    let Some(he) = body.get_half_edge(first) else {
+        return false;
+    };
+    let curve = body
+        .get_edge(he.edge)
+        .and_then(|e| body.get_curve_geom(e.curve))
+        .and_then(crate::null::CurveGeom::certified);
+    match (curve, body.half_edge_end(first)) {
+        (Some(curve), Some(end)) => {
+            he.next == first
+                && !crate::chord_join::lone_site_placeholder(he.start, end, curve)
+                && matches!(
+                    curve.carrier(),
+                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+                )
+        }
+        _ => false,
     }
 }
 
@@ -255,6 +302,11 @@ struct Conic<T: Real> {
     b: Vec3<T>,
 }
 
+/// Loop `l`'s edges in walk order, as [`outlines_disjoint`] reads them.
+/// [`Torn`] where a record on the walk does not resolve, except an
+/// edge's curve: the section's body is mid-operation, where that is a
+/// link ([`crate::live::OPERATORS_KEEP_LINKS`]), so a torn curve panics
+/// where null scaffolding reads [`OutlineEdge::Undecided`].
 fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T>>, Torn> {
     let corrupt = || Torn;
     // A lone-vertex loop bounds nothing a contact reading could clear.
@@ -266,10 +318,7 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let h = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
             out.push(OutlineEdge::Undecided);
             continue;
         };
@@ -375,4 +424,58 @@ fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) ->
     let outside = (centre - reach - T::one()) * lever;
     positive("split_nest_conic_conic", inside, band)
         || positive("split_nest_conic_conic", outside, band)
+}
+
+/// **A torn ring curve panics before the outlines are answered**: on a
+/// holed block's top face, whose ring lies clear inside its outer loop,
+/// a torn curve on the ring panics naming the link. Check 9
+/// (`ring_outer_contact_about`), which [`outlines_disjoint`] asks first,
+/// reads every curve of both loops as a link and panics there, so the
+/// outline reading's own read of the same link is never reached.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use geom_core::{Band, Tol, Vec3};
+
+    use crate::entity::{EntityId, GeomRef};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn the_ring_contact_check_panics_on_a_torn_curve() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::test_support_fixtures::holed_block::<f64>(2.0, &[1.0], tol);
+        let (outer, ring) = body
+            .faces()
+            .find(|(_, f)| f.rings.len() == 1)
+            .map(|(_, f)| (f.outer, f.rings[0]))
+            .unwrap();
+        let disjoint = |b: &crate::body::Body<f64>| {
+            super::outlines_disjoint(b, outer, ring, Vec3::unit_z(), band).map_err(|_| "torn")
+        };
+        assert_eq!(
+            disjoint(&body),
+            Ok(true),
+            "the sound ring lies clear inside the outer loop"
+        );
+        let first = match body.get_loop(ring).unwrap().boundary {
+            crate::entity::LoopBoundary::Cycle { first } => first,
+            crate::entity::LoopBoundary::Empty { .. } => panic!("the ring is a cycle"),
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "outlines_disjoint",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| disjoint(b),
+        );
+    }
 }

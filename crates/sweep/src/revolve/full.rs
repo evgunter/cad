@@ -32,23 +32,24 @@
 //! that separates its inner circle (an annulus).
 //!
 //! **Runs** (crate README, "Walls: one per run"): both cases build from
-//! the loop with each run of collinear segments collapsed to one
-//! ([`Collapsed`]), so a station inside a run has no entity here; the
+//! the loop with each run of segments on one carrier collapsed to one
+//! (`runs::Collapsed`), so a station inside a run has no entity here; the
 //! handles map each run's wall and meridians back onto every canonical
 //! segment it holds.
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Point3, Real, Sign};
+use geom_core::{Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses, WallClass, WallKind};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
+use super::runs::{Collapsed, collapse_runs};
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
-use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
+use crate::swept::{face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
@@ -237,8 +238,8 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // and the original placement — full period is the identity). ----
     let axis_c = turn_axis(Sign::Positive, frame.a3);
     let swept = sweep_loop(
-        &mut body, loop_index, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3,
-        band, tol,
+        &mut body, loop_index, col, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band,
+        tol,
     )?;
 
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
@@ -298,20 +299,25 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     let victim = c_plus(&body, tops[n - 1]);
     body.kef(victim)?;
 
-    // ---- Phase 4: meridian upgrades — each surviving chain edge now
-    // has both halves in its wall; periodic walls take `Seam`, plane
-    // walls keep the conventional description (module docs). A plane
-    // annulus keeps its slit here: it is one face already, and the
-    // doubly-traversed meridian is what a one-edge rim's blend reads
-    // its support by. ----
+    // ---- Phase 4: each surviving chain edge now has both halves in
+    // its wall. A periodic wall's takes `Seam`; a plane wall's is a
+    // slit through an annulus, killed into the ring that separates its
+    // inner circle (`kemr`), as the wire case's annulus is. ----
     let mut meridians: Vec<Option<EdgeKey>> = vec![None; n];
     for (j, he) in hes.iter().enumerate() {
-        if let Some(f) = swept.faces[j] {
-            let wall = face_surface_key(&body, f);
-            let edge = he_edge(&body, *he);
-            upgrade_meridian_seam(&mut body, edge, wall, tol)?;
-            meridians[j] = Some(edge);
+        let Some(f) = swept.faces[j] else { continue };
+        if let WallClass::Wall {
+            kind: WallKind::Plane { outward },
+            ..
+        } = cls.walls[j]
+        {
+            unslit_plane_wall(&mut body, *he, SlitEnd::Annulus { outward })?;
+            continue;
         }
+        let wall = face_surface_key(&body, f);
+        let edge = he_edge(&body, *he);
+        upgrade_meridian_seam(&mut body, edge, wall, tol)?;
+        meridians[j] = Some(edge);
     }
 
     #[cfg(debug_assertions)]
@@ -435,18 +441,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 2: band 1 — sweep the wire by +π (struts are
     // half-period rims at interior vertices; walls carry the FULL
     // revolution surfaces; the mef edges are the angle-π meridian
-    // copies). Cosurface pairs precomputed; no wrap on an open chain.
+    // copies). The runs are collapsed (`collapse_runs`), so no two
+    // adjacent wire walls continue one carrier: each takes its own
+    // surface.
     let axis_c = turn_axis(Sign::Positive, frame.a3);
-    let mut pair = vec![false; k];
-    for i in 1..k {
-        pair[i] = cosurface(&segs[wseg(i - 1)], &segs[wseg(i)], WALL_COSURFACE, band).map_err(
-            |source| RevolveError::CosurfaceEscalated {
-                loop_index: 0,
-                vertex_index: segs[wseg(i)].canonical_vertex,
-                source,
-            },
-        )?;
-    }
     let mut struts: Vec<Option<topo::MevCreated>> = vec![None];
     for i in 1..k {
         let m = body.mev(
@@ -495,17 +493,13 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         };
         // The wall states its classified sense — see
         // `partial::sweep_loop`.
-        let surface = match (pair[i], i, cls.walls[wseg(i)]) {
-            (true, 1.., WallClass::Wall { sense, .. }) => FaceSurface::Shared {
-                key: face_surface_key(&body, faces[i - 1]),
-                sense,
-            },
-            (_, _, WallClass::Wall { kind, sense }) => FaceSurface::New {
+        let surface = match cls.walls[wseg(i)] {
+            WallClass::Wall { kind, sense } => FaceSurface::New {
                 surface: wall_surface(&kind, &segs[wseg(i)], frame),
                 sense,
             },
             // Unreachable: wire segments are off-axis by construction.
-            (_, _, WallClass::OnAxis) => FaceSurface::Inherit,
+            WallClass::OnAxis => FaceSurface::Inherit,
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
@@ -829,57 +823,4 @@ fn unslit_plane_wall<T: Decide>(
         }
     }
     Ok(())
-}
-
-/// A full revolve's loop with each wall run collapsed to one segment
-/// (crate README, "Walls: one per run": a station inside a run has no
-/// entity in a full revolve, so the builders never see it). The run's
-/// segment is its first one carried to the run's end, classified as
-/// the first one was — the run is one carrier by the cosurface verdict.
-pub(super) struct Collapsed<T: Real> {
-    /// The collapsed swept segments, in run order.
-    pub(super) segs: Vec<SweptSeg<T>>,
-    /// Their classes: each run's leading vertex and first wall.
-    pub(super) cls: LoopClasses<T>,
-    /// Per collapsed segment, the canonical segments its run holds, in
-    /// swept order.
-    pub(super) members: Vec<Vec<usize>>,
-    /// The canonical loop's segment count.
-    pub(super) n_canon: usize,
-}
-
-/// Collapses one loop's wall runs ([`Collapsed`]), from the cosurface
-/// verdicts between walled neighbours (the partial revolve's, which
-/// keeps each station on its wedge caps instead).
-pub(super) fn collapse_runs<T: Decide>(
-    segs: &[SweptSeg<T>],
-    cls: &LoopClasses<T>,
-    loop_index: usize,
-    band: Band,
-) -> Result<Collapsed<T>, RevolveError> {
-    let n = segs.len();
-    let walled = |j: usize| cls.walls[j].kind().is_some();
-    let pair = super::partial::loop_pairs(segs, cls, loop_index, band)?;
-    let runs = crate::swept::wall_runs(segs, &pair, walled);
-    let mut out = Collapsed {
-        segs: Vec::with_capacity(runs.len()),
-        cls: LoopClasses {
-            verts: Vec::with_capacity(runs.len()),
-            walls: Vec::with_capacity(runs.len()),
-        },
-        members: Vec::with_capacity(runs.len()),
-        n_canon: n,
-    };
-    for run in runs {
-        let last = (run.first + run.len - 1) % n;
-        out.segs.push(SweptSeg {
-            b: segs[last].b,
-            ..segs[run.first]
-        });
-        out.cls.verts.push(cls.verts[run.first]);
-        out.cls.walls.push(cls.walls[run.first]);
-        out.members
-            .push(run.segments(n).map(|s| segs[s].canonical_segment).collect());
-    }
-    Ok(out)
 }

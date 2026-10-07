@@ -2,11 +2,14 @@
 id: a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence
 kind: issue
 title: Every declared-REST zip refusal ends on 'declare the coincidence', a lane reached only after a declaration
-status: open
+status: closed
 opened: 2026-09-30
 priority: P2
 cost: E
 refs: [a-boss-flush-with-a-block-edge-refuses-its-declared-union, a-refusal-offers-no-action-in-the-viewer]
+closed: 2026-10-06
+pr: 4116
+branch: zip/survivor-and-recourse
 ---
 
 
@@ -45,3 +48,24 @@ arm is worth checking in the same pass.
 `rest.rs` is claimed by TANG and ZIP. `boolean/mod.rs` is claimed by
 no open program (`work.py territory`). The lane is ZIP's, so the row
 is too.
+
+## Built (2026-10-06, PR 4116)
+
+No code change: the REST half is closed on main. `RestZipUnsupported`
+renders its `RestZipFrontier`'s own ending (`RestZipFrontier::ending`,
+`boolean/refusal_routes.rs`): the holes' matching move for
+`HoleVertexUnmatched` and `HoleCyclesIncongruent`, `NOT_YET_ENDING`
+for the rest; none offers a declaration.
+`every_rest_zip_frontier_ends_in_its_own_lever_and_no_declaration`
+(`boolean/mod.rs`) iterates every variant and asserts the ending and
+the absence of "declare the", so a regained declare arm goes red.
+
+`BooleanError::Containment` is reached without a declaration (the
+join's germ tie, `sectors::runs_in`, under `DeclarationRead::Moot`;
+`reach_slab_cut_sector_side` pins it on an undeclared `Subtract`), and
+its declare arm appears only on an in-band escalation, where declaring
+is a lever; it stays. The "the solids do not cross, and the Boolean
+…" text the finding quoted was `Containment`'s own `Display`, which
+now renders "the Boolean {e}" alone (commit eb05494098, 2026-10-05):
+the lead that read as an outcome is gone, and the recourse is the
+`PointInSolidError`'s own.

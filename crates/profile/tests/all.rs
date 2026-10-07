@@ -55,12 +55,16 @@ mod common;
 
 #[path = "arc_fillet.rs"]
 mod arc_fillet;
+#[path = "arc_leg_full_turn.rs"]
+mod arc_leg_full_turn;
 #[path = "arc_spec_census.rs"]
 mod arc_spec_census;
 #[path = "blend7_review_probes.rs"]
 mod blend7_review_probes;
 #[path = "bool11_probes.rs"]
 mod bool11_probes;
+#[path = "fillet_decided_tangency.rs"]
+mod fillet_decided_tangency;
 #[path = "fillet_refusal_envelope.rs"]
 mod fillet_refusal_envelope;
 #[path = "review_fillet_attr_r1_probes.rs"]
@@ -114,6 +118,8 @@ mod interval_lane;
 mod lift_census;
 #[path = "onarc_probe.rs"]
 mod onarc_probe;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "path_differential.rs"]
 mod path_differential;
 #[path = "path_program.rs"]

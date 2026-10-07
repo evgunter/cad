@@ -742,6 +742,14 @@ impl<T: Real> Conic<T> {
         self.major.abs().max(self.minor.abs())
     }
 
+    /// A bound on the curvature over the carrier, `speed_hi / speed_lo²`:
+    /// an ellipse's tightest bend, at the ends of its larger semi-axis,
+    /// whatever order the semi-axes are stored in.
+    #[must_use]
+    pub fn curvature_hi(&self) -> T {
+        self.speed_hi() / self.speed_lo().powi(2)
+    }
+
     /// The speed `|C′(θ)|` at `theta`.
     #[must_use]
     pub fn speed_at(&self, theta: T) -> T {

@@ -1,4 +1,4 @@
-//! The split's operand gate is per face: a body carrying a face of a
+//! The split's carrier gate is per face: a body carrying a face of a
 //! kind the split has no arm for splits wherever the plane cannot reach
 //! that face, and refuses naming it wherever the plane may.
 
@@ -10,24 +10,26 @@ use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ArcSweep, RawLoop, bulge_from_center, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, SplitResult, split};
-use topo::{Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
+use topo::{AtRestBody, Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
 
-fn revolved(chain: Vec<(Point2<f64>, f64)>) -> Body<f64> {
+fn revolved(chain: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
     revolved_with(chain, Vec::new())
 }
 
-/// [`revolved`] with the profile's tangent joints declared.
-fn revolved_with(chain: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> Body<f64> {
-    revolve(
+/// [`revolved`] with the profile's tangent joints declared, finished.
+fn revolved_with(chain: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> AtRestBody<f64> {
+    let body = revolve(
         &validated(vec![bulge_loop(chain).with_tangent_joints(tangent_joints)]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the revolved body", body, Tol::witness())
 }
 
 /// A cut normal minted the way a caller holding a direction mints one.
@@ -46,7 +48,7 @@ fn plane(phi: f64, qy: f64) -> SplitPlane<f64> {
 
 /// The unit cylinder `y ∈ [0, 1]` under a spherical cap: the arc
 /// `(1, 1) → (0, 1.5)` about `(0, 0.25)` (radius 5/4), revolved about `y`.
-fn capped_cylinder() -> Body<f64> {
+fn capped_cylinder() -> AtRestBody<f64> {
     let (a, b) = (Point2::new(1.0, 1.0), Point2::new(0.0, 1.5));
     let bulge = bulge_from_center(a, b, Point2::new(0.0, 0.25), ArcSweep::Ccw);
     revolved(vec![
@@ -60,7 +62,7 @@ fn capped_cylinder() -> Body<f64> {
 /// The same sphere below `y = 1`, flat on top: the arc `(0, −1) → (1, 1)`
 /// about `(0, 0.25)`. Its sphere face is the complement of
 /// [`capped_cylinder`]'s cap.
-fn truncated_ball() -> Body<f64> {
+fn truncated_ball() -> AtRestBody<f64> {
     let (a, b) = (Point2::new(0.0, -1.0), Point2::new(1.0, 1.0));
     let bulge = bulge_from_center(a, b, Point2::new(0.0, 0.25), ArcSweep::Ccw);
     revolved(vec![(a, bulge), (b, 0.0), (Point2::new(0.0, 1.0), 0.0)])
@@ -86,7 +88,7 @@ fn halves(result: &SplitResult<f64>, what: &str) -> (Body<f64>, Body<f64>) {
 /// The unit cylinder `y ∈ [0, 1]` with its top rim rounded: the quarter
 /// arc `(1, 1) → (3/4, 5/4)` about `(3/4, 1)`, a torus of radii 3/4 and
 /// 1/4.
-fn rounded_cylinder() -> Body<f64> {
+fn rounded_cylinder() -> AtRestBody<f64> {
     let (a, b) = (Point2::new(1.0, 1.0), Point2::new(0.75, 1.25));
     let bulge = bulge_from_center(a, b, Point2::new(0.75, 1.0), ArcSweep::Ccw);
     revolved_with(
@@ -252,7 +254,12 @@ fn a_plane_missing_a_spline_body_returns_it_whole() {
         origin: Point3::new(0.0, 0.0, 3.0),
         normal: unit(Vec3::new(0.2f64.sin(), 0.0, 0.2f64.cos())),
     };
-    let result = split(&loft, &over, Tol::witness()).unwrap_or_else(|e| panic!("{e}"));
+    let result = split(
+        &finished("the loft", loft, Tol::witness()),
+        &over,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     let (SplitPart::Empty, SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("the plane over the loft leaves it all below");
     };
@@ -265,39 +272,48 @@ fn a_plane_missing_a_spline_body_returns_it_whole() {
 }
 
 /// The exact rational quadratic NURBS of the conic arc
-/// `c + a·cos t·û + b·sin t·v̂`, `t ∈ [t0, t1]`, in two segments: each
-/// half is the unit circle's arc of at most a quarter turn, mapped by
-/// the conic's affine frame, which a rational curve's weights survive.
-fn conic_arc_nurbs(
+/// `c + a·cos t·û + b·sin t·v̂`, `t ∈ [t0, t1]`, on the parameter domain
+/// `[d0, d1]`, in `n` equal segments: each is the unit circle's arc of at
+/// most a quarter turn, mapped by the conic's affine frame, which a
+/// rational curve's weights survive, and each knot is the image of the
+/// conic's angle at that segment's end.
+fn conic_arc_segments(
     c: Point3<f64>,
     (u, v): (Vec3<f64>, Vec3<f64>),
     (a, b): (f64, f64),
     (t0, t1): (f64, f64),
+    n: u32,
+    (d0, d1): (f64, f64),
 ) -> geom::NurbsCurve3<f64> {
     let at = |x: f64, y: f64| c + u * (a * x) + v * (b * y);
-    let half = (t1 - t0) / 2.0;
-    let w = (half / 2.0).cos();
+    let step = (t1 - t0) / f64::from(n);
+    let w = (step / 2.0).cos();
     let mut control = vec![at(t0.cos(), t0.sin())];
     let mut weights = vec![1.0];
-    for k in 0..2 {
-        let (s, e) = (t0 + half * f64::from(k), t0 + half * f64::from(k + 1));
+    let mut knots = vec![d0; 3];
+    for k in 0..n {
+        let (s, e) = (t0 + step * f64::from(k), t0 + step * f64::from(k + 1));
         let m = (s + e) / 2.0;
         control.push(at(m.cos() / w, m.sin() / w));
         control.push(at(e.cos(), e.sin()));
         weights.extend([w, 1.0]);
+        let knot = d0 + (d1 - d0) * f64::from(k + 1) / f64::from(n);
+        knots.extend(if k + 1 == n {
+            vec![d1; 3]
+        } else {
+            vec![knot; 2]
+        });
     }
-    let kv =
-        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2)
-            .unwrap();
+    let kv = geom_core::spline::KnotVector::clamped(knots, 2).unwrap();
     geom::NurbsCurve3::new(kv, control, weights).unwrap()
 }
 
 /// The unit cylinder cut by the plane `y = 0.5 + 0.3·z`, its lower half:
 /// a planar elliptic top bounded by two half-ellipses that meet at the
-/// seam points `(±1, 0.5, 0)`. The half on `z < 0` dips to `y = 0.2`
-/// between them, and it is re-described as its own exact spline, an edge
-/// between a plane face and a cylinder face, both armed.
-fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
+/// seam points `(±1, 0.5, 0)`, and the half on `z < 0`, which dips to
+/// `y = 0.2` between them: an edge between a plane face and a cylinder
+/// face, both armed.
+fn tilted_cut_rim() -> (Body<f64>, Rim) {
     let cyl = revolved(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(1.0, 0.0), 0.0),
@@ -308,79 +324,198 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: unit(Vec3::new(0.0, 1.0, -0.3)),
     };
-    let SplitPart::Body(mut body) = split(&cyl, &tilt, Tol::witness()).unwrap().below else {
+    let SplitPart::Body(body) = split(&cyl, &tilt, Tol::witness()).unwrap().below else {
         panic!("the tilted cut leaves material below");
     };
-    let start = |b: &Body<f64>, he| {
-        *b.get_point(
-            b.get_vertex(b.get_half_edge(he).unwrap().start)
-                .unwrap()
-                .point,
-        )
-        .unwrap()
-    };
-    let (edge, spec) = body
+    let rim = body
         .edges()
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
-            let geom::Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } = *c.carrier()
-            else {
+            let ellipse = c.carrier().clone();
+            let geom::Curve3::Ellipse { .. } = ellipse else {
                 return None;
             };
-            let (t0, t1) = c.params();
-            let mid = c.carrier().eval((t0 + t1) / 2.0);
+            let params = c.params();
+            let mid = ellipse.eval((params.0 + params.1) / 2.0);
             if mid.z > 0.0 {
                 return None;
             }
-            let spline =
-                conic_arc_nurbs(center, (u_ref, axis.cross(u_ref)), (major, minor), (t0, t1));
-            assert!(
-                (spline.eval(0.0) - start(&body, e.he_plus)).norm() < 1e-12,
-                "the spline runs the edge's way"
-            );
-            let (s1, s2) = topo::readback::edge_sides(&body, k).unwrap().surfaces();
-            Some((
-                k,
-                geom_brep::EdgeCurveSpec {
-                    description: geom_brep::EdgeDescriptionSpec::Intersection {
-                        s1,
-                        s2,
-                        witness: mid,
-                    },
-                    carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),
-                    param_start: 0.0,
-                    param_end: 1.0,
-                },
-            ))
+            Some(Rim {
+                edge: k,
+                ellipse,
+                params,
+                mid,
+            })
         })
         .expect("the tilted section has a half-ellipse on z < 0");
-    body.set_edge_curve(edge, spec, Tol::witness())
+    (body, rim)
+}
+
+/// [`tilted_cut_rim`]'s half-ellipse: its edge, carrier, interval and
+/// the carrier's point at the interval's middle.
+struct Rim {
+    edge: topo::EdgeKey,
+    ellipse: geom::Curve3<f64>,
+    params: (f64, f64),
+    mid: Point3<f64>,
+}
+
+impl Rim {
+    /// The rim's exact rational arc in `n` segments over `domain`, as
+    /// an intersection of its two faces' surfaces.
+    fn as_spline(
+        &self,
+        body: &Body<f64>,
+        n: u32,
+        domain: (f64, f64),
+    ) -> (geom::NurbsCurve3<f64>, geom_brep::EdgeCurveSpec<f64>) {
+        let geom::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } = &self.ellipse
+        else {
+            unreachable!("the rim is a half-ellipse");
+        };
+        let spline = conic_arc_segments(
+            *center,
+            (*u_ref, axis.cross(*u_ref)),
+            (*major, *minor),
+            self.params,
+            n,
+            domain,
+        );
+        let he = body.get_edge(self.edge).unwrap().he_plus;
+        let start = *body
+            .get_point(
+                body.get_vertex(body.get_half_edge(he).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap();
+        assert!(
+            (spline.eval(domain.0) - start).norm() < 1e-12,
+            "the spline runs the edge's way"
+        );
+        let (s1, s2) = topo::readback::edge_sides(body, self.edge)
+            .unwrap()
+            .surfaces();
+        let spec = geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: self.mid,
+            },
+            carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline.clone())),
+            param_start: domain.0,
+            param_end: domain.1,
+        };
+        (spline, spec)
+    }
+}
+
+/// [`tilted_cut_rim`] with its rim re-described as its own exact spline
+/// on `[0, 1]`.
+fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
+    let (mut body, rim) = tilted_cut_rim();
+    let (_, spec) = rim.as_spline(&body, 2, (0.0, 1.0));
+    body.set_edge_curve(rim.edge, spec, Tol::witness())
         .expect("the exact spline attaches");
-    (body, edge)
+    (body, rim.edge)
 }
 
 /// A spline edge between two armed faces, its ends on one side of the
 /// plane and its belly across it, refuses at the gate. Nothing else
 /// reads it: no crossing lane serves a spline, so passing it would
 /// leave the edge uncut while the plane crosses the faces beside it.
+///
+/// The re-description moves the rim's carrier, so it re-mints the
+/// faces the rim bounds; the closed-form lane has no image of the
+/// spline, so the curved one stores no row, and the at-rest gate cannot
+/// compute the body's volume across it. The body is not a finished
+/// body and no split door takes it; the row reads the carrier gate past
+/// the door.
 #[test]
 fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     let (body, edge) = cylinder_with_a_spline_rim();
     for part in [validate(&body), validate_closed(&body)] {
         assert_eq!(part, Ok(()), "the re-described body is well formed");
     }
-    match split(&body, &plane(0.0, 0.4), Tol::witness()) {
-        Err(SplitError::Reduce(SplitReduceError::CurvedEdgeUnsupported { edge: e })) => {
+    let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness())
+        .expect_err("the face the spline bounds stores no row");
+    let rim_faces = topo::readback::edge_sides(&body, edge).unwrap().faces();
+    assert!(
+        !errors.is_empty()
+            && errors.iter().all(|e| matches!(
+                e,
+                topo::ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::Face { face, .. },
+                    ..
+                } if face == &rim_faces.0 || face == &rim_faces.1
+            )),
+        "the at-rest gate refuses the volume across a face the spline bounds alone: {errors:?}"
+    );
+    match topo::test_support::split_carrier_gate(&body, &plane(0.0, 0.4), Tol::witness()) {
+        Err(SplitReduceError::CurvedEdgeUnsupported { edge: e }) => {
             assert_eq!(e, edge, "the refusal names the spline edge");
         }
         other => panic!("the plane through the spline's belly refuses, got {other:?}"),
     }
+}
+
+/// **A spline carrier on the rim's own locus and interval, moved only
+/// between its quarters, keeps no row of the old one.** The rim's
+/// half-ellipse is re-described as its exact rational arc in four
+/// segments over the ellipse's own interval, each knot at the ellipse's
+/// angle there: it meets the ellipse at the interval's ends and
+/// quarters, and runs off it between, since a rational quadratic arc
+/// does not turn at a uniform rate. Rows stated over the ellipse do not
+/// image the spline, so the cylinder face is re-minted; the closed-form
+/// lane has no image of a spline, and the face leaves storing nothing.
+#[test]
+fn a_spline_rim_moved_between_its_quarters_keeps_no_row() {
+    let (mut body, rim) = tilted_cut_rim();
+    let (t0, t1) = rim.params;
+    let (spline, spec) = rim.as_spline(&body, 4, rim.params);
+    let at = |k: f64| t0 + (t1 - t0) * k;
+    for k in [0.0, 0.25, 0.5, 0.75, 1.0] {
+        let gap = (spline.eval(at(k)) - rim.ellipse.eval(at(k))).norm();
+        assert!(gap < 1e-12, "the spline meets the ellipse at {k}: {gap:e}");
+    }
+    let between = (0..=64)
+        .map(|i| at(f64::from(i) / 64.0))
+        .map(|t| (spline.eval(t) - rim.ellipse.eval(t)).norm())
+        .fold(0.0, f64::max);
+    assert!(
+        between > 1e-3,
+        "the spline runs off the ellipse between its quarters: {between:e}"
+    );
+    let cylinder = {
+        let (f0, f1) = topo::readback::edge_sides(&body, rim.edge).unwrap().faces();
+        let on_cylinder = |f| {
+            let surface = body.get_face(f).unwrap().surface;
+            body.get_surface(surface).unwrap().kind() == SurfaceKind::Cylinder
+        };
+        if on_cylinder(f0) { f0 } else { f1 }
+    };
+    let rows_on = |body: &Body<f64>| {
+        body.pcurves()
+            .filter(|&(he, _)| {
+                let lk = body.get_half_edge(he).unwrap().parent_loop;
+                body.get_loop(lk).unwrap().face == cylinder
+            })
+            .count()
+    };
+    assert!(rows_on(&body) > 0, "the cylinder face stores rows to keep");
+    body.set_edge_curve(rim.edge, spec, Tol::witness())
+        .expect("the re-parameterized spline attaches");
+    assert_eq!(
+        rows_on(&body),
+        0,
+        "the cylinder face is re-minted, and stores nothing"
+    );
 }
 
 /// A sphere face whose boundary bounds the outside of its latitude zone
@@ -395,11 +530,20 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
 /// of an imported face whose loop bounds the outside of its rectangle.
 /// A level plane above the zone clears the zone's box and meets the
 /// ball's, and nothing else in the body: the gate is the only refusal.
+///
+/// Such a face is not a finished body's (the at-rest gate refuses its
+/// sense, naming the zone), so no split door takes it; the row reads the
+/// carrier gate past the door.
 #[test]
 fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
     let wedge = sweep::test_support::sphere_zone(0.5, Revolution::Partial(1.0), Tol::witness());
     let above = plane(0.0, 1.5);
-    let whole = split(&wedge, &above, Tol::witness()).expect("the zone's box clears the cut");
+    let whole = split(
+        &finished("the wedge", wedge.clone(), Tol::witness()),
+        &above,
+        Tol::witness(),
+    )
+    .expect("the zone's box clears the cut");
     assert!(
         matches!(
             (&whole.above, &whole.below),
@@ -407,7 +551,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
         ),
         "the wedge lies below the cut"
     );
-    let mut reverted = wedge.revert().expect("the wedge reverts");
+    let mut reverted = wedge.revert();
     let (zone, surface, sense) = reverted
         .faces()
         .find_map(|(k, f)| {
@@ -424,11 +568,19 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
             },
         )
         .unwrap();
-    match split(&reverted, &above, Tol::witness()) {
-        Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
+    let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(reverted.clone(), Tol::witness())
+        .expect_err("a zone bounding its complement is not a finished body's");
+    assert!(
+        errors.iter().any(
+            |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face } if *face == zone)
+        ),
+        "the at-rest gate names the zone's sense: {errors:?}"
+    );
+    match topo::test_support::split_carrier_gate(&reverted, &above, Tol::witness()) {
+        Err(SplitReduceError::CurvedBooleanUnsupported {
             face,
             kind: SurfaceKind::Sphere,
-        })) => assert_eq!(face, zone, "the refusal names the zone"),
+        }) => assert_eq!(face, zone, "the refusal names the zone"),
         other => panic!("an uncertified side keeps the ball, got {other:?}"),
     }
 }

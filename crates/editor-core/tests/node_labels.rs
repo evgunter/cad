@@ -200,7 +200,7 @@ fn a_label_survives_save_and_load_and_replays_from_the_log() {
 /// The load door holds a file to the edit door's rules: a label's text
 /// passes `Label::new`, and its key names a live node.
 #[test]
-fn the_load_door_refuses_a_blank_label_and_a_label_on_a_dead_node() {
+fn the_load_door_refuses_a_blank_or_direction_setting_label_and_a_label_on_a_dead_node() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-load", tol);
     let (doc, [_, _, live]) = block(doc, 0.0);
@@ -216,6 +216,16 @@ fn the_load_door_refuses_a_blank_label_and_a_label_on_a_dead_node() {
     match load(&blank, tol) {
         Err(PersistError::Unreadable { .. }) => {}
         other => panic!("a blank label refuses at the parse, got {other:?}"),
+    }
+    let override_only = text.replace(&entry, &format!("{}: \"\u{202e}\"", key(live)));
+    match load(&override_only, tol) {
+        Err(PersistError::Unreadable { detail, .. }) => assert!(
+            detail.contains("label refused")
+                && detail.contains("bidi embedding, override or isolate")
+                && detail.contains("\\u{202e} at character 0"),
+            "a label of one right-to-left override refuses naming the fault and its index: {detail}"
+        ),
+        other => panic!("a direction-setting label refuses at the parse, got {other:?}"),
     }
     let dead = text.replace(&entry, &format!("{}: \"lid\"", key(gone)));
     match load(&dead, tol) {
@@ -467,7 +477,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         &editor_core::RefusingReach,
     )
     .expect("a name is not an edge, so the delete lands");
-    let [Maintenance::Strand { node, name }] = applied.maintenance.as_slice() else {
+    let [Maintenance::Strand { node, name, .. }] = applied.maintenance.as_slice() else {
         panic!("one strand, got {:?}", applied.maintenance);
     };
     assert_eq!((node.id(), name.name()), (carrier, &named));
@@ -480,8 +490,8 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         applied.maintenance[0].to_string().split(';').next(),
         Some(
             format!(
-                "Datum frame (on face) \"mount\" ({}) carries a face name minted by Extrude \
-                 \"base plate\" ({})",
+                "Datum frame (on face) \"mount\" ({}) carries a name for the side wall over \
+                 loop 0 step 1 of Extrude \"base plate\" ({})",
                 tag(carrier.0),
                 tag(victim.0)
             )
@@ -553,7 +563,7 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "face name minted by Extrude \"base plate\" ({})",
+            "the side wall over loop 0 step 1 of Extrude \"base plate\" ({})",
             tag(extrude.0)
         )),
         "{refused}"
@@ -675,7 +685,7 @@ fn a_split_forward_reference_speaks_from_the_document_being_split() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "face name minted by Extrude \"late block\" ({})",
+            "the side wall over loop 0 step 1 of Extrude \"late block\" ({})",
             tag(c.0)
         )),
         "{refused}"
@@ -706,7 +716,7 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
     assert!(
         refused.to_string().contains(&format!(
-            "face name minted by Extrude \"late block\" ({})",
+            "the side wall over loop 0 step 1 of Extrude \"late block\" ({})",
             tag(c.0)
         )),
         "{refused}"
@@ -1146,11 +1156,11 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         .expect_err("an extrude is not a datum");
     assert!(matches!(refusal, SelectRefusal::NotADatum { datum, .. } if datum == extrude));
     assert!(
-        refusal.spoken(&doc).starts_with(&format!(
+        refusal.spoken(&doc, &ev).starts_with(&format!(
             "select: the query measures from Extrude \"base plate\" ({e}), which produced"
         )),
         "{}",
-        refusal.spoken(&doc)
+        refusal.spoken(&doc, &ev)
     );
 
     let poisoned = NodeStanding::Poisoned {
@@ -1182,7 +1192,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     // refusal that forwards a standing or a name.
     let failed = NodeStanding::Failed { node: extrude };
     assert_eq!(
-        HitTestError::Standing(failed).spoken(&doc),
+        HitTestError::Standing(failed).spoken(&doc, &ev),
         format!("hit test: {plate} failed, so it has no value — fix the node's own failure")
     );
     assert_eq!(
@@ -1210,37 +1220,35 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         last_good: None,
     };
     assert!(
-        vanished.spoken(&doc).starts_with(&format!(
-            "the face name minted by {plate} no longer resolves in this evaluation: a \
-             structural parameter changed on the derivation path: slot {} of {plate}",
+        vanished.spoken(&doc, &ev).starts_with(&format!(
+            "the end cap of {plate} no longer resolves in this evaluation: a structural \
+             parameter changed on the derivation path: slot {} of {plate}",
             SlotId::Count.label()
         )),
         "{}",
-        vanished.spoken(&doc)
+        vanished.spoken(&doc, &ev)
     );
     assert!(
-        vanished.to_string().starts_with(&format!(
-            "the face name minted by node {e} no longer resolves"
-        )),
+        vanished
+            .to_string()
+            .starts_with(&format!("the end cap of node {e} no longer resolves")),
         "{vanished}"
     );
 
     let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: extrude });
+    let gone_ev = eval(&gone);
     let Resolution::Failed(failure) = resolve(
         RunCtx {
             doc: &gone,
-            eval: &eval(&gone),
+            eval: &gone_ev,
         },
         &wall,
     ) else {
         panic!("a name whose minting node was deleted does not resolve");
     };
     assert_eq!(
-        failure.error.spoken(&gone),
-        format!(
-            "the face name minted by node {e} is stranded: its minting node was deleted — the \
-             repair is an explicit rebind"
-        ),
+        failure.error.spoken(&gone, &gone_ev),
+        format!("the end cap of node {e} is stranded: node {e} was deleted. Recourse: rebind it"),
         "a node the document no longer holds is said by its tag"
     );
 }

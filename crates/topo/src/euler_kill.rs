@@ -304,14 +304,14 @@
 //!
 //! [`Empty`]: crate::LoopBoundary::Empty
 
-use geom_brep::{EdgeCurve, EdgeCurveSpec};
+use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Decide, Point3, Real, Tol};
 
-use crate::attach::Slot;
+use crate::attach::KillMove;
 use crate::body::Body;
 use crate::entity::{
-    EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
-    VertexKey,
+    EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey,
+    SolidKey, VertexKey,
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
@@ -478,6 +478,33 @@ struct KevPlan {
     /// it starts at `v` once the merge has re-based the fan, or leaves
     /// `v` lone.
     anchor: KillAnchor,
+}
+
+/// What [`Body::kef`]'s plan proves before the door's vouch: the
+/// killed edge and its halves, the dying loop and face and the
+/// surviving loop, and the move that carries the dying loop's remnant
+/// onto the surviving face.
+struct KefPlan {
+    he_data: HalfEdge,
+    edge: EdgeKey,
+    curve: CurveKey,
+    killed_he_plus: HalfEdgeKey,
+    killed_he_minus: HalfEdgeKey,
+    /// `he`'s mate, on the surviving loop.
+    m: HalfEdgeKey,
+    m_data: HalfEdge,
+    /// The dying loop, and the surviving one.
+    l1: LoopKey,
+    l2: LoopKey,
+    /// The dying face, and its record.
+    f1: FaceKey,
+    f1_data: Face,
+    /// `f1`'s shell.
+    shell: ShellKey,
+    /// The dying loop's cycle after `he`, each member proved.
+    remnant: Vec<Live>,
+    /// The remnant's move onto the surviving face.
+    kill: KillMove,
 }
 
 /// How [`Body::kev`]'s unsplice closes the gap the killed halves leave
@@ -913,13 +940,14 @@ impl<T: Decide> Body<T> {
     ///   through the attachment gate [`Body::set_edge_curve`] certifies
     ///   through, adjacency coherence included, and its curve is
     ///   replaced by fresh insertion (the old one reaped iff orphaned).
-    ///   Pcurve rows stand, as they do under `set_edge_curve` (its docs
-    ///   say why, and what tier 3 does with them) — except that a listed
-    ///   null edge's description is its first, and re-mints the faces
-    ///   its halves are on as `set_edge_curve`'s does, through the one
-    ///   planner both doors run, over each face as the kill leaves it:
-    ///   the killed halves gone, and every listed member's halves under
-    ///   the curve this door installs.
+    ///   The kill moves its end and this door its carrier, so the rows
+    ///   its halves store would span the interval the end moved from:
+    ///   each face its halves are on is re-minted, through the planner
+    ///   `set_edge_curve` runs for a null edge's first description, over
+    ///   the face as the kill leaves it — the killed halves gone, and
+    ///   every listed member's halves under the curve this door
+    ///   installs. A face on a spline chart is left as found, its rows
+    ///   tier 3's to report.
     /// - **An unlisted member** keeps its carrier and passes the
     ///   re-basing gate [`Body::mev`]'s fan site passes, under this
     ///   band: its stored description re-certified against the merged
@@ -975,10 +1003,10 @@ impl<T: Decide> Body<T> {
     /// killed half is crossed whole), `tol` builds a band
     /// ([`EulerOpError::Certification`] with
     /// [`geom_brep::CertifyError::Band`]) and each killed half's turn is
-    /// decided at it ([`EulerOpError::KillTurnEscalated`] naming the
-    /// first half, `he` before its mate, whose turn escalates). Then,
-    /// where a listed member is a null edge, its first description's
-    /// site mint is planned ([`EulerOpError::PcurveMint`], as
+    /// decided at it ([`EulerOpError::KillTurnUndecided`] naming the
+    /// first half, `he` before its mate, whose turn is not decided). Then,
+    /// where a member is listed, the site mint over the faces its halves
+    /// are on is planned ([`EulerOpError::PcurveMint`], as
     /// [`Body::set_edge_curve`]'s). Last, where the killed edge is a
     /// null edge, the site mint over every other face its halves are on
     /// that a loop it releases leaves with a gap
@@ -1017,7 +1045,7 @@ impl<T: Decide> Body<T> {
             for (slot, half) in [plan.he, plan.m].into_iter().enumerate() {
                 plan.turns[slot] =
                     crate::pcurves::turn_element(self, half, band).map_err(|diag| {
-                        EulerOpError::KillTurnEscalated {
+                        EulerOpError::KillTurnUndecided {
                             half_edge: half,
                             diag,
                         }
@@ -1029,7 +1057,7 @@ impl<T: Decide> Body<T> {
             .map(|(edge, curve)| (*edge, curve))
             .collect();
         let mut rows =
-            self.null_description_rows(&curves, |body| Ok(body.kev_loops_after(&plan)), tol)?;
+            self.description_rows(&curves, |body| Ok(body.kev_loops_after(&plan)), tol)?;
         rows.extend(self.kev_released_rows(&plan, &curves, Some(tol))?);
         let result = self.kev_execute(plan);
         // Every listed edge is a merged member, and no merged member is
@@ -1353,9 +1381,9 @@ impl<T: Decide> Body<T> {
 
     /// The rows the kill owes the loops it releases
     /// ([`Body::plan_released_rows`]), over the faces its halves are on
-    /// as [`Body::kev_loops_after`] leaves them, but a face a listed null
-    /// member's half is on: [`Body::null_description_rows`] plans that
-    /// one whole. `described` is [`Body::kev_describing`]'s listed
+    /// as [`Body::kev_loops_after`] leaves them, but a face a listed
+    /// member's half is on: [`Body::description_rows`] plans that one
+    /// whole. `described` is [`Body::kev_describing`]'s listed
     /// members, empty for [`Body::kev`].
     ///
     /// # Errors
@@ -1370,15 +1398,9 @@ impl<T: Decide> Body<T> {
         let mut read: Vec<FaceKey> = Vec::with_capacity(2);
         for lk in plan.loops {
             let face = proven(&self.loops, lk, EntityId::Loop).face;
-            let planned = described.iter().any(|&(edge, _)| {
-                let edge_data = proven(&self.edges, edge, EntityId::Edge);
-                self.edge_curve_linked(edge, edge_data)
-                    .null_scaffold()
-                    .is_some()
-                    && [edge_data.he_plus, edge_data.he_minus]
-                        .into_iter()
-                        .any(|h| crate::pcurves::half_edge_face(self, h).0 == face)
-            });
+            let planned = described
+                .iter()
+                .any(|&(edge, _)| self.description_remints(edge, face));
             if !planned && !read.contains(&face) {
                 read.push(face);
             }
@@ -1597,12 +1619,16 @@ impl<T: Decide> Body<T> {
     /// phase acts on, and a mutation phase reads nothing it has not
     /// proven.
     ///
-    /// **What it does not ask:** where the surviving face wears another
-    /// key, whether the remnant's descriptions still name a key their
-    /// faces wear, or a key the surviving face wears — the questions
-    /// [`Body::mef`] and [`Body::ring_move`] refuse on
-    /// ([`RechartDoor`]). Production callers rely on that move today
-    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    /// **Keys-only.** Where the surviving face wears another key, the
+    /// remnant moves onto a chart its edges' descriptions may not name.
+    /// This door asks [`Body::mef`]'s and [`Body::ring_move`]'s
+    /// questions of that move ([`Body::vouch_move`], as
+    /// [`RechartDoor::Kef`]): it refuses an edge the move would leave
+    /// described against a key neither of its faces wears, then a
+    /// certified edge landing on a chart its description does not name,
+    /// unless the two keys share one payload or the surviving face
+    /// wears the "no chart yet" placeholder. [`Body::kef_describing`]
+    /// takes the move with its re-descriptions under a band.
     ///
     /// # Precondition check order
     ///
@@ -1613,7 +1639,10 @@ impl<T: Decide> Body<T> {
     /// one face is what [`Body::kfmrh`] on adjacent faces leaves behind;
     /// kill such an edge with [`Body::kev`], or via
     /// [`Body::mfkrh`]-then-`kef` for the self-loop variant); the dying
-    /// face is ring-free ([`EulerOpError::FaceHasRings`]); then the site
+    /// face is ring-free ([`EulerOpError::FaceHasRings`]); then the
+    /// move's keys ([`EulerOpError::RechartStrandsDescriptions`], then
+    /// [`EulerOpError::RechartUnvouched`], each naming every edge, in
+    /// remnant order); then the site
     /// mint's plan ([`Body::plan_moved_rows`]'s errors, or, where the
     /// remnant's rows stand, [`Body::plan_released_rows`]'): where the
     /// surviving face would be re-minted, [`EulerOpError::PcurveMint`]
@@ -1635,7 +1664,7 @@ impl<T: Decide> Body<T> {
     pub fn kef(&mut self, he: HalfEdgeKey) -> Result<KefResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let killed = self.kef_with(he, None)?;
+        let killed = self.kef_with(he, None, |body, m| body.vouch_kill(RechartDoor::Kef, m))?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, KEF_DELTA, "kef");
         Ok(killed)
@@ -1652,14 +1681,100 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::kef`], except the `KeysOnly` refusal, and the site
-    /// mint's plan in its place.
+    /// mint's plan in its place; and it does not ask the move's keys.
+    /// Its production callers (the boolean's seam zip, the coplanar
+    /// merge, the chord join's sliver cut, the blend) rely on that
+    /// move, and [`Body::kef_describing`] absorbs it once each states
+    /// its re-descriptions
+    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
     pub fn kef_minting(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KefResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let killed = self.kef_with(he, Some(tol))?;
+        let killed = self.kef_with(he, Some(tol), |_, _| Ok(Vec::new()))?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, KEF_DELTA, "kef_minting");
         Ok(killed)
+    }
+
+    /// **The describing kill**: [`Body::kef_minting`]'s kill with the
+    /// re-descriptions of the edges it moves, under `tol`'s band — the
+    /// twin [`Body::kef`]'s refusals name, as [`Body::kev_describing`]
+    /// is [`Body::kev`]'s. Each listed description is stated on the
+    /// adjacency the kill leaves, a key the dying face wears standing
+    /// for the surviving face's ([`Body::kef_carried_redescriptions`]
+    /// states the stored ones there), and certified on the edge's own
+    /// carrier and interval: a kill moves no carrier, so the stored
+    /// carrier, interval and pcurve rows stand. It re-describes nothing
+    /// it is not handed.
+    ///
+    /// # Precondition check order
+    ///
+    /// [`Body::kef`]'s structural list; then the listed re-descriptions,
+    /// the strands and the residuals, in [`Body::vouch_described_move`]'s
+    /// order: per entry, the edge resolves
+    /// ([`BadArgument::Stale`](crate::BadArgument::Stale)), was not
+    /// listed before ([`EulerOpError::DuplicateRedescription`]), has a
+    /// half in the remnant ([`EulerOpError::NotMovedEdge`]), is not a
+    /// null edge ([`EulerOpError::NullScaffoldCurve`]), is
+    /// adjacency-coherent after the kill
+    /// ([`EulerOpError::DescriptionNotAdjacent`]) and certifies
+    /// ([`EulerOpError::RechartFalsifies`],
+    /// [`EulerOpError::NurbsLaneUnsupported`]; `tol` builds the band,
+    /// [`EulerOpError::Certification`]); then no unlisted edge strands
+    /// ([`EulerOpError::RechartUndescribed`]); then, onto another chart
+    /// that is not chartless, every certified moved edge no description
+    /// names there is vouched for by residual on a plane
+    /// ([`EulerOpError::RechartOffBoundary`],
+    /// [`EulerOpError::RechartBoundaryEscalated`]) and refused on a
+    /// curved chart ([`EulerOpError::RechartUnvouched`]). Then
+    /// [`Body::kef_minting`]'s site mint.
+    ///
+    /// # Errors
+    ///
+    /// The first failing precondition above; the body is untouched on
+    /// `Err`.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::kef`].
+    pub fn kef_describing(
+        &mut self,
+        he: HalfEdgeKey,
+        redescriptions: &[(EdgeKey, EdgeDescriptionSpec<T>)],
+        tol: Tol,
+    ) -> Result<KefResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let killed = self.kef_with(he, Some(tol), |body, m| {
+            body.vouch_described_kill(RechartDoor::KefDescribing, m, redescriptions, tol)
+        })?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEF_DELTA, "kef_describing");
+        Ok(killed)
+    }
+
+    /// **The re-descriptions [`Body::kef_describing`] would need to
+    /// carry `kef(he)`'s move**: every edge the move strands whose stored
+    /// description is coherent once the dying face's key stands for the
+    /// surviving face's, with that description restated there, the
+    /// stored kind travelling verbatim; a chart image whose chart's
+    /// payload changes is left for the door to re-derive. In remnant
+    /// order. Nothing is certified here. An edge the move leaves
+    /// incoherent however its keys are read is not listed, so the caller
+    /// states it or the door refuses it. Pure.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::kef`]'s structural list through
+    /// [`EulerOpError::FaceHasRings`].
+    pub fn kef_carried_redescriptions(
+        &self,
+        he: HalfEdgeKey,
+    ) -> Result<Vec<(EdgeKey, EdgeDescriptionSpec<T>)>, EulerOpError> {
+        Ok(self.carried_by_kill(&self.kef_plan(he)?.kill))
     }
 
     /// **The rows a kill owes the loops it releases**: where the killed
@@ -1713,11 +1828,10 @@ impl<T: Decide> Body<T> {
         )
     }
 
-    /// [`Body::kef`]'s plan and surgery, with the band its site mint
-    /// runs at, or none for the keys-only door. The door that calls it
-    /// declares the postcondition.
-    fn kef_with(&mut self, he: HalfEdgeKey, tol: Option<Tol>) -> Result<KefResult, EulerOpError> {
-        // ---- Preconditions: no mutation until every check passes. ----
+    /// [`Body::kef`]'s structural preconditions and the move it makes,
+    /// which [`Body::kef_carried_redescriptions`] states and the doors
+    /// vouch and carry out.
+    fn kef_plan(&self, he: HalfEdgeKey) -> Result<KefPlan, EulerOpError> {
         let ProvenMate {
             he_data,
             edge,
@@ -1758,10 +1872,6 @@ impl<T: Decide> Body<T> {
         let f2 = l2_data.face;
         let f2_surface =
             linked(&self.faces, f2, EntityId::Face, EntityId::Loop(l2), "face").surface;
-        // Decided here, where both keys resolve: the kills below may
-        // reap the dying face's surface, and a decision carried out
-        // of the plan phase has no order to keep against them.
-        let remnant_changes_chart = !self.same_chart(f1_data.surface, f2_surface);
         if !f1_data.rings.is_empty() {
             return Err(EulerOpError::FaceHasRings { face: f1 });
         }
@@ -1778,8 +1888,62 @@ impl<T: Decide> Body<T> {
         // `next` and resolves every member it returns, so it proves
         // them and nothing else — `prev/next` being mutual inverses is
         // a tier-1 fact, not one this call establishes.
-        let cycle = self.loop_cycle_live(he);
-        let remnant: Vec<Live> = cycle.into_iter().skip(1).collect();
+        let remnant: Vec<Live> = self.loop_cycle_live(he).into_iter().skip(1).collect();
+        let kill = KillMove::of(
+            self,
+            f2,
+            (f1_data.surface, f2_surface),
+            remnant.iter().map(|moved| moved.key()).collect(),
+        );
+        Ok(KefPlan {
+            he_data,
+            edge,
+            curve,
+            killed_he_plus,
+            killed_he_minus,
+            m,
+            m_data,
+            l1,
+            l2,
+            f1,
+            f1_data,
+            shell,
+            remnant,
+            kill,
+        })
+    }
+
+    /// [`Body::kef`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. The door that calls it
+    /// declares the postcondition.
+    fn kef_with(
+        &mut self,
+        he: HalfEdgeKey,
+        tol: Option<Tol>,
+        vouch: impl FnOnce(&Self, &KillMove) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError>,
+    ) -> Result<KefResult, EulerOpError> {
+        // ---- Preconditions: no mutation until every check passes. ----
+        let KefPlan {
+            he_data,
+            edge,
+            curve,
+            killed_he_plus,
+            killed_he_minus,
+            m,
+            m_data,
+            l1,
+            l2,
+            f1,
+            f1_data,
+            shell,
+            remnant,
+            kill,
+        } = self.kef_plan(he)?;
+        let f2 = kill.face;
+        // Decided here, where both keys resolve: the kills below may
+        // reap the dying face's surface, and a decision carried out
+        // of the plan phase has no order to keep against them.
+        let remnant_changes_chart = !kill.one_payload;
         // `b = next(he)` is the cycle's second member, so the walk
         // proved it and it wants no check of its own — and it is
         // `Option` rather than a key beside a `he_alone` flag because
@@ -1890,7 +2054,8 @@ impl<T: Decide> Body<T> {
         // The surviving loop as the splice leaves it, from its new
         // anchor: its own members from `next(m)` up to `m`, then the
         // remnant.
-        let remnant_keys: Vec<HalfEdgeKey> = remnant.iter().map(|moved| moved.key()).collect();
+        let described = vouch(self, &kill)?;
+        let remnant_keys = &kill.moving;
         let surviving = |body: &Self, moved: bool| {
             let own: Vec<HalfEdgeKey> = if d.key() == m {
                 Vec::new()
@@ -1915,7 +2080,7 @@ impl<T: Decide> Body<T> {
             site
         };
         let mut rows = self.plan_moved_rows(
-            &remnant_keys,
+            remnant_keys,
             !remnant_changes_chart,
             f2,
             |body| Ok(surviving(body, true)),
@@ -1976,6 +2141,11 @@ impl<T: Decide> Body<T> {
             self.link_half_edges(from, to, element);
         }
         crate::pcurves::apply_site_rows(self, rows, None);
+        // Each re-described edge is a moved one, never the killed edge,
+        // and keeps its carrier, so its rows stand.
+        for (edge, curve) in described {
+            self.replace_edge_curve(edge, curve);
+        }
         let Some(loop_data) = self.get_loop_mut(l2) else {
             unreachable!("kef: `l2` resolved in the plan phase")
         };
@@ -2216,7 +2386,7 @@ impl<T: Decide> Body<T> {
         self.vouch_move(
             door,
             old_face,
-            (inherit_surface, Slot::of_spec(&surface, inherit_surface)),
+            self.landing_of_spec(inherit_surface, &surface),
             self.run_edges(&ring_halves),
             |_, l, _| l == ring,
             resolved.on_parent_chart,
@@ -2288,13 +2458,14 @@ impl<T: Decide> Body<T> {
     /// refuses for one. The caller states the honest bit, and mints the
     /// rows, when it gives the face a real surface.
     ///
-    /// **This door promotes scaffold rings.** No description names the
-    /// placeholder's fresh key, so it asks [`Body::mfkrh`]'s questions
-    /// ([`Body::vouch_move`]) as [`RechartDoor::MfkrhPlug`]: a ring
-    /// with an edge it would strand, or with a certified edge, is
-    /// refused. Its caller picks no chart, so the lever its refusals
-    /// name is the door: promote the ring with [`Body::mfkrh`] onto a
-    /// chart its certified edges name.
+    /// **The new face is chartless.** No description names the
+    /// placeholder's fresh key and no certificate vouches on it, so of
+    /// [`Body::mfkrh`]'s questions ([`Body::vouch_move`]) it asks only
+    /// the strand, as [`RechartDoor::MfkrhPlug`]: a ring with an edge
+    /// whose description would name no key its faces wear is refused.
+    /// Its caller picks no chart, so the lever that refusal names is the
+    /// door: promote the ring with [`Body::mfkrh`] onto a chart those
+    /// edges name.
     ///
     /// # Errors
     ///

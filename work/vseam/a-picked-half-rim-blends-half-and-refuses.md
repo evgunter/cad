@@ -40,6 +40,9 @@ alone, and builds when asked for by both names.
   the program that owns the pick and the blend tool.
 - `work/emit/band-rim-pi-has-no-minting-builder.md` is the authoring
   side of the same gap (no builder mints the `BandRimPi` name).
+  2026-10-06: PR 4164 adds `band_rim_pi` (`pncad::select`, and
+  `pncad.band_rim_pi` in Python), so a whole rim is authored by
+  `band_rim` and `band_rim_pi`; the pick side here is unchanged.
 
 ## Fix shape
 

@@ -2,10 +2,13 @@
 id: survivor-folds-a-corrupt-fusion-list-onto-a-dead-key-outside-the-contact-remap
 kind: issue
 title: zip::survivor guards a corrupt fusion list with debug_assert! only, so fused_into, fused_through and Welds::kept fold onto a dead key where it compiles out
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: E
+closed: 2026-10-06
+pr: 4116
+branch: zip/survivor-and-recourse
 ---
 
 
@@ -41,3 +44,23 @@ Route the three through `survivor_checked` (or validate each fusion
 list once where it is built) and propagate the refusal. `fused_into` is
 public and returns a map, so its signature is the decision. Not done in
 PR 3874 because the unit's fence is the contact remap.
+
+## Built (2026-10-06, PR 4116)
+
+A fusion list is a `zip::Fusions` (`topo::Fusions`), whose only
+writers, `Fusions::push` and `Fusions::extend`, refuse in every build
+with `BooleanError::JoinDesync` a row that keeps or kills a key an
+earlier row killed, or fuses a key into itself, and leave the list as
+it was. `Fusions::survivor` is infallible: no unchecked list exists to
+fold. Every list is one — `ZipReport`, `FinishOut`'s and `Welds`' weld
+merges, the REST strut undo's `Fused`, `Descendants`, and
+`BooleanNaming::vertex_merges` / `weld_merges_b` — and each append site
+propagates the refusal. `BooleanNaming::fused_into` keeps its
+infallible signature over the checked list. `BooleanNaming::vertex_merges`
+is derived from `Descendants` (`Descendants::vertex_merges`), not kept
+beside it. Pinned by
+`zip::tests::a_fusion_list_refuses_a_row_naming_a_killed_key`,
+`zip::tests::an_extend_that_refuses_partway_leaves_the_list_as_it_was`
+and `ops::tests::a_dead_end_drops_and_a_refused_fusion_fails_its_absorb`.
+A list checks only its own rows: a key killed outside it, or not live
+in the body, is not its to see.

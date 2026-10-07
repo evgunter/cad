@@ -285,14 +285,29 @@ impl Unplaced {
     }
 }
 
-impl core::fmt::Display for Unplaced {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for Unplaced {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::NoOffset => f.write_str("no instance in it carries an offset"),
             Self::DeadGauge { gauge } => {
-                write!(f, "its gauge chain names node {}, which was deleted", gauge)
+                write!(
+                    f,
+                    "its gauge chain names {}, which was deleted",
+                    by.node(*gauge)
+                )
             }
         }
+    }
+}
+
+/// The cause where no document is at hand: its node by its tag.
+impl core::fmt::Display for Unplaced {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -431,9 +446,10 @@ impl crate::spoken::Say for PoseRefusal {
             } => write!(
                 f,
                 "{} has no world pose: its group (rooted at {}) is unplaced, \
-                 because {cause}. {}",
+                 because {}. {}",
                 by.node_as(*instance, "instance"),
                 by.node(*group),
+                Said(cause, by),
                 crate::sentence::Recourse(UNPLACED_RECOURSE)
             ),
             Self::Placement { node, error } => write!(
@@ -457,7 +473,7 @@ impl PoseRefusal {
     /// **The refusal as the frame holding the solved document says it**:
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }

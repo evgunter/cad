@@ -105,15 +105,39 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   decisions, definite.
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
+///
+/// **The circles store their authored carrier.** Each hole's rim is the
+/// authored centre and `|r|`, so the rim at a vertex folds onto the
+/// radius as the tier's own algebra: 8 of `carrier_endpoint_end`'s and
+/// `carrier_endpoint_start`'s door decisions, all 18 of
+/// `pcurve_map_residual`'s and 36 of `carrier_matches_mapped_source`'s
+/// are THEOREMS now, on this table and on the boss's alike. No numeric
+/// decision moved. On the merged tree (PCERT's restated certificate) the
+/// same fold takes four of `pcurve_loop_continuity`'s door decisions to
+/// theorems as well, on both tables.
+///
+/// **PCERT's chart-angle unit** retires the loop's chart-space angle
+/// comparisons and check 5: `pcurve_loop_continuity` (16/0/0/8; the
+/// boss's 16/0/2/6), `pcurve_trim_containment` (24/0/0/24; 0/24/0/24)
+/// and `pcurve_loop_pole_joint` (0/0/0/12 on both) leave both tables. A
+/// joint's element is decided as integers with its 3-D coincidence
+/// following from the rows' envelopes, the certificate tests no row
+/// against a window, and a cylinder has no singular set, so no joint of
+/// it decides one.
+///
+/// **`cap_plane_orientation` is new, 0/0/0/4**: each extrude's two caps
+/// decide once whether Newell's normal agrees with the profile's
+/// winding, definite and numeric, on this table and on the boss's.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
     ("arc_span", [4, 0, 0, 4]),
     ("assert_bound", [0, 0, 0, 1]),
+    ("cap_plane_orientation", [0, 0, 0, 4]),
     ("carrier_circles_identity", [3, 0, 0, 0]),
     ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
-    ("carrier_endpoint_end", [24, 0, 12, 0]),
-    ("carrier_endpoint_start", [24, 0, 12, 0]),
+    ("carrier_endpoint_end", [32, 0, 4, 0]),
+    ("carrier_endpoint_start", [32, 0, 4, 0]),
     ("carrier_line_circle", [0, 0, 0, 5]),
     ("carrier_on_surface_1", [135, 0, 0, 9]),
     ("carrier_on_surface_2", [117, 0, 0, 27]),
@@ -140,10 +164,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("pcurve_fidelity_branch", [0, 0, 0, 24]),
     ("pcurve_interval_forward", [0, 0, 0, 12]),
     ("pcurve_loop_branch", [0, 0, 0, 25]),
-    ("pcurve_loop_continuity", [12, 0, 4, 8]),
-    ("pcurve_loop_pole_joint", [0, 0, 0, 12]),
-    ("pcurve_map_residual", [0, 0, 18, 0]),
-    ("pcurve_trim_containment", [24, 0, 0, 24]),
+    ("pcurve_map_residual", [18, 0, 0, 0]),
     ("segment_straightness", [6, 0, 0, 6]),
     ("side_cylinders_cosurface", [2, 0, 0, 0]),
     ("side_planes_cosurface", [0, 0, 0, 2]),
@@ -225,12 +246,13 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("arc_diameter_clearance", [0, 0, 0, 6]),
             ("arc_span", [6, 0, 0, 0]),
             ("assert_bound", [0, 0, 0, 1]),
+            ("cap_plane_orientation", [0, 0, 0, 4]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
-            ("carrier_endpoint_end", [12, 0, 12, 0]),
-            ("carrier_endpoint_start", [12, 0, 12, 0]),
+            ("carrier_endpoint_end", [20, 0, 4, 0]),
+            ("carrier_endpoint_start", [20, 0, 4, 0]),
             ("carrier_line_circle", [0, 0, 0, 3]),
-            ("carrier_matches_mapped_source", [72, 0, 54, 0]),
+            ("carrier_matches_mapped_source", [108, 0, 18, 0]),
             ("carrier_on_surface_1", [90, 0, 0, 0]),
             ("carrier_on_surface_2", [90, 0, 0, 0]),
             ("contact_at_shared_vertex", [6, 0, 0, 3]),
@@ -255,10 +277,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_fidelity_branch", [0, 0, 0, 24]),
             ("pcurve_interval_forward", [0, 0, 0, 12]),
             ("pcurve_loop_branch", [0, 0, 0, 25]),
-            ("pcurve_loop_continuity", [12, 0, 6, 6]),
-            ("pcurve_loop_pole_joint", [0, 0, 0, 12]),
-            ("pcurve_map_residual", [0, 0, 18, 0]),
-            ("pcurve_trim_containment", [0, 24, 0, 24]),
+            ("pcurve_map_residual", [18, 0, 0, 0]),
             ("segment_straightness", [2, 0, 0, 6]),
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),
@@ -289,7 +308,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 44, 10]),
+        &d_tab_table([162, 0, 8, 10]),
     );
 }
 
@@ -315,6 +334,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 40, 14]),
+        &d_tab_table([162, 0, 4, 14]),
     );
 }

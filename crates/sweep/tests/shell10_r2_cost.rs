@@ -15,6 +15,7 @@ use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
 use crate::common::shell_operands::{hollow_box, outer_and_void, vessel};
 use crate::shell8_common::{beside, cap, tol};
+use sweep::test_support::finished;
 
 fn median_ms(label: &str, mut f: impl FnMut()) {
     for _ in 0..20 {
@@ -44,16 +45,34 @@ fn r2_cost_rows() {
         10.0,
     );
     median_ms("shell_open, box beside vessel, sealed", || {
-        topo::shell_open(&pair, 0.05, &[], tol()).unwrap();
+        topo::shell_open(
+            &finished("the operand", pair.clone(), tol()),
+            0.05,
+            &[],
+            tol(),
+        )
+        .unwrap();
     });
     let hollow = hollow_box();
     let (outer, _) = outer_and_void(&hollow);
     let lid = cap(&hollow, outer, Vec3::new(0.0, 0.0, 1.0), 4.0);
     median_ms("shell_open, hollow box, sealed", || {
-        topo::shell_open(&hollow, 0.05, &[], tol()).unwrap();
+        topo::shell_open(
+            &finished("the operand", hollow.clone(), tol()),
+            0.05,
+            &[],
+            tol(),
+        )
+        .unwrap();
     });
     median_ms("shell_open, hollow box, outer lid open", || {
-        topo::shell_open(&hollow, 0.05, &lid, tol()).unwrap();
+        topo::shell_open(
+            &finished("the operand", hollow.clone(), tol()),
+            0.05,
+            &lid,
+            tol(),
+        )
+        .unwrap();
     });
     for n in [1usize, 2, 4, 8] {
         let mut body = vessel(1.0, 2.0);

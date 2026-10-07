@@ -2,10 +2,13 @@
 id: shell-answers-for-the-complement-of-an-inside-out-operand
 kind: issue
 title: topo::shell consumes an inside-out operand and answers for its complement: no orientation gate on the way in
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
+pr: 4112
+branch: shell/operand-at-rest
+closed: 2026-10-06
 ---
 
 
@@ -32,8 +35,9 @@ whose fix refuses an inside-out Boolean operand typed
 
 ## Owed
 
-Refuse an inside-out operand at `shell`'s door, typed, per solid
-(`validate::inside_out_solids` reads tier 3's check 7 at the scalar's
+Refuse an inside-out operand at `shell`'s door, typed
+(`AtRestBody::gate_unverdicted`, through `validate::wound_negative`,
+reads tier 3's check 7 per solid and check 10 per shell at the scalar's
 lane), before any offset reads it. The finished-body adoption
 (`work/reach/boolean-door-adopts-the-finished-body-type.md`) subsumes it
 once `shell` takes `AtRestBody`. The blend and offset doors' posture is
@@ -50,3 +54,45 @@ verdict (a dual, `reduce::gate_unverdicted_operand`). `shell` reaches
 the same refusal by taking `AtRestBody` (its own adoption unit) with the
 same per-solid read where no verdict rides, or reads check 7 per solid
 at its door until then.
+
+## 2026-10-06 — measured on main `575b309d` (CLEAVE, `cleave/split-operand-gate`)
+
+The same clockwise wedge, `Tol::witness()`, thickness 0.02:
+
+- `shell` returns `Ok`, volume 0.05961; the counterclockwise wedge's
+  shell is 0.05097. A valid-looking body of the wrong volume.
+- `shell_open` with the top face open refuses ("the assembled thin solid
+  is not valid (1 errors) and is discarded"); counterclockwise: 0.04297.
+- `replace_face_offset` of the top face by +0.1 returns `Ok` with volume
+  −0.18794 (counterclockwise: +0.28191 from +0.23492): the region
+  shrank where the counterclockwise wedge's grew.
+
+On the slit dome (`crates/sweep/tests/pole_slit_window.rs`'s `slits`, a
+strut tip at the pole), `shell` refuses "offsetting a face inward
+refused: replace_face_offset: the re-described body is not tier-2 valid":
+the operand's own strut, reported as the offset's result failure.
+
+The blend doors' half of the posture is filed on BAND:
+`work/band/blend-doors-answer-an-inside-out-operand-with-an-inside-out-body.md`.
+The split's is closed by that branch (its doors take `AtRestBody`).
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4112)
+
+`topo::shell`, `topo::shell_open` and `ShellDoor::open` take an
+`&AtRestBody`, the shape the boolean and split doors use. An inside-out
+or otherwise invalid operand cannot reach shell's construction. The
+editor-core wire takes the operand through `finished_operand`. The
+operand type is pinned at compile time (`const _` fn-pointer
+coercions in `crates/topo/tests/shell_operand_gate.rs`; the verbs seat
+was already pinned by lane3's `RunShellAtDual`), so reverting the doors
+to `&Body`
+no longer builds. The reviewer showed it compiled clean before the
+pins. A merge-base differential over every shell call in the
+workspace, the ignored cost rows and `demos/tour` changed outcome only
+on test-only operands. Residues filed:
+- on SHELF, `shelled-result-discards-its-own-closing-verdict` (P3/E);
+- on SHELL, the offset doors' operand posture
+  (`replace-face-offset-answers-for-the-complement-of-an-inside-out-body`,
+  P2);
+- on SHELL, the now-unreachable piece sort
+  (`shell-operand-shape-arms-behind-the-at-rest-gate`, P3).

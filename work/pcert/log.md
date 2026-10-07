@@ -513,6 +513,41 @@ Signed (PCERT orchestrator).
 - The row is corrected and parked on `store-constructed-carriers`. I left a seam note in `work/paths/log.md` asking PATHS to rank 5b.
 - My call: don't take 5b into PCERT. It is PATHS' unit, already specced, and its fillet arm is the fix.
 
+## 2026-10-03 — Ev ruled on 3919; implementer dispatched
+
+- Ev approved PR 3919 ("sounds good! nice catch on 2"). Merged as c8ab2e37d. The fork-log row was renumbered 47 → 54 at the main merge, and Ev's decision and the A/B mapping were filled in.
+- The implementer is dispatched on `pcert/chart-angle-integers` from c8ab2e37d (session_016i8tmtwuCgNvRV9PXr5GHq). The brief is the C4 sentence plus 3919's two reports, and it lists the measurements owed in the PR body. The unit is cost H, so the dual-review pair runs on a frozen head once CI is green.
+
+## 2026-10-03 — PR 3945 dual review adjudicated
+
+- Frozen head 78e55c70. Both reviews are delivered: R1 (comment 5968113330) and R2 (comment 5968109956). Both verdicts are APPROVE-WITH-FIXES, and both report that lane isolation held.
+- **Correspondence pre-note (rule 7), written before the blinded coding returns:**
+  - **Bilateral MAJOR:** the sphere twin is decided with zero margin, so at K below about 4 the wrong sheet certifies or is stored shifted by τ. Both reproduced it, by different probes.
+  - **Bilateral MINOR:**
+    - surviving mutants on the near-pole path, the undecided skip, the winding bound, `identity()` ignoring the twin, and the `joint_arm` lever;
+    - stale `trim_containment` / continuity-margin prose;
+    - torax's either-or pin.
+  - **Unilateral, R2 only:**
+    - `kv` dropped (a surviving mutant);
+    - one predicate name for two questions;
+    - the `pin_branch` wrapper;
+    - the audit row's escape wording;
+    - mesh12 has no upper bound;
+    - the `lift_joint` doc matrix;
+    - the on-axis, off-surface lever (a note).
+  - **Unilateral, R1 only:**
+    - `chart_boundary` cites the 4ε bound for uncertified images;
+    - the gate test bypasses `singular_at`;
+    - two lever functions;
+    - the `loop_closes` combinations.
+  - **Tally candidates:** none, since the only MAJOR is bilateral. Expected tally contribution: 0.
+- **Fix list (the union) sent to the implementer:**
+  - the blocking fix for the twin, following B's design: nearest orbit point, with margin half the separation;
+  - the README re-word that follows from it;
+  - killing rows for every surviving mutant;
+  - the prose sweep;
+  - the minors.
+- Blinded coding dispatched (session_01JZy2Fs1EhBc7PrvXSvX4AE). The byte and mapping are recorded privately until merge.
 ## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
 
 Ev has opened a redesign of how a document says that one thing depends
@@ -554,3 +589,57 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — 3945: re-port onto R
+
+- The usage cap stalled 3945 after its confirming review (APPROVE-WITH-FIXES, 0/2). Both MINORs are fixed locally at ae364e91.
+- Main meanwhile landed TOPO's R build (Ev's ruling on PR 4024: a stored per-half-edge joint element, `loop_lift`). That re-architected the code 3945 changes: 45 conflict hunks in `pcurves.rs`.
+- TOPO filed the coordination row on my slate. My call: 3945 lands second and re-ports onto R, with one decider and R's storage, not identity-at-every-joint.
+- The re-ported head gets a fresh dual pair. Most of the code under review will be new against 78e55c70, so a delta review would not cover it.
+
+## 2026-10-06 — PR 3945 round-2 dual review adjudicated (the re-port onto R)
+
+- Frozen head da1afd1f, a fresh pair because most of the code is new against 78e55c70. The later commit bbee7652 changes only a `work/` item.
+- Both reviews delivered: R1 (comment 6015903724) and R2 (comment 6014803528). Both verdicts are APPROVE-WITH-FIXES with no MAJOR. Isolation held: R1 read no comments, and R2 read only those before the cutoff. Both reproduced the `pinch_faces` ε=1e-6 red on main 62bdd557.
+- **Correspondence pre-note (rule 7), before the blinded coding returns.**
+  - Bilateral MINORs:
+    - `split_cache` turns a `decide_joint` refusal into a stored identity;
+    - near-pole orbit-point mutants survive (R1 MB/…, R2 m1);
+    - the README's C4 closure sentence is narrower than `Winding::closes`.
+  - Unilateral, R1 only:
+    - the further survivors: a Reset/Shift swap with the same deck, and the site mint's new-half vertex;
+    - `chart_boundary`'s `is_zero` leans on a winding the decider's docs concede can be off by one orbit step near a pole or a narrow cone apex;
+    - the unit's closure note is stale;
+    - NOTEs: claim 1 is overstated (kills, revert and graft write elements by algebra or copy), and `chaintol`'s rows 3–4 moved without being listed, with a guard that can't tell the predicate names apart.
+  - Unilateral, R2 only: `Reset` is written on an undecided reading on spline charts. That corrects my brief's premise; no code change.
+  - Tally candidates: none, since neither review raised a MAJOR.
+- The fix list (the union) has gone to the implementer. The blinded coder is session_01TeTFymE7xDPjooubHwkkPD; the byte is recorded privately.
+
+## 2026-10-07 — PR 3945 merged (4711ad4f): the chart's angle checks are integers, on R
+
+- **What landed:**
+  - Check 5 and the caller's `ChartWindow` are retired.
+  - One decider, `decide_joint`, decides each joint's deck element on TOPO's R storage. Tier 3 checks every stored element against it.
+  - On a sphere the deck element is one orbit integer in half periods, with a quarter period of room. On other surfaces it is whole periods.
+  - Poles are decided as 3-D incidence. `Reset` is written only on a decided incidence or an undecided spline gate.
+  - A room fence: `chart_boundary` builds only where every joint's winding was decided with room.
+  - `split_cache` and `turn_element` refuse rather than store a guess.
+  - `chaintol` is back to `[1.0, 0.370, 0.185, 0.111]`, with `dihedral_wedge` as its wall.
+- **Review:**
+  - Two concurrent pairs. Round 1 on 78e55c70 found a bilateral MAJOR: the zero-margin sphere twin. Round 2 on the R re-port, da1afd1f, found no MAJOR.
+  - Two confirming reviews, each APPROVE-WITH-FIXES 0/2, both fixed.
+  - DR-95, tally 0. It was renumbered from DR-94 at merge, because SSI #4104 took 94 first.
+- **Path:** the usage cap stalled the unit, and main landed R in the meantime. That forced the re-port, plus four merges of main, the last one combining our pins with CARVE #4187's cap orientation.
+- **Rows closed by the PR:**
+  - the unit itself;
+  - `at-rest-trim-containment-…`;
+  - the 3945/R coordination row.
+- **Left open:** TOPO's kill-straddle row, with a note appended.
+- **Next in PCERT:**
+  - `fillet-meridian-radius-term-is-registered-only` (P0) stays parked on PATHS 5b.
+  - pctail's wide-arc row is P2.
+- **Fillet-meridian P0 closed by PATHS 5b (#3774):** the filleted bracket and the pad now certify whole at M10-9's scale at every ε. So all three regressions disclosed at 3759/3812 are resolved:
+  - chaintol, by 3945;
+  - the bracket and the pad, by 5b;
+  - the shallow-arc grid stays as pctail's P2.
+- **Priorities set on the remaining slate.** The three C4 route rows (torus general circle, cone section, spline carrier) are P1, per Ev's 3617 ruling that every uncovered class gets a route wired. The spiric / no-fitted classes, the fitted-kind option and the line-seam refusal are P2. The torus general circle goes next, as the nearest analogue of the sphere route (3733).

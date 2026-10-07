@@ -467,7 +467,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             check: PcurveCheck::MapResidual,
             sample: 4,
         },
-        PcurveCertifyError::TrimEscape,
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Envelope,
             sample: 4,
@@ -492,6 +491,11 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
         PcurveMintError::SingularChartJoint {
+            face,
+            r#loop,
+            half_edge,
+        },
+        PcurveMintError::JointWithoutRoom {
             face,
             r#loop,
             half_edge,
@@ -744,6 +748,14 @@ fn stale_declarations() -> Vec<StaleDeclaration> {
             b: vertex,
         },
         StaleDeclaration::VertexOnFace { vertex, face },
+        StaleDeclaration::VertexOnEdge {
+            vertex,
+            edge: EdgeKey::default(),
+        },
+        StaleDeclaration::EdgeEdge {
+            a: EdgeKey::default(),
+            b: EdgeKey::default(),
+        },
         StaleDeclaration::CurveLocus {
             face_a: face,
             face_b: face,

@@ -597,10 +597,7 @@ pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
 ///
 /// So a component that is not a literal is not evaluated and not
 /// guessed: the label says the origin is driven and names no number. A
-/// [`Datum::FaceFrame`] says whose face it is read off; it cannot say
-/// WHICH face, because a face's identity is its role path and
-/// `RoleSeg` has no `Display` (`crate::idpass`'s note says so in as
-/// many words).
+/// [`Datum::FaceFrame`] says whose face it is read off, not which face.
 ///
 /// `None` is a node with no such sentence — every kind but the two
 /// frames.
@@ -929,8 +926,9 @@ pub fn part_file(node: &Node<ProfileProgram>, files: &PartFiles) -> Option<Strin
 /// the last is the failing node's own refusal.
 ///
 /// Each line is that node's refusal exactly as its own tree draws it,
-/// a node of `doc` spoken from it ([`pncad::document::CarriedLevel::line_in`]); the
-/// document it is in is its label ([`CarriedLine::document`]).
+/// a node of `doc` spoken from it and a part's node as the pinned part
+/// holds it ([`pncad::document::CarriedLevel::line_in`]); the document
+/// it is in is its label ([`CarriedLine::document`]).
 pub fn carried_lines(
     doc: &Doc<ProfileProgram>,
     kind: &NodeErrorKind,
@@ -940,7 +938,7 @@ pub fn carried_lines(
         .map(|level| CarriedLine {
             document: match level.document {
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
-                CarriedIn::Part(doc_ref) => files.name(doc_ref.id).to_owned(),
+                CarriedIn::Part { doc_ref, .. } => files.name(doc_ref.id).to_owned(),
             },
             line: level.line_in(doc),
         })
@@ -955,8 +953,8 @@ enum Standing<'e> {
     Unevaluated,
     /// A usable value.
     Ok,
-    /// The row's own failure.
-    Failed(&'e NodeError),
+    /// The row's own failure, and the evaluation that raised it.
+    Failed(&'e NodeError, &'e Evaluation<f64>),
     /// Drawn downstream of `through`; `cause_known` is whether the
     /// chain ends at a failure, which is what earns the row its
     /// pointer ([`downstream_wording`]).
@@ -974,7 +972,7 @@ fn standing(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> Standing<
         None => Standing::Unevaluated,
         Some(NodeResult::Ok(_)) => Standing::Ok,
         Some(NodeResult::Failed(error)) => {
-            downstream_of_mate(id, error).unwrap_or(Standing::Failed(error))
+            downstream_of_mate(id, error).unwrap_or(Standing::Failed(error, ev))
         }
         Some(NodeResult::Poisoned { through }) => poisoned_through(*through, ev),
     }
@@ -997,8 +995,8 @@ fn status_of(
             through,
             message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
-        Standing::Failed(error) => RowStatus::Failed {
-            message: error.spoken(doc),
+        Standing::Failed(error, evaluation) => RowStatus::Failed {
+            message: error.spoken(doc, evaluation),
             carried: carried_lines(doc, &error.kind, files),
         },
     }
@@ -1025,7 +1023,7 @@ fn status_of(
 /// reports it as absence.
 pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<RecipeNodeId> {
     match standing(id, Some(evaluation)) {
-        Standing::Failed(_) => Some(id),
+        Standing::Failed(..) => Some(id),
         Standing::Downstream {
             through,
             cause_known: true,
@@ -1044,7 +1042,7 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
 /// ancestor's, and so is the row the tree sends a reader to.
 pub fn own_error(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<&NodeError> {
     match standing(id, Some(evaluation)) {
-        Standing::Failed(error) => Some(error),
+        Standing::Failed(error, _) => Some(error),
         Standing::Ok | Standing::Unevaluated | Standing::Downstream { .. } => None,
     }
 }

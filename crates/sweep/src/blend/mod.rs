@@ -30,14 +30,18 @@
 //! its units, and its lever arm:
 //!
 //! 1. [`battery::radius_headroom`] — `fillet3_radius_headroom`
-//! 2. [`battery::face_clearance`] — `fillet3_face_clearance`
+//! 2. [`battery::face_clearance`] — `fillet3_face_clearance`; its
+//!    reach arm (`reach`), every band against every face of the body,
+//!    needs the plan's feet and runs in the surgery after 6, before any
+//!    mutation
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
 //! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`; and,
 //!    at a RULED link's end, [`battery::cap_transverse`] —
 //!    `fillet3_cap_transverse`, the same predicate's classification of
-//!    the termination a ruled band has (a transverse cap, not a corner)
+//!    the termination a ruled band has (a plane cap, not a corner):
+//!    the picker of its section there, a circle or an ellipse
 //!
 //! **What "the offending margin as payload" means, exactly.** A
 //! definite refusal carries a [`ClassifiedMargin`]: the reading the
@@ -101,26 +105,32 @@
 //!
 //! # Scope (OQ6, decided at #85)
 //!
-//! In: closed smooth chains; open chains terminating in a UNIFORM
-//! trihedron — three convex or three concave edges, whose corner
-//! patch is a sphere octant (resting inside the material or in the
-//! void with its ball) or the chamfer's flat one; and the RULED band —
-//! a straight edge between a cylinder and a plane or cylinder sharing
-//! its ruling — terminating in TRANSVERSE CAPS
-//! ([`CornerConfig::TransverseCap`]: plane faces perpendicular to the
-//! ruling, decided by `fillet3_cap_transverse` at the link's own
-//! extent), where the band is cut off in the cap's own section of it
-//! ([`RunOutPolicy::CutOffAtTransverseCap`]).
+//! In: closed smooth chains; open chains whose ends are trivalent
+//! vertices of one convexity between planes, where the request decides
+//! the end by how many of the vertex's three edges it names — all three,
+//! the corner patch (a sphere octant resting inside the material or in
+//! the void with its ball, or the chamfer's flat patch); one, the
+//! CUT-OFF in the end face's plane section of the band
+//! ([`CornerConfig::EndFace`], [`RunOutPolicy::CutOffAtEndFace`]): a
+//! chord at any angle for a chamfer, and for a fillet a circle at a
+//! perpendicular end face and an ellipse at an oblique one; and the
+//! RULED band — a straight edge between a cylinder and a plane or
+//! cylinder sharing its ruling — cut off at its plane end faces the
+//! same way, the circle or the ellipse picked by
+//! `fillet3_cap_transverse` at the link's own extent.
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
 //! carrying a [`CornerConfig`] — the battery's classifier and the
-//! assembly's valence and convexity doors both), and every link whose
-//! support pair is outside the analytic-arm table
+//! assembly's valence and convexity doors both, the mitre where two of
+//! three edges are requested ([`CornerConfig::Turn`]) among them), and
+//! every link whose support pair is outside the analytic-arm table
 //! ([`BlendError::SpineUnsupported`] — the canal-surface
-//! approximating-blend lane, banked as its own reviewed unit). A corner whose configuration is the supported one
-//! but whose edges are not all requested is a **run-out**, which is
-//! about the request rather than the configuration and refuses as
-//! [`BlendError::UnsupportedRunOut`].
+//! approximating-blend lane, banked as its own reviewed unit). An end
+//! whose configuration is the supported one but whose shape the cut-off
+//! does not build — a curved end face, a foot off its rim's span
+//! (landing inside a support), two cut-offs' feet crossing on the one
+//! rim they share — is a **run-out**, and refuses as
+//! [`BlendError::UnsupportedRunOut`] before any mutation.
 
 mod admit;
 pub mod arms;
@@ -128,6 +138,7 @@ pub mod battery;
 pub mod build;
 pub mod naming;
 mod open;
+pub(crate) mod reach;
 pub mod surgery;
 
 use core::fmt;
@@ -228,7 +239,8 @@ pub enum BlendDecision {
     /// `fillet3_spine_regularity`: the ball's centre path does not fold.
     SpineRegularity,
     /// `fillet3_chain_g1`: two links meet tangentially. Passes only at
-    /// zero.
+    /// zero; between two plane–plane links a definite reading is a turn,
+    /// where the chain breaks into two ends rather than refusing.
     ChainG1,
     /// `fillet3_chain_arm`: a link is long enough to measure an angle
     /// over, gating [`Self::ChainG1`] and [`Self::ConvexitySign`].
@@ -251,15 +263,29 @@ pub enum BlendDecision {
     /// `fillet3_corner_independence`: a uniform trivalent corner's three
     /// support normals are independent.
     CornerIndependence,
-    /// `fillet3_cap_transverse`: a ruled link's end face is perpendicular
-    /// to its ruling. Passes only at zero.
+    /// `fillet3_cap_transverse`: the kind a cylinder band's plane end
+    /// face — a ruled link's cap, or a plane–plane fillet's cut-off —
+    /// cuts from it: a circle at zero, where the face is perpendicular
+    /// to its spine, an ellipse at a definite departure. It escalates
+    /// in band.
     CapTransverse,
+    /// `ellipse_axes_distinct`: an oblique end face's ellipse, whose
+    /// semi-axes `r` and `r·sec θ` differ by `r·(sec θ − 1)`, is one the
+    /// ellipse door admits. Decided in `geom` (`Curve3::ellipse`), whose
+    /// verdict the cut-off takes as its own; a definite departure whose
+    /// axes that door reads as one circle, or in band, is reported as
+    /// this decision.
+    CapEllipse,
+    /// `fillet3_cut_off_feet`: two cut-offs at the two ends of one rim
+    /// put their feet on it in order and definitely apart, so the
+    /// second split lands on the piece the first leaves.
+    CutOffFeet,
 }
 
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 13] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -271,6 +297,8 @@ impl BlendDecision {
         Self::ContactSecondOrder,
         Self::CornerIndependence,
         Self::CapTransverse,
+        Self::CapEllipse,
+        Self::CutOffFeet,
     ];
 
     /// The `k_stats` name the decision is metered under.
@@ -288,6 +316,8 @@ impl BlendDecision {
             Self::ContactSecondOrder => "tangent_second_order",
             Self::CornerIndependence => "fillet3_corner_independence",
             Self::CapTransverse => "fillet3_cap_transverse",
+            Self::CapEllipse => "ellipse_axes_distinct",
+            Self::CutOffFeet => "fillet3_cut_off_feet",
         }
     }
 
@@ -312,7 +342,17 @@ impl BlendDecision {
                 "whether the three face normals at the corner are independent"
             }
             Self::CapTransverse => {
-                "whether the band's end face is a plane perpendicular to its ruling"
+                "whether a cylinder band's plane end face is perpendicular to its spine, \
+                 cutting a circle from it, or tilted off it, cutting an ellipse (the margin is \
+                 the sine of the tilt, levered at the link's length)"
+            }
+            Self::CapEllipse => {
+                "whether a tilted plane end face cuts a cylinder band in an ellipse distinct \
+                 from a circle (the margin is how far its semi-axes differ: r·(sec θ − 1) for \
+                 radius r and tilt θ)"
+            }
+            Self::CutOffFeet => {
+                "whether two cut-offs' feet on the rim they share stand definitely apart"
             }
         }
     }
@@ -335,7 +375,9 @@ impl BlendDecision {
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactSecondOrder => FILLET3_CONTACT_RECOURSE,
             Self::CornerIndependence => FILLET3_CORNER_INDEPENDENCE_RECOURSE,
-            Self::CapTransverse => FILLET3_CORNER_RECOURSE,
+            Self::CapTransverse => FILLET3_CAP_TILT_RECOURSE,
+            Self::CapEllipse => FILLET3_CAP_ELLIPSE_RECOURSE,
+            Self::CutOffFeet => FILLET3_CORNER_RECOURSE,
         }
     }
 
@@ -350,6 +392,10 @@ impl BlendDecision {
             }
             Self::FaceClearance | Self::RingClearance => Some(("clearance", SizedPass::Positive)),
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
+            Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
+            Self::CapEllipse => {
+                Some(("difference of the ellipse's semi-axes", SizedPass::Positive))
+            }
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             Self::ChainG1 | Self::SupportCoaxiality | Self::CapTransverse => None,
@@ -570,44 +616,45 @@ impl fmt::Display for BlendSite {
 }
 
 /// The **run-out policy vocabulary** (OQ6, decided by Ev at #85; the
-/// transverse cut-off ratified on PR 1736's thread). Two variants are
-/// refusal-payload names ONLY, with no constructor surface anywhere in
-/// the kernel: they exist so a refusal can name the front door that does
-/// not exist yet (the standing frontier error-text pattern), and so the
-/// unit that implements the mid-curve run-outs inherits a vocabulary Ev
-/// already owns rather than inventing one. The third,
-/// [`RunOutPolicy::CutOffAtTransverseCap`], names the one termination a
-/// band OTHER than the corner patch carves — the ruled band's end in its
-/// cap's own section.
+/// cut-off ratified on PR 1736's thread and generalised, with the
+/// mitre, on PR 4085's). [`RunOutPolicy::RunOutFeather`] and
+/// [`RunOutPolicy::Mitre`] are refusal-payload names: no band takes
+/// either, and a refusal names them as the front door that does not
+/// exist yet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a
-    /// corner patch fills the junction. What ships of this policy is
-    /// the UNIFORM trihedron: the sphere octant and the chamfer's
-    /// flat patch, each on either material side.
+    /// corner patch fills the junction — the end where every edge of
+    /// the vertex is requested. What ships of this policy is the
+    /// UNIFORM trihedron: the sphere octant and the chamfer's flat
+    /// patch, each on either material side.
     ///
     /// It is the policy MOST out-of-scope corners name, but not all of
-    /// them, and the exceptions are the interesting ones
-    /// ([`CornerConfig::policy`] is the map): a MIXED-CONVEXITY vertex
-    /// names [`Self::RunOutFeather`] instead, because a corner patch
-    /// cannot help where the ball changes sides; and a
+    /// them ([`CornerConfig::policy`] is the map): a MIXED-CONVEXITY
+    /// vertex names [`Self::RunOutFeather`] instead, because a corner
+    /// patch cannot help where the ball changes sides; and a
     /// [`CornerConfig::SeamVertex`] names NO policy at all, because it
     /// is not a corner — the surface is smooth through it, so there is
     /// nothing for a run-out to run out into.
     RunOutStopAtVertex,
     /// The radius decays to zero before the vertex and the blend
     /// fades back into the sharp edge. No variable-radius machinery
-    /// exists at M5, so this policy is named and never taken.
+    /// exists, so this policy is named and never taken.
     RunOutFeather,
-    /// **The band ends in the cap's own section of it** — the policy
-    /// of a [`CornerConfig::TransverseCap`], and the one a ruled band
-    /// CARVES. A cylinder band about a straight spine cut by a plane
-    /// perpendicular to the ruling ends in a circle of the band's
-    /// radius about the spine; the band's end is the arc of it between
-    /// its two feet, exact and stored (`Curve3::Circle`), no new
-    /// surface kind. The cap face gains that arc as a boundary edge and
-    /// the old corner vertex dies with the support strips.
-    CutOffAtTransverseCap,
+    /// **The band ends in the end face's plane section of it** — the
+    /// policy of a [`CornerConfig::EndFace`]: the end where one edge of
+    /// the vertex is requested. A plane band's section is a chord; a
+    /// cylinder band's is a circle where the end face is perpendicular
+    /// to the spine. The end face gains the curve and loses the sliver
+    /// between it and the old vertex on either side — cut away on the
+    /// convex side, covered by the fill on the concave side — and the
+    /// old vertex dies with the band's supports' strips.
+    CutOffAtEndFace,
+    /// **Each band is cut off by the other's support and the two meet
+    /// along their intersection** — the policy of a
+    /// [`CornerConfig::Turn`]: the end where two edges of the vertex
+    /// are requested. Named and not taken.
+    Mitre,
 }
 
 impl fmt::Display for RunOutPolicy {
@@ -615,18 +662,19 @@ impl fmt::Display for RunOutPolicy {
         match self {
             Self::RunOutStopAtVertex => write!(f, "stop-at-vertex with a corner patch"),
             Self::RunOutFeather => write!(f, "feather the radius out before the vertex"),
-            Self::CutOffAtTransverseCap => {
-                write!(f, "cut the band off in the cap plane's own section of it")
+            Self::CutOffAtEndFace => {
+                write!(f, "cut the band off in the end face's own section of it")
             }
+            Self::Mitre => write!(f, "mitre the two bands along their intersection"),
         }
     }
 }
 
 /// The corner-configuration tags C8's scope box enumerates. Two are
 /// constructible — [`CornerConfig::ThreeConvexEdges`] with independent
-/// support normals (the corner patch) and
-/// [`CornerConfig::TransverseCap`] (the ruled band's cut-off); the rest
-/// are the refusal taxonomy, each pinned by a fixture that reaches it.
+/// support normals (the corner patch) and [`CornerConfig::EndFace`]
+/// (the cut-off); the rest are the refusal taxonomy, each pinned by a
+/// fixture that reaches it.
 ///
 /// **This vocabulary has no name for the uniform CONCAVE trihedron**,
 /// which both verbs now carve — so no refusal needs one, and no site
@@ -686,19 +734,25 @@ pub enum CornerConfig {
     /// asking for the rim whole, which is a door that already exists,
     /// and that is what this tag's recourse says.
     SeamVertex,
-    /// **A straight-spine band's edge ends at a vertex whose other
-    /// incident edges lie in one plane face perpendicular to the
-    /// spine.** Trivalent: the requested edge and the two rim edges
-    /// the cap shares with the band's two supports; the cap plane's
-    /// normal is parallel to the ruling (`fillet3_cap_transverse`,
-    /// metered at the link's own extent), so both supports meet the
-    /// cap transversally.
+    /// **A straight band's edge ends at a trivalent vertex whose other
+    /// two edges are unrequested and lie in one plane END FACE.** The
+    /// two are the rims the end face shares with the band's two
+    /// supports, and the band ends in the end face's plane section of
+    /// it ([`RunOutPolicy::CutOffAtEndFace`]).
     ///
-    /// Not a corner in the trihedral sense — the ball does not turn —
-    /// and not a seam vertex: the surface is not smooth through it.
-    /// IN SCOPE for the ruled arms: the band ends in the cap plane's
-    /// own section of it ([`RunOutPolicy::CutOffAtTransverseCap`]).
-    TransverseCap,
+    /// IN SCOPE for the plane–plane chamfer at any angle, and for a
+    /// cylinder band — the plane–plane fillet's, or a ruled arm's — at
+    /// any plane end face its spine crosses, in a circle where the face
+    /// is perpendicular to the spine and an ellipse where it is oblique
+    /// (`fillet3_cap_transverse`, metered at the link's own extent).
+    /// Not a corner in the trihedral sense — no ball rests there — and
+    /// not a seam vertex: the surface is not smooth through it.
+    EndFace,
+    /// **Two of a trivalent vertex's three edges are requested**, and
+    /// the chain turns a definite corner there: each band would be cut
+    /// off by the other's support and meet it along their intersection
+    /// ([`RunOutPolicy::Mitre`]). Refused: the mitre is not built.
+    Turn,
     /// A vertex reached with an in-band or poisoned configuration
     /// margin — the configuration could not be classified at all.
     Indeterminate,
@@ -721,9 +775,12 @@ impl CornerConfig {
             // Not a corner: the surface is smooth through the point, so
             // there is nothing for a run-out to run out INTO.
             Self::SeamVertex => None,
-            // The ruled band's own termination: the cap plane's section
-            // of the band, which the surgery carves.
-            Self::TransverseCap => Some(RunOutPolicy::CutOffAtTransverseCap),
+            // One edge requested: the end face's section of the band,
+            // which the surgery carves.
+            Self::EndFace => Some(RunOutPolicy::CutOffAtEndFace),
+            // Two edges requested: the bands meet along their
+            // intersection.
+            Self::Turn => Some(RunOutPolicy::Mitre),
             Self::ThreeConvexEdges
             | Self::NEdgeVertex { .. }
             | Self::DependentNormals
@@ -745,7 +802,8 @@ impl CornerConfig {
             // The configurations the corner sentence names as carving,
             // and those only a run-out would take.
             Self::ThreeConvexEdges
-            | Self::TransverseCap
+            | Self::EndFace
+            | Self::Turn
             | Self::NEdgeVertex { .. }
             | Self::MixedConvexity { .. }
             | Self::Indeterminate => FILLET3_CORNER_RECOURSE,
@@ -768,10 +826,15 @@ impl fmt::Display for CornerConfig {
                 f,
                 "a chart-seam vertex on a smooth rim, which is not a corner at all"
             ),
-            Self::TransverseCap => write!(
+            Self::EndFace => write!(
                 f,
-                "a transverse cap: the two unrequested edges lie in one plane face \
-                 perpendicular to the band's ruling (the built ruled termination)"
+                "an end face: the band's one requested edge ends where the two unrequested \
+                 edges lie in one plane face (the built cut-off)"
+            ),
+            Self::Turn => write!(
+                f,
+                "a turn: two of the vertex's three edges are requested, which the mitre \
+                 would join"
             ),
             Self::Indeterminate => write!(f, "a vertex whose configuration did not classify"),
         }
@@ -824,8 +887,8 @@ pub const FILLET3_CONTACT_RECOURSE: &str = "change the radius: larger on a plane
 /// cannot certify. Both verbs meter clearance (each on its own
 /// setbacks), so the sentence names the blend size, which is the
 /// fillet's radius or the chamfer's setback.
-pub const FILLET3_CLEARANCE_RECOURSE: &str =
-    "reduce the blend size, or enlarge the support face whose clearance is uncertified";
+pub const FILLET3_CLEARANCE_RECOURSE: &str = "reduce the blend size, or make room for the band: \
+     enlarge the support face it sets back on, or move a face it reaches clear of it";
 /// The clearance recourse when the two uncertified setbacks belong to
 /// two DIFFERENT requested chains — the request is then splittable:
 /// the screen meters both setbacks against the SOURCE face at once,
@@ -858,21 +921,15 @@ pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet
 /// `blend_recourse_followability::the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
-/// The recourse for a chain that is not G1 (closed) / not classified
-/// (open).
-///
-/// **The corner clause is scoped to EVERY terminating corner, and the
-/// scope is not decoration.** A corner left partly requested refuses as
-/// a run-out wherever it sits, so a request covering one corner's three
-/// edges is still refused — at the three corners those edges run to.
-/// Endorsing "every edge of the corner" named a door that cannot serve
-/// the caller who was just refused, which is the A3-2 defect. Held to
-/// it by
-/// `blend_recourse_followability::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
-/// which executes the one-corner request and the whole-body one
-/// together, so the hedge cannot drift from the door.
-pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain; split the request only at a \
-     genuine tangent break, and request every edge of EVERY corner the chain terminates at";
+/// The recourse for a chain that is not G1 where a curved link meets
+/// another — the one junction predicate 4 still refuses, a definite
+/// turn between two plane–plane links being two chain ends instead —
+/// and for an in-band reading at any junction. Held to it by
+/// `blend_recourse_followability::the_chain_recourse_is_followed_by_a_tangent_continuous_chain`,
+/// which follows it to a whole smooth rim that carves.
+pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected chain that is tangent-continuous \
+     wherever a curved link meets another, a whole smooth rim for instance; split the request \
+     only at a genuine tangent break";
 /// The recourse for a convexity sign flip along a chain.
 ///
 /// **No fixture in the followability suite reaches this sentence.**
@@ -885,29 +942,38 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous
 /// `blend_recourse_followability::the_convexity_recourse_has_no_witness_in_this_suite`.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
-/// The recourse for a corner the corner patch does not cover — it
-/// names the corner configurations that DO carve, and then the run-out
-/// front door that does not exist yet.
+/// The recourse for an end no band builds — it names the ends that DO
+/// carve, and of the residue the mitre, the one end a request can name
+/// that no band takes. "Whatever is requested" covers a vertex that
+/// mixes convexity: it ends no chain whether the request names one of
+/// its edges, two, or all three, because its configuration is read
+/// before the count. The run-outs' own details name their shapes.
 ///
-/// Its configuration clause ("of one convexity") is true of either
-/// verb and at either material side: the fully requested UNIFORM
-/// trivalent corner carves wherever the material lies (the rolling
-/// ball's octant rests inside the material or in the void with its
-/// ball; the flat patch never had a side), so the sentence conditions
-/// on the configuration and not on the verb or the side.
-///
-/// **What it DOES condition on is that every terminating corner is
-/// wholly requested**, which its sibling
-/// [`FILLET3_ASSEMBLY_RECOURSE`] already said and this one did not. The
-/// uniform configuration is necessary and not sufficient: the three
-/// edges at one all-convex cube corner terminate in exactly the
-/// endorsed vertex and still refuse — as a run-out, with this same
-/// sentence — at the corners they run to. Held to it by
-/// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
-/// beside the chain row that pins the partly-requested outcome.
-pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices of one \
-     convexity between planes, or in TRANSVERSE CAPS on a straight cylinder edge; general \
-     run-outs (an oblique or curved end face) are not implemented";
+/// The ends it names are true of either verb on either material side:
+/// the uniform trivalent vertex carves wherever the material lies (the
+/// rolling ball's octant rests inside the material or in the void with
+/// its ball; the flat patch and the cut-off never had a side), and of
+/// either band at any angle of its plane end face — a chord, a circle
+/// or an ellipse. It names the band's shape rather than either verb,
+/// being the shared arm both doors render. Held to it by
+/// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
+/// and `band_planar_cut_off`, which build each end it names.
+pub const FILLET3_CORNER_RECOURSE: &str = "end each chain at trivalent vertices of one convexity \
+     between planes, whatever is requested: all three edges, or the chain's edge alone, cut off in \
+     a plane end face; no mitre is built";
+/// The lever of `fillet3_cap_transverse`: its in-band arm is the one
+/// refusal, between the two kinds it builds, so the way out is either
+/// kind, plainly.
+pub const FILLET3_CAP_TILT_RECOURSE: &str = "square the end face to the edge, where the band ends \
+     in a circle, or tilt it clearly off square, where the band ends in an ellipse";
+/// The lever of the cut-off's ellipse ([`BlendDecision::CapEllipse`]):
+/// the ellipse's semi-axes differ by `r·(sec θ − 1) ≈ r·θ²/2`, so the
+/// tilt that clears the band's upper edge `e` is about `√(2e/r)`
+/// radians, and a larger radius clears it at a smaller tilt.
+pub const FILLET3_CAP_ELLIPSE_RECOURSE: &str = "tilt the end face further off square, until its \
+     ellipse's semi-axes r and r·sec θ differ by more than the band's upper edge e (a tilt θ past \
+     about √(2e/r) radians, which a larger radius lowers), or square it to the edge, where the \
+     band ends in a circle";
 /// The lever of `fillet3_corner_independence`, shared by its in-band
 /// arm and its decided-Zero one ([`CornerConfig::DependentNormals`]).
 ///
@@ -969,7 +1035,7 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// **And it names BOTH terminations the surgery carves.** A
 /// plane\u{2013}plane link ends at a uniform trivalent corner; a RULED link —
 /// a cylinder with a plane or another cylinder, along the ruling they
-/// share — ends at transverse caps, which is the OQ6 scope decision
+/// share — ends at plane caps, which is the OQ6 scope decision
 /// stated at the top of this module and what
 /// `sweep/tests/fillet_h7_transverse_cap.rs` carves on the rod with a
 /// flat. Naming only the first left the second endorsed by
@@ -1007,27 +1073,22 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// A merged flat top that is an ANNULUS carves through this clause:
 /// `ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both faces between fully requested trivalent \
-     plane\u{2013}plane corners of one convexity, or single cylinder-ruling links at TRANSVERSE \
-     CAPS. For a fillet, a whole latitude rim of coaxial surfaces of revolution carves, its \
-     rings clear of the band's setback; junction carry-through and run-outs are not \
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both faces, ending at trivalent \
+     plane\u{2013}plane vertices of one convexity, or single cylinder-ruling links at TRANSVERSE \
+     CAPS. For a fillet, a whole latitude rim of coaxial surfaces of revolution carves, its rings \
+     clear of the band's setback; junction carry-through and the other run-outs are not \
      implemented";
-/// The recourse for a BODY the surgery has not been built for. The
-/// surgery operates in place on one solid; multi-solid and shell-less
-/// bodies are a separate door.
-pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid with a single shell; blending across \
-     several solids at once is not implemented";
 /// The recourse for a stored geometry the surgery's closed forms do
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
 /// than approximating.
 ///
-/// **A caller reaches this at a support face's non-circular ring.**
-/// Cut a square pocket through a cube's top face and request the twelve
-/// OUTER edges: `ring_circle` refuses at each of the three radii the
-/// row samples, because the ring the pocket leaves is carried by
-/// lines. Witnessed by
-/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`,
+/// **A caller reaches this at a support face's ring of other
+/// carriers.** Cut a tilted bore through a cube's top face and request
+/// the twelve OUTER edges: the ring pass refuses at each radius the row
+/// samples, because the ring the bore leaves is an ellipse, and rings
+/// are read as lines and circles only. Witnessed by
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_an_elliptical_ring`,
 /// and followed to its build by
 /// `blend_recourse_followability::the_geometry_recourse_names_a_ring_and_an_order_that_builds`.
 ///
@@ -1045,8 +1106,8 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// so a sentence that only described the request endorsed exactly what
 /// the caller had already done (issue 1278's dead-recourse class).
 pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, for a fillet, spheres, cylinders and cones) \
-     whose edges are lines and circles \u{2014} a support face's own rings included, which \
-     must be circles; cut a feature that leaves any other ring AFTER the blend rather \
+     whose edges are lines and circles \u{2014} a support face's own rings included; cut a \
+     feature that leaves any other ring AFTER the blend rather \
      than before it";
 /// The recourse for a ring or edge in the part of a face the blend
 /// replaces — a support's strip between its edge and the trimline,
@@ -1131,10 +1192,9 @@ pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are bot
 ///
 /// | The branch reads | Variant |
 /// |---|---|
-/// | the body's solid/shell inventory | [`BlendError::UnsupportedBody`] |
 /// | a stored `Surface`, carrier or trimline | [`BlendError::UnsupportedGeometry`] |
-/// | a corner's own valence or convexity mix | [`BlendError::UnsupportedCorner`] |
-/// | which edges the REQUEST covers at a termination | [`BlendError::UnsupportedRunOut`] |
+/// | a termination's configuration: valence, convexity mix, how many of its edges the request names | [`BlendError::UnsupportedCorner`] |
+/// | the shape of a termination whose configuration is built | [`BlendError::UnsupportedRunOut`] |
 /// | any other property of the chain or how it sits on its supports | [`BlendError::UnsupportedChain`] |
 #[derive(Clone, Debug)]
 pub enum BlendError {
@@ -1193,7 +1253,9 @@ pub enum BlendError {
         margin: ClassifiedMargin,
         /// The straight-line gap between the two boundary features,
         /// meters — the MEASUREMENT, in the shape its scalar reports
-        /// readings in. Nothing classified it (it is stated as a fact
+        /// readings in. From the surgery's planar strip meter, the
+        /// screen's closed form, it is the margin plus the setback: how
+        /// far the edge clears the requested edge in the strip's frame. Nothing classified it (it is stated as a fact
         /// beside the margin that WAS classified), so it carries no
         /// predicate and no sign; at the interval scalar it is the
         /// enclosure the measurement produced, never one end of it.
@@ -1206,6 +1268,28 @@ pub enum BlendError {
         /// names that split (#935's boundary; pinned followably by
         /// `blend_tworims::colliding_bands_on_a_shared_wall_refuse_upfront`).
         cross_chain: bool,
+    },
+    /// **Predicate 2's reach**: a face that is not a support of the
+    /// chain lies in the band's material — what a convex band removes,
+    /// what a concave one adds — or could not be certified clear of it
+    /// (`blend::reach`).
+    FaceClearance {
+        /// The face the band reaches; or, where what it reaches is the
+        /// band of another chain of the request (which has no face yet),
+        /// that chain's first edge.
+        at: EntityId,
+        /// The convexity of the chain whose band reaches it: which of
+        /// the two things the band does to the material there.
+        chain: Convexity,
+        /// The clearance in meters, as `fillet3_face_clearance`
+        /// classified it: the depth of a point of the face's boundary
+        /// inside the band's material, or a lower bound on the face's
+        /// clearance from a region enclosing it, as `bounded` says.
+        margin: ClassifiedMargin,
+        /// Whether `margin` is a BOUND: the face could not be certified
+        /// clear, which says only that — not that it reaches the band's
+        /// material.
+        bounded: bool,
     },
     /// **Predicate 5, the undecided wedge**: the dihedral's signed
     /// margin decided Zero, so there is no definite wedge side for a
@@ -1233,8 +1317,10 @@ pub enum BlendError {
         /// [`BlendError::RadiusHeadroom`]'s `radius` is.
         radius: f64,
     },
-    /// **Predicate 4**: consecutive links do not meet tangentially, so
-    /// no constant-radius spine runs through the junction.
+    /// **Predicate 4**: consecutive links do not meet tangentially at a
+    /// junction that involves a curved link, so no constant-radius spine
+    /// runs through it. (Between two plane–plane links a definite turn
+    /// is not this refusal: the chain breaks there into two ends.)
     ChainNotG1 {
         /// The junction vertex.
         vertex: VertexKey,
@@ -1289,9 +1375,8 @@ pub enum BlendError {
         /// definitely-classified link.
         chain: Convexity,
     },
-    /// **Predicate 6** and the OQ6 refusal vocabulary: the corner
-    /// configuration at a chain termination is not the sphere-octant
-    /// case.
+    /// **Predicate 6** and the OQ6 refusal vocabulary: the
+    /// configuration at a chain termination is not one a band builds.
     UnsupportedCorner {
         /// The vertex whose configuration is out of scope.
         vertex: VertexKey,
@@ -1369,15 +1454,6 @@ pub enum BlendError {
         /// straddling or poisoned enclosure reports the end that fails.
         size: f64,
     },
-    /// **Frontier** (D2 addendum row 2): the body is a shape the
-    /// in-place surgery has not been built for. Valid input, unbuilt
-    /// door.
-    UnsupportedBody {
-        /// How many solids the body holds.
-        solids: usize,
-        /// How many shells the body holds.
-        shells: usize,
-    },
     /// **Frontier** (D2 addendum row 2): a property of the requested
     /// CHAIN puts it outside the built door.
     ///
@@ -1399,26 +1475,23 @@ pub enum BlendError {
         /// Which chain shape is not built.
         detail: &'static str,
     },
-    /// **Frontier** (D2 addendum row 2): the REQUEST does not cover a
-    /// chain termination the way the corner assembly needs (the
-    /// fillet's sphere octant or the chamfer's flat patch, one
-    /// admission door) — a run-out.
+    /// **Frontier** (D2 addendum row 2): a chain ends at a
+    /// configuration a band builds, but in a shape its end does not —
+    /// a run-out: a curved end face, a foot off its rim's span (inside a
+    /// face rather than on the end face's rim), two cut-offs' feet that
+    /// cross on one shared rim.
     ///
     /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
-    /// which is the OQ6 vocabulary for what a corner's own
-    /// CONFIGURATION is (valence, convexity mix) and which every such
-    /// refusal here does use. A corner whose shape is exactly the
-    /// supported one, with only some of its edges requested, has no
-    /// [`CornerConfig`] arm: the only ones that fit are the uniform
-    /// trihedron tags, which render as configurations that ARE built.
-    /// Minting an arm for it would extend
-    /// a vocabulary decided at #85, which is a design change rather
-    /// than an execution.
+    /// which is the OQ6 vocabulary for what a vertex's own
+    /// CONFIGURATION is (valence, convexity mix, how many of its edges
+    /// the request names). The vertex here is already the supported
+    /// configuration, so the only tags that fit render as ones that ARE
+    /// built; `detail` names the shape instead.
     UnsupportedRunOut {
-        /// Where the request's coverage ran out — the terminating
-        /// vertex, or the boundary edge that is not requested.
+        /// Where the end ran out — the terminating vertex, or the
+        /// entity whose shape the end does not build.
         at: EntityId,
-        /// What the request does not cover.
+        /// The shape that is not built.
         detail: &'static str,
     },
     /// **Frontier** (D2 addendum row 2): a stored carrier, trimline or
@@ -1434,9 +1507,12 @@ pub enum BlendError {
     /// **The body handed to the surgery does not hold together where
     /// the plan read it** (D2 addendum row 1): a stored reference that
     /// did not resolve, a cycle that did not close, or a verdict whose
-    /// keys disagree with the body's own structure. This is not a
-    /// blend frontier and carries no recourse — the input is
-    /// invalid, and the surgery refuses rather than building on it.
+    /// keys disagree with the body's own structure — among them a
+    /// requested chain or corner bounded by faces of two shells, which
+    /// tier 1 rules out (`EdgeAcrossShells`, one orbit per vertex).
+    /// This is not a blend frontier and carries no recourse — the
+    /// input is invalid, and the surgery refuses rather than building
+    /// on it.
     BodyNotIntact {
         /// The entity the plan was reading.
         at: EntityId,
@@ -1474,8 +1550,8 @@ pub enum BlendError {
     /// (`fillet3_ring_clearance`): a ring of a support face sits
     /// within (or in band of) a blend trimline, so splitting the face
     /// along that trimline would consume the ring's feature instead
-    /// of carrying it through — or an edge of a transverse cap that a
-    /// convex ruled cut-off leaves on it (an edge of a ring, or of the
+    /// of carrying it through — or an edge of an end face that a
+    /// cut-off leaves on it (an edge of a ring, or of the
     /// cycle the cut runs in other than the two rims it shortens) is
     /// not definitely clear of a region enclosing the sliver the cut
     /// removes, so the cut would cross it or leave it outside the
@@ -1588,6 +1664,31 @@ impl fmt::Display for BlendError {
                     BlendDecision::FaceClearance.recourse_with(lever, margin.arm())
                 )
             }
+            Self::FaceClearance {
+                at,
+                margin,
+                chain,
+                bounded,
+            } => {
+                let what = match chain {
+                    Convexity::Convex => "removes",
+                    Convexity::Concave => "adds",
+                };
+                let how = if *bounded {
+                    "cannot be certified clear of"
+                } else {
+                    "lies in"
+                };
+                let whom = match at {
+                    EntityId::Edge(_) => "the band of another chain of the request",
+                    _ => "a face the blend does not round",
+                };
+                write!(
+                    f,
+                    "{whom} {how} the material its band {what} ({margin}). {}",
+                    BlendDecision::FaceClearance.recourse(margin.arm())
+                )
+            }
             Self::TangentialEdge { margin, .. } => write!(
                 f,
                 "an edge's supports meet tangentially, so its dihedral has no definite \
@@ -1668,11 +1769,6 @@ impl fmt::Display for BlendError {
                 "the band size {size} m is not definitely positive. Recourse: supply a \
                  positive radius or setback"
             ),
-            Self::UnsupportedBody { solids, shells } => write!(
-                f,
-                "the body is {solids} solid(s) and {shells} shell(s), not one solid \
-                 with one shell. Recourse: {FILLET3_BODY_RECOURSE}"
-            ),
             Self::UnsupportedChain { detail, .. } => {
                 write!(f, "{detail}. Recourse: {FILLET3_ASSEMBLY_RECOURSE}")
             }
@@ -1737,7 +1833,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 17] = [
+pub const ALL_RECOURSES: [(&str, &str); 18] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
@@ -1748,9 +1844,10 @@ pub const ALL_RECOURSES: [(&str, &str); 17] = [
     ("convexity", FILLET3_CONVEXITY_RECOURSE),
     ("corner", FILLET3_CORNER_RECOURSE),
     ("corner-independence", FILLET3_CORNER_INDEPENDENCE_RECOURSE),
+    ("cap-tilt", FILLET3_CAP_TILT_RECOURSE),
+    ("cap-ellipse", FILLET3_CAP_ELLIPSE_RECOURSE),
     ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
     ("assembly", FILLET3_ASSEMBLY_RECOURSE),
-    ("body", FILLET3_BODY_RECOURSE),
     ("geometry", FILLET3_GEOMETRY_RECOURSE),
     ("ring", FILLET3_RING_RECOURSE),
     ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
@@ -1766,7 +1863,7 @@ mod recourse_tests {
 
     use super::{
         BlendDecision, BlendError, BlendSite, CHAMFER_ARM_RECOURSE, ClassifiedMargin, Convexity,
-        CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
+        CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
         FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
@@ -1833,6 +1930,7 @@ mod recourse_tests {
                     FILLET3_CLEARANCE_RECOURSE
                 })
             }
+            BlendError::FaceClearance { .. } => Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE),
             BlendError::TangentialEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
             BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
             BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
@@ -1842,7 +1940,6 @@ mod recourse_tests {
             BlendError::ChamferArmUnsupported { .. } => Recourse::Exactly(CHAMFER_ARM_RECOURSE),
             BlendError::Escalated { decision, .. } => Recourse::Exactly(decision.lever()),
             // The surgery's own frontiers (D2 addendum row 2).
-            BlendError::UnsupportedBody { .. } => Recourse::Exactly(FILLET3_BODY_RECOURSE),
             BlendError::UnsupportedChain { .. } => Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE),
             BlendError::UnsupportedRunOut { .. } => Recourse::Exactly(FILLET3_CORNER_RECOURSE),
             BlendError::UnsupportedGeometry { .. } => Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE),
@@ -1907,6 +2004,18 @@ mod recourse_tests {
                 gap: MarginDiag::value(0.2),
                 cross_chain: true,
             },
+            BlendError::FaceClearance {
+                at: EntityId::Face(FaceKey::default()),
+                chain: Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: false,
+            },
+            BlendError::FaceClearance {
+                at: EntityId::Face(FaceKey::default()),
+                chain: Convexity::Concave,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: true,
+            },
             BlendError::TangentialEdge {
                 edge: EdgeKey::default(),
                 margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
@@ -1952,10 +2061,6 @@ mod recourse_tests {
                 edge: EdgeKey::default(),
             },
             BlendError::NonpositiveSize { size: 0.0 },
-            BlendError::UnsupportedBody {
-                solids: 2,
-                shells: 2,
-            },
             BlendError::UnsupportedChain {
                 edge: EdgeKey::default(),
                 detail: "a chain shape that is not built",
@@ -2034,7 +2139,8 @@ mod recourse_tests {
             CornerConfig::MixedConvexity { convex: 1 },
             CornerConfig::DependentNormals,
             CornerConfig::SeamVertex,
-            CornerConfig::TransverseCap,
+            CornerConfig::EndFace,
+            CornerConfig::Turn,
             CornerConfig::Indeterminate,
         ] {
             assert_eq!(

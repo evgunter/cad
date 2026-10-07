@@ -4,14 +4,18 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 use sweep::ExtrudeSide;
 
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Point3, Tol};
 use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey};
 
+use crate::common::stations::cut_stations;
+
 /// `[0,w]×[0,2]` prism of height 2, bottom side split at `bottom`,
 /// top side split at `top` (x positions, descending order on the top
-/// as walked), merged.
+/// as walked), merged. The sweep carries each side as one rim edge per
+/// cap, so the splits are cut into the rims by hand
+/// (`common::stations`).
 fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
     let xs: Vec<f64> = bottom.iter().copied().chain([w]).collect();
     let mut b = Open
@@ -40,7 +44,7 @@ fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
     let v = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
         .unwrap();
-    let mut body = extrude(
+    let ex = extrude(
         &v,
         Extrusion::Distance {
             depth: 2.0,
@@ -48,8 +52,19 @@ fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
         },
         t,
     )
-    .unwrap()
-    .body;
+    .unwrap();
+    let mut body = ex.body;
+    for wall in &ex.walls[0] {
+        let (y, xs) = match wall.segments[0] {
+            0 => (0.0, bottom),
+            s if s == bottom.len() + 2 => (2.0, top),
+            _ => continue,
+        };
+        for (rim, z) in [(wall.bottom_rim, 0.0), (wall.top_rim, 2.0)] {
+            let at: Vec<_> = xs.iter().map(|&x| Point3::new(x, y, z)).collect();
+            body = cut_stations(body, rim, &at, t);
+        }
+    }
     body.merge_coplanar_faces(t).unwrap();
     body
 }

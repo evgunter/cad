@@ -2,9 +2,12 @@
 id: kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale
 kind: issue
 title: kev_describing leaves a listed certified member's rows on its far face spanning the interval its ends moved from
-status: open
+status: closed
+pr: 4105
+branch: topo/kev-describing-remints-certified
 opened: 2026-10-04
 priority: P3
+closed: 2026-10-06
 ---
 
 
@@ -80,3 +83,30 @@ A `debug_assert!` that a kept image's interval is its edge's
 added: this row is a reachable state in which the two differ, so the
 assertion would panic a debug build where the posture hands the state
 to tier 3. Closing this row makes it sound.
+
+## Closed
+
+The first closing option. `Body::kev_describing` plans the site mint
+over every face a listed member's halves are on, a certified member's
+as well as a null one's (`Body::description_rows`, `attach.rs`, which
+`Body::set_edge_curve` now shares), each face as the kill leaves it with
+every listed member's halves under the curve the kill installs. A
+certified member's face on a spline chart is left as found, for tier
+3. `kev_released_rows` leaves every face so planned to that plan
+(`Body::description_remints`). `staleness_posture`'s `Completes`
+declaration for `kev_describing` says so.
+
+Witnesses (`crates/topo/tests/euler_site_pcurve_rows.rs`):
+`a_kill_that_re_describes_a_certified_member_re_mints_its_far_face`
+(probe P3; at the merge base tier 3 read `MissingCache` and
+`LoopDiscontinuity` on the seed face's bottom rim and `RowInterval` on
+the member's far half), `a_kev_mirror_re_mints_the_member_it_re_describes`
+(the near-face pin, now asserting the pass's rows), and
+`a_strut_after_a_kev_mirror_keeps_the_re_minted_rows`.
+
+The `debug_assert!` PR 4039 considered is **not** added: it fires on
+a reachable state that `set_edge_curve`'s keep posture leaves (a
+certified edge re-parameterized, then a strut on its face), filed as
+`work/topo/set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization`
+with the recipe and the assertion's spelling. The `topo`/`sweep` suites
+and every `join*` battery did not fire it.

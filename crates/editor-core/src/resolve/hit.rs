@@ -82,7 +82,7 @@ impl UnnamedEntity {
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
     /// reads an evaluation alone, so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -201,24 +201,36 @@ impl crate::spoken::Say for HitTestError {
                  is read against are of two documents"
             ),
             Self::Ambiguous { hits } => {
-                write!(
-                    f,
-                    "hit test: the ray is tied between {} faces the arithmetic cannot order — ",
-                    hits.len()
-                )?;
-                // The ordinal is what ties each phrase to its entry
-                // in `hits`, where the role path two faces of one node
-                // differ by IS carried.
-                for (i, hit) in hits.iter().enumerate() {
+                f.write_str("hit test: the ray is tied between ")?;
+                // A name does not say the node holding it, so two copies
+                // of one body hold names alike: then each face is said
+                // with the node it was hit on.
+                let said: Vec<String> = hits
+                    .iter()
+                    .map(|hit| by.name(&hit.name).to_string())
+                    .collect();
+                let alike = said
+                    .iter()
+                    .enumerate()
+                    .any(|(i, one)| said[i + 1..].contains(one));
+                for (i, (hit, words)) in hits.iter().zip(&said).enumerate() {
                     if i > 0 {
-                        f.write_str(", ")?;
+                        f.write_str(if i + 1 == hits.len() { " and " } else { ", " })?;
                     }
-                    write!(f, "({}) {}", i + 1, by.name(&hit.name))?;
+                    f.write_str(words)?;
+                    if alike {
+                        write!(f, " on {}", by.node(hit.node))?;
+                    }
                 }
                 write!(
                     f,
-                    " — so the pick names none of them; aim away from the shared edge, or \
-                     choose one of the tied faces, which this refusal lists in full"
+                    ", so the pick names {}. {}",
+                    if hits.len() == 2 {
+                        "neither"
+                    } else {
+                        "none of them"
+                    },
+                    crate::sentence::Recourse("aim away from the shared edge, or pick one of them")
                 )
             }
             Self::Unnamed(unnamed) => {
@@ -227,9 +239,10 @@ impl crate::spoken::Say for HitTestError {
             Self::AcrossSpaces { group, cause } => write!(
                 f,
                 "hit test: the targets live in different spaces — one is in the own space of the \
-                 group rooted at {}, unplaced because {cause}, and nothing outside an \
+                 group rooted at {}, unplaced because {}, and nothing outside an \
                  unplaced group is ordered against it. {}",
                 by.node(*group),
+                crate::spoken::Said(cause, by),
                 crate::sentence::Recourse("pick each space by itself, or place the group")
             ),
         }
@@ -245,11 +258,17 @@ impl core::fmt::Display for HitTestError {
 
 impl HitTestError {
     /// **The refusal as the frame holding the evaluated document says it**:
-    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
-    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]), each
+    /// name within the table `evaluation` holds it in
+    /// ([`crate::Speaker::within`]). The door reads an evaluation alone,
+    /// so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
-        crate::spoken::spoken_by(self, doc)
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        crate::spoken::spoken_within(self, doc, evaluation)
     }
 }
 

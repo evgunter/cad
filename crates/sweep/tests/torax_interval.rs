@@ -53,6 +53,7 @@ use topo::{Body, ShellError, ValidationError};
 
 use crate::common::charts::hollow_moves;
 use crate::common::interval::{iv, p2, v2};
+use sweep::test_support::finished;
 
 /// The tour's own wall thickness, the one `torax_axial` hollows by.
 const T: f64 = 1.0 / 128.0;
@@ -137,7 +138,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
         "the barrel's wall is a torus at this scalar too"
     );
 
-    let hollow = match topo::shell(&body, iv(T), tol) {
+    let hollow = match topo::shell(&finished("the operand", body.clone(), tol), iv(T), tol) {
         Ok(hollow) => hollow.body,
         Err(ShellError::NotValid { errors }) if tol.eps() < DEFAULT_EPS => {
             let [ValidationError::SliverDihedral { edge, check, cause }] = errors.as_slice() else {
@@ -291,15 +292,27 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     let band = geom_core::Band::linear(tol).expect("band");
     match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
         Ok(()) => {}
-        // The closing mint walks the lens face's general-circle rims
-        // too, and at a tight band its loop-continuity joint escalates
-        // the same way — an enclosure as wide as the offset's widened
-        // data, straddling the band.
+        // The closing mint certifies the lens face's general-circle
+        // rims too, and at a tight band a fitted rim row's own map
+        // residual escalates the same way — an enclosure as wide as the
+        // offset's widened data, straddling the band
+        // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
         Err(
-            source @ (topo::ReplaceFaceError::Escalated { .. }
-            | topo::ReplaceFaceError::Pcurve {
-                source: topo::pcurves::PcurveMintError::Escalated { .. },
-            }),
+            source @ topo::ReplaceFaceError::Pcurve {
+                source:
+                    topo::pcurves::PcurveMintError::Certify {
+                        error:
+                            geom_brep::PcurveCertifyError::Escalated {
+                                cause:
+                                    geom_core::Indeterminate {
+                                        predicate: Some("pcurve_map_residual"),
+                                        ..
+                                    },
+                                ..
+                            },
+                        ..
+                    },
+            },
         ) if tol.eps() < DEFAULT_EPS => {
             stood_down(
                 &format!("the sphere lune's interval rim, eps = {:e}", tol.eps()),
@@ -321,7 +334,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 
 /// **The klein elbow at `T = Interval`**: the carried-datum arm, the
 /// kind-changing spiric mint (its six `decide` sites), both endpoint
-/// meters, the rim window's forward read (`offset_axial_rim_window`)
+/// meters, the rim window's forward read (`offset_axial_edge_window`)
 /// and the equator seams' re-author — each end's out-of-plane decide
 /// and the turned start's verification — execute at the certified
 /// scalar on the way to the door f64 measures: tier 3's check 7,
@@ -356,7 +369,8 @@ fn interval_the_klein_elbow_hollows_to_the_props_door() {
     )
     .expect("the elbow revolves")
     .body;
-    let e = topo::shell(&body, iv(0.05), tol).expect_err("check 7's volume");
+    let e = topo::shell(&finished("the operand", body.clone(), tol), iv(0.05), tol)
+        .expect_err("check 7's volume");
     match e {
         ShellError::NotValid { ref errors }
             if matches!(

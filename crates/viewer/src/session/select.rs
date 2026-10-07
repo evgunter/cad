@@ -255,6 +255,22 @@ impl Selection {
         }
     }
 
+    /// **The nodes this selection names**: the node itself, or for a
+    /// picked entity the node that minted its name, the feature that
+    /// made the entity ([`FaceSelection::feature`]) — a different node
+    /// where the name was carried — and the node whose body was hit.
+    /// The session keeps them spoken as the selection is made
+    /// (`DocSession::selection_said`), so a sentence about a selection
+    /// whose node was deleted since says the last label it had.
+    pub fn nodes(&self) -> Vec<RecipeNodeId> {
+        match self {
+            Self::Node(id) => vec![*id],
+            Self::Face(face) => vec![face.name.node, face.feature(), face.node],
+            Self::Edge(edge) => vec![edge.name.node, edge.feature(), edge.node],
+            Self::None | Self::Param(_) => Vec::new(),
+        }
+    }
+
     /// The selected entity's stable name, when the selection is a
     /// picked entity — the one question the resolution check asks that
     /// does not care which kind was picked.

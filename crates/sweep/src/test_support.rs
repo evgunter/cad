@@ -132,6 +132,7 @@ use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, LoopBoundary};
 use crate::blend::BlendKind;
 use crate::blend::battery::{BlendRequest, Chain, Link, resolve_link, run_battery, walk_chains};
 use crate::blend::build::Blended;
+pub use crate::blend::reach::band_reach_for_tests as band_reach;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
 use crate::skin::{Section, segment_curve};
 use crate::{Extrusion, Lofted, SketchSegment, extrude, sweep_body};
@@ -2030,9 +2031,24 @@ pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f
     .into_body()
 }
 
+/// The bulged vertices of an OPEN run of `k` equal arcs of the circle
+/// of radius `r` about `c`, from azimuth `a0` turning `total` (signed,
+/// counter-clockwise positive), and its end vertex with bulge 0 — a
+/// chain to close with straight legs ([`profile::test_support::bulge_loop`]).
+#[must_use]
+pub fn arc_run(c: Point2<f64>, r: f64, a0: f64, total: f64, k: usize) -> Vec<(Point2<f64>, f64)> {
+    let bulge = (total / (4.0 * k as f64)).tan();
+    let at = |a: f64| Point2::new(c.x + r * a.cos(), c.y + r * a.sin());
+    (0..k)
+        .map(|i| (at(a0 + total * i as f64 / k as f64), bulge))
+        .chain(core::iter::once((at(a0 + total), 0.0)))
+        .collect()
+}
+
 /// The `n` bulged vertices of a circle of radius `r` about `c`,
 /// authored as `n` equal arcs starting at azimuth 0.
-fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
+#[must_use]
+pub fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
     assert!(n >= 2, "a closed loop of arcs needs at least two vertices");
     let bulge = (core::f64::consts::PI / (2.0 * n as f64)).tan();
     (0..n)
@@ -2110,10 +2126,35 @@ pub fn walked_chains(
     size: f64,
     band: Band,
 ) -> Vec<Chain<f64>> {
-    let links = edges
+    walked_links(resolved_links(body, edges, size, band))
+}
+
+/// **`edges` resolved as fillet links of `size`**, in request order —
+/// [`walked_chains`]' first half, for a suite that edits a link's
+/// incidence before walking it ([`walked_links`]).
+///
+/// # Panics
+///
+/// If an edge does not resolve to a link.
+#[must_use]
+pub fn resolved_links(
+    body: &Body<f64>,
+    edges: &[EdgeKey],
+    size: f64,
+    band: Band,
+) -> Vec<Link<f64>> {
+    edges
         .iter()
         .map(|&e| resolve_link(body, e, size, band, BlendKind::Fillet))
         .collect::<Result<Vec<_>, _>>()
-        .unwrap_or_else(|e| panic!("every requested edge resolves to a link, got {e}"));
+        .unwrap_or_else(|e| panic!("every requested edge resolves to a link, got {e}"))
+}
+
+/// **The battery's walk over `links` as given** — the incidence a
+/// suite hands in, which no body need carry. The walk reads a link's
+/// `start` and `end` and nothing else, so a row can state an incidence
+/// no door builds yet.
+#[must_use]
+pub fn walked_links(links: Vec<Link<f64>>) -> Vec<Chain<f64>> {
     walk_chains(links)
 }

@@ -533,6 +533,12 @@ time, so it goes to designer round 6 and may go to Ev. #3527 waits.
 
 - 2026-10-01 — 5a (#3527): Ev approved ("looks good!") D1's consistency sentence, rewritten as the principle at Ev's request: each condition is checked at validate or holds by construction, and none is decided twice. The specifics (tables against `ConstructedLoop`, scene resolution, exact and point scalars) live in `crates/profile/README.md`, "Where an arc's consistency is decided". Fork row 35 is filled (it was 21, then 33, then 34, as merges with main renumbered it; no row on main was renumbered). The dual review at `262f0d380` had one bilateral MAJOR (the copied-carrier abort), fixed; the DR row is the PR's last commit.
 
+- 2026-10-02 — 5a merged (#3527, merge `44b64db0b`) after five main merges. The main-red rows met on the way were left to their filed owners: `reach_volume_backstop` off the default ε, the `bounds_census` roster, and the ignored pad-at-both-dials row. 5b (`store-constructed-carriers`) dispatched on `claude/clever-bardeen-4itqb3`, restarted from main (Ev allowed the branch move).
+
+- 2026-10-02 — 5b forks (#3774), ruled by the orchestrator under #3453 ("the construction registers"):
+  - the fillet keeps its offset centre and registers the tangency facts it proves;
+  - the tangent arc keeps the algebraic X and registers what Sym cannot close;
+  - `sweep-arclen-legs-fold-an-over-full-angle` folds into 5b, so the authored angle is stored after its refusal.
 - 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
 - 2026-10-02 — The sketch plane is its frame (#3775): Ev approved ("sounds good! deleting SketchPlane and just using orthoframe directly could also work. either is fine"). Fork row 43 is filled. The implementation is `the-sketch-plane-is-its-frame`, parked on 5b. It keeps the newtype unless the wrapper turns out to earn nothing.
 
@@ -579,3 +585,56 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — seam note from SHELL: demos red on main
+
+SHELL filed `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0, E) on this slate. `demo-tour`'s klein findings pin 10 says it retired, and the certified-cells header moved. #3774 is the likely cause. Every PR that runs the demos job inherits the red.
+## 2026-10-06 — the sketch plane waits on D10 too
+
+`the-sketch-plane-is-its-frame` now also waits on `d10-one-way-to-say-intent-is-unbuilt`, because a sketch plane is a placement and so falls under the D10 hold. It stays parked on `store-constructed-carriers` as well.
+
+- 2026-10-06 — D10 and the lattice's `.tangent()`. Ev: "the refactor is likely to change the details of how `.tangent()` works under the hood, but the api will likely stay similar".
+  - Read: units on how segments are stored (3, 4, 6) and the storage P0s may start under the hold.
+  - A unit that reworks how declared tangent joints are recorded or verified waits for D10's build, as the sketch plane does.
+
+- 2026-10-06 — 5b merged (#3774, `33e5000fb`; DR-88). Unit 3 (`one-segment-loop-through-builders`) dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
+  - D10 check: it changes how a closed loop is stored and swept, not intent or placement, so it may start under the hold.
+  - Review tier: dual. It is new topology (one periodic wall with a seam strut), where a wrong body ships silently.
+## 2026-10-06 — PR 3774 fired the klein tour's tripwire on main
+
+PR 3774 ("constructions store the carriers they build") retired the
+klein scene's findings entry 10, the outer-wall radius that drifted
+because the revolve rebuilt it from swept endpoints. The two
+outer-wall cylinders now carry the one authored radius.
+`demos/tour/src/klein.rs` pinned that drift and was written to panic
+when it retired. PR 3774's own CI skipped the demos job (change
+filter), so the tripwire fired on main instead, and every tour
+`eps_regression` row was red there. CLEAVE PR 4083, which seeds the
+demos job, met it and ported the retirement the tripwire prescribed:
+it deleted entry 10 and its pin, renumbered entries 11 and 12 and their
+citations, and noted under the "same cylinder, four ways" entry that the
+two outer walls share the authored radius. The scene itself was right
+and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
+- 2026-10-06 — From FUSE: demo-tour's Klein pin (`klein.rs:876`,
+  findings entry 10) fires on main at every `eps_regression` row since
+  PR 3774 (PATHS 5b). The FUSE 3953 lane bisected it. Filed as
+  `work/paths/a-klein-wall-radius-pin-fires-on-main-since-paths-5b.md`
+  (P0): the pin's own text says the entry has retired. Every PR that
+  merges main is red on the `demos` job until it is resolved.
+
+- 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.
+
+- 2026-10-06 — Red on main at ε = 1e-6 since #4169 (`252db21ff`): `one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does` held a curved-cut quadrature midpoint (7.3e-6 off, pad 1.3e-3) to a fixed 1e-9. #4205 checks the certified bracket instead. The sibling checks are filed as `work/quad/sweep-tests-hold-quadrature-midpoints-to-fixed-tolerances.md`.
+## 2026-10-06 — seam note from CARVE: main is red on a PATHS row at ε = 1e-6
+
+`crates/sweep/tests/one_segment_loop.rs`
+`a_split_through_the_seam_builds_as_the_two_arc_form_does` fails at
+`CAD_TOLERANCE_EPS=1e-6`, with volume `3.1415853098901643` against π.
+CARVE's surface-pair lane (PR 4189) found it, and it reproduces on
+`origin/main` `3f3378808`. It came with PR 4169 (`0aad1a1b9`,
+`3bfd6a9b0`). The per-PR gate runs the 1e-6 row only for a diff
+touching `sweep`. CARVE's open PRs touch `sweep`, so they will show it
+red until PATHS fixes it, and CARVE merges them over it with this as
+the reason.
+
+Signed: (CARVE orchestrator)

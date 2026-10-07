@@ -107,6 +107,26 @@ pub struct EdgeBlend<T: Real> {
     pub trim_b: (Curve3<T>, T),
 }
 
+/// One support's trimline and the setback to it, as [`EdgeBlend`]
+/// stores them.
+pub(crate) type Trim<T> = (Curve3<T>, T);
+
+impl<T: Real> EdgeBlend<T> {
+    /// **The trim on one support, then the other's**: the FIRST
+    /// support's (`trim_a`) first when `first_is_a`, else the second's.
+    /// Callers name the support by FACE (`first_is_a = link.face_a ==
+    /// face`), never by slot: `face_a` is whichever support carries
+    /// `he_plus`, which the request does not choose. The one home of
+    /// that selection.
+    pub(crate) fn trims(&self, first_is_a: bool) -> (&Trim<T>, &Trim<T>) {
+        if first_is_a {
+            (&self.trim_a, &self.trim_b)
+        } else {
+            (&self.trim_b, &self.trim_a)
+        }
+    }
+}
+
 /// The corner ball of a uniform trihedral vertex: a sphere patch (the
 /// spherical triangle bounded by the three contact circles with the
 /// three incident edge cylinders), resting inside the material at a
@@ -174,7 +194,7 @@ pub enum BlendArm {
     CylinderCylinderCylinder,
     /// Cylinder and a plane containing its axis direction, meeting
     /// along a ruling → cylinder patch, straight spine. Carved between
-    /// transverse caps exactly as the row above.
+    /// plane caps exactly as the row above.
     CylinderPlaneCylinder,
 }
 
@@ -189,7 +209,7 @@ impl BlendArm {
 
     /// Whether this arm is a RULED one — a cylinder band about a
     /// straight spine over curved supports sharing the ruling, whose
-    /// open chain terminates in transverse caps rather than corners.
+    /// open chain terminates in plane caps rather than corners.
     #[must_use]
     pub fn is_ruled(self) -> bool {
         matches!(
@@ -622,7 +642,7 @@ impl<T: Real> SupportTrace<T> {
 /// predicate 3 saturates and cannot see it; there the poisoned centre
 /// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
 /// arrives one step later — at the certification of the band the
-/// open-chain surgery mints between the link's transverse caps.
+/// open-chain surgery mints between the link's plane caps.
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,

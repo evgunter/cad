@@ -71,6 +71,8 @@ mod geom_origin_import_arm;
 mod halfcap_pole;
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
+#[path = "lamina_annulus_round_trip.rs"]
+mod lamina_annulus_round_trip;
 #[path = "meridian_free_cap.rs"]
 mod meridian_free_cap;
 #[path = "mesh8r2_probes.rs"]

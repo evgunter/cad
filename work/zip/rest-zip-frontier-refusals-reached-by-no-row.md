@@ -1,20 +1,24 @@
 ---
 id: rest-zip-frontier-refusals-reached-by-no-row
 kind: issue
-title: "zip: none of the rest zip's fifteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured"
-status: open
+title: zip: none of the rest zip's fifteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured
+status: parked
 opened: 2026-10-01
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## Finding
 
 `topo::RestZipFrontier` (`crates/topo/src/boolean/refusal_routes.rs`)
 names fifteen sub-frontiers the declared-REST zip
-(`crates/topo/src/boolean/rest.rs`) refuses at. One is reached by an
-end-to-end fixture: `ChordBetweenIsolatedPierces`
-(`crates/topo/tests/seat3_flush_detector.rs`). The other fourteen are
+(`crates/topo/src/boolean/rest.rs`) refuses at; there are eighteen
+now (the sections below). When this was filed, one was reached by an
+end-to-end fixture, `ChordBetweenIsolatedPierces`
+(`crates/topo/tests/seat3_flush_detector.rs`). That fixture builds in
+the chord join today, and the census at the end of this file says
+which sub-frontiers a row reaches. The other fourteen were
 constructed only as values, by the refusal-text rows in
 `boolean/mod.rs` (`every_rest_zip_frontier_ends_in_its_own_lever_and_no_declaration`
 and the display table), which assert their wording and reach none of
@@ -123,3 +127,56 @@ by instrumenting the takes; no row asserts it. Since the lane refuses a
 pinch apex at its correspondence (`PinchApex`), this pose refuses there
 in both orders, before any chord is minted, so it no longer reaches
 `ChordEndpointRevisited` either; a pose without a pinch has to be found.
+
+## Census on main (2026-10-06)
+
+Measured on `origin/main` 3f1e3b0d with every exit of the declared-REST
+door logged (a lane-private probe on `zip/chord-probe`). The runs: the
+topo, sweep and editor-core suites (7278 rows), and the 17 ignored rows
+of the REST-lane probe files (`join1_delta2_harness`, `join_rc_probes`,
+`join1_delta_probes`, `pi_seam_and_kiss_through_the_boolean`,
+`join2_r2_probes`, `verbs_shell`).
+
+**Reached by a row.** Two of the eighteen sub-frontiers:
+- `SegmentsBetweenIsolatedPierces`, by `join2_r2_probes`'s
+  `an_island_of_ring_vertex_segments_refuses_at_the_zip_frontier`
+  (2 ops), and by the ignored `join2_r2_island_through_the_zip`
+  (16 ops);
+- `PinchApex`, by `rest_nested_strut`'s
+  `a_pinch_apex_meeting_one_vertex_refuses_as_the_frontier_in_either_order`
+  (2 ops).
+
+**The rest of what the runs did.**
+- In the suites, 95 ops enter the zip. 91 build, and the 4 that refuse
+  are the two refusals above.
+- In the ignored rows, 300 ops enter it. 282 build, 16 refuse
+  `SegmentsBetweenIsolatedPierces`, and 2 decline to the join's refusal.
+- Every one of the 1698 `mint_chord` calls answers `Ok`.
+
+**Reached by a scene no row asserts.**
+- `ChordEndpointRevisited`: `full_turn_bore_mate.rs`'s collar against
+  `shaft(deg, 1.2, 0.6)`, the shaft wholly inside the bore, at 0°, 60°
+  and 90°, every pose, both orders
+  (`work/zip/blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex.md`).
+
+**Reached by nothing found.**
+- `ChordBetweenIsolatedPierces`. Besides the runs above, three more
+  scenes were measured:
+  - the boss flush with a block edge builds once declared
+    (`work/zip/a-boss-flush-with-a-block-edge-refuses-its-declared-union.md`);
+  - TANG m9-3's ring-count mismatch
+    (`r1_probes_m9_3::probe_ring_count_mismatch_never_silent`) unions
+    at `33` exactly;
+  - `reduce.rs`'s tilted wedge standing on the block builds tilted down
+    and refuses the volume backstop tilted up.
+
+  In none of them is the zip entered. `realize_seam` takes only spans
+  with at most one unjoined end, and refuses the rest as
+  `SegmentsBetweenIsolatedPierces`. For `mint_chord`'s `([], [])` arm
+  to fire, an end with edges would then have to have no boundary half
+  in a face its orbit lists. That is an inference, not a measurement.
+- The other fourteen are not reached in these runs.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.

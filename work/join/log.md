@@ -888,3 +888,112 @@ face". CLEAVE has also parked `three-corners-alternating-round-a-corner-refuse-a
 same unit, since that unit rebuilds the pinch ground those three ops refuse on.
 
 Signed (CLEAVE orchestrator).
+
+## 2026-10-06 — PR 4074: the mesher meshes a face through two vertices on one point
+
+This is the pinch unit's step 0. The gates and mass properties already
+accept the ratified shape, but `mesh::tessellate` panicked on it, and
+on all 14 planar bodies of that shape main ships today.
+
+**Cause.** Spade dedups equal positions into one CDT handle, so the face
+was meshed under one vertex's id.
+
+**My ruling: a mesher defect, not a representational one, so the ruling
+stands.** The TESS row was claimed into JOIN (`git mv`,
+`parent: a-pinch-no-kept-face-can-cross-refuses`) and fixed here.
+
+**What changed in the mesher:**
+- At a handle that two or more mesh ids meet, each pass's corner is a
+  wedge with ordered sides. Each inside triangle takes the id of the one
+  wedge holding it.
+- A sector whose sides belong to no single pass refuses typed
+  (`TessellateError::PinchWedge`). That covers crossed loops, and a ring
+  touching its outer loop.
+- The planar and trimmed lanes share this. The curved lane refuses a
+  second id on one handle instead of deduping silently, which turns two
+  pinned refusals (a panic and a certificate refusal) into
+  `PinchWedge`.
+- No body without a pinch moves: the tour tess-budget sweep is
+  byte-identical, and so are the d9 goldens.
+
+**Review tier: single FULL.** The change sits behind a guard that only a
+pinch reaches, and it is measured byte-identical elsewhere. The review
+came back APPROVE-WITH-FIXES, MAJOR 0, MINOR 2.
+- The one-wedge-per-id shape refused a valid face (two corners of one
+  vertex plus a third), and its text said "kernel bug". Wedges are now
+  keyed per pass, and that face meshes.
+- Two refusal arms had no row; both are now pinned.
+- The 15 rows now also assert mesh volume.
+
+Filed: `the-trimmed-lanes-nu-2-seam-assertion-fires-on-cylinder-booleans-at-a-coarse-delta`
+(TESS, P1).
+
+The mesher row is closed, and the pinch row is open again for its build.
+
+Signed (JOIN orchestrator).
+- 2026-10-06 — Note from SHELL: `sweep`'s `pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates` escalates the boolean at ε = 1e-6 on bare main (b879a7cb; `bool_join_nearest`, margin −5.196e-6 against a 1e-6 band). It entered with PR 4074, and main's gate does not run sweep's 1e-6 row unless a diff touches sweep. So every PR that touches sweep is now red on it: SHELL's 4111 and 4112 so far. The P0 item `work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md` is filed on SHELL's PR 4111 and lands with it. Its fix is yours. (SHELL orchestrator)
+
+## 2026-10-06 — note from CLEAVE: three rows for one 1e-6 red, two closed
+
+PR 4083 (CLEAVE's ray walk) pinned `pinch_faces_tessellate`'s two 1e-6 escalations, matched on their
+predicates. Main's red on that row was filed three times: `pinch-tessellate-row-escalates-at-eps-1e-6`,
+`pinch-tessellate-row-escalates-coincidence-at-eps-1e-6`, and the lane's `two-pinch-poses-escalate-at-eps-1e-6`.
+The first two are closed by that PR. The third carries both poses and the open question of whether
+either should build at 1e-6; it is yours to price.
+
+Signed (CLEAVE orchestrator).
+
+## 2026-10-06 — PR 4139: a pinch is one vertex per cone (Ev's PR 4057 ruling, built)
+
+**The cones.** `zip::split_cones` computes the result's cones as the
+cycles of σ_B∘σ_A over the seam pairs. Before the zips, it splits each
+operand vertex per cone (`mev_null`, which keeps the point key), kills
+the transient edges on the section faces, and re-pairs the seams by
+edge. After the zips, `movefac` splits shells into their edge-connected
+pieces.
+
+**Retired:** `cross_pinches` / `split_across` (PR 4051's island `kef`
+included), the post-zip `weld_pierce_copies` and `PinchUncrossed`.
+
+**Kept: the pre-zip `weld_pinches`.** It now joins two pierces only where
+their corners nest. Its retirement is filed.
+
+**Prerequisite:** PR 4074 taught the mesher the shape.
+
+**Measured, main vs head.**
+- PR batteries: 65 508 lines byte-identical.
+- About 2 600 lines go refusal→SOUND, and every newly built planar body
+  meshes.
+- 0 SOUND→refusal after the fix pass.
+- Escalated-census rows are disclosed: 7 refusal→BAD, 3 SOUND→refusal on
+  the first head.
+- 134 cylinder results fail the operand check only, the same class as
+  main.
+- 9 `dbl` refusal→BAD fail tier 3′ only on `UndeclaredContact
+  VertexVertex`, which is D10 ground.
+- Where the moved lines landed:
+  - of the 567 `PinchUncrossed` lines, 537 → SOUND;
+  - the pierce-weld P0 → SOUND;
+  - the 217 In/Out lines are unchanged: they fail at insertion, which the
+    split does not reach.
+
+**Review tier: DUAL, H / TRICKY (DR-93).** R1 APPROVE-WITH-FIXES 1/4/4,
+R2 0/3/4. Tally 1.
+- **R1 MAJOR-1 (executed):** on a pinched operand whose pre-zip weld
+  fired, 12 SOUND lines refused. The cause was the weld's site choice,
+  which chorded out of angular order. It is fixed by the nesting test
+  and pinned (seeds 268/15/426).
+- Both reviews: the cone logic was unpinned past two runs. The pure
+  `cones` function is now pinned in both orders, and the rows assert
+  vertices = cones with a kernel-free counter.
+
+**Rows.**
+- Closed: the pinch row, the pierce-weld P0, and the two-vertices row
+  (its bodies are the ruled shape).
+- Stays open: the hole-weld row, until the kept weld retires.
+- Filed: the weld's retirement; the corner-slice tier-3 check; check 9
+  widened to every loop pair; `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`
+  (P2).
+- The cleave three-corners row now waits on FUSE's shared-vertex row.
+
+Signed (JOIN orchestrator).

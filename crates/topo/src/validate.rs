@@ -401,7 +401,7 @@ use crate::contact::{ContactRefusal, DeclaredContact};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
-use crate::props::{AtRestOutcome, Certified, ShellRole};
+use crate::props::{AtRestOutcome, Certified};
 
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -578,11 +578,14 @@ impl core::fmt::Display for CensusSubject {
 /// is a cap: a seventeenth direction is available in exactly the
 /// sense a larger budget is. What separates them is what the spent
 /// work MEASURED. `RayExhausted` fires when every direction tried
-/// returned an IN-BAND margin, and an in-band margin is a verdict
-/// about where the point sits relative to the boundary — within ε of
-/// it — not about the direction that read it. Another direction reads
-/// the same configuration and lands in the same band; only moving the
-/// point or tightening ε changes the answer.
+/// grazed — a vertex within the band's zero of its ray line, or a
+/// crossing at the point — for a point the pre-pass placed off the
+/// boundary: sixteen spread directions each grazing is a fact about
+/// where the point sits among the boundary's vertices, not about the
+/// directions that read it (a direction read IN band sets that ray
+/// aside, and is the refusal, [`Escalated`](ChartRegionError::Escalated),
+/// only where no direction answers). A graze carries no margin to size
+/// a tolerance by; moving the point changes the answer.
 /// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
 /// is the opposite: its cap stops the arrangement being BUILT, so
 /// nothing was measured at all, and the work it declined to do would
@@ -1388,9 +1391,9 @@ pub enum ValidationError {
     },
     /// **Tier 3, check 8 (M5 PR 6).** A stored pcurve cache failed its
     /// at-rest pass: missing on a chart that mints, failed
-    /// re-certification (the meters-through-the-map residual, the
-    /// closed-form envelope, or trim containment), or broke its
-    /// face loop's one-branch chart continuity. The typed finding is
+    /// re-certification (the meters-through-the-map residual or the
+    /// closed-form envelope), or broke its face loop's branch or
+    /// winding. The typed finding is
     /// nested whole.
     Pcurve {
         /// The pcurve pass's typed finding.
@@ -2040,12 +2043,12 @@ pub enum CensusContact {
         /// The face.
         face: FaceKey,
     },
-    /// A vertex on an edge's interior. No VERTEX-granularity record
-    /// names it — the boolean lane refines every such contact into v-v
-    /// records before records are emitted — so at rest it is
-    /// certifiable through the face rung alone: a declared face pair
-    /// holding the vertex on one boundary and the edge on the other
-    /// (census module docs, D4). Unbacked, it is a defect.
+    /// A vertex on an edge's interior. Backed by its `(vertex, edge)`
+    /// record (a join leaves one where it joins a v-v record's vertex
+    /// away; the boolean lane refines the event into v-v records
+    /// instead), or by the face rung: a declared face pair holding the
+    /// vertex on one boundary and the edge on the other (census module
+    /// docs, D4). Unbacked, it is a defect.
     VertexOnEdge {
         /// The resting vertex.
         vertex: VertexKey,
@@ -2064,8 +2067,10 @@ pub enum CensusContact {
         face: FaceKey,
     },
     /// Two edges crossing at both interiors (coplanar or skew-with-
-    /// contact). Backable at the census's unified strength when the
-    /// crossing lies in a declared pair's verified overlap region
+    /// contact). Backed by its edge-edge record (a join leaves one where
+    /// it joins both vertices of a v-v record away), or at the census's
+    /// unified strength when the crossing lies in a declared pair's
+    /// verified overlap region
     /// with material on opposite sides of the shared carrier (an
     /// overhanging seat — `census.rs`'s crossing rung); otherwise a
     /// hard finding, the refusal naming the side verdict where a
@@ -2154,6 +2159,22 @@ pub enum StaleDeclaration {
         /// The record's face.
         face: FaceKey,
     },
+    /// A v-on-e record whose vertex or edge is dead, whose vertex ends
+    /// the edge, or whose vertex does not rest on the edge's interior.
+    VertexOnEdge {
+        /// The record's vertex.
+        vertex: VertexKey,
+        /// The record's edge.
+        edge: crate::entity::EdgeKey,
+    },
+    /// An e-e record whose edges are dead or one, or whose interiors
+    /// neither cross nor overlap.
+    EdgeEdge {
+        /// One of the record's edges.
+        a: crate::entity::EdgeKey,
+        /// The other.
+        b: crate::entity::EdgeKey,
+    },
     /// A curve-granularity record whose faces or witness edge no
     /// longer resolve — the locus that certified it is gone.
     CurveLocus {
@@ -2178,18 +2199,20 @@ pub enum StaleDeclaration {
 /// Prose, not `Debug` guts, for the same reason
 /// [`CensusContact`]'s rendering is: this payload is quoted into
 /// [`ValidationError::StaleContactDeclaration`]'s user-facing message.
-/// Each arm names the record's GRANULARITY — which KIND of declaration
-/// went stale. Which record it is rides in the typed fields, and at the
+/// Each arm names the record's GRANULARITY — which KIND of record went
+/// stale. Which record it is rides in the typed fields, and at the
 /// viewer the at-rest refusal's attribution names the mate that made
 /// it, where a mate did.
 impl fmt::Display for StaleDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // In words, without the keys: the typed fields carry them.
         f.write_str(match self {
-            Self::VertexVertex { .. } => "a declared vertex-to-vertex contact",
-            Self::VertexOnFace { .. } => "a declared vertex-on-face contact",
-            Self::CurveLocus { .. } => "a declared contact along an edge",
-            Self::Patch { .. } => "a declared face-to-face contact",
+            Self::VertexVertex { .. } => "a recorded vertex-to-vertex contact",
+            Self::VertexOnFace { .. } => "a recorded vertex-on-face contact",
+            Self::VertexOnEdge { .. } => "a recorded vertex-on-edge contact",
+            Self::EdgeEdge { .. } => "a recorded edge-to-edge contact",
+            Self::CurveLocus { .. } => "a recorded contact along an edge",
+            Self::Patch { .. } => "a recorded face-to-face contact",
         })
     }
 }
@@ -2917,6 +2940,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             NOT_YET,
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
+        // Never produced at rest: only the face description raises it.
+        M::JointWithoutRoom { .. } => (CLOSE, NOT_YET),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
         // one of its halves is the producer's.
@@ -2965,7 +2990,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IntervalNotForward
                 | C::AzimuthPeriodExceeded
                 | C::ResidualExceeded { .. }
-                | C::TrimEscape
                 | C::FittedCertificate { .. } => (WRONG, DEFECT),
                 C::FittedEscalated { .. } | C::Escalated { .. } => (CLOSE, DEFECT),
                 C::Band(b) => (classify_band(b), TOLERANCE),
@@ -3011,10 +3035,10 @@ const CLOSE_TO_BOUNDARY: &str =
 
 const UNWALKABLE: &str = "its boundary could not be walked";
 
-/// Every ray parity cast grazed, for a point a pre-pass had already
-/// placed off the boundary.
-const GRAZED: &str =
-    "a point the check read is off the boundary, but every test ray from it grazed the boundary";
+/// No ray parity cast settled — each grazed or gave nothing to read —
+/// for a point a pre-pass had already placed off the boundary.
+const GRAZED: &str = "a point the check read is off the boundary, but no test ray from it \
+                      settled where it lies: each grazed the boundary or could not be read";
 
 /// The lever for a point with nothing to declare a coincidence with.
 const MOVE_GEOMETRY: &str = concat!("Recourse: ", geom_core::coincidence_move_arm!());
@@ -3147,7 +3171,9 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "their overlap is too close to call at this tolerance",
             too_close(Some(&diag.margin)),
         ),
-        ChartRegionError::RayExhausted => (GRAZED, too_close(None)),
+        // The rays are the check's own: no coincidence to declare, and no
+        // margin to size a tolerance by (`ray_walk::NoRaySettled`).
+        ChartRegionError::RayExhausted => (GRAZED, MOVE_GEOMETRY),
         ChartRegionError::WitnessBudgetExhausted { .. } => (
             "their boundaries cross too many times for the check to finish",
             "Recourse: simplify the faces' boundaries",
@@ -4200,11 +4226,13 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   walk that refuses — `KindUnsupported` on a spline or `Approx` face,
 ///   a partial sphere, cone or torus face outside the walk's chart
 ///   classes, an escalation, an exhausted ray schedule, an uncertified
-///   at-infinity volume. A shell every one of whose vertices touches
-///   another shell is silent too (a touching vertex is skipped for the
-///   next). And check 10 reads one point per shell, which decides only
-///   under the no-crossing premise — **shells that cross** are global
-///   self-intersection's, the first item of this list.
+///   at-infinity volume. A shell no witness of which is off every other
+///   shell is silent too: the witness ladder ([`crate::stands`]) reads
+///   its vertices, edge midpoints and planar face interiors, and skips
+///   one that touches. And check 10 decides on one witness per shell,
+///   which settles the shell only under the no-crossing premise —
+///   **shells that cross** are global self-intersection's, the first
+///   item of this list.
 ///   (`work/restfront/check-10-is-silent-where-point-in-solid-refuses`.)
 ///
 ///   A shell whose role is undecided is not counted toward check 10's
@@ -4606,25 +4634,38 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     }
 }
 
-/// **The solids of `body` that check 7 refuses as inside-out** — its
-/// [`ValidationError::NegativeVolume`] verdicts and nothing else, at the
-/// lane `quad` gives. A solid whose sign the lane leaves undecided, or
-/// cannot measure, is not named: this reads only what check 7 decides
-/// definitely. Premise: tier 1 is clean ([`check7_subjects`]).
-pub(crate) fn inside_out_solids<T: geom_core::Decide>(
+/// **Where `body` holds material wound negative, read as tier 3 reads
+/// it**, at the lane `quad` gives: check 7's
+/// [`ValidationError::NegativeVolume`] verdicts, a solid at a time; then,
+/// behind a clean check 7 as tier 3 runs it, check 10's
+/// [`ValidationError::ShellWinding`] verdicts, a shell at a time
+/// ([`shell_winding_errors`]). The first is a solid whose total is
+/// negative. The second is a shell inside a solid whose total is
+/// positive that bounds a region of winding −1: check 10 reads winding
+/// only where a solid holds at most one decided `Outer` shell, and there
+/// a misplaced shell is a `Void` outside the `Outer` or inside another
+/// `Void`, each an inside-out shell.
+///
+/// Nothing else is named. A sign the lane leaves undecided, or cannot
+/// measure, passes, and check 10 is then not run, as tier 3 runs it
+/// behind a clean check 7 only. A solid with two decided `Outer` shells
+/// ([`ValidationError::SolidOuterShells`]) is a piece count, not an
+/// orientation, and its winding is not read. Premise: tier 1 is clean
+/// ([`check7_subjects`]).
+pub(crate) fn wound_negative<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Vec<SolidKey> {
+) -> Vec<ValidationError> {
     match plus_v_by_sign(body, band, tol, quad) {
-        Ok(_) => Vec::new(),
+        Ok(_) => shell_winding_errors(body, band, tol, quad)
+            .into_iter()
+            .filter(|e| matches!(e, ValidationError::ShellWinding { .. }))
+            .collect(),
         Err(errors) => errors
             .into_iter()
-            .filter_map(|e| match e {
-                ValidationError::NegativeVolume { solid } => Some(solid),
-                _ => None,
-            })
+            .filter(|e| matches!(e, ValidationError::NegativeVolume { .. }))
             .collect(),
     }
 }
@@ -4717,10 +4758,10 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// the `Outer` (`-1` in its cavity), or a `Void` inside another `Void`
 /// (`-1`). Check 7's per-solid total is positive on both.
 ///
-/// **One witness point per shell, under the no-crossing premise**
-/// ([`witness_insides`]): the winding the OTHER shells put on shell `s`
-/// is `Σ ±[s inside t]` over them, which must be `0` if `s` is `Outer`
-/// and `1` if `s` is a `Void`.
+/// **One decisive witness per shell, under the no-crossing premise**
+/// ([`crate::stands::witness_insides`], the witness ladder): the winding
+/// the OTHER shells put on shell `s` is `Σ ±[s inside t]` over them,
+/// which must be `0` if `s` is `Outer` and `1` if `s` is a `Void`.
 ///
 /// **Silent where the walk cannot answer** — check 9's posture, and
 /// the false-refusal direction is the one this check must never fail
@@ -4730,17 +4771,17 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 ///   still undecided when the schedule runs out) is not counted, and
 ///   silences every winding verdict in its solid, since it enters each
 ///   of them;
-/// - a walk that refuses, or a shell every vertex of which touches
-///   another shell, leaves that shell's winding verdict unmade.
+/// - a walk that refuses, or a shell no witness of which the ladder
+///   reads off every other shell (each lies on one, or reads in band),
+///   leaves that shell's winding verdict unmade.
 ///
 /// Those silences are the residue [`validate_geometric`]'s
 /// not-yet-checked list names.
 ///
-/// **A shell's role is its own sign, read the way check 7 reads a
-/// solid's** ([`shell_role`], through the lane the door made check 7
-/// through, `quad`). Every door that makes check 10 calls this behind a
-/// clean check 7: a winding read off a solid whose orientation is
-/// refused would be cascade noise.
+/// **A shell's role is its own sign** ([`crate::props::shell_role`],
+/// through the lane the door made check 7 through, `quad`). Every door
+/// that makes check 10 calls this behind a clean check 7: a winding read
+/// off a solid whose orientation is refused would be cascade noise.
 ///
 /// **What it costs.** A solid with one shell is skipped before anything
 /// is read, so the common body pays nothing. A solid with `n > 1`
@@ -4754,6 +4795,7 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Vec<ValidationError> {
     use crate::props::ShellRole;
+    use crate::stands::{Insides, ShellRead, witness_insides};
 
     let mut errors = Vec::new();
     for (solid, record) in body.solids.iter() {
@@ -4823,171 +4865,6 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     errors
-}
-
-/// One shell of a solid, read for nesting: its key, its role
-/// ([`shell_role`]) and its faces as a point-in-solid selection, read
-/// once and probed many times.
-pub(crate) struct ShellRead {
-    /// The shell.
-    pub(crate) shell: ShellKey,
-    /// Its decided role.
-    pub(crate) role: crate::props::ShellRole,
-    /// Its faces, as the walk's selection.
-    pub(crate) sel: crate::boolean::solid_contain::SolidFaces,
-}
-
-impl ShellRead {
-    /// `shell` read: `None` where its selection cannot be read, and the
-    /// shell's typed refusal where its role cannot ([`shell_role`]).
-    pub(crate) fn of<T: Decide>(
-        body: &Body<T>,
-        shell: ShellKey,
-        band: Band,
-        tol: Tol,
-        quad: Option<crate::props::QuadLane<T>>,
-    ) -> Option<Result<Self, crate::props::ShellClassifyError>> {
-        let sel = crate::boolean::solid_contain::SolidFaces::of_shell(body, shell).ok()?;
-        Some(
-            shell_role(body, shell, sel.faces(), band, tol, quad).map(|role| Self {
-                shell,
-                role,
-                sel: sel.with_role(role),
-            }),
-        )
-    }
-}
-
-/// What one witness of a shell says about the solid's other shells.
-pub(crate) enum Insides {
-    /// Per shell of the reading, in its order: whether the witness lies
-    /// inside that shell's closed surface (`false` for the shell
-    /// itself).
-    Read(Vec<bool>),
-    /// Every vertex of the shell lies on another shell.
-    Touching,
-    /// The walk refused at a witness.
-    Refused(crate::boolean::PointInSolidError),
-}
-
-/// **Where shell `reads[i]` stands among the others** — check 10's
-/// witness loop, shared with the result sort ([`crate::pieces`]).
-///
-/// Tier 3 assumes shells do not cross, and under that premise whether
-/// a shell lies inside another's closed surface is the same at every
-/// point of it. So one point of it (a vertex: an exact stored position)
-/// decides, probed against each other shell alone with the crate's one
-/// point-in-solid walk over that shell's faces. The walk answers
-/// whether the point is in the material the selection alone bounds:
-/// for an `Outer` shell that is its inside, so `In` is inside; for a
-/// `Void` the faces point INTO the cavity, so the material is the
-/// cavity's complement and `Out` is inside. An `OnBoundary` answer
-/// means the witness lies where two shells TOUCH, which says nothing
-/// about nesting, so the next vertex is tried.
-///
-/// `may_enclose` is the caller's screen: a shell it rules out is read
-/// as not enclosing this one and is not probed. It must be sound — a
-/// shell that could enclose must pass — so only a certificate of
-/// disjointness rules one out (the result sort's padded boxes).
-pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    i: usize,
-    reads: &[ShellRead],
-    may_enclose: &dyn Fn(usize) -> bool,
-    band: Band,
-    tol: Tol,
-) -> Insides {
-    use crate::boolean::SolidContainment;
-    use crate::boolean::solid_contain::point_in_solid_faces;
-    use crate::props::ShellRole;
-
-    'witness: for witness in shell_vertices(body, reads[i].shell) {
-        let mut inside = vec![false; reads.len()];
-        for (t, other) in reads.iter().enumerate() {
-            if t == i || !may_enclose(t) {
-                continue;
-            }
-            inside[t] = match point_in_solid_faces(body, &other.sel, witness, band, tol) {
-                Ok(SolidContainment::In) => other.role == ShellRole::Outer,
-                Ok(SolidContainment::Out) => other.role == ShellRole::Void,
-                Ok(SolidContainment::OnBoundary) => continue 'witness,
-                Err(e) => return Insides::Refused(e),
-            };
-        }
-        return Insides::Read(inside);
-    }
-    Insides::Touching
-}
-
-/// Every vertex of `shell`, as positions, in face-arena order and each
-/// face's loop order (outer loop first), repeats included — the
-/// witnesses check 10 tries in turn. Lazy: a shell whose first vertex
-/// touches no other shell reads only that one.
-pub(crate) fn shell_vertices<'b, T: Real>(
-    body: &'b Body<T>,
-    shell: ShellKey,
-) -> impl Iterator<Item = geom_core::Point3<T>> + 'b {
-    body.faces()
-        .filter(move |(_, d)| d.shell == shell)
-        .flat_map(move |(_, face)| {
-            core::iter::once(face.outer)
-                .chain(face.rings.iter().copied())
-                .flat_map(move |lk| {
-                    let vertices: Vec<VertexKey> = match body.get_loop(lk).map(|l| l.boundary) {
-                        Some(LoopBoundary::Empty { vertex }) => vec![vertex],
-                        Some(LoopBoundary::Cycle { .. }) | None => loop_cycle_of(body, lk)
-                            .unwrap_or_default()
-                            .iter()
-                            .filter_map(|&he| body.half_edges.get(he).map(|h| h.start))
-                            .collect(),
-                    };
-                    vertices
-                })
-        })
-        .filter_map(move |v| vertex_point(body, v))
-}
-
-/// One shell's role, from its own sign walk through `quad`, certified
-/// round by round ([`crate::props::Round::certify`]).
-///
-/// # Errors
-///
-/// The shell's typed refusal: the walk's or the re-derivation's
-/// [`crate::props::ShellClassifyError::Props`], or the role read the
-/// last round left undecided (escalated, zero or straddling).
-pub(crate) fn shell_role<T: Decide>(
-    body: &Body<T>,
-    shell: ShellKey,
-    faces: &[FaceKey],
-    band: Band,
-    tol: Tol,
-    quad: Option<crate::props::QuadLane<T>>,
-) -> Result<ShellRole, crate::props::ShellClassifyError> {
-    use crate::props::ShellClassifyError;
-    let last = core::cell::Cell::new(None);
-    let props = |source| ShellClassifyError::Props { shell, source };
-    crate::props::sign_walk(
-        body,
-        faces,
-        band,
-        tol,
-        quad,
-        quad,
-        |round| match round.certify(PLUS_V, PLUS_V_EXACT) {
-            Certified::Role(role) => Some(Ok(role)),
-            Certified::Refused(source) => Some(Err(props(source))),
-            Certified::Open(unread) | Certified::Unresolved(unread) => {
-                last.set(Some(unread));
-                None
-            }
-        },
-        |_| match last.get() {
-            Some(unread) => Err(unread.refusal(shell, band)),
-            None => unreachable!("a sign walk settles every round it reads"),
-        },
-    )
-    .map_err(props)
-    .and_then(|(role, _)| role)
 }
 
 /// Tier 3's transience fence on its own: a
@@ -8221,6 +8098,82 @@ impl<T: Real> AtRestBody<T> {
     }
 }
 
+/// **Why an operand that carries no verdict is not a finished body** —
+/// the two promises [`AtRestBody::gate_unverdicted`] reads.
+#[derive(Debug)]
+pub(crate) enum Unfinished {
+    /// Tier 2's findings: scaffolding at rest.
+    Scaffolding(Vec<ValidationError>),
+    /// [`wound_negative`]'s findings: solids check 7 decides inside-out
+    /// ([`ValidationError::NegativeVolume`]), or shells check 10 finds
+    /// bounding negative material ([`ValidationError::ShellWinding`]).
+    InsideOut(Vec<ValidationError>),
+}
+
+impl<T: Real> AtRestBody<T> {
+    /// **What a door owes an operand that carries no verdict** — one
+    /// whose scalar runs no at-rest gate
+    /// ([`AtRestOutcome::NotRunAtThisScalar`], a dual). A
+    /// [`AtRestOutcome::Validated`] operand passes untouched: tier 3's
+    /// verdict holds both reads. Otherwise, in order:
+    ///
+    /// 1. tier 2 over the whole body ([`operand_scaffolding`], whose
+    ///    tier-1 panic names `subject`);
+    /// 2. orientation, at the scalar's lane
+    ///    ([`crate::AtRestPolicy::quad_lane`]), read as tier 3 reads it
+    ///    ([`wound_negative`]): check 7 per solid, then, behind a clean
+    ///    check 7, check 10 per shell. A solid whose total it decides
+    ///    definitely negative refuses, and so does a shell bounding
+    ///    negative material inside a solid whose total is positive; a
+    ///    sign it leaves open passes, as tier 3 passes it.
+    ///
+    /// A total hides a sign at both levels: a body's total hides an
+    /// inside-out solid, and a solid's hides an inside-out shell. So a
+    /// door that reads a several-solid operand as one solid runs this
+    /// before it merges.
+    pub(crate) fn gate_unverdicted(
+        &self,
+        subject: impl fmt::Display,
+        band: Band,
+        tol: Tol,
+    ) -> Result<(), Unfinished>
+    where
+        T: Decide + crate::props::AtRestPolicy,
+    {
+        if self.outcome == AtRestOutcome::Validated {
+            return Ok(());
+        }
+        let scaffolding = operand_scaffolding(&self.body, subject);
+        if !scaffolding.is_empty() {
+            return Err(Unfinished::Scaffolding(scaffolding));
+        }
+        let wound = wound_negative(&self.body, band, tol, T::quad_lane());
+        if wound.is_empty() {
+            Ok(())
+        } else {
+            Err(Unfinished::InsideOut(wound))
+        }
+    }
+}
+
+/// **Tier 2's findings on a door's operand.** A tier-1 finding panics
+/// naming `subject` and the first finding: every public door keeps a
+/// body tier-1-valid, so only a kernel bug hands one in.
+pub(crate) fn operand_scaffolding<T: Real>(
+    body: &Body<T>,
+    subject: impl fmt::Display,
+) -> Vec<ValidationError> {
+    let (broken, scaffolding) = closed_by_tier(body);
+    if let Some(first) = broken.first() {
+        unreachable!(
+            "{subject} fails tier 1 ({} findings, the first {first:?}): every public door keeps \
+             the body tier-1-valid",
+            broken.len()
+        );
+    }
+    scaffolding
+}
+
 impl<T: Real> core::ops::Deref for AtRestBody<T> {
     type Target = Body<T>;
 
@@ -10220,9 +10173,7 @@ mod tests {
                 e,
                 ValidationError::CensusEscalated { .. }
                     | ValidationError::CensusUnsupported {
-                        cause: CensusUnsupportedCause::ChartRegion(
-                            R::Escalated(_) | R::RayExhausted
-                        ),
+                        cause: CensusUnsupportedCause::ChartRegion(R::Escalated(_)),
                         ..
                     }
             )
@@ -11457,7 +11408,7 @@ mod tests {
                 .collect()
         };
         for (name, body) in [("honest", &honest), ("mutant", &mutant)] {
-            let reverted = body.revert().unwrap();
+            let reverted = body.revert();
             assert_eq!(
                 shape(body),
                 shape(&reverted),
@@ -11472,7 +11423,7 @@ mod tests {
             bowed_square_with_ring(13.0, 14.0, tol),
         ];
         for (name, (body, _)) in ["lune", "past the arc"].into_iter().zip(&bowed) {
-            let reverted = body.revert().unwrap();
+            let reverted = body.revert();
             assert_eq!(
                 shape(body),
                 shape(&reverted),
@@ -13612,7 +13563,7 @@ mod review_census_display_keys {
             }
         }
         assert_eq!(
-            checked, 12,
+            checked, 14,
             "every CensusContact and StaleDeclaration sample"
         );
     }
