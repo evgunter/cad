@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{ChartWindow, Pcurve, PcurveCache};
+use geom_brep::{Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Tol};
 use topo::pcurves::validate_pcurves;
 use topo::test_support::{CylFrame, cyl_wall_sheet};
@@ -76,13 +76,7 @@ fn wrong_branch_row(body: &Body<f64>, face: FaceKey, he: HalfEdgeKey) -> PcurveC
         .get_surface(body.get_face(face).unwrap().surface)
         .unwrap();
     let (t0, t1) = cache.params();
-    let window = ChartWindow {
-        u_min: 0.0,
-        u_max: 2.0 * tau,
-        v_min: -1.0,
-        v_max: 2.0,
-    };
-    PcurveCache::certify(shifted, t0, t1, curve.carrier(), surface, window, band()).unwrap()
+    PcurveCache::certify(shifted, t0, t1, curve.carrier(), surface, band()).unwrap()
 }
 
 /// **A loop's rows a whole period over are the same face**, complete
@@ -135,8 +129,7 @@ fn a_row_wider_than_its_edge_is_refused_complete_or_half_minted() {
         .clone();
     let (lo, hi) = (t0, t1 + 0.4 * (t1 - t0));
     let wide = cache.pcurve().clone();
-    let window = wide.chart_box(lo, hi);
-    let row = PcurveCache::certify(wide, lo, hi, curve.carrier(), &surface, window, band())
+    let row = PcurveCache::certify(wide, lo, hi, curve.carrier(), &surface, band())
         .expect("the carrier's own image certifies over a longer span");
     body.attach_pcurve(hs[0], row);
     let refused = PcurveMintError::RowInterval { half_edge: hs[0] };

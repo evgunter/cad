@@ -507,6 +507,15 @@ fn sym_9_what_each_retry_recovers() {
 /// (`decide_3_split_rows_interval` holds the same trade without the
 /// ladder).
 ///
+/// PCERT's chart-angle unit retired the loop's chart-space angle
+/// comparisons and check 5, so every document lost those decisions
+/// outright, in every column at once, with and without the ladder
+/// alike: the plate reads `[1047, 0, 0, 648]`, the annulus
+/// `[564, 0, 0, 395]`, the boss `[517, 2, 26, 372]`, the bracket
+/// `[1373, 5, 47, 980]` and the link `[772, 0, 48, 623]`. That is a
+/// baseline moving, not a retry taking a decision away: `retried` stays
+/// zero on all five.
+///
 /// It pins the whole split with the ladder against the same replay
 /// without it, so a decision that moved DOWN reds, and the `retried`
 /// column at its measured count — ZERO on all five now, which is the
@@ -532,16 +541,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [1103, 0, 0, 710], [1103, 0, 0, 710], 0),
-        ("r1_annulus", [588, 32, 0, 455], [588, 32, 0, 455], 0),
-        ("r1_segment_boss", [533, 26, 28, 418], [533, 26, 28, 418], 0),
+        ("two_hole_plate", [1047, 0, 0, 654], [1047, 0, 0, 654], 0),
+        ("r1_annulus", [564, 0, 0, 399], [564, 0, 0, 399], 0),
+        ("r1_segment_boss", [517, 2, 26, 376], [517, 2, 26, 376], 0),
         (
             "r2_filleted_bracket",
-            [1401, 45, 49, 1056],
-            [1401, 45, 49, 1056],
+            [1373, 5, 47, 986],
+            [1373, 5, 47, 986],
             0,
         ),
-        ("r2_link", [824, 0, 52, 683], [824, 0, 52, 683], 0),
+        ("r2_link", [772, 0, 48, 627], [772, 0, 48, 627], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -614,7 +623,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// `retried=4` after the discharge columns, and the human form names
 /// the four as discharges a second attempt reached. Without the ladder
 /// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four are theorems (`symbolic_zero` 1340 → 1344).
+/// ladder existed. The four are theorems (`symbolic_zero` 1256 → 1260;
+/// 1340 → 1344 before PCERT's chart-angle unit retired the loop's angle
+/// comparisons and check 5, which took 84 theorems and 84 numeric
+/// decisions out of both receipts and left the ladder's four as they
+/// were).
 ///
 /// The row read the filleted bracket, then the link. Since the
 /// constructions store the carriers they build, the first attempt
@@ -662,7 +675,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1344, 2, 54, 1272, 4],
+        [1260, 2, 54, 1188, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -682,7 +695,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1340, 2, 54, 1276, 0]
+        [1256, 2, 54, 1192, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

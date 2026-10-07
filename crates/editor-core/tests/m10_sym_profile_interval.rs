@@ -488,6 +488,19 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   continuity margins come: `Assertion` calls +14 on every walk and
 ///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
 ///   −31. Every digest moves; the freezes hold.
+/// - **The chart-angle unit (PCERT,
+///   `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).**
+///   The loop's chart-space angle comparisons and check 5 retire, so
+///   the walks lose exactly those decisions' forms and nothing they
+///   shared: `Plain/Decision` 1143 → 1047 calls (16228 → 15720 forms),
+///   `Early/Decision` 432 → 352 (9117 → 8689), `Door/Decision`
+///   448 → 392 (6768 → 6474), each `Assertion` line 16 calls down with
+///   its forms unmoved, and every freeze unmoved. The two `Report` lines
+///   go: the 40 residuals they rendered were among the retired
+///   decisions', and nothing else blocks on the plate under the shipped
+///   rules (8 still do with the canonical root off, against 48 before).
+///   The digests of the three `Decision` lines move; the
+///   `Assertion` lines' hold.
 /// - **The cap orientation (CARVE).** Each extruded cap decides
 ///   `cap_plane_orientation` once: `Assertion` calls +6 on both walks
 ///   and `Door` +4 on each line here, +4 per walk on the slab at every
@@ -498,25 +511,29 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   one-segment loop (#4169): measured with this change applied at
 ///   that merge's first parent and at the merge, where #4169 alone
 ///   leaves the line at 6768.
+/// - **The two composed** (the chart-angle unit merged over the cap
+///   orientation): the calls add, `Decision` 1047 / 352 / 396 and every
+///   `Assertion` line 654 / 654 / 396; `Plain/Decision`'s forms fall
+///   15720 → 15710 and `Early/Decision`'s 8689 → 8633 with the cap's own
+///   10 and 56, the `Assertion` forms are the cap's, and
+///   `Door/Decision` builds 7099 forms. No `Report` line.
 ///
 /// Re-captured when an intrinsic edge description's surfaces became a
 /// set (`geom_brep::SurfacePair`) and the certificate began reading the
 /// transversality wedge's `n1.cross(n2)` in key order, a form distinct
-/// from the extrude's builder-order one. Measured composed with the cap
-/// orientation above: `Plain/Assertion` 4173/360 → 4349/389 (+176
-/// forms, +29 frozen), `Early/Assertion` 5136 → 5312 (+176),
-/// `Door/Decision` 7393 → 7475 (+82); calls, `*/Decision` forms and
-/// every decision tally hold (`m10_10_pins_interval` reads the pair's
-/// sum unchanged).
+/// from the extrude's builder-order one. Measured composed with the
+/// chart-angle unit and the cap orientation above: `Plain/Assertion`
+/// 4173/360 → 4349/389 (+176 forms, +29 frozen), `Early/Assertion`
+/// 5136 → 5312 (+176), `Door/Decision` 7099 → 7181 (+82); calls,
+/// `*/Decision` forms and every decision tally hold
+/// (`m10_10_pins_interval` reads the pair's sum unchanged).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16218 frozen 252 digest 632eb75a679ee6e7c4bada6b0ea04aba\n\
-     Plain/Assertion calls 670 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
-     Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 432 forms 9061 frozen 0 digest a06648dc655a1f290a036c37395fd0ad\n\
-     Early/Assertion calls 670 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
-     Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 452 forms 7475 frozen 0 digest 99f0789fc39a3a11bc76c463e0241bf1\n\
-     Door/Assertion calls 412 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1047 forms 15710 frozen 252 digest 2932c8769b031e875492a3b0ba38ba53\n\
+     Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
+     Early/Decision calls 352 forms 8633 frozen 0 digest c363617edb77ee7438e1f300e4598323\n\
+     Early/Assertion calls 654 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
+     Door/Decision calls 396 forms 7181 frozen 0 digest 188fd982307faf268e6444b8ea1c82bb\n\
+     Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -678,21 +695,22 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|l| l.split_whitespace().nth(2))
             .and_then(|n| n.parse::<u64>().ok())
     };
-    let sets: [(&str, SymRules, u64); 4] = [
-        ("shipped", SymRules::shipped(), 40),
+    // `None`: nothing blocked, so no `Plain/Report` line is written.
+    let sets: [(&str, SymRules, Option<u64>); 4] = [
+        ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            48,
+            Some(8),
         ),
-        ("without_the_reads", SymRules::without_the_reads(), 40),
+        ("without_the_reads", SymRules::without_the_reads(), None),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            48,
+            Some(8),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
@@ -710,7 +728,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         );
         assert_eq!(
             report_calls(&ledger),
-            Some(blocked),
+            blocked,
             "{name}: the plain walk renders a different number of blocked residuals"
         );
         match &seen {

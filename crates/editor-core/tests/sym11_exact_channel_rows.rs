@@ -43,9 +43,10 @@ use crate::m10_9_pins_interval::measured_studies;
 /// table in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
 ///
-/// Re-taken under two changes together. `cap_plane_orientation` (the
-/// extrude's cap decide) adds the `numeric` column's +6, +4, +3, +4, +2.
-/// An intrinsic edge description's surfaces becoming a set
+/// Re-taken on the tree that composes three changes: PCERT's
+/// chart-angle unit and the extrude's cap decide
+/// (`cap_plane_orientation`) set the decision columns, and an intrinsic
+/// edge description's surfaces becoming a set
 /// (`geom_brep::SurfacePair`) moves only `frozen`: 612 → 641, 804 → 828,
 /// 486 → 498, 806 → 830, 302 → 314, and no decision column. The cause is the
 /// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
@@ -55,11 +56,11 @@ use crate::m10_9_pins_interval::measured_studies;
 /// edge's wedge in both orientations builds two hash-consed forms where
 /// it built one. The residual checks' order contributes nothing.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [1103, 0, 710, 641]),
-    ("r1_annulus", [588, 0, 455, 828]),
-    ("r2_link", [373, 9, 287, 498]),
-    ("r2_filleted_bracket", [644, 0, 520, 830]),
-    ("r2_rounded_pad", [368, 0, 304, 314]),
+    ("two_hole_plate", [1047, 0, 654, 641]),
+    ("r1_annulus", [564, 0, 399, 828]),
+    ("r2_link", [345, 9, 259, 498]),
+    ("r2_filleted_bracket", [620, 0, 464, 830]),
+    ("r2_rounded_pad", [340, 0, 276, 314]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
