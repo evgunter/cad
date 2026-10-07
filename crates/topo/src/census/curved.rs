@@ -7,7 +7,8 @@
 //! A point is on a curved edge's interior when it is on the carrier
 //! (its distance from the carrier's point at its recovered parameter
 //! decided zero) and strictly inside the span at both ends, metered in
-//! metres through the carrier's least speed — the questions
+//! metres through the carrier's least speed, or anywhere on a closed
+//! edge whose vertex is conventional — the questions
 //! [`super::on_edge_interior`] asks of a line. Two edges' interiors
 //! meet when one candidate point is on both: where a line or circle
 //! meets a circle (through the circle's plane), and each edge's
@@ -104,6 +105,16 @@ pub(super) fn on_curved_interior<T: Decide>(
     if !gap_is_zero("pm_census_ve_curved_gap", gap, band, errors)? {
         return Some(false);
     }
+    // A closed edge's conventional vertex has no identity of its own:
+    // its point is the edge's interior too.
+    let start = body
+        .edges
+        .get(e)
+        .and_then(|d| body.half_edges.get(d.he_plus))
+        .map(|h| h.start);
+    if start.is_some_and(|v| crate::boolean::is_conventional_vertex(body, v)) {
+        return Some(true);
+    }
     let mut interior = Some(true);
     for m in [t - t0, t1 - t] {
         match decided(
@@ -139,7 +150,7 @@ fn line_circle<T: Decide>(
         Sign::Zero => {
             let w = o - c;
             let b = w.dot(d);
-            let disc = b * b - (w.dot(w) - r * r);
+            let disc = b.powi(2) - (w.dot(w) - r.powi(2));
             match decided(
                 "pm_census_ee_curved_chord",
                 Margin::of(disc / r),
@@ -193,7 +204,7 @@ fn circle_circle<T: Decide>(
         return Some(Vec::new()); // concentric: an overlap's midpoints are the candidates
     }
     let u = v / dist;
-    let a = (dist * dist + r1 * r1 - r2 * r2) / (dist + dist);
+    let a = (dist.powi(2) + r1.powi(2) - r2.powi(2)) / (dist + dist);
     line_circle((c1 + u * a, n1.cross(u)), (c1, n1, r1), band, errors)
 }
 

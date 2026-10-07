@@ -3321,7 +3321,17 @@ fn record<T: Real>(
     x: End,
     y: End,
 ) -> Result<(), BooleanError> {
-    let ((xs, xc), (ys, yc)) = (x, y);
+    // A conventional vertex has no identity of its own: a record at its
+    // point is a record on its closed edge's interior.
+    let cell = |c: Cell| match c {
+        Cell::Vertex(v) if super::edge_join::is_conventional_vertex(body, v) => body
+            .get_vertex(v)
+            .and_then(|d| d.emanating)
+            .and_then(|h| body.get_half_edge(h))
+            .map_or(c, |h| Cell::Edge(h.edge)),
+        _ => c,
+    };
+    let ((xs, xc), (ys, yc)) = ((x.0, cell(x.1)), (y.0, cell(y.1)));
     match (xc, yc) {
         (Cell::Vertex(a), Cell::Vertex(b)) if a != b => {
             let (a, b) = if (xs, ys) == (Operand::B, Operand::A) {
@@ -3398,17 +3408,20 @@ fn record<T: Real>(
         // joined vertex's two edges did), and its rest there is backed
         // at its own bounds. Consumed, with no stored kind: a wrong drop
         // is the census's `EdgeFaceOverlap` unbacked, or its
-        // `EdgeFacePierce`, both loud. The argument is the plane's
-        // alone, so a curved face refuses typed.
-        (Cell::Edge(_), Cell::Face(face)) | (Cell::Face(face), Cell::Edge(_)) => {
+        // `EdgeFacePierce`, both loud. The argument is a line's and a
+        // plane's alone, so a curved edge or face refuses typed: a circle
+        // can rest on a plane at one point, which no kind stores.
+        (Cell::Edge(edge), Cell::Face(face)) | (Cell::Face(face), Cell::Edge(edge)) => {
             let f = proven(&body.faces, face, EntityId::Face);
+            let e = proven(&body.edges, edge, EntityId::Edge);
             if !matches!(
                 body.face_surface_linked(face, f),
                 geom::Surface::Plane { .. }
-            ) {
+            ) || super::edge_join::certified_line(body, edge, e).is_none()
+            {
                 return Err(BooleanError::JoinDesync {
-                    what: "a record's edge rests on a curved face's interior, which no record \
-                           kind stores and no structure carries",
+                    what: "a record's edge rests on a face's interior where the edge or the face \
+                           is curved, which no record kind stores and no structure carries",
                 });
             }
         }

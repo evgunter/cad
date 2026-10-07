@@ -200,7 +200,7 @@ enum Locus {
 /// coordinate's lever arm (the distance from the apex or the axis)
 /// collapses. A pole is never joinable, whichever arm the edges are
 /// on: no chart image runs one branch through it.
-fn singular_at<T: Decide>(
+pub(super) fn singular_at<T: Decide>(
     s: &geom::Surface<T>,
     p: geom_core::Point3<T>,
     band: Band,

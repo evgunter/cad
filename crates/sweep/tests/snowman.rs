@@ -1443,3 +1443,125 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
         }
     }
 }
+
+/// **A corner at a cap circle's conventional vertex reads the circle's
+/// interior** (`docs/DESIGN.md`, maximal edges). Two cut-ins on the
+/// lens's top face leave, in the lens ∩ bricks caps, each cap circle a
+/// closed edge whose one vertex is conventional. A cube whose corner
+/// rests on the circle, its body diagonal pointing away from the cap,
+/// touches the cap at that one point. Its corner exactly at the
+/// conventional vertex, and turned 40° along the circle from it, in
+/// both member orders: every union records the touch as the corner on
+/// the circle's interior, `(u, E)`, never `(u, v)`, and tier 3′ answers
+/// alike, its curved cross-solid reach the only finding.
+#[test]
+fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
+    use geom_core::{Affine3, Point3, Vec3};
+    let tol = Tol::witness();
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let bricks = run(
+        BooleanOp::Union,
+        &brick_toward(dir(68.0, 130.0), 0.985, 0.2, 0.3),
+        &brick_toward(dir(68.0, 50.0), 0.985, 0.2, 0.3),
+    );
+    let caps = run(BooleanOp::Intersect, &lens, &bricks);
+    let (x, circle) = caps
+        .vertices()
+        .find(|&(v, _)| topo::is_conventional_vertex(&caps, v))
+        .map(|(v, d)| (v, caps.get_half_edge(d.emanating.unwrap()).unwrap().edge))
+        .expect("a cap circle's conventional vertex");
+    let at_vertex = *caps.get_point(caps.get_vertex(x).unwrap().point).unwrap();
+    let geom::Curve3::Circle { center, axis, .. } = *caps
+        .get_curve_geom(caps.get_edge(circle).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .carrier()
+    else {
+        panic!("the cap's edge is a circle")
+    };
+    // The cap lies on the side of its plane away from the unit sphere's
+    // centre.
+    let n = if axis.dot(center - Point3::origin()) > 0.0 {
+        axis
+    } else {
+        -axis
+    };
+    let diagonal = Vec3::new(1.0, 1.0, 1.0) / 3.0_f64.sqrt();
+    let turn = diagonal.cross(-n);
+    let aim = Affine3::rotation_about_axis(
+        Point3::origin(),
+        turn / turn.norm(),
+        turn.norm().atan2(diagonal.dot(-n)),
+    );
+    let caps = finished("the caps", caps.into_body(), tol);
+    let mut seen = Vec::new();
+    for along in [0.0_f64, 40.0] {
+        let p =
+            Affine3::rotation_about_axis(center, n, along.to_radians()).transform_point(at_vertex);
+        let cube: Body<f64> = sweep::test_support::brick((0.0, 0.1), (0.0, 0.1), (0.0, 0.1), tol);
+        let place = Affine3::translation(p - Point3::origin()) * aim;
+        let cube = finished(
+            "the cube",
+            topo::transform_rigid(&cube, &place, tol).unwrap(),
+            tol,
+        );
+        for (order, r) in [
+            topo::union(&caps, &cube, tol),
+            topo::union(&cube, &caps, tol),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let label = format!("{along}° along the circle, order {order}");
+            let Ok(topo::BooleanResult::Body(bb)) = r else {
+                panic!("{label}: builds: {r:?}")
+            };
+            let verdict: Vec<String> = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                .err()
+                .unwrap_or_default()
+                .iter()
+                .map(|e| {
+                    format!("{e:?}")
+                        .split([' ', '{', '('])
+                        .next()
+                        .unwrap()
+                        .to_owned()
+                })
+                .collect();
+            assert!(
+                verdict.iter().all(|k| k == "CensusUndecidable"),
+                "{label}: tier 3′ finds no record at fault: {verdict:?}"
+            );
+            let c = &bb.contacts;
+            let records = [
+                c.vv.len(),
+                c.a_on_b.len() + c.b_on_a.len(),
+                c.ve.len(),
+                c.ee.len(),
+            ];
+            assert_eq!(records, [0, 0, 1, 0], "{label}: one (u, E) record");
+            let edge = bb.body.get_edge(c.ve[0].edge).unwrap();
+            assert!(
+                matches!(
+                    bb.body
+                        .get_curve_geom(edge.curve)
+                        .unwrap()
+                        .certified()
+                        .unwrap()
+                        .carrier(),
+                    geom::Curve3::Circle { .. }
+                ),
+                "{label}: the record's edge is the cap circle"
+            );
+            seen.push((label, records, verdict.len()));
+        }
+    }
+    for (label, records, verdict) in &seen[1..] {
+        assert_eq!(
+            (records, verdict),
+            (&seen[0].1, &seen[0].2),
+            "{label}: reads as the corner at the vertex in order 0 does"
+        );
+    }
+}
