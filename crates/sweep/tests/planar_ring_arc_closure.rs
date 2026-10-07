@@ -10,8 +10,8 @@
 //! shallow cap past the half-disc, the crescent and the lens (two arcs
 //! on one chord, bowing the same way and opposite ways), and the D and
 //! the crescent drawn with an arc split at a vertex on its circle, which
-//! the extrude sweeps as one wall, so the vertex drawn on the arc stays
-//! on the prism's caps and must leave none in the section. Every profile is driven through
+//! the extrude sweeps as one wall, so the vertex drawn on the arc has no
+//! entity and leaves none in the section. Every profile is driven through
 //! the slab upright, off the origin, spun about its axis and tilted
 //! about one axis and two, and every op is asked in both member orders.
 
@@ -47,13 +47,12 @@ fn census(body: &topo::Body<f64>) -> Census {
     )
 }
 
-/// **The census of a slab pierced by an `n`-sided prism whose caps
-/// each carry `k` stations on an arc rim**, for ∪, ∩, slab ∖ prism and
-/// prism ∖ slab. A vertex drawn between two arcs of one circle is a
-/// station inside a run: it splits neither wall nor rim, so it has no
-/// entity and `k` is 0. A station cut back into a rim by hand splits
-/// the rim but no wall, so the slab's sections never meet it: it shows
-/// only on the prism's own caps, which ∪ and prism ∖ slab keep.
+/// **The census of a slab pierced by an `n`-sided prism**, for ∪, ∩,
+/// slab ∖ prism and prism ∖ slab. A vertex drawn between two arcs of one
+/// circle is a station inside a run: it splits neither wall nor rim, so
+/// it has no entity. A station cut back into a rim by hand splits the
+/// rim but no wall, so the slab's sections never meet it, and the
+/// output's join takes it off the caps ∪ and prism ∖ slab keep.
 ///
 /// - ∪: the slab's two faces each keep a ring of `n` edges and `n`
 ///   vertices, and the prism's `n` walls are cut into the stub above and
@@ -61,18 +60,12 @@ fn census(body: &topo::Body<f64>) -> Census {
 /// - ∩: the prism one unit long between the slab's planes;
 /// - slab ∖ prism: the slab with a hole through it, genus 1;
 /// - prism ∖ slab: the two stubs.
-fn pierced(n: usize, k: usize) -> [Census; 4] {
+fn pierced(n: usize) -> [Census; 4] {
     [
-        (
-            1,
-            8 + 4 * n + 2 * k,
-            12 + 6 * n + 2 * k,
-            8 + 2 * n,
-            10 + 2 * n,
-        ),
+        (1, 8 + 4 * n, 12 + 6 * n, 8 + 2 * n, 10 + 2 * n),
         (1, 2 * n, 3 * n, 2 + n, 2 + n),
         (1, 8 + 2 * n, 12 + 3 * n, 6 + n, 8 + n),
-        (2, 4 * n + 2 * k, 6 * n + 2 * k, 4 + 2 * n, 4 + 2 * n),
+        (2, 4 * n, 6 * n, 4 + 2 * n, 4 + 2 * n),
     ]
 }
 
@@ -321,7 +314,8 @@ fn a_prism_with_arc_walls_through_a_slab_builds_every_op() {
 /// **A prism whose arc rims hold a station cut back by hand, through
 /// the slab**: what a boolean's cut leaves on an operand. The station
 /// splits each cap's arc rim but neither wall, so the slab's sections
-/// never meet it and [`pierced`] counts it on the prism's own caps.
+/// never meet it, and the output's join takes it off the prism's caps:
+/// every op builds the body [`pierced`] counts without it.
 #[test]
 fn a_prism_with_a_station_on_its_arc_rims_through_a_slab_builds_every_op() {
     let tol = Tol::witness();
@@ -353,7 +347,7 @@ fn every_op(slab: &AtRestBody<f64>, shape: &Shape, stations: &[Point2<f64>]) {
         let prism = prism(shape, &map, stations);
         let v = shape.area * LENGTH;
         let shared = shape.area / dz;
-        let want = pierced(shape.sides, stations.len());
+        let want = pierced(shape.sides);
         // Tilted, the two stubs' walls overhang each other across the
         // slab.
         let stubs = if dz < 1.0 {

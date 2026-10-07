@@ -87,12 +87,13 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     // no longer discriminates; the two facts that DO are the seam flag
     // and the authority record (U2 Q3), and both were always the real
     // content of this line. The base disc has no meridian at all (a
-    // plane wall is built whole); the cone is periodic, so its angle-0
-    // meridian is the chart's own seam, derived, pinned to ITS OWN
-    // wall's chart.
+    // plane wall is built whole); the cone's angle-0 meridian parts its
+    // two π-bands, so it is no wrap edge (D1) but an image at rest in
+    // ITS OWN wall's chart, the profile's segment its declaring
+    // authority.
     let slant_key = t.body.get_face(slant).unwrap().surface;
     assert!(meridians[0].is_none(), "a plane disc has no meridian");
-    assert_seam_of(&t.body, meridians[1].unwrap(), slant_key);
+    assert_declared_image_in(&t.body, meridians[1].unwrap(), slant_key);
     assert!(meridians[2].is_none());
     // Orientation oracle: interior lift points per face (the band
     // boundaries are coplanar — see the ball suite): band 1 covers

@@ -248,10 +248,13 @@ fn m10r2_split_lineage_after_graft() {
 /// visibly wrong span, for φ = 1e-12 a sub-band shift every consumer
 /// ANSWERED, the volume hundreds of ulps from the donut's. Inverted:
 /// the pieces must meet exactly, so BOTH shifts refuse
-/// `props_meridian_pieces_meet` — the sub-ε one too, because the
-/// split's own `t` is a structural fact, not a value within ε — while
-/// the unsplit edge shifted the same way still answers bitwise (one
-/// edge's span is shift-invariant).
+/// `props_meridian_pieces_meet` at the shape door (`tessellate`) — the
+/// sub-ε one too, because the split's own `t` is a structural fact, not
+/// a value within ε — while the unsplit edge shifted the same way still
+/// answers bitwise (one edge's span is shift-invariant). The volume
+/// folds nothing: the torus's chart Green form reads each piece's own
+/// span on its own carrier, so the re-certified child is the same arc
+/// and the volume is the donut's.
 #[test]
 fn m10r2_set_edge_curve_on_a_split_child() {
     let tol = Tol::witness();
@@ -322,13 +325,14 @@ fn m10r2_set_edge_curve_on_a_split_child() {
             let meet = geom_brep::props::PropsError::NotIsoRectangle {
                 what: "props_meridian_pieces_meet",
             };
+            let v = v.unwrap_or_else(|e| panic!("split={split} phi={phi:e}: measures: {e:?}"));
             assert!(
-                matches!(&v, Err(topo::MassPropsError::Face { source, .. }) if *source == meet),
-                "split={split} phi={phi:e}: the shifted piece no longer meets its sibling: {v:?}"
+                (v - v_donut).abs() <= 1e-12 * v_donut,
+                "split={split} phi={phi:e}: the re-certified child is the same arc: {v} vs {v_donut}"
             );
             assert!(
                 matches!(&m, Err(mesh::TessellateError::UnsupportedCurvedShape { source, .. }) if *source == meet),
-                "split={split} phi={phi:e}: tessellate refuses by the same name: {m:?}"
+                "split={split} phi={phi:e}: tessellate refuses at the shape door: {m:?}"
             );
         } else {
             let v = v.expect("one edge's span is shift-invariant");

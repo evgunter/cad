@@ -105,6 +105,29 @@ fn net_iso_u<T: Real>(net: &NetView<'_, T>, end: bool) -> Result<NurbsCurve3<T>,
     NurbsCurve3::new(net.knots_v.clone(), control, weights)
 }
 
+/// `column` run back: its knots mirrored across its domain `[a, b]`,
+/// its control points and weights reversed, so its point at `t` is
+/// `column`'s at `a + b − t`. A wrap edge a construction lays against
+/// its column's direction is carried by this (D1), and the seam-class
+/// pcurve certification compares it against the same reversal of the
+/// chart's own column.
+///
+/// # Errors
+///
+/// [`SplineError`] from re-validating the mirrored knot vector or the
+/// curve's counts, each unreachable for a curve
+/// [`NurbsCurve3::new`] built.
+pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> Result<NurbsCurve3<T>, SplineError> {
+    let knots = column.knots();
+    let (a, b) = knots.domain();
+    let mirrored = knots.knots().iter().rev().map(|&k| (a + b) - k).collect();
+    NurbsCurve3::new(
+        geom_core::spline::KnotVector::clamped(mirrored, knots.degree())?,
+        column.control().iter().rev().copied().collect(),
+        column.weights().iter().rev().copied().collect(),
+    )
+}
+
 /// The `v = 0` (`end = false`) or `v = 1` (`end = true`) boundary
 /// iso-curve of a clamped surface: the first/last v-column of the
 /// control net over `knots_u`, weights matching.
