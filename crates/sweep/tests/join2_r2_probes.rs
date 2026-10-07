@@ -524,14 +524,11 @@ fn the_rest_lane_joins_every_joinable_vertex_it_leaves() {
             !out.naming.edge_joins.is_empty(),
             "{order}: the REST lane's output stage joins the rims' vertices"
         );
-        assert_eq!(
-            topo::joinable_vertices(
-                &out.body,
-                geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
-            )
-            .unwrap(),
-            vec![],
-            "{order}: no joinable vertex is left"
+        let left = geom_core::Band::linear(geom_core::Tol::witness())
+            .map(|band| topo::joinable_vertices(&out.body, band));
+        assert!(
+            matches!(&left, Ok(Ok(v)) if v.is_empty()),
+            "{order}: no joinable vertex is left: {left:?}"
         );
     }
 }
