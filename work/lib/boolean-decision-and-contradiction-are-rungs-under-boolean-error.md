@@ -99,3 +99,9 @@ schedule and curved chart refusal, which the boolean answered as
 `ClassificationInvariant` before). `ContainError` is itself an error
 type, so the sweep's narrowing does not count it a payload rung, and
 this row gains no name.
+
+TANG's PR 4234 adds `BooleanError::VertexReadTwice { operand, vertex,
+reads: [SectorRead; 2] }`. `SectorRead` (a pierce's face, or a pair's
+vertex) is a closed decision type one rung under `BooleanError`, so the
+sweep's `--check` counts it and this row gains the name (filed by
+`join/tier3-pinch-checks`, which met main's lint red on it).
