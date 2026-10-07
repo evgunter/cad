@@ -622,10 +622,11 @@ fn check_carrier<T: Decide>(
 /// perp_dot(û, q − a) (meters; positive = left of the chord direction).
 ///
 /// Returns the margin beside the sign because one caller — the joint
-/// classification — has to REPORT what it classified, and the four
-/// `line_line` callers below discard it deliberately: their question is
-/// which side, and a distance they neither read nor render would be a
-/// second value to keep in step with the first.
+/// classification — has to REPORT what it classified, and the others
+/// (`line_line`'s four, [`arc_clear_of_carrier`]) discard it
+/// deliberately: their question is which side, and a distance they
+/// neither read nor render would be a second value to keep in step
+/// with the first.
 fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<(Sign, T), Indeterminate> {
     let margin = s.unit.perp_dot(q - s.a);
     Ok((decide("chord_side", Margin::of(margin), band)?, margin))
@@ -663,6 +664,9 @@ fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, In
 ///
 /// A full turn ([`ArcSpan::FullTurn`]) holds every carrier point, so
 /// nothing is decided: its vertex is not an endpoint.
+///
+/// [`arc_clear_of_carrier`] passes a point off the carrier, under its
+/// own argument.
 fn arc_span<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
     match g.span {
         ArcSpan::Chord { apex, span_chord } => {
@@ -1190,13 +1194,25 @@ fn line_arc<T: Decide>(
 
 /// Whether an arc certainly keeps off a line's whole carrier, read from
 /// the arc's span rather than the carriers' clearance. Along a circle
-/// the signed distance to a line has one local minimum, at the point
+/// the signed distance to a line has one local minimum, at the point P
 /// facing the line, which lies toward `foot` (the line's point nearest
-/// the centre) from the centre. An arc whose span definitely excludes
-/// that point (`arc_span` of `foot`, within the clearance of the
-/// circle) is therefore nearest the line at an endpoint, and with both
-/// endpoints definitely on the centre's side (`chord_side`) no point of
-/// it reaches the line.
+/// the centre) from the centre. An arc whose span excludes P is
+/// therefore nearest the line at an endpoint, and with both endpoints
+/// definitely on the centre's side (`chord_side`) no point of it
+/// reaches the line.
+///
+/// The span is read at `foot`, which is off the carrier unless the
+/// carriers are tangent, so a definite miss of `foot` has to be shown
+/// to exclude P. In the reals: where the line misses the circle every
+/// arc point is on the centre's side; where it is tangent, `foot` is P.
+/// Where it cuts the circle, an arc holding P with both endpoints on
+/// the centre's side holds the whole cap beyond the line, so both
+/// crossing points lie in the disc of radius `span_chord` about the
+/// apex, and so does `foot`, their midpoint; `arc_span` would not read
+/// it a definite miss. That carries to `Interval`, whose definite
+/// readings hold of the real points. At `f64` the clearance is in
+/// band, so |`foot` − P| < Kε, and the margin, 1-Lipschitz in the
+/// point, moves by less than the Kε a definite miss clears.
 fn arc_clear_of_carrier<T: Decide>(
     line: &Seg<T>,
     arc: &Seg<T>,
