@@ -49,13 +49,14 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
         name.node == ext
             && matches!(
                 name.path.as_slice(),
-                [RoleSeg::RimEdge(
-                    CapEnd::Start,
-                    ProfileEdgeRef::Piece {
-                        role: PieceRole::Piece(0),
-                        ..
-                    }
-                )]
+                [RoleSeg::RimEdge(CapEnd::Start, run)]
+                    if matches!(
+                        run.single(),
+                        Some(ProfileEdgeRef::Piece {
+                            role: PieceRole::Piece(0),
+                            ..
+                        })
+                    )
             )
     };
     // (side, kind) → the rows on the start rim's Piece(0), by tail.

@@ -102,11 +102,10 @@
 //! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface verdicts are decided for
 //! the whole loop — including the wrap pair — before any wall is minted
 //! (the PR 4 SHOULD-1 lesson): a run of segments on one carrier is ONE
-//! wall (crate README, "Walls: one per run"; a full revolve collapses
-//! the run to one segment before it builds, a partial one keeps each
-//! station on its wedge caps). A partial revolve keeps each arc of a
-//! cocircular run its own wall (`swept::CurvedRuns::Split`), and those
-//! walls share one surface key, as a circle's cut walls do.
+//! wall (crate README, "Walls: one per run"): both cases collapse the
+//! run to one segment before they build (`runs::Collapsed`), so a
+//! station inside a run has no entity — a wedge cap carries the run as
+//! one meridian edge, and a run of on-axis segments is one axis edge.
 //!
 //! # K-telemetry
 //!
@@ -118,6 +117,7 @@ mod axis;
 mod chain;
 mod full;
 mod partial;
+mod runs;
 mod surfaces;
 pub mod tube;
 mod upgrade;
@@ -203,16 +203,16 @@ pub struct Revolved<T: Real> {
     /// Latitude edges (partial: wedge arcs; full: full-period rims,
     /// self-loops at the surviving meridian vertices), per loop, per
     /// canonical vertex (`None`: on-axis vertex, or a station inside a
-    /// run — partial: the wedge caps' meridian chains carry it; full:
-    /// it has no entity).
+    /// run, which has no entity).
     pub rims: Vec<Vec<Option<EdgeKey>>>,
     /// Pole vertices, per loop, per canonical vertex: the ONE body
     /// vertex an on-axis profile vertex revolves to (the rotation
     /// fixes it, so every meridian chain meets there). `None` at
     /// off-axis vertices — those have one copy per chain, addressed
     /// through `rims` and the meridian chains — at vertices strictly
-    /// INTERIOR to a full revolve's omitted axis run, which that case
-    /// deletes outright (no body entity exists to name), and at a full
+    /// INTERIOR to an axis run, which a full revolve deletes outright
+    /// and a partial revolve collapses into the run's one axis edge
+    /// (either way no body entity exists to name), and at a full
     /// revolve's tip where a plane wall meets the axis (the disc is
     /// built whole, its centre no vertex).
     /// A multi-segment axis run authors through the recipe layer as
@@ -285,9 +285,10 @@ pub enum RevolvedKind {
         start_cap: FaceKey,
         /// The end cap — on the sketch plane rotated by θ.
         end_cap: FaceKey,
-        /// Start-chain meridian edges, per loop, per canonical segment.
-        /// For an on-axis segment this is the shared axis edge (the
-        /// same key appears in `end_meridians`).
+        /// Start-chain meridian edges, per loop, per canonical segment:
+        /// a run's segments read its one meridian. For an on-axis
+        /// segment this is the shared axis edge of its run (the same
+        /// key appears in `end_meridians`).
         start_meridians: Vec<Vec<EdgeKey>>,
         /// End-chain meridian edges, per loop, per canonical segment.
         end_meridians: Vec<Vec<EdgeKey>>,
@@ -610,11 +611,11 @@ pub enum RevolveError {
         /// The edge whose station refuted the smooth premise.
         edge: EdgeKey,
     },
-    /// A station INSIDE a wall run (two walls one carrier holds) sits
-    /// pinned on the axis, so the run's wall would have no strut there
-    /// (defense-in-depth, the `CapPlane` posture: a wall through an
-    /// on-axis station carries on past the axis, which the half-plane
-    /// checks refuse first for every validated profile).
+    /// A station INSIDE a run of walls (two segments one carrier
+    /// holds) sits pinned on the axis (defense-in-depth, the `CapPlane`
+    /// posture: a wall through an on-axis station carries on past the
+    /// axis, which the half-plane checks refuse first for every
+    /// validated profile).
     PinnedRunStation {
         /// Canonical index of the loop.
         loop_index: usize,
