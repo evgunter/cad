@@ -260,3 +260,144 @@ fn cone_cylinder_reads_one_verdict_at_every_stored_origin() {
         }
     }
 }
+
+/// The plane×cylinder section of the wall of radius `r` about `z` and
+/// the plane through `through` of normal `normal`, read over `reach`.
+fn wall_cut(
+    r: f64,
+    through: Point3<f64>,
+    normal: Vec3<f64>,
+    reach: &Reach<f64>,
+) -> Result<PlaneCylinderSection<f64>, geom_brep::SectionError> {
+    let wall = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let cut = Surface::Plane {
+        origin: through,
+        normal,
+        u_ref: Vec3::unit_x(),
+    };
+    plane_cylinder_section(&cut, &wall, reach, band())
+}
+
+fn escalated(got: &Result<PlaneCylinderSection<f64>, geom_brep::SectionError>) -> bool {
+    matches!(got, Err(geom_brep::SectionError::Escalated(d)) if d.predicate == Some("pc_axis_plane_parallel"))
+}
+
+fn bounded(got: &Result<PlaneCylinderSection<f64>, geom_brep::SectionError>) -> bool {
+    matches!(
+        got,
+        Ok(PlaneCylinderSection::Rim(_) | PlaneCylinderSection::TiltedEllipse(_))
+    )
+}
+
+/// **A tilt's turn across the wall is levered at the face's reach
+/// across it.** The unit wall about `z` read at `(1, 0, 0)` over a face
+/// that reaches nothing along the axis and `x = 1` across the wall
+/// (`Reach::Face`), cut by planes through the `x` axis (no gap, so the
+/// hinge stands on the foot) whose normals lean `β` off `y` toward `z`.
+/// The plane turns about the hinge by `β`, which moves the face by
+/// `(1 − cos β)·x`:
+/// - the plane `z = 0` and planes tilted 30° and 60° off it are bounded
+///   cuts, where a lever along the axis alone reads Zero and mints
+///   rulings;
+/// - `(1 − cos β)·x = 1.5·Kε` is definite (an ellipse): at half the
+///   reach across it reads `0.75·Kε` and escalates;
+/// - `(1 − cos β)·x = 0.6·Kε` escalates: at twice the reach across it
+///   reads `1.2·Kε` and serves an ellipse.
+#[test]
+fn a_tilts_turn_across_the_wall_is_levered_at_the_faces_reach_across() {
+    let at = Point3::new(1.0, 0.0, 0.0);
+    let reach = Reach::Face {
+        at,
+        below: 0.0,
+        above: 0.0,
+        across: 1.0,
+    };
+    let leaning = |c: f64| Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
+    for degrees in [90.0_f64, 60.0, 30.0] {
+        let got = wall_cut(1.0, at, leaning(degrees.to_radians().sin()), &reach);
+        assert!(bounded(&got), "{degrees}°: a bounded cut, got {got:?}");
+    }
+    let kk = band().escalate();
+    // `1 − cos β = m` at `sin β = √(m·(2 − m))`.
+    let sine = |m: f64| (m * (2.0 - m)).sqrt();
+    let definite = wall_cut(1.0, at, leaning(sine(1.5 * kk)), &reach);
+    assert!(
+        bounded(&definite),
+        "1.5·Kε across the wall: an ellipse, got {definite:?}"
+    );
+    let in_band = wall_cut(1.0, at, leaning(sine(0.6 * kk)), &reach);
+    assert!(
+        escalated(&in_band),
+        "0.6·Kε across the wall: in the band, got {in_band:?}"
+    );
+}
+
+/// **A tangent cut is levered from its rulings' hinge.** A wall of radius
+/// `r = 10¹²·ε` (1 km at the witness ε) read at `(r, 0, 0)` over a face
+/// `e = 10⁴·ε` long (its lone ruling, 10 µm), and the plane through that
+/// point tilted so the axis meets it at `sin β = k·ε/e`. The face leaves
+/// the plane by at most `k·ε`, but the rulings the axis-in-plane lane
+/// mints stand on the hinge through the foot's projection along the
+/// plane's normal, `r·sin β` up the axis and `r·(1 − cos² β)` in from the
+/// wall: the cut there is not the face's ruling, and levered from the
+/// vertex's foot alone the lane read the gap at `r·cos β` and minted two
+/// rulings `r·sin β` off the face (5–9.5 cm at the witness ε). Levered
+/// from the hinge's station the tilt reads `r·sin² β = 10⁴·k²·ε`,
+/// definite, and the cut is the exact ellipse. A tilt whose `r·sin² β`
+/// is `0.6·Kε` escalates.
+#[test]
+fn a_tangent_cut_is_levered_from_its_rulings_hinge() {
+    let eps = band().zero();
+    let (r, e) = (1e12 * eps, 1e4 * eps);
+    let at = Point3::new(r, 0.0, 0.0);
+    let reach = Reach::Face {
+        at,
+        below: 0.0,
+        above: e,
+        across: e,
+    };
+    let tilted = |c: f64| Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
+    for k in [0.5, 0.95] {
+        let got = wall_cut(r, at, tilted(k * band().zero() / e), &reach);
+        assert!(bounded(&got), "k = {k}: the exact ellipse, got {got:?}");
+    }
+    let got = wall_cut(r, at, tilted((0.6 * band().escalate() / r).sqrt()), &reach);
+    assert!(
+        escalated(&got),
+        "0.6·Kε at the hinge: in the band, got {got:?}"
+    );
+}
+
+/// **A tangent cut turns about its rulings' hinge, not the foot.** The
+/// unit wall about `z` read at `(1, 0, 0)` over a face `10·ε` long (its
+/// lone ruling), cut by the plane through that point tilted to
+/// `sin β = c`, `c² = 0.8·ε`. The hinge stands `r·c` up the axis from
+/// the foot and on the plane, so the face moves by `c` times its axial
+/// distance from the hinge's station, `r·c² = 0.8·ε`, and the turn moves
+/// it by next to nothing: Zero, the tangent ruling. Turned about the
+/// foot, which stands `r` across the wall from the face, the turn read
+/// `(1 − cos β)·r = 0.4·ε` more and escalated a cut whose face it holds
+/// within the band.
+#[test]
+fn a_tangent_cut_turns_about_its_rulings_hinge_not_its_foot() {
+    let eps = band().zero();
+    let at = Point3::new(1.0, 0.0, 0.0);
+    let e = 10.0 * eps;
+    let reach = Reach::Face {
+        at,
+        below: 0.0,
+        above: e,
+        across: e,
+    };
+    let c = (0.8 * eps).sqrt();
+    let got = wall_cut(1.0, at, Vec3::new((1.0 - c * c).sqrt(), 0.0, c), &reach);
+    assert!(
+        matches!(got, Ok(PlaneCylinderSection::TangentLine(_))),
+        "the tangent ruling, got {got:?}"
+    );
+}
