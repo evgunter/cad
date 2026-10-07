@@ -23,17 +23,20 @@ use geom_core::Tol;
 /// The opaque profile payload: this suite never looks inside `P`.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
-impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
 impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
     type Authored = Self;
     fn lower<E>(
         authored: &Self,
-        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
-    fn authored(&self) -> Self {
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
         self.clone()
     }
     fn drawn_pieces(
@@ -54,6 +57,7 @@ fn insert(doc: &TDoc, node: Node<FakeProfile, Formula>) -> (TDoc, RecipeNodeId) 
         doc,
         &TEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

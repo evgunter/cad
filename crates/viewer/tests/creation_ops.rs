@@ -457,10 +457,9 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
     );
     let doc = session.committed_doc();
     let expect_bit_eq = |id: RecipeNodeId, want: AuthoredNode| {
-        assert!(
-            doc.node(id)
-                .expect("the datum is live")
-                .bit_eq(&editor_core::test_support::stored(&want)),
+        assert_eq!(
+            doc.node(id).expect("the datum is live").written(doc),
+            want,
             "the inserted node is the literal spelling of the form"
         );
     };
@@ -547,12 +546,10 @@ fn the_rectangle_template_is_the_centred_polygon() {
         ],
         ids: minted.ids.clone(),
     });
-    assert!(
-        session
-            .committed_doc()
-            .node(profile)
-            .expect("the profile is live")
-            .bit_eq(&editor_core::test_support::stored(&want)),
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.node(profile).expect("the profile is live").written(doc),
+        want,
         "corners at (±w/2, ±h/2), counter-clockwise from lower-left"
     );
 }

@@ -96,6 +96,7 @@ fn every_coincidence_round_trips_under_its_own_spelling() {
                     b,
                     declare: pairs.clone(),
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -143,6 +144,7 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

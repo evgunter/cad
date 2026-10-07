@@ -787,13 +787,12 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             "{slot:?}: one edit for the whole drag"
         );
         // The door actually taken, so the claim above is executed
-        // rather than described: these are the value-gesture edits
-        // that write into `doc.nodes`.
+        // rather than described: a value gesture writes the value of
+        // the variable its slot reads (Q6), a count's as a spacing's.
         assert!(
             matches!(
                 (&outcome.committed[0], slot),
-                (DocEdit::SetParam { .. }, SlotId::Spacing)
-                    | (DocEdit::SetStructuralParam { .. }, SlotId::Count)
+                (DocEdit::SetVarValue { .. }, SlotId::Spacing | SlotId::Count)
             ),
             "{slot:?} took an unexpected door: {:?}",
             outcome.committed[0]
@@ -1786,11 +1785,17 @@ fn a_drag_on_another_field_cannot_steer_the_open_one() {
     });
     assert!(landed.refusal.is_none());
     assert_eq!(landed.committed.len(), 1, "one edit for the whole drag");
+    // A value gesture writes the slot's own variable (Q6): the
+    // variable the open drag's slot reads.
+    let dragged = session
+        .committed_doc()
+        .slot(first, SlotId::Distance)
+        .expect("the extrude reads its distance");
     assert!(
         matches!(
             landed.committed.first(),
-            Some(DocEdit::SetParam { node, slot, .. })
-                if *node == first && *slot == SlotId::Distance
+            Some(DocEdit::SetVarValue { var, .. })
+                if *var == pncad::document::VarRef::Id(dragged)
         ),
         "and it is the open drag's own slot that moved: {:?}",
         landed.committed.first()

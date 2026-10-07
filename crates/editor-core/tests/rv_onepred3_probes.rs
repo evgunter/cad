@@ -73,6 +73,7 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
             node: pattern,
             slot: SlotId::Count,
             expr: len(3.0),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -90,25 +91,30 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
-    // A Count expression is `{"Count": n}` on the wire, not a
-    // `Literal`; the surgery swaps in a well-formed LENGTH literal, so
-    // the only rule left to refuse it is the slot's own.
+    // The count slot reads a free Count variable; the surgery swaps it
+    // for a well-formed LENGTH variable, so the only rule left to
+    // refuse it is the slot's own.
     let corrupt = doctored(&text, |wire| {
-        let count = &mut wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["count"];
-        assert_eq!(*count, serde_json::json!({ "Count": 3 }));
-        *count = serde_json::json!({
-            "Literal": { "value": 3.0, "dim": "Length", "unit": "m" }
+        let var = wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["count"]
+            .as_u64()
+            .expect("the count slot reads a variable");
+        let held = &mut wire["snapshot"]["vars"][var.to_string()];
+        assert_eq!(held["kind"], serde_json::json!("Count"));
+        *held = serde_json::json!({
+            "kind": "Length",
+            "def": { "Free": { "Continuous": { "dim": "Length", "value": 3.0, "display_unit": "m" } } }
         });
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDimension {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            expected,
-            found,
+            declared,
+            referenced,
+            ..
         })) => assert_eq!(
-            (node.id(), slot, expected, found),
-            (pattern, SlotId::Count, Dimension::Count, Dimension::Length)
+            (node.id(), slot, declared, referenced),
+            (pattern, SlotId::Count, Dimension::Length, Dimension::Count)
         ),
         other => panic!("the load door must refuse a length count, got {other:?}"),
     }
@@ -129,28 +135,30 @@ fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     let corrupt = doctored(&text, |wire| {
         // (a) a non-profile slot retyped: spacing Length -> Angle.
-        let lit = &mut wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["kind"]["Linear"]
-            ["spacing"]["Literal"];
-        assert_eq!(lit["dim"], serde_json::json!("Length"));
-        lit["dim"] = serde_json::json!("Angle");
-        lit["unit"] = serde_json::json!("rad");
+        crate::wire::retype_slot_var(
+            wire,
+            |wire| &wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["kind"]["Linear"]["spacing"],
+            "Angle",
+            "rad",
+        );
         // (b) the recorded ε broken too — `EpsilonInvalid`, a
         // `validate_snapshot` refusal.
         wire["snapshot"]["epsilon"] = serde_json::json!(-1.0);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDimension {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            expected,
-            found,
+            declared,
+            referenced,
+            ..
         })) => assert_eq!(
-            (node.id(), slot, expected, found),
+            (node.id(), slot, declared, referenced),
             (
                 pattern,
                 SlotId::Spacing,
-                Dimension::Length,
-                Dimension::Angle
+                Dimension::Angle,
+                Dimension::Length
             ),
             "the earlier walk's refusal, at the address it is about"
         ),

@@ -511,11 +511,13 @@ fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
             node: extrude,
             slot: SlotId::Distance,
             expr: len(0.011),
+            fresh: Vec::new(),
         },
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
             expr: len(0.013),
+            fresh: Vec::new(),
         },
     ];
     let mut history = History::replayed(doc, &edits, tol).expect("the log replays");

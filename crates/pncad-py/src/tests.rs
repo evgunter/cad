@@ -86,6 +86,7 @@ fn insert(
         &doc,
         &pncad::document::DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
@@ -1896,7 +1897,12 @@ fn expression_evaluation_tags_are_stable() {
     let bound = lengths.var_env::<f64>();
     // The names are read against the document, as `Document.eval` reads
     // them.
-    let parse_in = |doc: &ProfileDoc, src: &str| doc.lowered(&parse(src));
+    let parse_in = |doc: &ProfileDoc, src: &str| {
+        doc.lowered(&parse(src)).map_err(|fault| match fault {
+            pncad::document::LowerFault::Name(fault) => fault,
+            other => panic!("a parsed formula reads no fresh entry: {other}"),
+        })
+    };
     let parse = |src: &str| parse_in(&lengths, src).expect("the names lower");
 
     // The value the whole family exists for: an expression a caller
@@ -2007,30 +2013,27 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     // replacement below now lands on the frame's origin rather than on
     // a profile point. The probe is about the load door's dimension
     // walk, which reaches both alike.
-    let framed = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(xy_frame()),
-        },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the frame inserts");
+    let frame = DocEdit::InsertNode {
+        node: Box::new(xy_frame()),
+        fresh: Vec::new(),
+    };
+    let framed =
+        apply(&doc, &frame, tol, &pncad::document::RefusingReach).expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
-    let applied = apply(
-        &framed.doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Profile(ProfileProgram {
-                plane,
-                loops: vec![square],
-                ids: Vec::new(),
-            })),
-        },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the profile inserts");
-    let text = save(&applied.doc, &[], tol).expect("the document saves");
+    let profile = DocEdit::InsertNode {
+        node: Box::new(Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![square],
+            ids: Vec::new(),
+        })),
+        fresh: Vec::new(),
+    };
+    apply(&framed.doc, &profile, tol, &pncad::document::RefusingReach)
+        .expect("the profile inserts");
+    // Saved as its edit log over the empty document: a slot holds a
+    // variable's id in a snapshot, and the edits carry the formulas as
+    // written — the literals the load door rebuilds.
+    let text = save(&doc, &[frame, profile], tol).expect("the document saves");
     let (header, body) = text.split_once("\n{").expect("a header line then the body");
     let body = format!("{{{body}");
     let saved: serde_json::Value = serde_json::from_str(&body).expect("the save body is JSON");
@@ -4966,6 +4969,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fold_on_non_gauge",
             "fold_would_dangle",
             "fold_would_start_placing",
+            "fresh_kind",
+            "fresh_unheld",
+            "fresh_unread",
             "gauge_cycle",
             "gauge_not_live",
             "gauge_on_non_placed",
@@ -5187,6 +5193,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "fresh_fault_tag",
+        values: &["fresh_kind", "fresh_unheld"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "hit_test_error_tag",
         values: &[
             "across_spaces",
@@ -5199,7 +5210,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "inline_error_tag",
         values: &[
-            "anonymous_var_crosses_cut",
             "epsilon_seam",
             "foreign_instance_name",
             "inline_edit",
@@ -6008,7 +6018,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_non_rigid",
             "placement_rule",
             "reader_of_unminted_var",
-            "slot_dimension",
             "slot_var_kind",
             "step_ids",
             "var_kind",
@@ -6028,7 +6037,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_error_tag",
         values: &[
-            "anonymous_var_crosses_cut",
             "body_name_crosses_cut",
             "dead_gauge_reference",
             "empty_cut",
@@ -6385,10 +6393,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // pick and the flush detector each refuse to order or compare.
     ("across_spaces", 2),
     ("ambiguous", 4),
-    // One fact at the two doors that cross a document seam: a split's
-    // part and an inline's host would have to name a variable nobody
-    // named (VR2).
-    ("anonymous_var_crosses_cut", 2),
     // One fact (VR7) at the edit and load doors: a variable with no
     // name that nothing reads.
     ("anonymous_var_unread", 2),
@@ -6448,6 +6452,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("euler", 2),
     ("evaluation_of_another_document", 5),
     ("face", 3),
+    // One fact (INTENT-LITERALS C) at the edit door and outside it: a
+    // formula reads a fresh-table entry its edit does not hold, or at
+    // another kind.
+    ("fresh_kind", 2),
+    ("fresh_unheld", 2),
     // One fact at two doors: a gauge that would sit on itself, refused
     // at the edit door and at the load door.
     ("gauge_cycle", 2),

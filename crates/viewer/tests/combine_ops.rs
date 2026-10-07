@@ -28,9 +28,9 @@ use test_utils::refusal::tagged;
 use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Formula, LoopProgram, Node,
-    NodeError, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind, ProfileProgram,
-    RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, Formula, LoopProgram,
+    Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind,
+    ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
@@ -485,15 +485,13 @@ fn the_transform_door_places_a_body_with_literal_slots() {
         (Axis3::Z, OFFSET[2]),
     ] {
         let expr = doc
-            .node(placed)
-            .and_then(|node| node.expr(SlotId::Translation(axis)))
+            .slot_expansion(placed, SlotId::Translation(axis))
             .expect("the translation slot is there");
         assert_eq!(expr.literal_value(), Some(want));
         assert_eq!(expr.dim(), Dimension::Length);
     }
     let angle = doc
-        .node(placed)
-        .and_then(|node| node.expr(SlotId::RotationAngle))
+        .slot_expansion(placed, SlotId::RotationAngle)
         .expect("the angle slot is there");
     assert_eq!(angle.dim(), Dimension::Angle);
 
@@ -554,8 +552,7 @@ fn the_pattern_door_spells_its_count_structurally() {
     // and the rule is the parametric variant the form offered.
     let count = session
         .committed_doc()
-        .node(linear)
-        .and_then(|node| node.expr(SlotId::Count))
+        .slot_expansion(linear, SlotId::Count)
         .expect("a pattern has a count slot");
     assert_eq!(count.dim(), Dimension::Count);
     assert!(SlotId::Count.is_structural());
@@ -638,8 +635,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
     // spelling, which is the only one this door can mint.
     let count = session
         .committed_doc()
-        .node(fused)
-        .and_then(|node| node.expr(SlotId::Count))
+        .slot_expansion(fused, SlotId::Count)
         .expect("a parametric placed union has a count slot");
     assert_eq!(count.dim(), Dimension::Count);
     assert!(count.bit_eq(&editor_core::test_support::stored_expr(&Formula::count(2))));
@@ -2432,7 +2428,11 @@ fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
         panic!("the door authored an instance selector");
     };
     assert_eq!(
-        *index,
+        Formula::from(
+            session
+                .committed_doc()
+                .written(&Expr::var(*index, Dimension::Count))
+        ),
         Formula::count(1),
         "the index is the exact Count literal, not a continuous one",
     );
@@ -2596,7 +2596,15 @@ fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
             panic!("the gesture authored two instance projections");
         };
         assert_eq!(*of, pattern, "both read the pattern it just authored");
-        assert_eq!(*index, Formula::count(want), "instance {want}");
+        assert_eq!(
+            Formula::from(
+                session
+                    .committed_doc()
+                    .written(&Expr::var(*index, Dimension::Count))
+            ),
+            Formula::count(want),
+            "instance {want}"
+        );
     }
     assert_eq!(
         session.committed_doc().roots(),
@@ -2949,7 +2957,9 @@ fn spacing_of(session: &DocSession, pattern: RecipeNodeId) -> f64 {
     else {
         panic!("a linear pattern");
     };
-    spacing
+    session
+        .committed_doc()
+        .written(&Expr::var(*spacing, Dimension::Length))
         .literal_value()
         .expect("the door authors a literal spacing")
 }
@@ -3151,7 +3161,13 @@ fn a_duplicate_keeps_the_notes_promise() {
     };
     let direction: Vec<f64> = direction
         .iter()
-        .map(|c| c.literal_value().expect("a literal component"))
+        .map(|&c| {
+            session
+                .committed_doc()
+                .written(&Expr::var(c, Dimension::Scalar))
+                .literal_value()
+                .expect("a literal component")
+        })
         .collect();
     assert_eq!(
         direction, STEP_DIRECTION,

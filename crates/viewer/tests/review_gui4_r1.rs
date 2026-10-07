@@ -101,6 +101,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
         DocEdit::SetOffset {
             instance: rot_post,
             offset: Some(Placement::literal(&rotated)),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -110,6 +111,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
         DocEdit::SetOffset {
             instance: rot_shelf,
             offset: Some(Placement::literal(&Frame::translation(asm::SHELF_AT))),
+            fresh: Vec::new(),
         },
         tol,
     );

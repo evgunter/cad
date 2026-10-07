@@ -16,17 +16,20 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
 impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
     type Authored = Self;
     fn lower<E>(
         authored: &Self,
-        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
-    fn authored(&self) -> Self {
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
         self.clone()
     }
     fn drawn_pieces(
@@ -50,6 +53,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Profile(FakeProfile("square"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -66,6 +70,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
                     distance,
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -93,6 +98,7 @@ fn expr_path_survives_edits_to_other_expressions() {
                 node: Box::new(Node::Datum(Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -106,12 +112,13 @@ fn expr_path_survives_edits_to_other_expressions() {
                 node: datum,
                 slot: SlotId::Origin(editor_core::Axis3::X),
                 expr: len(0.042),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert_eq!(d.doc.expr_at(&path).unwrap(), &before);
+    assert_eq!(d.doc.expr_at(&path).unwrap(), before);
 }
 
 #[test]
@@ -141,8 +148,8 @@ fn expr_path_survives_edits_to_unrelated_subtrees() {
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert_eq!(e.doc.expr_at(&second).unwrap(), &before);
-    assert_eq!(e.doc.expr_at(&first).unwrap(), &len(0.020));
+    assert_eq!(e.doc.expr_at(&second).unwrap(), before);
+    assert_eq!(e.doc.expr_at(&first).unwrap(), len(0.020));
     // The whole-slot expression still type-checks as Length.
     assert_eq!(
         e.doc
@@ -166,6 +173,7 @@ fn recipe_node_ids_are_never_reused() {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Profile(FakeProfile("p0"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -185,6 +193,7 @@ fn recipe_node_ids_are_never_reused() {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Profile(FakeProfile("p1"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -208,6 +217,7 @@ fn dangling_ref_rejected() {
                     distance: len(0.01),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -235,6 +245,7 @@ fn self_reference_cannot_forge_the_next_id() {
                     distance: len(0.01),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -277,6 +288,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
                 node: extrude,
                 slot: SlotId::Distance,
                 expr: len(0.01),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -295,6 +307,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
                 node: extrude,
                 slot: SlotId::Distance,
                 expr: scl(1.0),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
