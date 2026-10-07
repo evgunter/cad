@@ -129,6 +129,38 @@ struct SceneBody {
     /// `Some(δ)` when the scene asks this body for a finer chordal
     /// deviation than its own [`Stop::delta`]. See [`SceneBody::finer`].
     delta: Option<f64>,
+    /// `Some(wall)` when the scene pins this body's volume measurement
+    /// as a wall at the default ε. See [`SceneBody::volume_walled`].
+    volume_wall: Option<VolumeWall>,
+}
+
+/// The refusal a [`VolumeWall`] pins: a face's quadrature escalated on
+/// its in-band convergence test.
+pub(crate) fn in_band_convergence(e: &pncad::topo::MassPropsError) -> bool {
+    matches!(
+        e,
+        pncad::topo::MassPropsError::Face {
+            source: pncad::geom_brep::PropsError::Escalated {
+                check: pncad::geom_brep::props::PropsCheck::Converged,
+                ..
+            },
+            ..
+        }
+    )
+}
+
+/// A wall on one scene body's VOLUME at the default ε: tier 3 must
+/// certify the body, and its continuation to the number must refuse
+/// with the in-band convergence escalation (`PropsCheck::Converged`).
+/// At any other ε the body is measured as every body is. The wall
+/// goes red when the measurement succeeds or refuses differently
+/// ([`walls::wall`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct VolumeWall {
+    pub(crate) scene: &'static str,
+    pub(crate) n: u32,
+    pub(crate) what: &'static str,
+    pub(crate) retire: &'static str,
 }
 
 impl SceneBody {
@@ -146,7 +178,15 @@ impl SceneBody {
             step_frontier: None,
             face_names: None,
             delta: None,
+            volume_wall: None,
         }
+    }
+
+    /// The same body, its volume measurement pinned as `wall` at the
+    /// default ε.
+    pub(crate) fn volume_walled(mut self, wall: VolumeWall) -> Self {
+        self.volume_wall = Some(wall);
+        self
     }
 
     /// The same body, rendered see-through (`t` = 0–100). Only for
@@ -245,6 +285,7 @@ impl SceneBody {
             step_frontier: None,
             face_names: None,
             delta: None,
+            volume_wall: None,
         }
     }
 
@@ -283,6 +324,7 @@ impl SceneBody {
             step_frontier: None,
             face_names: None,
             delta: None,
+            volume_wall: None,
         }
     }
 
@@ -538,7 +580,7 @@ fn run_body(
             match pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol) {
                 Ok(certificate) => {
                     println!("   [{label}] tier-3' at rest: every declaration certified");
-                    continued(label, certificate)
+                    Some(continued(label, certificate))
                 }
                 // The at-rest arm TOLERATES its refusal — the scene
                 // asserts the verdict, so the tour narrates it and
@@ -551,11 +593,25 @@ fn run_body(
                          door (the scene asserts the verdict)",
                         e.len()
                     );
-                    reported(label, &sb.body, tol)
+                    Some(reported(label, &sb.body, tol))
                 }
             }
         }
-        contacts => gated(label, &sb.body, contacts.as_ref(), tol),
+        None if sb.volume_wall.is_some() && tol.eps() == pncad::tolerance::DEFAULT_EPS => {
+            let wall = sb.volume_wall.expect("checked above");
+            let certificate = pncad::topo::validate_geometric_certificate(&sb.body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
+            walls::wall(
+                wall.scene,
+                wall.n,
+                wall.what,
+                VolumeReading::of(certificate.measure()),
+                in_band_convergence,
+                wall.retire,
+            );
+            None
+        }
+        contacts => Some(gated(label, &sb.body, contacts.as_ref(), tol)),
     };
 
     let counts = euler_counts(&sb.body);
@@ -580,11 +636,16 @@ fn run_body(
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
     match &measured {
+        None => println!(
+            "   [{label}] volume: walled at this ε (the wall above); mesh (delta = {delta:.0e}): \
+             {} triangles, V_mesh = {v_mesh:.6}",
+            triangle_count(&mesh),
+        ),
         // The number: volume, area and their pads. Since M5 PR 11
         // curved-CUT faces contribute certified quadrature enclosures,
         // `volume` is a bracket midpoint with half-width `volume_pad`
         // (0.0 on closed-form bodies).
-        VolumeReading::Number(props) => {
+        Some(VolumeReading::Number(props)) => {
             let rel = ((v_mesh - props.volume) / props.volume).abs();
             let certified = if props.volume_pad > 0.0 {
                 format!(" (certified enclosure ± {:.1e})", props.volume_pad)
@@ -626,7 +687,7 @@ fn run_body(
         // surface across a convex feature and stands outside it across
         // a concave one, so a mesh volume may land on either side of
         // the exact one.
-        VolumeReading::Bracket(enclosure) => {
+        Some(VolumeReading::Bracket(enclosure)) => {
             let slack = delta * mesh_area(&mesh);
             assert!(
                 v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,

@@ -146,6 +146,29 @@ creases filleted: `mass_properties` of the result refuses
 `props_quad_converged` (margin 5.6e-12, band `(1e-12, 1e-11)`) at
 ε = 1e-12; not pinned.
 
+## Evidence (2026-10-06, CARVE `carve/loft-v-is-the-whole-sets`)
+
+The tour's `lily_leaf_b` (a swept lens leaf, `demos/tour/src/lily.rs`)
+lands here when its sweep's v moves from the first strip's chord shares
+to the chord rule over every row of its outer loop. That moves the walls
+by a small amount and nothing else. Its mass properties then refuse at
+the default ε with:
+
+```
+whether the quadrature's enclosure has converged is too close to call at this
+tolerance: margin -2.717410219170452e-9 lies inside the ambiguity band (1e-9, 1e-8)
+```
+
+It measures at ε = 1e-6 and 1e-12, and it measured under both the old
+rule and the path parameter. It is the same in-band convergence arm, on
+a body with no question about its shape.
+
+This is now a live tour wall on a normal scene: `demos/tour/src/lily.rs`
+wall 17 (`LEAF_B_VOLUME_WALL`) pins `lily_leaf_b`'s volume refusal at
+the default ε, and goes red ("NO LONGER REFUSES") when this row's fix
+lands. Its Pappus containment row (`finding_13_tessellation_table_reproduces`)
+reads the volume through the same wall at the default ε.
+
 ## 2026-10-07 — boolean-built tubes split across their axes (CLEAVE)
 
 These are second constructions from `cleave/revseam-1e6`'s
