@@ -274,9 +274,7 @@ impl Formula {
         let wide = |part: &Bound<'_, PyAny>| -> PyResult<Option<i128>> {
             match part.extract::<i128>() {
                 Ok(n) => Ok(Some(n)),
-                Err(err) if err.is_instance_of::<pyo3::exceptions::PyOverflowError>(py) => {
-                    Ok(None)
-                }
+                Err(err) if err.is_instance_of::<pyo3::exceptions::PyOverflowError>(py) => Ok(None),
                 Err(err) => Err(err),
             }
         };

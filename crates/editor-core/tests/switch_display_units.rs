@@ -290,10 +290,13 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
             let bytes = serde_json::to_vec(&e).expect("a written value serializes");
             assert_eq!(bytes, golden_wire_form("").as_bytes());
             assert_eq!(
-                parse_formula("w * 2.5", &[(VarName::from_static("w"), Dimension::Length)].into())
-                    .unwrap()
-                    .child(1)
-                    .and_then(Formula::as_ratio),
+                parse_formula(
+                    "w * 2.5",
+                    &[(VarName::from_static("w"), Dimension::Length)].into()
+                )
+                .unwrap()
+                .child(1)
+                .and_then(Formula::as_ratio),
                 editor_core::Ratio::new(5, 2).ok()
             );
             continue;

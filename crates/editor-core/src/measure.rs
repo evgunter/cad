@@ -561,7 +561,6 @@ where
             leaf.var_reads(out);
         }
     }
-
 }
 
 impl MeasureExpr {

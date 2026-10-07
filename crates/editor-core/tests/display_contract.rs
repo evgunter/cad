@@ -759,7 +759,12 @@ fn parse_error_display_names_its_content_not_its_struct() {
                 pos: 0,
                 text: "2/3.5".to_string(),
             },
-            vec!["byte 0", "\"2/3.5\"", "parts are integers", "write the decimal"],
+            vec![
+                "byte 0",
+                "\"2/3.5\"",
+                "parts are integers",
+                "write the decimal",
+            ],
         ),
         (
             ParseError::UnexpectedToken {

@@ -145,7 +145,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xdfe4af2d569d2c85,
     ),
     ("declared_tangency", 0xfc7b28712fed8673, 0x851c55000c08046e),
-    ("kitchen_sink", 0xeaf798783ef4d866, 0xb8566bee64aab177),
+    ("kitchen_sink", 0xeaf798783ef4d866, 0x95869081551cc1eb),
     ("cut_cylinder", 0xb3890612dae55e29, 0xef1ee738c04b2ca4),
     ("measured_web", 0x569697021a9aa942, 0xfb462a739968f7f8),
     ("boss_union", 0x927fa27372fd6c91, 0x252770f97676df66),

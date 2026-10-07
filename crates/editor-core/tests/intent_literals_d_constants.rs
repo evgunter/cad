@@ -250,7 +250,10 @@ fn a_quarter_turn_less_a_quarter_turn_is_zero_by_theorem() {
     let (ea, eb) = (stored(a), stored(b));
     let mut leaves = Vec::new();
     ea.var_reads(&mut leaves);
-    assert!(leaves.is_empty(), "the definition reads no variable: {ea:?}");
+    assert!(
+        leaves.is_empty(),
+        "the definition reads no variable: {ea:?}"
+    );
     let (sign, added) = theorems(|| {
         let env = VarEnv::<S>::default();
         eval::<S>(&ea, &env).unwrap() - eval::<S>(&eb, &env).unwrap()
@@ -303,11 +306,8 @@ fn a_quarter_turn_less_a_quarter_turn_is_zero_by_theorem() {
 fn a_non_dyadic_constant_is_exact_in_the_symbolic_tier() {
     type S = geom_core::Sym<Interval>;
     let ratio = |num, den| Expr::ratio(num, den).unwrap();
-    let difference = Expr::sub(
-        Expr::mul(ratio(1, 10), ratio(3, 1)).unwrap(),
-        ratio(3, 10),
-    )
-    .unwrap();
+    let difference =
+        Expr::sub(Expr::mul(ratio(1, 10), ratio(3, 1)).unwrap(), ratio(3, 10)).unwrap();
     assert_ne!(f64_of(&difference), 0.0, "the doubles do not cancel");
     let (sign, added) = theorems(|| eval::<S>(&difference, &VarEnv::default()).unwrap());
     assert_eq!(sign, Some(Ok(geom_core::predicate::Sign::Zero)));
@@ -428,10 +428,7 @@ fn a_definitions_quantities_mint_first_and_retire_after_it() {
 /// from the log.
 #[test]
 fn a_definitions_quantity_is_in_its_edits_mint_log() {
-    let doc = ProfileDoc::empty(
-        DocumentId::derive("intent-literals-d-undo"),
-        Tol::witness(),
-    );
+    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-d-undo"), Tol::witness());
     let before = declare(
         &doc,
         "w",
@@ -447,7 +444,11 @@ fn a_definitions_quantity_is_in_its_edits_mint_log() {
         "the document undo keeps never minted it"
     );
     let (redone, _) = filleted(before, 0.0, formula());
-    assert_eq!(definition_reads(&redone, blend)[1], quantity, "redone, the same id");
+    assert_eq!(
+        definition_reads(&redone, blend)[1],
+        quantity,
+        "redone, the same id"
+    );
     let retired = step(
         &after,
         DocEdit::SetParam {
@@ -459,7 +460,10 @@ fn a_definitions_quantity_is_in_its_edits_mint_log() {
     )
     .doc;
     assert!(retired.var(quantity).is_none());
-    assert!(retired.has_minted_var(quantity), "the log keeps a retired id");
+    assert!(
+        retired.has_minted_var(quantity),
+        "the log keeps a retired id"
+    );
 }
 
 /// A declared definition's own variable mints before its quantities, so
@@ -809,13 +813,15 @@ fn a_ratio_divisor_is_written_bracketed() {
         assert_eq!(editor_core::unparse(&back, &|_| None), text);
     }
     let parsed = parse_formula("w / (1/3) / 2", &params).unwrap();
-    assert!(parsed.bit_eq(
-        &Formula::div(
-            Formula::div(named("w"), constant(1, 3)).unwrap(),
-            constant(2, 1)
+    assert!(
+        parsed.bit_eq(
+            &Formula::div(
+                Formula::div(named("w"), constant(1, 3)).unwrap(),
+                constant(2, 1)
+            )
+            .unwrap()
         )
-        .unwrap()
-    ));
+    );
 }
 
 /// Constants coerce to a scalar beside a non-count whichever side they
@@ -826,20 +832,24 @@ fn constants_coerce_whichever_side_they_fold_on() {
     let (left, l) = read_with_w("2*3*w");
     let (right, r) = read_with_w("w*2*3");
     assert_eq!((l, r), (6.0, 6.0));
-    assert!(left.bit_eq(
-        &Formula::mul(
-            Formula::mul(constant(2, 1), constant(3, 1)).unwrap(),
-            named("w")
+    assert!(
+        left.bit_eq(
+            &Formula::mul(
+                Formula::mul(constant(2, 1), constant(3, 1)).unwrap(),
+                named("w")
+            )
+            .unwrap()
         )
-        .unwrap()
-    ));
-    assert!(right.bit_eq(
-        &Formula::mul(
-            Formula::mul(named("w"), constant(2, 1)).unwrap(),
-            constant(3, 1)
+    );
+    assert!(
+        right.bit_eq(
+            &Formula::mul(
+                Formula::mul(named("w"), constant(2, 1)).unwrap(),
+                constant(3, 1)
+            )
+            .unwrap()
         )
-        .unwrap()
-    ));
+    );
 }
 
 /// An unspaced slash between numbers is a ratio, whose parts are
@@ -857,7 +867,10 @@ fn a_ratio_with_a_part_that_is_no_integer_says_so() {
                 text: text.to_string(),
             }
         );
-        assert!(refused.to_string().contains("parts are integers"), "{refused}");
+        assert!(
+            refused.to_string().contains("parts are integers"),
+            "{refused}"
+        );
     }
     let spaced = parse_formula("2 / 3.5", &Default::default()).unwrap();
     assert_eq!(

@@ -621,8 +621,22 @@ pub fn parse_formula(
     let toks = lex(src).map_err(|(pos, ch)| ParseError::UnexpectedChar { pos, ch })?;
     let lone = matches!(
         toks.as_slice(),
-        [(_, Tok::Number { integral: false, .. })]
-            | [(_, Tok::Minus), (_, Tok::Number { integral: false, .. })]
+        [(
+            _,
+            Tok::Number {
+                integral: false,
+                ..
+            }
+        )] | [
+            (_, Tok::Minus),
+            (
+                _,
+                Tok::Number {
+                    integral: false,
+                    ..
+                }
+            )
+        ]
     );
     Parser {
         toks,
@@ -893,9 +907,7 @@ impl Parser<'_> {
                 self.literal(pos, &text, integral, negative).map(Some)
             }
             Some((pos, Tok::Fraction(text))) => self.fraction(pos, &text, negative).map(Some),
-            Some((pos, Tok::NotARatio(text))) => {
-                Err(ParseError::RatioPartNotInteger { pos, text })
-            }
+            Some((pos, Tok::NotARatio(text))) => Err(ParseError::RatioPartNotInteger { pos, text }),
             Some((_, Tok::Ident(name)))
                 if name == TURN && !matches!(self.peek(), Some((_, Tok::LParen))) =>
             {
