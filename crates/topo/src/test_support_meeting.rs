@@ -512,7 +512,7 @@ pub fn poses() -> Vec<Pose> {
     ]
 }
 
-/// A box `[x, y, z]` placed by `pose`.
+/// A box `[x, y, z]` placed by `pose`, built under the caller's `tol`.
 pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     let [(x0, x1), (y0, y1), z] = b;
     let mut body = Body::<f64>::new();
@@ -528,7 +528,7 @@ pub fn posed_box(what: &str, b: [(f64, f64); 3], pose: &Pose, tol: Tol) -> AtRes
     finished(what, body, tol)
 }
 
-/// A hole's prism placed by `pose`.
+/// A hole's prism placed by `pose`, built under the caller's `tol`.
 pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
     let [o, u, v, n] = h.frame();
     let mut body = Body::<f64>::new();
