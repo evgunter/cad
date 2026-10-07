@@ -33,11 +33,10 @@
 //!   every wall is the **angle-0 meridian half-plane**, which is where
 //!   the profile sits. A full revolve's surviving meridian edges are
 //!   therefore exactly the `u = 0` iso-curves: they re-describe as
-//!   the seam image `{ surface }` — except meridians
+//!   their walls' wrap edges (D1) — except meridians
 //!   of **plane** walls (a segment ⊥ axis sweeps a plane annulus; a
-//!   plane chart is not periodic, so `Seam` is malformed on it and the
-//!   edge is described where it rests, as an ordinary image in that
-//!   wall's chart). What exempts it from an intrinsic description is
+//!   plane chart closes in no direction, so the edge is described
+//!   where it rests, as an ordinary image in that wall's chart). What exempts it from an intrinsic description is
 //!   UNDER-DETERMINATION, not prefer-intrinsic: one surface on both
 //!   sides determines no locus, which is D2's conventional split, and
 //!   prefer-intrinsic has nothing to demand where there is no
@@ -93,7 +92,7 @@
 //! that is the start point's antipode), a partial revolve's on-axis
 //! edges upgrade to `Intersection { start cap, end cap }` when the caps
 //! are definitely transverse (θ ≠ π), and a full revolve's meridians
-//! become `Seam` on periodic walls and images at rest in the wall's
+//! become wrap edges on periodic walls and images at rest in the wall's
 //! chart on a lamina's plane annulus (a wire's plane walls carry no
 //! meridian at all). No edge KEEPS its `MappedCurve` past this
 //! pass: the mint's scaffolding is for edges whose surfaces do not
@@ -106,6 +105,13 @@
 //! run to one segment before they build (`runs::Collapsed`), so a
 //! station inside a run has no entity — a wedge cap carries the run as
 //! one meridian edge, and a run of on-axis segments is one axis edge.
+//!
+//! **A one-segment loop** (D1's full turn) is swept whole, far end
+//! first (`turn::sweep_turn`): one torus wall whose strut, the latitude
+//! circle through the loop's one vertex, is its wrap edge in `v`. A full
+//! revolve then closes the wall on itself in `u` as well — one face,
+//! its meridian and its latitude circle each a wrap edge at one vertex
+//! (`full::build_turn_lamina`).
 //!
 //! # K-telemetry
 //!
@@ -120,6 +126,7 @@ mod partial;
 mod runs;
 mod surfaces;
 pub mod tube;
+mod turn;
 mod upgrade;
 
 use core::fmt;
@@ -503,17 +510,6 @@ pub enum RevolveError {
         /// Canonical index of the segment.
         segment_index: usize,
     },
-    /// A one-segment loop (D1's full turn: a circle as one arc at one
-    /// vertex), clear of the axis. Its wall is one torus face wrapping
-    /// the tube's own angle, cut only by the latitude strut at the
-    /// vertex — and a seam here is a `u_ref` meridian, so no chart
-    /// describes that cut: the description, pcurve and flux layers read
-    /// the strut's two halves as one image. Refused rather than built
-    /// inside out.
-    OneSegmentLoop {
-        /// Canonical index of the loop.
-        loop_index: usize,
-    },
     /// Full revolve of a profile whose axis contact is not a single
     /// contiguous run of on-axis segments: an isolated on-axis vertex
     /// (or a run-detached one) revolves to a non-manifold solid (D1).
@@ -730,12 +726,6 @@ impl fmt::Display for RevolveError {
                  spindle torus (its circle reaches the axis), which is not supported. \
                  Recourse: keep the arc's circle clear of the axis"
             ),
-            Self::OneSegmentLoop { loop_index } => write!(
-                f,
-                "loop {loop_index} is one full-turn arc: its torus wall would wrap the tube's \
-                 own angle, cut only by the strut at its vertex, and no face here represents \
-                 that cut. Recourse: author the circle as two or more arcs"
-            ),
             Self::NonManifoldAxisContact {
                 loop_index,
                 vertex_index,
@@ -898,12 +888,6 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     for (li, segs) in loops.iter().enumerate() {
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
-    // After the axis classes, which refuse a full turn that reaches the
-    // axis by what is wrong with it.
-    if let Some(loop_index) = loops.iter().position(|segs| profile::is_full_turn(segs)) {
-        return Err(RevolveError::OneSegmentLoop { loop_index });
-    }
-
     let mut out = if full {
         full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {

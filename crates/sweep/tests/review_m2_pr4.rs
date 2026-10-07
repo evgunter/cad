@@ -161,7 +161,7 @@ fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::Surfac
     match description(body, edge) {
         EdgeDescription::Chart(c) => {
             assert_eq!(c.surface, chart, "the image must be drawn in {chart:?}");
-            assert!(!c.seam, "a declared image is not the chart's seam");
+            assert!(!c.wrap, "a declared image is not the chart's seam");
         }
         other => panic!("expected a conventional chart image, got {other:?}"),
     }
@@ -669,7 +669,7 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
         chart.surface == wall_a || chart.surface == wall_b,
         "the image is drawn in one of the strut's OWN two wall charts"
     );
-    assert!(!chart.seam, "a declared image is not the chart's seam");
+    assert!(!chart.wrap, "a declared image is not the chart's seam");
     assert!(
         authority(&t.body, strut).is_declared(),
         "the profile vertex's extrusion determined this locus"

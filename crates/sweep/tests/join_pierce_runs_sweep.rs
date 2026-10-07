@@ -20,8 +20,8 @@ use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, m
 
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
-    Op as Cones, Pieces, Plane, cone_finding, faces_through_two_vertices_at, point_key_finding,
-    shared_point_finding, shared_point_spread_finding, vertices_at,
+    Op as Cones, Pieces, Plane, cone_finding, cones_at, faces_through_two_vertices_at,
+    point_key_finding, shared_point_finding, shared_point_spread_finding, vertices_at,
 };
 
 const PROFILE: [(f64, f64); 6] = [
@@ -1892,4 +1892,196 @@ fn a_pinchs_cones_share_one_point_key() {
         }
     }
     assert!(rebound > 0, "no union rebound a class");
+}
+
+/// The near-tangent corners: the L-prism's, review r1's `vee300` and
+/// `asym` notches, and the 345° and 60° wedges.
+fn near_tangent_corners() -> [(&'static str, Corner); 5] {
+    let l = |pieces: Vec<Vec<(f64, f64)>>| Corner {
+        profile: PROFILE.to_vec(),
+        pieces,
+        v: V,
+    };
+    [
+        (
+            "Ltop",
+            l(vec![
+                vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+                vec![(0.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)],
+            ]),
+        ),
+        (
+            "vee300",
+            Corner {
+                profile: vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)],
+                pieces: vec![
+                    vec![(0.0, 0.0), (2.0, 0.0), (2.0, 0.5), (0.0, 4.0)],
+                    vec![(2.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5)],
+                ],
+                v: [2.0, 0.5, 1.0],
+            },
+        ),
+        (
+            "asym",
+            Corner {
+                profile: vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (1.0, 1.0), (0.0, 1.5)],
+                pieces: vec![
+                    vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.5)],
+                    vec![(1.0, 0.0), (4.0, 0.0), (4.0, 3.0), (1.0, 1.0)],
+                ],
+                v: [1.0, 1.0, 1.0],
+            },
+        ),
+        ("w345", wedge345()),
+        ("w60", wedge(60.0)),
+    ]
+}
+
+/// The near-tangent cube for corner `c`: its near face's plane holds `v`
+/// and is tilted `d` off the corner's edge `e` (0 and 1 its top edges,
+/// before and after `v` in the profile, 2 the vertical edge), the
+/// normal at `al` eighths of a turn about the edge.
+fn near_tangent_frame(c: &Corner, e: usize, al: u32, d: f64) -> [[f64; 3]; 3] {
+    let n = c.profile.len();
+    let i = c
+        .profile
+        .iter()
+        .position(|&(a, b)| a == c.v[0] && b == c.v[1])
+        .unwrap();
+    let (p, a, b) = (
+        c.profile[i],
+        c.profile[(i + n - 1) % n],
+        c.profile[(i + 1) % n],
+    );
+    let edge = unit(
+        [
+            [a.0 - p.0, a.1 - p.1, 0.0],
+            [b.0 - p.0, b.1 - p.1, 0.0],
+            [0.0, 0.0, -1.0],
+        ][e],
+    );
+    let [p1, p2, _] = frame(edge, 0.0);
+    let th = std::f64::consts::TAU * (f64::from(al) + 0.25) / 8.0;
+    let m = [0, 1, 2].map(|k| th.cos() * p1[k] + th.sin() * p2[k] + d * edge[k]);
+    frame(m, 0.7)
+}
+
+/// Every op in both orders between corner `c`'s prism and the cube of
+/// side [`SIDE`] at `c.v` in frame `f`, placed by `lo`.
+fn corner_runs(c: &Corner, f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<Run> {
+    let a = finished(
+        "the corner",
+        fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
+    );
+    let b = finished("the cube", cube_at(c.v, f, lo));
+    let clip = |extra: &[([f64; 3], f64)]| -> f64 {
+        c.pieces
+            .iter()
+            .map(|p| {
+                let mut all = polygon_prism(p);
+                all.extend_from_slice(extra);
+                convex_volume(&all)
+            })
+            .sum()
+    };
+    let common = clip(&cube_planes_at(c.v, f, lo));
+    every_op(["ac", "ca"], (&a, clip(&[])), (&b, SIDE.powi(3)), common)
+}
+
+/// [`corner_runs`]'s operands as convex pieces.
+fn corner_pieces(c: &Corner, f: [[f64; 3]; 3], lo: [f64; 3]) -> (Pieces, Pieces) {
+    (
+        c.pieces.iter().map(|p| polygon_prism(p)).collect(),
+        vec![cube_planes_at(c.v, f, lo)],
+    )
+}
+
+/// **Near-tangent pierces** (PR 4139's review r1, its `nt` set): each
+/// corner against the cube whose near face is tilted ±1e-3, ±1e-5 or
+/// 1e-7 off one of the corner's three edges, `v` inside the face or on
+/// its edge. Every op in both orders prints its [`outcome`], and in the
+/// face placement its [`pierce_point_finding`] at `v`. On the cube's
+/// edge, the cube-first ops hold `v` as the edge's split, ulps off `v`,
+/// which the exact point match does not read.
+///
+/// `cargo test -p sweep --release --test all near_tangent_battery --
+/// --ignored --nocapture`, on two trees, and diff the lines.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn near_tangent_battery() {
+    for (name, c) in near_tangent_corners() {
+        for e in 0..3 {
+            for al in 0..8 {
+                for d in [1e-3, -1e-3, 1e-5, -1e-5, 1e-7] {
+                    for (place, lo, _) in &PLACEMENTS[..2] {
+                        let f = near_tangent_frame(&c, e, al, d);
+                        let (x, y) = corner_pieces(&c, f, *lo);
+                        for (tag, r, want) in corner_runs(&c, f, *lo) {
+                            let body = r.as_ref().ok().and_then(BooleanResult::body);
+                            let at = body.filter(|_| *place == "face").map(|bb| {
+                                pierce_point_finding(&bb.body, c.v, tag_cones(&tag, "ac", (&x, &y)))
+                                    .unwrap_or_else(|| "one vertex per cone".into())
+                            });
+                            println!(
+                                "{name} nt e{e} a{al} d{d:e} {place} {tag}: {} | {}",
+                                outcome(r, want, tol()),
+                                at.unwrap_or_default()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **A near-tangent sliver is a cone of its own.** The 345° wedge's
+/// corner on the face of a cube tilted 1e-7 off the wedge's edge at 345°
+/// ([`near_tangent_battery`]'s `w345 nt e0 a0 d1e-7 face`): the face's
+/// plane crosses the wedge's top face 1e-7 rad inside that edge, so the
+/// intersection holds, beside its main lump, a sliver about 2e-7 wide and
+/// 1e-6 deep along the edge, which meets the lump only at `v`. Two cones
+/// at `v`, so the intersection builds in both orders at the clipped
+/// volume, two solids, two vertices at `v` on one point key, and meshes.
+/// Red if the counter steps over the sliver's cell round `v` (reading one
+/// cone), or if the boolean drops the sliver or fuses its corner with the
+/// lump's.
+#[test]
+fn a_near_tangent_sliver_is_a_cone_of_its_own() {
+    let (_, c) = near_tangent_corners()
+        .into_iter()
+        .find(|(name, _)| *name == "w345")
+        .unwrap();
+    let lo = PLACEMENTS[0].1;
+    // The battery's tilt is 1e-7, a sliver about 2e-7 wide: two hundred
+    // bands at the default ε, but under one band at ε = 1e-6, where the
+    // sliver is honestly one solid with the lump. So the tilt is never
+    // less than 100 ε, which keeps it two hundred bands wide there.
+    let f = near_tangent_frame(&c, 0, 0, (100.0 * tol().eps()).max(1e-7));
+    let (x, y) = corner_pieces(&c, f, lo);
+    assert_eq!(
+        cones_at(c.v, &x, &y, Cones::Intersect),
+        Ok((2, 0)),
+        "the intersection's cones at v"
+    );
+    for (tag, r, want) in corner_runs(&c, f, lo) {
+        if !tag.ends_with('I') {
+            continue;
+        }
+        let Some(bb) = r.as_ref().ok().and_then(BooleanResult::body) else {
+            panic!("{tag}: the intersection did not build: {r:?}");
+        };
+        assert_eq!(
+            bb.body.solids().count(),
+            2,
+            "{tag}: the lump and the sliver"
+        );
+        assert_eq!(
+            pierce_point_finding(&bb.body, c.v, tag_cones(&tag, "ac", (&x, &y))),
+            None,
+            "{tag} at v"
+        );
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK "), "{tag}: {line}");
+    }
 }
