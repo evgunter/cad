@@ -3429,17 +3429,15 @@ impl core::fmt::Display for BooleanError {
             }
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
-                "the {} operand is not a finished solid: it still carries what an edit \
-                 left behind, such as a strut or an empty loop, so the Boolean refuses \
-                 it. Recourse: finish that edit first",
+                "the {} operand {}",
                 operand_word(*operand),
+                crate::validate::Unfinished::SCAFFOLDING_REFUSAL,
             ),
             Self::InsideOutOperand { operand, .. } => write!(
                 f,
-                "the {} operand is inside-out: its faces point into its material, so it \
-                 encloses negative volume and the Boolean refuses it. Recourse: build it \
-                 with its faces pointing outward, or revert it",
+                "the {} operand {}",
                 operand_word(*operand),
+                crate::validate::Unfinished::INSIDE_OUT_REFUSAL,
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
                 f,

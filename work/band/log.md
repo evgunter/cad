@@ -722,3 +722,33 @@ upstream). Single full review (APPROVE-WITH-FIXES, no MAJOR), taken in
 full. Filed: `tint/tipped-rod-join-escalates-at-1e-12` (main's red). Not
 chased: `point_in_solid` answering `VolumeUncertified` on 533 sample
 points of a tier-3-valid jointed-chain body (the review's probe K control).
+
+## 2026-10-07 — the blend doors take a finished operand (PR #4252)
+
+`fillet_edges` and `chamfer_edges` take `&AtRestBody<T>`. At a dual they read
+`gate_unverdicted` first (`build.rs::operand_gate`) and refuse
+`InsideOutOperand` / `ScaffoldingOperand`. At f64 and `Interval` an inside-out
+or scaffolded body cannot be finished, so it never reaches either door. The
+clockwise wedge and the slit dome are pinned, both verbs, red without the
+door read. The change is threaded through editor-core, verbs, pncad-py, the
+tour, and ~500 test call sites (`test_support::at_rest`, `#[track_caller]`).
+`topo::Unfinished` is public; its refusal texts are one home (consts), true
+for a `ShellWinding` finding.
+
+**Behaviour change:** editor-core's blend node now pays tier 3 on its
+target, which roughly doubles a chained blend node's cost (tier 3 ≈ the
+blend). No corpus, tour or guide document regressed. `UnfinishedOperand`'s
+text names the input's operation, and every arm fits the 75-word budget.
+
+**Review.** Cost M: a full review raised a MAJOR, so a second full review
+followed the fix pass, and it raised another of the same class. Both MAJORs
+were the PR having deleted the only row of an arm a FINISHED body still
+reaches: the half-band gate's curved single host, and the hostless host
+gate (a pinched planar host). Both are now witnessed rows. The filed
+`blend-scaffolding-arms-behind-the-operand-gate` closed: its two remaining
+screen arms are provably unreachable through the doors (tier 2 checks 1
+and 4), and are kept as stated defence for direct `run_battery` callers.
+Declined: `#[non_exhaustive]` on `Unfinished`, because the one foreign match
+should break the build on a new case. Filed:
+`restfront/dual-operand-read-passes-an-orientation-it-cannot-measure`.
+Not changed: `common::cavity::cut`'s re-gate (66 callers).

@@ -838,9 +838,13 @@ pub enum PlaneCylinderSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
-/// 1. `pc_axis_plane_parallel` — margin `(axis·normal)·lever`, the
-///    axis' angle off the plane levered from that foot by `reach`
-///    ([`Reach::lever_from`]): Zero ⇒ the axis lies in the plane
+/// 1. `pc_axis_plane_parallel` — margin `c·lever`, `c = axis·normal`,
+///    the axis' angle off the plane levered over `reach` from the
+///    rulings' hinge, the line through the foot's projection on the
+///    plane: the consumed region's axial distance from the hinge's
+///    station ([`Reach::hinge_lever`]), plus its distance across the
+///    wall from the hinge at second order ([`Reach::turn_lever`]): Zero
+///    ⇒ the axis lies in the plane
 ///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
 ///    (step 3).
 /// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|` at
@@ -931,15 +935,18 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
 ) -> Result<Option<RuledSection<T>>, Indeterminate> {
     let &PlaneCylinder { q, n, o, a, r } = pc;
     let o = reach.foot_on(o, a);
-    match decide(
-        "pc_axis_plane_parallel",
-        Margin::levered(a.dot(n), reach.lever_from(o)),
-        band,
-    )? {
+    let c = a.dot(n);
+    let gap_signed = (o - q).dot(n);
+    // The rulings this lane mints stand on the hinge through `o − n·gap`,
+    // `−gap·c` along the axis from the foot; the reach is levered from
+    // there (`geom_brep::extent`'s module docs).
+    let hinge = o - n * gap_signed;
+    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
+    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    match decide("pc_axis_plane_parallel", Margin::levered(c, lever), band)? {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Ok(None),
     }
-    let gap_signed = (o - q).dot(n);
     let section = match decide("pc_parallel_gap", Margin::of(r - gap_signed.abs()), band)? {
         Sign::Positive => {
             // Cross-section chord: the plane cuts the circle at

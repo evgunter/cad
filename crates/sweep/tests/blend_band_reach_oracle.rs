@@ -15,8 +15,8 @@
 
 use geom_core::{Point3, Tol, Vec3};
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
-use sweep::test_support::ball_poled_z;
-use topo::{Body, EdgeKey, validate_geometric};
+use sweep::test_support::{ball_poled_z, finished};
+use topo::{AtRestBody, Body, EdgeKey, validate_geometric};
 
 use crate::common::cavity::{brick, cavity_edges, cut, edges_with_corners};
 
@@ -24,17 +24,16 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn fuse(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+/// The union of a finished `a` and the fixture `b`, finished.
+fn fuse(a: &AtRestBody<f64>, b: &Body<f64>) -> AtRestBody<f64> {
     let t = tol();
-    let a = sweep::test_support::finished("a", a.clone(), t);
     let b = sweep::test_support::finished("b", b.clone(), t);
-    topo::union(&a, &b, t)
+    topo::union(a, &b, t)
         .expect("the union succeeds")
         .body()
         .expect("the union leaves material")
         .body
         .clone()
-        .into_body()
 }
 
 /// The oracle's verdict on one pose: a positive `depth` refuses through
@@ -81,7 +80,7 @@ fn sealed_cavity() -> Body<f64> {
 #[test]
 fn a_concave_cavity_meets_a_ball_island_where_the_oracle_says() {
     let r = 0.25;
-    let sealed = sealed_cavity();
+    let sealed = finished("the sealed cavity", sealed_cavity(), tol());
     for (what, s, c) in [
         ("edge, refuses", 0.05, [1.1, 1.1, 2.0]),
         ("edge, builds", 0.05, [1.11, 1.11, 2.0]),
@@ -133,7 +132,12 @@ fn a_convex_block_meets_a_ball_void_where_the_oracle_says() {
         };
         let edges = edges_with_corners(&body, outer);
         assert_eq!(edges.len(), 12, "the block's outer edges");
-        let out = fillet_edges(&body, &edges, r, tol());
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        );
         judge(
             &format!("convex s {s} {what}"),
             depth,
@@ -148,7 +152,7 @@ fn a_convex_block_meets_a_ball_void_where_the_oracle_says() {
 #[test]
 fn a_chamfered_cavity_meets_a_ball_island_where_the_oracle_says() {
     let d = 0.25;
-    let sealed = sealed_cavity();
+    let sealed = finished("the sealed cavity", sealed_cavity(), tol());
     for (what, s, c) in [
         ("edge, refuses", 0.1, [1.18, 1.18, 2.0]),
         ("edge, builds", 0.1, [1.2, 1.2, 2.0]),
@@ -222,7 +226,7 @@ fn a_concave_floor_rim_meets_a_ball_island_where_the_oracle_says() {
         Revolution::Full,
         tol(),
     );
-    let sealed = cut("void", &block, &void);
+    let sealed = finished("the sealed void", cut("void", &block, &void), tol());
     let depth = |p: [f64; 3]| {
         let (rho, y) = (p[0].hypot(p[2]), p[1]);
         let d = ((rho - 1.25).powi(2) + (y - 1.25).powi(2)).sqrt() - r;
@@ -278,6 +282,7 @@ fn an_oblique_cavity_s_corners_meet_a_ball_island_where_the_oracle_says() {
     let r = 0.2;
     let theta = 60f64.to_radians();
     let (body0, _) = crate::common::cavity::skewed_cavity_edges(theta, 1.0);
+    let body0 = finished("the skewed cavity", body0, tol());
     let (dx, dy) = (1.2 * theta.cos(), 1.2 * theta.sin());
     let n_side = [-theta.sin(), theta.cos(), 0.0];
     let walls = [
