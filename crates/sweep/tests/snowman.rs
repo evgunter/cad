@@ -1565,3 +1565,78 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
         );
     }
 }
+
+/// **A plane through a cap circle at its conventional vertex cuts it as
+/// it cuts it anywhere else** (`docs/DESIGN.md`, maximal edges). The
+/// lens ∩ brick cap's circle is one closed edge with a conventional
+/// vertex. A plane through the cap's axis halves it; through the vertex
+/// and turned 40° about the axis, each op's half is the same body: the
+/// same census, no records, valid at tiers 3 and 3′, half the cap's
+/// closed form. Before the split carried a sphere general circle's
+/// fitted row, the cut through the vertex left the parent half's row
+/// spanning the whole circle.
+#[test]
+fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
+    use geom_core::{Affine3, Point3};
+    let tol = Tol::witness();
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let cap = run(
+        BooleanOp::Intersect,
+        &lens,
+        &brick_toward(dir(68.0, 50.0), 0.985, 0.2, 0.3),
+    );
+    let (x, circle) = cap
+        .vertices()
+        .find(|&(v, _)| topo::is_conventional_vertex(&cap, v))
+        .map(|(v, d)| (v, cap.get_half_edge(d.emanating.unwrap()).unwrap().edge))
+        .expect("the cap circle's conventional vertex");
+    let at_vertex = *cap.get_point(cap.get_vertex(x).unwrap().point).unwrap();
+    let geom::Curve3::Circle { center, axis, .. } = *cap
+        .get_curve_geom(cap.get_edge(circle).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .carrier()
+    else {
+        panic!("the cap's edge is a circle")
+    };
+    let half = cap_volume(1.0, 0.015) / 2.0;
+    let cap = finished("the cap", cap.into_body(), tol);
+    let mut seen = Vec::new();
+    for along in [0.0_f64, 40.0] {
+        let p = Affine3::rotation_about_axis(center, axis, along.to_radians())
+            .transform_point(at_vertex);
+        let normal = axis.cross((p - center) / (p - center).norm());
+        let brick = brick_toward(normal, normal.dot(center - Point3::origin()), 3.0, 3.0);
+        for (op, r) in [
+            ("∖", topo::subtract(&cap, &brick, tol)),
+            ("∩", topo::intersect(&cap, &brick, tol)),
+        ] {
+            let label = format!("{along}° along the circle, cap {op} brick");
+            let Ok(topo::BooleanResult::Body(bb)) = r else {
+                panic!("{label}: builds: {r:?}")
+            };
+            let b = &bb.body;
+            assert_solid(&label, b, half);
+            topo::validate_pseudomanifold(b, &bb.contacts, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+            let c = &bb.contacts;
+            let got = (
+                (b.faces().count(), b.edges().count(), b.vertices().count()),
+                [
+                    c.vv.len(),
+                    c.a_on_b.len() + c.b_on_a.len(),
+                    c.ve.len(),
+                    c.ee.len(),
+                ],
+            );
+            assert_eq!(
+                got,
+                ((3, 3, 2), [0; 4]),
+                "{label}: the half cap, no records"
+            );
+            seen.push(got);
+        }
+    }
+    assert!(seen.windows(2).all(|w| w[0] == w[1]), "one body: {seen:?}");
+}

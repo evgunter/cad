@@ -6416,13 +6416,12 @@ mod tests {
         (body, w1, w2)
     }
 
-    /// **A `(vertex, edge)` record on a curved edge refuses typed**:
-    /// pass 2's lane is the line edge, so the confirm pass cannot
-    /// witness the record and says so rather than calling it stale.
-    /// Red when the arm reads a live curved edge as a dead one (a
-    /// `StaleContactDeclaration`) or skips it.
+    /// **A `(vertex, edge)` record on a circle edge is witnessed by the
+    /// curved lane**: a vertex off the rim's carrier reads stale, as it
+    /// would against a line. Red when the arm skips the record or still
+    /// refuses the circle as unsupported.
     #[test]
-    fn a_vertex_on_edge_record_on_a_curved_edge_is_census_unsupported() {
+    fn a_vertex_on_edge_record_off_a_circle_edge_reads_stale() {
         let mut body = Body::<f64>::new();
         unit_cyl_sheet(
             &mut body,
@@ -6462,17 +6461,16 @@ mod tests {
         assert!(
             errors.iter().any(|e| matches!(
                 e,
-                ValidationError::CensusUnsupported {
-                    subject: CensusSubject::Entity(EntityId::Edge(edge)),
-                    ..
-                } if *edge == rim
+                ValidationError::StaleContactDeclaration {
+                    declaration: StaleDeclaration::VertexOnEdge { vertex, edge },
+                } if (*vertex, *edge) == (far, rim)
             )),
             "{errors:?}"
         );
         assert!(
             !errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+                .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
             "{errors:?}"
         );
     }
