@@ -833,8 +833,8 @@ class TestPersistence(unittest.TestCase):
         # A stored expression holds no float: its leaves read variables
         # by id (whose ids the rebuild reads after the dimensions) or
         # are exact constants.
-        length = {"Var": {"var": 1, "dim": "Length"}}
-        angle = {"Var": {"var": 1, "dim": "Angle"}}
+        length = {"Var": {"var": "1:0000000000000001", "dim": "Length"}}
+        angle = {"Var": {"var": "1:0000000000000001", "dim": "Angle"}}
         cases = {
             "mismatch": {"Add": [length, angle]},
             "mul_needs_scalar": {"Mul": [length, length]},
@@ -864,8 +864,8 @@ class TestPersistence(unittest.TestCase):
         bad = self._save_with_distance(
             {
                 "Add": [
-                    {"Var": {"var": 1, "dim": "Length"}},
-                    {"Var": {"var": 1, "dim": "Angle"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Length"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Angle"}},
                 ]
             }
         )

@@ -271,7 +271,9 @@ Closed: `no-dimensioned-literal-in-a-slot`,
 `equal-literals-lower-to-one-identity-token`,
 `definition-node-bound-is-re-measured-against-the-corpus-after-d`
 (4096 stands). Opened: `typing-a-value-mints-or-offers-a-variable`
-(its trigger fired).
+(its trigger fired). Re-parked: `operations-define-output-variables`
+(stage 2 A) on FORK-1's PR 4222, which still gates it once this
+row's trigger fires.
 ## 2026-10-07 — stage 2 sliced (`docs/INTENT-STAGE2-SPEC.md`)
 
 A spec lane sized stage 2 (operations and one dependency) at main
