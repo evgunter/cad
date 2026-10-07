@@ -667,6 +667,17 @@ pub fn bearing(deg: f64, r: f64, z: f64) -> [f64; 3] {
     [r * c, r * s, z]
 }
 
+/// A quadrilateral below [`MEET`] whose third corner lies `dent` off the
+/// line between its neighbours (inwards where negative), so its cone's
+/// edge there is reflex where `dent` is negative.
+#[must_use]
+pub fn near_flat(dent: f64) -> [[f64; 3]; 4] {
+    let (c1, c3) = (bearing(100.0, 0.45, -0.5), bearing(140.0, 0.45, -0.5));
+    let out = bearing(120.0, 1.0, 0.0);
+    let c2 = [0, 1, 2].map(|k| 0.5 * (c1[k] + c3[k]) + dent * out[k]);
+    [bearing(120.0, 0.15, -0.5), c1, c2, c3]
+}
+
 /// [`nest`] for any number of corners: each weighs its own 0.6 and the
 /// rest 0.4 between them, scaled by `s`.
 #[must_use]
@@ -710,6 +721,109 @@ pub fn apex_pyramid(base: &[[f64; 3]], pose: &Pose, tol: Tol) -> AtRestBody<f64>
         at.reverse();
     }
     posed_pyramid(&at, MEET, pose, tol)
+}
+
+/// **A crown on [`MEET`]**: the solid between a fan of triangles from
+/// `MEET` to the closed `ring` and a fan from `bottom` to it (both
+/// relative to `MEET`), placed by `pose`. The ring runs counterclockwise
+/// seen from above, and where it rises and falls about `MEET`, the
+/// vertex there is a saddle: its edges to the risen corners are ridges,
+/// and to the fallen ones valleys.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses, or the crown is not a finished body.
+#[allow(clippy::unwrap_used)]
+pub fn posed_crown(ring: &[[f64; 3]], bottom: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    let n = ring.len();
+    assert!(n >= 3, "a crown needs at least three ring corners");
+    let off = |q: [f64; 3]| pose.at([0, 1, 2].map(|k| MEET[k] + q[k]));
+    let c: Vec<_> = ring.iter().map(|&q| off(q)).collect();
+    let (top, low) = (pose.at(MEET), off(bottom));
+    let face = |corners: &[Point3<f64>]| FaceSurface::New {
+        surface: plane(corners, tol),
+        sense: true,
+    };
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(c[0], true).unwrap();
+    let mut v = vec![seed.vertex];
+    let first = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            c[1],
+            line(c[0], c[1]),
+            tol,
+        )
+        .unwrap();
+    v.push(first.vertex);
+    let mut last = first;
+    for i in 2..n {
+        let at = last.he_minus;
+        last = body
+            .mev(
+                MevSite::Fan { he1: at, he2: at },
+                c[i],
+                line(c[i - 1], c[i]),
+                tol,
+            )
+            .unwrap();
+        v.push(last.vertex);
+    }
+    // The ring closed: the seed face runs it counterclockwise from above
+    // and takes the fan from `MEET`; the new face runs it back and takes
+    // the fan from `bottom`. Each takes its surface once it is a triangle.
+    let he = |body: &Body<f64>, f, a: usize, b: usize| body.find_half_edge(f, v[a], v[b]).unwrap();
+    let closing = MefSite::Chords {
+        he1: he(&body, seed.face, n - 1, n - 2),
+        he2: he(&body, seed.face, 0, 1),
+    };
+    let under = body
+        .mef(closing, line(c[n - 1], c[0]), face(&[low, c[1], c[0]]), tol)
+        .unwrap()
+        .face;
+    for (f, apex, order) in [
+        (seed.face, top, (1..n).collect::<Vec<_>>()),
+        (under, low, (1..n).rev().collect()),
+    ] {
+        let (from, to) = if f == seed.face { (0, 1) } else { (0, n - 1) };
+        let at = he(&body, f, from, to);
+        let strut = body
+            .mev(
+                MevSite::Fan { he1: at, he2: at },
+                apex,
+                line(c[0], apex),
+                tol,
+            )
+            .unwrap();
+        let mut he1 = strut.he_minus;
+        for k in order {
+            let (next, prev) = if f == seed.face {
+                ((k + 1) % n, k - 1)
+            } else {
+                (k - 1, (k + 1) % n)
+            };
+            let he2 = he(&body, f, k, next);
+            let side = body
+                .mef(
+                    MefSite::Chords { he1, he2 },
+                    line(apex, c[k]),
+                    face(&[c[prev], c[k], apex]),
+                    tol,
+                )
+                .unwrap();
+            he1 = side.he_plus;
+        }
+        let rest = if f == seed.face {
+            [c[n - 1], c[0], apex]
+        } else {
+            [c[1], c[0], apex]
+        };
+        body.set_face_surface(f, face(&rest)).unwrap();
+    }
+    describe_as_intersections(&mut body, tol);
+    finished("a crown", body, tol)
 }
 
 /// Boxes `[x, y, z]` placed by `pose`, as the solids of one body, built

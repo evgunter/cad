@@ -217,9 +217,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
-        "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" => {
-            Coincide::Sectors.subject()
-        }
+        "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
+        | "bool_cone_arc_span" => Coincide::Sectors.subject(),
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
@@ -434,8 +433,10 @@ impl SideCode {
 ///   any reclassification lumps them.
 /// - The vertex-vertex pass records every edge at each vertex of a pair
 ///   whose other vertex lies inside an edge of its body (two faces
-///   meeting along it), read against that wedge, or at a convex corner,
-///   and nothing at any other pair (`sectors::wedge_classes`). The
+///   meeting along it), read against that wedge, or at a corner of
+///   three faces or more, read against its faces' planes, as a polygon
+///   cone where it is neither convex nor hollow
+///   (`sectors::wedge_classes`). The
 ///   classification itself decides sector pairs, not edges, so these
 ///   rows are a measurement of their own, taken beside it from the same
 ///   sectors, not a record of what it decided.

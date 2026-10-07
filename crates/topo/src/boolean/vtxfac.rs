@@ -225,15 +225,19 @@ fn layered<'a, T: geom_core::Real>(
 /// **The classes of a touching vertex's edges against the other solid**,
 /// from its pierce's classes (`touch`) and its pairs'. `Err` where an
 /// edge is left undecided, which refuses: the partner on that edge's
-/// side that read nothing, or failing that the first there. An edge is
-/// undecided only beside a partner, so `None` breaks that.
+/// side that read nothing or whose cone lies in no half-space the
+/// reading decides (`WedgeRead::pointed`), or failing that the first
+/// there. An edge is undecided only beside a partner, so `None` breaks
+/// that.
 ///
 /// Near the point the other solid is the pierced face's half-space `H`
 /// and the material of each partner, whose boundary lies strictly on
 /// one side of the face. The side of the face an edge leaves on is
 /// outside every cone on the other side, so only its own side's
 /// partners read it, [`layered`] over its pierce's class: outside `H`
-/// beside no cone, inside `H` beside no void. An edge on the face is on
+/// beside no cone, inside `H` beside no void. A partner's link lies
+/// strictly on one side of the face, so its cone is the side of the
+/// link in that half-space, away from the face. An edge on the face is on
 /// the solid's boundary, and no partner's cone reaches it.
 pub(super) fn touch_classes<T: geom_core::Real>(
     touch: &[(HalfEdgeKey, SideCode)],
@@ -243,12 +247,13 @@ pub(super) fn touch_classes<T: geom_core::Real>(
         .iter()
         .map(|&(he, own)| {
             let side = || pairs.iter().filter(move |p| p.side == Some(own));
-            layered(own, he, side()).map(|c| (he, c)).ok_or_else(|| {
-                side()
-                    .find(|p| p.read.is_none())
-                    .or_else(|| side().next())
-                    .map(|p| p.partner)
-            })
+            let unread = side().find(|p| !p.read.as_ref().is_some_and(|r| r.pointed));
+            match unread {
+                Some(_) => None,
+                None => layered(own, he, side()),
+            }
+            .map(|c| (he, c))
+            .ok_or_else(|| unread.or_else(|| side().next()).map(|p| p.partner))
         })
         .collect()
 }
@@ -258,10 +263,13 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 ///
 /// Several partners read [`layered`]: the cones that no other holds
 /// are outermost, and the material beyond them is outside the solid
-/// where they are met and inside it where they are joined. Where a
-/// partner reads nothing, an edge is left undecided, or the outermost
-/// disagree, each pair's rows stand as read, as for one pair. A nesting
-/// read in band refuses.
+/// where they are met and inside it where they are joined. Which side
+/// of a link a partner calls its cone does not matter here: just beyond
+/// an outermost cone lies outside every cone, since no other holds its
+/// link. Where a partner reads nothing (no corner of two faces or
+/// more, or no arc to its faces that misses its link), an edge is left
+/// undecided, or the outermost disagree, each pair's rows stand as
+/// read, as for one pair. A nesting read in band refuses.
 pub(super) fn pair_classes<T: Decide>(
     pairs: &[PairRead<T>],
     band: Band,
@@ -1454,11 +1462,13 @@ mod tests {
     /// holding what it reads In and a hollow one (read through its
     /// complement) what it reads Out; on one partner's boundary, on the
     /// solid's, at any depth. On two boundaries, or beside a partner
-    /// that read nothing, it names a partner to refuse on. Each input is
-    /// a partner a scene of `a_vertex_read_by_two_sector_passes` reads:
-    /// an arch, a void in the arch, the cavity's void, an island in it,
-    /// arches apart, arches sharing a ray, and a dart. One pair alone
-    /// keeps its rows.
+    /// that read nothing or whose cone lies in no half-space, it names a
+    /// partner to refuse on. Each input but the last two is a partner a
+    /// scene of `a_vertex_read_by_two_sector_passes` reads: an arch, a
+    /// void in the arch, the cavity's void, an island in it, arches
+    /// apart, and arches sharing a ray; no scene reaches the last two,
+    /// which stand for the touch's two refusals beside a partner. One
+    /// pair alone keeps its rows.
     #[test]
     fn a_vertex_read_again_layers_its_partners() {
         use super::super::sectors::WedgeRead;
@@ -1473,6 +1483,7 @@ mod tests {
             partner,
             side,
             read: Some(WedgeRead {
+                pointed: true,
                 met,
                 rows: rows.to_vec(),
             }),
@@ -1541,9 +1552,25 @@ mod tests {
                 Err(Some(w)),
             ),
             (
-                "beside a dart, which reads nothing",
+                "beside a partner that reads nothing",
                 vec![(e, On), (f, Out)],
                 vec![read(w, Some(Out), true, &three), unread(x, Some(Out))],
+                Err(Some(x)),
+            ),
+            (
+                "beside a partner whose cone lies in no half-space",
+                vec![(e, On), (f, Out)],
+                vec![
+                    read(w, Some(Out), true, &three),
+                    PairRead {
+                        read: Some(WedgeRead {
+                            pointed: false,
+                            met: true,
+                            rows: vec![(e, On), (f, Out)],
+                        }),
+                        ..unread(x, Some(Out))
+                    },
+                ],
                 Err(Some(x)),
             ),
         ];

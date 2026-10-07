@@ -53,8 +53,8 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, leaned, mix, nest, nest_polygon, orders,
-    posed_box, posed_boxes, posed_prism, poses, wedge,
+    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, leaned, mix, near_flat, nest,
+    nest_polygon, orders, posed_box, posed_boxes, posed_prism, poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
@@ -104,15 +104,6 @@ fn dart_below() -> [[f64; 3]; 4] {
         bearing(140.0, 0.45, -0.5),
         bearing(120.0, 0.5, -0.5),
     ]
-}
-
-/// A quadrilateral below [`MEET`] whose third corner lies `dent` off the
-/// line between its neighbours (inwards where negative).
-fn near_flat(dent: f64) -> [[f64; 3]; 4] {
-    let (c1, c3) = (bearing(100.0, 0.45, -0.5), bearing(140.0, 0.45, -0.5));
-    let out = bearing(120.0, 1.0, 0.0);
-    let c2 = [0, 1, 2].map(|k| 0.5 * (c1[k] + c3[k]) + dent * out[k]);
-    [bearing(120.0, 0.15, -0.5), c1, c2, c3]
 }
 
 /// The arch: a pyramid standing on [`MEET`].
@@ -665,9 +656,28 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         pose,
     );
     builds("a pyramid over a dart void", &s.over, &s.dart_void, pose);
+    // A dart's apex is a reflex edge, read as a polygon cone
+    // (`sectors::cone_read`): beside it on the top, and below the top
+    // beside a void whose apex is one, a touching vertex layers it.
+    builds("a standing pyramid beside a dart", &s.cone, &s.dart, pose);
+    builds("a pyramid over a dart", &s.over, &s.dart, pose);
+    builds(
+        "a pyramid hanging into a dart void",
+        &s.hang,
+        &s.dart_void,
+        pose,
+    );
+    builds(
+        "a pyramid hanging across a dart void",
+        &s.hang_over,
+        &s.dart_void,
+        pose,
+    );
     for (flat, dent) in s.flat_voids.iter().zip(["1e-3", "ten zero bands"]) {
         let what = format!("a standing pyramid over a quadrilateral void {dent} from flat");
         builds(&what, &s.cone, flat, pose);
+        let what = format!("a pyramid hanging across a quadrilateral void {dent} from flat");
+        builds(&what, &s.hang_over, flat, pose);
     }
     // The crossed arch is one of three partners, each in turn, whichever
     // the pairs' order reads first.
@@ -774,10 +784,6 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
         ] {
             refuses(label, x, &s.lying, &pose, "pair", false);
         }
-        // A partner read neither way leaves the touching vertex's edges
-        // undecided (`vtxfac::touch_classes`).
-        refuses("beside a dart", &s.cone, &s.dart, &pose, "pair", false);
-        refuses("over a dart", &s.over, &s.dart, &pose, "pair", false);
         refuses("two blocks", &s.cone, &s.blocks, &pose, "pierce", false);
         // The prism's edge crosses the contact at `MEET`, so its first
         // pierce would hang struts there: only a refusal before that
@@ -843,6 +849,21 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
             ("over the deep arch", &s.over, &s.deep),
             ("standing over a dart void", &s.cone, &s.dart_void),
             ("over a dart void", &s.over, &s.dart_void),
+            ("beside a dart", &s.cone, &s.dart),
+            ("over a dart", &s.over, &s.dart),
+            ("hanging into a dart void", &s.hang, &s.dart_void),
+            ("hanging across a dart void", &s.hang_over, &s.dart_void),
+            ("hanging below a near-flat void", &s.hang, &s.flat_voids[0]),
+            (
+                "hanging across a near-flat void",
+                &s.hang_over,
+                &s.flat_voids[0],
+            ),
+            (
+                "hanging across a nearer-flat void",
+                &s.hang_over,
+                &s.flat_voids[1],
+            ),
             ("standing over a near-flat void", &s.cone, &s.flat_voids[0]),
             (
                 "standing over a nearer-flat void",
@@ -867,10 +888,6 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
         ] {
             refuses(label, x, &s.lying, &pose, "pair", false);
         }
-        // A partner read neither way leaves the touching vertex's edges
-        // undecided (`vtxfac::touch_classes`).
-        refuses("beside a dart", &s.cone, &s.dart, &pose, "pair", false);
-        refuses("over a dart", &s.over, &s.dart, &pose, "pair", false);
         refuses(
             "a prism through the top",
             &s.prism,
