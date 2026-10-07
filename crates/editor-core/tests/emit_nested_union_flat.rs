@@ -13,7 +13,7 @@ use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::signature;
 use crate::fixture::{flush_segs, fname, member_entity, table};
 
-use editor_core::{EntityKind, RecipeNodeId, RoleSeg, SitedRef, StableName};
+use editor_core::{EntityKind, NodeErrorKind, RecipeNodeId, RoleSeg, SitedRef, StableName};
 
 /// `a` and `b` overlap and are declared flush in the inner union, so its
 /// two y-walls and two caps are merged faces and its four x-running rims
@@ -155,4 +155,101 @@ fn a_union_over_a_union_publishes_flat_sets_in_every_order() {
     for (at, sig, ..) in &orders[1..] {
         assert_eq!(first, sig, "{first_at} against {at}");
     }
+}
+
+/// `d` overlaps `a` from the other end and is declared flush with the
+/// inner union's merged faces as `c` is; `s` is a slab across the top
+/// over `a`'s stretch, dividing it.
+const D: Bx = ((-0.5, 0.25), (0.0, 1.0), (0.0, 1.0));
+const S: Bx = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
+
+/// **No order of a union over a union, whose merged top a fold step
+/// merges and then divides before its other declared partner joins,
+/// drops that declaration as consumed.** The outer union holds the
+/// inner one, `c` and `d`, each of the two declared flush with the
+/// inner union's merged faces, and `s`. Where `d` joins and `s` divides
+/// the merged top before `c` joins, the top survives in pieces, so the
+/// declaration naming it refuses `ConsumedByFold { FragmentedMerge }`,
+/// as a member's own face would; it is never read as consumed whole and
+/// dropped, which leaves the step to meet an undeclared contact and
+/// refuse as an emission bug. Where `s` divides it before either partner
+/// joins it refuses `ConsumedByFold { Split }`; every other order
+/// publishes.
+#[test]
+fn a_nested_unions_merged_face_divided_in_the_fold_is_never_read_as_consumed() {
+    let (doc, ab) = document(&[A, B], &[0, 1]);
+    let (d1, u1) = declared_union(
+        doc.clone(),
+        &ab,
+        flush_pairs(&doc, (ab[0], ab[0]), (ab[1], ab[1])),
+    );
+    let mut d1 = d1;
+    let mut more = Vec::new();
+    for (x, y, z) in [C, D, S] {
+        let (d, id) = block(d1, x, y, z.0, z.1);
+        d1 = d;
+        more.push(id);
+    }
+    let ev1 = run(&d1);
+    assert!(failure(&ev1, u1).is_none(), "the inner union refused");
+    let merged_over = |seg: RoleSeg| -> StableName {
+        let b_face = member_entity(u1, ab[1], fname(ab[1], seg), EntityKind::Face);
+        table(&ev1, u1)
+            .iter()
+            .map(|(n, _)| n)
+            .find(|n| matches!(n.path.as_slice(), [RoleSeg::Merged(set)] if set.contains(&b_face)))
+            .unwrap_or_else(|| panic!("no merged face holds {b_face:?}"))
+            .clone()
+    };
+    let pairs: Vec<(SitedRef, SitedRef)> = more[..2]
+        .iter()
+        .flat_map(|&k| {
+            flush_segs(&d1, ab[1])
+                .into_iter()
+                .zip(flush_segs(&d1, k))
+                .map(move |(s, t)| (s, k, t))
+        })
+        .map(|(s, k, t)| {
+            (
+                SitedRef::new(u1, merged_over(s)),
+                SitedRef::new(k, fname(k, t)),
+            )
+        })
+        .collect();
+    let outer = [u1, more[0], more[1], more[2]];
+    let (mut published, mut split, mut fragmented) = (0, 0, 0);
+    for order in permutations(&[0, 1, 2, 3]) {
+        let members: Vec<_> = order.iter().map(|&i| outer[i]).collect();
+        let (docx, top) = declared_union(d1.clone(), &members, pairs.clone());
+        let ev = run(&docx);
+        let Some(e) = failure(&ev, top) else {
+            published += 1;
+            continue;
+        };
+        let shown = format!("{e:?}");
+        match e {
+            NodeErrorKind::DeclareResolve { .. }
+                if shown.contains("ConsumedByFold { by: FragmentedMerge }") =>
+            {
+                fragmented += 1;
+            }
+            NodeErrorKind::DeclareResolve { .. }
+                if shown.contains("ConsumedByFold { by: Split }") =>
+            {
+                split += 1;
+            }
+            _ => {
+                panic!("{order:?}: the outer union refused other than as a consumed face: {shown}")
+            }
+        }
+    }
+    assert!(published > 0, "no order publishes");
+    assert!(
+        split > 0,
+        "no order divides the merged top before it merges"
+    );
+    assert!(
+        fragmented > 0,
+        "no order merges the top with `d` and divides it before `c` joins"
+    );
 }
