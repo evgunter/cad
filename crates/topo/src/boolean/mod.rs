@@ -2357,7 +2357,7 @@ pub enum BooleanError {
     /// their interiors, or a vertex of it rests on one of its faces. A
     /// vertex-on-face pass hangs struts at a vertex that crosses the
     /// face, so a later pass would read an orbit an earlier one wrote
-    /// (`vtxfac::refuse_sector_rereads`, `vtxfac::partner_side`).
+    /// (`vtxfac::pierced_and_paired`, `vtxfac::partner_side`).
     VertexReadTwice {
         /// The operand whose vertex is read twice.
         operand: Operand,
@@ -4369,7 +4369,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut held = Vec::new();
     let mut edge_classes = Vec::new();
 
-    let rereads = vtxfac::refuse_sector_rereads(&contacts)?;
+    let rereads = vtxfac::pierced_and_paired(&contacts)?;
     // Each vertex that touches a face and pairs, its rows combined once
     // every pair is read (`vtxfac::touch_classes`), and each vertex in
     // pairs alone, likewise (`vtxfac::pair_classes`).
@@ -4505,17 +4505,23 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     for (&(operand, vertex), touch) in &touches {
         // A touching vertex classes every edge or refuses, as it did
         // before its touch was read at all.
-        let classes = vtxfac::touch_classes(&touch.classes, &touch.pairs).map_err(|partner| {
-            BooleanError::VertexReadTwice {
-                operand,
-                vertex,
-                reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
-            }
-        })?;
+        let classes =
+            vtxfac::touch_classes(&touch.classes, &touch.pairs).map_err(
+                |partner| match partner {
+                    Some(partner) => BooleanError::VertexReadTwice {
+                        operand,
+                        vertex,
+                        reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
+                    },
+                    None => BooleanError::ClassificationInvariant {
+                        what: "a touching vertex's undecided edge has no partner on its side",
+                    },
+                },
+            )?;
         read.push(((operand, vertex), classes));
     }
     for (&key, pairs) in &paired {
-        read.push((key, vtxfac::pair_classes(pairs, band)));
+        read.push((key, vtxfac::pair_classes(pairs, band)?));
     }
     for ((operand, vertex), classes) in read {
         let body = match operand {
