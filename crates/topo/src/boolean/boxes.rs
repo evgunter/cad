@@ -36,7 +36,8 @@
 //! more exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
-//!   pair's worth of exact work and can never change a verdict.
+//!   pair's worth of exact work and can never change a verdict; a
+//!   curved candidate the narrow phase parts is pruned behind it.
 //! - `census`'s pre-filter (`census::Trees`) PRUNES on the same
 //!   terms: the at-rest sweeps examine the C10 tree's candidates over
 //!   these boxes, and a loose box only admits more pairs to the exact
@@ -48,7 +49,9 @@
 //! - `boolean::reduce`'s operand GATE grants on non-overlap: an
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
-//!   operation whose faces never meet.
+//!   operation whose faces never meet, unless the narrow phase behind
+//!   the overlap (`boolean::separating`, reaches along directions that
+//!   turn with the operands) parts the pair.
 //! - `boolean::reduce`'s undeclared-continuation scan
 //!   (`refuse_undeclared_continuations`, its boxes built by the
 //!   driver in `boolean/mod.rs` and passed in) mostly PRUNES: a face pair
@@ -67,13 +70,15 @@
 //!   `face_rows` box), so a bigger box
 //!   turns a separated sphere × approximated-face pair into
 //!   `CurvedBooleanUnsupported`, and a plane face's boundary-edge box
-//!   met by a section circle's box into `FallbackExtentUnsupported`.
+//!   met by a section circle's box ([`circle_box`], the circle's own
+//!   extent) into `FallbackExtentUnsupported` unless the narrow phase
+//!   parts the edge and the circle.
 //! - `boolean::ops`'s section certificate (`walk_pairs` over the boxes
 //!   `face_rows` builds once per face, taken by `section_pairs` on both
 //!   paths and by `sphere_faces_apart`, the sphere-extent fallback's
 //!   reading of a crossing sphere pair's faces) EXAMINES every pair
-//!   whose two face boxes overlap, and
-//!   builds from the overlap the pair's reach, which pivots and levers
+//!   whose two face boxes overlap and the narrow phase does not part,
+//!   and builds from the overlap the pair's reach, which pivots and levers
 //!   its angular margins (`section_cert`'s module docs). A bigger box
 //!   sends a separated pair through the exact classification, which
 //!   certifies it apart; and it widens the reach, which lengthens the
@@ -1230,6 +1235,39 @@ pub(crate) fn conic_extent<T: Real>(
         y: center.y.widen(reach(u_ref.y, v_ref.y)),
         z: center.z.widen(reach(u_ref.z, v_ref.z)),
     }
+}
+
+/// A vector's three brackets: the key the narrow phase's axis set
+/// compares two axes by ([`super::separating::AxisKey`]). Two equal keys
+/// are one direction to the bracket, and a candidate dropped as one
+/// only costs the reading along it.
+pub(crate) fn axis_key<T: Bounds>(v: Vec3<T>) -> [(f64, f64); 3] {
+    [v.x, v.y, v.z].map(|c| (c.lo(), c.hi()))
+}
+
+/// The padded box of a full circle ([`super::separating::Circle`]):
+/// [`conic_extent`] at the bracket lane, so coordinate `i` reaches
+/// `radius·√(u_i² + v_i²) = radius·√(1 − n_i²)` from the centre, where
+/// `n` is the plane's normal — the circle's own extent, which turns with
+/// it, not the `2·radius` cube about the centre.
+pub(crate) fn circle_box<T: Bounds>(
+    &super::separating::Circle {
+        center,
+        u_ref,
+        v_ref,
+        radius,
+    }: &super::separating::Circle<T>,
+    pad: f64,
+) -> Aabb {
+    let r = radius.hi();
+    aabb_of(conic_extent(
+        &bracket_point(center),
+        &bracket_vector(u_ref),
+        &bracket_vector(v_ref),
+        r,
+        r,
+    ))
+    .padded(pad)
 }
 
 /// **The one soundness rule for a face's box**, stated per surface
@@ -3502,15 +3540,18 @@ pub(crate) mod tests {
         // driver builds its padded boxes (`boxes::face_box`/`edge_box`
         // at `pad`) and hands them in as closures, and the scan's own
         // calls through those closure parameters match the same text.
-        // So are one of `boolean/ops.rs`'s three and `pieces.rs`'s one:
+        // So are one of `boolean/ops.rs`'s four and `pieces.rs`'s one:
         // the boolean's exit builds the face-box closure the piece
-        // sort's screen calls. `boolean/torn_hop_rows.rs`' four are not
+        // sort's screen calls. Another of `ops.rs`'s four is not a door:
+        // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
+        // its bricks' faces to hand the arm's question what the scan
+        // hands it. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
         const PINNED: [(&str, usize); 9] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/mod.rs", 2),
-            ("boolean/ops.rs", 3),
+            ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 8),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
@@ -3550,6 +3591,67 @@ pub(crate) mod tests {
              looseness in — pruning, or refusing — and nothing computes that (S234). \
              Update both, and read S234 before trusting the list you are updating."
         );
+    }
+
+    /// **A tilted section circle is boxed by its own extent**, in both
+    /// directions: coordinate `i` of [`circle_box`] spans exactly
+    /// `ρ·√(1 − nᵢ²)` about the centre, and every sampled point of the
+    /// circle lies inside it. A `2ρ` cube about the centre passes the
+    /// locus half and reds the ceiling half on every axis at the
+    /// `(1, 2, 3)` normal, which leans off all three. The oracle reads
+    /// `√(1 − nᵢ²)` as `√(nⱼ² + nₖ²)`, the norm of `n`'s other two
+    /// components, which does not cancel where `nᵢ → 1`: the normal a
+    /// few nanoradians off `ẑ` boxes its circle a few nanometres thick
+    /// in `z`, and `1 − n_z²` rounds that to nothing.
+    #[test]
+    fn a_tilted_circles_box_is_its_own_extent() {
+        let tilted = Vec3::new(1.0, 2.0, 3.0).normalize();
+        let near_z = Vec3::new(1e-9, -2e-9, 1.0).normalize();
+        for (n, u) in [
+            (tilted, Vec3::new(2.0, -1.0, 0.0).normalize()),
+            (
+                near_z,
+                Vec3::new(1.0, 0.0, -near_z.x / near_z.z).normalize(),
+            ),
+        ] {
+            let v = n.cross(u);
+            let (c, rho) = (Point3::new(0.3, -0.2, 1.1), 0.7);
+            let b = circle_box(
+                &super::super::separating::Circle {
+                    center: c,
+                    u_ref: u,
+                    v_ref: v,
+                    radius: rho,
+                },
+                0.0,
+            );
+            let (lo, hi) = ([b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]);
+            let across = [
+                (n.y, n.z), // x: the norm of n's y and z
+                (n.z, n.x),
+                (n.x, n.y),
+            ];
+            for (i, (centre, (nj, nk))) in [c.x, c.y, c.z].into_iter().zip(across).enumerate() {
+                let half = rho * nj.hypot(nk);
+                assert!(
+                    (lo[i] - (centre - half)).abs() <= 1e-15
+                        && (hi[i] - (centre + half)).abs() <= 1e-15,
+                    "n {n:?}, axis {i}: [{}, {}] against the circle's own [{}, {}]",
+                    lo[i],
+                    hi[i],
+                    centre - half,
+                    centre + half
+                );
+            }
+            for k in 0..720 {
+                let t = f64::from(k) * core::f64::consts::TAU / 720.0;
+                let p = c + u * (rho * t.cos()) + v * (rho * t.sin());
+                assert!(
+                    holds(&b, p),
+                    "n {n:?}: the circle at t = {t} lies outside its box"
+                );
+            }
+        }
     }
 
     /// **A DISPATCH row, not a locus row.** Every surface kind has a
