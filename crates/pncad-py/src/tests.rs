@@ -4783,6 +4783,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_edge_unsupported",
             "curved_pair_unsupported",
             "curved_pierce_unsupported",
+            "curved_rest_unrecorded",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
@@ -4796,7 +4797,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inside_out_operand",
             "invalid_declaration",
             "join",
+            "join_carrier_unsupported",
             "join_desync",
+            "join_undecided",
             "merge",
             "non_finite_sector_chord",
             "non_manifold_result",
@@ -5369,6 +5372,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "closed_carrier_unread",
+            "conventional_vertex",
             "duplicate",
             "emission",
             "escalated",

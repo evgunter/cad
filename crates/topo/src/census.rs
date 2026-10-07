@@ -326,6 +326,9 @@ struct Geo<T: Real> {
     /// Key → the point the vertex sits on: two vertices on one point
     /// are structural sharing ([`Geo::same_point`]).
     vpoint: std::collections::BTreeMap<VertexKey, PointKey>,
+    /// Conventional vertex → its closed edge: a touch at the vertex is
+    /// a touch on that edge's interior ([`Declared::at_conventional`]).
+    conventional: std::collections::BTreeMap<VertexKey, EdgeKey>,
     /// Faces on non-`Plane` carriers — outside the exact planar
     /// sweeps, inside the conformal face-pair arm.
     curved_faces: Vec<FaceKey>,
@@ -899,6 +902,26 @@ impl Declared {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
 
+    /// The rung for a touch at a **conventional vertex**: it has no
+    /// identity of its own (`docs/DESIGN.md`, maximal edges), so every
+    /// op writes a record there as its closed edge's (`boolean::ops::
+    /// record`), and the touch is backed by that record — `b` at `a`
+    /// as `b` on `a`'s edge, two of them as their edges meeting, and an
+    /// edge `b` through one as the two edges meeting.
+    fn at_conventional<T: Real>(&self, geo: &Geo<T>, a: VertexKey, b: EntityId) -> bool {
+        let Some(&ea) = geo.conventional.get(&a) else {
+            return false;
+        };
+        match b {
+            EntityId::Vertex(b) => match geo.conventional.get(&b) {
+                Some(&eb) => self.ee_recorded(ea, eb),
+                None => self.ve_recorded(b, ea),
+            },
+            EntityId::Edge(e) => self.ee_recorded(ea, e),
+            _ => false,
+        }
+    }
+
     /// Whether an op recorded `v` resting on `e`'s interior: the
     /// coincidence it decided Zero (D10), as a `(vertex, edge)` record.
     fn ve_recorded(&self, v: VertexKey, e: EdgeKey) -> bool {
@@ -1133,6 +1156,17 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         .filter_map(|(k, v)| body.points.get(v.point).map(|p| (k, v.point, *p)))
         .collect();
     let verts: Vec<(VertexKey, Point3<T>)> = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
+    // A conventional vertex has no identity of its own: the sweeps
+    // still read its point, and a touch there is its edge's.
+    let conventional = resolved
+        .iter()
+        .filter(|&&(k, _, _)| crate::boolean::is_conventional_vertex(body, k))
+        .filter_map(|&(k, _, _)| {
+            let he = body.vertices.get(k)?.emanating?;
+            Some((k, body.half_edges.get(he)?.edge))
+        })
+        .collect();
+    let vmap = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
     let vpoint = resolved.iter().map(|&(k, point, _)| (k, point)).collect();
     let mut edges = Vec::new();
     for (key, edge) in body.edges.iter() {
@@ -1217,13 +1251,13 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             });
         }
     }
-    let vmap = verts.iter().copied().collect();
     Geo {
         verts,
         edges,
         faces,
         vmap,
         vpoint,
+        conventional,
         curved_faces,
         vertex_faces,
     }
@@ -1347,6 +1381,8 @@ fn pair_vertex_vertex<T: Decide>(
         && !geo.same_point(ka, kb)
         && !declared.vv.contains(&(ka, kb))
         && !declared.vv_face_backed(geo, ka, kb)
+        && !declared.at_conventional(geo, ka, EntityId::Vertex(kb))
+        && !declared.at_conventional(geo, kb, EntityId::Vertex(ka))
     {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexVertex { a: ka, b: kb },
@@ -1396,6 +1432,7 @@ fn pair_vertex_edge<T: Decide>(
     if on_edge_interior(q, e, band, errors) == Some(true)
         && !declared.ve_recorded(vk, e.key)
         && !declared.ve_face_backed(geo, vk, e)
+        && !declared.at_conventional(geo, vk, EntityId::Edge(e.key))
     {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexOnEdge {
@@ -3397,6 +3434,8 @@ const TOUCH_SPAN: &str = "census_touch_span";
 /// passes a normalized direction or a face's outward normal, and a
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
+mod curved;
+
 mod metric {
     use super::{Band, Decide, Margin, Point3, Real, Sign, Vec3, decide};
 
@@ -5771,16 +5810,14 @@ fn confirm_vertex_on_edge<T: Decide>(
         return;
     };
     let Some(e) = geo.edges.iter().find(|e| e.key == c.edge) else {
-        if body.get_edge(c.edge).is_some() {
-            errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Edge(c.edge)),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a vertex-on-edge record is certified on a line edge only",
-                    },
-                ),
-            });
-        } else {
+        let Some(edge) = body.get_edge(c.edge) else {
+            errors.push(stale);
+            return;
+        };
+        let end = [edge.he_plus, edge.he_minus]
+            .iter()
+            .any(|&h| body.get_half_edge(h).is_some_and(|h| h.start == c.vertex));
+        if end || curved::on_curved_interior(body, c.edge, q, band, errors) == Some(false) {
             errors.push(stale);
         }
         return;
@@ -5807,19 +5844,13 @@ fn confirm_edge_edge<T: Decide>(
     };
     let lookup = |k: EdgeKey| geo.edges.iter().find(|e| e.key == k);
     let (Some(ea), Some(eb)) = (lookup(c.a), lookup(c.b)) else {
-        match [c.a, c.b]
-            .into_iter()
-            .find(|&k| lookup(k).is_none() && body.get_edge(k).is_some())
+        let live = |k| body.get_edge(k).is_some();
+        if c.a == c.b
+            || !live(c.a)
+            || !live(c.b)
+            || curved::curved_interiors_meet(body, c.a, c.b, band, errors) == Some(false)
         {
-            Some(curved) => errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Edge(curved)),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "an edge-edge record is certified on line edges only",
-                    },
-                ),
-            }),
-            None => errors.push(stale),
+            errors.push(stale);
         }
         return;
     };
@@ -6415,13 +6446,12 @@ mod tests {
         (body, w1, w2)
     }
 
-    /// **A `(vertex, edge)` record on a curved edge refuses typed**:
-    /// pass 2's lane is the line edge, so the confirm pass cannot
-    /// witness the record and says so rather than calling it stale.
-    /// Red when the arm reads a live curved edge as a dead one (a
-    /// `StaleContactDeclaration`) or skips it.
+    /// **A `(vertex, edge)` record on a circle edge is witnessed by the
+    /// curved lane**: a vertex off the rim's carrier reads stale, as it
+    /// would against a line. Red when the arm skips the record or still
+    /// refuses the circle as unsupported.
     #[test]
-    fn a_vertex_on_edge_record_on_a_curved_edge_is_census_unsupported() {
+    fn a_vertex_on_edge_record_off_a_circle_edge_reads_stale() {
         let mut body = Body::<f64>::new();
         unit_cyl_sheet(
             &mut body,
@@ -6461,17 +6491,16 @@ mod tests {
         assert!(
             errors.iter().any(|e| matches!(
                 e,
-                ValidationError::CensusUnsupported {
-                    subject: CensusSubject::Entity(EntityId::Edge(edge)),
-                    ..
-                } if *edge == rim
+                ValidationError::StaleContactDeclaration {
+                    declaration: StaleDeclaration::VertexOnEdge { vertex, edge },
+                } if (*vertex, *edge) == (far, rim)
             )),
             "{errors:?}"
         );
         assert!(
             !errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+                .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
             "{errors:?}"
         );
     }
