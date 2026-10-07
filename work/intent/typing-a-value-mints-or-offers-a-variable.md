@@ -9,6 +9,7 @@ cost: M
 parent: d10-one-way-to-say-intent-is-unbuilt
 branch: intent/gui-variables
 pr: 4247
+needs_ev: true
 ---
 
 Unparked 2026-10-07: INTENT-LITERALS PR C (#4146) put a `VarId` in every
