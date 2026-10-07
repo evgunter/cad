@@ -256,6 +256,8 @@ mod blend6_verb_vocab;
 mod blend_ball_side_bits;
 #[path = "blend_band_reach.rs"]
 mod blend_band_reach;
+#[path = "blend_band_reach_chain_ends.rs"]
+mod blend_band_reach_chain_ends;
 #[path = "blend_band_reach_oracle.rs"]
 mod blend_band_reach_oracle;
 #[path = "blend_band_reach_rows.rs"]

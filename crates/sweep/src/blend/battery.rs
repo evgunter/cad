@@ -1598,6 +1598,23 @@ fn chain_turns<T: Decide + Bounds>(
     Ok(turns)
 }
 
+/// **The chains the verdict carries**: each walked chain classified at
+/// its junctions ([`chain_turns`]) and broken at every turn
+/// ([`break_at_turns`]), so a multi-link chain spans only junctions one
+/// band runs through.
+pub(crate) fn broken_at_turns<T: Decide + Bounds>(
+    body: &Body<T>,
+    chains: Vec<Chain<T>>,
+    band: Band,
+) -> Result<Vec<Chain<T>>, BlendError> {
+    let mut broken: Vec<Chain<T>> = Vec::with_capacity(chains.len());
+    for chain in chains {
+        let turns = chain_turns(body, &chain, band)?;
+        broken.extend(break_at_turns(chain, &turns));
+    }
+    Ok(broken)
+}
+
 /// **Break a chain at its turns** — `turns` indexes
 /// [`Chain::junctions`] — into the runs between them, each an OPEN
 /// chain whose ends are the turn vertices (or the chain's own ends).
@@ -1767,12 +1784,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // breaks there into two ends, which predicate 6 judges with every
     // other chain end; in band, it escalates. At a junction involving a
     // curved link a definite turn refuses.
-    let mut broken: Vec<Chain<T>> = Vec::with_capacity(chains.len());
-    for chain in chains {
-        let turns = chain_turns(body, &chain, band)?;
-        broken.extend(break_at_turns(chain, &turns));
-    }
-    let chains = broken;
+    let chains = broken_at_turns(body, chains, band)?;
 
     // --- 5. convexity-sign consistency along each chain (the
     // per-link sign was decided during resolution; here it must AGREE

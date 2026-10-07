@@ -923,6 +923,15 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
                 face: circ.face,
                 edge: circ.edge,
             },
+            // The seed face passes B twice, once on each side of the
+            // circle, and both corners there are reflex: each sweeps
+            // round to the other's side of the circle, so the face
+            // crosses itself at B (check 9's corner arm).
+            ValidationError::PinchCornerCrossed {
+                face: seed.face,
+                vertex: seg.vertex,
+                edge: circ.edge,
+            },
         ]),
         "tier 3 must see the self-loop boundary leave its claimed plane"
     );

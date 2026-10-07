@@ -4196,7 +4196,7 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
 fn every_ring_contact_arm_projects_the_payload_it_carries() {
     use crate::validation::project;
     use pncad::geom_core::{Band, Indeterminate, MarginDiag};
-    use pncad::topo::{RingContact, ValidationError};
+    use pncad::topo::{RingContact, RingPairContact, ValidationError};
 
     let word = |contact: RingContact| {
         project(&ValidationError::RingMeetsOuter {
@@ -4250,6 +4250,21 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
         Some("circle_circle")
     );
 
+    // Two rings meeting carry the pair's contact, read by the same words.
+    assert_eq!(
+        project(&ValidationError::RingMeetsRing {
+            face: FaceKey::default(),
+            ring: Default::default(),
+            other: Default::default(),
+            contact: RingPairContact::OtherVertexOnEdge {
+                other_vertex: VertexKey::default(),
+                ring_edge: Default::default(),
+            },
+        })
+        .ring_contact_kind,
+        Some("vertex_on_ring_edge")
+    );
+
     // The escalated sibling carries a margin, not a shape: it is a
     // ring contact that could not be decided, so there is no way the
     // ring meets the loop to name, and the arm's own word is the
@@ -4258,6 +4273,21 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
         project(&ValidationError::RingContactEscalated {
             face: FaceKey::default(),
             ring: Default::default(),
+            source: Indeterminate {
+                margin: MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
+                predicate: Some("ring_contact"),
+                terminal_sliver: false,
+            },
+        })
+        .ring_contact_kind,
+        None
+    );
+    assert_eq!(
+        project(&ValidationError::RingPairContactEscalated {
+            face: FaceKey::default(),
+            ring: Default::default(),
+            other: Default::default(),
             source: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
@@ -5859,6 +5889,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "ring_pair_contact_tag",
+        values: &[
+            "circle_circle",
+            "edge_along_edge",
+            "edge_edge_point",
+            "vertex_on_edge",
+            "vertex_on_ring_edge",
+            "vertex_vertex",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "root_fault_tag",
         values: &[
             "root_ancestor",
@@ -6302,6 +6344,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "outer_listed_as_ring",
             "parent_loop_mismatch",
             "pcurve",
+            "pinch_corner_crossed",
+            "pinch_corner_escalated",
             "planar_boundary_escalated",
             "planar_boundary_residual",
             "planar_face_escalated",
@@ -6311,8 +6355,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "poisoned_surface_description",
             "ring_contact_escalated",
             "ring_meets_outer",
+            "ring_meets_ring",
             "ring_nesting_undecided",
             "ring_outside_outer",
+            "ring_pair_contact_escalated",
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
@@ -6409,6 +6455,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("band", 16),
     ("cap_plane", 3),
     ("certify", 2),
+    // One fact: a ring meeting its outer loop and a ring meeting
+    // another ring name the same shape (`ring_pair_contact_tag`);
+    // `ring_pair_words_are_the_outer_contact_words` pins them.
+    ("circle_circle", 2),
     ("contact_contradicted", 2),
     ("corrupt", 2),
     ("cosurface_escalated", 2),
@@ -6448,6 +6498,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // by the edit door and the load door alike.
     ("duplicate_input", 2),
     ("edge", 2),
+    // One fact, as `circle_circle`.
+    ("edge_along_edge", 2),
+    // One fact, as `circle_circle`.
+    ("edge_edge_point", 2),
     ("empty", 2),
     ("empty_boolean", 2),
     // Coincidence, not one fact: a profile loop authored with no vertex,
@@ -6559,16 +6613,99 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("var_kind_mismatch", 2),
     ("vertex", 2),
     // One fact: the census's finding and the stale record name one
-    // contact kind, the cell pair (vertex, edge); the ring word is the
-    // same shape on a face's own loop.
-    ("vertex_on_edge", 3),
+    // contact kind, the cell pair (vertex, edge); the two ring words
+    // are the same shape on a face's own loops.
+    ("vertex_on_edge", 4),
     ("vertex_on_face", 2),
-    ("vertex_vertex", 3),
+    // One fact, as `circle_circle`.
+    ("vertex_on_ring_edge", 2),
+    ("vertex_vertex", 4),
     // One fact (A4, A11 (2)): a declaring mate a re-gauge would turn
     // placing — split's anchor and the compound door's copied gauge.
     ("would_start_placing", 2),
     ("wrong_kind", 2),
 ];
+
+/// **The ring-pair words are the outer-loop words, shape for shape.**
+/// `ring_pair_contact_tag` names how two rings of a face meet with the
+/// words `ring_contact_tag` names a ring meeting its outer loop, the
+/// other ring in the outer loop's place, so a caller reads one
+/// vocabulary for one shape. Red where either map re-spells a shape.
+#[test]
+fn ring_pair_words_are_the_outer_contact_words() {
+    use crate::tags::{ring_contact_tag, ring_pair_contact_tag};
+    use pncad::topo::{RingContact as O, RingPairContact as P};
+    let (v, e, l) = (VertexKey::default(), Default::default(), Default::default());
+    let pairs = [
+        (
+            O::Vertex {
+                ring_vertex: v,
+                outer_vertex: v,
+            },
+            P::Vertex {
+                ring_vertex: v,
+                other_vertex: v,
+            },
+        ),
+        (
+            O::VertexOnEdge {
+                ring_vertex: v,
+                outer_edge: e,
+            },
+            P::VertexOnEdge {
+                ring_vertex: v,
+                other_edge: e,
+            },
+        ),
+        (
+            O::Edge {
+                ring_edge: e,
+                outer_edge: e,
+            },
+            P::Edge {
+                ring_edge: e,
+                other_edge: e,
+            },
+        ),
+        (
+            O::OuterVertexOnEdge {
+                outer_vertex: v,
+                ring_edge: e,
+            },
+            P::OtherVertexOnEdge {
+                other_vertex: v,
+                ring_edge: e,
+            },
+        ),
+        (
+            O::Circles {
+                ring_loop: l,
+                outer_loop: l,
+            },
+            P::Circles {
+                ring_loop: l,
+                other_loop: l,
+            },
+        ),
+        (
+            O::EdgesMeet {
+                ring_edge: e,
+                outer_edge: e,
+            },
+            P::EdgesMeet {
+                ring_edge: e,
+                other_edge: e,
+            },
+        ),
+    ];
+    for (outer, pair) in pairs {
+        assert_eq!(
+            ring_contact_tag(&outer),
+            ring_pair_contact_tag(&pair),
+            "{outer:?} and {pair:?}"
+        );
+    }
+}
 
 #[test]
 fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
