@@ -115,6 +115,10 @@ mod offset_restates_a_neighbour_chart_rim;
 mod one_door_for_coincident_sections;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
+#[path = "operand_gate_pose.rs"]
+mod operand_gate_pose;
+#[path = "operand_gate_support_plates.rs"]
+mod operand_gate_support_plates;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
 #[path = "parallel_cylinder_join.rs"]
@@ -975,3 +979,5 @@ mod rest_zip_admission;
 
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
+#[path = "shell_curved_mouth.rs"]
+mod shell_curved_mouth;
