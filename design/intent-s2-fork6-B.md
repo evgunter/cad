@@ -143,3 +143,43 @@ the closure.
   above is that relation extended to free variables; stage 2 should fold
   both into one pass rather than keep a node closure and a variable
   closure side by side.
+
+## Round 2
+
+**Move `k` (sure).** `w` is read only by a cut node; `k = w + 1` is named
+and read by nothing. Two arguments decide it. First, `k` is a relation to
+`w` and nothing else, and a relation holds where its terms are; after the
+split `w` is only in the part, so a `k` left behind would be a name over a
+definition that can never again resolve (a deleted id loads, so the state
+is legal and silent). Second, a refusal here has no lossless recourse: a cut
+is a set of nodes, so the person cannot add `k` to it, and deleting or
+redefining `k` loses what they wrote, in front of a split they meant to be
+lossless. Refusing would also let an unread declaration, which VR7 keeps
+precisely because it is inert, veto a refactoring. The mixed case is the
+real refusal: `k = w + j` with `j` read by a kept node reads across the
+seam, and `UncutVarReference` names `k` as the kept reader.
+
+**My "a side chosen silently cannot be undone" does not bear on `k`.** That
+point was about an unread *free* named variable the part held, after
+`split(inline(h))`: it has no reads and no readers, so it has no side at
+all, and any choice would be arbitrary. `k`'s side is not chosen; it is
+derived from its one read, as a node's is from its edges. The move is
+recorded (`DeleteVar` in the remainder, `DeclareVar` in the part), undo is
+the prior document value as for every refactoring, and inline carries `k`
+back exactly. Nothing is silent and nothing is arbitrary.
+
+**Ratified text: still none waits on Ev, and A's round 2 now agrees.** A4's
+*Split* paragraph describes what split does with nodes, gauges, offsets and
+names; it decided nothing about variables, so a sentence stating the move
+describes an approved change and lands with the code under CLAUDE.md's
+test (text that binds future work waits; text that describes this change
+does not). A4's *Acceptance* "up to node ids" becomes "up to minted ids",
+A's wording, which I adopt over mine: it also covers the step ids inline
+already re-mints. VR1 forces it; it is not a second decision. The VR9 line
+goes in VARIABLES-DESIGN, which was never before Ev. The fork itself still
+goes to Ev as the brief asks; the `[ev]` PR carries the ruling, not a
+sign-off on any clause.
+
+**One residue, agreed with A.** The `split(inline(h))` asymmetry (an unread
+free named variable the part held stays in the host) goes in the refactor
+module doc beside the closure, as the one case the inverse does not cover.
