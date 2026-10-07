@@ -2,12 +2,13 @@
 id: check-9-refuses-only-a-ring-meeting-its-outer-loop
 kind: issue
 title: Check 9 refuses a ring meeting its face's outer loop, but not two rings meeting, which one vertex per cone makes always wrong
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 refs: [a-pinch-no-kept-face-can-cross-refuses]
 branch: join/tier3-pinch-checks
+closed: 2026-10-07
 ---
 
 
