@@ -59,23 +59,44 @@ macro_rules! name_free_node {
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
 /// substrate): minted from the document's mint chain ([`crate::Mint`])
-/// at insertion, never reused (deletion does not free it), never
-/// positional. Its stability is a contract, pinned by test.
+/// at insertion, never reused (deletion does not free it). Of two
+/// nodes one document holds, the one inserted first has the lesser id
+/// ([`MintId`]). Its stability is a contract, pinned by test.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct RecipeNodeId(pub u64);
+pub struct RecipeNodeId(pub MintId);
 
 /// **A profile program step's identity** (`names/README.md`, "N1, the
 /// profile pieces"): minted from the document's mint chain
 /// ([`crate::Mint`]) when the step is authored — by `InsertNode`
 /// or `SetProgram` — never reused, never positional, and unique across
-/// the document. A profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
+/// the document, ordered as minted ([`MintId`]). A profile piece's name
+/// spells it ([`crate::names::ProfileEdgeRef`]).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct StepId(pub u64);
+pub struct StepId(pub MintId);
 
+impl RecipeNodeId {
+    /// The node id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(MintId::new(ordinal, digest))
+    }
+}
+
+impl StepId {
+    /// The step id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(MintId::new(ordinal, digest))
+    }
+}
+
+pub use crate::mint::MintId;
 pub use crate::names::{EntityKind, FaceName, RoleSeg, StableName};
 
 /// A coordinate axis, naming vector components in slot identities
@@ -1028,7 +1049,7 @@ pub enum Datum<S = crate::VarId> {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1054,7 +1075,7 @@ pub enum Datum<S = crate::VarId> {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1451,7 +1472,7 @@ impl SitedRef {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1500,7 +1521,7 @@ impl SitedRef {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1524,7 +1545,7 @@ impl SitedRef {
 /// use editor_core::{EntityKind, FaceName, RecipeNodeId, StableName};
 /// let edge = StableName {
 ///     kind: EntityKind::Edge,
-///     node: RecipeNodeId(0),
+///     node: RecipeNodeId::new(0, 0),
 ///     path: Vec::new(),
 /// };
 /// assert_eq!(FaceName::new(edge).unwrap_err().found, EntityKind::Edge);
@@ -3159,7 +3180,7 @@ macro_rules! node_rows {
 /// fn named() -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -3178,13 +3199,13 @@ macro_rules! node_rows {
 ///     editor_core::declare_rest(vec![(sited(), sited())]);
 ///
 /// fn sited() -> editor_core::SitedRef {
-///     editor_core::SitedRef::new(editor_core::RecipeNodeId(0), named())
+///     editor_core::SitedRef::new(editor_core::RecipeNodeId::new(0, 0), named())
 /// }
 ///
 /// fn named() -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -3204,8 +3225,8 @@ pub(crate) enum DeclaredSideFault {
     /// operands, so the carrier has no table to read its name in.
     SiteNotAnOperand,
     /// The side's name is minted by the carrier itself or by a node
-    /// after it in document order — an entity the carrier's operands
-    /// cannot hold.
+    /// inserted after it (a greater id) — an entity the carrier's
+    /// operands cannot hold.
     NameNotUpstream,
 }
 
@@ -3216,16 +3237,15 @@ pub(crate) enum DeclaredSideFault {
 /// `operands` are the carrier's operands, or `None` where the sites
 /// are not this caller's to judge — the load door's for a union, whose
 /// site a later `SetMembers` may have stranded. `at` is the carrier's
-/// place in document order, `None` for a node not yet inserted, which
-/// comes after every live one; `position` is a node's place, `None`
-/// for a node that is not live. A name whose minter is not live is a
-/// strand (DM7) and is not this rule's to judge: the doors that write
-/// a name refuse a dead minter before they ask this.
+/// id, `None` for a node not yet inserted, which comes after every
+/// live one; `live` says whether a node is live. A name whose minter
+/// is not live is a strand (DM7) and is not this rule's to judge: the
+/// doors that write a name refuse a dead minter before they ask this.
 pub(crate) fn declared_side_fault<'p>(
     pairs: impl IntoIterator<Item = &'p DeclaredPair>,
     operands: Option<&[RecipeNodeId]>,
-    at: Option<usize>,
-    position: impl Fn(RecipeNodeId) -> Option<usize>,
+    at: Option<RecipeNodeId>,
+    live: impl Fn(RecipeNodeId) -> bool,
 ) -> Option<(&'p SitedRef, DeclaredSideFault)> {
     pairs
         .into_iter()
@@ -3234,10 +3254,8 @@ pub(crate) fn declared_side_fault<'p>(
             if operands.is_some_and(|operands| !operands.contains(&side.at)) {
                 return Some((side, DeclaredSideFault::SiteNotAnOperand));
             }
-            let upstream = match (position(side.name.node), at) {
-                (None, _) | (Some(_), None) => true,
-                (Some(minter), Some(at)) => minter < at,
-            };
+            let minter = side.name.node;
+            let upstream = !live(minter) || at.is_none_or(|at| minter < at);
             (!upstream).then_some((side, DeclaredSideFault::NameNotUpstream))
         })
 }

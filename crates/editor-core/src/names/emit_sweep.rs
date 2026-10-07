@@ -582,7 +582,7 @@ mod tests {
     }
 
     fn node() -> RecipeNodeId {
-        RecipeNodeId(test_utils::refusal::tagged(1))
+        RecipeNodeId::new(0, test_utils::refusal::tagged(1))
     }
 
     /// **A one-segment loop's revolve and loft are named whole**: the

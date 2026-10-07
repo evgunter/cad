@@ -61,7 +61,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             .doc
     };
     // The node an insert just minted: the document's last.
-    let last = |d: &ProfileDoc| *d.order().last().expect("an insert landed");
+    let last = |d: &ProfileDoc| *d.ids().last().expect("an insert landed");
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
     // v15: `depth` carries a distribution, so the frozen bytes pin the
     // populated `distribution` key rather than only its absence.

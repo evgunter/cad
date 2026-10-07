@@ -131,7 +131,7 @@ fn set_appearance_validates_and_applies_purely() {
     // A never-existed node id: typed refusal at the edit door.
     let bogus = minted(
         EntityKind::Face,
-        RecipeNodeId(999),
+        RecipeNodeId::new(0, 999),
         RoleSeg::Cap(CapEnd::End),
     );
     assert_eq!(

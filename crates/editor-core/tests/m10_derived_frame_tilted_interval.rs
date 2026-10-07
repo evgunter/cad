@@ -304,7 +304,7 @@ fn sym5_tilted_derived_guided_profiled() {
     let box_ = ParamBox::of(&analyzed);
     for name in box_.axes().keys() {
         name_param(
-            geom_core::ParamSymbol::new(name.0),
+            geom_core::ParamSymbol::new(name.0.digest()),
             &doc.spoken_var(*name).to_string(),
         );
     }
@@ -890,7 +890,7 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
         let box_ = ParamBox::of(&analyzed);
         for name_ in box_.axes().keys() {
             name_param(
-                geom_core::ParamSymbol::new(name_.0),
+                geom_core::ParamSymbol::new(name_.0.digest()),
                 &doc.spoken_var(*name_).to_string(),
             );
         }
@@ -1461,7 +1461,7 @@ fn sym12_the_copysign_census_on_the_revolved_cap() {
     use geom_core::sym::report::{name_param, start_shape_report, take_shape_report};
     let doc = r2_document(1.0e-3, Base::TiltV, Place::Revolved);
     name_param(
-        geom_core::ParamSymbol::new(doc.var_named("t").expect("declared").0),
+        geom_core::ParamSymbol::new(doc.var_named("t").expect("declared").0.digest()),
         "t",
     );
     for (label, rules) in [
@@ -1679,7 +1679,7 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
         let box_ = ParamBox::of(&analyzed);
         for name in box_.axes().keys() {
             name_param(
-                geom_core::ParamSymbol::new(name.0),
+                geom_core::ParamSymbol::new(name.0.digest()),
                 &doc.spoken_var(*name).to_string(),
             );
         }

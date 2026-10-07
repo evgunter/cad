@@ -872,8 +872,8 @@ fn every_refuted_predicate_reads_in_words() {
     for refuted in Refuted::ALL {
         assert_eq!(Refuted::of(refuted.name()), Some(refuted));
         let said = editor_core::MateFault::Contradictory {
-            held: RecipeNodeId(3),
-            added: RecipeNodeId(5),
+            held: RecipeNodeId::new(0, 3),
+            added: RecipeNodeId::new(0, 5),
             predicate: refuted.name(),
             clash: editor_core::Clash::Length { metres: 0.5 },
         }

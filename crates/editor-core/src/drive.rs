@@ -1548,7 +1548,7 @@ pub fn drive(
 /// The first `Measure` node reading a `min_clearance` primitive, if
 /// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
 fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
-    doc.order().iter().copied().find(|&id| {
+    doc.ids().iter().copied().find(|&id| {
         let Some(Node::Measure { expr, .. }) = doc.node(id) else {
             return false;
         };

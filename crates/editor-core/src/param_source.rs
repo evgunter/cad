@@ -226,7 +226,8 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
         // and a name is not identity (VR8: a rename moves no token).
         ExprKind::Var(var) => {
             out.push(T_VAR);
-            out.extend_from_slice(&var.0.to_be_bytes());
+            out.extend_from_slice(&var.0.ordinal().to_be_bytes());
+            out.extend_from_slice(&var.0.digest().to_be_bytes());
         }
         ExprKind::Leaf(own) => match *own {},
         ExprKind::Add(a, b) => binary(T_ADD, a, b, defs, out),
@@ -343,7 +344,7 @@ pub(crate) fn operand_flow_bearing(source: FlowSource) -> bool {
 /// meant to; here the document is in hand, so the answer is a real
 /// address: the first slot of the first node whose expression lowers to
 /// `token` under this document's ROOT scope, scanned in the document's
-/// own deterministic node order ([`Doc::order`](crate::doc::Doc::order)).
+/// own deterministic node order ([`Doc::ids`](crate::doc::Doc::ids)).
 ///
 /// **What the answer is, precisely.** A token is the identity of an
 /// expression, not of a slot: every slot holding that expression lowers
@@ -370,7 +371,7 @@ pub fn invert<P: crate::ProfilePayload>(
 ) -> Option<crate::expr::ExprPath> {
     let scope = ParamScope::Root(doc.id());
     let defs = definitions_of(doc);
-    for &node in doc.order() {
+    for node in doc.ids() {
         let Some(n) = doc.node(node) else { continue };
         for slot in n.slots() {
             let Some(&var) = n.expr(slot) else { continue };
@@ -741,7 +742,7 @@ mod tests {
 
     /// A reader of the length variable `id`.
     fn p(id: u64) -> Expr {
-        Expr::var(VarId(id), Dimension::Length)
+        Expr::var(VarId::new(0, id), Dimension::Length)
     }
 
     fn root() -> ParamScope {
@@ -762,7 +763,7 @@ mod tests {
     const ALPHABET: &[(&str, u8, Shape)] = &[
         ("T_LITERAL", T_LITERAL, Shape::Leaf(9)),
         ("T_COUNT_LITERAL", T_COUNT_LITERAL, Shape::Leaf(8)),
-        ("T_VAR", T_VAR, Shape::Leaf(8)),
+        ("T_VAR", T_VAR, Shape::Leaf(12)),
         ("T_ADD", T_ADD, Shape::Binary),
         ("T_SUB", T_SUB, Shape::Binary),
         ("T_NEG", T_NEG, Shape::Unary),
@@ -867,7 +868,7 @@ mod tests {
             p(3),
             p(1 << 32),
             p(u64::MAX),
-            Expr::var(VarId(6), Dimension::Angle),
+            Expr::var(VarId::new(0, 6), Dimension::Angle),
             len(0.0),
             len(-0.0),
             len(1.0),
@@ -887,7 +888,7 @@ mod tests {
                 out.extend(Expr::atan2(x.clone(), y.clone()).ok());
             }
         }
-        let angle = Expr::var(VarId(7), Dimension::Angle);
+        let angle = Expr::var(VarId::new(0, 7), Dimension::Angle);
         out.extend(Expr::sin(angle.clone()).ok());
         out.extend(Expr::cos(angle.clone()).ok());
         out.extend(Expr::tan(angle).ok());

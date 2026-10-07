@@ -895,7 +895,7 @@ class TestPersistence(unittest.TestCase):
         var = doc.slot(box, "distance")
         header, body_text = doc.save().split("\n", 1)
         body = json.loads(body_text)
-        held = body["snapshot"]["vars"][str(int(var.hex, 16))]
+        held = body["snapshot"]["vars"][var.hex]
         self.assertIn("Defined", held["def"], "the distance is a defined variable to tamper")
         held["def"]["Defined"] = wire
         return header + "\n" + json.dumps(body)
@@ -922,12 +922,13 @@ class TestPersistence(unittest.TestCase):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
         text = doc.save()
-        # Take a node the document holds out of its mint log.
+        # Log a node the document holds as a step's instead, so the log
+        # still counts up from one and holds no node entry for it.
         header, body = text.split("\n", 1)
         wire = json.loads(body)
         log = wire["snapshot"]["mint"]["log"]
-        held = wire["snapshot"]["order"][-1]
-        log.remove({"node": held})
+        held = [entry for entry in log if "node" in entry][-1]
+        held["step"] = held.pop("node")
         with self.assertRaises(pncad.PersistError) as caught:
             load(f"{header}\n{json.dumps(wire)}")
         refusal = caught.exception

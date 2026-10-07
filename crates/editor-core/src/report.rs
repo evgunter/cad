@@ -542,7 +542,7 @@ pub fn report_key(
     h.write_u64((slice >> 64) as u64);
     h.write_u64(slice as u64);
     for (var, axis) in box_.axes() {
-        h.write_u64(var.0);
+        h.write_id(var.0);
         let (lo, hi) = axis.span();
         h.write_f64_bits(lo);
         h.write_f64_bits(hi);

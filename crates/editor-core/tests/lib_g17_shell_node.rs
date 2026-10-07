@@ -73,7 +73,7 @@ fn cup_names(doc: &ProfileDoc, blank: RecipeNodeId, shell: RecipeNodeId) -> [Sta
 
 /// The blank the cup shells (its extrude node), found by kind.
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -459,7 +459,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece.into()));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
-    let blank = test_utils::refusal::tag(blank_of(&doc).0);
+    let blank = test_utils::refusal::tag(blank_of(&doc).0.digest());
     let step = fixture::step_of(&piece);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
     assert_eq!(
@@ -537,10 +537,16 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
 /// list the same way.
 #[test]
 fn the_shell_door_keeps_designation_order_and_drops_repeats() {
-    let a = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(0).into()));
-    let b = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(1).into()));
+    let a = fixture::fname(
+        RecipeNodeId::new(0, 1),
+        RoleSeg::Lateral(fixture::leg(0).into()),
+    );
+    let b = fixture::fname(
+        RecipeNodeId::new(0, 1),
+        RoleSeg::Lateral(fixture::leg(1).into()),
+    );
     let node: AuthoredNode = Node::shell(
-        RecipeNodeId(1),
+        RecipeNodeId::new(0, 1),
         fixture::len(0.1),
         vec![b.clone(), a.clone(), b.clone(), a.clone()],
     );
@@ -672,7 +678,7 @@ fn both_documents_round_trip_through_persistence() {
         );
         assert!(
             back.doc
-                .order()
+                .ids()
                 .iter()
                 .any(|&id| matches!(back.doc.node(id), Some(Node::Shell { .. }))),
             "{}: the round-tripped recipe carries no shell",
@@ -691,7 +697,7 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
     let d = corpus::die_pips::document();
     let ball = d
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))

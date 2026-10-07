@@ -48,7 +48,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
     let boss = cd.result.expect("the boss");
     let frame = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -96,7 +96,7 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
     let (doc, loft) = lofted_on_face_frame();
     let ev = run(&doc, None, &EvalOptions::default());
     let frame = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))

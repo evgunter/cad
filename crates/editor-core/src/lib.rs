@@ -173,8 +173,7 @@ pub use measure::{
     WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
-pub(crate) use mint::NodeIdCollides;
-pub use mint::{Mint, Minted};
+pub use mint::{Mint, MintId, Minted};
 pub use names::{
     BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
     ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,

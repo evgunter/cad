@@ -91,11 +91,14 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     assert_eq!(err.kind(), ProductErrorKind::PlacedUnderTwoRoots);
     let message = err.to_string();
     for needle in [
-        format!("node {}'s body", test_utils::refusal::tag(extrude.0)),
+        format!(
+            "node {}'s body",
+            test_utils::refusal::tag(extrude.0.digest())
+        ),
         format!(
             "two roots, node {} and node {}",
-            test_utils::refusal::tag(t1.0),
-            test_utils::refusal::tag(t2.0)
+            test_utils::refusal::tag(t1.0.digest()),
+            test_utils::refusal::tag(t2.0.digest())
         ),
     ] {
         assert!(
@@ -205,7 +208,7 @@ fn one_half_under_two_roots_refuses_naming_the_half() {
     assert!(
         err.to_string().contains(&format!(
             "the above half of node {}",
-            test_utils::refusal::tag(split.0)
+            test_utils::refusal::tag(split.0.digest())
         )),
         "{err}"
     );
@@ -286,7 +289,7 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
     assert!(
         said.contains(&format!(
             "instance `1` of Pattern {}",
-            test_utils::refusal::tag(pattern.0)
+            test_utils::refusal::tag(pattern.0.digest())
         )),
         "{said}"
     );

@@ -70,7 +70,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// The part's one Profile node.
 fn profile_node(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Profile(_))))
@@ -280,7 +280,7 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
         "the part decides nothing outside its nodes' brackets: {outside:?}"
     );
     let counts = per_node(&ev);
-    let order = part_doc.order();
+    let order = part_doc.ids();
     assert_eq!(
         counts,
         BTreeMap::from([

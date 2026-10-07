@@ -96,9 +96,10 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
     // refuse it is the slot's own.
     let corrupt = doctored(&text, |wire| {
         let var = wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["count"]
-            .as_u64()
-            .expect("the count slot reads a variable");
-        let held = &mut wire["snapshot"]["vars"][var.to_string()];
+            .as_str()
+            .expect("the count slot reads a variable")
+            .to_owned();
+        let held = &mut wire["snapshot"]["vars"][var.as_str()];
         assert_eq!(held["kind"], serde_json::json!("Count"));
         *held = serde_json::json!({
             "kind": "Length",
