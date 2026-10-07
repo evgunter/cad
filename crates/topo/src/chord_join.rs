@@ -551,16 +551,12 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
 }
 
 /// Where the section table reads a wall's pose, and how far `face`
-/// reaches from there: the base vertex `at`'s point and [`face_extent`],
-/// the cone lane's lever, and the cylinder lane's [`geom_brep::Reach`].
-/// A cylinder's tilt pinned at the vertex's foot moves the section by
-/// the tilt times a consumed point's AXIAL distance from the rulings'
-/// hinge, so the reach carries how far the face reaches either way
-/// along the axis from the vertex ([`face_axial_range`]), the curved
-/// edges' bulge included. Its second-order turn about the hinge moves
-/// a point by how far it stands across the wall from the hinge, which
-/// the face's distance from the vertex, [`face_extent`], bounds beside
-/// the vertex's own offset from the hinge (the table's to read).
+/// reaches from there: the base vertex `at`'s point, [`face_extent`]
+/// (the cone lane's lever), and the cylinder lane's
+/// [`geom_brep::Reach::Face`]: the face's axial range from the vertex
+/// ([`face_axial_range`], the curved edges' bulge included) and its
+/// distance from it ([`face_extent`]), which the table reads from the
+/// rulings' hinge.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,

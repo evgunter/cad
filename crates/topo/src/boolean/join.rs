@@ -1559,21 +1559,13 @@ pub(super) enum FrameExtent<T> {
 }
 
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
-/// taken from the reading point `at`. For a plane×cylinder pair the
-/// section lies on the wall face:
-/// - a tilt moves it by the tilt times a point's axial distance from
-///   the rulings' hinge, so the reach carries how far the face reaches
-///   either way along the axis from `at`
-///   ([`face_axial_range`](crate::splitting::rules::face_axial_range),
-///   its curved edges included);
-/// - the tilt's second-order turn about the hinge moves a point by how
-///   far it stands across the wall from the hinge, which the face's
-///   farthest distance from `at`
-///   ([`face_reach_from`](crate::splitting::rules::face_reach_from))
-///   bounds beside `at`'s own offset from the hinge (the table's to
-///   read, [`geom_brep::Reach::turn_lever`]).
-///
-/// Every other pair takes the walls' `span`.
+/// taken from the reading point `at`. A plane×cylinder pair's section
+/// lies on the wall face, which hands the table its axial range from
+/// `at` ([`face_axial_range`](crate::splitting::rules::face_axial_range),
+/// its curved edges included) and its farthest distance from `at`
+/// ([`face_reach_from`](crate::splitting::rules::face_reach_from)), read
+/// from the rulings' hinge ([`geom_brep::Reach::Face`]). Every other
+/// pair takes the walls' `span`.
 ///
 /// # Errors
 ///

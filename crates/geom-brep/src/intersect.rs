@@ -937,12 +937,9 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
     let o = reach.foot_on(o, a);
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
-    // The rulings this lane mints stand on the plane's hinge through the
-    // foot's projection `o − n·gap`, `−gap·c` along the axis from the
-    // foot, and the real plane turns off theirs about that hinge: a
-    // consumed point moves by `c` times its axial distance from the
-    // hinge's station (`Reach::hinge_lever`), and by `1 − cos` times its
-    // distance across the wall from the hinge (`Reach::turn_lever`).
+    // The rulings this lane mints stand on the hinge through `o − n·gap`,
+    // `−gap·c` along the axis from the foot; the reach is levered from
+    // there (`geom_brep::extent`'s module docs).
     let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
     let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);

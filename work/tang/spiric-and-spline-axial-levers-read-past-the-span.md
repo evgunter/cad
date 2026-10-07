@@ -16,7 +16,7 @@ axial lever exact over their span.
 
 `geom_brep::Reach::range_along` (`crates/geom-brep/src/extent.rs`)
 reads a `Reach::Span` of a conic exactly over `[t0, t1]`
-(`conic_arc_along`), but:
+(`conic_arc_range`), but:
 
 - a **spiric** span is read at its torus's support along the axis,
   `|(c − pivot)·a| + R·|a × k| + r`, whatever span of the oval the edge

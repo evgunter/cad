@@ -707,5 +707,6 @@ axial lever and a short face is never turned definite by its wall's
 size. Closes `chord-join-face-reach-misses-a-curved-edges-bulge` and
 `germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`; filed
 `chord-join-cone-lane-levers-from-the-base-vertex-not-the-apex`,
-`germ-cylinder-pair-span-misses-a-curved-edges-bulge` and
-`spiric-and-spline-axial-levers-read-past-the-span`.
+`germ-cylinder-pair-span-misses-a-curved-edges-bulge`,
+`spiric-and-spline-axial-levers-read-past-the-span` and
+`whole-turn-conic-reach-over-states-a-rim-faces-lever`.
