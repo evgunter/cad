@@ -100,9 +100,10 @@ and revolve build ONE wall per run on every carrier kind, so no sweep mints
 a same-key adjacency for a merge to undo. The one exception is a run that
 is the whole closed loop of k ≥ 2 pieces (a circle split at authored
 stations): it keeps its authored cuts (C12.5). A one-piece closed loop is
-one wall whose strut is its wrap edge (D1). Extrude builds it; revolve
-and loft refuse it (`OneSegmentLoop`) until the torus and spline charts
-read a wrap edge (`work/paths/one-segment-loop-revolves-and-lofts-to-one-wall.md`).
+one wall whose strut is its wrap edge (D1), in every verb: extrude's
+cylinder wraps `u` across it, a partial revolve's torus wraps `v`, a
+loft's spline wall wraps `u`, and a full revolve's torus is one face
+closed both ways, its meridian and its latitude circle each a wrap edge.
 A station inside a run has no entity in the body: a cap carries the run as
 one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges),
 and a partial revolve's run of on-axis segments is one axis edge. It

@@ -66,7 +66,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// kind, which the quantiles of a long tail need not.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 69, 111, 248_708]),
+    ("full", [19, 97, 181, 274_184]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -79,7 +79,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// e548`): every slot holds a variable's id, so every node is minted
 /// from other bytes. [`NAME_WORDS`] held, so no name says a word more or
 /// fewer.
-const SAID_DIGEST: u64 = 0x0fc9_b773_e5ec_8b7c;
+const SAID_DIGEST: u64 = 0xd6b3_49cb_384c_e311;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

@@ -2135,16 +2135,9 @@ pub(super) fn torus_face_windows<T: Decide>(
         minor_radius,
         WrapRims::Meridians { axis },
     )?;
-    // A face that wraps BOTH coordinates covers the whole chart, and a
-    // face covering the whole chart has no boundary against anything —
-    // no window can be read FROM it, which is why the solid door serves
-    // a closed torus through its group class instead. A walk that
-    // reports both wraps therefore describes no face this reader can
-    // answer for, and the face is refused rather than served as the
-    // whole chart.
-    if u.is_none() && v.is_none() {
-        return Err(PointInSolidError::PartialTorusFace { face });
-    }
+    // A face that wraps BOTH coordinates alone has nothing but its own
+    // wrap edges for a boundary (D1): it is the whole torus, one face
+    // cut once each way, and holds every chart point.
     Ok((u, v))
 }
 

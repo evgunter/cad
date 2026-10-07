@@ -684,7 +684,7 @@ fn corner_arc_chart_images(out: &Filleted<f64>) -> usize {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.description()),
-                    Some(EdgeDescription::Chart(c)) if !c.seam
+                    Some(EdgeDescription::Chart(c)) if !c.wrap
                 )
         })
         .count()

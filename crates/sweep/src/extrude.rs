@@ -916,86 +916,76 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     for (li, segs) in loops.iter().enumerate().skip(1) {
         let hq = &points[li];
         let m = segs.len();
-        let full_turn = profile::is_full_turn(segs);
-        // Plant the hole anchor: bridge strut, immediately killed into
-        // an empty ring (§9.3's state) — at the hole's first vertex, or
-        // a full turn's FAR vertex: it is swept whole there, far rim
-        // first (`sweep_full_turn`), so the ring keeps the far rim.
-        let bridge = body.mev_line(
-            MevSite::Fan {
-                he1: anchor,
-                he2: anchor,
-            },
-            if full_turn { hq[0] + w } else { hq[0] },
+        if profile::is_full_turn(segs) {
+            let (turn, ()) = swept::full_turn_hole(
+                &mut body,
+                anchor,
+                hq[0] + w,
+                bottom_face,
+                tol,
+                |b, ring, disc| {
+                    let turn = sweep_full_turn(
+                        b,
+                        li,
+                        &segs[0],
+                        ring,
+                        hq[0],
+                        [place, top_place],
+                        normal,
+                        w,
+                        w_norm,
+                        disc,
+                        band,
+                        tol,
+                    )?;
+                    Ok::<_, ExtrudeError>((turn, ()))
+                },
+            )?;
+            bases.push(LoopBase {
+                hes: vec![turn.near_in_wall],
+            });
+            swept_early[li] = Some(turn.into());
+            continue;
+        }
+        // Grow the hole chain inside a ring planted at its first
+        // vertex; the ring keeps the forward chain, and the face the
+        // chain closes is the transient disc.
+        let (ring, _) = swept::plant_hole_ring(&mut body, anchor, hq[0], tol)?;
+        let mut hole_hes = Vec::with_capacity(m);
+        let first = body.mev(
+            MevSite::Lone { r#loop: ring },
+            hq[1],
+            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1], tol),
             tol,
         )?;
-        let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
-        // The transient disc, on the bottom cap's plane: `kfmrh` kills
-        // it at once, and nothing reads its bit.
-        let disc_surface = FaceSurface::Shared {
-            key: bottom_surface,
-            sense: false,
-        };
-        let (disc, hole_hes) = if full_turn {
-            let turn = sweep_full_turn(
-                &mut body,
-                li,
-                &segs[0],
-                ring,
-                hq[0],
-                [place, top_place],
-                normal,
-                w,
-                w_norm,
-                disc_surface,
-                band,
-                tol,
-            )?;
-            let disc = turn.near_face;
-            let hes = vec![turn.near_in_wall];
-            swept_early[li] = Some(turn.into());
-            (disc, hes)
-        } else {
-            // Grow the hole chain inside the ring loop.
-            let mut hole_hes = Vec::with_capacity(m);
-            let first = body.mev(
-                MevSite::Lone { r#loop: ring },
-                hq[1],
-                placed_segment_spec(&segs[0], place, normal, hq[0], hq[1], tol),
-                tol,
-            )?;
-            hole_hes.push(first.he_plus);
-            let mut prev = first;
-            for j in 2..m {
-                let mv = body.mev(
-                    MevSite::Fan {
-                        he1: prev.he_minus,
-                        he2: prev.he_minus,
-                    },
-                    hq[j],
-                    placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j], tol),
-                    tol,
-                )?;
-                hole_hes.push(mv.he_plus);
-                prev = mv;
-            }
-            // Close the hole cycle: the ring keeps the forward chain;
-            // the new face is the disc.
-            let close = body.mef(
-                MefSite::Chords {
+        hole_hes.push(first.he_plus);
+        let mut prev = first;
+        for j in 2..m {
+            let mv = body.mev(
+                MevSite::Fan {
                     he1: prev.he_minus,
-                    he2: first.he_plus,
+                    he2: prev.he_minus,
                 },
-                placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
-                disc_surface,
+                hq[j],
+                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j], tol),
                 tol,
             )?;
-            hole_hes.push(close.he_plus);
-            (close.face, hole_hes)
-        };
+            hole_hes.push(mv.he_plus);
+            prev = mv;
+        }
+        let close = body.mef(
+            MefSite::Chords {
+                he1: prev.he_minus,
+                he2: first.he_plus,
+            },
+            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
+            swept::transient_disc(bottom_surface),
+            tol,
+        )?;
+        hole_hes.push(close.he_plus);
         // Consume the disc: its loop becomes the bottom cap's ring —
         // the same-shell genus supplier.
-        body.kfmrh(bottom_face, disc)?;
+        body.kfmrh(bottom_face, close.face)?;
         bases.push(LoopBase { hes: hole_hes });
     }
 
@@ -1437,7 +1427,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         tol,
     )?;
     let wall_key = face_surface_key(body, turn.wall);
-    swept::describe_seam(body, turn.strut, wall_key, tol)?;
+    swept::describe_wrap_edge(body, turn.strut, wall_key, tol)?;
     Ok(turn)
 }
 

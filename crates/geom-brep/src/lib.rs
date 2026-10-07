@@ -120,18 +120,18 @@ pub use implicit::{
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
-    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
-    Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
+    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
+    RadiusEvidence, Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
-    cylinder_sphere_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
-    plane_torus_section, route, route_pose, sphere_sphere_section,
+    cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
+    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
 pub use mapped::{MappedCurve, SketchSegment};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
-    IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row,
+    IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row, reversed_column,
 };
 pub use offset::{
     ConeOffset, Nappe, OffsetDistanceError, OffsetError, offset_distance, offset_surface,

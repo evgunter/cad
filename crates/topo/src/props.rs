@@ -2365,7 +2365,7 @@ fn face_flux<T: Decide>(
             closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
         }
         _ => {
-            // A cylinder face's closed form reads every loop
+            // A cylinder or torus face's closed form reads every loop
             // (`geom_brep::props::curved_face_loops`); no other curved
             // kind, and no quadrature lane, reads a ring.
             let mut rings = Vec::with_capacity(face.rings.len());
@@ -2381,7 +2381,7 @@ fn face_flux<T: Decide>(
                 })
             };
             if !rings.is_empty()
-                && !(matches!(surface, Surface::Cylinder { .. })
+                && !(matches!(surface, Surface::Cylinder { .. } | Surface::Torus { .. })
                     && rings.iter().all(|r| untrimmed(r)))
             {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });

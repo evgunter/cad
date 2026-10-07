@@ -584,6 +584,100 @@ pub(crate) fn fragment_tail_start(path: &[RoleSeg]) -> usize {
         .map_or(0, |i| i + 1)
 }
 
+/// **The line edge `name` lies on** (N2): the name with every piece
+/// qualifier (`Fragment(Ends)`) removed, at every depth of wrapping —
+/// through each segment that carries one entity of an earlier node
+/// ([`wrapped_edge`]). A name that is not an edge's is its own line,
+/// and so is an edge's that holds no piece qualifier: the same handle
+/// comes back.
+///
+/// Iterative, like the rest of a name's structural walks: a name nests
+/// as deep as its derivation, with no bound.
+#[must_use]
+pub(crate) fn edge_line(name: &NameRef) -> NameRef {
+    // Down the wrapper chain: each level's path with its piece
+    // qualifiers popped, and whether popping changed it.
+    let mut levels: Vec<(&NameRef, RolePath, bool)> = Vec::new();
+    let mut cur = name;
+    while cur.kind == EntityKind::Edge {
+        let mut path = cur.path.clone();
+        while matches!(path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))) {
+            path.pop();
+        }
+        let popped = path.len() != cur.path.len();
+        let inner = match (path.len(), cur.path.first()) {
+            (1, Some(seg)) => wrapped_edge(seg),
+            _ => None,
+        };
+        levels.push((cur, path, popped));
+        match inner {
+            Some(n) => cur = n,
+            None => break,
+        }
+    }
+    // Back up: a level is rebuilt where it popped a qualifier or the
+    // edge it wraps lies on a line other than itself.
+    let mut line: Option<NameRef> = None;
+    while let Some((orig, mut path, popped)) = levels.pop() {
+        let inner_moved = match (&line, path.as_mut_slice()) {
+            (Some(l), [seg]) => match wrapped_edge_mut(seg) {
+                Some(slot) if !Arc::ptr_eq(&slot.0, &l.0) => {
+                    *slot = l.clone();
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        line = Some(if popped || inner_moved {
+            NameRef::new(StableName {
+                kind: orig.kind,
+                node: orig.node,
+                path,
+            })
+        } else {
+            orig.clone()
+        });
+    }
+    line.unwrap_or_else(|| name.clone())
+}
+
+/// The segments [`edge_line`] reads through, as one match over `$seg`
+/// answering the earlier edge each carries: the one list behind
+/// [`wrapped_edge`] and its mutable twin, which match ergonomics give a
+/// shared or a mutable reference alike.
+///
+/// `InPart` is read through: its argument names another document's
+/// edge, and stripping a piece qualifier from it reads no id as local
+/// (the `resolve` walk does not descend into it because it reads ids),
+/// so a piece of a part's edge is a piece of that edge's line in the
+/// part as anywhere else.
+macro_rules! wrapped_edge_of {
+    ($seg:expr) => {
+        match $seg {
+            RoleSeg::FromA(n)
+            | RoleSeg::FromB(n)
+            | RoleSeg::FromMember { of: n, .. }
+            | RoleSeg::SplitFragment { parent: n, .. }
+            | RoleSeg::FromTarget(n)
+            | RoleSeg::InPart { of: n }
+            | RoleSeg::Instance { of: n, .. } => Some(n),
+            _ => None,
+        }
+    };
+}
+
+/// The one earlier edge an edge's single segment `seg` carries, where
+/// [`edge_line`] reads through it.
+pub(crate) fn wrapped_edge(seg: &RoleSeg) -> Option<&NameRef> {
+    wrapped_edge_of!(seg)
+}
+
+/// [`wrapped_edge`], mutably.
+fn wrapped_edge_mut(seg: &mut RoleSeg) -> Option<&mut NameRef> {
+    wrapped_edge_of!(seg)
+}
+
 /// A sequence of role segments (N1). Usually length 1; composition
 /// (`[FromA(..), Fragment(..)]`) grows it.
 pub type RolePath = Vec<RoleSeg>;
