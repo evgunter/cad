@@ -1,0 +1,38 @@
+--- zip.pristine.rs	2026-10-07 00:18:41.114317278 +0000
++++ zip.mut.rs	2026-10-07 00:18:50.055061957 +0000
+@@ -262,9 +262,13 @@
+         }
+         k
+     };
++    let mutc = std::env::var("R4_CLASS").unwrap_or_default();
+     for (&a, bs) in vmap {
+         let ka = key(a)?;
+-        for &b in bs {
++        if mutc == "multi" && bs.len() > 1 {
++            continue;
++        }
++        for &b in bs.iter().take(if mutc == "first" { 1 } else { usize::MAX }) {
+             let (ra, rb) = (find(&root, ka), find(&root, key(b)?));
+             if ra != rb {
+                 root.insert(ra.max(rb), ra.min(rb));
+@@ -312,9 +316,19 @@
+             .copied()
+             .filter(|k| on_key.contains_key(k))
+             .collect();
+-        let [onto, _, ..] = keys[..] else {
++        let [first, _, ..] = keys[..] else {
+             continue;
+         };
++        let muts = std::env::var("R4_SHARE").unwrap_or_default();
++        if muts == "skip" {
++            continue;
++        }
++        let onto = if muts == "largest" { *keys.last().unwrap() } else { first };
++        if std::env::var("R4_DIST").is_ok() {
++            let ps: Vec<_> = keys.iter().map(|&k| *body.get_point(k).unwrap()).collect();
++            let d: Vec<_> = ps.iter().map(|q| { let (dx, dy, dz) = (q.x - ps[0].x, q.y - ps[0].y, q.z - ps[0].z); (dx * dx + dy * dy + dz * dz).sqrt() }).collect();
++            eprintln!("R4DIST keys={} spread={d:?} at={:?}", keys.len(), ps[0]);
++        }
+         let vertices: Vec<VertexKey> = keys.iter().flat_map(|k| on_key[k].clone()).collect();
+         body.share_point(&vertices, onto)
+             .ok_or(BooleanError::ZipCorrespondence {
