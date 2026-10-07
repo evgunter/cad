@@ -3418,6 +3418,26 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             .to_string(),
         ),
         (
+            "SplitError::DefinitionStraddlesCut",
+            SplitError::DefinitionStraddlesCut {
+                var: spoken.clone(),
+                moving: editor_core::SpokenVar::new(editor_core::VarId(8), None),
+                staying: editor_core::SpokenVar::new(editor_core::VarId(9), None),
+                staying_held: true,
+            }
+            .to_string(),
+        ),
+        (
+            "SplitError::DefinitionStraddlesCut (deleted)",
+            SplitError::DefinitionStraddlesCut {
+                var: spoken.clone(),
+                moving: editor_core::SpokenVar::new(editor_core::VarId(8), None),
+                staying: editor_core::SpokenVar::new(editor_core::VarId(9), None),
+                staying_held: false,
+            }
+            .to_string(),
+        ),
+        (
             "InlineError::VarNameConflict",
             InlineError::VarNameConflict { name: name.clone() }.to_string(),
         ),
