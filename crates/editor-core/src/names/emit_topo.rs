@@ -2082,21 +2082,31 @@ enum Along {
     Either(NameRef, NameRef),
 }
 
-/// Each result vertex the zips and A-side welds fused → the dead
-/// vertices fused into it (`BooleanNaming::vertex_merges`).
+/// Each result vertex the zips and A-side welds fused → every dead
+/// vertex fused into it through any number of fusions, in the order
+/// they died (`BooleanNaming::vertex_merges`).
 fn fused_partners(naming: &topo::BooleanNaming) -> BTreeMap<VertexKey, Vec<VertexKey>> {
     let mut fused: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
-    for &(dead, kept) in &naming.vertex_merges {
-        fused.entry(kept).or_default().push(dead);
+    let rows = naming.vertex_merges.rows();
+    for &(dead, _) in rows {
+        fused.entry(survivor(rows, dead)).or_default().push(dead);
     }
     fused
 }
 
+/// The vertex `v` survives as through every fusion `(dead, kept)` of
+/// `rows`, which are in the order they were made.
+fn survivor(rows: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
+    rows.iter()
+        .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
+}
+
 /// **Every operand vertex result vertex `v` is**, `(operand, key)` in
 /// that operand's clone keys: its own key read through the layout
-/// ([`operand_key`]), each key fused into it, each B key a B-side weld
-/// fused into one of those, and every copy a null edge joins any of
-/// them to, transitively (`BooleanNaming::null_copies`: one point).
+/// ([`operand_key`]), each key fused into it and each B key a B-side
+/// weld fused into one of those, through any number of fusions, and
+/// every copy a null edge joins any of them to, transitively
+/// (`BooleanNaming::null_copies`: one point).
 fn operand_vertex_keys(
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -2107,11 +2117,10 @@ fn operand_vertex_keys(
     for &k in core::iter::once(&v).chain(fused.get(&v).into_iter().flatten()) {
         keys.insert(operand_key(naming, inv_vertices, k)?.0.of_operand());
     }
-    let welded: Vec<_> = naming
-        .weld_merges_b
-        .rows()
+    let welds = naming.weld_merges_b.rows();
+    let welded: Vec<_> = welds
         .iter()
-        .filter(|(_, kept)| keys.contains(&(topo::Operand::B, *kept)))
+        .filter(|&&(dead, _)| keys.contains(&(topo::Operand::B, survivor(welds, dead))))
         .map(|&(dead, _)| (topo::Operand::B, dead))
         .collect();
     keys.extend(welded);
