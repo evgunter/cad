@@ -33,18 +33,19 @@
 //!
 //! **Runs** (crate README, "Walls: one per run"): both cases build from
 //! the loop with each run of segments on one carrier collapsed to one
-//! ([`Collapsed`]), so a station inside a run has no entity here; the
+//! (`runs::Collapsed`), so a station inside a run has no entity here; the
 //! handles map each run's wall and meridians back onto every canonical
 //! segment it holds.
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Point3, Real, Sign};
+use geom_core::{Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses, WallClass, WallKind};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
+use super::runs::{Collapsed, collapse_runs};
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_wrap};
@@ -243,8 +244,8 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // and the original placement — full period is the identity). ----
     let axis_c = turn_axis(Sign::Positive, frame.a3);
     let swept = sweep_loop(
-        &mut body, loop_index, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3,
-        band, tol,
+        &mut body, loop_index, col, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band,
+        tol,
     )?;
 
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
@@ -925,68 +926,4 @@ fn unslit_plane_wall<T: Decide>(
         }
     }
     Ok(())
-}
-
-/// A full revolve's loop with each wall run collapsed to one segment
-/// (crate README, "Walls: one per run": a station inside a run has no
-/// entity in a full revolve, so the builders never see it). The run's
-/// segment is its first one carried to the run's end (an arc's sweep
-/// summed over the run), classified as the first one was — the run is
-/// one carrier by the cosurface verdict.
-pub(super) struct Collapsed<T: Real> {
-    /// The collapsed swept segments, in run order.
-    pub(super) segs: Vec<SweptSeg<T>>,
-    /// Their classes: each run's leading vertex and first wall.
-    pub(super) cls: LoopClasses<T>,
-    /// Per collapsed segment, the canonical segments its run holds, in
-    /// swept order.
-    pub(super) members: Vec<Vec<usize>>,
-    /// The canonical loop's segment count.
-    pub(super) n_canon: usize,
-}
-
-/// Collapses one loop's wall runs ([`Collapsed`]), from the cosurface
-/// verdicts between walled neighbours (the partial revolve's, which
-/// keeps each station on its wedge caps instead).
-pub(super) fn collapse_runs<T: Decide>(
-    segs: &[SweptSeg<T>],
-    cls: &LoopClasses<T>,
-    loop_index: usize,
-    band: Band,
-) -> Result<Collapsed<T>, RevolveError> {
-    let n = segs.len();
-    // A one-segment loop is its own one run: it has no joint to read.
-    let runs = if profile::is_full_turn(segs) {
-        vec![crate::swept::Run { first: 0, len: 1 }]
-    } else {
-        let pair = super::partial::loop_pairs(segs, cls, loop_index, band)?;
-        let joins = crate::swept::joins(segs, &pair, crate::swept::CurvedRuns::Whole);
-        crate::swept::wall_runs(&joins)
-    };
-    let mut out = Collapsed {
-        segs: Vec::with_capacity(runs.len()),
-        cls: LoopClasses {
-            verts: Vec::with_capacity(runs.len()),
-            walls: Vec::with_capacity(runs.len()),
-        },
-        members: Vec::with_capacity(runs.len()),
-        n_canon: n,
-    };
-    for run in runs {
-        let last = (run.first + run.len - 1) % n;
-        let kind = run
-            .segments(n)
-            .skip(1)
-            .fold(segs[run.first].kind, |kind, s| kind.continued(segs[s].kind));
-        out.segs.push(SweptSeg {
-            b: segs[last].b,
-            kind,
-            ..segs[run.first]
-        });
-        out.cls.verts.push(cls.verts[run.first]);
-        out.cls.walls.push(cls.walls[run.first]);
-        out.members
-            .push(run.segments(n).map(|s| segs[s].canonical_segment).collect());
-    }
-    Ok(out)
 }

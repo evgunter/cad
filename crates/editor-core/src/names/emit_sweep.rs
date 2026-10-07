@@ -116,7 +116,7 @@ impl Sections<'_> {
 
     /// The rim where the wall at `(l, k)` meets the cap at `end`.
     fn rim(&self, end: CapEnd, l: usize, k: usize) -> Result<RoleSeg, NamingError> {
-        Ok(RoleSeg::RimEdge(end, edge_at(self.end(end)?, l, k)?))
+        Ok(RoleSeg::RimEdge(end, edge_at(self.end(end)?, l, k)?.into()))
     }
 
     /// The cap vertex at `end` over canonical vertex `v` of loop `l`.
@@ -127,10 +127,9 @@ impl Sections<'_> {
 
 /// Names every boundary entity of an extrusion (spec D2's extrude
 /// vocabulary): caps, laterals, rims, struts, cap vertices, and the
-/// output body. A lateral is named by its run of pieces (N1, "Swept
-/// walls over a run"); its rims and cap vertices stay per piece, read
-/// off the wall's per-segment rims; a strut exists at a run's leading
-/// vertex only.
+/// output body. A lateral and its two rims are named by its run of
+/// pieces (N1, "Swept walls over a run"); a strut and its two cap
+/// vertices exist at a run's leading vertex only.
 pub(crate) fn name_extrude<T: Decide>(
     node: RecipeNodeId,
     built: &Extruded<T>,
@@ -176,40 +175,32 @@ pub(crate) fn name_extrude<T: Decide>(
                 ),
                 ent(0, EntityKey::Edge(wall.strut)),
             )?;
-            for (end, rims) in [
-                (CapEnd::End, &wall.top_rims),
-                (CapEnd::Start, &wall.bottom_rims),
+            let strut = edge_ends(body, wall.strut)?;
+            for (end, rim) in [
+                (CapEnd::End, wall.top_rim),
+                (CapEnd::Start, wall.bottom_rim),
             ] {
-                if rims.len() != wall.segments.len() {
-                    return Err(NamingError::Emission {
-                        what: "an extruded wall's rims do not match its segments",
-                    });
-                }
-                // Each segment's cap vertex is its start: where the
-                // strut meets its rim at the run's leading vertex, where
-                // the previous segment's rim meets its rim at a station.
-                let mut before = edge_ends(body, wall.strut)?;
-                for (&j, &rim) in wall.segments.iter().zip(rims.iter()) {
-                    let piece = edge_at(pieces, l, j)?;
-                    t.insert(
-                        name1(EntityKind::Edge, node, RoleSeg::RimEdge(end, piece)),
-                        ent(0, EntityKey::Edge(rim)),
-                    )?;
-                    let ends = edge_ends(body, rim)?;
-                    let vtx = common_vertex(before, ends).ok_or(NamingError::Emission {
-                        what: "extrude cap vertex: a segment's rim shares no endpoint with the \
-                               strut or rim before it",
+                t.insert(
+                    name1(
+                        EntityKind::Edge,
+                        node,
+                        RoleSeg::RimEdge(end, pieces.run(l, run).ok_or(NO_PIECE)?),
+                    ),
+                    ent(0, EntityKey::Edge(rim)),
+                )?;
+                // The run's cap vertex is where its strut meets its rim.
+                let vtx =
+                    common_vertex(strut, edge_ends(body, rim)?).ok_or(NamingError::Emission {
+                        what: "extrude cap vertex: a wall's rim shares no endpoint with its strut",
                     })?;
-                    t.insert(
-                        name1(
-                            EntityKind::Vertex,
-                            node,
-                            RoleSeg::CapVertex(end, vertex_at(pieces, l, vertex(j))?),
-                        ),
-                        ent(0, EntityKey::Vertex(vtx)),
-                    )?;
-                    before = ends;
-                }
+                t.insert(
+                    name1(
+                        EntityKind::Vertex,
+                        node,
+                        RoleSeg::CapVertex(end, vertex_at(pieces, l, vertex(lead))?),
+                    ),
+                    ent(0, EntityKey::Vertex(vtx)),
+                )?;
             }
         }
     }
@@ -316,14 +307,13 @@ fn name_loft_topology<T: Decide>(
 
 /// Names every boundary entity of a revolution (spec D2: the M2
 /// band/pole/seam taxonomy, read off the `Revolved` maps). A wall, its
-/// π twin and a full revolve's meridians are named by the wall's run
-/// of pieces (N1, "Swept walls over a run"); a partial revolve's
-/// meridian chains stay per piece, a station splitting them.
+/// π twin and its meridians are named by the wall's run of pieces (N1,
+/// "Swept walls over a run"); an on-axis run's one axis edge likewise.
 ///
 /// Vertex resolution: a partial revolve's off-axis meridian vertices
-/// anchor as rim ∩ meridian endpoint intersections, then eliminate
-/// along the meridian chains (an edge with one resolved endpoint
-/// resolves the other), which reaches the stations; a full wire's are
+/// are the two ends of the rim there, each the one it shares with a
+/// meridian of that chain (a station has no rim and no entity); a full
+/// wire's are
 /// the two ends of each half-period rim, the seam one shared with an
 /// angle-0 meridian beside it. On-axis (pole) vertices are LOOKED UP in
 /// the sweep's `poles` export — a construction record, since the
@@ -343,7 +333,6 @@ pub(crate) fn name_revolve<T: Decide>(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
-    let pe = |l: usize, s: usize| edge_at(pieces, l, s);
     let pv = |l: usize, v: usize| vertex_at(pieces, l, v);
     let insert_face = |t: &mut NameTable, seg: RoleSeg, f| {
         t.insert(
@@ -399,39 +388,59 @@ pub(crate) fn name_revolve<T: Decide>(
             insert_face(&mut t, RoleSeg::RevolveCap(MeridianEnd::Start), *start_cap)?;
             insert_face(&mut t, RoleSeg::RevolveCap(MeridianEnd::End), *end_cap)?;
             for (l, (ss, es)) in start_meridians.iter().zip(end_meridians).enumerate() {
-                for (s, (&se, &ee)) in ss.iter().zip(es).enumerate() {
-                    if se == ee {
-                        // The shared axis edge of an on-axis segment.
-                        insert_edge(&mut t, RoleSeg::AxisEdge(pe(l, s)?), se)?;
+                // Each run's one meridian (or axis edge) is held at
+                // every segment of the run: name it once, by the run.
+                let n = ss.len();
+                let mut named = vec![false; n];
+                for s in 0..n {
+                    if named[s] {
+                        continue;
+                    }
+                    let held: Vec<usize> = (0..n).filter(|&k| ss[k] == ss[s]).collect();
+                    let run = pieces.run(l, &held).ok_or(NO_PIECE)?;
+                    for &k in &held {
+                        named[k] = true;
+                    }
+                    if ss[s] == es[s] {
+                        // The shared axis edge of an on-axis run.
+                        insert_edge(&mut t, RoleSeg::AxisEdge(run.clone()), ss[s])?;
                     } else {
-                        let one = PieceRun::one(pe(l, s)?);
                         insert_edge(
                             &mut t,
-                            RoleSeg::Meridian(MeridianEnd::Start, one.clone()),
-                            se,
+                            RoleSeg::Meridian(MeridianEnd::Start, run.clone()),
+                            ss[s],
                         )?;
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::End, one), ee)?;
+                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::End, run), es[s])?;
                     }
                 }
                 let rims = &built.rims[l];
-                let start = resolve_chain(body, ss, rims)?;
-                let end = resolve_chain(body, es, rims)?;
                 for v in 0..rims.len() {
                     if let Some(p) = built.poles[l][v] {
                         // Pole: the same physical vertex in both chains.
                         insert_vertex(&mut t, RoleSeg::Pole(pv(l, v)?), p)?;
-                    } else {
-                        // Off-axis: a rim's two ends, or a station's
-                        // copy on each wedge cap.
+                    } else if let Some(rim) = rims[v] {
+                        // Off-axis: the rim's two ends, each the one a
+                        // meridian of its chain beside it shares.
+                        let ends = edge_ends(body, rim)?;
+                        let beside = |chain: &[EdgeKey]| -> Result<VertexKey, NamingError> {
+                            [chain[(v + n - 1) % n], chain[v]]
+                                .iter()
+                                .map(|&m| Ok(common_vertex(ends, edge_ends(body, m)?)))
+                                .collect::<Result<Vec<_>, NamingError>>()?
+                                .into_iter()
+                                .flatten()
+                                .next()
+                                .ok_or(UNRESOLVED)
+                        };
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)?),
-                            start[v].ok_or(UNRESOLVED)?,
+                            beside(ss)?,
                         )?;
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)?),
-                            end[v].ok_or(UNRESOLVED)?,
+                            beside(es)?,
                         )?;
                     }
                 }
@@ -530,78 +539,6 @@ pub(crate) fn name_revolve<T: Decide>(
 
     super::emit::check_total(&t, body, 0)?;
     Ok(Arc::new(t))
-}
-
-/// Resolves the per-vertex copies along one meridian chain (chain
-/// edge `s` runs between the copies of profile vertices `s` and
-/// `s + 1`, cyclically): off-axis vertices anchor by rim ∩ meridian
-/// endpoint intersection, the rest by elimination to fixpoint. A
-/// one-segment loop's chain is one self-loop (D1's full turn), whose
-/// one vertex is the copy.
-fn resolve_chain_opt<T: Decide>(
-    body: &Body<T>,
-    chain: &[Option<EdgeKey>],
-    rims: &[Option<EdgeKey>],
-) -> Result<Vec<Option<VertexKey>>, NamingError> {
-    let n = chain.len();
-    if n != rims.len() || n == 0 {
-        return Err(NamingError::Emission {
-            what: "revolve chain/rim length mismatch",
-        });
-    }
-    if let [one] = chain {
-        let Some(e) = one else {
-            return Ok(vec![None]);
-        };
-        let (a, b) = edge_ends(body, *e)?;
-        if a != b {
-            return Err(NamingError::Emission {
-                what: "a one-segment loop's meridian is not a self-loop",
-            });
-        }
-        return Ok(vec![Some(a)]);
-    }
-    let mut out: Vec<Option<VertexKey>> = vec![None; n];
-    for v in 0..n {
-        if let (Some(rim), Some(m)) = (rims[v], chain[v]) {
-            out[v] = common_vertex(edge_ends(body, rim)?, edge_ends(body, m)?);
-        }
-    }
-    // Elimination to fixpoint: an edge with one resolved endpoint
-    // resolves the other (bounded by n rounds).
-    for _ in 0..n {
-        let mut progressed = false;
-        for s in 0..n {
-            let Some(e) = chain[s] else { continue };
-            let (a, b) = edge_ends(body, e)?;
-            let s1 = (s + 1) % n;
-            match (out[s], out[s1]) {
-                (Some(k), None) => {
-                    out[s1] = Some(if a == k { b } else { a });
-                    progressed = true;
-                }
-                (None, Some(k)) => {
-                    out[s] = Some(if a == k { b } else { a });
-                    progressed = true;
-                }
-                _ => {}
-            }
-        }
-        if !progressed {
-            break;
-        }
-    }
-    Ok(out)
-}
-
-/// [`resolve_chain_opt`] over a total chain (partial revolve).
-fn resolve_chain<T: Decide>(
-    body: &Body<T>,
-    chain: &[EdgeKey],
-    rims: &[Option<EdgeKey>],
-) -> Result<Vec<Option<VertexKey>>, NamingError> {
-    let opts: Vec<Option<EdgeKey>> = chain.iter().copied().map(Some).collect();
-    resolve_chain_opt(body, &opts, rims)
 }
 
 /// The unique vertex two endpoint pairs share (`None` when disjoint

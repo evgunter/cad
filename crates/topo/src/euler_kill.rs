@@ -1003,8 +1003,8 @@ impl<T: Decide> Body<T> {
     /// killed half is crossed whole), `tol` builds a band
     /// ([`EulerOpError::Certification`] with
     /// [`geom_brep::CertifyError::Band`]) and each killed half's turn is
-    /// decided at it ([`EulerOpError::KillTurnEscalated`] naming the
-    /// first half, `he` before its mate, whose turn escalates). Then,
+    /// decided at it ([`EulerOpError::KillTurnUndecided`] naming the
+    /// first half, `he` before its mate, whose turn is not decided). Then,
     /// where a member is listed, the site mint over the faces its halves
     /// are on is planned ([`EulerOpError::PcurveMint`], as
     /// [`Body::set_edge_curve`]'s). Last, where the killed edge is a
@@ -1045,7 +1045,7 @@ impl<T: Decide> Body<T> {
             for (slot, half) in [plan.he, plan.m].into_iter().enumerate() {
                 plan.turns[slot] =
                     crate::pcurves::turn_element(self, half, band).map_err(|diag| {
-                        EulerOpError::KillTurnEscalated {
+                        EulerOpError::KillTurnUndecided {
                             half_edge: half,
                             diag,
                         }

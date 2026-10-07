@@ -420,6 +420,15 @@ fn digest() -> String {
 /// 706 → 699. Decisions, discharges, shapes, refusals and every verdict
 /// hash are unchanged.
 ///
+/// **Re-cut at all three ε when the loop's chart-space angle
+/// comparisons and check 5 retired** (PCERT's chart-angle unit,
+/// `topo::pcurves`' `decide_joint`). Only the two `validate_geometric`
+/// rows move, the same at every ε: each body takes 64 fewer decisions at
+/// tier 3, because those decisions no longer exist (`sym_arc_loft`
+/// 708 → 644, `sz` 56 → 48, `num` 652 → 596; `sym_thin_strip`
+/// 716 → 652, `sz` 64 → 48, `num` 652 → 604). Every verdict, pad,
+/// `frozen` count and f64 row is unchanged.
+///
 /// **Re-cut at all three ε when the pcurve iso lane's seam class began
 /// reading which way an image runs its column** (`pcurve_iso_seam_sense`,
 /// the wrap-edge unit: a one-segment loft's strut runs its column

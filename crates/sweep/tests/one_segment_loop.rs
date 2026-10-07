@@ -131,7 +131,7 @@ fn an_extruded_one_segment_circle_is_one_wall_with_a_seam_strut() {
                 is_seam(&t.body, wall.strut),
                 "{what}: the strut is the wall's seam"
             );
-            for rim in wall.top_rims.iter().chain(&wall.bottom_rims) {
+            for rim in [&wall.top_rim, &wall.bottom_rim] {
                 let e = t.body.get_edge(*rim).unwrap();
                 let (a, b) = (
                     t.body.get_half_edge(e.he_plus).unwrap().start,
