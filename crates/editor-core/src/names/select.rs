@@ -153,6 +153,8 @@ seg_tags! {
     FromB,
     FromMember,
     Seam,
+    Crossing,
+    EdgeCrossing,
     Merged,
     Fragment,
     // Split
@@ -249,6 +251,8 @@ impl SegTag {
             RoleSeg::FromB(..) => Self::FromB,
             RoleSeg::FromMember { .. } => Self::FromMember,
             RoleSeg::Seam { .. } => Self::Seam,
+            RoleSeg::Crossing { .. } => Self::Crossing,
+            RoleSeg::EdgeCrossing { .. } => Self::EdgeCrossing,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
             RoleSeg::SplitBody(..) => Self::SplitBody,
@@ -304,6 +308,8 @@ impl SegTag {
             // with, and this segment versions with the union's.
             | Self::FromMember
             | Self::Seam
+            | Self::Crossing
+            | Self::EdgeCrossing
             | Self::Merged
             | Self::Fragment => OpGroup::Boolean,
             Self::SplitBody
@@ -364,6 +370,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::FromB(_)
         | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(
             Qualifier::Borders(_)
@@ -429,7 +437,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandTrim { edge: n, .. }
         | RoleSeg::Instance { of: n, .. }
         | RoleSeg::InPart { of: n } => vec![n],
-        RoleSeg::Seam { a, b } => vec![a, b],
+        RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => vec![a, b],
+        RoleSeg::Crossing { edge, face, .. } => vec![edge, face],
         RoleSeg::TrimEdge { edge, support } => vec![edge, support],
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
         RoleSeg::EndArc { vertex, edge } => vec![vertex, edge],
