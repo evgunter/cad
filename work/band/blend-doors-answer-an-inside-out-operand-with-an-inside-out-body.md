@@ -2,10 +2,12 @@
 id: blend-doors-answer-an-inside-out-operand-with-an-inside-out-body
 kind: issue
 title: fillet_edges and chamfer_edges take an operand no at-rest gate read: an inside-out prism comes back as an inside-out blended body
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+pr: 4252
+closed: 2026-10-07
 ---
 
 
