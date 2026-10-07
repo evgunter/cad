@@ -3992,13 +3992,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "OpenFaceRingUnsupported",
-                S::OpenFaceRingUnsupported {
-                    face,
-                    kind: geom::SurfaceKind::Torus,
-                },
-            ),
-            (
                 "OpenFaceChartPartial",
                 S::OpenFaceChartPartial { face, other },
             ),
