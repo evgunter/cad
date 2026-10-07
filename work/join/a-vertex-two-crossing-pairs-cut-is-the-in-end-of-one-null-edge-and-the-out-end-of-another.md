@@ -110,3 +110,58 @@ Ev's ruling on PR 4057 (one vertex per cone) is option 2 of PR 4059's
 question, so the design question is closed: split the shared vertex per
 cone at insertion, where the two plans meet. Flip
 `a_nested_pairing_at_a_shared_vertex_refuses_typed` when the 217 build.
+
+## Built (branch `join/pinch-cones-split-at-insertion`)
+
+**Where the two plans met.** Traced at `i=0 j=2 k=2 ab U`. The
+notch's corner `v` holds two plans:
+- plan 0 has four survivors and Out runs `1→3` and `3→0`;
+- plan 1 has two survivors and one strut at entry 2.
+
+`reconcile_pass` turns `1→3`, which holds the strut, onto its
+complement `3→1`. That complement holds plan 0's own run `3→0` whole,
+but `3→0` still minted at `v`. So `v` was the Out end of plan 1's strut
+and the In end of `3→0`.
+
+**The vertex per cone.** `insert::hang_in_turned` runs once the
+reconcile settles. At each shared vertex, a run that a turned run of its
+own plan holds whole is marked `Held` by that fan. `mint_plans` then
+mints it after the fan, at the fan's copy: the existing machinery for B's
+nested pairings, now reached by A's runs too. As a result:
+- the shared vertex keeps what lies outside the turned run, with the
+  other plans' ends;
+- the turned run's copy is the vertex its own plan's other runs hang on.
+
+No vertex then takes ends from both sides. `zip::split_cones` leaves
+one vertex per result cone, as before. Refusals, typed
+`SharedVertexCrossings`:
+- two turned runs of one plan;
+- a run whose cuts a sibling holds only one of;
+- a holder that is itself held.
+
+No battery line reaches any of them.
+
+**Why this route.** The other route nests the held plan's strut under
+the four-survivor plan's unturned run, across plans. It builds the same
+tree of vertices joined by null edges at `v`, only with `v`'s key on a
+different node, so the final state is the same. This route reuses the
+turn the reconcile already makes, and it changes nothing at any vertex
+where no turned run holds another of its plan.
+
+## Measured (release, PR 4207's head `fb8c7cbb` vs this branch)
+
+- `pinch_runs_battery`: the 217 lines (`ab U` 76, `ab S` 76, `ba U`
+  23, `ba I` 19, `ba S` 23) go `ClassificationInvariant` → `SOUND`.
+  - Each one's volume equals the oracle's at the printed 9 decimals, and
+    tier 2, tier 3′, the certificate and the operand check all pass.
+  - Each one holds one vertex per cone at `v` on one point key (175 with
+    two vertices there, 42 with one), and tessellates at δ = 0.05 and
+    passes `check_mesh` (`pierce_point_finding`).
+  - The other 2 807 lines are byte-identical.
+- Byte-identical: `pierce_runs_battery` (4 536), `corner_pairs_battery`
+  (16 380), `join1_r1_reflex_battery` and `j3r2_r1_reflex_battery`
+  (1 152 each), and `rc_wide_battery` ×84 shards (40 320).
+- SOUND → refusal 0, refusal → BAD 0.
+- `a_nested_pairing_at_a_shared_vertex_refuses_typed`: `ab U` and `ab S`
+  flip to `SOUND`. The `ba` runs still refuse `SharedVertexCrossings`,
+  filed as `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`.

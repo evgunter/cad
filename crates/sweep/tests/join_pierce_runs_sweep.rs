@@ -1425,31 +1425,77 @@ fn eight_crossing_corners_nest_two_deep_and_build_every_op() {
 /// shared and holds the nested pair: every op refuses
 /// `SharedVertexCrossings`, since turning a nested run to clear the
 /// other pair's cuts would make it hold the rest. With the notch first,
-/// the shared vertex is A's: the intersection builds `SOUND`, and the
-/// union and difference refuse `ClassificationInvariant` "a vertex at a
-/// shared point is the In end of one null edge and the Out end of
-/// another", the class
-/// `work/join/a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another.md`
-/// holds, which main reaches at four crossings too. Red if the shared
-/// vertex's nested plan reaches the reconcile.
+/// the shared vertex is A's and every op builds `SOUND`, one vertex per
+/// cone at the corner, on one point key, and meshing
+/// ([`pierce_point_finding`]). Red if the shared vertex's nested plan
+/// reaches the reconcile, or if a turned run's own pair's runs mint at
+/// the shared vertex (`insert::hang_in_turned`).
 #[test]
 fn a_nested_pairing_at_a_shared_vertex_refuses_typed() {
-    for (tag, r, want) in pinch_runs(direction(0, 0), 2.2) {
-        let what = match &r {
-            Err(BooleanError::SharedVertexCrossings { .. }) => "SharedVertexCrossings".to_owned(),
-            Err(BooleanError::ClassificationInvariant { what }) => (*what).to_owned(),
-            Err(e) => format!("{e:?}"),
-            Ok(_) => outcome(r, want, tol()),
-        };
-        let expected = match tag.as_str() {
-            "ab I" => "OK SOUND",
-            "ab U" | "ab S" => {
-                "a vertex at a shared point is the In end of one null edge and the Out end of another"
-            }
-            _ => "SharedVertexCrossings",
-        };
-        assert!(what.starts_with(expected), "{tag}: {what}");
+    let (m, psi) = (direction(0, 0), 2.2);
+    let (notch, pinch) = pinch_pieces(m, psi);
+    for (tag, r, want) in pinch_runs(m, psi) {
+        if tag.starts_with("ba") {
+            assert!(
+                matches!(r, Err(BooleanError::SharedVertexCrossings { .. })),
+                "{tag}: {}",
+                outcome(r, want, tol())
+            );
+            continue;
+        }
+        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+            pierce_point_finding(
+                &bb.body,
+                notch343().v,
+                tag_cones(&tag, "ab", (&notch, &pinch)),
+            )
+        });
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
+        assert_eq!(finding, Some(None), "{tag}");
     }
+}
+
+/// **A run turned round a shared vertex holds the rest of its pair.**
+/// [`notch343`] against the corner pinch at the pinch battery's poses
+/// `i=0 j=2 k=2` and `i=0 j=6 k=3`. Two vertex pairs cross at the
+/// notch's corner, which both share: one four times, the other twice.
+/// One run of the four-crossing pair holds the other pair's cuts and
+/// turns onto its complement, which holds its own pair's other run. Every
+/// op in both orders builds `SOUND`, one vertex per cone at the corner,
+/// on one point key, and meshing ([`pierce_point_finding`]). Red as
+/// `ClassificationInvariant` ("a vertex at a shared point is the In end
+/// of one null edge and the Out end of another") when the held run
+/// mints at the shared vertex rather than at the turned run's copy
+/// (`insert::hang_in_turned`).
+#[test]
+fn a_run_turned_at_a_shared_vertex_holds_the_rest_of_its_pair() {
+    let v = notch343().v;
+    let mut bad = Vec::new();
+    for (i, j, k) in [(0, 2, 2), (0, 6, 3)] {
+        let psi = f64::from(k) * 1.05 + 0.1;
+        let m = direction(i, j);
+        let (notch, pinch) = pinch_pieces(m, psi);
+        for (tag, r, want) in pinch_runs(m, psi) {
+            let finding = r
+                .as_ref()
+                .ok()
+                .and_then(BooleanResult::body)
+                .and_then(|bb| {
+                    pierce_point_finding(&bb.body, v, tag_cones(&tag, "ab", (&notch, &pinch)))
+                });
+            let line = outcome(r, want, tol());
+            if !line.starts_with("OK SOUND") || finding.is_some() {
+                bad.push(format!("i={i} j={j} k={k} {tag}: {line} {finding:?}"));
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND at one vertex per cone:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }
 
 /// **A fan at a shared vertex reads the other pair's cuts from its own
@@ -1546,6 +1592,20 @@ fn pinch_runs(m: [f64; 3], psi: f64) -> Vec<Run> {
         }
     }
     out
+}
+
+/// [`pinch_runs`]' operands as convex pieces: the notch's, and the
+/// pinch's two cubes.
+fn pinch_pieces(m: [f64; 3], psi: f64) -> (Pieces, Pieces) {
+    let c = notch343();
+    let f = frame(m, psi);
+    (
+        c.pieces.iter().map(|p| polygon_prism(p)).collect(),
+        vec![
+            cube_planes_at(c.v, f, [0.0; 3]),
+            cube_planes_at(c.v, f, [-SIDE; 3]),
+        ],
+    )
 }
 
 /// A named pair of corners.

@@ -55,3 +55,13 @@ with the `R4_KEYS` column), release, main `3e9d1a96` vs PR 4207's head:
   the pinch on two keys.
 - `dbl3`: 72 lines, byte-identical, as above.
 
+
+## Measured (branch `join/pinch-cones-split-at-insertion`)
+
+`join_pierce_runs_sweep::pinch_runs_battery`'s pinched operand is a
+point-touch union of two cubes, and the class reaches it. Read by
+`pierce_point_finding` at the notch's corner, release, on PR 4207's head
+`fb8c7cbb` with this branch's change: 468 `SOUND` bodies hold their
+two vertices at `v` on two point keys. That is `ab U`, `ba U` and
+`ba S`, 156 each. None of them is among the 217 lines that branch
+builds. Those 217 share one key.

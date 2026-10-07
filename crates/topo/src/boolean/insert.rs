@@ -58,9 +58,10 @@
 //! vertex, several pairs' or one pair's crossing it more than twice,
 //! struts mint before any fan, an outer before its inner, each spliced
 //! past those hung earlier at its vertex at a lower germ
-//! ([`strut_anchor`]). A run that one of its own pair's runs holds in
-//! B ([`b_runs`]) mints after it, at the copy that run's fan took its
-//! germs to.
+//! ([`strut_anchor`]). A run that one of its own pair's runs holds, in
+//! B's walk order ([`b_runs`]) or as the complement a shared vertex
+//! turned it onto ([`hang_in_turned`]), mints after it, at the copy that
+//! run's fan took its germs to.
 
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
@@ -132,7 +133,8 @@ pub(super) struct SideRun<T: geom_core::Real> {
     /// or one holds another whole ([`Self::held`]).
     shared: bool,
     /// Where the runs of its own plan hold this one: a pair nested in
-    /// B's walk order ([`b_runs`]).
+    /// B's walk order ([`b_runs`]), or a run turned round a shared
+    /// vertex ([`hang_in_turned`]).
     held: Option<Held>,
 }
 
@@ -720,9 +722,10 @@ pub(super) fn mint_plans<T: Decide>(
                 None
             };
             // A held run after every run that holds it; then the shared
-            // vertex's struts before its fans. The two never meet in one
-            // plan: only B's runs nest, and a nested plan never shares its
-            // vertex ([`reconcile_pass`]).
+            // vertex's struts before its fans. A held run lies inside its
+            // holder, clear of every other pair's cut ([`hang_in_turned`];
+            // a plan nested in B's walk order never shares its vertex,
+            // [`reconcile_pass`]), so its strut nests none of theirs.
             let held = run(at).held.map_or(0, |h| h.depth);
             keyed.push((held, depth.is_none(), depth.unwrap_or(0), n));
         }
@@ -902,7 +905,8 @@ fn holds_whole<T: Decide>(
 /// vertex, and its cuts land beside the earlier mint's in the order
 /// the corner reads. A run that holds one is turned the other way
 /// round its orbit, every run re-read until none turns (one turn can
-/// make another's nested run the one to turn); cuts along one
+/// make another's nested run the one to turn), and its own pair's
+/// other runs then mint at its copy ([`hang_in_turned`]); cuts along one
 /// direction are placed by the runs ([`tied_held`]). A strut (whose
 /// other way round is the whole orbit) whose segment holds another
 /// pair's strut whole keeps it, the inner hanging at its tip
@@ -947,12 +951,91 @@ pub(super) fn reconcile_shared<T: Decide>(
     let limit = plans.iter().map(|p| p.runs.len()).sum::<usize>() + 1;
     for _ in 0..limit {
         if !reconcile_pass(plans, sectors, [a_body, b_body], band)? {
-            return Ok(());
+            return hang_in_turned(plans, sectors, band);
         }
     }
     Err(BooleanError::ClassificationInvariant {
         what: "the runs at a shared vertex do not settle",
     })
+}
+
+/// **A run turned round a shared vertex holds the rest of its plan.**
+/// [`reconcile_pass`] turns a run onto its complement to clear another
+/// pair's cuts, and its own pair's other runs, disjoint from it, then
+/// lie inside that complement. Each mints after it, at its copy
+/// ([`Held`]): the shared vertex keeps what lies outside the turned
+/// run, with the other pairs' ends, and the copy the plan's own, so
+/// no vertex is the In end of one null edge and the Out end of another
+/// ([`mint_directed`]). Two turned runs of one plan would each hold the
+/// other's cuts, which no nesting places: they refuse
+/// [`BooleanError::SharedVertexCrossings`].
+fn hang_in_turned<T: Decide>(
+    plans: &mut [NullPlan<T>],
+    sectors: &[Orbits<'_, T>],
+    band: Band,
+) -> Result<(), BooleanError> {
+    for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
+        let key = |c: VvContact| if slot == 0 { (c.a, c.b) } else { (c.b, c.a) };
+        for i in 0..plans.len() {
+            let (vertex, partner) = key(plans[i].contact);
+            let other = (0..plans.len()).find(|&j| {
+                j != i && !plans[j].runs.is_empty() && key(plans[j].contact).0 == vertex
+            });
+            let (Some(j), n @ 2..) = (other, plans[i].runs.len()) else {
+                continue;
+            };
+            let secs = if slot == 0 {
+                sectors[i].0
+            } else {
+                sectors[i].1
+            };
+            let runs: Vec<SideRun<T>> = plans[i].runs.iter().map(|r| r[slot]).collect();
+            let partners = [partner, key(plans[j].contact).1];
+            let refuse = || BooleanError::SharedVertexCrossings {
+                operand,
+                vertex,
+                partners,
+            };
+            for k in 0..n {
+                let cuts = run_cuts(secs, runs[k], k, band)?;
+                let mut holder = None;
+                for m in (0..n).filter(|&m| m != k) {
+                    let mut held = 0;
+                    for cut in cuts {
+                        held += usize::from(held_cut(secs, runs[m], &[cut], band)?.is_some());
+                    }
+                    match held {
+                        0 => {}
+                        2 if holder.is_none() && !is_strut(secs, runs[m].from.0, runs[m].to.0)? => {
+                            holder = Some(m);
+                        }
+                        _ => return Err(refuse()),
+                    }
+                }
+                if let Some(m) = holder {
+                    plans[i].runs[k][slot].held = Some(Held {
+                        depth: 1,
+                        fan: Some(m),
+                        by_strut: false,
+                    });
+                }
+            }
+            // A run that holds its plan's runs is held by none of them.
+            let held: Vec<bool> = plans[i]
+                .runs
+                .iter()
+                .map(|r| r[slot].held.is_some())
+                .collect();
+            if plans[i]
+                .runs
+                .iter()
+                .any(|r| r[slot].held.is_some_and(|h| h.fan.is_some_and(|m| held[m])))
+            {
+                return Err(refuse());
+            }
+        }
+    }
+    Ok(())
 }
 
 /// One pass of [`reconcile_shared`]: keeps each run that holds none of
@@ -1009,24 +1092,7 @@ fn reconcile_pass<T: Decide>(
             let mut cuts: Vec<OtherCut<T>> = Vec::new();
             for &j in &others {
                 for r in &plans[j].runs {
-                    let (lo, hi, code) = segment(secs, r[slot], band)?;
-                    let strut = is_strut(secs, r[slot].from.0, r[slot].to.0)?;
-                    cuts.push(OtherCut {
-                        at: lo,
-                        mate: hi,
-                        leaves: true,
-                        owner: j,
-                        strut,
-                        code,
-                    });
-                    cuts.push(OtherCut {
-                        at: hi,
-                        mate: lo,
-                        leaves: false,
-                        owner: j,
-                        strut,
-                        code,
-                    });
+                    cuts.extend(run_cuts(secs, r[slot], j, band)?);
                 }
             }
             for k in 0..plans[i].runs.len() {
@@ -1064,6 +1130,26 @@ fn reconcile_pass<T: Decide>(
         }
     }
     Ok(turned)
+}
+
+/// `run`'s two cuts, as [`OtherCut`]s of `owner`.
+fn run_cuts<T: Decide>(
+    secs: &[BoolSector<T>],
+    run: SideRun<T>,
+    owner: usize,
+    band: Band,
+) -> Result<[OtherCut<T>; 2], BooleanError> {
+    let (lo, hi, code) = segment(secs, run, band)?;
+    let strut = is_strut(secs, run.from.0, run.to.0)?;
+    let cut = |at, mate, leaves| OtherCut {
+        at,
+        mate,
+        leaves,
+        owner,
+        strut,
+        code,
+    };
+    Ok([cut(lo, hi, true), cut(hi, lo, false)])
 }
 
 /// Another pair's cut at a shared vertex: where it lies, the other end

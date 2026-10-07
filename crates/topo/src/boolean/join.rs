@@ -441,19 +441,21 @@ impl Sides {
 
     /// The up/down sense of a null-edge half — `start ∈ in_set` ⇒ up
     /// (the below-copy audit: side is attribute data, either parity of
-    /// copy resolves here).
+    /// copy resolves here). A vertex in both sets names no sense.
     fn is_up<T: Decide>(&self, body: &Body<T>, he: HalfEdgeKey) -> Result<bool, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
         let start = body
             .get_half_edge(he)
             .ok_or(desync("half no longer resolves"))?
             .start;
-        if self.in_set.contains_key(start) {
-            Ok(true)
-        } else if self.out_set.contains_key(start) {
-            Ok(false)
-        } else {
-            Err(desync("null half starts at a vertex of neither side set"))
+        match (
+            self.in_set.contains_key(start),
+            self.out_set.contains_key(start),
+        ) {
+            (true, false) => Ok(true),
+            (false, true) => Ok(false),
+            (true, true) => Err(desync("null half starts at a vertex of both side sets")),
+            (false, false) => Err(desync("null half starts at a vertex of neither side set")),
         }
     }
 }
