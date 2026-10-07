@@ -22,3 +22,5 @@ This row is the schedule for `UncoveredClass::TorusGeneralCircle`: a circle on a
 When the route lands, the class leaves `not_owed`'s first arm in the
 same change, so a face of that class is minted or refused at the
 producer.
+
+Closed by `pcert/torus-villarceau-route` (PR 4227): the class is deleted. A circle on the chart that the incidence test reads on it is imaged (`Pcurve::FocalSection`: a Villarceau circle on a torus, a tilted section ellipse on a cone) or refuses `CarrierGrazesChart`, and one read off it refuses `CarrierOffChart`; neither is excused.
