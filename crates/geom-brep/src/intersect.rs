@@ -113,10 +113,11 @@ use geom::Surface;
 use geom::{Curve3, EllipseInvalid, SpiricInvalid, SurfaceKind};
 use geom_core::{Band, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
-use crate::dihedral::decide;
+use crate::dihedral::{decide, decide_magnitude, decide_nonzero};
 use crate::extent::Reach;
 use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 use geom_core::Decide;
+use geom_core::k_stats::{Magnitude, NonzeroSign};
 
 // ---------------------------------------------------------------------
 // Kinds, rungs, routing
@@ -848,7 +849,9 @@ pub enum PlaneCylinderSection<T: Real> {
 ///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
 ///    (step 3).
 /// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|` at
-///    the foot (meters): Positive ⇒
+///    the foot (meters), read across the reach with step 1's tilt
+///    displacement beside it ([`decide_across`]; `pc_parallel_gap_floor`
+///    decides the definite side): Positive ⇒
 ///    [`PlaneCylinderSection::ParallelLines`], Zero ⇒
 ///    [`PlaneCylinderSection::TangentLine`], Negative ⇒
 ///    [`PlaneCylinderSection::Empty`].
@@ -947,7 +950,16 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Ok(None),
     }
-    let section = match decide("pc_parallel_gap", Margin::of(r - gap_signed.abs()), band)? {
+    // A consumed point of the ruling stands off the plane by the tilt
+    // levered from the hinge, and the wall stands `r − |gap|` off the
+    // plane at the foot: the ruling stands at most their sum off the
+    // section, so the gap is read across the reach with the tilt beside it.
+    let section = match decide_across(
+        ["pc_parallel_gap", "pc_parallel_gap_floor"],
+        r - gap_signed.abs(),
+        Margin::levered(c, lever),
+        band,
+    )? {
         Sign::Positive => {
             // Cross-section chord: the plane cuts the circle at
             // foot ± w·half, foot the axis' plane projection.
@@ -1395,7 +1407,9 @@ pub enum EqualCylinderSection<T: Real> {
 ///    definite ⇒ the crossing lane (step 5).
 /// 4. `cc_coaxial` / `cc_parallel_gap` — axis-to-axis distance `d`,
 ///    read between the feet of `reach`'s point on the two axes
-///    ([`Reach::foot_on`]), the same in either order:
+///    ([`Reach::foot_on`]), the same in either order, each read across
+///    the reach with step 3's tilt displacement beside it
+///    ([`decide_across`]; the `_floor` rows decide the definite side):
 ///    coincident-with-zero ⇒
 ///    [`SectionError::CoincidentSurfaces`]; then margin `r₁ + r₂ − d`:
 ///    Positive ⇒ two rulings, Zero ⇒ tangent ruling, Negative ⇒ empty.
@@ -1464,13 +1478,20 @@ pub fn cylinder_cylinder_section<T: Decide>(
             // Parallel axes: the cross-section is two equal circles at
             // center distance d.
             let ParallelAxes { foot1, d_vec, d } = parallel_axes_at(reach, (o1, a1), (o2, a2));
-            match decide("cc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
+            // The axes stand within `d ± swing` of each other across the
+            // reach, so a coincidence stands at most their sum off.
+            let swing = axes_tilt(reach, (o1, a1), (o2, a2));
+            match decide_across(["cc_coaxial", "cc_coaxial_floor"], d, swing, band)
+                .map_err(SectionError::Escalated)?
+            {
                 Sign::Zero => return Err(SectionError::CoincidentSurfaces),
                 Sign::Positive | Sign::Negative => {}
             }
             let two = T::from_f64(2.0);
             let mid = foot1 + d_vec * T::from_f64(0.5);
-            match parallel_cylinder_gap(r1, r2, d, band).map_err(SectionError::Escalated)? {
+            match parallel_cylinder_gap((r1, r2), d, swing, band)
+                .map_err(SectionError::Escalated)?
+            {
                 Sign::Positive => {
                     // The rulings stand `±half` off `mid` along `h`, both
                     // ⊥ `a1`, so `half` is read from the perpendicular gap
@@ -1555,11 +1576,20 @@ pub fn cylinder_axes_parallel<T: Decide>(
     line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    let sin = line1.1.cross(line2.1).norm();
-    decide(
-        "cc_axes_parallel",
-        Margin::levered(sin, reach.lever_between(line1, line2)),
-        band,
+    decide("cc_axes_parallel", axes_tilt(reach, line1, line2), band)
+}
+
+/// The cylinder pair's tilt displacement: `‖a1×a2‖` levered at
+/// [`Reach::lever_between`], what `cc_axes_parallel` decides and what
+/// the parallel lane's rows carry beside their gap ([`decide_across`]).
+pub(crate) fn axes_tilt<T: Real>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+) -> Margin<T> {
+    Margin::levered(
+        line1.1.cross(line2.1).norm(),
+        reach.lever_between(line1, line2),
     )
 }
 
@@ -1648,17 +1678,64 @@ pub fn parallel_axes_at<T: Real>(
 }
 
 /// `cc_parallel_gap`: the external-tangency margin `r1 + r2 − d` of two
-/// parallel cylinders whose axes stand `d` apart. Positive ⇒ the walls
-/// cross along two rulings, Zero ⇒ they touch along one, Negative ⇒
-/// they clear. Symmetric in the pair, so the verdict does not depend on
-/// which cylinder is first. Shared with the tangent-locus lane.
+/// parallel cylinders whose axes stand `d` apart at their feet, read
+/// across the reach with the tilt `swing` (`cc_axes_parallel`'s
+/// displacement) beside it ([`decide_across`]): the axes stand within
+/// `d ± swing` of each other at every consumed station, so a ruling the
+/// verdict serves stands at most `|r1 + r2 − d| + swing` off either
+/// wall there. Positive ⇒ the walls cross along two rulings, Zero ⇒
+/// they touch along one, Negative ⇒ they clear. Symmetric in the pair,
+/// so the verdict does not depend on which cylinder is first. Shared
+/// with the tangent-locus lane.
 pub(crate) fn parallel_cylinder_gap<T: Decide>(
-    r1: T,
-    r2: T,
+    (r1, r2): (T, T),
     d: T,
+    swing: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide("cc_parallel_gap", Margin::of(r1 + r2 - d), band)
+    decide_across(
+        ["cc_parallel_gap", "cc_parallel_gap_floor"],
+        r1 + r2 - d,
+        swing,
+        band,
+    )
+}
+
+/// **A two-sided row read across the consumed region**
+/// (`crate::extent`'s module docs): `datum` the row's signed margin
+/// where its pivot reads it, `swing` the most a tilt its routing row
+/// admitted moves that reading at a consumed point (the tilt levered at
+/// the row's own reach). Across the region the reading stands inside
+/// `datum ± swing`, so each verdict is decided on its own side of that
+/// bracket, each the point deviation that flips it:
+///
+/// - `far`, `|datum| + swing`, the farthest a consumed point reads from
+///   the flip: Zero ⇒ [`Sign::Zero`] at every consumed point;
+/// - otherwise `floor`, the bracket's reading nearest the flip (`datum`
+///   shrunk toward zero by `swing`, zero where the bracket holds it): a
+///   definite sign holds at every consumed point. A floor decided Zero
+///   beside a definite far straddles the band, and escalates through
+///   the gate.
+///
+/// The two terms are never decided one at a time: each just inside the
+/// band would sum to nearly twice it.
+pub(crate) fn decide_across<T: Decide>(
+    [far, floor]: [&'static str; 2],
+    datum: T,
+    swing: Margin<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let swing = swing.value().abs();
+    match decide_magnitude(far, Margin::of(datum.abs() + swing), band)? {
+        Magnitude::Zero => Ok(Sign::Zero),
+        Magnitude::Positive => {
+            let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
+            Ok(match decide_nonzero(floor, Margin::of(near), band)? {
+                NonzeroSign::Positive => Sign::Positive,
+                NonzeroSign::Negative => Sign::Negative,
+            })
+        }
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -1958,7 +2035,9 @@ pub enum PlaneConeSection<T: Real> {
 /// 2. `pn_apex_section` — margin `D = sin α·‖axis×normal‖ −
 ///    cos α·|axis·normal|` metered at `extent` (the conic-type
 ///    discriminant, here at its degenerate column: positive exactly when
-///    the plane dips inside the cone): Positive ⇒
+///    the plane dips inside the cone), read with step 1's apex gap
+///    beside it ([`decide_across`]; `pn_apex_section_floor` decides the
+///    definite side): Positive ⇒
 ///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
 ///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒
 ///    [`PlaneConeSection::ApexPoint`].
@@ -2046,9 +2125,18 @@ pub fn plane_cone_section<T: Decide>(
     match decide("pn_apex_on_plane", Margin::of(apex_gap), band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Apex lane: generators g(u) = a·cosα + radial(u)·sinα with
-            // g·n = 0 ⇔ cos(u − φ) = −cosα·c / (sinα·s).
-            let verdict = decide("pn_apex_section", Margin::levered(discr, extent), band)
-                .map_err(SectionError::Escalated)?;
+            // g·n = 0 ⇔ cos(u − φ) = −cosα·c / (sinα·s). The plane
+            // stands `apex_gap` off the apex the generators are minted
+            // through, which moves it off them by as much as the
+            // discriminant's own displacement does: the two are read as
+            // one.
+            let verdict = decide_across(
+                ["pn_apex_section", "pn_apex_section_floor"],
+                Margin::levered(discr, extent).value(),
+                Margin::of(apex_gap),
+                band,
+            )
+            .map_err(SectionError::Escalated)?;
             match verdict {
                 Sign::Positive | Sign::Zero => {
                     let v_ref = a.cross(cone_u);
@@ -2219,7 +2307,10 @@ pub enum PlaneTorusSection<T: Real> {
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
 ///    the stand-off `d = n·q − n·c` (meters, the plane's constant less
-///    the centre's): Zero ⇒ the plane CONTAINS the axis ⇒
+///    the centre's), it and the next row each read across the extent
+///    with that tilt displacement beside it ([`decide_across`], the
+///    `_floor` rows deciding the definite side): Zero ⇒ the plane
+///    CONTAINS the axis ⇒
 ///    [`PlaneTorusSection::MeridianCircles`]; definite ⇒ the
 ///    axis-parallel plane OFF the axis, and then `pt_spiric_two_ovals`
 ///    — margin `(R − r) − |d|` (meters, `d` that same gap): Positive ⇒
@@ -2229,7 +2320,8 @@ pub enum PlaneTorusSection<T: Real> {
 /// 3. `pt_axis_normal` — margin `‖a×n‖·R` (the tilt angle's sine,
 ///    metered at the would-be circle radius): Zero ⇒ the plane is
 ///    perpendicular to the axis; then `pt_cap_gap` — margin `r − |h|`
-///    (meters, `h = (q − c)·a` the station's depth into the tube):
+///    (meters, `h = (q − c)·a` the station's depth into the tube), read
+///    with that tilt displacement beside it ([`decide_across`]):
 ///    Positive ⇒ [`PlaneTorusSection::ConcentricCircles`], Zero ⇒
 ///    [`PlaneTorusSection::TangentCircle`] (classification data),
 ///    Negative ⇒ [`PlaneTorusSection::Empty`].
@@ -2298,16 +2390,23 @@ pub fn plane_torus_section<T: Decide>(
     // the operand extent, ≥ R + r for any plane that reaches the
     // torus, so r/extent < 1 and the planarity error stays under ε.
     // The predicate-dimension-audit row carries the same caveat.
-    match decide("pt_axis_in_plane", Margin::levered(a.dot(n), extent), band)
-        .map_err(SectionError::Escalated)?
-    {
+    let tilt = Margin::levered(a.dot(n), extent);
+    match decide("pt_axis_in_plane", tilt, band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // The axis direction lies in the plane: containing vs
             // offset, by the stand-off `d` — the one spelling this arm
-            // decides on and mints from.
+            // decides on and mints from. The plane stands within
+            // `d ± tilt` of the centre's at every consumed point, so a
+            // circle or an oval minted at `d` stands at most the sum
+            // off it: each row below reads the two as one.
             let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
-            match decide("pt_axis_plane_gap", Margin::of(d), band)
-                .map_err(SectionError::Escalated)?
+            match decide_across(
+                ["pt_axis_plane_gap", "pt_axis_plane_gap_floor"],
+                d,
+                tilt,
+                band,
+            )
+            .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {
                     // The plane contains the axis: the two meridian
@@ -2330,9 +2429,10 @@ pub fn plane_torus_section<T: Decide>(
                     // Off the axis: the spiric, two ovals while the
                     // plane stays short of the inner equator — a
                     // length, decided before any root is taken.
-                    match decide(
-                        "pt_spiric_two_ovals",
-                        Margin::of((big_r - r) - d.abs()),
+                    match decide_across(
+                        ["pt_spiric_two_ovals", "pt_spiric_two_ovals_floor"],
+                        (big_r - r) - d.abs(),
+                        tilt,
                         band,
                     )
                     .map_err(SectionError::Escalated)?
@@ -2366,17 +2466,17 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let sin_norm = a.cross(n).norm();
-            match decide("pt_axis_normal", Margin::levered(sin_norm, big_r), band)
-                .map_err(SectionError::Escalated)?
-            {
+            let tilt = Margin::levered(a.cross(n).norm(), big_r);
+            match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the
                     // concentric-circle lane, by the station's depth
-                    // into the tube.
+                    // into the tube. The tilt moves the plane's depth by
+                    // at most its displacement at the circles, so a
+                    // circle minted at `h` stands at most the sum off.
                     let h = (q - c).dot(a);
                     let center = c + a * h;
-                    match decide("pt_cap_gap", Margin::of(r - h.abs()), band)
+                    match decide_across(["pt_cap_gap", "pt_cap_gap_floor"], r - h.abs(), tilt, band)
                         .map_err(SectionError::Escalated)?
                     {
                         Sign::Positive => {
@@ -2463,11 +2563,10 @@ pub enum ConeCylinderSection<T: Real> {
 /// **`extent` is measured from the apex**: the farthest the consumed
 /// region stands from it, which also bounds where the minted circles
 /// may stand (`coc_station_reach`). Every row reads the pose at the
-/// apex and levers its angles from there: a served pose's axes stand at
-/// most `d + θ·extent` apart across the region, `d` what `coc_coaxial`
-/// reads and `θ` the tilt `coc_axes_parallel` admits. The two are
-/// decided one at a time, not as that sum
-/// (`work/tang/cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time.md`).
+/// apex and levers its angles from there: the axes stand within
+/// `d ± θ·extent` of each other across the region, `d` the apex's
+/// distance from the cylinder's axis and `θ` the tilt
+/// `coc_axes_parallel` admits, and `coc_coaxial` decides that sum.
 ///
 /// 1. `coc_cylinder_radius` — margin `R` (meters): the arm states both
 ///    circles at exactly that radius, so it must be a positive length.
@@ -2485,10 +2584,13 @@ pub enum ConeCylinderSection<T: Real> {
 ///    covers the antiparallel pose too, which is the same
 ///    configuration read through the cylinder's opposite orientation.
 /// 4. `coc_coaxial` — margin the apex's distance from the cylinder's
-///    axis, `‖(apex − o) − b·((apex − o)·b)‖` (meters): Zero ⇒ coaxial;
-///    definite ⇒ the general-rung refusal, a parallel-but-OFFSET
-///    cylinder cutting a quartic. A norm is never negative, so this
-///    trilean has two live verdicts by construction.
+///    axis, `‖(apex − o) − b·((apex − o)·b)‖` (meters), read across the
+///    extent with step 3's tilt displacement beside it
+///    ([`decide_across`]): Zero ⇒ coaxial, the circles standing at most
+///    that sum off the cylinder; `coc_coaxial_floor` definite ⇒ the
+///    general-rung refusal, a parallel-but-OFFSET cylinder cutting a
+///    quartic. A norm is never negative, so the floor has one live
+///    definite verdict by construction.
 /// 5. `coc_station_reach` — margin `extent − |R·cot α|` (meters), the
 ///    ADMISSION criterion and the last decision before the mint:
 ///    Positive ⇒ [`ConeCylinderSection::CoaxialCircles`], otherwise
@@ -2599,13 +2701,8 @@ pub fn cone_cylinder_section<T: Decide>(
         }
     }
 
-    match decide(
-        "coc_axes_parallel",
-        Margin::levered(a.cross(b).norm(), extent),
-        band,
-    )
-    .map_err(SectionError::Escalated)?
-    {
+    let tilt = Margin::levered(a.cross(b).norm(), extent);
+    match decide("coc_axes_parallel", tilt, band).map_err(SectionError::Escalated)? {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => {
             return Err(SectionError::RoutesToGeneralRung {
@@ -2622,9 +2719,13 @@ pub fn cone_cylinder_section<T: Decide>(
     // The axes are parallel: coaxial or merely parallel, by the apex's
     // distance from the CYLINDER's axis, read at the pivot every row
     // here is levered from. Against its own axis the cylinder's origin
-    // may stand anywhere on it.
+    // may stand anywhere on it. A circle minted at `R` about the cone's
+    // axis stands off the cylinder by at most that distance plus the
+    // tilt levered out to it, so the two are decided as one.
     let d = (apex - o).reject_from(b).norm();
-    match decide("coc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
+    match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, tilt, band)
+        .map_err(SectionError::Escalated)?
+    {
         Sign::Zero => {
             // Coaxial. On the cone `S(u, v) = apex + a·(v·cos α) +
             // radial(u)·(v·sin α)`, so the circle of radius `R` sits at
