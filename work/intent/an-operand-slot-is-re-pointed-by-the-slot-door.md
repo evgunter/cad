@@ -2,11 +2,11 @@
 id: an-operand-slot-is-re-pointed-by-the-slot-door
 kind: issue
 title: Stage 2 FORK-4: may an edit re-point an operand slot (REFERENCES DM6)?
-status: open
+status: closed
 opened: 2026-10-07
 priority: P0
 cost: E
-needs_ev: true
+closed: 2026-10-07
 refs: [d10-one-way-to-say-intent-is-unbuilt, no-docedit-splices-a-deleted-node]
 ---
 
@@ -14,3 +14,4 @@ REFERENCES DM6 rules that no edit rewires a live node's inputs. After stage 2 an
 
 A designer pair agreed on the first reports. An operand slot is written by the one slot door, under the checks the insert door and `SetMembers` already make, and reports the names it strands rather than refusing them. DM6 becomes "no edit infers a re-point". The question and both reports are in the `[ev]` PR. Ev's answer closes this row and rewrites DM6.
 
+**Ruled (Ev, 2026-10-07, PR 4221):** approved as written. An operand slot is re-pointed by the one slot door, under the insert door's and `SetMembers`' checks; strands are reported, never refused; DM6 reads "no edit infers a re-point". Unit B builds it.
