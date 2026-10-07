@@ -84,7 +84,9 @@ had no class row among them. `sense_of` refused. Before #4203 nothing
 read the senses there, so the short read was silent.
 
 `fused_partners` now gathers every key fused into a vertex through any
-number of rows (in the order they died), and `operand_vertex_keys`
+number of rows, nearest the survivor first and each hop in the order
+they died, so a vertex's identity still comes from the key nearest the
+survivor, as with no chain. `operand_vertex_keys`
 closes over B-side welds and null copies together, both as two keys
 of one point, so a chain of welds or a weld reached through a null copy
 is read as well. topo records every class it owes here; the fix is in
