@@ -137,30 +137,37 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 /// that edge passes within `r` of the sphere center (the two conditions
 /// are the same inequality, `cx² + s² < r²`), so the REDUCE stage meets
 /// the edge first: the line × sphere roots pierce it, the pierce
-/// point's sector side certifies, and the op stops at the join, where
-/// the section passes through the ball's face as a ring whose island the
-/// join winds on a cylinder wall's chart alone
-/// (`SplitJoinError::RingOffCylinderChart`,
-/// `work/tang/a-ring-on-a-sphere-face-has-no-island-winding.md`), typed. The
-/// scan's near-boundary arm remains as certified-enclosure
-/// defense-in-depth behind that door (its residual live width is the
-/// box pad; the shadowing is structural — the reduction runs before
-/// any fallback — so this pin is stable).
+/// point's sector side certifies, and the section passes through the
+/// ball's face as a ring, whose island the join winds without a chart
+/// (`chord_join::sphere_island_winding`). The union keeps that ring as a
+/// hole of the ball's face, which the result gate refuses typed
+/// (`VolumeUncomputable { RingOnCurvedFace }`,
+/// `work/flux/sphere-face-with-a-hole-has-no-closed-form.md`); the pose's
+/// other ops are `a_ring_on_a_sphere_face`'s. The scan's near-boundary
+/// arm remains as certified-enclosure defense-in-depth behind that door
+/// (its residual live width is the box pad; the shadowing is structural
+/// — the reduction runs before any fallback — so this pin is stable).
 #[test]
-fn probe_edge_escape_refuses_typed_before_the_scan() {
+fn probe_edge_escape_lands_a_ring_before_the_scan() {
     let b = ball_poled_y(0.5, Vec3::new(0.3, 2.0, 1.2), Tol::witness());
     let (slab, b) = (
         finished("the slab", slab(), Tol::witness()),
         finished("the ball", b, Tol::witness()),
     );
     let err = topo::union(&slab, &b, Tol::witness()).expect_err("edge escape must not certify");
-    let BooleanError::Join(topo::SplitJoinError::RingOffCylinderChart {
-        kind: geom::SurfaceKind::Sphere,
-        ..
-    }) = err
-    else {
-        panic!("expected the pierce to land and the join to refuse the sphere ring, got {err:?}");
+    let BooleanError::ResultInvalid { errors } = &err else {
+        panic!("expected the pierce to land as a ring the result gate refuses, got {err:?}");
     };
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::RingOnCurvedFace { .. },
+                ..
+            }]
+        ),
+        "expected the ringed ball face's volume refusal, got {errors:?}"
+    );
 }
 
 /// PROBE 4: bit-replay — the flipped finding row twice in-process,

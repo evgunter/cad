@@ -95,6 +95,7 @@ fn rig(label: &str, n: usize) -> Rig {
                 editor_core::DocEdit::SetOffset {
                     instance: id,
                     offset: None,
+                    fresh: Vec::new(),
                 },
             )
             .0;
@@ -163,6 +164,7 @@ fn add(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
     );
     (doc, id.expect("the insert minted an id"))
@@ -1053,6 +1055,7 @@ fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
             doc,
             DocEdit::InsertNode {
                 node: Box::new(Node::instantiate_part(doc_ref)),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1095,6 +1098,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
                             None,
                         ),
                     )),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -1209,6 +1213,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
             editor_core::DocEdit::SetOffset {
                 instance: id,
                 offset: Some(editor_core::Placement::IDENTITY),
+                fresh: Vec::new(),
             },
         )
         .0;

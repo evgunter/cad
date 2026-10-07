@@ -747,6 +747,8 @@ mod emit_union_rim_piece_ranks;
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
 mod intent_literals_b_door;
+#[path = "intent_literals_c_slots.rs"]
+mod intent_literals_c_slots;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]

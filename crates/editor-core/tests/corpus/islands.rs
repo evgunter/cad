@@ -108,6 +108,7 @@ pub fn document_105() -> CorpusDoc {
             node: pillar,
             slot: SlotId::Distance,
             expr: len(1.75),
+            fresh: Vec::new(),
         },
         bump_root: pillar,
     }
@@ -139,6 +140,7 @@ pub fn document_106_depth1() -> CorpusDoc {
             node: slab,
             slot: SlotId::Distance,
             expr: len(0.75),
+            fresh: Vec::new(),
         },
         bump_root: slab,
     }
@@ -181,6 +183,7 @@ pub fn document_106_depth2() -> CorpusDoc {
             node: pillar,
             slot: SlotId::Distance,
             expr: len(1.75),
+            fresh: Vec::new(),
         },
         bump_root: pillar,
     }

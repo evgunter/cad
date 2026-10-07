@@ -30,7 +30,7 @@ use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
 use crate::py::doc::{NodeId, name_from_text, name_text};
-use crate::py::expr::{Formula, name_fault_err};
+use crate::py::expr::{Formula, lower_fault_err};
 use crate::py::step::Piece;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
@@ -715,7 +715,7 @@ impl GeomPred {
     #[staticmethod]
     fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: &Formula) -> PyResult<Self> {
         let value = pncad::document::Expr::try_from(&value.0)
-            .map_err(|fault| name_fault_err(py, &fault))?;
+            .map_err(|fault| lower_fault_err(py, &fault))?;
         Ok(Self(s::GeomPred::DatumDistance {
             datum: datum.0,
             cmp: cmp.to_kernel(),

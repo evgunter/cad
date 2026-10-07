@@ -138,6 +138,7 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         DocEdit::SetOffset {
             instance: shelf_i,
             offset: Some(Placement::literal(&Frame::translation(SHELF_AT))),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -147,6 +148,7 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         DocEdit::SetOffset {
             instance: post_b,
             offset: Some(Placement::literal(&Frame::translation(POST_B_AT))),
+            fresh: Vec::new(),
         },
         tol,
     );

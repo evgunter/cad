@@ -68,6 +68,7 @@ fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeI
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 4.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     (doc, vec![a, b])
@@ -475,6 +476,7 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 9.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let after = run(&moved, Some(&warm), &opts);

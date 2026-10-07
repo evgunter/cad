@@ -542,8 +542,8 @@ pub enum SessionOp {
         /// The profile node.
         node: RecipeNodeId,
         /// The committed program the editor's program was loaded
-        /// from.
-        base: ProfileProgram,
+        /// from, as written ([`crate::sketch::written_program`]).
+        base: ProfileProgram<Formula>,
         /// The loop programs the editor holds, in description order.
         loops: Vec<LoopProgram<Formula>>,
         /// Per loop, per step: the committed step it keeps, or `None`

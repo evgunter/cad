@@ -438,10 +438,10 @@ pub struct ProfileValue<T: geom_core::Real> {
     /// (`work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`),
     /// and nothing here decides it.
     ///
-    /// Expressions rather than lowered tokens, because lowering is
+    /// Variables rather than lowered tokens, because lowering is
     /// scope-relative and the scope that matters is the ATTACHING
     /// evaluation's descent chain, read where the attach happens.
-    pub edge_radii: Vec<Vec<Option<crate::expr::Expr>>>,
+    pub edge_radii: Vec<Vec<Option<crate::var::VarId>>>,
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed

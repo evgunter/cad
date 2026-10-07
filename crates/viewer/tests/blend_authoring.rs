@@ -27,8 +27,8 @@ use crate::common;
 
 use common::{ang, len, len3, plate_index, scl3, session_insert};
 use pncad::document::{
-    Dimension, Doc, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId,
-    Said, SlotId, Speaker,
+    Dimension, Doc, Formula, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram,
+    RecipeNodeId, Said, SlotId, Speaker,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -203,7 +203,19 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
         panic!("the door minted a fillet");
     };
     assert_eq!(*stored_target, target);
-    assert_eq!(*radius, len(BLEND), "the radius is a literal Length slot");
+    assert!(
+        session.committed_doc().free(*radius).is_some(),
+        "the radius is a written Length: the slot's own free variable"
+    );
+    assert_eq!(
+        Formula::from(
+            session
+                .committed_doc()
+                .slot_expansion(fillet, SlotId::Radius)
+                .expect("the radius slot")
+        ),
+        len(BLEND)
+    );
     // CANONICAL: sorted, deduplicated, and equal as a set to what the
     // all-edges door answers — the same twelve names either way.
     let mut canonical = selection.clone();
@@ -248,7 +260,21 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
         panic!("the door minted a chamfer");
     };
     assert_eq!(*stored_target, target);
-    assert_eq!(*distance, len(BLEND));
+    assert_eq!(
+        session
+            .committed_doc()
+            .slot(chamfer, SlotId::ChamferDistance),
+        Some(*distance)
+    );
+    assert_eq!(
+        Formula::from(
+            session
+                .committed_doc()
+                .slot_expansion(chamfer, SlotId::ChamferDistance)
+                .expect("the distance slot")
+        ),
+        len(BLEND)
+    );
     assert_eq!(*selection, all_edge_names(&session, target));
     // The size lands in the chamfer's OWN slot, which is what makes a
     // reader able to tell what the number means off the node kind.

@@ -33,7 +33,7 @@ pub(crate) use wire::decision_words;
 
 pub(crate) use wire::{
     DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
-    stepped_rule_map, transform_map, unit as unit_direction,
+    stepped_rule_map, transform_map, unit as unit_direction, written,
 };
 
 pub(crate) use anchor::derive_naming;
@@ -4421,12 +4421,12 @@ where
     // the discipline `slots` states and for the same reason: these
     // values feed BOTH the content key and the op, so a parameter edit
     // under a bound moves the key rather than serving a stale memo.
-    let payload_values = match crate::node::payload_exprs(node) {
+    let payload_values = match node.payload_reads(doc) {
         None => None,
-        Some(exprs) => {
-            let mut values = Vec::with_capacity(exprs.len());
-            for leaf in exprs {
-                match crate::expr::eval(leaf, env) {
+        Some(reads) => {
+            let mut values = Vec::with_capacity(reads.len());
+            for (var, dim) in reads {
+                match crate::expr::eval_var(var, dim, env) {
                     Ok(v) => values.push(v),
                     Err(source) => {
                         let what = match node {
@@ -5541,11 +5541,11 @@ where
                     // "which spellings of this program can reach a
                     // stored field", and a chain's arc radii reach the
                     // walls its arcs sweep exactly as a carrier's does.
-                    for (_, expr) in lp.step_radii() {
+                    for (_, &var) in lp.step_radii() {
                         // Opened by its word in the profile-payload
                         // vocabulary (`tag::program`).
                         h.write_tag(tag::program::CARRIER_RADIUS);
-                        crate::param_source::feed_content_key(&mut h, defs, expr);
+                        crate::param_source::feed_var(&mut h, defs, var);
                     }
                 }
             }
@@ -6393,24 +6393,15 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
                 h.write_u64(u64::from(index));
             }
         }
-        K::Value(e) => {
+        K::Value(var) => {
             h.write_tag(tag::measure_expr::VALUE);
-            // The value leaf's literal BITS and the variables it reads
-            // — the same two facts `Expr::bit_eq` compares, so two
-            // leaves that are bit-equal hash equal and no others do.
-            let mut bits = Vec::new();
-            e.literal_bits(&mut bits);
-            h.write_u64(bits.len() as u64);
-            for b in bits {
-                h.write_u64(b);
-            }
-            let mut reads = Vec::new();
-            e.var_reads(&mut reads);
-            h.write_u64(reads.len() as u64);
-            for (var, dim) in reads {
-                h.write_u64(var.0);
-                h.write_tag(dimension_tag(dim));
-            }
+            // The value leaf's literal bits — a stored leaf is one
+            // variable and holds none — and the variable it reads, with
+            // the dimension it is read at.
+            h.write_u64(0);
+            h.write_u64(1);
+            h.write_u64(var.0);
+            h.write_tag(dimension_tag(expr.dim()));
         }
         K::Neg(a) => {
             h.write_tag(tag::measure_expr::NEG);
@@ -6453,10 +6444,10 @@ fn feed_scalar_join(
         feed_stable_name(h, n);
     }
     if crate::param_source::flow_bearing(join.size_param)
-        && let Some(expr) = node.expr(join.size_slot)
+        && let Some(&var) = node.expr(join.size_slot)
     {
         h.write_tag(tag::scalar_join::FLOW_EXPR);
-        crate::param_source::feed_content_key(h, defs, expr);
+        crate::param_source::feed_var(h, defs, var);
     }
 }
 

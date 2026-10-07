@@ -1,13 +1,13 @@
-//! **A slot's expression carries the dimension the slot address fixes,
-//! at EVERY door and for every node kind** (spec D6,
-//! [`editor_core::SlotId::dimension`]).
+//! **A slot carries the dimension the slot address fixes, at EVERY
+//! door and for every node kind** (spec D6,
+//! [`editor_core::SlotId::dimension`]; VARIABLES-DESIGN VR4).
 //!
-//! One predicate answers it — `Node::slot_dimension_fault`, over
-//! `Node::slots()` — and the two doors only name that answer: the edit
-//! door as `EditError::SlotDimensionMismatch`, the load door as
-//! `SnapshotError::SlotDimension`. So a file cannot carry a slot
-//! expression an edit door would have refused, whatever kind of node
-//! holds it.
+//! The edit door asks it of the formula a slot is written as
+//! (`Node::formula_dimension_fault`, `EditError::SlotDimensionMismatch`);
+//! the load door of the variable a stored slot reads, whose kind is its
+//! dimension (`SnapshotError::SlotVarKind`). So a file cannot carry a
+//! slot an edit door would have refused, whatever kind of node holds
+//! it.
 //!
 //! **One row per FACT, naming both doors' refusals for it.** A
 //! predicate dropped at either door reds the fact's row and the panic
@@ -63,19 +63,15 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, frame, extrude)
 }
 
-/// Retypes one literal from `Length`/`m` to `Angle`/`rad`. BOTH halves
-/// move, so the literal stays well-formed through
-/// `Formula::literal_with_unit` and the display-unit walk has nothing to
-/// say — the only rule left to refuse it is the slot's own.
-fn retype_to_angle(literal: &mut serde_json::Value) {
-    let lit = &mut literal["Literal"];
-    assert_eq!(
-        lit["dim"],
-        serde_json::json!("Length"),
-        "the surgery is aimed at a length literal"
-    );
-    lit["dim"] = serde_json::json!("Angle");
-    lit["unit"] = serde_json::json!("rad");
+/// Retypes the variable a slot reads from `Length`/`m` to
+/// `Angle`/`rad`, through every field that says so, so the variable
+/// stays well-formed and the only rule left to refuse it is the slot's
+/// own.
+fn retype_to_angle(
+    wire: &mut serde_json::Value,
+    slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
+) {
+    crate::wire::retype_slot_var(wire, slot, "Angle", "rad");
 }
 
 /// **An extrude's distance — both doors.** The measured asymmetry this
@@ -91,6 +87,7 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
             node: extrude,
             slot: SlotId::Distance,
             expr: ang(1.0),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -109,19 +106,23 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        retype_to_angle(
-            &mut wire["snapshot"]["nodes"][extrude.0.to_string()]["Extrude"]["distance"],
-        )
+        retype_to_angle(wire, |wire| {
+            &wire["snapshot"]["nodes"][extrude.0.to_string()]["Extrude"]["distance"]
+        })
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDimension {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            expected,
-            found,
+            declared,
+            referenced,
+            ..
         })) => {
             assert_eq!((node.id(), slot), (extrude, SlotId::Distance));
-            assert_eq!((expected, found), (Dimension::Length, Dimension::Angle));
+            assert_eq!(
+                (declared, referenced),
+                (Dimension::Angle, Dimension::Length)
+            );
         }
         other => panic!("the load door must refuse an angle distance, got {other:?}"),
     }
@@ -141,6 +142,7 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
             node: frame,
             slot,
             expr: ang(0.25),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -159,19 +161,23 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        retype_to_angle(
-            &mut wire["snapshot"]["nodes"][frame.0.to_string()]["Datum"]["Frame"]["origin"][0],
-        )
+        retype_to_angle(wire, |wire| {
+            &wire["snapshot"]["nodes"][frame.0.to_string()]["Datum"]["Frame"]["origin"][0]
+        })
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDimension {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot: refused,
-            expected,
-            found,
+            declared,
+            referenced,
+            ..
         })) => {
             assert_eq!((node.id(), refused), (frame, slot));
-            assert_eq!((expected, found), (Dimension::Length, Dimension::Angle));
+            assert_eq!(
+                (declared, referenced),
+                (Dimension::Angle, Dimension::Length)
+            );
         }
         other => panic!("the load door must refuse an angle origin, got {other:?}"),
     }
@@ -202,6 +208,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
             node: extrude,
             slot: SlotId::Distance,
             expr: editor_core::Formula::named(name.clone(), Dimension::Length),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -224,6 +231,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
             node: extrude,
             slot: SlotId::Distance,
             expr: editor_core::Formula::named(missing.clone(), Dimension::Length),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -269,6 +277,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
                 Dimension::Angle,
                 1.0,
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

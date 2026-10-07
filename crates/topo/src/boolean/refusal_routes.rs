@@ -271,6 +271,15 @@ pub enum BooleanDecision {
     /// axis or an ellipse whose projection off it is a circle, otherwise
     /// the half-angle quartic's rows.
     ArcCylinderRoots,
+    /// Where a straight edge crosses a cone: the line × cone quadratic's
+    /// rungs (`reduce::line_cone_roots`) — its leading coefficient, its
+    /// discriminant read as the depth its vertex reaches, and each
+    /// root's slack.
+    ConeRoots,
+    /// Where an arc crosses a cone: the conic × quadric door's cone arm
+    /// (`conic_quadric`), by the wall's two arms on the cone's quadric
+    /// form.
+    ArcConeRoots,
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.
     PierceCurvature,
@@ -1515,6 +1524,8 @@ impl BooleanDecision {
             Self::ArcCylinderRoots => {
                 "whether an arc crosses a cylinder wall, grazes it or misses it"
             }
+            Self::ConeRoots => "whether an edge crosses a cone, grazes it or misses it",
+            Self::ArcConeRoots => "whether an arc crosses a cone, grazes it or misses it",
             Self::PierceCurvature => {
                 "whether an edge leaves a curved face steeply enough against its bend to read \
                  which side it goes"
@@ -1703,6 +1714,18 @@ impl BooleanDecision {
             // quartic's rows, which are not all lengths.
             Self::ArcCylinderRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the cylinder or clearly misses it",
+                LeverPass::ByRung,
+            ),
+            // The lead and the depth pass on different sets (a zero lead
+            // is a ruling the lane does not answer), and the escalation
+            // does not say which refused.
+            Self::ConeRoots => Ending::Lever(
+                "move the parts so the edge clearly crosses the cone or clearly misses it",
+                LeverPass::ByRung,
+            ),
+            // The wall's two arms' rungs, on the cone's form.
+            Self::ArcConeRoots => Ending::Lever(
+                "move the parts so the arc clearly crosses the cone or clearly misses it",
                 LeverPass::ByRung,
             ),
             Self::PierceCurvature => Ending::Sized(PIERCE_CURVATURE),
@@ -1946,6 +1969,8 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
                 BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
                 BooleanDecisionKind::ArcCylinderRoots => vec![BooleanDecision::ArcCylinderRoots],
+                BooleanDecisionKind::ConeRoots => vec![BooleanDecision::ConeRoots],
+                BooleanDecisionKind::ArcConeRoots => vec![BooleanDecision::ArcConeRoots],
                 BooleanDecisionKind::PierceCurvature => vec![BooleanDecision::PierceCurvature],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
@@ -2288,6 +2313,22 @@ pub(in crate::boolean) mod tests {
                 "whether an arc crosses a cylinder wall, grazes it or misses it",
                 Ending::Lever(
                     "Recourse: move the parts so the arc clearly crosses the cylinder or clearly \
+                     misses it",
+                    LeverPass::ByRung,
+                ),
+            ),
+            BooleanDecision::ConeRoots => (
+                "whether an edge crosses a cone, grazes it or misses it",
+                Ending::Lever(
+                    "Recourse: move the parts so the edge clearly crosses the cone or clearly \
+                     misses it",
+                    LeverPass::ByRung,
+                ),
+            ),
+            BooleanDecision::ArcConeRoots => (
+                "whether an arc crosses a cone, grazes it or misses it",
+                Ending::Lever(
+                    "Recourse: move the parts so the arc clearly crosses the cone or clearly \
                      misses it",
                     LeverPass::ByRung,
                 ),

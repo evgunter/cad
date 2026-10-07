@@ -200,4 +200,58 @@ Closed: `python-param-classes-name-a-variable`.
   symbolic-tier rows.
 
 Filed: `definition-node-bound-is-re-measured-against-the-corpus-after-d`.
+
+## 2026-10-06 — INTENT-LITERALS PR C, a slot holds a VarId (`intent/literals-c`)
+
+A stored slot holds the id of the variable it reads. The edit door
+lowers each authored slot in one walk that returns every fault at its
+address: a lone variable, name or fresh entry is itself, a value mints
+an anonymous free variable, and a formula mints an anonymous defined
+one. `Node::authored` re-authors a node by reading its variables, and
+`Node::written` gives the formulas the slots were written as. Equal
+typed values are two variables, so their tokens and content keys
+differ; sharing is said by reading one variable.
+
+Ev revised Q3 and Q4 mid-PR (spec §11, VARIABLES-DESIGN VR8): only a
+toleranced variable is an analysis axis. An untoleranced one is a
+constant in every lane, and Sym binds it as its exact nominal. Measured
+against B's head: the interval suite's slowest five are unchanged
+(427/209/115/95/87 s against 422/213/114/90/87 s), the stackups on
+`tolerance`, `mcplate` and `chaintol` list the same three rows, and the
+Monte Carlo sheet is bit-identical. Sym theorems rise by one per written
+formula (`work/sym/symbolic-reach-at-slot-variables-c.md`).
+
+Ruled by the lane:
+- An anonymous variable's mint reads what it holds, so sibling inserts
+  that differ only in a typed value still mint different nodes.
+- An anonymous definition's refusal is reported as the slot's own
+  (`VarEnv::written`), not as a refusal of `#id`.
+- Names refuse before dimensions, B's order.
+- The path editor loads and compares the program as written, so a value
+  moved since the load refuses `ProfileEditStale`.
+- Retiring anonymous variables is no loss the person is shown.
+
+Closed: `range-synthetic-name-mints-a-name`,
+`symbolic-reach-at-slot-variables-c`. Filed:
+`unproven-coincidence-lint-binds-every-variable-as-a-symbol`.
 - 2026-10-06 — Note from ZIP: filed `the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms` (P0/H) on this slate as stage-4 input, on Ev's direction in chat. Two designers converged on retiring the declared-REST zip (`boolean/rest.rs`) with declared pairs. Before then the join gains a partner-edge chord, ring re-homing on a curved chart in aligned contact, and the `mekr` `NotSameFace` cause. The row carries the measurement. ZIP's REST-lane rows are parked on `d10-one-way-to-say-intent-is-unbuilt`. Units ZIP already started finish: the zip's admission check (PR 4127, a live wrong body; Ev, in chat, "finish it"), `Fusions` (PR 4116) and pins (PR 4130). (ZIP orchestrator)
+
+## 2026-10-07 — FORK-6: split moves a variable with its readers (orchestrator's ruling)
+
+The inline lane (`inline-merges-variables-by-equal-value`) stopped at a
+case the ruling did not decide: split copied a named variable the cut
+alone reads into the part and left an unread twin in the remainder, so
+under "never merge by value" inline-of-split always refused and A4's
+acceptance broke. One Opus and one Fable designer weighed it (fork-log
+row 84; reports on `design/intent-s2-fork6-A` and `-B`) and converged
+after one round. Ruled: a variable's side is the union of its readers'
+sides (node slots and remaining definitions); all cut, or no readers
+and every read moving, it moves (`DeleteVar` in the remainder,
+declared in the part under its name); readers or reads on both sides
+refuse `UncutVarReference`; otherwise it stays (VR7). The move is not
+a VR7 deletion: nothing is stranded and the name exists once before
+and once after. The promise is inline(split(d)) = d up to minted ids
+and A10's regrouping; split(inline(h)) keeps an unread free named part
+variable in the host. Not sent to Ev: no ratified decision moves. A4's
+acceptance is kept and re-worded as VR1 forces ("minted ids"), and A4
+Split and VR9 each gain a descriptive line, landing with the lane's PR.

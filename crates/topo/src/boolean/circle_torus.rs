@@ -290,6 +290,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             lever,
         },
         &CIRCLE_TORUS_ROWS,
+        None,
         band,
     )
 }
@@ -1355,6 +1356,7 @@ mod tests {
                         CircleRoots::Uncertain => {}
                         CircleRoots::OnSurface => panic!("{label}: not on the torus"),
                         CircleRoots::CountDisagrees => panic!("{label}: counts disagree"),
+                        CircleRoots::AtApex => panic!("{label}: a torus has no apex"),
                         CircleRoots::Miss => {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");
                             answered[i] += 1;
