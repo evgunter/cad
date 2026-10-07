@@ -1151,6 +1151,22 @@ not certify (it reads a face's trim at its own surface plane) and adds
 no samples. Dimensions: `docs/predicate-dimension-audit.md`'s rows of
 the same names.
 
+**Roster change (CLEAVE, 2026-10-06): one name added.** An edge-edge
+site (`recl::resolve_edge_edge`) projects each solid's two flanking
+bounds perpendicular to the common line and reads membership off the
+projections. `bool_flank_offset` (a bare literal at `recl::flank_rep`)
+decides each projection's length times its bound's own reach
+(`decide_positive`): the bound's far end's distance off the line, in
+metres, four samples per site that reads membership (none at a
+declared-`Tangent` flank, which reads none). The common line is
+`sector_shape`'s unit direction of an edge chord and is read as it
+stands, with no decision of its own. Measured before the change over
+the `topo`, `sweep` and `editor-core` suites (29,744 readings at `f64`,
+`Interval`, `Dual` and the symbolic scalar): the smallest projection
+was 0.148, and the smallest margin through a public door, levered at
+the site's shorter sector arm, was 1.6e7 times the band's zero.
+Dimensions: `docs/predicate-dimension-audit.md`'s row of the same name.
+
 **Roster change (CARVE, 2026-10-06): one name added.** A sweep's cap
 plane (`sweep`'s `cap_plane`, read by `extrude`, `loft_body` and the
 partial `revolve`) keeps Newell's plane over the cap's vertices and

@@ -376,7 +376,10 @@ fn the_fixture_is_not_a_structurally_valid_body() {
 #[test]
 fn kfmrh_onto_a_chart_that_mints_nothing_drops_the_demoted_loops_rows() {
     let mut s = sheet();
-    s.body.kfmrh(s.plane, s.low).unwrap();
+    // Lifts RechartStrandsDescriptions: the rows the demoted loop keeps on the plane are the row, not its descriptions.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.plane, s.low))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -782,7 +785,9 @@ fn both_doors<R: core::fmt::Debug>(
     twin: impl FnOnce(&mut Body<f64>) -> R,
 ) -> (Body<f64>, R) {
     let (mut a, mut b) = (body.clone(), body.clone());
-    let (ra, rb) = (keys_only(&mut a), twin(&mut b));
+    // Lifts RechartStrandsDescriptions and RechartUnvouched: the rows each door leaves are the row, not the descriptions it moves.
+    let ra = a.lifting_rechart_refusals_for_tests(keys_only);
+    let rb = twin(&mut b);
     assert_eq!(
         format!("{ra:?}"),
         format!("{rb:?}"),
@@ -946,7 +951,10 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     // `kfmrh` onto the plane: there is nothing to restore, and the
     // face the rows left is gone with the op.
     let mut s = sheet();
-    s.body.kfmrh(s.plane, s.low).unwrap();
+    // Lifts RechartStrandsDescriptions: the rows the demoted loop keeps on the plane are the row, not its descriptions.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.plane, s.low))
+        .unwrap();
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1098,7 +1106,10 @@ fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
         .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 6));
 
-    s.body.kfmrh(s.plane, s.low).unwrap();
+    // Lifts RechartStrandsDescriptions: the rows the demoted loop keeps on the plane are the row, not its descriptions.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.plane, s.low))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     loud_at_rest(&mut s.body);
 }
@@ -1541,7 +1552,10 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
             },
         )
         .unwrap();
-    s.body.kfmrh(s.plane, s.low).unwrap();
+    // Lifts RechartStrandsDescriptions: the rows the demoted loop keeps on the plane are the row, not its descriptions.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.plane, s.low))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10), "kfmrh");
 
     let mut s = sheet();
@@ -1596,7 +1610,10 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
         )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he).unwrap();
+    // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8), "kef");
 }
 
@@ -1612,7 +1629,11 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
 fn kef_into_a_face_on_a_chart_that_mints_nothing_drops_the_remnants_rows() {
     let mut s = sheet();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    let killed = s.body.kef(he).unwrap();
+    // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+    let killed = s
+        .body
+        .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+        .unwrap();
     assert_eq!(killed.killed_face, s.low);
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1640,7 +1661,10 @@ fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_tier_3_names_why()
         )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he).unwrap();
+    // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
     loud_at_rest(&mut s.body);
 }
@@ -1694,7 +1718,10 @@ fn kef_into_a_second_key_sharing_a_recipe_drops_the_remnants_rows_until_the_pass
     s.body.set_surface_source(second, one_recipe()).unwrap();
 
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he).unwrap();
+    // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
 
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
@@ -2212,7 +2239,11 @@ fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         let he = he_at(&s.body, s.low, at(U1, VM));
-        let killed = s.body.kef(he).unwrap();
+        // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+        let killed = s
+            .body
+            .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+            .unwrap();
         assert_eq!(killed.killed_face, s.low);
         assert!(
             s.body.get_surface(keys[0]).is_none(),
@@ -2227,7 +2258,10 @@ fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
 fn kfmrh_carries_every_row_across_one_payload() {
     for tied in [true, false] {
         let ArcSheet { mut s, .. } = arc_sheet(tied);
-        s.body.kfmrh(s.low, s.up).unwrap();
+        // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+        s.body
+            .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.low, s.up))
+            .unwrap();
         let want = if tied { (8, 0) } else { (4, 4) };
         assert_eq!(rows_of(&s.body, s.low), want, "tied: {tied}");
     }

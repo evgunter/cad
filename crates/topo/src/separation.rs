@@ -42,9 +42,10 @@
 //! often.** A box that is too BIG cannot make a wrong certificate —
 //! it can only withhold one — but withholding is this door's whole
 //! output. What remains is the looseness the RULES themselves state —
-//! a whole ball for a sphere band, a full turn for an arc — not slack
-//! in the code: each arm claims exactly its construction, which the
-//! `boxes` module's ceiling rows pin.
+//! a whole ball for a sphere face outside the chart-rectangle class, a
+//! full turn for an arc — not slack in the code: each arm claims
+//! exactly its construction, which the `boxes` module's ceiling rows
+//! pin.
 //!
 //! **This door needs no surface-kind gate of its own.** It shares the one
 //! [`crate::boolean::boxes::FaceBoxRule`]; what differs is only what a

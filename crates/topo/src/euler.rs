@@ -304,9 +304,10 @@ pub enum FaceSurface<T: Real> {
 /// existing half-edges, or a chord it mints, on a face wearing another
 /// key than the one they lay on, and the lever its refusal names is
 /// its own: a minting door picks the chart it mints the face on, a
-/// moving door the face it moves the loop onto, the describing door
-/// the re-descriptions it is handed. Every door but the describing one
-/// is keys-only, and only the keys-only doors strand.
+/// moving door the face it moves the loop onto, a kill its describing
+/// twin, a describing door the re-descriptions it is handed. Every door
+/// but the describing ones is keys-only, and only the keys-only doors
+/// strand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RechartDoor {
     /// [`Body::set_face_surface`]: re-charts a face in place.
@@ -318,8 +319,9 @@ pub enum RechartDoor {
     /// ring.
     Mfkrh,
     /// [`Body::mfkrh_plug`]: mints a face from a ring on a fresh
-    /// placeholder chart. Its caller picks no chart, so its lever is
-    /// the door: [`Body::mfkrh`], which takes one.
+    /// placeholder chart, which asks only the strand. Its caller picks
+    /// no chart, so its lever is the door: [`Body::mfkrh`], which takes
+    /// one.
     MfkrhPlug,
     /// [`Body::ring_move`] and [`Body::ring_move_minting`]: moves a
     /// ring onto another face.
@@ -330,6 +332,21 @@ pub enum RechartDoor {
     /// [`EulerOpError::RechartUnvouched`]: onto a curved chart, where
     /// no residual is read.
     SetFaceSurfacesDescribing,
+    /// [`Body::kef`]: moves the dying face's remnant onto the surviving
+    /// face.
+    Kef,
+    /// [`Body::kef_describing`]: [`RechartDoor::Kef`]'s move with the
+    /// re-descriptions it is handed, under a band. Like
+    /// [`RechartDoor::SetFaceSurfacesDescribing`], it raises only
+    /// [`EulerOpError::RechartUnvouched`] of the two keys-only refusals.
+    KefDescribing,
+    /// [`Body::kfmrh`]: moves the killed face's outer loop onto the
+    /// surviving face as a ring.
+    Kfmrh,
+    /// [`Body::kfmrh_describing`]: [`RechartDoor::Kfmrh`]'s move with
+    /// the re-descriptions it is handed, under a band; as
+    /// [`RechartDoor::KefDescribing`].
+    KfmrhDescribing,
 }
 
 impl RechartDoor {
@@ -342,6 +359,20 @@ impl RechartDoor {
             Self::MfkrhPlug => "mfkrh_plug",
             Self::RingMove => "ring_move",
             Self::SetFaceSurfacesDescribing => "set_face_surfaces_describing",
+            Self::Kef => "kef",
+            Self::KefDescribing => "kef_describing",
+            Self::Kfmrh => "kfmrh",
+            Self::KfmrhDescribing => "kfmrh_describing",
+        }
+    }
+
+    /// The restater that states a describing door's stored descriptions
+    /// on the moved charts, as its refusals name it.
+    fn carried(self) -> &'static str {
+        match self {
+            Self::Kef | Self::KefDescribing => "kef_carried_redescriptions",
+            Self::Kfmrh | Self::KfmrhDescribing => "kfmrh_carried_redescriptions",
+            _ => "carried_redescriptions",
         }
     }
 
@@ -371,11 +402,27 @@ impl RechartDoor {
                 "the move",
                 "move the loop onto a face on the chart its edges name",
             ),
-            Self::SetFaceSurfacesDescribing => unreachable!(
-                "RechartStrandsDescriptions is raised only by the keys-only doors \
-                 (`Body::vouch_move`); set_face_surfaces_describing refuses a stranded edge \
-                 as RechartUndescribed"
+            Self::Kef => (
+                "the kill",
+                "kill the edge with kef_describing, which takes their re-descriptions on the \
+                 surviving face's chart under a band (kef_carried_redescriptions states the \
+                 stored ones there)",
             ),
+            Self::Kfmrh => (
+                "the kill",
+                "kill the face with kfmrh_describing, which takes their re-descriptions on \
+                 the surviving face's chart under a band (kfmrh_carried_redescriptions states \
+                 the stored ones there)",
+            ),
+            Self::SetFaceSurfacesDescribing | Self::KefDescribing | Self::KfmrhDescribing => {
+                return format!(
+                    "{name}: the move would leave edges {edges:?} described against a surface \
+                     their faces no longer wear. Recourse: list a re-description of each on the \
+                     chart it moves onto ({} states the stored ones there), which the door \
+                     certifies under its band",
+                    self.carried()
+                );
+            }
         };
         format!(
             "{name}: {what} would leave edges {edges:?} described against a surface their \
@@ -410,9 +457,8 @@ impl RechartDoor {
             ),
             Self::MfkrhPlug => format!(
                 "{name}: the face it would mint from face {face:?} lies on a fresh placeholder \
-                 chart that {named} not name, so nothing vouches that its boundary lies on \
-                 that chart; this door promotes scaffold rings. Recourse: promote the ring \
-                 with mfkrh onto a chart its certified edges name"
+                 chart that {named} not name. Recourse: promote the ring with mfkrh onto a \
+                 chart its certified edges name"
             ),
             Self::RingMove => format!(
                 "{name}: the loop would move onto face {face:?}, on a chart that {named} not \
@@ -425,6 +471,18 @@ impl RechartDoor {
                  boundary lies on that chart. Recourse: list a re-description of each on the \
                  new chart, which the door certifies against it, or move the face onto a \
                  chart they name"
+            ),
+            Self::KefDescribing | Self::KfmrhDescribing => format!(
+                "{name}: the kill would move a boundary onto face {face:?}, on a curved chart \
+                 that {named} not name, and a curved chart's residuals are not read, so \
+                 nothing vouches that it lies on that chart. Recourse: list a re-description \
+                 of each on that chart, which the door certifies against it"
+            ),
+            Self::Kef | Self::Kfmrh => format!(
+                "{name}: the kill would move a boundary onto face {face:?}, on a chart that \
+                 {named} not name, so nothing vouches that they lie on that chart. Recourse: \
+                 kill with {name}_describing, which certifies each re-description it is \
+                 handed against that chart and reads a plane's residuals"
             ),
         }
     }
@@ -935,48 +993,67 @@ pub enum EulerOpError {
         /// no key before the mutation phase.
         chord: bool,
     },
-    /// [`Body::set_face_surfaces_describing`] was handed no
-    /// re-description for these edges, and the move would strand them
-    /// as [`EulerOpError::RechartStrandsDescriptions`] names: the door
-    /// re-describes nothing by default. Every one is named, in
-    /// edge-arena order. Raised in the plan phase, so the body is
+    /// A describing door ([`Body::set_face_surfaces_describing`],
+    /// [`Body::kef_describing`], [`Body::kfmrh_describing`]) was handed
+    /// no re-description for these edges, and the move would strand
+    /// them as [`EulerOpError::RechartStrandsDescriptions`] names: the
+    /// door re-describes nothing by default. Every one is named, in
+    /// edge-arena order at the re-chart door and in the order the kill
+    /// moves them at a kill. Raised in the plan phase, so the body is
     /// untouched.
     RechartUndescribed {
-        /// The stranded edges no re-description was listed for, in
-        /// edge-arena order.
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The stranded edges no re-description was listed for.
         edges: Vec<EdgeKey>,
     },
-    /// [`Body::set_face_surfaces_describing`]: a listed re-description
-    /// does not certify against the charts the move gives its edge.
-    /// Raised in the plan phase, so the body is untouched.
+    /// A describing door: a listed re-description does not certify
+    /// against the charts the move gives its edge. Raised in the plan
+    /// phase, so the body is untouched.
     RechartFalsifies {
+        /// The door that refuses.
+        door: RechartDoor,
         /// The edge that does not certify.
         edge: EdgeKey,
         /// The typed certification failure.
         error: CertifyError,
     },
-    /// [`Body::set_face_surfaces_describing`]: a face moved onto a plane
-    /// has a certified edge no key vouches for there with an end, or an
-    /// interior certification sample, definitely off that plane — tier
-    /// 3's `PlanarFaceResidual` / `PlanarBoundaryResidual`, asked before
-    /// the move. Raised in the plan phase, so the body is untouched.
+    /// A describing door: a boundary moved onto a plane has a certified
+    /// edge no key vouches for there with an end, or an interior
+    /// certification sample, definitely off that plane — tier 3's
+    /// `PlanarFaceResidual` / `PlanarBoundaryResidual`, asked before the
+    /// move. Raised in the plan phase, so the body is untouched.
     RechartOffBoundary {
-        /// The moved face.
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The face the boundary moves onto.
         face: FaceKey,
         /// The vertex, or the edge whose sample, lies off the plane.
         on: EntityId,
     },
-    /// [`Body::set_face_surfaces_describing`]: a moved face's residual
-    /// against its new plane escalated (in the sliver band, or
-    /// poisoned) — the escalation counterpart of
-    /// [`EulerOpError::RechartOffBoundary`].
+    /// A describing door: a moved boundary's residual against its new
+    /// plane escalated (in the sliver band, or poisoned) — the
+    /// escalation counterpart of [`EulerOpError::RechartOffBoundary`].
     RechartBoundaryEscalated {
-        /// The moved face.
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The face the boundary moves onto.
         face: FaceKey,
         /// The vertex, or the edge whose sample, escalated.
         on: EntityId,
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
+    },
+    /// A describing kill ([`Body::kef_describing`],
+    /// [`Body::kfmrh_describing`]) was handed a re-description for an
+    /// edge the kill does not move: none of its halves is in the moved
+    /// remnant or ring. Raised in the plan phase, so the body is
+    /// untouched.
+    NotMovedEdge {
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The listed edge.
+        edge: EdgeKey,
     },
     /// [`Body::set_face_surfaces_describing`] was handed one face
     /// twice. Named at the second entry.
@@ -1336,25 +1413,39 @@ impl EulerOpError {
                 edges,
                 chord,
             } => door.unvouched(*face, edges, *chord),
-            Self::RechartUndescribed { edges } => format!(
-                "set_face_surfaces_describing: the move would leave edges {edges:?} described \
-                 against a surface their faces no longer wear, and no re-description is listed \
-                 for them (carried_redescriptions states their stored descriptions on the \
-                 moved charts)"
+            Self::RechartUndescribed { door, edges } => format!(
+                "{}: the move would leave edges {edges:?} described against a surface their \
+                 faces no longer wear, and no re-description is listed for them ({} states \
+                 their stored descriptions on the moved charts)",
+                door.name(),
+                door.carried()
             ),
-            Self::RechartFalsifies { edge, error } => format!(
-                "set_face_surfaces_describing: edge {edge:?}'s re-description does not certify \
-                 on the charts the move gives it: {}",
+            Self::RechartFalsifies { door, edge, error } => format!(
+                "{}: edge {edge:?}'s re-description does not certify on the charts the move \
+                 gives it: {}",
+                door.name(),
                 error.render(reading)
             ),
-            Self::RechartOffBoundary { face, on } => format!(
-                "set_face_surfaces_describing: face {face:?}'s boundary does not lie on the \
-                 plane it moves onto ({on} is off it)"
+            Self::RechartOffBoundary { door, face, on } => format!(
+                "{}: face {face:?}'s boundary does not lie on the plane it moves onto ({on} is \
+                 off it)",
+                door.name()
             ),
-            Self::RechartBoundaryEscalated { face, on, diag } => format!(
-                "set_face_surfaces_describing: whether face {face:?}'s boundary lies on the \
-                 plane it moves onto is undecided at {on}: {}",
+            Self::RechartBoundaryEscalated {
+                door,
+                face,
+                on,
+                diag,
+            } => format!(
+                "{}: whether face {face:?}'s boundary lies on the plane it moves onto is \
+                 undecided at {on}: {}",
+                door.name(),
                 diag.payload()
+            ),
+            Self::NotMovedEdge { door, edge } => format!(
+                "{}: edge {edge:?} is listed for re-description, and the kill moves none of \
+                 its halves. Recourse: list only edges with a half in the moved boundary",
+                door.name()
             ),
             Self::FaceMovedTwice { face } => {
                 format!("set_face_surfaces_describing: face {face:?} is moved twice")
@@ -1644,6 +1735,7 @@ pub(crate) fn every_euler_op_error_once()
             edges: vec![ek],
         },
         EulerOpError::RechartFalsifies {
+            door: RechartDoor::KefDescribing,
             edge: ek,
             error: CertifyError::Unimplemented,
         },
@@ -1653,12 +1745,17 @@ pub(crate) fn every_euler_op_error_once()
             edges: vec![ek],
             chord: false,
         },
-        EulerOpError::RechartUndescribed { edges: vec![ek] },
+        EulerOpError::RechartUndescribed {
+            door: RechartDoor::SetFaceSurfacesDescribing,
+            edges: vec![ek],
+        },
         EulerOpError::RechartOffBoundary {
+            door: RechartDoor::SetFaceSurfacesDescribing,
             face: fc,
             on: EntityId::Edge(ek),
         },
         EulerOpError::RechartBoundaryEscalated {
+            door: RechartDoor::KefDescribing,
             face: fc,
             on: EntityId::Edge(ek),
             diag: geom_core::Indeterminate {
@@ -1667,6 +1764,10 @@ pub(crate) fn every_euler_op_error_once()
                 predicate: Some("rechart_boundary_residual"),
                 terminal_sliver: false,
             },
+        },
+        EulerOpError::NotMovedEdge {
+            door: RechartDoor::KfmrhDescribing,
+            edge: ek,
         },
         EulerOpError::FaceMovedTwice { face: fc },
         EulerOpError::Argument(BadArgument::Stale {
@@ -2938,7 +3039,7 @@ impl<T: Decide> Body<T> {
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
-            (inherit_surface, after),
+            self.landing_of_spec(inherit_surface, &surface),
             self.run_edges(&run),
             |he, _, _| run.contains(&he),
             carried,
@@ -3110,7 +3211,7 @@ impl<T: Decide> Body<T> {
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
-            (inherit_surface, after),
+            self.landing_of_spec(inherit_surface, &surface),
             [],
             |_, _, _| false,
             carried,

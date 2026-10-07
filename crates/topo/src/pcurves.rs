@@ -5222,6 +5222,12 @@ pub(crate) mod staleness_posture {
              the demoted loop walked in its chart (`Body::plan_moved_rows`)",
             ),
             (
+                "kfmrh_describing",
+                Transfers,
+                "`kfmrh_minting` with the demoted loop's re-descriptions: a re-description \
+             keeps its edge's carrier and interval, so the rows `kfmrh_minting` leaves stand",
+            ),
+            (
                 "mfkrh",
                 Transfers,
                 "Euler operator, and a loop re-parenting: the promoted ring keeps its rows \
@@ -5292,6 +5298,12 @@ pub(crate) mod staleness_posture {
              re-minted in the surviving face's chart (`Body::plan_moved_rows`), or, where \
              the remnant's rows stand, what the loop a killed null edge releases misses is \
              minted (`Body::plan_released_rows`)",
+            ),
+            (
+                "kef_describing",
+                Transfers,
+                "`kef_minting` with the moved edges' re-descriptions: a re-description keeps \
+             its edge's carrier and interval, so the rows `kef_minting` leaves stand",
             ),
             (
                 "movefac",
