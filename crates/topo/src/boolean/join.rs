@@ -448,6 +448,13 @@ impl Sides {
             .get_half_edge(he)
             .ok_or(desync("half no longer resolves"))?
             .start;
+        self.starts_up(start)
+    }
+
+    /// Whether a null half starting at `start` is up: `start` is a below
+    /// end and no above end.
+    fn starts_up(&self, start: VertexKey) -> Result<bool, BooleanError> {
+        let desync = |what| BooleanError::JoinDesync { what };
         match (
             self.in_set.contains_key(start),
             self.out_set.contains_key(start),
@@ -4703,5 +4710,39 @@ mod radical_plane_rows {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **A null half's sense is one side set's.** A start that is only
+    /// a below end is up, only an above end down; one in both sets, or
+    /// in neither, names no sense and refuses.
+    #[test]
+    fn a_vertex_in_both_side_sets_names_no_sense() {
+        let mut keys = slotmap::SlotMap::<VertexKey, ()>::with_key();
+        let [below, above, both, neither] = [(); 4].map(|()| keys.insert(()));
+        let mut sides = Sides {
+            in_set: SecondaryMap::new(),
+            out_set: SecondaryMap::new(),
+        };
+        for v in [below, both] {
+            sides.in_set.insert(v, ());
+        }
+        for v in [above, both] {
+            sides.out_set.insert(v, ());
+        }
+        assert!(matches!(sides.starts_up(below), Ok(true)), "below end");
+        assert!(matches!(sides.starts_up(above), Ok(false)), "above end");
+        assert!(
+            matches!(sides.starts_up(both), Err(BooleanError::JoinDesync { what }) if what.contains("both")),
+            "both ends"
+        );
+        assert!(
+            matches!(sides.starts_up(neither), Err(BooleanError::JoinDesync { what }) if what.contains("neither")),
+            "neither end"
+        );
     }
 }

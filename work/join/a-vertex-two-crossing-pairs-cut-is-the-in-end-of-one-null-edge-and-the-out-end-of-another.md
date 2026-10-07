@@ -2,11 +2,12 @@
 id: a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another
 kind: issue
 title: A vertex two crossing pairs cut refuses ClassificationInvariant: the In end of one null edge and the Out end of another
-status: open
+status: review
 opened: 2026-10-05
 priority: P1
 cost: M
 branch: join/pinch-cones-split-at-insertion
+pr: 4249
 ---
 
 
@@ -141,12 +142,12 @@ one vertex per result cone, as before. Refusals, typed
 
 No battery line reaches any of them.
 
-**Why this route.** The other route nests the held plan's strut under
-the four-survivor plan's unturned run, across plans. It builds the same
-tree of vertices joined by null edges at `v`, only with `v`'s key on a
-different node, so the final state is the same. This route reuses the
-turn the reconcile already makes, and it changes nothing at any vertex
-where no turned run holds another of its plan.
+**Why this route.** It reuses the turn the reconcile already makes,
+and it changes nothing at any vertex where no turned run holds another
+of its plan. The other route nests the held plan's strut under the
+four-survivor plan's unturned run, across plans. By its construction it
+should give the same tree of vertices and null edges at `v`, with `v`'s
+key on a different node, but that is unmeasured.
 
 ## Measured (release, PR 4207's head `fb8c7cbb` vs this branch)
 
@@ -165,3 +166,45 @@ where no turned run holds another of its plan.
 - `a_nested_pairing_at_a_shared_vertex_refuses_typed`: `ab U` and `ab S`
   flip to `SOUND`. The `ba` runs still refuse `SharedVertexCrossings`,
   filed as `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`.
+
+## Fix pass (PR 4249's dual review)
+
+**Three pairs at one vertex refuse typed.** Both reviews found unions
+of `notch343` against three cubes touching at its corner going
+refusal → `OK BAD`: the cones on two point keys, and tier 3′
+`CensusUndecidable`. That is the parked class
+`a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`.
+- The insertion now returns each hang. `zip::refuse_split_hung_points`,
+  run after `share_points`, refuses `SharedVertexCrossings` where a
+  hung point's live vertices sit on several keys.
+- The point is read structurally: the vertex-vertex contacts' component
+  through the hung vertex gives the keys (in result keys through
+  `GraftMap::points`), and the seams' point classes extend them. No
+  position is read.
+- The moved lines and base's 18 lines of the same signature are in that
+  row's `## Measured`.
+
+**Re-measured** (release, main `875e049a` vs the fix head, the
+reviews' probes ported). Moves from base, none to `BAD`:
+
+| probe | refusal → SOUND | refusal → refusal | → BAD |
+|---|---|---|---|
+| `pinch_runs_battery` | 217 | 0 | 0 |
+| r1 three cubes | 101 | 33 (`SharedVertexCrossings`) | 0 |
+| r2 tripod | 321 | 55 (`SharedVertexCrossings`) | 0 |
+| r1 wedge pinches | 261 | 0 | 0 |
+| r2 skew | 386 | 0 | 0 |
+| r2 fine (72 spins) | 2 586 | 0 | 0 |
+| r1 near-tangent (19 poses × 27 nudges) | 1 377 | 0 | 0 |
+| r1 curved notch | 4 | 4 (`JoinDesync`) | 98 |
+
+- **Every body moved to `SOUND`** holds one vertex per cone on one key
+  and meshes.
+- **The 98 curved lines** fail only the census (`CensusUndecidable`),
+  the reuse union (`VolumeUncertified`) or the mesher (`Triangulation`,
+  2). Their volume is exact, t2 and the certificate pass, and they have
+  one key. That is main's own population of 873 curved `BAD` lines;
+  none is a definite tier-3′ failure. Filed as
+  `a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse`.
+- **Byte-identical:** r1's two pinches and r2's `both`; `pierce_runs`,
+  `corner_pairs`, both reflex batteries and `rc_wide` ×84.

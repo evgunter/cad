@@ -355,6 +355,49 @@ pub(super) fn share_points<T: geom_core::Real>(
     Ok(())
 }
 
+/// **A hung point the seams left on several keys refuses.** Where the
+/// insertion hung runs at a turned run's copy
+/// (`insert::hang_in_turned`), the point holds every vertex the
+/// vertex-vertex contacts tie to the hung one, on `hung`'s keys. After
+/// [`share_points`], a pinch there whose cones still sit on several keys
+/// is one the seams do not link (an operand's pinch a contact without a
+/// crossing holds), which the census cannot read: the op refuses
+/// [`BooleanError::SharedVertexCrossings`] rather than ship it. Read
+/// off the keys and `classes` alone, after [`share_points`] has moved
+/// every class onto one key: no position is read.
+///
+/// # Errors
+///
+/// [`BooleanError::SharedVertexCrossings`] at such a point.
+pub(super) fn refuse_split_hung_points<T: geom_core::Real>(
+    body: &Body<T>,
+    classes: &[BTreeSet<PointKey>],
+    hung: &[(super::insert::Hang, BTreeSet<PointKey>)],
+) -> Result<(), BooleanError> {
+    for (hang, keys) in hung {
+        let keys: BTreeSet<PointKey> = classes
+            .iter()
+            .filter(|c| !c.is_disjoint(keys))
+            .flatten()
+            .chain(keys)
+            .copied()
+            .collect();
+        let live: BTreeSet<PointKey> = body
+            .vertices()
+            .map(|(_, d)| d.point)
+            .filter(|k| keys.contains(k))
+            .collect();
+        if live.len() > 1 {
+            return Err(BooleanError::SharedVertexCrossings {
+                operand: hang.operand,
+                vertex: hang.vertex,
+                partners: hang.partners,
+            });
+        }
+    }
+    Ok(())
+}
+
 #[cfg(feature = "sweep-testing")]
 thread_local! {
     /// The stored points of the keys each [`share_points`] class rebinds,

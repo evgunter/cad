@@ -1723,6 +1723,9 @@ pub struct BooleanReduction<T: Real> {
     /// Every operand edge piece the sector passes classified beside a
     /// vertex ([`EdgePieceClass`]), sorted.
     pub edge_classes: Vec<EdgePieceClass>,
+    /// Each point where the insertion hung runs at a turned run's copy
+    /// ([`HungPoint`]).
+    pub(crate) hung: Vec<HungPoint>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -4519,7 +4522,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .collect();
     #[cfg(any(test, feature = "test-support"))]
     insert::reverse_when_asked(&mut plans, &mut orbits);
-    insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
+    let hangs = insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
+    let hung = hung_points(&hangs, &contacts.vv, [&a, &b])?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges);
     null_pairs.extend(out.pairs);
@@ -4553,7 +4557,66 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         coincident,
         edge_splits,
         edge_classes,
+        hung,
     })
+}
+
+/// A point where the insertion hung runs at a turned run's copy
+/// ([`BooleanReduction`]'s `hung`).
+#[derive(Clone, Debug)]
+pub(crate) struct HungPoint {
+    /// The hung vertex and the pairs that meet there.
+    pub(super) hang: insert::Hang,
+    /// Per operand, clone keys: the point keys of every vertex the
+    /// vertex-vertex contacts tie to the hung vertex.
+    pub(super) keys: [Vec<crate::geometry::PointKey>; 2],
+}
+
+/// Each of `hangs` with the point keys `vv` ties to its vertex: the
+/// contact graph's component through it, read in the clones `bodies`.
+fn hung_points<T: Real>(
+    hangs: &[insert::Hang],
+    vv: &[VvContact],
+    bodies: [&Body<T>; 2],
+) -> Result<Vec<HungPoint>, BooleanError> {
+    let mut out = Vec::with_capacity(hangs.len());
+    for &hang in hangs {
+        let slot = usize::from(hang.operand == Operand::B);
+        let mut at: [Vec<VertexKey>; 2] = [Vec::new(), Vec::new()];
+        at[slot].push(hang.vertex);
+        loop {
+            let mut grew = false;
+            for c in vv {
+                let (x, y) = (at[0].contains(&c.a), at[1].contains(&c.b));
+                if x != y {
+                    if x {
+                        at[1].push(c.b);
+                    } else {
+                        at[0].push(c.a);
+                    }
+                    grew = true;
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        let mut keys: [Vec<crate::geometry::PointKey>; 2] = [Vec::new(), Vec::new()];
+        for s in 0..2 {
+            for &v in &at[s] {
+                let d = bodies[s]
+                    .get_vertex(v)
+                    .ok_or(BooleanError::ClassificationInvariant {
+                        what: "a vertex a contact names does not resolve in its clone",
+                    })?;
+                if !keys[s].contains(&d.point) {
+                    keys[s].push(d.point);
+                }
+            }
+        }
+        out.push(HungPoint { hang, keys });
+    }
+    Ok(out)
 }
 
 /// The operand edge `piece` of `operand`'s clone lies on: read back
