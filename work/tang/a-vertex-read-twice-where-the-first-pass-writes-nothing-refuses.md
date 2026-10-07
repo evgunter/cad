@@ -82,7 +82,16 @@ its partners' cones nest or lie apart, and crossing each boundary flips
 the side (`vtxfac::touch_classes`, `vtxfac::pair_classes`). Where two
 pyramids united at their apexes met the arch, the pairs used to record
 an edge both In and Out, which editor-core's naming refuses; the review
-of this item found it, and the rows pin it through the naming.
+of this item found it, and the rows pin it through the naming. A void's
+apex, a reflex corner, reads through its convex complement
+(`sectors::wedge_classes`), so voids and islands layer too. A touching
+vertex classes every edge or refuses; a vertex in pairs alone keeps
+each pair's own rows wherever its layering cannot decide.
+
+Filed: `work/tang/a-touching-vertex-beside-a-partner-along-the-face-refuses.md`
+(P3), and on EMIT
+`work/emit/an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order.md`
+(P2).
 The strut-hanging prisms (`meeting::wedge`, `meeting::leaned`) still
 refuse, and so does a vertex piercing two blocks' faces
 (`crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`). Filed:
