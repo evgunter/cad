@@ -2,11 +2,11 @@
 id: one-segment-loop-revolves-and-lofts-to-one-wall
 kind: unit
 title: A one-segment loop revolves and lofts to one wall: the wrap edge (#4175), the torus readers as loop integrals, the one-face full torus probe-built
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
-branch: claude/clever-bardeen-4itqb3
+closed: 2026-10-07
 ---
 
 
