@@ -575,3 +575,17 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     carrier". Its D10 rewording (adca520953, inside PR 4002) had no
     sign-off.
   Left to Ev: the same-kind tie-break's flavour.
+- 2026-10-06 — Steps 2 and 4 of the PR 3881 build land on main
+  together. PR 4161 (merged-set edge names) merged into
+  `fuse/join-every-stage`, then PR 4140 landed.
+  - **What landed:** every boolean output has maximal edges for the
+    planar inventory, and contact records carry through the join by
+    substitution, written by the op. A joined union edge is named for
+    its member set, order-free.
+  - **CI:** green on every check at 9ecc703f8, after two merges of
+    main. One re-pin: main's new `name_words_corpus` stats shrink,
+    because rim pieces retire.
+  - **Reviews:** a dual review plus a focused re-check of the carriage
+    rows on 4140; a FULL review on 4161.
+  - **Unit row:** stays open for the P1 rows (b) sweeps and (c)
+    curved joins, then step 3.

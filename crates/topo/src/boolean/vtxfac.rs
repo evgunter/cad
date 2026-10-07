@@ -84,6 +84,10 @@ pub(super) struct VtxFacOut<T: geom_core::Real> {
     /// `(A face, B face)` for each coincident sector whose lump keeps
     /// one copy of the region (`BooleanReduction::covered`).
     pub covered: Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
+    /// Each edge at the piercing vertex, by the half-edge leaving it,
+    /// with its side of the pierced face as first read, before any
+    /// lump (`BooleanReduction::edge_classes`).
+    pub classes: Vec<(HalfEdgeKey, SideCode)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -201,6 +205,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // bounds' own: a smaller tolerance reads the steeper bound off the
     // plane and the sector with it.
     let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
+    let classes = entries
+        .iter()
+        .filter(|e| e.is_edge)
+        .map(|e| (e.he, e.class))
+        .collect();
     let mut covered = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
         if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
@@ -543,6 +552,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         pairs: Vec::new(),
         ring: None,
         covered,
+        classes,
     };
     if runs.is_empty() {
         return Ok(out); // tangential touch: 3′ contact only, no surgery
@@ -776,8 +786,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // the walk clockwise about the pierced face's outward normal meets
     // first from the other run's start germ
     // ([`super::insert::strut_order`]), in every op. Where that leaves
-    // both operands one vertex at a pinch, the zips would fuse it to
-    // itself, and `zip::cross_pinches` crosses it first.
+    // both operands one vertex at a pinch, `zip::split_cones` splits it
+    // per cone before the zips.
     // Side labels are DERIVED sense data (PR 5.5, join module docs):
     // the half facing the run's start germ is the pierced DOWN half,
     // the one starting at `above_end`, so the copy is the below end

@@ -217,13 +217,6 @@ pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
         body.describe_at_rest(edge, wall, tol)?;
         return Ok(());
     }
-    let data = edge_data(body, edge)?;
-    let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::seam(wall),
-        carrier: data.carrier,
-        param_start: data.t0,
-        param_end: data.t1,
-    };
-    body.set_edge_curve(edge, spec, tol)?;
+    crate::swept::describe_seam(body, edge, wall, tol)?;
     Ok(())
 }

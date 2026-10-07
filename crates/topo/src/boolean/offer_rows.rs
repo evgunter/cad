@@ -2088,7 +2088,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PierceRunsUnordered
-        | BooleanErrorKind::PinchUncrossed
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2408,6 +2407,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
+    (
+        "carrier_touch.rs",
+        "ball_off_face",
+        "BooleanDecision::Containment",
+        1,
+    ),
     ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
     (
         "circle_torus.rs",
@@ -2427,15 +2432,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         2,
     ),
+    ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
     (
         "finish.rs",
         "weld_pinches",
-        "BooleanDecision::VertexOnVertex",
-        1,
-    ),
-    (
-        "finish.rs",
-        "weld_pierce_copies",
         "BooleanDecision::VertexOnVertex",
         1,
     ),
@@ -2570,6 +2570,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VolumeBackstop",
         1,
     ),
+    ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (

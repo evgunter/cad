@@ -194,7 +194,7 @@ pub enum BlendArm {
     CylinderCylinderCylinder,
     /// Cylinder and a plane containing its axis direction, meeting
     /// along a ruling → cylinder patch, straight spine. Carved between
-    /// transverse caps exactly as the row above.
+    /// plane caps exactly as the row above.
     CylinderPlaneCylinder,
 }
 
@@ -209,7 +209,7 @@ impl BlendArm {
 
     /// Whether this arm is a RULED one — a cylinder band about a
     /// straight spine over curved supports sharing the ruling, whose
-    /// open chain terminates in transverse caps rather than corners.
+    /// open chain terminates in plane caps rather than corners.
     #[must_use]
     pub fn is_ruled(self) -> bool {
         matches!(
@@ -642,7 +642,7 @@ impl<T: Real> SupportTrace<T> {
 /// predicate 3 saturates and cannot see it; there the poisoned centre
 /// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
 /// arrives one step later — at the certification of the band the
-/// open-chain surgery mints between the link's transverse caps.
+/// open-chain surgery mints between the link's plane caps.
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,

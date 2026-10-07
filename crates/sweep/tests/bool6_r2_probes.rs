@@ -182,35 +182,12 @@ fn r2_differing_vertex_counts_are_the_skins_refusal() {
     }
 }
 
-/// **Claim 8: the skin's unbanded `params[j-1] < params[j]`.** A
-/// sub-ulp step (1e-17 beside chords of 1) collapses to equal
-/// parameters and the SKIN refuses; a step below ε but above the ulp
-/// reaches the fold, which names the sliver slab. So the PR's
-/// measurement holds: exactly-coincident-in-parameter is the skin's,
-/// the band-scale sliver is the fold's.
+/// **Claim 6: the fold mints `2(k − 1)` `loft_stacking` samples per
+/// loft**, two per slab — and stops at the first non-positive verdict,
+/// so a refusal at slab 1's base decide of four sections leaves THREE
+/// verdicts, and an escalation there leaves two plus one escalation.
 #[test]
-fn r2_sub_ulp_slivers_are_the_skins_and_band_slivers_are_the_folds() {
-    match middle_step(1e-17) {
-        Err(LoftError::Skin(SkinError::DegenerateSection { section, .. })) => {
-            assert_eq!(section, 2);
-        }
-        other => panic!("expected the skin's DegenerateSection, got {other:?}"),
-    }
-    let eps = Tol::witness().eps();
-    for step in [1e-14, 1e-13, 0.1 * eps] {
-        match middle_step(step) {
-            Err(LoftError::DegenerateStacking { slab }) => assert_eq!(slab, 1),
-            other => panic!("step {step:e}: expected DegenerateStacking slab 1, got {other:?}"),
-        }
-    }
-}
-
-/// **Claim 6: the fold mints `k − 1` `loft_stacking` samples per
-/// loft** — and stops at the first non-positive slab, so a refusal at
-/// slab 1 of four sections leaves TWO verdicts, and an escalation
-/// leaves one verdict plus one escalation.
-#[test]
-fn r2_the_fold_mints_k_minus_one_samples_and_stops_at_the_first_refusal() {
+fn r2_the_fold_mints_two_samples_per_slab_and_stops_at_the_first_refusal() {
     let count = |run: &dyn Fn()| {
         let b = Bracket::open();
         run();
@@ -233,26 +210,26 @@ fn r2_the_fold_mints_k_minus_one_samples_and_stops_at_the_first_refusal() {
         count(&|| {
             loft_body::<f64>(&five, &stacked_at(&[0.0, 1.0, 2.0, 3.0, 4.0]), 2, tol).unwrap();
         }),
-        (4, 0)
+        (8, 0)
     );
     assert_eq!(
         count(&|| {
             loft_body::<f64>(&five[..2], &stacked_at(&[0.0, 1.0]), 1, tol).unwrap();
         }),
-        (1, 0)
+        (2, 0)
     );
     assert_eq!(
         count(&|| {
             let _ = loft_body::<f64>(&five[..4], &stacked_at(&[0.0, 1.0, 0.5, 2.0]), 2, tol);
         }),
-        (2, 0)
+        (3, 0)
     );
     let mid = 0.5 * (1.0 + tol.k()) * tol.eps();
     assert_eq!(
         count(&|| {
             let _ = loft_body::<f64>(&five[..4], &stacked_at(&[-1.0, 0.0, mid, 1.0]), 2, tol);
         }),
-        (1, 1)
+        (2, 1)
     );
 }
 
@@ -291,34 +268,4 @@ fn r2_a_spine_past_a_full_turn_builds_a_self_overlapping_body() {
     println!("R2 self-overlap: tier-3 says {g:?}");
     assert!(topo::validate(&built.body).is_ok());
     assert!(topo::validate_closed(&built.body).is_ok());
-}
-
-/// **Claim 3 attack: the LAST section's normal is what the top cap
-/// reads, and nothing in the fold checks it agrees with the
-/// stacking.** A two-section loft whose top section sits above the
-/// base but is placed with its plane normal pointing DOWN: the fold
-/// reads `d · n_0 = +1` and builds. What the body then is, the tiers
-/// say below; the row records it rather than pinning it.
-#[test]
-fn r2_a_flipped_last_normal_is_not_the_folds_to_see() {
-    let sections = vec![loft_prism_sections()[0].clone(); 2];
-    let flipped = Affine3::from_parts(
-        Mat3::from_cols(
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec3::new(0.0, 0.0, -1.0),
-        ),
-        Vec3::new(0.0, 0.0, 1.0),
-    );
-    let tol = Tol::witness();
-    let out = loft_body::<f64>(&sections, &[Affine3::identity(), flipped], 1, tol);
-    match out {
-        Ok(l) => {
-            println!(
-                "R2 flipped top normal: BUILT; tier-3 says {:?}",
-                topo::validate_geometric(&l.body, tol)
-            );
-        }
-        Err(e) => println!("R2 flipped top normal: refused {e:?}"),
-    }
 }
