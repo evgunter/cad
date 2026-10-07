@@ -1,5 +1,29 @@
 # FORK-2 — how the explicit product list is kept (designer A)
 
+## For Ev — round 2
+
+**Revised recommendation (likely): the two reports agree on the rule and I move to the other report's placement of it, with one disagreement left for Ev.** The rule stays A10's tip transfer restricted to body-defining reads, applied at the edit and never re-derived from the graph. What moves: the rule is *authored* on the edit as a product clause (`follow` by default, `leave`, `append`) and *lowered at the door into a concrete list change that the recorded edit carries*. The kernel stores what happened to the list, never the rule that decided it.
+
+**The other report's strongest point, and why it moves me.** A saved document is a snapshot plus an edit log, and load replays the log through the edit doors (`persist::load`; the viewer saves exactly its history's path as that log, `docio.rs`). Under my round-1 door rule a replayed insert would recompute the list from the replay-time graph. That is deterministic and equal to authoring time, so it is not a correctness fault, but it means the stored log does not say what the product became, and a later revision of the default would change the loaded product of every old file. Pre-release that is permitted (Band 4: no migrations, a file this build cannot read refuses typed), so it is not decisive on its own. What is decisive is the final-state test: a log that reads as what happened beats one that must be re-run through a rule to know. That is VR6's shape, `Formula` authored and `Expr` stored, and the project already chose it there. My round-1 objection to an insert-time intent ("a special case `SetProduct` covers") was wrong for the same reason: `SetProduct` after an insert is two edits where the second undoes part of the first, and the log then records a fight rather than an intent.
+
+**Agreed design, stated once.**
+
+- A body-defining insert or delete, and a re-pointing of a body read (`SetMembers`; an operand `SetParam` if FORK-4 admits one), carries a product clause. Authored values: `follow` (the default and what a bare insert means), `leave` (the list is untouched) and `append` (operands stay listed, the result is added; D10's "an operand stays a first-class value").
+- The door lowers `follow` to a concrete change and records that: `Append`, `ReplaceAt { at, remove }` (the position of the earliest listed body read, and the listed bodies that leave) or `Leave`. The lowered form names only existing ids and a position, so it needs no id the insert has not minted yet, and replay re-validates it (`NotLive`, `NotABody`, `Duplicate`) like any list edit. `SetProduct` stays the whole-list door.
+- `follow` means: a body-defining operation that reads no listed body appends; one that reads listed bodies takes the earliest's place and the others leave; a non-body-defining insert moves nothing; deleting a listed body puts its orphaned operands (live, unlisted, read by no body-defining operation) in its place in document order; deleting an unlisted node moves nothing.
+- Split and inline state their list edits in the edit lists they return (the part's product is the cut's listed bodies in list order; the instance takes the first one's place; inline splices back). Promote moves nothing. A mate, gauge, measure, assertion or select is never listed.
+- Python: `DocEdit.insert(node, product="follow")` with the default; `Doc.product` reads the stored list. The viewer's combine ops send `follow`, with a "keep operands" toggle for `append`.
+
+**The disagreement, for Ev to rule: a delete under `leave`.** The other report keeps the deleted body's entry in the list, unresolved and typed, and the gather refuses it by name (D10's reader rule, "never silently dropped"). I would remove the entry and report it (`Maintenance::Unlisted`), for three reasons. The list is a statement of what the document hands out, not a reader whose evaluation can be refused per node: a dead entry refuses the *whole* gather for every consumer, which is the shape of `a-failed-requirement-refuses-the-whole-product`. The only repair is to remove it, so the door should do the one thing the recourse would say. And `SetProduct` and load already refuse `NotLive`, so a dead entry would make a state the file door rejects reachable by edit. Neither reading is silent: both report, and `follow` is unaffected since it restores the orphans. Confidence: likely.
+
+**One wording I would keep from my round 1.** The other report defines a body read as reading a `Body` variable directly in an operand slot. I would say *a body-defining operation* (one with a `Body` output) reading a `Body` variable, so the criterion is the operation's signature and not which slot kind it read through; today the two agree on every node.
+
+**Confidence.** The rule: sure (both reports derived it independently). Its placement on the edit, lowered and recorded: likely. The delete-`leave` disagreement: likely, as above.
+
+---
+
+## Round 1 (as delivered)
+
 ## For Ev
 
 **Recommendation (likely): keep the product explicit, and move it by one local rule at the edits that make or unmake a *body-defining read*, plus `SetProduct` outright. Nothing ever recomputes the list from the graph.**
