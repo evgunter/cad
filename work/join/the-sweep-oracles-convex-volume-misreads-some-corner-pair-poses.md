@@ -2,7 +2,7 @@
 id: the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses
 kind: issue
 title: The pierce sweep's oracle convex_volume misreads some corner-pair poses, so a want can be wrong
-status: open
+status: review
 opened: 2026-10-05
 priority: P1
 cost: M
@@ -72,3 +72,31 @@ def run(aa,ab,m,psi,N=300000):
     return 16*ka/N,16*kab/N
 print(run(343,330,[1,1,0],0.7))  # (15.385, 4.3286)
 ```
+
+## Built
+
+**The defect is in the clip.** `convex_volume` took every half-space it
+was handed as a face candidate, so two half-spaces on one plane at
+different scales each claimed the same face, and its pyramid was
+summed twice. At the witness, B's top `m·x ≤ 0` (with `m` the unit of
+`(1, 1, 0)`) lies on A's radial plane `(2, 2, 0)·x ≤ 0`. Its pieces
+`(2, 3)`, `(2, 4)`, `(3, 2)` and `(3, 3)` read 2.337, 0.276, 2.429 and
+0.050. Taking each distinct half-space once (compared at unit normal)
+gives 1.987, 0.234, 2.055 and 0.043, which sum to 4.317829269, the
+kernel's `v`.
+
+The piece decomposition and B's frame and turn are right. The Monte
+Carlo uses the same pieces and agrees with the fixed clip.
+
+## Measured
+
+- `the_corner_pair_oracle_agrees_with_a_monte_carlo` (ignored) checks
+  all 2730 poses of the battery at N = 40 000. Worst 4.01σ on head. On
+  main's clip it is red at the first pose, `n343-n343 z psi=0`: 6.120
+  against 3.707 ± 0.005, a pose the kernel refuses
+  (`UndeclaredCoincidence`), so its wrong `want` was never read.
+- `corner_pairs_battery`, main against head: exactly the 154 lines go
+  `OK BAD` → `OK SOUND`, and none go `SOUND` → BAD. Two more lines'
+  `want` moves onto the kernel's `v`, still BAD on `t3p=false`. Those
+  two are the edge-in-the-partner's-face-plane row's.
+- The pierce, pinch and near-tangent batteries are byte-identical.
