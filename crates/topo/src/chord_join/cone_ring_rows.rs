@@ -82,7 +82,17 @@ fn sheet_to(
     sense: bool,
     t: f64,
 ) -> (Body<f64>, FaceKey, SurfaceKey) {
-    let (lo, hi) = (0.05, 3.0);
+    sheet_up_to(f, cone, sense, (t, 3.0))
+}
+
+/// [`sheet_to`] with its high rim at height `hi`.
+fn sheet_up_to(
+    f: Frame,
+    cone: geom::Surface<f64>,
+    sense: bool,
+    (t, hi): (f64, f64),
+) -> (Body<f64>, FaceKey, SurfaceKey) {
+    let lo = 0.05;
     let mut body = Body::<f64>::new();
     let start = on_nappe(f, lo, -t);
     let seed = body.mvfs(start, sense).unwrap();
@@ -441,66 +451,106 @@ fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
     );
 }
 
+/// Walls the island off by its closing edge (`closing`, run back from the
+/// run's last corner): a section arc's spec, or the straight chord along
+/// a ruling. The new face, and the ring the run leaves.
+fn wall_off(
+    body: &mut Body<f64>,
+    key: SurfaceKey,
+    run: (HalfEdgeKey, HalfEdgeKey),
+    closing: IslandEdge,
+) -> (FaceKey, LoopKey) {
+    let after = body.get_half_edge(run.1).unwrap().next;
+    let site = MefSite::Chords {
+        he1: run.0,
+        he2: after,
+    };
+    let made = if closing.plane.is_some() {
+        let back = IslandEdge {
+            params: (closing.params.1, closing.params.0),
+            ..closing
+        };
+        let spec = edge_spec(body, key, &back);
+        let shared = FaceSurface::Shared { key, sense: true };
+        body.mef(site, spec, shared, tol())
+    } else {
+        body.mef_chord(site, tol())
+    }
+    .unwrap();
+    (made.face, body.get_half_edge(after).unwrap().parent_loop)
+}
+
 /// **A path whose reading escalates by an island's corner says nothing,
-/// and the next path re-homes the ring.** A bystander outside the lune on
-/// the ruling a hair past its second corner: the first path from it,
-/// along that ruling to the first outer-loop point's height, reads the
-/// corner's arcs in the escalation band at some offset, and the path
-/// round its own parallel puts it outside.
+/// and the next path re-homes the ring.** A bystander outside the lune,
+/// on the ruling a hair past its second corner; and one inside the
+/// sector, on a sheet whose high rim passes a hair above the sector's
+/// top corner. The first path from each — along the bystander's ruling,
+/// and round the first outer-loop point's parallel — reads the corner's
+/// edges in the escalation band at some offset, and the next path puts
+/// it where the oracle does. Both answers are read, so an escalation
+/// taken for either goes red.
 #[test]
 fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
     let f = frames()[0];
     let surface = cone(f, false);
-    let island = lune(f, &surface, 1.0);
     let quadric = Quadric::of(&surface).unwrap();
-    let (h_c, az_c) = height_azimuth(f, island.corners[1]);
+    let (lune, sector) = (lune(f, &surface, 1.0), sector(f, &surface));
+    let mut escalated = [0; 2];
+    let mut read = |island: &Island,
+                    p: Point3<f64>,
+                    (mut body, face, key): (Body<f64>, FaceKey, SurfaceKey),
+                    label: String| {
+        let inside = (island.inside)(p);
+        let ring = empty_ring(&mut body, face, p);
+        let (run, closing) = run_from(&mut body, (face, key), island, 0);
+        let (newf, remainder) = wall_off(&mut body, key, run, closing);
+        let cycle = outer_cycle(&body, newf).unwrap().unwrap();
+        let arcs = run_loop_arcs(&body, newf, (&surface, &quadric), &cycle).unwrap();
+        let skip: Vec<_> = cycle
+            .iter()
+            .map(|&he| body.get_half_edge(he).unwrap().edge)
+            .collect();
+        let w = outer_references(&body, face, &skip).unwrap()[0];
+        let first = quadric.paths((p, w), band()).unwrap().remove(0);
+        if path_parity(&first, &arcs, None, band()).is_ok() {
+            return;
+        }
+        escalated[usize::from(inside)] += 1;
+        ChordJoiner::new(band())
+            .rehome_rings(&mut body, face, newf, remainder)
+            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        assert_eq!(
+            body.get_loop(ring).unwrap().face,
+            if inside { newf } else { face },
+            "{label}: inside {inside}"
+        );
+    };
+    // Outside the lune, on the ruling a hair past its second corner.
+    let (h_c, az_c) = height_azimuth(f, lune.corners[1]);
     let rho = h_c * FRAC_PI_6.tan();
-    let mut escalated = 0;
     for delta in offsets_through_the_band() {
         for h in [1.0, 2.0] {
             let p = on_nappe(f, h, az_c - delta * h / (h_c * rho));
-            assert!(!(island.inside)(p), "the bystander is outside the lune");
-            let (mut body, face, key) = sheet(f, surface.clone(), true);
-            let ring = empty_ring(&mut body, face, p);
-            let (run, closing) = run_from(&mut body, (face, key), &island, 0);
-            let after = body.get_half_edge(run.1).unwrap().next;
-            let back = IslandEdge {
-                params: (closing.params.1, closing.params.0),
-                ..closing
-            };
-            let spec = edge_spec(&mut body, key, &back);
-            let site = MefSite::Chords {
-                he1: run.0,
-                he2: after,
-            };
-            let shared = FaceSurface::Shared { key, sense: true };
-            let made = body.mef(site, spec, shared, tol()).unwrap();
-            let remainder = body.get_half_edge(after).unwrap().parent_loop;
-            let cycle = outer_cycle(&body, made.face).unwrap().unwrap();
-            let arcs = run_loop_arcs(&body, made.face, (&surface, &quadric), &cycle).unwrap();
-            let skip: Vec<_> = cycle
-                .iter()
-                .map(|&he| body.get_half_edge(he).unwrap().edge)
-                .collect();
-            let w = outer_references(&body, face, &skip).unwrap()[0];
-            let first = quadric.paths((p, w), band()).unwrap().remove(0);
-            if path_parity(&first, &arcs, None, band()).is_ok() {
-                continue;
-            }
-            escalated += 1;
-            ChordJoiner::new(band())
-                .rehome_rings(&mut body, face, made.face, remainder)
-                .unwrap_or_else(|e| panic!("offset {delta:e}, height {h}: {e:?}"));
-            assert_eq!(
-                body.get_loop(ring).unwrap().face,
-                face,
-                "offset {delta:e}, height {h}: the ring stays"
+            let sheet = sheet(f, surface.clone(), true);
+            read(
+                &lune,
+                p,
+                sheet,
+                format!("lune, offset {delta:e}, height {h}"),
             );
         }
     }
+    // Inside the sector, on a sheet whose high rim passes a hair above
+    // its top corner.
+    let top = height_azimuth(f, sector.corners[0]).0;
+    for delta in offsets_through_the_band() {
+        let p = on_nappe(f, 1.4, 0.15);
+        let sheet = sheet_up_to(f, surface.clone(), true, (1.2, top + delta));
+        read(&sector, p, sheet, format!("sector, offset {delta:e}"));
+    }
     assert!(
-        escalated > 0,
-        "no offset puts the first path in the escalation band"
+        escalated.iter().all(|&n| n > 0),
+        "first paths in the escalation band, outside and inside: {escalated:?}"
     );
 }
 

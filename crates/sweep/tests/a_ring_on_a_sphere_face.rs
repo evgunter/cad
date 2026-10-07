@@ -480,18 +480,11 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
 /// escalation band, and the reading moves on to the next point rather
 /// than refusing the op. The small ball's ∖ and both ∩ build at the
 /// lens; the ops whose big ball keeps the ring as a hole refuse at the
-/// result gate.
+/// result gate. Above ε 1e-9 every op escalates first, certifying a
+/// pcurve on the sphere's chart, as on main.
 #[test]
 fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
     let tol = Tol::witness();
-    if tol.eps() > 1e-9 {
-        test_utils::vacuity::stood_down(
-            "pair 82 at this ε",
-            "the millimetre balls are within a few thousand coincidence widths, and their \
-             merge escalates on its chart before any ring is read",
-        );
-        return;
-    }
     let (r1, r2) = (6.098088671076322e-4, 1.4613194916300017e-3);
     let c2 = Vec3::new(
         -0.0018727710410726642,
@@ -514,6 +507,31 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
         tol,
     );
     let b = finished("the big ball", ball_poled(r2, c2, p2, tol), tol);
+    if tol.eps() > 1e-9 {
+        // The millimetre balls are within a few thousand coincidence
+        // widths here, and every op escalates certifying a pcurve on the
+        // sphere's chart (in the merge, or the pcurve pass) before any
+        // ring is read — on main too.
+        let none = BooleanDeclarations::none();
+        for (op, got) in [
+            ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
+            ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
+            ("a ∖ b", topo::subtract_with(&a, &b, &none, tol)),
+            ("b ∖ a", topo::subtract_with(&b, &a, &none, tol)),
+            ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
+            ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+        ] {
+            let err = got.err().map(|e| format!("{e:?}"));
+            assert!(
+                err.as_ref()
+                    .is_some_and(|e| (e.starts_with("Merge(") || e.starts_with("Pcurves"))
+                        && e.contains("pcurve_sphere_chart_meridian")),
+                "pair 82, {op} at ε {:e}: {err:?}",
+                tol.eps()
+            );
+        }
+        return;
+    }
     assert_six(
         "pair 82",
         &a,

@@ -112,7 +112,7 @@ use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
-use crate::ring_path::{LoopArc, Quadric, path_parity};
+use crate::ring_path::{LoopArc, Path, Quadric, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
@@ -2648,54 +2648,74 @@ pub(crate) fn path_island_winding<T: Decide>(
     let outward = quadric.outward(q, face_data.sense);
     let left = outward.cross(travel);
     let lever = quadric.lever(q);
-    // An escalated reading says nothing about the parity, which no path
-    // changes: the first decided path is the reading, and an escalation
-    // escalates only where no path decides.
-    let mut escalated = None;
-    for w in outer_references(body, face, &[])? {
-        let paths = match quadric.paths((w, q), band) {
-            Ok(paths) => paths,
-            Err(diag) => {
-                escalated.get_or_insert(diag);
-                continue;
-            }
-        };
-        for path in paths {
-            let lean = match decide(
-                "split_ring_path_lean",
-                Margin::levered(-path.arrival.dot(left) / left.norm(), lever),
-                band,
-            ) {
-                Ok(Sign::Zero) => continue,
-                Ok(lean) => lean,
-                Err(diag) => {
-                    escalated.get_or_insert(diag);
-                    continue;
-                }
-            };
-            let odd = match path_parity(&path, &arcs, Some(arrives_on), band) {
-                Ok(Some(odd)) => odd,
-                Ok(None) => continue,
-                Err(diag) => {
-                    escalated.get_or_insert(diag);
-                    continue;
-                }
-            };
-            let w_left = (lean == Sign::Positive) != odd;
-            return Ok(Ok(if w_left {
-                Sign::Negative
-            } else {
-                Sign::Positive
-            }));
+    let read = |path: Path<T>| -> Result<Option<Sign>, Indeterminate> {
+        let lean = decide(
+            "split_ring_path_lean",
+            Margin::levered(-path.arrival.dot(left) / left.norm(), lever),
+            band,
+        )?;
+        if lean == Sign::Zero {
+            return Ok(None);
         }
-    }
-    if let Some(diag) = escalated {
-        return Ok(Err(diag));
+        Ok(
+            path_parity(&path, &arcs, Some(arrives_on), band)?.map(|odd| {
+                let w_left = (lean == Sign::Positive) != odd;
+                if w_left {
+                    Sign::Negative
+                } else {
+                    Sign::Positive
+                }
+            }),
+        )
+    };
+    let paths = outer_references(body, face, &[])?
+        .into_iter()
+        .flat_map(|w| quadric_paths(&quadric, (w, q), band));
+    match first_decided(paths.map(|path| Ok::<_, SplitJoinError>(path.and_then(read))))? {
+        Ok(Some(sign)) => return Ok(Ok(sign)),
+        Err(diag) => return Ok(Err(diag)),
+        Ok(None) => {}
     }
     Err(invariant(
         "no outer-loop point of a sphere or cone face reads which side of a ring-lane island it \
          is on (every path to the closing chord meets the island's boundary in the zero band)",
     ))
+}
+
+/// **The first decided reading** of `readings`, asked in order and
+/// lazily. Every reading answers one question — which side of a curve a
+/// point lies on, the same whatever path or point reads it — so one that
+/// says nothing (`Ok(None)`: the zero band) or escalates moves to the
+/// next. The first escalation escalates only where no reading decides; a
+/// hard error stops the walk.
+fn first_decided<R, E>(
+    readings: impl IntoIterator<Item = Result<Result<Option<R>, Indeterminate>, E>>,
+) -> Result<Result<Option<R>, Indeterminate>, E> {
+    let mut escalated = None;
+    for reading in readings {
+        match reading? {
+            Ok(Some(r)) => return Ok(Ok(Some(r))),
+            Ok(None) => {}
+            Err(diag) => {
+                escalated.get_or_insert(diag);
+            }
+        }
+    }
+    Ok(escalated.map_or(Ok(None), Err))
+}
+
+/// The paths [`Quadric::paths`] offers between two points, each as a
+/// reading of [`first_decided`]'s: an escalation choosing them is one
+/// escalated reading.
+fn quadric_paths<T: Decide>(
+    quadric: &Quadric<T>,
+    ends: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Vec<Result<Path<T>, Indeterminate>> {
+    match quadric.paths(ends, band) {
+        Ok(paths) => paths.into_iter().map(Ok).collect(),
+        Err(diag) => vec![Err(diag)],
+    }
 }
 
 /// [`ring_side`] on a sphere or a cone face, without a chart: whether
@@ -2728,30 +2748,18 @@ fn path_ring_side<T: Decide>(
         .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
         .collect::<Result<Vec<_>, SplitJoinError>>()?;
     let outside = outer_references(body, oldf, &run_edges)?;
-    let mut escalated = None;
-    for p in loop_points(body, ring)? {
-        for &w in &outside {
-            let paths = match quadric.paths((p, w), band) {
-                Ok(paths) => paths,
-                Err(diag) => {
-                    escalated.get_or_insert(diag);
-                    continue;
-                }
-            };
-            for path in paths {
-                match path_parity(&path, &arcs, None, band) {
-                    Ok(Some(odd)) => return Ok(if odd { RingSide::In } else { RingSide::Out }),
-                    Ok(None) => {}
-                    Err(diag) => {
-                        escalated.get_or_insert(diag);
-                    }
-                }
-            }
-        }
-    }
-    match escalated {
-        Some(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
-        None => Ok(RingSide::Undecided),
+    let paths = loop_points(body, ring)?.into_iter().flat_map(|p| {
+        outside
+            .iter()
+            .flat_map(move |&w| quadric_paths(quadric, (p, w), band))
+    });
+    let read = |path: Result<Path<T>, Indeterminate>| {
+        Ok::<_, SplitJoinError>(path.and_then(|path| path_parity(&path, &arcs, None, band)))
+    };
+    match first_decided(paths.map(read))? {
+        Ok(Some(odd)) => Ok(if odd { RingSide::In } else { RingSide::Out }),
+        Ok(None) => Ok(RingSide::Undecided),
+        Err(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
     }
 }
 
@@ -3442,7 +3450,9 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// sections meet at one point — so its anchor alone can land `OnBoundary`
 /// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
 /// every vertex does: each such verdict is decided, so the ring is on
-/// the run.
+/// the run. A vertex whose reading escalates says nothing either, and
+/// the next is asked; the first escalation escalates only where no
+/// vertex decides ([`first_decided`]).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -3450,15 +3460,21 @@ fn ring_side<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    for v in ring_vertices(body, ring)? {
-        let p = vertex_point(body, v);
-        match point_in_loop(body, run, normal, p, band)? {
-            LoopContainment::In => return Ok(RingSide::In),
-            LoopContainment::Out => return Ok(RingSide::Out),
-            LoopContainment::OnBoundary => {}
-        }
+    let read = |v: VertexKey| match point_in_loop(body, run, normal, vertex_point(body, v), band) {
+        Ok(LoopContainment::In) => Ok(Ok(Some(RingSide::In))),
+        Ok(LoopContainment::Out) => Ok(Ok(Some(RingSide::Out))),
+        Ok(LoopContainment::OnBoundary) => Ok(Ok(None)),
+        Err(PointInLoopError::Escalated { diag, .. }) => Ok(Err(diag)),
+        Err(e) => Err(SplitJoinError::from(e)),
+    };
+    match first_decided(ring_vertices(body, ring)?.into_iter().map(read))? {
+        Ok(Some(side)) => Ok(side),
+        Ok(None) => Ok(RingSide::OnRun),
+        Err(diag) => Err(SplitJoinError::RingHoming(PointInLoopError::Escalated {
+            r#loop: run,
+            diag,
+        })),
     }
-    Ok(RingSide::OnRun)
 }
 
 /// Where ring re-homing puts a bystander ring.
@@ -3510,7 +3526,9 @@ fn ring_vertices<T: Decide>(
 /// decided under a period. Each comparison is a named trilean metered in
 /// metres; a ring vertex on the ray's degenerate rows (the run passes
 /// through its azimuth at a vertex, or along it) says nothing and the
-/// next vertex is asked, as [`ring_side`] does for a vertex on the run.
+/// next vertex is asked, as [`ring_side`] does for a vertex on the run;
+/// so does one whose reading escalates, and the first escalation
+/// escalates only where no vertex decides ([`first_decided`]).
 /// Such a vertex may or may not be on the run, so a ring none of whose
 /// vertices is decided is [`RingSide::Undecided`], never
 /// [`RingSide::OnRun`]: a pierce strut at a pinch, whose point is a run
@@ -3564,7 +3582,8 @@ fn chart_ring_side<T: Decide>(
     // The chart segments of the run: each edge (`Some(image)`), then the
     // straight row to the next image's entry.
     let n = images.len();
-    'vertex: for v in vertices {
+    let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
+        let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
         let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
@@ -3577,16 +3596,18 @@ fn chart_ring_side<T: Decide>(
                 (image.exit, next.entry, None),
             ];
             for (u0, u1, edge) in rows {
-                let s0 = decide_m(
-                    "split_ring_chart_ray_azimuth",
-                    Margin::levered(u_p - u0, radius),
-                )?;
-                let s1 = decide_m(
-                    "split_ring_chart_ray_azimuth",
-                    Margin::levered(u_p - u1, radius),
-                )?;
+                let sides = [u0, u1].map(|u| {
+                    decide_r(
+                        "split_ring_chart_ray_azimuth",
+                        Margin::levered(u_p - u, radius),
+                    )
+                });
+                let (s0, s1) = match sides {
+                    [Ok(s0), Ok(s1)] => (s0, s1),
+                    [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
+                };
                 if s0 == Sign::Zero || s1 == Sign::Zero {
-                    continue 'vertex;
+                    return Ok(Ok(None));
                 }
                 if s0 == s1 {
                     continue;
@@ -3605,20 +3626,25 @@ fn chart_ring_side<T: Decide>(
                     }
                     None => image.v.1 + f * (next.v.0 - image.v.1),
                 };
-                match decide_m("split_ring_chart_ray_height", Margin::of(v_x - v_p))? {
-                    Sign::Positive => crossings += 1,
-                    Sign::Negative => {}
-                    Sign::Zero => continue 'vertex,
+                match decide_r("split_ring_chart_ray_height", Margin::of(v_x - v_p)) {
+                    Ok(Sign::Positive) => crossings += 1,
+                    Ok(Sign::Negative) => {}
+                    Ok(Sign::Zero) => return Ok(Ok(None)),
+                    Err(diag) => return Ok(Err(diag)),
                 }
             }
         }
-        return Ok(if crossings % 2 == 1 {
+        Ok(Ok(Some(if crossings % 2 == 1 {
             RingSide::In
         } else {
             RingSide::Out
-        });
+        })))
+    };
+    match first_decided(vertices.into_iter().map(read))? {
+        Ok(Some(side)) => Ok(side),
+        Ok(None) => Ok(RingSide::Undecided),
+        Err(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
     }
-    Ok(RingSide::Undecided)
 }
 
 /// A representative point of a loop (its anchor vertex).
@@ -3643,6 +3669,9 @@ pub(crate) fn ring_representative<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod sibling_escalation_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod sphere_island_rows;

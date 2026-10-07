@@ -339,7 +339,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
             continue;
         };
         built += 1;
-        if std::env::var("R2_NOSTAND").is_err() && (!read_at(0.1 * r) || 1e-13 * r > band().zero()) {
+        if !read_at(0.1 * r) || 1e-13 * r > band().zero() {
             stood += 1;
             continue;
         }
@@ -474,7 +474,7 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
             continue;
         };
         built += 1;
-        if std::env::var("R2_NOSTAND").is_err() && (!read_at(0.1 * r) || 1e-13 * r > band().zero()) {
+        if !read_at(0.1 * r) || 1e-13 * r > band().zero() {
             stood += 1;
             continue;
         }
@@ -543,5 +543,172 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
         failures.is_empty() && asked > 0,
         "asked {asked}: {:?}",
         &failures[..failures.len().min(10)]
+    );
+}
+
+/// A thin lune on the unit-scale sphere, `delta` thick at its middle: the
+/// closing arc from `b` back to `a` through its midpoint `q` (bearing
+/// π/2, 0.3 from `+x`), and the run from `a` to `b` through the point
+/// `delta` past `q`.
+fn thin_lune(s: Sph, delta: f64) -> (Island, Point3<f64>) {
+    let (a, b) = (s.polar(0.4, 0.0), s.polar(0.4, PI));
+    let q = s.polar(0.3, 0.5 * PI);
+    let island = Island {
+        corners: vec![a, b],
+        vias: vec![s.polar(0.3 + delta / s.r, 0.5 * PI), q],
+    };
+    (island, q)
+}
+
+/// The offsets a thin lune is made, from the band's zero threshold to ten
+/// times its escalation threshold, geometrically.
+fn thin_offsets() -> impl Iterator<Item = f64> {
+    let b = band();
+    let (lo, hi) = (b.zero(), 10.0 * b.escalate());
+    (0..=60).map(move |k| lo * (hi / lo).powf(f64::from(k) / 60.0))
+}
+
+/// **Where no path decides a winding, it escalates carrying the first
+/// path's reading.** A lune so thin that its run passes within the band
+/// of the closing arc's midpoint, where every path arrives: every path
+/// reads in the band. The winding escalates, and its diagnostic is the
+/// first escalated path's in the order the paths are asked — not a
+/// later one's — at some thickness where the paths' readings differ.
+#[test]
+fn a_winding_no_path_decides_escalates_with_the_first_reading() {
+    let s = Sph {
+        f: frames()[0],
+        r: 1.0,
+    };
+    let surface = s.surface();
+    let quadric = Quadric::of(&surface).unwrap();
+    let (mut asserted, mut distinct) = (0, false);
+    for delta in thin_offsets() {
+        let (island, _) = thin_lune(s, delta);
+        let (mut body, face, key) = sheet(s, true);
+        let ring = empty_ring(&mut body, face, island.corners[0]);
+        let run_edge = spec(&mut body, key, &island.edge(s, 0));
+        let h = body
+            .mev(
+                MevSite::Lone { r#loop: ring },
+                island.corners[1],
+                run_edge,
+                tol(),
+            )
+            .unwrap()
+            .he_plus;
+        let closing = spec(&mut body, key, &island.edge(s, 1));
+        let Ok(Err(got)) = path_island_winding(&body, face, (h, h), Some(&closing), band()) else {
+            continue;
+        };
+        let (t0, t1) = (closing.param_start, closing.param_end);
+        let q = closing.carrier.mid_point(t0, t1);
+        let left = quadric
+            .outward(q, true)
+            .cross(closing.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0));
+        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &[h]).unwrap();
+        arcs.push(LoopArc::of(&closing.carrier, (t0, t1)).unwrap());
+        let reading = |w: Point3<f64>| {
+            let path = quadric.paths((w, q), band()).unwrap().remove(0);
+            let lean = decide(
+                "split_ring_path_lean",
+                Margin::levered(-path.arrival.dot(left) / left.norm(), quadric.lever(q)),
+                band(),
+            )?;
+            assert!(lean != Sign::Zero, "every path arrives across the chord");
+            path_parity(&path, &arcs, Some(1), band())
+        };
+        let refs = outer_references(&body, face, &[]).unwrap();
+        let readings: Vec<_> = refs.iter().map(|&w| reading(w)).collect();
+        assert!(
+            readings.iter().all(|r| !matches!(r, Ok(Some(_)))),
+            "no path decides"
+        );
+        assert_eq!(
+            readings.iter().find_map(|r| r.err()),
+            Some(got),
+            "offset {delta:e}: the first escalated reading"
+        );
+        asserted += 1;
+        distinct |= refs.iter().any(|&w| reading(w).is_err_and(|d| d != got));
+    }
+    assert!(
+        asserted > 0 && distinct,
+        "asserted {asserted}, distinct readings {distinct}"
+    );
+}
+
+/// **Where no path decides a ring's side, re-homing escalates carrying
+/// the first path's reading.** A bystander inside the thin lune, within
+/// the band of both its arcs: every path from it reads in the band, and
+/// re-homing escalates with the first escalated path's diagnostic.
+#[test]
+fn a_re_homing_no_path_decides_escalates_with_the_first_reading() {
+    let s = Sph {
+        f: frames()[0],
+        r: 1.0,
+    };
+    let surface = s.surface();
+    let quadric = Quadric::of(&surface).unwrap();
+    let (mut asserted, mut distinct) = (0, false);
+    for delta in thin_offsets() {
+        let (island, _) = thin_lune(s, delta);
+        let p = s.polar(0.3 + 0.5 * delta, 0.5 * PI);
+        let (mut body, face, key) = sheet(s, true);
+        empty_ring(&mut body, face, p);
+        let ring = empty_ring(&mut body, face, island.corners[0]);
+        let run_edge = spec(&mut body, key, &island.edge(s, 0));
+        let h = body
+            .mev(
+                MevSite::Lone { r#loop: ring },
+                island.corners[1],
+                run_edge,
+                tol(),
+            )
+            .unwrap()
+            .he_plus;
+        let after = body.get_half_edge(h).unwrap().next;
+        let chord = spec(&mut body, key, &island.reversed().edge(s, 0));
+        let made = body
+            .mef(
+                MefSite::Chords { he1: h, he2: after },
+                chord,
+                FaceSurface::Shared { key, sense: true },
+                tol(),
+            )
+            .unwrap();
+        let remainder = body.get_half_edge(after).unwrap().parent_loop;
+        let Err(SplitJoinError::Escalated { diag: got, .. }) =
+            ChordJoiner::new(band()).rehome_rings(&mut body, face, made.face, remainder)
+        else {
+            continue;
+        };
+        let cycle = outer_cycle(&body, made.face).unwrap().unwrap();
+        let arcs = run_loop_arcs(&body, made.face, (&surface, &quadric), &cycle).unwrap();
+        let skip: Vec<_> = cycle
+            .iter()
+            .map(|&he| body.get_half_edge(he).unwrap().edge)
+            .collect();
+        let refs = outer_references(&body, face, &skip).unwrap();
+        let reading = |w: Point3<f64>| {
+            let path = quadric.paths((p, w), band()).unwrap().remove(0);
+            path_parity(&path, &arcs, None, band())
+        };
+        let readings: Vec<_> = refs.iter().map(|&w| reading(w)).collect();
+        assert!(
+            readings.iter().all(|r| !matches!(r, Ok(Some(_)))),
+            "no path decides"
+        );
+        assert_eq!(
+            readings.iter().find_map(|r| r.err()),
+            Some(got),
+            "offset {delta:e}: the first escalated reading"
+        );
+        asserted += 1;
+        distinct |= refs.iter().any(|&w| reading(w).is_err_and(|d| d != got));
+    }
+    assert!(
+        asserted > 0 && distinct,
+        "asserted {asserted}, distinct readings {distinct}"
     );
 }

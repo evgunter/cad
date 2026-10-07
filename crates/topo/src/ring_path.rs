@@ -24,7 +24,10 @@
 //! reaches round the axis is cut by its seam, and no curve on it winds
 //! round the apex.
 //!
-//! Each comparison is a named trilean metered in metres. A crossing is
+//! Each decision is a named trilean metered in metres. The raw picks
+//! that remain — the nearer root on the arrival arc, a parameter's
+//! branch, the way round a parallel — are choices every outcome of which
+//! is sound, each argued at its site. A crossing is
 //! passed over once any reading is decided against it. A reading of a
 //! crossing not passed over that lands in the zero band — the path
 //! grazes an arc, runs through an arc's end, or starts on an arc's
@@ -241,6 +244,8 @@ fn parallel<T: Decide>(
     let u = u / u.norm();
     let w = to - centre;
     let phi = w.dot(axis.cross(u)).atan2(w.dot(u));
+    // The way round is a raw pick: either is a path between the same
+    // ends, and the parity is the same on every path.
     CircleArc {
         centre,
         axis: axis * T::one().copysign(phi),
@@ -286,6 +291,13 @@ impl<T: Real> CircleArc<T> {
 }
 
 /// `t` moved by whole turns to the branch of `span`'s middle.
+///
+/// A raw pick, sound whichever way it falls: every span is shorter than a
+/// turn, so a parameter inside it lies within half a span of the middle
+/// and lands on its own branch. Only a parameter half a turn from the
+/// middle is in doubt, and that one is at least half a turn less half
+/// the span outside the span on either branch, which the in-span reading
+/// then decides, or puts in its band where the span nears a whole turn.
 fn branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
     let mid = (lo + hi) * T::from_f64(0.5);
     let tau = T::tau();
@@ -397,11 +409,10 @@ impl<T: Real> LoopArc<T> {
 ///   `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
 ///   on the piece's frame, `D` the piece's centre's offset from the
 ///   plane): at two parameters when `r·√(A² + B²) > |D|`
-///   (**`split_ring_path_meets_plane`**, read as the signed half-chord
-///   `±√|r²(A² + B²) − D²|` in metres, which is linear in the angle the
-///   piece crosses the plane at where `r·√(A² + B²) − |D|` is
-///   quadratic). On the arrival arc, the one
-///   nearer the piece's end is the arrival.
+///   (**`split_ring_path_meets_plane`**, on the gap `r·√(A² + B²) − |D|`
+///   in metres: moving the plane by it flips the meeting). A graze inside
+///   the gap's band escalates, and the caller asks the next path. On the
+///   arrival arc, the root nearer the piece's end is the arrival.
 /// - A segment meets a conic's plane where its ends' offsets from it
 ///   (**`split_ring_path_segment_side`**) differ in sign.
 /// - A ruling meets a circle piece's plane once (it is decided across
@@ -448,18 +459,12 @@ pub(crate) fn path_parity<T: Decide>(
                     let (ca, cb) = (axis.dot(p.u_ref), axis.dot(p.v_ref()));
                     let d = axis.dot(p.centre - centre);
                     let rho = (ca.powi(2) + cb.powi(2)).sqrt();
-                    // The signed half-chord `±√|(rρ)² − D²|`, linear in
-                    // the angle the piece crosses the plane at.
-                    let reach = (p.radius * rho).powi(2) - d.powi(2);
-                    #[cfg(test)]
-                    let margin = if review2_probes::OLD_MARGIN.with(core::cell::Cell::get) {
-                        p.radius * rho - d.abs()
-                    } else {
-                        reach.abs().sqrt().copysign(reach)
-                    };
-                    #[cfg(not(test))]
-                    let margin = reach.abs().sqrt().copysign(reach);
-                    match decide_m("split_ring_path_meets_plane", Margin::of(margin))? {
+                    // The gap `rρ − |D|`: moving the plane by it flips the
+                    // meeting, so it is the deviation the sign rests on.
+                    match decide_m(
+                        "split_ring_path_meets_plane",
+                        Margin::of(p.radius * rho - d.abs()),
+                    )? {
                         Sign::Negative => continue,
                         Sign::Zero => return Ok(None),
                         Sign::Positive => {}
@@ -468,11 +473,11 @@ pub(crate) fn path_parity<T: Decide>(
                     let offset = (-d / (p.radius * rho)).max(-T::one()).min(T::one()).acos();
                     let [r0, r1] = [phase + offset, phase - offset].map(|t| branch(t, p.span));
                     // On the arrival arc, the root nearer the end is the
-                    // arrival; the other is read. The arrival lies on the
-                    // plane up to rounding, and a decided meeting puts the
-                    // two roots at least two half-chords apart (the
-                    // half-chord in the piece's plane is the margin over
-                    // `ρ ≤ 1`), so the nearer one is never in doubt.
+                    // arrival; the other is read. The pick is a raw
+                    // comparison and needs no decision: the arrival lies
+                    // on the plane up to rounding, and a decided gap
+                    // `g ≥ Kε` puts the roots a chord
+                    // `2√((rρ)² − D²)/ρ ≥ 2√(2Kεr)` apart, far past it.
                     let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
                     let roots = if arrival {
                         [nearer.select_le_zero(r1, r0), r1]
@@ -572,7 +577,7 @@ mod cone_path_grid;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-pub(crate) mod review2_probes;
+mod graze_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -631,53 +636,5 @@ mod tests {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod graze_rows {
-    use super::cone_islands::band;
-    use super::*;
-
-    /// **A path grazing a section's plane is read by its half-chord.** A
-    /// great-circle arc of a sphere a million coincidence widths across
-    /// meets the plane of a small
-    /// circle of it whose offset from the arc's farthest reach,
-    /// `r·ρ − |D|`, sits inside the band, while the half-chord it cuts,
-    /// `√((rρ)² − D²)`, is micrometres: the meeting is decided, and the
-    /// arc crosses the loop arc once.
-    #[test]
-    fn a_graze_within_the_band_of_its_gap_is_decided_by_its_half_chord() {
-        let b = band();
-        // A millimetre at the witness ε: the sphere is a million
-        // coincidence widths across.
-        let r = 1e6 * b.zero();
-        let gap = (b.zero() * b.escalate()).sqrt();
-        let half = (r * r - (r - gap) * (r - gap)).sqrt();
-        assert!(
-            half > 10.0 * b.escalate(),
-            "the half-chord {half:e} is decided"
-        );
-        let piece = CircleArc {
-            centre: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: r,
-            u_ref: Vec3::new((-0.5f64).cos(), (-0.5f64).sin(), 0.0),
-            span: (0.0, 1.0),
-        };
-        let path = Path {
-            pieces: vec![Piece::Arc(piece)],
-            arrival: piece.tangent(1.0),
-        };
-        let small = LoopArc::Conic {
-            centre: Point3::new(r - gap, 0.0, 0.0),
-            axis: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
-            a: half,
-            b: half,
-            span: (-1.0, 1.0),
-        };
-        assert_eq!(path_parity(&path, &[small], None, band()), Ok(Some(true)));
     }
 }
