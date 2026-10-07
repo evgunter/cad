@@ -22,7 +22,11 @@
 //!    crossing) is semantically indeterminate and escalates as
 //!    [`ProfileError::TangentialContact`] (D4 ¶3: typed, actionable).
 //!    An in-band line/circle clearance escalates unless the arc's span
-//!    and endpoints certify it clear of the whole line.
+//!    and endpoints certify it clear of the whole line. Where the
+//!    carriers are decided tangent and a span misses the tangency
+//!    point, the pair touches wherever a segment end stands within ε
+//!    of the other segment (`circle_side` or `chord_side`, then its
+//!    span), since such carriers stay within ε for ≈ √(2rε).
 //! 4. **Declared tangency** (the #101 discipline) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
 //!    the same carrier predicates the simplicity pass uses — the
@@ -97,6 +101,7 @@
 //! | `arc_sweep_range` | r·\|Δθ\|·(2π − \|Δθ\|)/2π; a full turn's r·(2π − \|Δθ\|) | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
 //! | `chord_side` | ⟂ distance to chord line | direct |
+//! | `circle_side` | ‖q − c‖ − r | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
 //! | `arc_span` | chordal defect from apex | ×1/cos(θ/4) near full arcs |
 //! | `carrier_line_circle` | r − |h| clearance | tangency: r·φ²/2 |
@@ -758,6 +763,11 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "two points ordered by their y difference, at the exact-order band",
     ),
     (
+        "circle_side",
+        "which side of an arc's carrier circle a point lies on, as its distance from the \
+         centre less the radius",
+    ),
+    (
         "collinear_overlap",
         "the overlap of two collinear segments along their shared carrier",
     ),
@@ -930,6 +940,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "carrier_circles_internal" => "whether two circles touch from inside",
         "carrier_line_circle" => "whether a line and a circle cross, touch or miss",
         "chord_side" => "which side of a chord a point lies on",
+        "circle_side" => "which side of an arc's circle a point lies on",
         "collinear_overlap" => "whether two segments on one line overlap",
         "contact_at_shared_vertex" => "whether a contact point is a loop vertex",
         "line_span" => "whether a point falls inside a segment",

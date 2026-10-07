@@ -632,6 +632,16 @@ fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<(Sign, 
     Ok((decide("chord_side", Margin::of(margin), band)?, margin))
 }
 
+/// **`circle_side`** — which side of an arc's carrier circle a point
+/// lies on. Margin: |q − c| − r (meters; positive = outside).
+fn circle_side<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
+    decide(
+        "circle_side",
+        Margin::of(q.distance(g.arc.centre) - g.arc.radius),
+        band,
+    )
+}
+
 /// **`line_span`** — whether a point *known to lie on the carrier line*
 /// lies within the segment's span. Margin: min(t, L − t) where
 /// t = (q − a)·û is the arc-length parameter (meters along the carrier;
@@ -1026,12 +1036,11 @@ enum Joint {
     Boundary,
 }
 
-/// A point definitely outside either span is no contact, whatever the
-/// other span reads; only then does an indeterminate reading escalate.
-/// Sound where the candidates are the true crossings of the carriers.
-/// A tangency candidate stands for a √(2rε) stretch along which the
-/// carriers stay within ε of each other, so the tangent arms read both
-/// spans definitely before calling it.
+/// A point definitely outside either span is no contact at that point,
+/// whatever the other span reads; only then does an indeterminate
+/// reading escalate. The point stands for a stretch along which the
+/// carriers stay within ε, so its miss leaves the pair's ends to read
+/// ([`end_touches`]).
 fn joint(
     m1: Result<Sign, Indeterminate>,
     m2: Result<Sign, Indeterminate>,
@@ -1159,33 +1168,21 @@ fn line_arc<T: Decide>(
     match carriers {
         Sign::Negative => {}
         Sign::Zero => {
-            // The foot stands for a √(2rε) stretch of near-contact, so
-            // only definite readings of both spans settle it ([`joint`]).
-            let on_line = line_span(line, foot, band)?;
-            let on_arc = arc_span(g, foot, band)?;
-            if let Some(j) = joint(Ok(on_line), Ok(on_arc))? {
-                contacts.push(Contact {
-                    point: foot,
-                    kind: match j {
-                        Joint::Interior => CKind::Tangency,
-                        Joint::Boundary => CKind::Touch,
-                    },
-                });
+            let tangency = (line_span(line, foot, band), arc_span(g, foot, band));
+            if missed(&mut contacts, tangency, foot, CKind::Tangency)? {
+                end_touches(&mut contacts, line, arc, band)?;
             }
         }
         Sign::Positive => {
             let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
+            let mut any_missed = false;
             for t in [tc - half, tc + half] {
                 let q = line.a + line.unit * t;
-                if let Some(j) = joint(line_span(line, q, band), arc_span(g, q, band))? {
-                    contacts.push(Contact {
-                        point: q,
-                        kind: match j {
-                            Joint::Interior => CKind::Crossing,
-                            Joint::Boundary => CKind::Touch,
-                        },
-                    });
-                }
+                let crossing = (line_span(line, q, band), arc_span(g, q, band));
+                any_missed |= missed(&mut contacts, crossing, q, CKind::Crossing)?;
+            }
+            if any_missed {
+                end_touches(&mut contacts, line, arc, band)?;
             }
         }
     }
@@ -1298,7 +1295,10 @@ fn arc_arc<T: Decide>(
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
                     // identity margin, so the division is safe.
                     let q = g1.arc.centre + delta * (g1.arc.radius / d);
-                    push_arc_arc_contact(&mut contacts, g1, g2, q, true, band)?;
+                    let tangency = (arc_span(g1, q, band), arc_span(g2, q, band));
+                    if missed(&mut contacts, tangency, q, CKind::Tangency)? {
+                        end_touches(&mut contacts, s1, s2, band)?;
+                    }
                 }
                 Sign::Negative => {
                     match decide("carrier_circles_internal", Margin::of(d - dr), band)? {
@@ -1311,7 +1311,10 @@ fn arc_arc<T: Decide>(
                             let a =
                                 (d.powi(2) + g1.arc.radius.powi(2) - g2.arc.radius.powi(2)) / two_d;
                             let q = g1.arc.centre + (delta / d) * a;
-                            push_arc_arc_contact(&mut contacts, g1, g2, q, true, band)?;
+                            let tangency = (arc_span(g1, q, band), arc_span(g2, q, band));
+                            if missed(&mut contacts, tangency, q, CKind::Tangency)? {
+                                end_touches(&mut contacts, s1, s2, band)?;
+                            }
                         }
                         Sign::Positive => {
                             // Proper secant: d > |Δr| definitely, so
@@ -1323,8 +1326,13 @@ fn arc_arc<T: Decide>(
                                 (d.powi(2) + g1.arc.radius.powi(2) - g2.arc.radius.powi(2)) / two_d;
                             let h = (g1.arc.radius.powi(2) - a.powi(2)).sqrt();
                             let foot = g1.arc.centre + u * a;
+                            let mut any_missed = false;
                             for q in [foot + n * h, foot - n * h] {
-                                push_arc_arc_contact(&mut contacts, g1, g2, q, false, band)?;
+                                let crossing = (arc_span(g1, q, band), arc_span(g2, q, band));
+                                any_missed |= missed(&mut contacts, crossing, q, CKind::Crossing)?;
+                            }
+                            if any_missed {
+                                end_touches(&mut contacts, s1, s2, band)?;
                             }
                         }
                     }
@@ -1335,36 +1343,90 @@ fn arc_arc<T: Decide>(
     }
 }
 
-/// Span-checks one candidate carrier-intersection point of an arc/arc
-/// pair and pushes the classified contact. `tangent` selects the
-/// interior kind (tangency vs crossing).
-fn push_arc_arc_contact<T: Decide>(
+/// Reads one candidate contact `q` of two carriers from each span's
+/// reading of it ([`joint`]): held by both, it is a contact, of kind
+/// `interior` inside both spans and a touch at an end; in band on
+/// either, it escalates. Returns whether a span definitely missed it,
+/// which settles `q` and nothing more: the caller then asks the
+/// segments' ends ([`end_touches`]).
+fn missed<T: Decide>(
     contacts: &mut Vec<Contact<T>>,
-    g1: &ArcGeom<T>,
-    g2: &ArcGeom<T>,
+    (m1, m2): (Result<Sign, Indeterminate>, Result<Sign, Indeterminate>),
     q: Point2<T>,
-    tangent: bool,
+    interior: CKind,
+) -> Result<bool, Indeterminate> {
+    Ok(match joint(m1, m2)? {
+        None => true,
+        Some(j) => {
+            contacts.push(Contact {
+                point: q,
+                kind: match j {
+                    Joint::Interior => interior,
+                    Joint::Boundary => CKind::Touch,
+                },
+            });
+            false
+        }
+    })
+}
+
+/// The touches of two segments whose carriers meet near a candidate
+/// one span definitely missed: every end of either that touches the
+/// other ([`touches`]).
+///
+/// A candidate stands for a stretch, not a point. Carriers within ε at
+/// a tangency stay within ε for about √(2rε) either side of it, and at
+/// a crossing of angle φ for about ε/sin φ, which exceeds the Kε a span
+/// reading resolves once φ < 1/K. Along either carrier the distance to
+/// the other has one local minimum per candidate and grows away from
+/// it, so the points of each segment within ε of the other carrier form
+/// stretches whose ends inside that zone are segment ends. Two such
+/// stretches meet only where an end of one lies in the other: the pair
+/// touches exactly where an end stands within ε of the other segment,
+/// and is apart where every end is either past that reach or off the
+/// other span.
+fn end_touches<T: Decide>(
+    contacts: &mut Vec<Contact<T>>,
+    s1: &Seg<T>,
+    s2: &Seg<T>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    let (m1, m2) = (arc_span(g1, q, band), arc_span(g2, q, band));
-    // A tangency point stands for a √(2rε) stretch of near-contact, so
-    // only a crossing's definite miss settles it ([`joint`]).
-    let reading = if tangent {
-        joint(Ok(m1?), Ok(m2?))?
-    } else {
-        joint(m1, m2)?
-    };
-    if let Some(j) = reading {
-        contacts.push(Contact {
-            point: q,
-            kind: match (j, tangent) {
-                (Joint::Interior, true) => CKind::Tangency,
-                (Joint::Interior, false) => CKind::Crossing,
-                (Joint::Boundary, _) => CKind::Touch,
-            },
-        });
+    for (host, other) in [(s1, s2), (s2, s1)] {
+        for end in [other.a, other.b] {
+            if touches(host, end, band)? {
+                contacts.push(Contact {
+                    point: end,
+                    kind: CKind::Touch,
+                });
+            }
+        }
     }
     Ok(())
+}
+
+/// Whether the point `p` touches the segment `host`: it lies on the
+/// host's carrier (`chord_side`, or `circle_side` for an arc), and the
+/// host's span holds its projection onto that carrier (`line_span`, or
+/// `arc_span` of its radial projection). A definite answer either way
+/// settles it before an in-band one escalates, as at [`joint`]: a point
+/// off the carrier, or whose projection the span misses, is no touch.
+fn touches<T: Decide>(host: &Seg<T>, p: Point2<T>, band: Band) -> Result<bool, Indeterminate> {
+    let (on, held) = match &host.kind {
+        SegKind::Line => (
+            chord_side(host, p, band).map(|(side, _)| side),
+            line_span(host, p, band),
+        ),
+        SegKind::Arc(g) => {
+            let radial = p - g.arc.centre;
+            let foot = g.arc.centre + radial * (g.arc.radius / radial.norm());
+            (circle_side(g, p, band), arc_span(g, foot, band))
+        }
+    };
+    match (on, held) {
+        (Ok(Sign::Positive | Sign::Negative), _) | (_, Ok(Sign::Negative)) => Ok(false),
+        (Err(source), _) | (_, Err(source)) => Err(source),
+        (Ok(Sign::Zero), Ok(Sign::Zero | Sign::Positive)) => Ok(true),
+    }
 }
 
 /// A grazing ray: the parity question could not be answered definitely

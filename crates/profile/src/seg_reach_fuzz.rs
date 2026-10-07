@@ -1,7 +1,8 @@
-//! **A pair whose carriers are tangent reads no contact only where its
+//! **A pair whose carriers nearly touch reads no contact only where its
 //! segments are apart**: a counterexample search over line × arc and
-//! arc × arc pairs whose carriers lie within ε of tangency, each segment
-//! reaching a few `√(2rε)` either side of the tangency point, against
+//! arc × arc pairs whose carriers lie within ε of tangency or cross at
+//! a shallow angle just past the band, each segment reaching a few
+//! times the stretch along which the carriers stay within ε, against
 //! an independent oracle — the closed-form distance between the two
 //! segments, from their endpoints, their common normals and their
 //! crossings. No pair the oracle puts within ε may read "no contact".
@@ -23,7 +24,7 @@ use geom_core::{Arc2, Band, Decide, Interval, Point2, Tol};
 use test_utils::fuzz;
 
 use crate::Segment;
-use crate::seg::{Consistency, PairOutcome, build_seg, pair_contacts};
+use crate::seg::{Consistency, PairOutcome, SegKind, build_seg, pair_contacts};
 
 type P = (f64, f64);
 
@@ -171,15 +172,23 @@ fn oracle(s1: Shape, s2: Shape) -> f64 {
                 }
             }
         }
-        (Shape::Line { .. }, Shape::Line { .. }) => unreachable!("no line × line draw"),
+        // Two chords: the four endpoint distances, and a crossing.
+        (Shape::Line { a, b }, Shape::Line { a: c, b: d }) => {
+            let side = |p: P, q: P, x: P| (q.0 - p.0) * (x.1 - p.1) - (q.1 - p.1) * (x.0 - p.0);
+            if side(a, b, c) * side(a, b, d) < 0.0 && side(c, d, a) * side(c, d, b) < 0.0 {
+                best = 0.0;
+            }
+        }
     }
     best
 }
 
 /// What the pair pass read.
 enum Read {
-    /// This many contacts (an overlap counts as one).
-    Contacts(usize),
+    /// This many contacts (an overlap counts as one), between the two
+    /// shapes as the build classified them: an arc whose sagitta is
+    /// within ε is its chord.
+    Contacts(usize, Shape, Shape),
     /// An escalation.
     Escalated,
     /// A segment the build refused, which no draw counts.
@@ -198,28 +207,39 @@ fn kernel<T: Decide>(s1: Shape, s2: Shape, band: Band) -> Read {
                 sweep: T::from_f64(sweep),
             }),
         };
-        build_seg(pt(a), pt(b), segment, Consistency::Decide, band).ok()
+        let seg = build_seg(pt(a), pt(b), segment, Consistency::Decide, band).ok()?;
+        let read = match seg.kind {
+            SegKind::Line => Shape::Line { a, b },
+            SegKind::Arc(_) => s,
+        };
+        Some((seg, read))
     };
-    let (Some(seg1), Some(seg2)) = (build(s1), build(s2)) else {
+    let (Some((seg1, read1)), Some((seg2, read2))) = (build(s1), build(s2)) else {
         return Read::Unbuilt;
     };
     match pair_contacts(&seg1, &seg2, band) {
-        Ok(PairOutcome::Contacts(contacts)) => Read::Contacts(contacts.len()),
-        Ok(PairOutcome::Overlap) => Read::Contacts(1),
+        Ok(PairOutcome::Contacts(contacts)) => Read::Contacts(contacts.len(), read1, read2),
+        Ok(PairOutcome::Overlap) => Read::Contacts(1, read1, read2),
         Err(_) => Read::Escalated,
     }
 }
 
 /// One draw: a circle, and a line or a second circle tangent to it to
-/// within ε (externally or internally), each segment reaching up to
-/// four `√(2rε)` either side of the tangency point.
+/// within ε, or cutting it by 1.5 to 6 Kε (externally or internally),
+/// each segment reaching up to four times the near stretch either side
+/// of the closest point.
 fn draw(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
     let c = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
     let r = 10f64.powf(rng.range(-1.0, 0.5));
     let toward = rng.range(0.0, TAU);
-    let gap = eps * rng.range(-0.95, 0.95);
+    // Tangent within ε, or secant past the band at a shallow angle.
+    let gap = if rng.unit() < 0.5 {
+        eps * rng.range(-0.95, 0.95)
+    } else {
+        -k * eps * rng.range(1.5, 6.0)
+    };
     let tangency = at(c, r, toward);
-    let reach = (2.0 * r * eps).sqrt().max(k * eps);
+    let reach = (2.0 * r * (eps - gap)).sqrt().max(k * eps);
     // An arc on the first circle around the tangency point.
     let arc_near = |rng: &mut fuzz::Rng, c: P, r: f64, toward: f64| {
         let from = toward + rng.range(-4.0, 4.0) * reach / r;
@@ -279,7 +299,7 @@ fn sweep<T: Decide>(rng: &mut fuzz::Rng, n: usize) -> (Vec<String>, usize) {
     for _ in 0..n {
         let (s1, s2) = draw(rng, t.eps, t.k);
         match kernel::<T>(s1, s2, band) {
-            Read::Contacts(0) => {
+            Read::Contacts(0, s1, s2) => {
                 let d = oracle(s1, s2);
                 if d <= t.eps {
                     wrong.push(format!(
@@ -288,7 +308,7 @@ fn sweep<T: Decide>(rng: &mut fuzz::Rng, n: usize) -> (Vec<String>, usize) {
                     ));
                 }
             }
-            Read::Contacts(_) | Read::Unbuilt => {}
+            Read::Contacts(..) | Read::Unbuilt => {}
             Read::Escalated => escalated += 1,
         }
     }
