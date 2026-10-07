@@ -252,29 +252,50 @@ fn plane_section_across_a_revolve_seam_is_an_annulus() {
 
 /// **A plane whose section touches a rim splits at the closed form.**
 /// The tube about y, cut by planes leaning `t = 0.2` whose outer
-/// ellipse touches the top rim (or the bottom one) at one point: at the
-/// seam vertex itself (azimuth 0), where the whole conic's one corner
-/// is also a vertex of the cap, and at two rim points between vertices.
-/// The plane stays inside the band of the tube elsewhere, so the cap's
-/// side holds `A·tan t` of the annulus `A = 3π/4`. On main every pose
-/// refuses, `DegenerateSection` at the seam vertex and
-/// `Finish(Corrupt)` at the others.
+/// ellipse touches the top rim (or the bottom one) at one point `P`:
+/// at the seam vertex itself (azimuth 0), where the whole conic's one
+/// corner is also a vertex of the cap, and at rim points between
+/// vertices. The plane stays inside the band of the tube elsewhere, so
+/// the cap's side holds `A·tan t` of the annulus `A = 3π/4`.
+///
+/// The rim reaches the plane at `R − |D| = 0` exactly, so its one
+/// root is the sinusoid's extremum, and each half has its vertex on
+/// `P`. Where `−D/R` rounds off ±1 its `acos` lands √-scale (1e-8
+/// rad) away from `P`: `RESIDUE_OFF_P` are azimuths where a root read
+/// there escalates `split_conic_departure` (5.9e-9 at 0.3) at the
+/// default ε.
 #[test]
 fn a_section_touching_a_rim_splits_at_the_closed_form() {
+    const RESIDUE_OFF_P: [f64; 6] = [
+        0.3,
+        PI * 6.0 / 32.0,
+        PI * 29.0 / 32.0 + 0.01,
+        PI * 42.0 / 32.0,
+        PI * 47.0 / 32.0 + 0.01,
+        PI * 58.0 / 32.0,
+    ];
     let t = 0.2f64;
     let (whole, cap_side) = (0.75 * PI, 0.75 * PI * t.tan());
     let tube = revolved(SketchPlane::xy(), &TUBE);
     let y = Vec3::new(0.0, 1.0, 0.0);
-    for az in [0.0, 0.5 * PI, PI] {
+    for az in [0.0, 0.5 * PI, PI].into_iter().chain(RESIDUE_OFF_P) {
         let d = Vec3::new(az.cos(), 0.0, az.sin());
         // Top rim: the cap's side is above; bottom rim: below.
         for (rim, lean) in [(1.0, 1.0), (0.0, -1.0)] {
             let n = y * t.cos() - d * (t.sin() * lean);
+            let p = Point3::new(d.x, rim, d.z);
             for s in [1.0, -1.0] {
                 let label = format!("rim {rim}, azimuth {az}, s = {s}");
-                let plane =
-                    topo::test_support::split_plane(Point3::new(d.x, rim, d.z), n * s, tol());
-                let [below, above] = halves_at_rest(&label, &tube, &plane).map(|h| volume(&h));
+                let plane = topo::test_support::split_plane(p, n * s, tol());
+                let halves = halves_at_rest(&label, &tube, &plane);
+                for (side, h) in ["below", "above"].iter().zip(&halves) {
+                    let on_p = h
+                        .vertices()
+                        .filter(|(_, v)| h.get_point(v.point).unwrap().distance(p) <= tol().eps())
+                        .count();
+                    assert_eq!(on_p, 1, "{label} {side}: one vertex on the touch point");
+                }
+                let [below, above] = halves.map(|h| volume(&h));
                 let cap = if (rim == 1.0) == (s > 0.0) {
                     above
                 } else {

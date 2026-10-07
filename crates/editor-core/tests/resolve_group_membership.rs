@@ -653,7 +653,7 @@ const TOP: RoleSeg = RoleSeg::Cap(editor_core::CapEnd::End);
 fn rim(doc: &ProfileDoc, plate: RecipeNodeId, segment: u32) -> RoleSeg {
     RoleSeg::RimEdge(
         editor_core::CapEnd::End,
-        crate::fixture::piece(doc, plate, 0, segment as usize),
+        crate::fixture::piece(doc, plate, 0, segment as usize).into(),
     )
 }
 

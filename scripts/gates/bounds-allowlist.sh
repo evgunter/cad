@@ -616,6 +616,16 @@ BOUNDS_ALLOWLIST=(
   # arm, reading brackets only where `ring_clearance`, `piece_along` and
   # `boxed_reach` already do, as `support_boundary_clearance` does.
   'crates/sweep/src/blend/surgery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # reach.rs 9 -> 14: `sign` decides a reference point's side of a
+  # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
+  # where not), replacing the self-division `x/|x|` that gave the
+  # poison interval at a zero; `side`, `half_space` and `sheet_fn` are
+  # the bound constructors that call it (the last picks either sign of
+  # a plane by decision, both enclosing); `screened` is the reach's
+  # check of the support screen's premise, one bracket of a strip bound
+  # against `escalate`, as `Least::read` reads a cell's. Each decides
+  # only the meter's own question, and refuses loudly or not at all.
+  'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
   # cut-off both open bands end in left `ruled.rs` for its own file when
   # the plane–plane band took it too — the sliver meter's two
@@ -702,6 +712,7 @@ BOUNDS_ALLOWLIST=(
   # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
   # code over the C10 tree, under the driver amendment like `separation`.
   'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides

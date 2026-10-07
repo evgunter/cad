@@ -186,7 +186,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
                 node: cube,
                 path: vec![RoleSeg::RimEdge(
                     CapEnd::End,
-                    crate::fixture::piece(&doc, cube, 0, 0),
+                    crate::fixture::piece(&doc, cube, 0, 0).into(),
                 )],
             }
             .into(),
