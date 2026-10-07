@@ -104,3 +104,62 @@ the unit test pins it.
   `three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed`
   (`three`, `tripod`) passes on both.
 - refusal → `BAD`: 0. `SOUND` → refusal: 0.
+
+## Fix pass (PR 4274's dual review)
+
+**MAJOR (r1 M1): a strut chain left at a shared vertex reached the
+In/Out-end invariant.** The pose is `wedge343×wedge330` with a cube
+pinched on the posed corner, `ba` U and S, at 42 of 48 cube poses.
+- **What the trace showed.** The reconcile turns both fans of the
+  eight-crossing pair. That leaves its strut chain `[2,5] ⊃ [3,4]` at
+  the shared vertex, and the cube's strut nests in both struts
+  (`holds_whole`).
+- **Why it broke.** `mint_plans` sorted held runs after every unheld
+  one. So `[3,4]`, held only by a strut, minted after the cube's strut.
+  The cube's strut then hung at the tip of `[2,5]`, the only holder
+  hung so far, and that tip took both an In end and an Out end.
+- **The arcs were right; the mint order was wrong.** A run that only
+  struts hold mints at the plan's own vertex. So it now sorts among
+  that vertex's struts by its geometric nesting depth, which already
+  counts its own strut holders. A run that a fan holds keeps sorting
+  after its holders, at the fan's copy.
+- **The 84 lines now build `SOUND`**, each with one vertex per cone on
+  one key, and each meshes.
+- **The `mint_plans` comment (r1 S2) was false**, and is rewritten. The
+  reconcile clears a holding fan of every other pair's cut, but a
+  holding strut may nest another pair's strut (`held_cut` leaves nested
+  struts to `holds_whole`).
+
+**Pins.** `a_strut_chain_at_a_shared_vertex_nests_another_pairs_strut_and_depth_three_hangs`
+covers two wedge poses:
+- `t=0 a=0 k=0` is the M1 pose;
+- `t=2 a=3 k=0` has the depth-3 chain fan ⊃ fan ⊃ strut ⊃ strut, with
+  `by_strut` set.
+
+Four mutants each turn it red: restoring the old sort key, and three
+confined to `hang_at_shared` (`depth1`, `nostrut`, `outer`). r1's probe
+is kept as `eight_crossings_with_a_pinched_cube_battery`.
+
+**MINORs and style.**
+- `arc_holders` returns which refusal fired (`ArcRefusal::Crossing`,
+  `ArcRefusal::Cover`). `b_runs` maps a crossing to `PairingMismatch`.
+  `hang_at_shared` maps a cover to `SharedVertexCrossings`, documented
+  as a backstop no known pose reaches, and a crossing to
+  `ClassificationInvariant`, since a turn keeps a run's ends.
+- `NullPlan::walk_len` carries the walk's length, asserted equal to
+  `2 * runs.len()` in `hang_at_shared`.
+- A `debug_assert` checks that every run's holders nest.
+
+**Re-measured** (release, main `7266fa33` vs this branch's head):
+
+| battery | moved | moves |
+|---|---|---|
+| `pinch_runs_battery` | 102 | `SharedVertexCrossings` → `SOUND` |
+| `four_pairs_battery` | 307 | → `SOUND` 182, → `PinchConesOnSeparateKeys` 120, → `SharedVertexCrossings` 5 |
+| `eight_crossings_with_a_pinched_cube_battery` (r1's probe) | 276 | → `SOUND` 276, all one vertex per cone on one key |
+| r2's `many_pairs`, 4 cubes | 61 | → `SOUND` 50, → `PinchConesOnSeparateKeys` 10, → `SharedVertexCrossings` 1 |
+| r2's `many_pairs`, 5 cubes | 1 | → `SOUND` 1 |
+| `corner_pairs_battery` | 0 | byte-identical |
+
+→ `ClassificationInvariant`: 0. refusal → `BAD`: 0; the `BAD` lines
+(24, 8 and 287) are byte-identical on main.
