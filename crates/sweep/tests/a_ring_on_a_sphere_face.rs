@@ -17,11 +17,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_y, ball_poled_z, brick, finished};
 use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+
+use crate::common::oracles::{ball_volume, lens_volume};
 
 /// A box `[x0, x1] × [y0, y1] × [z0, z1]`.
 type Bounds = [(f64, f64); 3];
@@ -61,108 +63,13 @@ fn ball_z(r: f64, c: Vec3<f64>, tilt: f64, turn: f64) -> AtRestBody<f64> {
     placed(at, turn * tilt, c)
 }
 
-/// The area of the disc of radius `rho` at the origin left of `x` and
-/// below `y`: `∫ (clamp(y, −s, s) + s) dX` over `X < x`, `s = √(ρ² − X²)`,
-/// in closed form on the pieces where the clamp is fixed.
-fn quadrant(rho: f64, x: f64, y: f64) -> f64 {
-    let s = |t: f64| (rho * rho - t * t).max(0.0).sqrt();
-    // `∫_{−ρ}^{t} s`.
-    let arc = |t: f64| {
-        let t = t.clamp(-rho, rho);
-        0.5 * (t * s(t) + rho * rho * (t / rho).asin()) + 0.25 * PI * rho * rho
-    };
-    let x = x.clamp(-rho, rho);
-    let a = s(y);
-    // Inside `|X| < a` the clamp is `y`; outside it is `s` (above the
-    // chord) or `−s` (below it).
-    let inner = |lo: f64, hi: f64| {
-        let (lo, hi) = (lo.max(-a), hi.min(a));
-        if hi > lo {
-            y * (hi - lo) + arc(hi) - arc(lo)
-        } else {
-            0.0
-        }
-    };
-    let outer = |lo: f64, hi: f64| {
-        if y < 0.0 {
-            return 0.0;
-        }
-        let mut total = 0.0;
-        for (p, q) in [(-rho, -a), (a, rho)] {
-            let (p, q) = (p.max(lo), q.min(hi));
-            if q > p {
-                total += 2.0 * (arc(q) - arc(p));
-            }
-        }
-        total
-    };
-    inner(-rho, x) + outer(-rho, x)
-}
-
-/// The area of the disc of radius `rho` centred `(cx, cy)` inside the
-/// rectangle `[x0, x1] × [y0, y1]`.
-fn disc_in_rect(rho: f64, (cx, cy): (f64, f64), (x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
-    let f = |x: f64, y: f64| quadrant(rho, x - cx, y - cy);
-    f(x1, y1) - f(x0, y1) - f(x1, y0) + f(x0, y0)
-}
-
-/// Adaptive Simpson on `[a, b]`.
-fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
-    /// One panel `(a, b)`, its end and middle values, and its estimate.
-    fn step(
-        f: &dyn Fn(f64) -> f64,
-        (a, b): (f64, f64),
-        (fa, fm, fb): (f64, f64, f64),
-        whole: f64,
-        depth: u32,
-    ) -> f64 {
-        let (m, h) = (0.5 * (a + b), b - a);
-        let (flm, frm) = (f(0.5 * (a + m)), f(0.5 * (m + b)));
-        let left = h / 12.0 * (fa + 4.0 * flm + fm);
-        let right = h / 12.0 * (fm + 4.0 * frm + fb);
-        if depth == 0 || (left + right - whole).abs() <= 1e-15 {
-            return left + right + (left + right - whole) / 15.0;
-        }
-        step(f, (a, m), (fa, flm, fm), left, depth - 1)
-            + step(f, (m, b), (fm, frm, fb), right, depth - 1)
-    }
-    let (fa, fm, fb) = (f(a), f(0.5 * (a + b)), f(b));
-    step(
-        f,
-        (a, b),
-        (fa, fm, fb),
-        (b - a) / 6.0 * (fa + 4.0 * fm + fb),
-        40,
-    )
-}
-
-/// The volume the ball `(r, c)` shares with the box `b`: the stack of
-/// its slices' disc-in-rectangle areas over height.
+/// The volume the ball `(r, c)` shares with the box `b`.
 fn ball_in_box(r: f64, c: Vec3<f64>, b: Bounds) -> f64 {
-    let (lo, hi) = ((c.z - r).max(b[2].0), (c.z + r).min(b[2].1));
-    if hi <= lo {
-        return 0.0;
-    }
-    let area = |z: f64| {
-        let rho = (r * r - (z - c.z).powi(2)).max(0.0).sqrt();
-        disc_in_rect(rho, (c.x, c.y), b[0], b[1])
-    };
-    simpson(&area, lo, hi)
-}
-
-fn ball_volume(r: f64) -> f64 {
-    4.0 / 3.0 * PI * r.powi(3)
+    crate::common::oracles::ball_in_box(r, (c.x, c.y, c.z), b)
 }
 
 fn box_volume(b: Bounds) -> f64 {
     b.iter().map(|(lo, hi)| hi - lo).product()
-}
-
-/// The lens two balls `r1`, `r2` at centre distance `d` share.
-fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
-    let cap = |r: f64, h: f64| PI * h * h * (3.0 * r - h) / 3.0;
-    let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
-    cap(r1, r1 - x) + cap(r2, r2 - (d - x))
 }
 
 /// What one op yields: a body at this volume, or the result gate's
@@ -170,11 +77,16 @@ fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
 #[derive(Clone, Copy, Debug)]
 enum Want {
     Body(f64),
+    /// A body in two lumps at this volume, which tier 3′ cannot census:
+    /// its lumps' curved faces are within reach of each other
+    /// (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+    TwoLumps(f64),
     RingedSphere,
 }
 
 /// `a ∪ b`, `b ∪ a`, `a ∖ b`, `b ∖ a`, `a ∩ b`, `b ∩ a` against `wants`,
-/// in that order. A body holds tiers 3 and 3′ and its volume.
+/// in that order. A body holds tier 3 and its volume, and tier 3′ or the
+/// census refusal [`Want::TwoLumps`] names.
 fn assert_six(pose: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, wants: [Want; 6]) {
     let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
     let ops = [
@@ -188,11 +100,22 @@ fn assert_six(pose: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, wants: [Want
     for ((op, out), want) in ops.into_iter().zip(wants) {
         let label = format!("{pose}, {op}");
         match (out, want) {
-            (Ok(BooleanResult::Body(bb)), Want::Body(volume)) => {
+            (Ok(BooleanResult::Body(bb)), Want::Body(volume) | Want::TwoLumps(volume)) => {
                 topo::validate_geometric(&bb.body, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
-                    .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+                let census = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol);
+                if let Want::TwoLumps(_) = want {
+                    assert_eq!(bb.body.shells().count(), 2, "{label}: two lumps");
+                    assert!(
+                        matches!(&census, Err(errors) if errors.iter().all(|e| matches!(
+                            e,
+                            topo::ValidationError::CensusUndecidable { .. }
+                        ))),
+                        "{label}: tier 3′ wanted the census refusal, got {census:?}"
+                    );
+                } else {
+                    census.unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+                }
                 let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
                 assert!(
                     (v - volume).abs() <= 1e-9 * volume.max(1.0),
@@ -421,6 +344,54 @@ fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
             ),
             "the well, {op}: wanted the role read's refusal, got {:?}",
             out.map(|_| "a body")
+        );
+    }
+}
+
+/// A `y`-poled ball of radius `r` at `c`, its poles turned onto `pole`.
+fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> AtRestBody<f64> {
+    let at = ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), Tol::witness());
+    let (y, n) = (Vec3::new(0.0, 1.0, 0.0), pole.normalize());
+    let axis = y.cross(n);
+    let turn = Affine3::rotation_about_axis(Point3::origin(), axis.normalize(), y.dot(n).acos());
+    placed(at, turn, c)
+}
+
+/// **A ring re-homed where every vertex of the old face's outer loop is
+/// on the run** reads its side from an edge midpoint of that loop. A
+/// bar through the unit ball, and a box over a corner of it, each with
+/// the ball's poles turned off every axis: the old face's outer loop is
+/// all copies of run vertices, so a path to any of its vertices ends on
+/// the run and says nothing. Box ∖ ball is two lumps.
+#[test]
+fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
+    let o = Vec3::new(0.0, 0.0, 0.0);
+    for (pose, bounds, pole) in [
+        (
+            "the bar",
+            [(-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4)],
+            Vec3::new(-0.6, 0.2, 0.77),
+        ),
+        (
+            "the corner box",
+            [(-0.624, 1.233), (-0.563, 0.347), (-0.792, -0.239)],
+            Vec3::new(0.636, -0.720, -0.279),
+        ),
+    ] {
+        let shared = ball_in_box(1.0, o, bounds);
+        let (ring, common) = (Want::RingedSphere, Want::Body(shared));
+        assert_six(
+            pose,
+            &boxed(bounds),
+            &ball_poled(1.0, o, pole),
+            [
+                ring,
+                ring,
+                Want::TwoLumps(box_volume(bounds) - shared),
+                ring,
+                common,
+                common,
+            ],
         );
     }
 }

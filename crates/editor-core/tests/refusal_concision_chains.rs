@@ -1604,8 +1604,8 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "RingOffCylinderChart",
-                J::RingOffCylinderChart {
+                "RingIslandUnread",
+                J::RingIslandUnread {
                     face,
                     kind: geom::SurfaceKind::Cone,
                 },

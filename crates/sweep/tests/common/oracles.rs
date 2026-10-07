@@ -1,5 +1,5 @@
-//! **Closed-form volumes the blend, chamfer and shell suites meter
-//! against** — derived here from the geometry, never from the kernel,
+//! **Closed-form volumes the blend, chamfer, shell and sphere suites
+//! meter against** — derived here from the geometry, never from the kernel,
 //! so a carve and its expectation cannot be wrong together.
 //!
 //! **The rule for what belongs here, and it is checkable by reading:**
@@ -230,4 +230,110 @@ pub fn eroded_bulge_loop(verts: &[(f64, f64, f64)], t: f64) -> Vec<(f64, f64, f6
             (a.0, a.1, bulge)
         })
         .collect()
+}
+
+/// The volume of a spherical cap of height `h` on a sphere of radius
+/// `r`.
+pub fn cap_volume(r: f64, h: f64) -> f64 {
+    PI * h.powi(2) * (3.0 * r - h) / 3.0
+}
+
+/// The lens two balls `r1`, `r2` at centre distance `d` share.
+pub fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
+    let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
+    cap_volume(r1, r1 - x) + cap_volume(r2, r2 - (d - x))
+}
+
+/// The area of the disc of radius `rho` at the origin left of `x` and
+/// below `y`: `∫ (clamp(y, −s, s) + s) dX` over `X < x`, `s = √(ρ² − X²)`,
+/// in closed form on the pieces where the clamp is fixed.
+fn quadrant(rho: f64, x: f64, y: f64) -> f64 {
+    let s = |t: f64| (rho * rho - t * t).max(0.0).sqrt();
+    // `∫_{−ρ}^{t} s`.
+    let arc = |t: f64| {
+        let t = t.clamp(-rho, rho);
+        0.5 * (t * s(t) + rho * rho * (t / rho).asin()) + 0.25 * PI * rho * rho
+    };
+    let x = x.clamp(-rho, rho);
+    let a = s(y);
+    // Inside `|X| < a` the clamp is `y`; outside it is `s` (above the
+    // chord) or `−s` (below it).
+    let inner = |lo: f64, hi: f64| {
+        let (lo, hi) = (lo.max(-a), hi.min(a));
+        if hi > lo {
+            y * (hi - lo) + arc(hi) - arc(lo)
+        } else {
+            0.0
+        }
+    };
+    let outer = |lo: f64, hi: f64| {
+        if y < 0.0 {
+            return 0.0;
+        }
+        let mut total = 0.0;
+        for (p, q) in [(-rho, -a), (a, rho)] {
+            let (p, q) = (p.max(lo), q.min(hi));
+            if q > p {
+                total += 2.0 * (arc(q) - arc(p));
+            }
+        }
+        total
+    };
+    inner(-rho, x) + outer(-rho, x)
+}
+
+/// The area of the disc of radius `rho` centred `(cx, cy)` inside the
+/// rectangle `[x0, x1] × [y0, y1]`.
+fn disc_in_rect(rho: f64, (cx, cy): (f64, f64), (x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
+    let f = |x: f64, y: f64| quadrant(rho, x - cx, y - cy);
+    f(x1, y1) - f(x0, y1) - f(x1, y0) + f(x0, y0)
+}
+
+/// Adaptive Simpson on `[a, b]`.
+fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
+    /// One panel `(a, b)`, its end and middle values, and its estimate.
+    fn step(
+        f: &dyn Fn(f64) -> f64,
+        (a, b): (f64, f64),
+        (fa, fm, fb): (f64, f64, f64),
+        whole: f64,
+        depth: u32,
+    ) -> f64 {
+        let (m, h) = (0.5 * (a + b), b - a);
+        let (flm, frm) = (f(0.5 * (a + m)), f(0.5 * (m + b)));
+        let left = h / 12.0 * (fa + 4.0 * flm + fm);
+        let right = h / 12.0 * (fm + 4.0 * frm + fb);
+        if depth == 0 || (left + right - whole).abs() <= 1e-15 {
+            return left + right + (left + right - whole) / 15.0;
+        }
+        step(f, (a, m), (fa, flm, fm), left, depth - 1)
+            + step(f, (m, b), (fm, frm, fb), right, depth - 1)
+    }
+    let (fa, fm, fb) = (f(a), f(0.5 * (a + b)), f(b));
+    step(
+        f,
+        (a, b),
+        (fa, fm, fb),
+        (b - a) / 6.0 * (fa + 4.0 * fm + fb),
+        40,
+    )
+}
+
+/// The volume the ball `(r, c)` shares with the box `b`: the stack of
+/// its slices' disc-in-rectangle areas over height.
+pub fn ball_in_box(r: f64, c: (f64, f64, f64), b: [(f64, f64); 3]) -> f64 {
+    let (lo, hi) = ((c.2 - r).max(b[2].0), (c.2 + r).min(b[2].1));
+    if hi <= lo {
+        return 0.0;
+    }
+    let area = |z: f64| {
+        let rho = (r * r - (z - c.2).powi(2)).max(0.0).sqrt();
+        disc_in_rect(rho, (c.0, c.1), b[0], b[1])
+    };
+    simpson(&area, lo, hi)
+}
+
+/// The volume of a ball of radius `r`.
+pub fn ball_volume(r: f64) -> f64 {
+    4.0 / 3.0 * PI * r.powi(3)
 }
