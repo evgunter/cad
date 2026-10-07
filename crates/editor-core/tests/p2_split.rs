@@ -468,7 +468,7 @@ fn host_of(p: &Parts, sub: ProfileDoc, label: &str) -> (ProfileDoc, PartStore, [
 fn minted_gauge(doc: &ProfileDoc, out: &InlineOutcome) -> RecipeNodeId {
     let fresh: Vec<RecipeNodeId> = out
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(out.doc.node(id), Some(Node::Gauge { .. })))
@@ -757,7 +757,10 @@ fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
     let out = inline(&stated, i, &store);
     assert_eq!(
         offset_of(&out.doc, out.node_map[&part_base]),
-        Some(editor_core::test_support::stored_placement(&checked)),
+        Some(editor_core::test_support::stored_placement(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &checked
+        )),
         "the root carries the checked offset"
     );
 
@@ -793,6 +796,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
         DocEdit::SetOffset {
             instance: part_base,
             offset: Some(literal([1.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let mut shifted_store = store.clone();
@@ -995,13 +999,13 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
     let (chain, k2) = insert(doc.clone(), Node::gauge(Some(k), literal([0.0, 1.0, 0.0])));
     let (block, _) = crate::p2_gauges::block("no-material-datum", 2.0, 1.0);
     let frame = *block
-        .order()
+        .ids()
         .iter()
         .find(|&&id| matches!(block.node(id), Some(Node::Datum(_))))
         .expect("the block's frame");
     let (with_datum, spare) = insert(
         block.clone(),
-        block.node(frame).map(Node::authored).expect("live"),
+        block.node(frame).map(|n| n.written(&block)).expect("live"),
     );
     for (doc, ids, first, what) in [
         (&doc, vec![k], k, "a bare gauge"),
@@ -1116,7 +1120,7 @@ fn r1_the_comparator_reads_every_field() {
     // A variant's ids, read by position: the scenes insert alike.
     let by_position = |b: &ProfileDoc| {
         let live = |d: &ProfileDoc| -> Vec<RecipeNodeId> {
-            d.order()
+            d.ids()
                 .iter()
                 .copied()
                 .filter(|&id| d.node(id).is_some())
@@ -1322,7 +1326,7 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
     };
     let plain = || -> Scene {
         let (doc, _) = crate::p2_gauges::block("r1-plain", 2.0, 1.0);
-        let all = doc.order().to_vec();
+        let all = doc.ids().to_vec();
         (doc, all)
     };
     let scenes: [(&str, &dyn Fn() -> Scene); 9] = [

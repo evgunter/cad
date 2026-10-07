@@ -21,7 +21,7 @@ fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
 }
 
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -120,6 +120,7 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
         &d.doc,
         &DocEdit::InsertNode {
             node: Box::new(raw),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -205,6 +206,7 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
                 node: shell,
                 slot: SlotId::ShellThickness,
                 expr: fixture::len(t),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

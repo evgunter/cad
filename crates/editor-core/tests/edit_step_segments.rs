@@ -938,6 +938,7 @@ fn a_reauthored_section_is_answered_after_a_memoized_reevaluation() {
             node: ids[1],
             loops,
             ids: fresh,
+            fresh: Vec::new(),
         },
     );
     let ea = run(&a);
@@ -1640,7 +1641,8 @@ fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], wan
     let mut answered = BTreeSet::new();
     for (k, ((e, expr), want)) in answer.iter().zip(&exprs).enumerate() {
         assert_eq!(
-            *expr, want,
+            written(&doc, **expr),
+            *want,
             "{id}: the edges are answered in program-step order, so pair {k} carries \
              arc {k}'s own expression"
         );
@@ -1752,7 +1754,8 @@ fn a_carrier_loop_is_answered_at_every_edge() {
     );
     for (_, expr) in &answer {
         assert_eq!(
-            **expr, radius,
+            written(&doc, **expr),
+            radius,
             "every edge carries the loop's own expression"
         );
     }
@@ -1899,7 +1902,11 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
     let [(edge, expr)] = answer[..] else {
         panic!("one radius, one arc, one pair — got {answer:?}");
     };
-    assert_eq!(*expr, radius, "the pair carries the fillet's own spelling");
+    assert_eq!(
+        written(&doc, *expr),
+        radius,
+        "the pair carries the fillet's own spelling"
+    );
     let emitter = emitter_of(&r, edge.segment);
     assert_ne!(
         emitter, 4,
@@ -1922,10 +1929,14 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         (got - 0.5).abs() < 1e-9,
         "and that wall is a cylinder at the authored radius, not {got}"
     );
-    let attached: Vec<&editor_core::Expr> = pv.edge_radii[0].iter().flatten().collect();
+    let attached: Vec<editor_core::Expr> = pv.edge_radii[0]
+        .iter()
+        .flatten()
+        .map(|v| written(&doc, *v))
+        .collect();
     assert_eq!(
         attached,
-        vec![&radius],
+        vec![radius.clone()],
         "the attach carries it too, on exactly one canonical segment"
     );
 }
@@ -2004,7 +2015,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
     let [(edge, expr)] = answer[..] else {
         panic!("one of the step's two arcs was drawn by a radius — got {answer:?}");
     };
-    assert_eq!(*expr, radius);
+    assert_eq!(written(&doc, *expr), radius);
     let emitter = emitter_of(&r, edge.segment);
     assert!(
         r.structure.replay[0].steps[emitter].len() > 1,
@@ -2297,7 +2308,11 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
     assert_eq!(answer.len(), 2, "{id}: two arc steps, two answers");
     let radii = [1.0, 0.25];
     for (k, ((e, expr), want)) in answer.iter().zip(&exprs).enumerate() {
-        assert_eq!(*expr, want, "{id}: pair {k} carries arc {k}'s expression");
+        assert_eq!(
+            written(&doc, **expr),
+            *want,
+            "{id}: pair {k} carries arc {k}'s expression"
+        );
         let got = wall_radius(&ev, ext, &pv.pieces, *e)
             .unwrap_or_else(|| panic!("{id}: {e:?} names no cylindrical wall"));
         assert!(
@@ -2314,7 +2329,11 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
         let wall = wall_radius(&ev, ext, &pv.pieces, e);
         match (slot, wall) {
             (Some(expr), Some(got)) => {
-                let want = if *expr == exprs[0] { 1.0 } else { 0.25 };
+                let want = if written(&doc, *expr) == exprs[0] {
+                    1.0
+                } else {
+                    0.25
+                };
                 assert!(
                     (got - want).abs() < 1e-9,
                     "{id}: canonical segment {j} carries {expr:?} and its wall stores {got}"
@@ -2397,7 +2416,7 @@ fn every_attached_radius_was_keyed_first() {
                     anchor.len,
                     "{name}: canonical loop {ci} has one slot per segment"
                 );
-                let fed: Vec<&editor_core::Expr> = program.loops[anchor.program_loop as usize]
+                let fed: Vec<&editor_core::VarId> = program.loops[anchor.program_loop as usize]
                     .step_radii()
                     .into_iter()
                     .map(|(_, e)| e)
@@ -2411,7 +2430,7 @@ fn every_attached_radius_was_keyed_first() {
                     );
                 }
             }
-            let attached_here: Vec<&editor_core::Expr> =
+            let attached_here: Vec<&editor_core::VarId> =
                 pv.edge_radii.iter().flatten().flatten().collect();
             for lp in &program.loops {
                 for (_, e) in lp.step_radii() {
@@ -2532,6 +2551,7 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
                     loops: vec![head(closer.clone())],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             tol(),
             &editor_core::RefusingReach,
@@ -2647,13 +2667,14 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
                     loops: vec![program],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             tol(),
             &editor_core::RefusingReach,
         )
         .expect("a fused step over a bulge spec is authorable and replays");
     let doc = applied.doc;
-    let profile = *doc.order().last().expect("the inserted profile node");
+    let profile = *doc.ids().last().expect("the inserted profile node");
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
@@ -2681,7 +2702,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
     let [(edge, expr)] = answer[..] else {
         panic!("the step's one radius drew one arc — got {answer:?}");
     };
-    assert_eq!(*expr, radius);
+    assert_eq!(written(&doc, *expr), radius);
     assert_ne!(
         emitter_of(&r, edge.segment),
         1,
@@ -2694,8 +2715,12 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         "the answered wall is the fillet arc's, at its own radius, not {got}"
     );
     assert_eq!(
-        pv.edge_radii[0].iter().flatten().collect::<Vec<_>>(),
-        vec![&radius],
+        pv.edge_radii[0]
+            .iter()
+            .flatten()
+            .map(|v| written(&doc, *v))
+            .collect::<Vec<_>>(),
+        vec![radius.clone()],
         "the attach carries exactly that one: {:?}",
         pv.edge_radii[0]
     );
@@ -2865,7 +2890,7 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
     let [(edge, expr)] = answer[..] else {
         panic!("{id}: one binder, one arc, one pair — got {answer:?}");
     };
-    assert_eq!(*expr, radius);
+    assert_eq!(written(&row.doc, *expr), radius);
     assert_ne!(
         emitter_of(&r, edge.segment),
         3,
@@ -2883,7 +2908,7 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
         match (slot, wall_radius(&row.ev, row.ext, &pv.pieces, e)) {
             (Some(expr), Some(got)) => {
                 cylinders += 1;
-                assert_eq!(*expr, radius);
+                assert_eq!(written(&row.doc, *expr), radius);
                 assert!((got - 0.5).abs() < 1e-9, "{id}: canonical {j} stores {got}");
             }
             (None, None) => {}
@@ -2952,7 +2977,7 @@ fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
     let [(edge, expr)] = answer[..] else {
         panic!("one radius — got {answer:?}");
     };
-    assert_eq!(*expr, radius);
+    assert_eq!(written(&row.doc, *expr), radius);
     let got = wall_radius(&row.ev, row.ext, &pv.pieces, edge)
         .unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
     assert!(
@@ -3029,7 +3054,7 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
     let [(edge, expr)] = answer[..] else {
         panic!("one radius — got {answer:?}");
     };
-    assert_eq!(*expr, radius);
+    assert_eq!(written(&row.doc, *expr), radius);
     assert_eq!(edge.segment, 2, "the closing segment");
     let got = wall_radius(&row.ev, row.ext, &pv.pieces, edge)
         .unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
@@ -3087,9 +3112,13 @@ fn a_fillet_arcs_two_radii_each_reach_their_own_wall() {
         .expect("the door answers");
     assert_eq!(answer.len(), 2, "two radii, two arcs — got {answer:?}");
     for (edge, expr) in &answer {
-        let want = if **expr == fillet { 0.25 } else { 3.0 };
+        let want = if written(&row.doc, **expr) == fillet {
+            0.25
+        } else {
+            3.0
+        };
         assert!(
-            **expr == fillet || **expr == carrier,
+            written(&row.doc, **expr) == fillet || written(&row.doc, **expr) == carrier,
             "each pair carries one of the step's own two radii"
         );
         let got = wall_radius(&row.ev, row.ext, &pv.pieces, *edge)
@@ -3231,7 +3260,6 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
             len: len(1.5),
         },
     ];
-    let env = ProfileDoc::empty_derived("mode-vocabularies", tol()).var_env::<f64>();
     for spec in modes {
         let carries = match &spec {
             ProgramArcData::Radius { .. }
@@ -3256,9 +3284,13 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
                 },
             ),
         ] {
-            let resolved = editor_core::test_support::stored_loop(&LoopProgram::Chain(vec![step]))
-                .resolve::<f64>(&env, 0)
-                .expect("a literal spec resolves");
+            let mut written = editor_core::test_support::scratch(geom_core::Tol::witness());
+            let resolved = editor_core::test_support::stored_loop(
+                &mut written,
+                &LoopProgram::Chain(vec![step]),
+            )
+            .resolve::<f64>(&written.var_env(), 0)
+            .expect("a literal spec resolves");
             let wire = match &resolved[0] {
                 Step::ArcTo(w) => w,
                 Step::FilletArc { spec, .. } => spec,
@@ -3293,4 +3325,9 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
             "{spec:?}: the arrival position's argument enumeration"
         );
     }
+}
+
+/// What a program argument reading `var` was written as.
+fn written(doc: &editor_core::ProfileDoc, var: editor_core::VarId) -> editor_core::Expr {
+    doc.written(&editor_core::Expr::var(var, editor_core::Dimension::Length))
 }

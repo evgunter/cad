@@ -181,7 +181,7 @@ fn restamped_at_process_epsilon(text: &str) -> String {
 /// rather than transcribed as an id, so the bump follows the scene
 /// instead of pinning a number that would go quietly wrong.
 fn first_pip(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|id| {
@@ -202,7 +202,7 @@ pub fn document() -> CorpusDoc {
             .expect("the tour's edit log replays")
             .doc;
     }
-    let composed = *doc.order().last().expect("the die has nodes");
+    let composed = *doc.ids().last().expect("the die has nodes");
     assert!(
         matches!(
             doc.node(composed).expect("the last node"),
@@ -239,6 +239,7 @@ pub fn document() -> CorpusDoc {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(PIP_Y_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: pip,
     }

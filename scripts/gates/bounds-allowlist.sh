@@ -600,7 +600,7 @@ BOUNDS_ALLOWLIST=(
   # as before), and `face_clearance_margin` is `face_clearance` with its
   # margin formed by the caller, the door the surgery's strip meter
   # refuses through; both decide only through `classify`.
-  'crates/sweep/src/blend/battery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  'crates/sweep/src/blend/battery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
@@ -616,6 +616,16 @@ BOUNDS_ALLOWLIST=(
   # arm, reading brackets only where `ring_clearance`, `piece_along` and
   # `boxed_reach` already do, as `support_boundary_clearance` does.
   'crates/sweep/src/blend/surgery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # reach.rs 9 -> 14: `sign` decides a reference point's side of a
+  # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
+  # where not), replacing the self-division `x/|x|` that gave the
+  # poison interval at a zero; `side`, `half_space` and `sheet_fn` are
+  # the bound constructors that call it (the last picks either sign of
+  # a plane by decision, both enclosing); `screened` is the reach's
+  # check of the support screen's premise, one bracket of a strip bound
+  # against `escalate`, as `Least::read` reads a cell's. Each decides
+  # only the meter's own question, and refuses loudly or not at all.
+  'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
   # cut-off both open bands end in left `ruled.rs` for its own file when
   # the plane–plane band took it too — the sliver meter's two
@@ -677,7 +687,7 @@ BOUNDS_ALLOWLIST=(
   # 2026-08-29, the advisory-check registry.
   'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's bounds, 21 of them:
+  # `validate.rs` carries the at-rest validator's bounds, 22 of them:
   # the 10 public doors of the module doc's door roster (5 at
   # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
   # `AtRestBody` methods beside the roster (`validate`, which is
@@ -689,19 +699,22 @@ BOUNDS_ALLOWLIST=(
   # `contact_marks_via`, `pseudomanifold_certificate_via`, and
   # `census_verdict`, the census tail both tier-3′ paths end in, at the
   # census's own `Bounds`); `CertifiedLanes::held`, the one spelling of
-  # the certified lanes those doors hold, at `CertifiedBounds`; and one
-  # test helper (`check1`).
+  # the certified lanes those doors hold, at `CertifiedBounds`; one
+  # test helper (`check1`); and `ring_pairs`, check 9's broad phase over
+  # a face's rings, at `Decide + Bounds` under the driver amendment
+  # (argued beside `topo::census` in `geom-core/src/real.rs`).
   # The tier-3′ ones among them reach `census::census_and_certify`, which
   # is why the census took the C10 tree as its pre-filter — the driver
   # amendment's seam, argued in the ledger under 2026-07-29 beside
   # `separation`.
-  'crates/topo/src/validate.rs 21 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 22 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its
   # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
   # code over the C10 tree, under the driver amendment like `separation`.
   'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides

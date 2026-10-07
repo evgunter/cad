@@ -373,6 +373,7 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
             node: extrude,
             slot: SlotId::Distance,
             expr: len(v),
+            fresh: Vec::new(),
         })
         .collect();
     let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
@@ -711,7 +712,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
                 Some(
                     format!(
                         "upstream failure at Extrude {} — that row carries the cause",
-                        test_utils::refusal::tag(bad.0)
+                        test_utils::refusal::tag(bad.0.digest())
                     )
                     .as_str()
                 ),

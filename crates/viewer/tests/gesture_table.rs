@@ -175,7 +175,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
     let param = VarName::from_static("thickness");
     // A variable no fixture holds: every op carrying it is refused
     // before it looks, or refused by the door for the absence.
-    let var = VarId(0x7468_6963_6b6e);
+    let var = VarId::new(0, 0x7468_6963_6b6e);
     vec![
         SessionOp::Select(Selection::Node(node)),
         SessionOp::Hover(Some(Hovered::Face(FaceSelection {
@@ -552,7 +552,7 @@ fn every_op_behaves_as_the_table_says() {
 fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
-    let undeclared = VarId(0x6e6f_7375_6368);
+    let undeclared = VarId::new(0, 0x6e6f_7375_6368);
 
     // The second extrude's distance becomes a computed slot, which is
     // what `begin_gesture`'s own check refuses.
@@ -787,13 +787,12 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             "{slot:?}: one edit for the whole drag"
         );
         // The door actually taken, so the claim above is executed
-        // rather than described: these are the value-gesture edits
-        // that write into `doc.nodes`.
+        // rather than described: a value gesture writes the value of
+        // the variable its slot reads (Q6), a count's as a spacing's.
         assert!(
             matches!(
                 (&outcome.committed[0], slot),
-                (DocEdit::SetParam { .. }, SlotId::Spacing)
-                    | (DocEdit::SetStructuralParam { .. }, SlotId::Count)
+                (DocEdit::SetVarValue { .. }, SlotId::Spacing | SlotId::Count)
             ),
             "{slot:?} took an unexpected door: {:?}",
             outcome.committed[0]
@@ -968,20 +967,20 @@ fn family(name: &GestureName) -> usize {
 fn sample_names() -> Vec<GestureName> {
     let names = vec![
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             slot: SlotId::Distance,
         }),
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(4),
+            node: RecipeNodeId::new(0, 4),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(VarId(0x68))),
-        GestureName::Value(ValueGestureName::Param(VarId(0x77))),
+        GestureName::Value(ValueGestureName::Param(VarId::new(0, 0x68))),
+        GestureName::Value(ValueGestureName::Param(VarId::new(0, 0x77))),
         GestureName::FreeMove(FreeMoveName {
-            instance: RecipeNodeId(3),
+            instance: RecipeNodeId::new(0, 3),
         }),
         GestureName::FreeMove(FreeMoveName {
-            instance: RecipeNodeId(4),
+            instance: RecipeNodeId::new(0, 4),
         }),
     ];
     let covered: BTreeSet<usize> = names.iter().map(family).collect();
@@ -1136,10 +1135,10 @@ fn a_name_is_the_payload_it_was_read_off() {
 fn a_names_cancel_is_its_own_drags() {
     for name in [
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(VarId(0x68))),
+        GestureName::Value(ValueGestureName::Param(VarId::new(0, 0x68))),
     ] {
         assert!(
             matches!(name.cancel(), SessionOp::CancelGesture),
@@ -1149,7 +1148,7 @@ fn a_names_cancel_is_its_own_drags() {
     assert!(
         matches!(
             GestureName::FreeMove(FreeMoveName {
-                instance: RecipeNodeId(3)
+                instance: RecipeNodeId::new(0, 3)
             })
             .cancel(),
             SessionOp::CancelFreeMove
@@ -1786,11 +1785,17 @@ fn a_drag_on_another_field_cannot_steer_the_open_one() {
     });
     assert!(landed.refusal.is_none());
     assert_eq!(landed.committed.len(), 1, "one edit for the whole drag");
+    // A value gesture writes the slot's own variable (Q6): the
+    // variable the open drag's slot reads.
+    let dragged = session
+        .committed_doc()
+        .slot(first, SlotId::Distance)
+        .expect("the extrude reads its distance");
     assert!(
         matches!(
             landed.committed.first(),
-            Some(DocEdit::SetParam { node, slot, .. })
-                if *node == first && *slot == SlotId::Distance
+            Some(DocEdit::SetVarValue { var, .. })
+                if *var == pncad::document::VarRef::Id(dragged)
         ),
         "and it is the open drag's own slot that moved: {:?}",
         landed.committed.first()

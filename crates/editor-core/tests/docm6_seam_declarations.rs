@@ -108,6 +108,7 @@ fn place(doc: ProfileDoc, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
         DocEdit::SetOffset {
             instance: node,
             offset: Some(editor_core::Placement::literal(&Frame::translation(at))),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -671,6 +672,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
                     ContactClass::Rest,
                     frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -730,7 +732,10 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let rendered = result.unwrap_err().to_string();
     assert!(
         rendered.contains(&inner_id.to_string())
-            && rendered.contains(&format!("Mate {}", test_utils::refusal::tag(inner_mate.0))),
+            && rendered.contains(&format!(
+                "Mate {}",
+                test_utils::refusal::tag(inner_mate.0.digest())
+            )),
         "the badge names the document and the mate, as that document holds it: {rendered}"
     );
 }
@@ -904,7 +909,7 @@ fn a_carried_refusals_deeper_hop_says_its_documents_label_where_the_outer_holds_
     let hops = format!(
         "{} → InstantiatePart \"mid seat\" ({})",
         left_bracket(instance),
-        test_utils::refusal::tag(mid_instances[0].0)
+        test_utils::refusal::tag(mid_instances[0].0.digest())
     );
     assert!(
         spoken.contains(&hops),
@@ -919,7 +924,7 @@ fn a_carried_refusals_deeper_hop_says_its_documents_label_where_the_outer_holds_
     assert!(
         said.contains(&format!(
             "through instance {} → InstantiatePart \"mid seat\"",
-            test_utils::refusal::tag(instance.0)
+            test_utils::refusal::tag(instance.0.digest())
         )),
         "with no document at hand the first hop is said by its tag, the deeper one as its \
          document holds it: {said}"
@@ -1368,7 +1373,7 @@ fn outer_over_twin(
 fn left_bracket(instance: RecipeNodeId) -> String {
     format!(
         "through InstantiatePart \"left bracket\" ({})",
-        test_utils::refusal::tag(instance.0)
+        test_utils::refusal::tag(instance.0.digest())
     )
 }
 
@@ -1380,7 +1385,7 @@ fn left_bracket(instance: RecipeNodeId) -> String {
 fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
     let (store, inner, outer, mate, instance) =
         outer_over_twin(ContactClass::Tangent, [0.0, 0.0, 5.0]);
-    let t = test_utils::refusal::tag(mate.0);
+    let t = test_utils::refusal::tag(mate.0.digest());
 
     let inner_ev = run(&inner, &with_resolver(store.clone()));
     let own = assemble(&inner, &inner_ev, Tol::witness()).expect_err("a tangent mints nothing");
@@ -1434,7 +1439,7 @@ fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_th
     assert!(
         said.contains(&format!(
             "through instance {}",
-            test_utils::refusal::tag(instance.0)
+            test_utils::refusal::tag(instance.0.digest())
         )) && said.contains(&format!(": {spoken_row}")),
         "with no document at hand the instance is said by its tag, and the part's mate as \
          the part holds it: {said}"
@@ -1448,7 +1453,7 @@ fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_th
 #[test]
 fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken() {
     let (store, _, outer, mate, instance) = outer_over_twin(ContactClass::Rest, [0.0, 0.0, 0.5]);
-    let t = test_utils::refusal::tag(mate.0);
+    let t = test_utils::refusal::tag(mate.0.digest());
     let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     let findings = findings_of(&result);
@@ -1511,7 +1516,7 @@ fn contradicted(
         [0.0, 0.0, 1.0],
         held,
     );
-    let (c0, c1) = (doc.order()[0], doc.order()[1]);
+    let (c0, c1) = (doc.ids()[0], doc.ids()[1]);
     let (doc, second) = insert(
         doc,
         mate_node(
@@ -1559,16 +1564,16 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
         "outer added",
     );
     assert_eq!(
-        inner.order(),
-        outer.order(),
+        inner.ids(),
+        outer.ids(),
         "both stands mint from the zero chain"
     );
-    let (held, added) = (outer.order()[2], outer.order()[3]);
+    let (held, added) = (outer.ids()[2], outer.ids()[3]);
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let outer = place(outer, instance, [10.0, 0.0, 0.0]);
     let (th, ta) = (
-        test_utils::refusal::tag(held.0),
-        test_utils::refusal::tag(added.0),
+        test_utils::refusal::tag(held.0.digest()),
+        test_utils::refusal::tag(added.0.digest()),
     );
 
     let ev = run(&outer, &with_resolver(store.clone()));
@@ -1656,7 +1661,7 @@ fn a_part_fault_says_the_labels_its_pin_fixes() {
     let (relabelled, _) = step(
         inner.clone(),
         DocEdit::SetLabel {
-            node: inner.order()[2],
+            node: inner.ids()[2],
             label: Some(editor_core::Label::new("inner moved").expect("a valid label")),
         },
     );
@@ -1742,7 +1747,7 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     );
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let opts = with_resolver(store);
-    let t = test_utils::refusal::tag(block.0);
+    let t = test_utils::refusal::tag(block.0.digest());
 
     let ev = run(&outer, &opts);
     let error = ev.node_error(instance).expect("the part has no product");
@@ -1799,6 +1804,7 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
                 ContactClass::Rest,
                 frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1811,7 +1817,7 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
         matches!(**fault, editor_core::MateFault::SelfMate { instance, .. } if instance == leg),
         "{fault:?}"
     );
-    let t = test_utils::refusal::tag(leg.0);
+    let t = test_utils::refusal::tag(leg.0.digest());
     assert!(
         err.to_string().starts_with(&format!(
             "{node} is refused by the solve on its own datum: this mate names one member on \

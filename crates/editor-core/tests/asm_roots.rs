@@ -192,6 +192,7 @@ fn row1e_undo_restores_the_prior_root_list() {
                 op: editor_core::BooleanOp::Union,
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
         DocEdit::DeleteNode { id: b },
     ] {
@@ -240,10 +241,10 @@ fn row2a_ancestor_freedom_names_both() {
     assert!(
         text.contains(&format!(
             "root Profile {}",
-            test_utils::refusal::tag(profile.0)
+            test_utils::refusal::tag(profile.0.digest())
         )) && text.contains(&format!(
             "root Extrude {}",
-            test_utils::refusal::tag(extrude.0)
+            test_utils::refusal::tag(extrude.0.digest())
         )),
         "both nodes must be spoken: {text}"
     );
@@ -261,12 +262,12 @@ fn row2b_coverage_refuses_on_a_crafted_save() {
     );
     let (doc, _, b) = block(doc, 5.0);
     let text = save(&doc, &[], Tol::witness()).expect("the honest document saves");
-    let honest = format!("\"roots\": [\n      {},\n      {}\n    ]", a.0, b.0);
+    let honest = format!("\"roots\": [\n      \"{}\",\n      \"{}\"\n    ]", a.0, b.0);
     assert!(
         text.contains(&honest),
         "the save's root list must be the two tips, in order"
     );
-    let crafted = text.replace(&honest, &format!("\"roots\": [\n      {}\n    ]", a.0));
+    let crafted = text.replace(&honest, &format!("\"roots\": [\n      \"{}\"\n    ]", a.0));
     match load(&crafted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::Roots(RootFault::Uncovered { node }))) => {
             assert!(
@@ -307,7 +308,7 @@ fn row2c_duplicate_entry_refuses() {
         })
     );
     // And a dead entry refuses too.
-    let ghost = RecipeNodeId(9_999);
+    let ghost = RecipeNodeId::new(0, 9_999);
     assert_eq!(
         doc.apply(
             &DocEdit::SetRoots { roots: vec![ghost] },
@@ -379,7 +380,7 @@ fn row3b_pattern_root_gathers_n_solids_with_provenance() {
         .surfaces()
         .filter_map(|(k, _)| product.surface_source(k))
         .filter_map(|s| match &s.expr {
-            topo::SourceExpr::Placed { node, instance, .. } if *node == pattern.0 => {
+            topo::SourceExpr::Placed { node, instance, .. } if *node == pattern.0.digest() => {
                 Some(*instance)
             }
             _ => None,
@@ -507,6 +508,7 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
             node: a,
             slot: editor_core::SlotId::Distance,
             expr: len(2.0),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &roots_before[..], "the edit was root-neutral");
@@ -518,7 +520,7 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
             .map(|(key, _)| minting_nodes(body, key))
             .collect()
     };
-    assert_eq!(order(&first), vec![vec![a.0], vec![_b.0]]);
+    assert_eq!(order(&first), vec![vec![a.0.digest()], vec![_b.0.digest()]]);
     assert_eq!(
         order(&second),
         order(&first),
@@ -527,7 +529,7 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
     // …and a root REORDER is exactly what moves it.
     let (swapped, _) = step(doc, DocEdit::SetRoots { roots: vec![_b, a] });
     let third = editor_core::product(&swapped, &run(&swapped), Tol::witness()).expect("gather 3");
-    assert_eq!(order(&third), vec![vec![_b.0], vec![a.0]]);
+    assert_eq!(order(&third), vec![vec![_b.0.digest()], vec![a.0.digest()]]);
 }
 
 /// The recipe nodes that minted a solid's face carriers — the
@@ -589,7 +591,10 @@ fn row6c_replay_rebuilds_the_root_list() {
     // serves both. Each insert's id is read back from the door it went
     // through, and the log records exactly the edits applied.
     let mut insert = |doc: &mut Doc<ProfileProgram>, node| {
-        let edit = DocEdit::InsertNode { node };
+        let edit = DocEdit::InsertNode {
+            node,
+            fresh: Vec::new(),
+        };
         let applied = doc
             .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("insert");

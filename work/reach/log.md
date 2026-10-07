@@ -839,6 +839,13 @@ PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's r
 - **Verification.** An independent verifier session found the pass VERIFIED: every mutant red as claimed, and 0 wrong bodies in about 7,800 random-pose op runs per ε. Multi-cap poses refuse 61–80%, almost all at the plane arm's pre-existing near-boundary pre-check, upstream of the cut.
 — (REACH orchestrator)
 
+## 2026-10-06 — the operand gate separates along turning directions (PR 4122)
+
+- **The change.** A pair of faces or edges is declared apart along the anchor axis or any planar face normal of either operand, not just the world axes, so a verdict no longer depends on the pose. `boxes::circle_box` gives a tilted section circle its true extent. Four doors read the one test after the box test passes.
+- **Tier.** Single FULL review (M). It was not a dual pair, so there is no DR row.
+- **Review.** APPROVE-WITH-FIXES, with 0 MAJOR. The rows could not catch a reach that under-covers: a 0.1% shrink survived every row, while the reviewer's exact-support plate probe went red. The axis set was recomputed in hot loops. NOTE-4: the Approx arm asked about the sphere *face*, which was sound only while that face's reach was the whole ball. PR 4123 tightens that reach.
+- **The last pass.** It promoted the plate probe to a row; the shrink mutant turns it red at ε 1e-9 and 1e-12, while at 1e-6 the pad covers the shrink. The Approx arm now asks about the whole ball, with a row that goes red if a sphere face's reach narrows. The axis set is computed once per operation and deduped. The test oracle no longer cancels near ẑ. Three items were filed.
+- **Verification.** An independent verifier session found the pass VERIFIED: over 24,282 oracle runs it diffed every verdict against an `apart`-never-clears mutant, and no touching pair was cleared. A conflict with main in `ops.rs` was then merged and resolved.
 ## 2026-10-06 — a sphere face's box is its chart rectangle (PR 4123)
 
 - **The change.** A sphere face's box and reach are now its latitude/azimuth rectangle, with the zone or the ball as fallbacks (`boxes::sphere_window`, an enum of the three). The split gate reads the same windows, so a cut clear of a partial-azimuth cap now splits. Before this, the face box was the whole ball.
@@ -865,3 +872,10 @@ PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's r
 - **The cause.** `carrier_touch::ball_off_face` placed the ball's foot before reading the face's boundary against the ball. A line tangent to a fillet at the fillet's own boundary vertex localized a ball holding that vertex, 2.29e-6 from the foot, so the placement's vertex pre-pass escalated in band. Read in the other order, the ball holds the vertex and the answer is "not off the face".
 - **The fix.** PR 4199 (CLEAVE lane) reads the boundary first. Its row `carrier_touch_rows::a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face` is red without the fix at every ε.
 — (CLEAVE lane, for REACH)
+
+## 2026-10-06 — PR 4122's support-plate row red after main merged #4179
+
+- **The red.** `operand_gate_support_plates::plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op`, ε 1e-9: the 270° torus at `s = 10³` dir 4, `δ = −ε`, built ∪ as an `Assembly` and ∩ `Empty`. The orchestrator bisected it to #4179's merge (`deb49d1432`).
+- **The cause.** Neither side is unsound. Dir 4's support falls on the cut-cap rim, the case the row already excluded at `δ = 0`. #4179 places an in-band graze root at the rim's extremum, which is the support itself (the minted vertex sits 5e-13 from it), so `−ε` now reads as `0` does: an `Assembly` holding the one `VfContact`. Before #4179 the root sat `√(2εR)` ≈ 6e-4 m along the rim, without its twin, and every op refused `Join(UnpairedLooseEnds)`. The operand gate does not clear the pair: the contact comes from the conic root lane behind it.
+- **The change.** The row's exclusion covers both in-band gaps, `δ ∈ {0, −ε}`, and now holds only where ∪ records the contact. The item `a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly` gains the measurement. M3 is still red at ε 1e-9 and 1e-12. No CLEAVE item: #4179's root is the right one.
+— (REACH implementer)

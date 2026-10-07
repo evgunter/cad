@@ -131,7 +131,7 @@ fn set_appearance_validates_and_applies_purely() {
     // A never-existed node id: typed refusal at the edit door.
     let bogus = minted(
         EntityKind::Face,
-        RecipeNodeId(999),
+        RecipeNodeId::new(0, 999),
         RoleSeg::Cap(CapEnd::End),
     );
     assert_eq!(
@@ -268,13 +268,22 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(plane).unwrap().authored()),
+            node: Box::new(editor_core::test_support::as_written(
+                &doc3,
+                doc3.node(plane).unwrap(),
+            )),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
-            node: Box::new(crate::fixture::as_authored(doc3.node(p).unwrap())),
+            node: Box::new(crate::fixture::as_authored(&doc3, doc3.node(p).unwrap())),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(ext).unwrap().authored()),
+            node: Box::new(editor_core::test_support::as_written(
+                &doc3,
+                doc3.node(ext).unwrap(),
+            )),
+            fresh: Vec::new(),
         },
         DocEdit::SetAppearance {
             name: cap,
@@ -331,6 +340,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
         DocEdit::DefineVar {
             var: VarName::from_static("pip_depth").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
+            fresh: Vec::new(),
         },
     );
     let ev2 = rerun(&doc2, &ev1);
@@ -459,6 +469,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
             node: ext,
             slot: editor_core::SlotId::Distance,
             expr: len(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -475,6 +486,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
             node: ext,
             slot: editor_core::SlotId::Distance,
             expr: len(1.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -520,6 +532,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
             node: a,
             slot: editor_core::SlotId::Distance,
             expr: len(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -577,6 +590,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
             node: pat,
             slot: editor_core::SlotId::Count,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -597,6 +611,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
             node: pat,
             slot: editor_core::SlotId::Count,
             expr: Formula::count(3),
+            fresh: Vec::new(),
         },
     );
     assert!(run(&doc).appearance.is_lossless());

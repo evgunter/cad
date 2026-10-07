@@ -362,3 +362,59 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
     let bad = unsound(&[parallel]);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
+
+/// A rod of radius `r` about `(x, y)`, extruded over `z ∈ [−far, far]`
+/// so its wall's origin is stored on the profile at `z = −far`, cut to
+/// `[z0, z1]` by a box (the wall keeps that origin, now `far` off its
+/// faces), then tipped `theta` about `x` through its own centre.
+fn cut_and_tipped(
+    r: f64,
+    (x, y): (f64, f64),
+    (z0, z1): (f64, f64),
+    far: f64,
+    theta: f64,
+) -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let cutter = finished(
+        "the cutter",
+        sweep::test_support::brick((x - 1.0, x + 1.0), (y - 1.0, y + 1.0), (z0, z1), tol),
+        tol,
+    );
+    let cut = topo::intersect(&rod(r, (x, y), (-far, far)), &cutter, tol).expect("the cut rod");
+    let cut = cut.body().expect("the cut is a body");
+    let m = Affine3::rotation_about_axis(
+        Point3::new(x, y, 0.5 * (z0 + z1)),
+        Vec3::new(1.0, 0.0, 0.0),
+        theta,
+    );
+    finished(
+        "the tipped rod",
+        topo::transform_rigid(&cut.body, &m, tol).unwrap(),
+        tol,
+    )
+}
+
+/// **The rulings are read at the germ sites, wherever a wall's origin is
+/// stored.** Pose 0's rod cut from a long one, so its wall's origin is
+/// stored up to 1e5 m off its faces, and tipped a fifth of the zero band:
+/// every op builds SOUND at the closed-form volume, in both orders.
+#[test]
+fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
+    const R: f64 = 0.5;
+    let zero = geom_core::Band::linear(Tol::witness()).unwrap().zero();
+    let (r, c, span) = (0.2, (0.5, 0.0), (-0.5, 0.5));
+    let (area, _) = lens((0.0, 0.0), R, c, r);
+    let poses: Vec<Pose> = [2.0, 1000.0, 1.0e5]
+        .into_iter()
+        .map(|far| Pose {
+            label: format!("rod cut from ±{far} m, tipped 0.2·zero"),
+            a: rod(R, (0.0, 0.0), (-1.0, 1.0)),
+            b: cut_and_tipped(r, c, span, far, 0.2 * zero),
+            va: PI * R * R * 2.0,
+            vb: PI * r * r * (span.1 - span.0),
+            shared: area * (span.1 - span.0),
+        })
+        .collect();
+    let bad = unsound(&poses);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}

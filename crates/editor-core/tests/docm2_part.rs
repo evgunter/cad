@@ -518,6 +518,7 @@ fn a4_every_refusal_is_typed() {
             node: pat,
             slot: SlotId::Count,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -579,6 +580,7 @@ fn a4_every_refusal_is_typed() {
             node: index_of_split,
             slot: SlotId::Instance,
             expr: Formula::count(1),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -625,6 +627,7 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
             node: p1,
             slot: SlotId::Instance,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -676,7 +679,7 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
     );
     let split = *cd
         .doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(cd.doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");
@@ -686,7 +689,7 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
             .surfaces()
             .filter_map(|(k, s)| {
                 b.surface_source(k)
-                    .filter(|src| src.node == split.0)
+                    .filter(|src| src.node == split.0.digest())
                     .map(|src| (src.clone(), s.clone()))
             })
             .collect();
@@ -918,7 +921,7 @@ fn project_narrows_a_tie_by_the_flush_rule() {
     let ent = |body: u32, key: EntityKey| EntityRef { body, key };
     let name = |h: SplitHalf| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(7),
+        node: RecipeNodeId::new(0, 7),
         path: vec![RoleSeg::SplitBody(h)],
     };
     let (inside, outside) = (name(SplitHalf::Above), name(SplitHalf::Below));

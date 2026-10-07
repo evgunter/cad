@@ -1508,8 +1508,14 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // A fold's dropped label is said nowhere else: the gauge is
         // gone, and nothing evaluates a label.
         Maintenance::LabelDropped { .. } => Retold::Never,
-        // An anonymous variable's removal is said nowhere else: its
-        // panel row goes with it, and nothing reads it any more.
+        // An anonymous variable's removal is what rewriting or deleting
+        // the slot it was written at means, and a typed value retires
+        // one on almost every edit: one that carried no tolerance took
+        // nothing the person sees with it, and rides
+        // `OpOutcome::maintenance` for a reader of the API
+        // (`Maintenance::is_silent_retirement`). One that carried a
+        // tolerance took an analysis axis, which nothing else says.
+        Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
         Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
         // The mate door's offset clear is what inserting the mate
         // means — the joined group stands on the one it joined — and
@@ -3312,7 +3318,7 @@ mod tests {
 
     #[test]
     fn the_gather_verdict_badges_only_the_faults_nothing_else_carries() {
-        let node = RecipeNodeId(test_utils::refusal::tagged(2));
+        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(2));
 
         // The item's own reproduction: two roots colliding in the name
         // table. Not a node failure, so no per-node badge carries it —
@@ -3358,7 +3364,7 @@ mod tests {
             (
                 ProductError::Root(NodeStanding::Poisoned {
                     node,
-                    through: RecipeNodeId(test_utils::refusal::tagged(1)),
+                    through: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 }),
                 BadgeSite::FeatureTree,
             ),
@@ -3422,7 +3428,7 @@ mod tests {
                 carried: Vec::new(),
             },
             RowStatus::Poisoned {
-                through: RecipeNodeId(test_utils::refusal::tagged(1)),
+                through: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 message: None,
             },
             RowStatus::Unevaluated,
@@ -3498,17 +3504,17 @@ mod tests {
     /// commonest arm, and the one whose `Display` carries a remedy.
     fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
         Withdrawn {
-            instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
+            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::MateConstrained {
                 instance: crate::test_support::spoken(
-                    RecipeNodeId(test_utils::refusal::tagged(instance)),
+                    RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
                 mates: mates
                     .iter()
                     .map(|&mate| {
                         crate::test_support::spoken(
-                            RecipeNodeId(test_utils::refusal::tagged(mate)),
+                            RecipeNodeId::new(0, test_utils::refusal::tagged(mate)),
                             Some("Mate"),
                         )
                     })
@@ -3565,11 +3571,11 @@ mod tests {
         // is written here — both come from `AdmissionFault`'s `Display`.
         let cause = AdmissionFault::MateConstrained {
             instance: crate::test_support::spoken(
-                RecipeNodeId(test_utils::refusal::tagged(3)),
+                RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                 Some("InstantiatePart"),
             ),
             mates: vec![crate::test_support::spoken(
-                RecipeNodeId(test_utils::refusal::tagged(5)),
+                RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
                 Some("Mate"),
             )],
         };
@@ -3587,9 +3593,9 @@ mod tests {
         // not say: an instance that is GONE says so, rather than being
         // named as if the tree still drew it.
         let gone = superseded_text(&[Withdrawn {
-            instance: RecipeNodeId(test_utils::refusal::tagged(4)),
+            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: SpokenNode::absent(RecipeNodeId(test_utils::refusal::tagged(4))),
+                node: SpokenNode::absent(RecipeNodeId::new(0, test_utils::refusal::tagged(4))),
             },
         }])
         .expect("news");
@@ -3607,18 +3613,18 @@ mod tests {
         // free-move preamble are both absent, and the fault says which
         // of the two things happened to the picture.
         let fused = Withdrawn {
-            instance: RecipeNodeId(test_utils::refusal::tagged(3)),
+            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
             cause: AdmissionFault::FusedGeometry {
                 instance: crate::test_support::spoken(
-                    RecipeNodeId(test_utils::refusal::tagged(3)),
+                    RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                     Some("InstantiatePart"),
                 ),
                 root: crate::test_support::spoken(
-                    RecipeNodeId(test_utils::refusal::tagged(8)),
+                    RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
                     Some("Union"),
                 ),
                 others: vec![crate::test_support::spoken(
-                    RecipeNodeId(test_utils::refusal::tagged(5)),
+                    RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
                     Some("InstantiatePart"),
                 )],
             },
@@ -3666,26 +3672,26 @@ mod tests {
         // Reachable in production: one boolean fusing two hidden
         // instances withdraws both hides in one prune.
         let fused = |instance: u64, other: u64| Withdrawn {
-            instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
+            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::FusedGeometry {
                 instance: crate::test_support::spoken(
-                    RecipeNodeId(test_utils::refusal::tagged(instance)),
+                    RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
                 root: crate::test_support::spoken(
-                    RecipeNodeId(test_utils::refusal::tagged(8)),
+                    RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
                     Some("Union"),
                 ),
                 others: vec![crate::test_support::spoken(
-                    RecipeNodeId(test_utils::refusal::tagged(other)),
+                    RecipeNodeId::new(0, test_utils::refusal::tagged(other)),
                     Some("InstantiatePart"),
                 )],
             },
         };
         let gone = Withdrawn {
-            instance: RecipeNodeId(test_utils::refusal::tagged(4)),
+            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: SpokenNode::absent(RecipeNodeId(test_utils::refusal::tagged(4))),
+                node: SpokenNode::absent(RecipeNodeId::new(0, test_utils::refusal::tagged(4))),
             },
         };
 
@@ -3897,18 +3903,18 @@ mod tests {
             unresolved(ResolveFault::Unresolved),
             PartFault::PartRootFailed {
                 held: Default::default(),
-                node: RecipeNodeId(test_utils::refusal::tagged(7)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
             PartFault::PartRootPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId(test_utils::refusal::tagged(8)),
-                through: RecipeNodeId(test_utils::refusal::tagged(7)),
+                root: RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
+                through: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
             PartFault::RootFailureUnrecorded {
                 held: Default::default(),
-                node: RecipeNodeId(test_utils::refusal::tagged(7)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
             },
             PartFault::PartProduct {
                 held: Default::default(),

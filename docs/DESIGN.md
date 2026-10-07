@@ -402,8 +402,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   body is any number of solids, so a disjoint union is a body of
   several solids. Booleans, `shell` and `split` take bodies and return
   bodies, and each sorts its result into solids, so every output is an
-  operand. A product (an explicit list of `Body` variables, D10) is not
-  a boolean operand: the editor refuses it, naming the explicit union
+  operand. A product (the copies its world placements define, D10) is
+  not a boolean operand: the editor refuses it, naming the explicit union
   of the copies that makes them one body
   (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
   structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
@@ -574,13 +574,14 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   circle mints through the fitted route
   (`FittedLane::sphere_circle_image`, certified by `certify_fitted`'s
   Circle-carrier arm), so the oblique-trihedron octant faces store
-  their rows; the cone/torus oblique classes have no ring-computable
-  meters composite and refuse with the class named, their faces left
-  uncached, excused by C4's exemption until each class's route lands.
-  The same exemption covers a spline carrier at the closed-form door
-  and the mirror-torus spiric and no-fitted classes. Each class has
-  its own PCERT row: the torus general circle, the cone section, the
-  spline carrier, and the spiric and no-fitted classes together.
+  their rows; a torus's Villarceau circle and a cone's tilted section
+  mint their exact image (`Pcurve::FocalSection`), and a circle within
+  the band of a cone or torus that is none of its circles refuses as a
+  defect (`CarrierGrazesChart`). C4's exemption, a face left uncached
+  until its class's route lands, covers a spline carrier at the
+  closed-form door and the mirror-torus spiric and no-fitted classes,
+  each on its own PCERT row: the spline carrier, and the spiric and
+  no-fitted classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
@@ -639,7 +640,7 @@ EdgeDescription =
   | TangentIntersection { s1, s2, witness }  -- tangential contact locus; same
                                              -- shape, margin one order up
   | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
-                                             -- (surface, Pcurve) with a `seam` flag
+                                             -- (surface, Pcurve) with a `wrap` flag
                                              -- (iso-lines, seams, user splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest
@@ -1231,13 +1232,21 @@ set by its variant (a split defines two bodies; an instance of a part
 defines one `Body` variable per world placement of the part), possibly none:
 an assertion or a mate defines none. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
-product is an explicit list of `Body` variables. A `Face` or `Edge`
+product is the world: every copy a world placement defines. A world
+placement is an operation reading one `Body` and defining its copy;
+building or combining bodies places nothing, and an operand appears
+only if a placement names it. A document whose world holds nothing has
+an empty product. A `Face` or `Edge`
 variable, or a set of them, is a selection of a `Body` variable by
 `StableName`: a definition, not a node, stating its body once, and the
 N5 resolution ladder lives there. A selection authored at two sites is
 two variables (the GUI offers the existing one), and a repair is
 addressed by body and name; deleting a variable leaves its
-readers unresolved, typed, never silently re-pointed.
+readers unresolved, typed, never silently re-pointed. A `Measure`
+defines an *observed* variable, a function of the built geometry
+rather than of what was written; an observed variable, and any
+definition reading one, is read only by an assertion. A construction
+reads what was written.
 
 **Spaces and placement.** A part has no location. A **space** is a set
 of copies related to one another; a part is born in its own space. A
@@ -1247,7 +1256,8 @@ added to a pinned copy refuses as an overconstraint, decided by
 subgroup algebra (A11 (1)) without measuring. A mate places and never
 checks. The **world** is one undeletable frame that copies may be
 related to like a part; export reads its coordinates and nothing else
-does. The kernel computes each space in the frame of its earliest
+does. Construction never reads the world; a document builds in a frame
+of its own. The kernel computes each space in the frame of its earliest
 member, chosen from the recipe and never from values or from the world,
 so an unrelated edit moves no bit (D9).
 

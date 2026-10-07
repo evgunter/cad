@@ -247,6 +247,7 @@ fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         doc,
         DocEdit::InsertNode {
             node: Box::new(mate),
+            fresh: Vec::new(),
         },
     );
     (doc, id.expect("the mate mints"))
@@ -384,7 +385,7 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
     // The block's part has no node 99 — its body is `s.top_body` — so
     // no face of `top` wears this spelling: at `T`, at the pattern,
     // or anywhere.
-    const NO_SUCH_PART_NODE: RecipeNodeId = RecipeNodeId(99);
+    const NO_SUCH_PART_NODE: RecipeNodeId = RecipeNodeId::new(0, 99);
     assert_ne!(NO_SUCH_PART_NODE, s.top_body);
     let nowhere = StableName {
         kind: EntityKind::Face,

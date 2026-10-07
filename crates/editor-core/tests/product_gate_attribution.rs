@@ -200,6 +200,7 @@ fn a_lone_multi_solid_source_is_named() {
                 offset: Some(editor_core::Placement::literal(&Frame::translation([
                     dx, 0.0, 0.0,
                 ]))),
+                fresh: Vec::new(),
             },
         );
         sub = next;
@@ -275,8 +276,13 @@ fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
     assert!(of_b.iter().any(is_inside_out), "b's own finding: {of_b:?}");
     let text = err.to_string();
     assert!(
-        text.contains(&format!("root {} output 0", test_utils::refusal::tag(a.0)))
-            && text.contains(&format!("root {} output 0", test_utils::refusal::tag(b.0))),
+        text.contains(&format!(
+            "root {} output 0",
+            test_utils::refusal::tag(a.0.digest())
+        )) && text.contains(&format!(
+            "root {} output 0",
+            test_utils::refusal::tag(b.0.digest())
+        )),
         "the message names both roots: {text}"
     );
 }

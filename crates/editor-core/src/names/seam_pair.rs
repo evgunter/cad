@@ -66,6 +66,8 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -180,7 +182,7 @@ mod tests {
     fn cap(node: u64, end: CapEnd) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(end)],
         }
     }
@@ -188,7 +190,7 @@ mod tests {
     fn wrap(seg: fn(crate::names::role::NameRef) -> RoleSeg, inner: StableName) -> StableName {
         StableName {
             kind: inner.kind,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![seg(inner.into())],
         }
     }
@@ -196,7 +198,7 @@ mod tests {
     fn merged(cs: Vec<StableName>) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::Merged(cs)],
         }
     }
@@ -247,7 +249,7 @@ mod tests {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
         let frag = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(11),
+            node: RecipeNodeId::new(0, 11),
             path: vec![RoleSeg::SplitFragment {
                 side: crate::names::role::SplitHalf::Below,
                 parent: wrap(RoleSeg::FromA, a.clone()).into(),
@@ -262,7 +264,7 @@ mod tests {
         let x = cap(1, CapEnd::End);
         let edge = |a: &StableName, b: &StableName| StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::Seam {
                 a: a.clone().into(),
                 b: b.clone().into(),
@@ -276,9 +278,9 @@ mod tests {
         assert!(seam_line_pair(&wrap(RoleSeg::FromA, seam.clone())).is_some());
         let member = StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::FromMember {
-                member: RecipeNodeId(4),
+                member: RecipeNodeId::new(0, 4),
                 of: seam.into(),
             }],
         };

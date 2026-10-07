@@ -96,7 +96,7 @@ fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
                 description: EdgeDescriptionSpec::Chart {
                     surface: plane,
                     image: Some(arc_image(mx, h)),
-                    seam: false,
+                    wrap: false,
                     declared: None,
                 },
                 carrier: arc(mx, h),
@@ -243,6 +243,7 @@ fn sweep_a(
         &super::SweepKnobs::default(),
         None,
         &mut Vec::new(),
+        &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
         Tol::witness(),
     )?;
     Ok((x, acc.finish()))

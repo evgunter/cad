@@ -336,13 +336,13 @@ fn distributed_plate() -> ProfileDoc {
 }
 
 fn carries_assertion(doc: &ProfileDoc) -> bool {
-    doc.order()
+    doc.ids()
         .iter()
         .any(|&id| matches!(doc.node(id), Some(Node::Assertion { .. })))
 }
 
 fn assertions_of(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Assertion { .. })))

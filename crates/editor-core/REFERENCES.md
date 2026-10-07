@@ -173,9 +173,10 @@ carry that cost on top of its own. So the chain goes, not the link:
   edit that changes a list input, by naming the whole new list; nothing is
   inferred. It refuses typed an unknown or non-live member, a cycle
   (`WouldCycle` through the existing check), a duplicate (DM5), or fewer than
-  two members. Deleting a pip is `SetMembers` without it plus a plain
-  `DeleteNode` of the orphaned transform, one committed action
-  (`commit_action`), and the other twenty rims survive. `Loft`'s `profiles`
+  two members. Deleting a pip is `SetMembers` without it, and the other
+  twenty rims survive. The transform stays a value, out of the product
+  because nothing places it; deleting it too is tidiness, not a
+  requirement. `Loft`'s `profiles`
   list is the same shape and takes the same edit; nothing else in the
   vocabulary is a list.
 - The viewer's combining doors take a union seat of N body picks (not yet
@@ -324,15 +325,20 @@ result.
 
 *Built: DOCM-3 (PR 1803), with DM4.*
 
-## DM6 — Splice is not added
+## DM6 — No edit infers a re-point
 
-No edit rewires a live node's inputs, and none is planned. Every graph change
-is `InsertNode`, `DeleteNode`, or `SetMembers` on a list; cascade delete
-(`cascade_delete_order`, `edit.rs`) is the delete for a node with consumers.
-DM4's flat operators are what make the die's chain unnecessary.
-`no-docedit-splices-a-deleted-node` records the one trigger that would reopen
-the question: a chain that a flat operator cannot flatten and that a user
-needs to edit from the middle.
+A read changes only by an edit that names its new variable in full. An
+operand slot is written by the one slot door every slot has: the formula
+lowers to a read of the slot's kind (`SlotVarKind` otherwise), the read is
+live, and the rewritten node passes the checks the insert door and
+`SetMembers` already make of a node's reads (DM5's distinctness,
+acyclicity over reads). A list operand is the same door with a list. The
+write reports, and never refuses, the downstream names it strands, as DM7
+has a removal do; the N5 ladder diagnoses them and `Rebind` repairs them.
+No door picks a survivor: a delete leaves its readers unresolved and typed
+(D10), and "delete and reconnect" is a client's offer of explicit slot
+writes, the person choosing each. DM4's flat operators remain the way not
+to pay a pairwise chain's naming cost.
 
 ## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 

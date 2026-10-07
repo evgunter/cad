@@ -139,6 +139,7 @@ fn an_authored_class_is_what_the_node_holds() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -178,6 +179,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
                         b,
                         declare: vec![((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class)],
                     }),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,

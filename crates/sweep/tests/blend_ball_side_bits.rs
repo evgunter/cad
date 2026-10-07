@@ -1,22 +1,22 @@
 //! **The ball-side anti-vacuity row for the sheet reduction.** The
-//! `side` bit a support trace carries selects the `R ∓ r` fold, and
+//! `side` a support trace carries selects the `R ∓ r` fold, and
 //! this row pins, bit for bit, the centre and setbacks the coaxial and
 //! the ruled arms answer at every ball-side pair — so the two sides
 //! give DIFFERENT answers wherever the geometry distinguishes them,
-//! and a fold that dropped the bit, or read it backwards, reds here
+//! and a fold that dropped the side, or read it backwards, reds here
 //! rather than in a downstream mesh.
 //!
-//! `side: true` is what `Convexity::ball_side` answers for a convex
-//! chain over a `sense: true` support (the ball rests behind the chart
-//! normal), `false` for a concave one. The pinned values are the
+//! `Inner` is what `Convexity::ball_side` answers for a convex chain
+//! over a `sense: true` support (the ball rests behind the chart
+//! normal), `Outer` for a concave one. The pinned values are the
 //! reduction's own answers at f64, printed with the shortest
 //! round-trip representation so each literal parses back to the exact
-//! bit pattern; they were taken at the commit before the bit replaced
+//! bit pattern; they were taken at the commit before a side replaced
 //! a `±1` factor on the radius, so the row is also that fold's
 //! bit-identity receipt.
 //!
 //! One ruled pair is left out: the plane–cylinder pair at
-//! `(false, true)` has no crossing — the two offsets miss — and
+//! `(Outer, Inner)` has no crossing — the two offsets miss — and
 //! answers poison, which pins nothing.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The pinned literals are the reduction's own bits; the ruled plane's
@@ -25,6 +25,7 @@
 #![allow(clippy::approx_constant)]
 
 use geom::Surface;
+use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point3, Vec3};
 use sweep::blend::arms::{Meridian, Ruling};
 
@@ -73,99 +74,99 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
     };
     // (pairing, side_a, side_b, torus centre, major radius, setbacks)
     #[allow(clippy::type_complexity)]
-    let pinned: [(&str, bool, bool, [f64; 3], f64, [f64; 2]); 12] = [
+    let pinned: [(&str, SurfaceSide, SurfaceSide, [f64; 3], f64, [f64; 2]); 12] = [
         (
             "plane_cyl",
-            true,
-            true,
+            Inner,
+            Inner,
             [0.0, 0.0, 0.75],
             1.75,
             [0.25, 0.25],
         ),
         (
             "plane_cyl",
-            true,
-            false,
+            Inner,
+            Outer,
             [0.0, 0.0, 0.75],
             2.25,
             [0.25, 0.25],
         ),
         (
             "plane_cyl",
-            false,
-            true,
+            Outer,
+            Inner,
             [0.0, 0.0, 1.25],
             1.75,
             [0.25, 0.25],
         ),
         (
             "plane_cyl",
-            false,
-            false,
+            Outer,
+            Outer,
             [0.0, 0.0, 1.25],
             2.25,
             [0.25, 0.25],
         ),
         (
             "plane_sph",
-            true,
-            true,
+            Inner,
+            Inner,
             [0.0, 0.0, 0.75],
             1.8390122379283138,
             [0.1609877620716862, 0.17081983960283814],
         ),
         (
             "plane_sph",
-            true,
-            false,
+            Inner,
+            Outer,
             [0.0, 0.0, 0.75],
             2.3702392260592378,
             [0.37023922605923776, 0.3511303996033269],
         ),
         (
             "plane_sph",
-            false,
-            true,
+            Outer,
+            Inner,
             [0.0, 0.0, 1.25],
             1.543361918426817,
             [0.456638081573183, 0.48452654318000254],
         ),
         (
             "plane_sph",
-            false,
-            false,
+            Outer,
+            Outer,
             [0.0, 0.0, 1.25],
             2.148961141749635,
             [0.14896114174963504, 0.14127294340105512],
         ),
         (
             "sph_sph",
-            true,
-            true,
+            Inner,
+            Inner,
             [0.0, 0.0, 1.0493632622705331],
             1.6862095821833802,
             [0.20793021701344272, 0.20524246709924088],
         ),
         (
             "sph_sph",
-            true,
-            false,
+            Inner,
+            Outer,
             [0.0, 0.0, 0.5779587414795015],
             1.900113076739786,
             [0.37603973095059245, 0.33970062426222997],
         ),
         (
             "sph_sph",
-            false,
-            true,
+            Outer,
+            Inner,
             [0.0, 0.0, 1.4220412585204985],
             2.039199021139264,
             [0.32461391544106055, 0.35848930023630765],
         ),
         (
             "sph_sph",
-            false,
-            false,
+            Outer,
+            Outer,
             [0.0, 0.0, 0.9506367377294668],
             2.2971338188335855,
             [0.1593326602641457, 0.16103744231053305],
@@ -193,7 +194,7 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
                 blend.surface
             );
         };
-        let what = format!("{name} sides ({side_a}, {side_b})");
+        let what = format!("{name} sides ({side_a:?}, {side_b:?})");
         assert_bits(c.x, center[0], &format!("{what} centre.x"));
         assert_bits(c.y, center[1], &format!("{what} centre.y"));
         assert_bits(c.z, center[2], &format!("{what} centre.z"));
@@ -201,16 +202,16 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
         assert_bits(blend.trim_a.1, setbacks[0], &format!("{what} setback a"));
         assert_bits(blend.trim_b.1, setbacks[1], &format!("{what} setback b"));
     }
-    // The bit is read: the all-true and all-false pairs answer
+    // The side is read: the all-inner and all-outer pairs answer
     // differently on every pairing.
     for name in ["plane_cyl", "plane_sph", "sph_sph"] {
         let (a, b) = supports(name);
-        let both = |side: bool| {
+        let both = |side: SurfaceSide| {
             let (ta, _) = m.trace(a, side).expect("traces");
             let (tb, _) = m.trace(b, side).expect("traces");
             m.blend(ta, tb, RADIUS)
         };
-        let (convex, concave) = (both(true), both(false));
+        let (convex, concave) = (both(Inner), both(Outer));
         assert!(
             convex.spine_curvature.to_bits() != concave.spine_curvature.to_bits()
                 || convex.trim_a.1.to_bits() != concave.trim_a.1.to_bits(),
@@ -251,59 +252,59 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
     };
     // (pairing, side_a, side_b, cylinder origin, u_ref, setbacks)
     #[allow(clippy::type_complexity)]
-    let pinned: [(&str, bool, bool, [f64; 3], [f64; 3], [f64; 2]); 7] = [
+    let pinned: [(&str, SurfaceSide, SurfaceSide, [f64; 3], [f64; 3], [f64; 2]); 7] = [
         (
             "px_py",
-            true,
-            true,
+            Inner,
+            Inner,
             [0.75, -0.25, 0.0],
             [1.0, 0.0, 0.0],
             [0.25, 0.25],
         ),
         (
             "px_py",
-            true,
-            false,
+            Inner,
+            Outer,
             [0.75, 0.25, 0.0],
             [1.0, 0.0, 0.0],
             [0.25, 0.25],
         ),
         (
             "px_py",
-            false,
-            true,
+            Outer,
+            Inner,
             [1.25, -0.25, 0.0],
             [-1.0, 0.0, 0.0],
             [0.25, 0.25],
         ),
         (
             "px_py",
-            false,
-            false,
+            Outer,
+            Outer,
             [1.25, 0.25, 0.0],
             [-1.0, 0.0, 0.0],
             [0.25, 0.25],
         ),
         (
             "pd_cz",
-            true,
-            true,
+            Inner,
+            Inner,
             [0.7436715123302204, -0.09722490292349413, 0.0],
             [0.7071067811865476, 0.7071067811865476, 0.0],
             [0.11250322368518698, 0.12990753295868673],
         ),
         (
             "pd_cz",
-            true,
-            false,
+            Inner,
+            Outer,
             [1.1458876927113995, -0.49944108330467313, 0.0],
             [0.7071067811865478, 0.7071067811865474, 0.0],
             [0.45631635361577966, 0.408141754371886],
         ),
         (
             "pd_cz",
-            false,
-            false,
+            Outer,
+            Outer,
             [1.2453040074843305, 0.1082493831089434, 0.0],
             [-0.7071067811865478, -0.7071067811865474, 0.0],
             [0.0969122542888112, 0.08668095537701102],
@@ -329,7 +330,7 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
                 blend.surface
             );
         };
-        let what = format!("{name} sides ({side_a}, {side_b})");
+        let what = format!("{name} sides ({side_a:?}, {side_b:?})");
         assert_bits(o.x, origin[0], &format!("{what} origin.x"));
         assert_bits(o.y, origin[1], &format!("{what} origin.y"));
         assert_bits(o.z, origin[2], &format!("{what} origin.z"));

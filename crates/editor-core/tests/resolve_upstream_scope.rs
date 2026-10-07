@@ -78,6 +78,7 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, axis: Axis3, to: f64) -> ProfileDo
             node,
             slot: SlotId::Translation(axis),
             expr: len(to),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -176,7 +177,11 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     };
     let mut vanished = 0;
     for name in &names {
-        if ev2.value(cut1).unwrap().name_table.lookup(name).is_some() {
+        // The plate's fragments; the bar's edges are lone pieces whose
+        // ends the slide moves.
+        if ev2.value(cut1).unwrap().name_table.lookup(name).is_some()
+            || matches!(name.path.first(), Some(RoleSeg::FromB(_)))
+        {
             continue;
         }
         vanished += 1;
@@ -247,7 +252,8 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let pieces: Vec<StableName> = fragments(&ev1, cut)
         .into_iter()
         .filter(|n| {
-            matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+            matches!(n.path.first(), Some(RoleSeg::FromA(_)))
+                && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
                 && ev2.value(cut).unwrap().name_table.lookup(n).is_none()
         })
         .collect();
@@ -375,7 +381,7 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     // The premises, each read per document.
     assert!(!ancestors_in(&doc, cut).contains(&r) && !ancestors_in(&doc2, cut).contains(&r));
     assert!(ancestors_in(&doc, cut).contains(&p) && !ancestors_in(&doc2, cut).contains(&p));
-    let at = |n| doc2.order().iter().position(|&m| m == n);
+    let at = |n| doc2.ids().iter().position(|&m| m == n);
     assert!(
         at(r) < at(p),
         "R is first in document order: a walk reaching it reports it"
@@ -558,6 +564,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
             node: part,
             slot: SlotId::Instance,
             expr: editor_core::Formula::count(1),
+            fresh: Vec::new(),
         },
     )
     .0;

@@ -605,3 +605,120 @@ over-refusal on a circle end) retired into builds. Full review
 `at-infinity-probe-measures-in-closed-form-only` and QUAD's
 `quadrature-convergence-test-escalates-instead-of-refining`. The run-out row
 stays open for step 4 (the mitre) and the overrun.
+
+## 2026-10-07 — the P0 landed (PR #4143): every band is metered against every face it could reach
+
+Predicate 2's reach (`blend/reach.rs`) meters each band against every face
+of the body that is not a support of its chain, in any shell, and refuses
+before any mutation (`BlendError::FaceClearance { at, chain, margin,
+bounded }`). Each reach is an intersection of 1-Lipschitz bounds (straight
+links closed at their end faces, circular links in their meridian sheet,
+corner patches of their own). Faces are pruned on certified boxes
+(`topo::FaceBoxes`). Cells halve until they clear, reach `escalate`, or a
+per-face budget of 4096 runs out; a spent budget refuses and never passes.
+Two bands of one request are read against what each leaves. The reach arm
+runs in the surgery after predicate 6 and before any mutation; C8 and
+`run_battery` are re-worded to say so, since the arm needs the plan's feet.
+The class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally
+0) was taken in full:
+- every sign is now decided (a bound scaled by an undecided sign is
+  vacuous, never wrong);
+- an end face tangent to the spine refuses typed;
+- the corner skip-union is gone;
+- `replaces` is restricted to the edge's extent plus a slab;
+- the corner bounds are pinned against analytic oracles.
+
+The cost of the 42-link request fell from about 4 s to 0.3 s at
+`Interval`. Filed: `blend-reach-takes-an-open-arc-link-over-the-whole-turn`
+(P3), plus a second seed on VACUITY's pick-face guard. This unholds PR 4092.
+
+## 2026-10-07 — sided radius headroom landed (PR #4092): r is limited only where a support bends toward the ball
+
+Predicate 1 (`fillet3_radius_headroom`) reads each support's curvature on the
+side the ball rolls (`geom_brep::SurfaceSide`, `min_radius_of_curvature_toward`).
+A ball outside a bore, boss or dimple is no longer limited by that radius.
+Bodies built at the Pappus closed forms to 1e-12.
+
+The full review's MAJOR (a convex band past a thin wall's far face, which
+the old two-sided limit happened to refuse) was held on the P0 and is now
+closed by PR 4143's reach meter, without touching the headroom. The
+reviewer's `thin_flare` is a row: `r = 1.5` and `1.6` refuse `FaceClearance`
+on the far face at a definite negative margin at all three eps rows, and
+`r = 1.4` builds. The Klein inner corner gives the same refusals, held in
+its scene.
+
+The minors were taken in full:
+- the cone-foot row closed as unreachable (spine regularity refuses first);
+- the torus arms stated unreachable through `fillet_edges`;
+- `SurfaceSide` replaces the bool;
+- the margin tightened to `r·(1 − r/arm)`.
+
+The tour rocker's wall 1 retired. Filed:
+`rocker-crease-radius-stays-at-the-eye-after-wall-1-retired` (P3).
+
+## 2026-10-07 — run-out step 4 landed (PR #4209): two requested edges at an isosceles corner meet in a mitre
+
+Under Ev's PR 4085 ruling and INTENT's option (b), two requested edges at a
+trivalent vertex whose third edge L is unrequested now meet in a mitre, chamfer
+or fillet, on both convexities, where `fillet3_turn_isosceles` decides the
+trihedron isosceles.
+- **The verdict.** The margin is the larger of the levered face-angle cosine
+  difference and the gap between the two feet on L. The feet term came from
+  the dual review: it is stricter, never looser, so Zero puts the midpoint
+  foot within band of both trimlines at acute angles too. A definite verdict
+  refuses `UnsupportedRunOut { TURN_NOT_ISOSCELES }` (renamed from
+  `TURN_OVERRUN`, whose text was false at supplementary angles); in band it
+  escalates.
+- **The geometry.** The mitre is a chord, or `cylinder_cylinder_section`'s
+  ellipse; L splits at the turn foot.
+- **Names and coincidences.** The new roles are `Mitre` and `TurnFoot`, with
+  content tags 49/50, because main's `Crossing`/`EdgeCrossing` took 47/48
+  while the PR was open. The Zero verdict is recorded as
+  `DecidedCoincidence::IsoscelesTurn`, a typed seam until D10 has a door
+  (`work/intent/value-decided-coincidences-have-no-recording-door.md`).
+- **Clearance.** The mitre needs no new reach code: each link's window
+  closes at the other band's support plane. Void and island rows refuse with
+  the meter and go red without it.
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the oblique-turn cap pad pinned;
+- the turn-feet arm of `shared_rims_clear` pinned where the screen passes;
+- `core`'s window padded at a planar end;
+- in-band `SectionError` escalates `MitreSection`;
+- the frustum checked against exact and point-membership oracles;
+- one turn reading per vertex.
+
+The bracket's wall 3 stays (its section-face corners are not isosceles). The
+run-out row stays open for step 5: the overrun at a non-isosceles turn,
+including the supplementary chamfer whose feet coincide, then deleting the
+residue.
+
+## 2026-10-07 — the run-out row closes at step 4; step 5 split
+
+Per the ruling's build order, `a-plane-plane-blend-cannot-end-at-an-unrequested-corner`
+closes with PR 4209. Step 5 (the non-isosceles overrun, a numeric probe
+before its spec) is now its own row,
+`a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
+whole-face planar path step 5 was to delete went at step 2.
+
+## 2026-10-07 — the reach meters an end face away from its vertex (PR #4254)
+
+A link's reach now skips only its chain's supports and the faces its own
+window is capped by (recorded by `straight_reach` as it builds the caps,
+plus a corner patch's supports at a patch end), not every face at any
+vertex of its chain. In production a multi-link chain spans valence-2
+joints only, so the hole lived at a jointed chain's far end face; that
+witness is pinned
+(`a_jointed_chains_far_end_face_is_metered_against_the_near_link`; red
+with the chain-wide skip put back). A curved face where a straight window
+ends fails loud (`SurgeryInvariant`), so the skip's premise is structural.
+
+`band_reach_for_tests` now breaks chains at turns as production does
+(`battery::broken_at_turns`); no reach row moved under it (256 tests
+diffed). One row moved for the structural skip: a circular reach has no
+caps, so an open arc's flat is now metered (latent; open arcs refuse
+upstream). Single full review (APPROVE-WITH-FIXES, no MAJOR), taken in
+full. Filed: `tint/tipped-rod-join-escalates-at-1e-12` (main's red). Not
+chased: `point_in_solid` answering `VolumeUncertified` on 533 sample
+points of a tier-3-valid jointed-chain body (the review's probe K control).

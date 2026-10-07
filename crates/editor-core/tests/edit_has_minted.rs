@@ -60,7 +60,7 @@ fn a_fresh_document_has_minted_nothing() {
     );
     for raw in 0..4u64 {
         assert!(
-            !doc.has_minted(RecipeNodeId(raw)),
+            !doc.has_minted(RecipeNodeId::new(0, raw)),
             "the empty document has minted nothing, and {raw} is nothing"
         );
     }

@@ -91,11 +91,14 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     assert_eq!(err.kind(), ProductErrorKind::PlacedUnderTwoRoots);
     let message = err.to_string();
     for needle in [
-        format!("node {}'s body", test_utils::refusal::tag(extrude.0)),
+        format!(
+            "node {}'s body",
+            test_utils::refusal::tag(extrude.0.digest())
+        ),
         format!(
             "two roots, node {} and node {}",
-            test_utils::refusal::tag(t1.0),
-            test_utils::refusal::tag(t2.0)
+            test_utils::refusal::tag(t1.0.digest()),
+            test_utils::refusal::tag(t2.0.digest())
         ),
     ] {
         assert!(
@@ -205,7 +208,7 @@ fn one_half_under_two_roots_refuses_naming_the_half() {
     assert!(
         err.to_string().contains(&format!(
             "the above half of node {}",
-            test_utils::refusal::tag(split.0)
+            test_utils::refusal::tag(split.0.digest())
         )),
         "{err}"
     );
@@ -280,23 +283,25 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
     let (doc, second) = pick(doc);
     let ev = run(&doc);
     let err = product(&doc, &ev, Tol::witness()).expect_err("instance 000000000001 twice");
+    // Said by the document, so the index reads as written: the two
+    // picks' typed `1`s are two variables, one selection.
+    let said = err.spoken(&doc);
     assert!(
-        err.to_string().contains(&format!(
-            "instance `1` of node {}",
-            test_utils::refusal::tag(pattern.0)
+        said.contains(&format!(
+            "instance `1` of Pattern {}",
+            test_utils::refusal::tag(pattern.0.digest())
         )),
-        "{err}"
+        "{said}"
     );
+    let (placed, select, at_first, at_second) = placed_twice(&doc, &ev);
+    assert_eq!((placed, at_first, at_second), (pattern, first, second));
+    let Some(PartSelect::Instance(index)) = select else {
+        panic!("the refusal names the instance, got {select:?}")
+    };
     assert_eq!(
-        placed_twice(&doc, &ev),
-        (
-            pattern,
-            Some(PartSelect::Instance(
-                editor_core::test_support::stored_expr(&Formula::count(1))
-            )),
-            first,
-            second
-        )
+        doc.free(index),
+        Some(&editor_core::FreeVar::Count { value: 1 }),
+        "the instance index the first pick read"
     );
 }
 
@@ -438,6 +443,7 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
                     head_at(base, in_part(base, base_body, CapEnd::End)),
                     head_at(at, in_part(top, top_body, CapEnd::Start)),
                 )),
+                fresh: Vec::new(),
             },
         );
         (doc, m.expect("the mate inserts"))
