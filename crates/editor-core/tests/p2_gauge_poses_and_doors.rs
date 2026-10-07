@@ -131,7 +131,15 @@ fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 fn literal<S: Clone>(m: &M) -> Placement<S> {
@@ -686,6 +694,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
             node: pat,
             slot: SlotId::Count,
             expr: Formula::count(1),
+            fresh: Vec::new(),
         },
     )
     .0;
@@ -862,7 +871,7 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
     );
     let cause = format!(
         "its gauge chain names node {}, which was deleted",
-        test_utils::refusal::tag(g.0)
+        test_utils::refusal::tag(g.0.digest())
     );
     for said in [editor_core::spoken_by(row, &outer), row.to_string()] {
         assert!(

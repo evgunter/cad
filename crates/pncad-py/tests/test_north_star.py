@@ -1091,15 +1091,17 @@ class TestNonuniformLoft(unittest.TestCase):
     read-back stays a named residue, the m3 precedent from LIB-PYG1."""
 
     # demos/tour/src/skinned.rs::NONUNIFORM_T — the middle section's
-    # v-parameter at this spacing, 3*sqrt(29)/(3*sqrt(29) + sqrt(5701)),
-    # which the Rust scene pins against `loft_parameters`.
-    NONUNIFORM_T = 0.1762536890990181
+    # v-parameter at this spacing,
+    # (3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) + 3/40)/2 to within an ulp:
+    # the kernel's answer, which the Rust scene pins against
+    # `loft_parameters`.
+    NONUNIFORM_T = 0.12562684454950904
 
     def test_nonuniform_loft_matches_the_derived_closed_form(self):
         # V = 4H + dH/(3t(1-t)) = 8 + 0.25/(t(1-t)), H = 2, d = 0.375.
         t = self.NONUNIFORM_T
         expected = 8.0 + 0.25 / (t * (1.0 - t))
-        self.assertAlmostEqual(expected, 9.721901523222, delta=1e-11)
+        self.assertAlmostEqual(expected, 10.275939648198, delta=1e-11)
 
         doc = Doc()
         loft = prism_loft(doc, [0.0, 0.15, 2.0])
@@ -4637,15 +4639,23 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(ev.select_where(pipped, edges, []), every_edge)
 
         # Structural narrowing: the pocket's own edges came from
-        # operand B of the subtraction — its 4 walls and 4 floor
-        # edges. The 4 edges of the OPENING are `Seam` (minted where
-        # the cap crosses a pocket wall, belonging to neither operand
-        # alone), and the cube kept its 12: 8 + 4 + 12 = 24.
+        # operand B of the subtraction — its 4 floor edges whole, and
+        # its 4 wall edges, each cut by the cap and kept as its one
+        # piece below it, named by its ends. The 4 edges of the OPENING
+        # are `Seam` (minted where the cap crosses a pocket wall,
+        # belonging to neither operand alone), and the cube kept its
+        # 12: 8 + 4 + 12 = 24.
         from_b = Selector.of(
             NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.FromB))
         )
         pocket = ev.select(pipped, from_b)
-        self.assertEqual(len(pocket), 8)
+        self.assertEqual(len(pocket), 4)
+        cut_walls = Selector.of(
+            NamePat.of_kind(EntityKind.Edge).path(
+                [SegPat.tag(SegTag.FromB), SegPat.tag(SegTag.Fragment)]
+            )
+        )
+        self.assertEqual(len(ev.select(pipped, cut_walls)), 4)
         seam = Selector.of(
             NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.Seam))
         )
@@ -4769,7 +4779,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 40)
         self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
         self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 50)
-        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 68)
+        # Every piece of an edge the plane cuts is named by its ends, a
+        # lone one included.
+        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 0)
+        self.assertEqual(pieces(EntityKind.Edge, SegTag.SplitFragment), 68)
 
     def test_the_rocker_outline_is_authorable(self):
         """G12, CLOSED — the flip of the absence this test used to pin.

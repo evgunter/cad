@@ -345,8 +345,8 @@ pub enum PointInSolidError {
     /// does wrap that coordinate rather than the artefact it is on the
     /// sphere and the cone. What takes a face out of the class is
     /// therefore never a junction: it is a ring, an unwalkable boundary,
-    /// a boundary edge with no closed-form image on the torus chart (the
-    /// Villarceau class and every other oblique circle), or a window the
+    /// a boundary edge with no affine image on the torus chart (a
+    /// Villarceau circle, whose image is a focal section), or a window the
     /// walk unwound past a full period, which describes no face.
     PartialTorusFace {
         /// The torus face neither class expresses.
@@ -2135,16 +2135,9 @@ pub(super) fn torus_face_windows<T: Decide>(
         minor_radius,
         WrapRims::Meridians { axis },
     )?;
-    // A face that wraps BOTH coordinates covers the whole chart, and a
-    // face covering the whole chart has no boundary against anything —
-    // no window can be read FROM it, which is why the solid door serves
-    // a closed torus through its group class instead. A walk that
-    // reports both wraps therefore describes no face this reader can
-    // answer for, and the face is refused rather than served as the
-    // whole chart.
-    if u.is_none() && v.is_none() {
-        return Err(PointInSolidError::PartialTorusFace { face });
-    }
+    // A face that wraps BOTH coordinates alone has nothing but its own
+    // wrap edges for a boundary (D1): it is the whole torus, one face
+    // cut once each way, and holds every chart point.
     Ok((u, v))
 }
 
@@ -2159,8 +2152,9 @@ pub(super) fn torus_face_windows<T: Decide>(
 /// closed form, which on a torus is exact and purely LINEAR in both
 /// channels: the chart's two circle families are the parallels (`u`
 /// affine in the carrier's parameter, `v` constant) and the meridians
-/// (`v` affine, `u` constant), and every other circle — the Villarceau
-/// class — is refused there rather than approximated. So an edge's exact
+/// (`v` affine, `u` constant); the one other family, the Villarceau
+/// circles, images as a focal section, which takes the face out of the
+/// class rather than being approximated. So an edge's exact
 /// extent in each channel is its two endpoint evaluations, and the
 /// branch of each edge is pinned by nearest-branch continuity against
 /// the previous edge's exit, which is EXACT here because consecutive
@@ -4196,13 +4190,37 @@ pub struct WallRootFault {
 /// where an enclosure of `b` straddles zero the hull of the two is as
 /// narrow as either, and neither denominator nears zero there (it is
 /// `√disc` plus a sliver).
-fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
+pub(super) fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
     let root = disc.max(T::zero()).sqrt();
     // `−b − √disc` adds magnitudes for `b > 0`, `√disc − b` for `b ≤ 0`.
     let (minus, plus) = (T::zero() - b - root, root - b);
     [
         b.select_le_zero(c / plus, minus / a),
         b.select_le_zero(plus / a, c / minus),
+    ]
+}
+
+/// **The line × cone quadratic**: the cone's quadric form along the
+/// line `q + d·t`, negated, `(w·â)² − |w|²·cos²α = A t² + 2B t + C` with
+/// `w = q + d·t − apex` — `A` in `d`'s units squared, `B` in metres
+/// times them, `C` in m². Its zero set is the DOUBLE cone; which nappe
+/// a root lands on is the caller's question. `A = (d·â)² − |d|²cos²α`
+/// vanishes exactly when the line runs parallel to a generator. Each
+/// square straddling zero is a `powi(2)`, the tight square.
+pub(super) fn line_cone_quadratic<T: Decide>(
+    q: Point3<T>,
+    d: Vec3<T>,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+) -> [T; 3] {
+    let cos2 = half_angle.cos().powi(2);
+    let w0 = q - apex;
+    let (da, wa) = (d.dot(axis), w0.dot(axis));
+    [
+        da.powi(2) - d.norm_squared() * cos2,
+        da * wa - w0.dot(d) * cos2,
+        wa.powi(2) - w0.norm_squared() * cos2,
     ]
 }
 
@@ -5038,13 +5056,7 @@ fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
                     continue;
                 }
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let cos2 = cos_a.powi(2);
-                let w0 = q - apex;
-                let da = d.dot(axis);
-                let wa = w0.dot(axis);
-                let a2 = da.powi(2) - cos2;
-                let b2 = da * wa - w0.dot(d) * cos2;
-                let c2 = wa.powi(2) - w0.norm_squared() * cos2;
+                let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
                 // The face's own slant extent — the lever both margins
                 // below are metered by. Single-nappe by construction
                 // ([`cone_chart_trim`]), so this is the far bound.
@@ -5147,12 +5159,7 @@ fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
                 // ball holding the face blocks the ray; a `Zero` on any
                 // of these rows grazes, as on the trimmable arm, since a
                 // tighter tolerance could decide it either way.
-                let cos2 = half_angle.cos().powi(2);
-                let w0 = q - apex;
-                let (da, wa) = (d.dot(axis), w0.dot(axis));
-                let a2 = da.powi(2) - cos2;
-                let b2 = da * wa - w0.dot(d) * cos2;
-                let c2 = wa.powi(2) - w0.norm_squared() * cos2;
+                let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
                 if decide("bool_ray_cone_lead", Margin::levered(a2, reach), band)
                     .map_err(escalate)?
                     == Sign::Zero

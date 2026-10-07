@@ -33,7 +33,7 @@ fn plane() -> RecipeNodeId {
 
 /// The profile drawn on that frame: the document's second node.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {
@@ -59,6 +59,7 @@ fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
                     loops,
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -74,6 +75,7 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(xy_frame()),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -105,6 +107,7 @@ fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Formula) -> ProfileDoc {
             node: profile(doc),
             slot: *slot,
             expr,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -189,6 +192,7 @@ fn resolved_values_feed_the_key() {
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -247,6 +251,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -306,6 +311,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
                 loops,
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -19,7 +19,14 @@ An edge of the kept face that reaches the dropped face's boundary is recorded wh
 
 `Obstacles` then sees the dropped face's lost region as bordering nothing along that edge. The obstacle may fail to join a neighbouring discard, so a piece may refuse (`a piece of a face held as several borders no recorded discard between them`) or be named apart from other orders.
 
-No corpus case reaches this. The notch the slab cuts in `b`'s wall in `near` has its bottom edge at two vertex-on-face contacts, but the notch's x 0.501 edge is recorded at a vertex–vertex contact, and that joins the obstacles.
+No corpus case reaches this. PR 4129's review 5 reached it in
+editor-core: the plate less the union of holes that notch its edge
+(`topo::test_support::meeting::notch_rows`, through
+`union_pinch_member_order.rs`'s `tilted_holes`) refuses
+`Naming(Emission)` "a piece of a face held as several borders…" for
+three notches, two notches and a wedge, and two notches and two
+wedges. Those P − U rows are not in editor-core's suite; topo builds
+them sound. The notch the slab cuts in `b`'s wall in `near` has its bottom edge at two vertex-on-face contacts, but the notch's x 0.501 edge is recorded at a vertex–vertex contact, and that joins the obstacles.
 
 ## Next
 

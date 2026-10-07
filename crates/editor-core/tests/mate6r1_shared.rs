@@ -70,7 +70,7 @@ fn dangling(instance: RecipeNodeId) -> StableName {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -120,6 +120,7 @@ fn row_of(
                     offset: Some(editor_core::Placement::literal(&Frame::translation([
                         dx, 0.0, 0.0,
                     ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
@@ -186,6 +187,7 @@ fn r1_two_bad_mates_noatrest_then_reference() {
                 1.0,
                 ContactClass::Tangent,
             )),
+            fresh: Vec::new(),
         },
     );
     // mate #2 (later): a dangling reference -> Reference.
@@ -198,6 +200,7 @@ fn r1_two_bad_mates_noatrest_then_reference() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -224,6 +227,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m2) = step(
@@ -235,6 +239,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
                 1.0,
                 ContactClass::Tangent,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -266,6 +271,7 @@ fn r1_a_good_mate_after_a_bad_one() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, good) = step(
@@ -277,6 +283,7 @@ fn r1_a_good_mate_after_a_bad_one() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -315,6 +322,7 @@ fn r1_mint_refusal_precedes_the_census() {
                 1.0,
                 ContactClass::Tangent,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -366,6 +374,7 @@ fn r1_false_carried_declaration_at_both_doors() {
                 1.5,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -407,6 +416,7 @@ fn r1_true_carried_declaration_at_both_doors() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -447,6 +457,7 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -458,6 +469,7 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -518,6 +530,7 @@ fn r1_three_stands_exact_counts() {
                 1.0,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -565,6 +578,7 @@ fn r1_overlapping_false_carried_declaration() {
                 0.5,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -611,6 +625,7 @@ fn r1_two_overlapping_false_stands() {
                 0.5,
                 ContactClass::Rest,
             )),
+            fresh: Vec::new(),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());

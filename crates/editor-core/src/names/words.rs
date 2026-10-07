@@ -924,6 +924,8 @@ fn role<'n, 's>(
             text(" of the blend over "),
             cites.one(edge),
         ],
+        RoleSeg::Mitre { vertex } => vec![text("the mitre at "), cites.one(vertex)],
+        RoleSeg::TurnFoot { vertex } => vec![text("the turn foot at "), cites.one(vertex)],
         RoleSeg::BandFace(edges) => {
             let mut items = vec![text("the blend band over ")];
             items.extend(cites.list(edges));
@@ -1010,10 +1012,10 @@ mod tests {
     use crate::names::role::NameRef;
     use crate::node::StepId;
 
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(1 << 16);
-    const OTHER: RecipeNodeId = RecipeNodeId(2 << 16);
-    const OP: RecipeNodeId = RecipeNodeId(3 << 16);
-    const MOVED: RecipeNodeId = RecipeNodeId(4 << 16);
+    const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
+    const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
+    const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
+    const MOVED: RecipeNodeId = RecipeNodeId::new(0, 4 << 16);
 
     fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName { kind, node, path }
@@ -1021,7 +1023,7 @@ mod tests {
 
     fn leg(step: u64) -> ProfileEdgeRef {
         ProfileEdgeRef::Piece {
-            step: StepId(step << 16),
+            step: StepId::new(0, step << 16),
             role: PieceRole::Leg,
         }
     }

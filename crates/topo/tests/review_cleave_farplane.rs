@@ -280,6 +280,9 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
                                     && errors.iter().all(|f| matches!(
                                         f,
                                         topo::ValidationError::RingContactEscalated { .. }
+                                            | topo::ValidationError::RingPairContactEscalated {
+                                                ..
+                                            }
                                     ))
                         );
                         refused.push((format!("k={k} {name} {op:?}"), ring_contact));

@@ -206,3 +206,115 @@ fn a_box_minus_a_cylinder_has_both_rims_filleted_in_one_node() {
     let (doc, fillet) = fillet_both(doc, holed, 0.5, 2.5);
     assert_two_bands(&doc, fillet, "the box minus a cylinder");
 }
+
+/// Whether `edge`, read down its chain of operand wrappers, holds a piece
+/// qualifier anywhere: an edge's line holds none (N2).
+fn holds_a_piece_qualifier(edge: &StableName) -> bool {
+    let mut n = edge;
+    loop {
+        if matches!(
+            n.path.last(),
+            Some(RoleSeg::Fragment(editor_core::Qualifier::Ends(_)))
+        ) {
+            return true;
+        }
+        match n.path.as_slice() {
+            [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)] => n = inner,
+            _ => return false,
+        }
+    }
+}
+
+/// **A band's crossing cites the wall seam it lies on by its line** (N2,
+/// *Vertices*). The drill is notched at mid-height across one of its
+/// seams before it bores the box, so that hole-wall seam is two pieces;
+/// each band crosses the piece at its own rim, and names the crossing
+/// by the seam's line, not by the piece and its ends.
+#[test]
+fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
+    let doc = ProfileDoc::empty_derived("edit_bore_two_rims_piece", tol());
+    let (doc, block) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 1.0)],
+    );
+    let (doc, block) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: block,
+            distance: len(2.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, drill) = disc(doc, 0.0, 0.0, 0.3, 3.0);
+    let (doc, notch) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 1.4],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.3, 0.0, 0.05)],
+    );
+    let (doc, notch) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: notch,
+            distance: len(0.2),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, notched) = fixture::insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: drill,
+            b: notch,
+            declare: Vec::new(),
+        },
+    );
+    let (doc, holed) = fixture::insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: block,
+            b: notched,
+            declare: Vec::new(),
+        },
+    );
+    let (doc, fillet) = fillet_both(doc, holed, 0.5, 2.5);
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    assert!(
+        matches!(ev.nodes.get(&fillet), Some(NodeResult::Ok(_))),
+        "the fillet evaluates, got {:?}",
+        ev.nodes.get(&fillet)
+    );
+    let crossed: Vec<StableName> = table(&ev, fillet)
+        .iter()
+        .filter_map(|(n, _)| match &n.path[0] {
+            RoleSeg::BandCross { edge, .. } => Some((**edge).clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        crossed.len(),
+        4,
+        "each band crosses both wall seams: {crossed:?}"
+    );
+    let cited_pieces = table(&ev, holed)
+        .iter()
+        .filter(|(n, _)| {
+            matches!(n.path.as_slice(), [RoleSeg::FromB(inner)] if holds_a_piece_qualifier(inner))
+        })
+        .count();
+    assert!(
+        cited_pieces >= 2,
+        "the notched seam is pieces in the bored box"
+    );
+    for edge in &crossed {
+        assert!(
+            !holds_a_piece_qualifier(edge),
+            "a band crossing cites its seam's line, not a piece: {edge:?}"
+        );
+    }
+}

@@ -200,7 +200,15 @@ fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -> ProfileDoc {
@@ -237,6 +245,7 @@ fn insert_through(
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -640,14 +649,17 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let opts = p.opts();
     let poses = solve(&doc, &opts, Tol::witness());
     let world = |id| poses.placement(&doc, id).expect("posed").affine::<f64>();
-    let root_offset =
-        editor_core::test_support::stored_placement(&editor_core::Placement::from(Step::Rigid {
+    let mut written = editor_core::test_support::scratch(geom_core::Tol::witness());
+    let root_offset = editor_core::test_support::stored_placement(
+        &mut written,
+        &editor_core::Placement::from(Step::Rigid {
             translation: [1.0, 2.0, 0.0].map(len),
             axis: [0.0, 1.0, 0.0].map(scl),
             angle: ang(0.2),
-        }))
-        .eval(&doc.var_env::<f64>(), fixture::band())
-        .expect("a literal offset evaluates");
+        }),
+    )
+    .eval(&written.var_env::<f64>(), fixture::band())
+    .expect("a literal offset evaluates");
     let stated = root_offset * world(slab).inverse() * world(third);
     let doc = set_offset(
         doc,
@@ -838,7 +850,7 @@ impl Fnv {
 /// digest, and every node's error.
 fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     let poses = solve(doc, opts, Tol::witness());
-    for &id in doc.order() {
+    for id in doc.ids() {
         h.feed(format!("#{id:?}").as_bytes());
         h.feed(format!("role={:?}", poses.role(id)).as_bytes());
         h.feed(format!("fault={:?}", poses.fault(id)).as_bytes());
@@ -856,7 +868,7 @@ fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     }
     let ev = run_at::<f64>(doc, opts, None);
     h.feed(&fixture::digest::digest(&ev).to_le_bytes());
-    for &id in doc.order() {
+    for id in doc.ids() {
         h.feed(format!("{:?}", ev.node_error(id).map(|e| &e.kind)).as_bytes());
     }
 }
@@ -892,10 +904,20 @@ fn run_at<T: editor_core::EvalScalar>(
 /// variable id — with no pose moving: this file's id-free rows (each
 /// pose against the `f64` solve at the box's corners, each tangent
 /// against its central difference) are what say so.
+///
+/// Re-taken once more for INTENT-LITERALS PR C: every slot holds a
+/// variable's id, so every node is minted from other bytes, and the
+/// id-free rows held.
+///
+/// And again when an id became its mint ordinal and its digest (all
+/// three rows): the digest spells every id it feeds. The same digest
+/// with each id replaced by its document position measured equal on
+/// main and on the branch at all three ε, so no pose, role, fault or
+/// placement moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xf48f_16a4_8637_1664),
-    (1e-6, 0x0ac7_65d7_0799_cca4),
-    (1e-12, 0x9fb4_cf13_44e6_9ea8),
+    (1e-9, 0x76be_7889_78b2_4a63),
+    (1e-6, 0xce5d_7fa0_04ae_bccb),
+    (1e-12, 0x4f11_e7b4_127c_0d12),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
@@ -1842,7 +1864,7 @@ fn structure<T: editor_core::EvalScalar>(
     doc: &ProfileDoc,
     ev: &Evaluation<T>,
 ) -> Vec<(RecipeNodeId, String)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter(|&&id| {
             matches!(
@@ -1955,7 +1977,7 @@ fn assert_interval_structure(
         .filter(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label)
         .map(|(_, _, predicate)| *predicate)
         .collect();
-    let mate_log_escalated = doc.order().iter().any(|&id| {
+    let mate_log_escalated = doc.ids().iter().any(|&id| {
         matches!(doc.node(id), Some(Node::Mate { .. }))
             && match i.result(id) {
                 Some(NodeResult::Ok(v)) => !v.escalations.is_empty(),
@@ -2018,7 +2040,13 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         let want = structure(&doc, &f);
         assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
         assert_interval_structure(&doc, &f, &i, label);
-        let params: Vec<editor_core::VarId> = doc.vars().keys().copied().collect();
+        // Every free continuous variable is a seed; a defined one takes
+        // none (its derivative is its inputs').
+        let params: Vec<editor_core::VarId> = doc
+            .free_vars()
+            .filter(|(_, free)| matches!(free, editor_core::FreeVar::Continuous { .. }))
+            .map(|(id, _)| id)
+            .collect();
         let seeds = std::iter::once(None).chain(params.into_iter().map(Some));
         for seed in seeds {
             let o = EvalOptions {
@@ -2028,7 +2056,7 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
             };
             let d = run_at::<Dual64>(&doc, &o, None);
             assert_eq!(structure(&doc, &d), want, "{label}: seeded {seed:?}");
-            for &id in doc.order() {
+            for id in doc.ids() {
                 if !matches!(doc.node(id), Some(Node::InstantiatePart { .. }))
                     || f.node_error(id).is_some()
                 {
@@ -2091,10 +2119,24 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
     let fd = -2.0 * d[0] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
     assert!(fd.abs() > 0.1, "the measure moves with the spacing: {fd}");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
+    // The spacing toleranced, so the driver varies it (VR8: an
+    // untoleranced variable is a constant of the analysis).
+    let spacing = doc.var_named("s").expect("the spacing parameter");
+    let (doc, _) = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::SetVarDistribution {
+            var: spacing.into(),
+            distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
+        },
+    );
     let entries = sensitivities(&doc, m, None, None, false, Some(&resolver), Tol::witness())
         .expect("the driver runs");
-    assert_eq!(entries.len(), 1, "one continuous parameter");
-    match &entries[0].outcome {
+    assert_eq!(entries.len(), 1, "one entry, the toleranced spacing's");
+    let entry = entries
+        .iter()
+        .find(|e| e.param == spacing)
+        .expect("an entry for the spacing");
+    match &entry.outcome {
         SensitivityOutcome::Derivative { value, .. } => assert!(
             (value - fd).abs() <= 1e-12,
             "∂m/∂s is {value} where the closed form gives {fd}"

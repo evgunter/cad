@@ -126,3 +126,21 @@ on 11 of the row's 18 tilted shape-poses: all nine shapes tilted
 about two axes, and the 1.4π D and the lens tilted about one. The row
 accepts that refusal, and only it, on those results; the upright ones
 must pass.
+
+## 2026-10-07 — two lumps of a box cut by a ball (TANG, PR 4211)
+
+`sweep::a_ring_on_a_sphere_face::a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint`,
+box ∖ ball for the unit ball at the origin with its poles turned off
+every axis:
+
+- the bar `[−2, 2] × [−0.2, 0.25] × [0.1, 0.4]` (poles along
+  `(−0.6, 0.2, 0.77)`): the ball cuts the bar in two, one stub each
+  side;
+- the box `[−0.624, 1.233] × [−0.563, 0.347] × [−0.792, −0.239]`
+  (poles along `(0.636, −0.720, −0.279)`): two lumps either side of the
+  sphere's cut.
+
+Each is two shells. Tier 3 passes and the volume matches the slice
+integral. Tier 3′ answers only `CensusUndecidable` pairs, between the
+two lumps' sphere faces and the planar faces within reach of them. The
+row accepts that refusal, and only it, on those results.

@@ -101,7 +101,10 @@
 //! downstream unchanged.
 
 use geom::Surface;
-use geom_core::{Band, Indeterminate, Margin, NO_DECLARATION_RECOURSE, NOT_YET_ENDING, Sign};
+use geom_core::{
+    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NO_DECLARATION_RECOURSE, NOT_YET_ENDING,
+    Sign,
+};
 
 use crate::dihedral::decide;
 use geom::SurfaceKind;
@@ -426,3 +429,121 @@ pub fn offset_surface<T: geom_core::Decide>(
         Surface::Approx(_) => Err(OffsetError::ApproxNesting),
     }
 }
+
+/// **The inverse of [`offset_surface`]**: the signed distance `d` along
+/// `from`'s chart normal whose mint lands on `onto`'s locus, read off
+/// the one field each kind's mint changes:
+///
+/// | kind | `d` |
+/// |---|---|
+/// | plane | `(onto.origin − from.origin) · from.normal` |
+/// | cylinder, sphere | `onto.radius − from.radius` |
+/// | torus | `onto.minor_radius − from.minor_radius` |
+/// | cone | `(from.apex − onto.apex) · axis · sin α`, [`ConeOffset::apex`] solved for `d` |
+///
+/// The answer is in the MINT's convention: on a cone that is the
+/// opening nappe's normal field, so a consumer holding a mirror-nappe
+/// face turns it by that face's [`Nappe`] exactly as it turns a
+/// forward distance. Every field the mint carries verbatim (axes,
+/// frames, a plane's normal, a torus's major radius) is read from
+/// `from` and not compared: that `onto` IS an offset of `from` is the
+/// caller's claim, and the door that consumes `d` certifies the moved
+/// boundary against the geometry it lands on.
+///
+/// # Errors
+///
+/// [`OffsetDistanceError::Offset`] carrying [`offset_surface`]'s own
+/// refusal of `from`'s kind, where it has one independent of `d`:
+/// [`OffsetError::NotClosedUnderOffset`] for a NURBS,
+/// [`OffsetError::ApproxNesting`] for an approximating surface. No `d`
+/// mints anything from either, so there is none to answer.
+/// [`OffsetDistanceError::KindsDiffer`] when `onto` is an analytic kind
+/// other than `from`'s: the mint never changes kind, so the two are not
+/// an offset pair.
+pub fn offset_distance<T: geom_core::Real>(
+    from: &Surface<T>,
+    onto: &Surface<T>,
+) -> Result<T, OffsetDistanceError<T>> {
+    match (from, onto) {
+        (
+            Surface::Plane { origin, normal, .. },
+            Surface::Plane {
+                origin: onto_origin,
+                ..
+            },
+        ) => Ok((*onto_origin - *origin).dot(*normal)),
+        (
+            Surface::Cylinder { radius, .. },
+            Surface::Cylinder {
+                radius: onto_radius,
+                ..
+            },
+        )
+        | (
+            Surface::Sphere { radius, .. },
+            Surface::Sphere {
+                radius: onto_radius,
+                ..
+            },
+        ) => Ok(*onto_radius - *radius),
+        (
+            Surface::Torus { minor_radius, .. },
+            Surface::Torus {
+                minor_radius: onto_minor,
+                ..
+            },
+        ) => Ok(*onto_minor - *minor_radius),
+        (
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            },
+            Surface::Cone {
+                apex: onto_apex, ..
+            },
+        ) => Ok((*apex - *onto_apex).dot(*axis) * half_angle.sin()),
+        (Surface::Nurbs(_), _) => Err(OffsetDistanceError::Offset(
+            OffsetError::NotClosedUnderOffset,
+        )),
+        (Surface::Approx(_), _) => Err(OffsetDistanceError::Offset(OffsetError::ApproxNesting)),
+        (from, onto) => Err(OffsetDistanceError::KindsDiffer {
+            from: from.kind(),
+            onto: onto.kind(),
+        }),
+    }
+}
+
+/// Typed refusal of [`offset_distance`] (D4 ¶3).
+#[derive(Clone, Debug)]
+pub enum OffsetDistanceError<T: geom_core::Real> {
+    /// `from` is a kind [`offset_surface`] refuses at every distance.
+    Offset(OffsetError<T>),
+    /// `onto` is not the kind `from` offsets to.
+    KindsDiffer {
+        /// `from`'s kind.
+        from: SurfaceKind,
+        /// `onto`'s kind.
+        onto: SurfaceKind,
+    },
+}
+
+impl<T: geom_core::Real> core::fmt::Display for OffsetDistanceError<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Offset(error) => write!(f, "{error}"),
+            // The caller asked for the distance between two surfaces it
+            // holds as an offset pair, so a kind mismatch is its defect.
+            Self::KindsDiffer { from, onto } => write!(
+                f,
+                "a {} is never the offset of a {}, since an offset keeps its kind. \
+                 {KERNEL_DEFECT_ENDING}",
+                onto.name(),
+                from.name()
+            ),
+        }
+    }
+}
+
+impl<T: geom_core::Real> std::error::Error for OffsetDistanceError<T> {}

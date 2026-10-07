@@ -267,6 +267,7 @@ fn insert_through(
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         reach,
@@ -528,6 +529,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
                 )
                 .expect("the post lies down about +y"),
             )),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -554,6 +556,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
                 0.9,
                 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -670,6 +673,7 @@ fn stand_doc(
                 (SHELF_DEPTH - POST_SECTION) / 2.0,
                 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -1095,7 +1099,7 @@ fn poses(
         // instance's key carries its whole gauge chain; a mate's reads
         // no gauge.
         let moved: BTreeSet<RecipeNodeId> = doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .filter(|&id| {
@@ -1115,7 +1119,7 @@ fn poses(
         );
         assert_eq!(
             (ev.recomputed, ev.reused),
-            (moved.len(), doc.order().len() - moved.len()),
+            (moved.len(), doc.ids().len() - moved.len()),
             "what re-keyed re-ran, and everything else was reused"
         );
         placed_as_composed(ws, stand, bench, &ev, degrees.to_radians(), tol);
@@ -1755,15 +1759,15 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // this tree gave rather than asserting one, so a change in either
     // direction is reported at the scene instead of passing silently.
     let posts_id = DocumentId::derive("pncad-demo-posts-cell");
-    let post_i = *layout
-        .order()
-        .iter()
-        .find(|&&id| matches!(layout.node(id), Some(Node::InstantiatePart { .. })))
+    let post_i = layout
+        .ids()
+        .into_iter()
+        .find(|&id| matches!(layout.node(id), Some(Node::InstantiatePart { .. })))
         .expect("the layout has a post instance");
-    let pattern = *layout
-        .order()
-        .iter()
-        .find(|&&id| matches!(layout.node(id), Some(Node::Pattern { .. })))
+    let pattern = layout
+        .ids()
+        .into_iter()
+        .find(|&id| matches!(layout.node(id), Some(Node::Pattern { .. })))
         .expect("the layout has a pattern");
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
     match split(

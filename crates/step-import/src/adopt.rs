@@ -546,8 +546,12 @@ fn adopt_edges(
                         | Surface::Torus { .. }
                 )
             });
-            if periodic {
-                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::seam(fs_plus)));
+            // A wrap edge is a fact about one face: both its uses bound
+            // it (D1). Two faces on one surface meet at an ordinary
+            // edge, which takes the conventional rung below.
+            let (f_plus, f_minus) = sides.faces();
+            if periodic && f_plus == f_minus {
+                candidates.push((AdoptionCandidate::Wrap, EdgeDescriptionSpec::wrap(fs_plus)));
             }
         }
         if conventional
@@ -593,15 +597,27 @@ fn adopt_edges(
             ));
         }
 
-        // A band-minted seam generator (M7-5, R1 fix pass m2): the
-        // mint's D1 statement is that this edge IS the surface's
-        // u_ref half-plane seam, so the only honest description is
-        // `Seam` — the conventional mapped-curve rung is withheld,
-        // and a seam that cannot certify refuses with the ladder's
-        // own typed report instead of silently downgrading to a
-        // certified body whose "seam" is off the half-plane.
+        // An edge both of whose uses bound one face is that face's wrap
+        // edge (D1), whichever rung describes it — a closed spline
+        // wall's boundary column as much as an analytic generator —
+        // and tier 3 refuses it described otherwise. Certification
+        // then decides whether the chart closes across it.
+        let (f_plus, f_minus) = sides.faces();
+        if f_plus == f_minus {
+            for (_, description) in &mut candidates {
+                if let EdgeDescriptionSpec::Chart { wrap, .. } = description {
+                    *wrap = true;
+                }
+            }
+        }
+
+        // A band-minted generator: the mint's D1 statement is that
+        // this edge is the band face's wrap edge, so the only honest
+        // description is a wrap — the conventional mapped-curve rung
+        // is withheld, and a generator that cannot certify as one
+        // refuses with the ladder's own typed report.
         if solid.band_seams.contains(&edge_id) {
-            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Seam));
+            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Wrap));
         }
 
         let mut attempts = Vec::new();

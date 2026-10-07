@@ -12,6 +12,7 @@
 //! | `outer` (survivors keep operand keys) | outer wall face | [`RoleSeg::FromTarget`] |
 //! | `inner`, `inner_edges`, `inner_vertices` | cavity twin | [`RoleSeg::Inner`] |
 //! | `rims[i].rim` | the chart's annular rim face | [`RoleSeg::Rim`] of `sources[0]`'s name — `RimNaming::sources` preserves designation order, which is what makes "the first designated face" a fact of the record |
+//! | `rims[i].sources[1..]`, where live | a seamed band's other branch faces | [`RoleSeg::Rim`] of each one's own name |
 //! | `rims[i].ring_edges` / `ring_vertices` | the rim's ring | rows of `inner_edges` / `inner_vertices` verbatim, so `Inner` of the boundary edge — no second role |
 //! | `rims[i].holes[j].face` | a promoted hole annulus | [`RoleSeg::HoleRim`], `j` in pairing order |
 //! | `dead` | nothing | nothing — a designated face's own name VANISHES |
@@ -121,6 +122,15 @@ pub(crate) fn name_shell<T: geom_core::Real>(
             RoleSeg::Rim(f.name.clone()),
             f.tied,
         )?;
+        // A seamed band keeps every face of its chart: each designated
+        // face that survives besides the first is a branch of the same
+        // rim, named for its own source.
+        for &branch in &rim.sources[1..] {
+            if branch != rim.rim && body.get_face(branch).is_some() {
+                let b = up_f(branch)?;
+                put(EntityKey::Face(branch), RoleSeg::Rim(b.name), b.tied)?;
+            }
+        }
         for (j, hole) in rim.holes.iter().enumerate() {
             put(
                 EntityKey::Face(hole.face),
@@ -134,8 +144,13 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     }
     // The twins. A designated face's twin is listed here too and dies
     // in the rim surgery; it never appears in the body, so its row is
-    // read and never consulted.
+    // read and never consulted. On a void designation the rim IS a
+    // twin, and its rim role, minted above, is the one it carries.
+    let rim_faces: BTreeSet<FaceKey> = rec.rims.iter().map(|rim| rim.rim).collect();
     for (twin, src) in &rec.inner {
+        if rim_faces.contains(twin) {
+            continue;
+        }
         let s = up_f(*src)?;
         put(EntityKey::Face(*twin), RoleSeg::Inner(s.name), s.tied)?;
     }

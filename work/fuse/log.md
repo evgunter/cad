@@ -602,3 +602,43 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - Fork-log row 78 is complete.
   - `curved-joinable-vertices-are-left-unjoined` is dispatched on
     `fuse/curved-join`.
+- 2026-10-07 — PR 4200 lands: sweeps build one rim edge per run,
+  the sweep half of step 2.
+  - **Review:** single FULL review, with 568 probe bodies clean and the
+    mutants killed. The fix pass added the coverage rows and the k-lint
+    correction, and gave `Collapsed` one home.
+  - **CI fixes on the way:** the guide doctest was this PR's own; the
+    bounds-roster line was main's red since #4173 and was ported in.
+  - **Rows:** `sweeps-build-one-rim-edge-per-segment-not-per-run`
+    closes. Step 3 waits only on the curved join (`fuse/curved-join`).
+- 2026-10-07 — Curved-join lane: the naming half is split out.
+  - **Finding:** no editor-core document produces a closed join
+    today. The one construction that would (a sphere cut-in:
+    lens ∩ tilted brick) already fails emit on main with
+    `Naming(MissingUpstream)` at the cap node, with curved joins
+    disabled too, so the failure predates this lane.
+  - **Ruled (orchestrator):** the PR lands without the edge-derived
+    name. "No identity" holds by refusal instead: name minting at a
+    conventional vertex refuses typed and never mints a member- or
+    position-citing name. The ranking skips and the order-row helper
+    come along only if they need no new vocabulary.
+  - **Filed rows:** one FUSE row for the name, the new RoleSeg and the
+    six-order document witness, blocked on an EMIT issue row for the
+    `MissingUpstream` failure.
+- 2026-10-07 — PR 4233 lands: the curved join.
+  - **What it builds:** one joinable predicate; closed joins with a
+    conventional vertex; records and census at that vertex. Naming it
+    refuses typed, and the edge-derived name is filed behind EMIT's
+    `MissingUpstream` row.
+  - **Review:** dual. Lane A (ruling) found the curved name was a
+    second spelling of the flush rule and could read the vertex's
+    position. Lane B (correctness) found nothing blocking; two mutants
+    of the conventional predicate survived. Both were fixed, and a
+    delta re-review checked them.
+  - **Rulings:**
+    - later cuts reuse the vertex; lane B showed a literal
+      edge-interior split would refuse;
+    - the names README's closed-edge sentence lands as Ev's 4198 ruling
+      applied, quoted in the PR body for Ev.
+  - **Rows:** `curved-joinable-vertices-are-left-unjoined` closes, and
+    seven residue rows were filed. Step 3 (the tier-2 check) is next.

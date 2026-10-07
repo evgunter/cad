@@ -977,7 +977,7 @@ mod tests {
     #[test]
     fn the_measurement_walk_and_drop_keep_their_own_stack() {
         test_utils::own_thread::on_the_smallest_stack(|| {
-            let leaf = MeasureExpr::value(crate::expr::Expr::count(0));
+            let leaf = MeasureExpr::value_at(crate::VarId::new(0, 0), crate::Dimension::Count);
             let deep = crate::tree::raw_chain(leaf, 1_000_000, crate::measure::raw_neg);
             let (mut cursor, mut clearance_cursor) = (0, 0);
             let band = Band::new(1e-9, 1e-6).expect("a valid band");

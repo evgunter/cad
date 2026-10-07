@@ -66,7 +66,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// kind, which the quantiles of a long tail need not.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 69, 111, 248_708]),
+    ("full", [19, 97, 181, 274_184]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -74,7 +74,20 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// evaluation, in the corpus's order: a wrong word of the same length
 /// moves it where [`NAME_WORDS`] cannot see. Re-pinned with the words
 /// that moved, said in the PR that moves them.
-const SAID_DIGEST: u64 = 0x02c5_d48f_27c8_0034;
+///
+/// INTENT-LITERALS PR C: the words that moved are the node tags (`Extrude
+/// e548`): every slot holds a variable's id, so every node is minted
+/// from other bytes. [`NAME_WORDS`] held, so no name says a word more or
+/// fewer.
+///
+/// Ids as their mint ordinal and digest: a `Borders` refusal lists its
+/// walls in mint order now (it listed them by digest), and nothing else
+/// moved — the node tags are still the digest's. Re-taken on PR 4228's
+/// tree (a cited line, and `Ends` on every piece), whose words moved
+/// it. On that tree the ids reorder an `Ends` list the same way they
+/// reorder a `Borders` one (mint order, not digest order), and move no
+/// other word.
+const SAID_DIGEST: u64 = 0x461b_e352_3eb9_8c3c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -117,7 +130,7 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
     let full = Speaker::of(doc);
     let scoped = full.within(ev);
     let mut out = Census::default();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(value) = ev.value(id) else { continue };
         let mut groups: [BTreeMap<String, usize>; 3] = Default::default();
         for (name, _) in value.name_table.iter() {
@@ -349,7 +362,7 @@ fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'st
         .iter()
         .zip(evals)
         .find_map(|(d, ev)| {
-            d.doc.order().iter().find_map(|&id| match d.doc.node(id) {
+            d.doc.ids().iter().find_map(|&id| match d.doc.node(id) {
                 Some(Node::Fillet { selection, .. }) if selection.len() > 1 => Some((
                     &d.doc,
                     ev,
@@ -417,7 +430,7 @@ fn refusals(
         t_hi: 1.0,
         point: geom_core::Point3::new(0.0, 0.0, 0.0),
     };
-    let instance = RecipeNodeId(test_utils::refusal::tagged(1));
+    let instance = RecipeNodeId::new(0, test_utils::refusal::tagged(1));
     vec![
         (
             "ResolveError::Vanished",
@@ -724,6 +737,7 @@ fn respoken_after_a_dropped_step() {
                 node: profile,
                 loops: vec![rod_loop(true)],
                 ids,
+                fresh: Vec::new(),
             },
             tol,
             &RefusingReach,
@@ -772,7 +786,10 @@ fn each_boolean_join_says_its_operation() {
             .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
             .name_table;
         let by = Speaker::of(&r.doc);
-        let join = format!(", {verb} at {noun} {}", test_utils::refusal::tag(at.0));
+        let join = format!(
+            ", {verb} at {noun} {}",
+            test_utils::refusal::tag(at.0.digest())
+        );
         let through_b: Vec<String> = table
             .iter()
             .map(|(name, _)| name)
@@ -862,7 +879,7 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
         .map(|d| (&d.doc, fixture::run(&d.doc, &EvalOptions::default())))
         .filter_map(|(doc, ev)| {
             let node = doc
-                .order()
+                .ids()
                 .iter()
                 .copied()
                 .filter(|&id| ev.value(id).is_some())

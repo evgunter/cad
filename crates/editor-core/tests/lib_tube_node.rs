@@ -90,16 +90,18 @@ fn spine_doc(
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: axis_dir.map(scl),
             })),
+            fresh: Vec::new(),
         },
     );
-    let spine = *doc.order().last().expect("the datum is there");
+    let spine = *doc.ids().last().expect("the datum is there");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(build(spine)),
+            fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("the tube is there");
+    let tube = *doc.ids().last().expect("the tube is there");
     (doc, tube)
 }
 
@@ -141,7 +143,7 @@ fn solid_node(
     minor: f64,
 ) -> AuthoredNode {
     Node::Tube {
-        spine: RecipeNodeId(0),
+        spine: RecipeNodeId::new(0, 0),
         u_ref: u_ref.map(scl),
         major_radius: len(major),
         window,
@@ -157,7 +159,7 @@ fn hollow_node(
     wall: f64,
 ) -> AuthoredNode {
     Node::HollowTube {
-        spine: RecipeNodeId(0),
+        spine: RecipeNodeId::new(0, 0),
         u_ref: u_ref.map(scl),
         major_radius: len(major),
         window,
@@ -211,12 +213,20 @@ fn the_two_kinds_share_every_slot_but_the_wall() {
 
     // One DAG edge each: the spine. A tube has no profile operand.
     assert_eq!(
-        editor_core::test_support::stored(&solid).inputs(),
-        vec![RecipeNodeId(0)]
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &solid
+        )
+        .inputs(),
+        vec![RecipeNodeId::new(0, 0)]
     );
     assert_eq!(
-        editor_core::test_support::stored(&hollow).inputs(),
-        vec![RecipeNodeId(0)]
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &hollow
+        )
+        .inputs(),
+        vec![RecipeNodeId::new(0, 0)]
     );
     // And no payload names: a tube references no stable name, so a
     // `Rebind` cannot reach one.
@@ -437,9 +447,10 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
             })),
+            fresh: Vec::new(),
         },
     );
-    let spine = *doc.order().last().expect("datum");
+    let spine = *doc.ids().last().expect("datum");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -450,9 +461,10 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
                 window: arc(t0, t1),
                 minor_radius: len(outer),
             }),
+            fresh: Vec::new(),
         },
     );
-    let solid = *doc.order().last().expect("solid");
+    let solid = *doc.ids().last().expect("solid");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -464,9 +476,10 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
                 minor_radius: len(outer),
                 wall: len(wall),
             }),
+            fresh: Vec::new(),
         },
     );
-    let hollow = *doc.order().last().expect("hollow");
+    let hollow = *doc.ids().last().expect("hollow");
 
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
@@ -773,9 +786,10 @@ fn a_spine_that_is_not_an_axis_refuses_at_the_operand() {
             node: Box::new(Node::Datum(Datum::Point {
                 position: [len(0.0), len(0.0), len(0.0)],
             })),
+            fresh: Vec::new(),
         },
     );
-    let point = *doc.order().last().expect("datum point");
+    let point = *doc.ids().last().expect("datum point");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -786,9 +800,10 @@ fn a_spine_that_is_not_an_axis_refuses_at_the_operand() {
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("tube");
+    let tube = *doc.ids().last().expect("tube");
     let ev = eval::<f64>(&doc);
     match ev.nodes.get(&tube) {
         Some(NodeResult::Failed(e)) => assert!(
@@ -900,7 +915,7 @@ fn both_kinds_round_trip_through_persistence() {
         // otherwise every assertion above would hold vacuously over a
         // document this unit never touched.
         assert!(
-            back.doc.order().iter().any(|&id| matches!(
+            back.doc.ids().iter().any(|&id| matches!(
                 back.doc.node(id),
                 Some(Node::Tube { .. } | Node::HollowTube { .. })
             )),
@@ -958,11 +973,11 @@ fn a_document_written_before_the_tube_vocabulary_still_loads() {
         .join("\n");
     let loaded = load(&text, Tol::witness()).expect("an older document loads");
     assert!(
-        !loaded.doc.order().is_empty() || !loaded.edits.is_empty(),
+        !loaded.doc.ids().is_empty() || !loaded.edits.is_empty(),
         "a vacuous document would prove nothing about growth"
     );
     assert!(
-        loaded.doc.order().iter().all(|&id| !matches!(
+        loaded.doc.ids().iter().all(|&id| !matches!(
             loaded.doc.node(id),
             Some(Node::Tube { .. } | Node::HollowTube { .. })
         )),
