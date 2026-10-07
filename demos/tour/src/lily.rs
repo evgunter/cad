@@ -3923,7 +3923,7 @@ mod review_probes {
     /// stacking fold.** The wall is no longer at spine turn π and is
     /// no longer about how far the spine goes. The loft's stacking
     /// statement is a fold over adjacent section pairs, each decided
-    /// against its own base section's normal, so a blade whose spine
+    /// against both its sections' normals, so a blade whose spine
     /// turns a full circle and more builds as long as each of its
     /// slabs advances — and at [`LOFT_STATIONS`] stations each slab
     /// carries 1/16 of the turn.

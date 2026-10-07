@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_ruling_lying_on_a_wall.rs"]
+mod a_ruling_lying_on_a_wall;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "at_rest_pcurve_faces.rs"]
@@ -390,6 +392,8 @@ mod reach_aligned_half_rods;
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]
 mod reach_continuation;
+#[path = "reach_split_gate_azimuth.rs"]
+mod reach_split_gate_azimuth;
 #[path = "reach_split_gate_per_face.rs"]
 mod reach_split_gate_per_face;
 #[path = "reach_split_gate_pose.rs"]
