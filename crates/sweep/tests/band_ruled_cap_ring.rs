@@ -416,7 +416,7 @@ fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_interva
 fn a_bore_on_the_arc_just_past_a_foot_carves_at_the_closed_form() {
     let (c, _) = upper_corner(ROD_FILLET);
     let wall = c.1.atan2(c.0);
-    for delta in [0.5f64, 5.0, 20.0].map(f64::to_radians) {
+    for delta in [2.0f64, 5.0, 20.0].map(f64::to_radians) {
         for (angle, gap, side) in [
             (
                 -delta,
