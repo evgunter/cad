@@ -476,6 +476,22 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/topo/src/boolean/boxes.rs",
+        subject: "axis_key",
+        why: Payload(
+            "the narrow phase's axis key: a vector's three brackets, compared for equality to \
+             drop a repeated or opposed candidate axis, and stop",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/boolean/boxes.rs",
+        subject: "circle_box",
+        why: Payload(
+            "the extent scan's section-circle box: a centre's, a frame's and a radius's \
+             brackets into an f64 `bvh::Aabb` through `conic_extent`, padded, and stop",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/boolean/boxes.rs",
         subject: "centred_box",
         why: Payload(
             "a ball's box, for the extent scan and the crossing layer's touch reading: a \

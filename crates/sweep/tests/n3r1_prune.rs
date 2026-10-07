@@ -119,25 +119,17 @@ fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {
     }
 }
 
-/// Corpus pairs whose idealized trace counts, as the pair's event, a
-/// face-free vertex record made against a face its edge's box never
-/// meets — the same v-v record the face holding the vertex makes, which
-/// the accumulator dedups, so the realized sweep loses no contact by
-/// pruning it
-/// (`work/hone/sweep-trace-counts-a-face-free-vertex-record-as-the-pairs-event.md`).
-/// The count is pinned, and
-/// [`n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts`]
-/// is the guard behind it: a pair the exemption hid that carried a real
-/// event would show there as a contact or a split one strategy lacks.
-const FACE_FREE_RECORDS: &[(&str, usize)] = &[("cylinder x cylinder shifted 0.3", 16)];
-
 /// The adopted arm's candidate set on the corpus: 154 examined pairs —
 /// the landing PR's 98 (the base arm examined 134; the 36 lost are that
 /// PR's table, each on loci separated by more than the pad with no
 /// reference-accepted event), and the 56 of the cylinder pair shifted
 /// 0.3, whose rim crossings the circle × cylinder root lane now
 /// certifies — and no reference-accepted pair unexamined wherever the
-/// reference runs, but the face-free records above.
+/// reference runs. A face-free vertex record the idealized trace counts
+/// against a face the fragment's box never meets would show here
+/// (`work/hone/sweep-trace-counts-a-face-free-vertex-record-as-the-pairs-event.md`);
+/// none stands on the corpus, since the narrow phase behind the tree
+/// (`boolean::separating`) parts the cylinder pair's in both strategies.
 #[test]
 fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
     let mut total_prune_pairs = 0usize;
@@ -160,15 +152,7 @@ fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
                 .iter()
                 .filter(|p| !ex(&real.1).contains(p))
                 .count();
-            let face_free = FACE_FREE_RECORDS
-                .iter()
-                .find(|(n, _)| *n == name)
-                .map_or(0, |&(_, k)| k);
-            assert_eq!(
-                lx + ly,
-                face_free,
-                "{name}: an accepted pair was never examined"
-            );
+            assert_eq!(lx + ly, 0, "{name}: an accepted pair was never examined");
         }
         let a = finished(&format!("{name}: A"), a, Tol::witness());
         let b = finished(&format!("{name}: B"), b, Tol::witness());
@@ -177,8 +161,7 @@ fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
     assert_eq!(total_prune_pairs, 154, "the corpus's candidate total moved");
 }
 
-/// **Pruning loses no contact and no split, corpus-wide** — the guard
-/// behind [`FACE_FREE_RECORDS`]. The realized and idealized sweeps must
+/// **Pruning loses no contact and no split, corpus-wide**. The realized and idealized sweeps must
 /// record the same contacts and leave operands of the same sizes, and a
 /// pair one of them refuses the other refuses the same way.
 #[test]
@@ -211,7 +194,7 @@ fn n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts() {
     assert!(
         compared
             .iter()
-            .any(|n| FACE_FREE_RECORDS.iter().any(|(f, _)| f == n)),
-        "the exempted pair is among those compared: {compared:?}"
+            .any(|n| n == "cylinder x cylinder shifted 0.3"),
+        "the pair that makes face-free records is among those compared: {compared:?}"
     );
 }
